@@ -1768,7 +1768,10 @@
         "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Dyktowanie nie jest skonfigurowane.",
         "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza."
-      }
+      },
+      "pill": "Dyktowanie",
+      "listening": "Słucham",
+      "done": "Zakończ dyktowanie"
     },
     "voice": {
       "start": "Rozpocznij rozmowę głosową",

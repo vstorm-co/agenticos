@@ -537,14 +537,14 @@ describe("the chat container - server dictation", () => {
     expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "off");
   });
 
-  it("puts a failure in the strip under the box, which loses its bottom corners", async () => {
+  it("puts a failure in the strip on top of the box, which loses its top corners", async () => {
     dictation.phase = "failed";
     dictation.reason = "provider_error";
     mount();
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Transcription didn't finish.");
-    expect(document.querySelector('[data-tour="chat-composer"]')).toHaveClass("rounded-b-none");
+    expect(document.querySelector('[data-tour="chat-composer"]')).toHaveClass("rounded-t-none");
     expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
   });
 
@@ -619,7 +619,10 @@ describe("the chat container - server dictation", () => {
 
     // The bar with its Stop button is gone, so the recording goes with it.
     await waitFor(() => expect(dictation.cancel).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Stop and transcribe" })).not.toBeInTheDocument();
+    // Gone once the pill has finished leaving.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Stop and transcribe" })).not.toBeInTheDocument(),
+    );
   });
 
   it("leaves the glow to the open microphone for the browser engine", async () => {

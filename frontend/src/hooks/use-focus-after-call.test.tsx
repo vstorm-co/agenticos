@@ -51,4 +51,21 @@ describe("useFocusAfterCall", () => {
     expect(first).not.toHaveBeenCalled();
     expect(latest).toHaveBeenCalledOnce();
   });
+
+  it("counts focus still in a pill that is fading out as lost", () => {
+    const pill = document.createElement("div");
+    pill.setAttribute("data-floating-pill", "");
+    const end = document.createElement("button");
+    pill.append(end);
+    document.body.append(pill);
+    const place = vi.fn();
+    const view = renderHook(({ onCall }) => useFocusAfterCall(onCall, place), {
+      initialProps: { onCall: true },
+    });
+    end.focus();
+
+    view.rerender({ onCall: false });
+
+    expect(place).toHaveBeenCalledExactlyOnceWith(true);
+  });
 });

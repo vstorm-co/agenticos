@@ -18,7 +18,12 @@ export function useFocusAfterCall(onCall: boolean, place: (lost: boolean) => voi
   useEffect(() => {
     if (wasOnCall.current && !onCall) {
       const focused = document.activeElement;
-      placeRef.current(focused === null || focused === document.body);
+      // A pill fading out still holds focus for its exit: that focus is lost too.
+      placeRef.current(
+        focused === null ||
+          focused === document.body ||
+          focused.closest("[data-floating-pill]") !== null,
+      );
     }
     wasOnCall.current = onCall;
   }, [onCall]);

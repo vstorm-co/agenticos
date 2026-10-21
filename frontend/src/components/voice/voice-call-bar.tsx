@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import {
   useCallback,
@@ -19,6 +20,7 @@ import { viewState } from "@/lib/voice/call-reducer";
 import { waveVisual } from "@/lib/voice/waveform";
 import { useVoiceCallStore, useVoiceGlowStore } from "@/stores";
 
+import { PILL_SPRING } from "./floating-pill";
 import { voiceCallHint, type VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallStatus } from "./voice-call-status";
 import { VoiceControls } from "./voice-controls";
@@ -181,13 +183,17 @@ export function VoiceCallBar({
         />
       )}
       {pill ? (
-        <div
+        <motion.div
           ref={barRef}
+          // The pill eases to its new width as the state changes - Listening to
+          // Speaking, a push-to-talk button appearing - rather than snapping.
+          layout={!reduced}
+          transition={reduced ? { duration: 0 } : { layout: PILL_SPRING }}
           role="group"
           aria-label={tView("bar")}
           tabIndex={-1}
           className={cn(
-            "bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 flex items-center gap-2 rounded-full py-1.5 pr-1.5 pl-1.5 shadow-lg outline-none",
+            "bg-foreground text-background flex items-center gap-2 overflow-hidden rounded-full py-1.5 pr-1.5 pl-1.5 shadow-lg outline-none",
             call.approval !== null && "ring-warning ring-2",
           )}
         >
@@ -218,7 +224,7 @@ export function VoiceCallBar({
             onEnd={end}
             inverse
           />
-        </div>
+        </motion.div>
       ) : (
         <>
           <div

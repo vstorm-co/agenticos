@@ -554,57 +554,18 @@ describe("ChatInput while dictating", () => {
       fireEvent.submit(container.querySelector("form")!);
       expect(onSend).not.toHaveBeenCalled();
       expect(busy.actions.stop).toHaveBeenCalledTimes(phase === "recording" ? 1 : 0);
-      // The row with the picker, stop-generating and Send stays mounted, hidden
-      // and inert: the model override on it is state of its own.
+      // The row with the picker, stop-generating and Send stays on screen, inert:
+      // the composer does not change under the page's dictation pill.
       expect(screen.getByTestId("agent-picker").closest("[inert]")).not.toBeNull();
       expect(
         screen.getByRole("button", { name: "Stop generating" }).closest("[inert]"),
-      ).toHaveClass("hidden");
+      ).not.toHaveClass("hidden");
 
       fireEvent.keyDown(box, { key: "Escape" });
       expect(busy.actions.cancel).toHaveBeenCalledOnce();
       expect(messageOf(box)).toBe("draft");
     },
   );
-  it("cancels on Escape from the bar too, and leaves Escape alone once idle", () => {
-    const dictation = serverDictation({}, { phase: "recording" });
-    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-
-    fireEvent.keyDown(screen.getByRole("button", { name: "Stop and transcribe" }), {
-      key: "Escape",
-    });
-    expect(dictation.actions.cancel).toHaveBeenCalledOnce();
-
-    const idle = moved(dictation, { phase: "idle" });
-    rerender(<ChatInput onSend={vi.fn()} dictation={idle} />);
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
-    expect(idle.actions.cancel).toHaveBeenCalledOnce();
-  });
-
-  it("moves focus to Stop when the recording is live", () => {
-    const dictation = serverDictation({}, { phase: "requesting" });
-    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-
-    rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "recording" })} />);
-
-    expect(screen.getByRole("button", { name: "Stop and transcribe" })).toHaveFocus();
-  });
-
-  it("keeps Escape cancelling once Stop is pressed, by handing focus to Cancel", () => {
-    const dictation = serverDictation({}, { phase: "requesting" });
-    const { rerender, container } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-    rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "recording" })} />);
-    expect(screen.getByRole("button", { name: "Stop and transcribe" })).toHaveFocus();
-
-    const busy = moved(dictation, { phase: "transcribing" });
-    rerender(<ChatInput onSend={vi.fn()} dictation={busy} />);
-
-    const focused = document.activeElement as HTMLElement;
-    expect(container.querySelector("form")).toContainElement(focused);
-    fireEvent.keyDown(focused, { key: "Escape" });
-    expect(busy.actions.cancel).toHaveBeenCalledOnce();
-  });
-
   it("brings focus back to the box when dictation ends in a failure", () => {
     const dictation = serverDictation({}, { phase: "requesting" });
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);

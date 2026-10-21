@@ -1768,7 +1768,10 @@
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Diktieren ist nicht eingerichtet.",
         "notSetUpBody": "Der Speech-to-Text-Provider dieses Agents hat keinen nutzbaren Schlüssel mehr."
-      }
+      },
+      "pill": "Diktieren",
+      "listening": "Hört zu",
+      "done": "Diktieren beenden"
     },
     "voice": {
       "start": "Sprachanruf starten",

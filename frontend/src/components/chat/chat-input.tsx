@@ -52,7 +52,6 @@ import {
 } from "@/lib/mentions";
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
-import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
@@ -60,7 +59,6 @@ import type { UseMicrophoneResult } from "voice-glow";
 import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
 import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
 
-import { DictationBar } from "./dictation-bar";
 import { movesOn } from "./dictation-strip";
 
 /**
@@ -174,6 +172,11 @@ interface ChatInputProps {
    */
   dictation?: ComposerDictation;
   /**
+   * Hears when the browser's own recognition starts listening, with how to stop
+   * it, and when it stops - for the page's dictation pill (#54).
+   */
+  onListeningChange?: (stop: (() => void) | null) => void;
+  /**
    * Files handed in from outside the composer - the AI Architect's screenshot of
    * the page (#2063) - attached as if picked, once per `id`.
    */
@@ -214,6 +217,7 @@ export function ChatInput({
   onProject,
   actionsSlot,
   dictation,
+  onListeningChange,
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
@@ -499,6 +503,15 @@ export function ChatInput({
     }
   };
 
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    mic?.stop();
+    setIsListening(false);
+  }, [mic]);
+  useEffect(() => {
+    onListeningChange?.(isListening ? stopListening : null);
+  }, [isListening, stopListening, onListeningChange]);
+
   const toggleMic = useCallback(() => {
     if (isListening) {
       recognitionRef.current?.stop();
@@ -767,14 +780,10 @@ export function ChatInput({
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
-      {server && dictating && <DictationBar state={server.state} actions={server.actions} />}
-      {/* Hidden rather than unmounted while dictating: the pickers on it hold
-          state of their own (the model override), and the agent the recording
-          goes to must not change under it. */}
-      <div
-        className={cn("flex items-center gap-1.5 pt-0.5 pb-1", dictating && "hidden")}
-        inert={dictating}
-      >
+      {/* Inert rather than hidden while dictating: the composer does not change
+          under the page's dictation pill, and the agent the recording goes to
+          must not change under it either. */}
+      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"

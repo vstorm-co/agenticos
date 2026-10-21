@@ -83,9 +83,12 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
+import { BrowserDictationPill, DictationPill } from "./dictation-bar";
 import { dictationHint, DictationStrip } from "./dictation-strip";
+import { useAudioLevel } from "@/hooks/use-audio-level";
 import { AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { FloatingPill } from "@/components/voice/floating-pill";
 import { MessageItem } from "./message-item";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
@@ -942,6 +945,16 @@ function ChatUI({
       : null;
   const recordingPhase =
     dictationState.phase === "recording" || dictationState.phase === "transcribing";
+  // The pill above the composer while a recording is made and transcribed.
+  const serverDictating =
+    engine === "server" && (dictationState.phase === "requesting" || recordingPhase);
+  // The browser's recognition, while it listens: how to stop it, from the composer.
+  const [stopBrowserDictation, setStopBrowserDictation] = useState<(() => void) | null>(null);
+  const onListeningChange = useCallback(
+    (stop: (() => void) | null) => setStopBrowserDictation(() => stop),
+    [],
+  );
+  const browserLevel = useAudioLevel(stopBrowserDictation ? mic.stream : null);
   const [composerFocused, setComposerFocused] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   // Offered by `@` only while the chat can still choose its project, as the `+` is.
@@ -1313,29 +1326,53 @@ function ChatUI({
                   pill floating above it, so the chat stays the chat and a draft
                   and its attachments are still there when the call ends. */}
               <div className="relative">
-                {onCall && (
-                  <div className="absolute bottom-full left-1/2 z-10 mb-3 -translate-x-1/2">
-                    <VoiceCallBar
-                      pill
-                      session={voice}
-                      agentName={callAgent?.name ?? t("rail.agent")}
-                      avatar={
-                        callAgent ? (
-                          <AgentAvatar
-                            agentId={callAgent.id}
-                            slug={callAgent.slug}
-                            hasAvatar={callAgent.has_avatar}
-                            colorSlot={callAgent.avatar_color}
-                            size="sm"
-                            className="rounded-full"
-                          />
-                        ) : undefined
-                      }
-                      canDecide={can(Perm.approvalsDecide)}
-                      onShowApproval={showVoiceApproval}
-                    />
-                  </div>
-                )}
+                <FloatingPill
+                  pill={
+                    onCall
+                      ? {
+                          key: "call",
+                          node: (
+                            <VoiceCallBar
+                              pill
+                              session={voice}
+                              agentName={callAgent?.name ?? t("rail.agent")}
+                              avatar={
+                                callAgent ? (
+                                  <AgentAvatar
+                                    agentId={callAgent.id}
+                                    slug={callAgent.slug}
+                                    hasAvatar={callAgent.has_avatar}
+                                    colorSlot={callAgent.avatar_color}
+                                    size="sm"
+                                    className="rounded-full"
+                                  />
+                                ) : undefined
+                              }
+                              canDecide={can(Perm.approvalsDecide)}
+                              onShowApproval={showVoiceApproval}
+                            />
+                          ),
+                        }
+                      : serverDictating
+                        ? {
+                            key: "dictation",
+                            node: (
+                              <DictationPill state={dictationState} actions={dictationActions} />
+                            ),
+                          }
+                        : stopBrowserDictation
+                          ? {
+                              key: "browser",
+                              node: (
+                                <BrowserDictationPill
+                                  level={browserLevel}
+                                  onDone={stopBrowserDictation}
+                                />
+                              ),
+                            }
+                          : null
+                  }
+                />
                 {/* Around the whole composer, not around a row inside it: the glow
                 blooms outward from the edge it is given, and given an inner row
                 it bloomed into the card's own fill and was all but invisible.
@@ -1363,6 +1400,8 @@ function ChatUI({
                   lights when the caret arrives is the box saying it is where
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
+                  {/* Every hint on top of the box, beside the pill it belongs to. */}
+                  <DictationStrip hint={composerStrip} placement="above" />
                   <Beam
                     size="md"
                     borderRadius={16}
@@ -1374,7 +1413,7 @@ function ChatUI({
                       className={cn(
                         "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
                         !compact && "composer-glass",
-                        composerStrip !== null && "rounded-b-none",
+                        composerStrip !== null && "rounded-t-none",
                       )}
                     >
                       <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
@@ -1413,6 +1452,7 @@ function ChatUI({
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}
+                          onListeningChange={onListeningChange}
                           dictation={{
                             engine,
                             state: dictationState,
@@ -1476,10 +1516,6 @@ function ChatUI({
                       </div>
                     </div>
                   </Beam>
-                  {/* Attached under the box and sliding out from behind it: every
-                    hint, prompt and error dictation has, so the bar above
-                    holds controls only. */}
-                  <DictationStrip hint={composerStrip} />
                 </VoiceGlow>
               </div>
               <ComposerStatus isConnected={isConnected} compact={compact} />

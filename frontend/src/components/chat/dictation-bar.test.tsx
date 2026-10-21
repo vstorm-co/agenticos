@@ -1,10 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DictationActions, DictationState, LevelMeter } from "@/hooks/use-dictation";
 
-import { clock, DictationBar } from "./dictation-bar";
+import { BrowserDictationPill, clock, DictationBar, DictationPill } from "./dictation-bar";
 
 const motionState = vi.hoisted(() => ({ reduced: false }));
 vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => motionState.reduced }));
@@ -254,5 +255,92 @@ describe("DictationBar", () => {
       expect(button.className).toContain("pointer-coarse:h-11");
       expect(button.className).toContain("pointer-coarse:w-11");
     }
+  });
+});
+
+describe("DictationPill", () => {
+  it("records with Cancel, the time, a short wave and Done, as one group", () => {
+    const actions = fakeActions();
+    const { container } = render(<DictationPill state={dictationState()} actions={actions} />);
+    const pill = screen.getByRole("group", { name: "Dictation" });
+    expect(pill).toHaveClass("bg-foreground", "rounded-full");
+    expect(screen.getByRole("timer", { name: "Recording time" })).toHaveTextContent("0:07");
+    expect(container.querySelectorAll('[data-testid="waveform"] i')).toHaveLength(18);
+    fireEvent.click(screen.getByRole("button", { name: "Stop and transcribe" }));
+    expect(actions.stop).toHaveBeenCalledOnce();
+  });
+
+  it("moves focus to Done the moment it records, and cancels on Escape", () => {
+    const actions = fakeActions();
+    const { rerender } = render(
+      <DictationPill state={dictationState({ phase: "requesting" })} actions={actions} />,
+    );
+    expect(screen.getByRole("button", { name: "Stop and transcribe" })).toBeDisabled();
+    rerender(<DictationPill state={dictationState()} actions={actions} />);
+    const done = screen.getByRole("button", { name: "Stop and transcribe" });
+    expect(done).toHaveFocus();
+    fireEvent.keyDown(done, { key: "Escape" });
+    expect(actions.cancel).toHaveBeenCalledOnce();
+    fireEvent.keyDown(done, { key: "Enter" });
+    expect(actions.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("says it is transcribing, how much audio and how much has gone up, Cancel kept", () => {
+    const actions = fakeActions();
+    const { rerender } = render(<DictationPill state={dictationState()} actions={actions} />);
+    rerender(<DictationPill state={dictationState({ phase: "transcribing" })} actions={actions} />);
+    const cancel = screen.getByRole("button", { name: "Cancel transcription" });
+    expect(cancel).toHaveFocus();
+    expect(screen.getByRole("group", { name: "Dictation" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Transcribing")).toBeInTheDocument();
+    expect(screen.getByText("0:07 of audio")).toBeInTheDocument();
+    rerender(
+      <DictationPill
+        state={dictationState({ phase: "transcribing", upload: 40 })}
+        actions={actions}
+      />,
+    );
+    expect(screen.getByTestId("dictation-upload")).toHaveTextContent("Uploading 40%");
+    fireEvent.click(cancel);
+    expect(actions.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("steps its level under reduced motion, with no wave", () => {
+    motionState.reduced = true;
+    const { container } = render(
+      <DictationPill state={dictationState({ meter: at(0.6) })} actions={fakeActions()} />,
+    );
+    expect(screen.getByTestId("level-steps")).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="waveform"]')).toBeNull();
+  });
+});
+
+describe("BrowserDictationPill", () => {
+  it("listens with a wave and stops on Done", () => {
+    const onDone = vi.fn();
+    render(<BrowserDictationPill level={0.4} onDone={onDone} />);
+    expect(screen.getByText("Listening")).toBeInTheDocument();
+    expect(screen.getByTestId("waveform")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done dictating" }));
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
+  it("steps its level under reduced motion", () => {
+    motionState.reduced = true;
+    render(<BrowserDictationPill level={0.4} onDone={vi.fn()} />);
+    expect(screen.getByTestId("level-steps")).toBeInTheDocument();
+  });
+});
+
+describe("on the server", () => {
+  it("draws the bar and the pill at rest, with no level to read yet", () => {
+    // `useSyncExternalStore`'s server reading: there is no meter on the server.
+    const state = dictationState({ meter: at(0.9) });
+    expect(renderToString(<DictationBar state={state} actions={fakeActions()} />)).toContain(
+      "0:07",
+    );
+    expect(renderToString(<DictationPill state={state} actions={fakeActions()} />)).toContain(
+      "0:07",
+    );
   });
 });

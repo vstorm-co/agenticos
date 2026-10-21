@@ -389,7 +389,17 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
  * around it so it is not read twice; so is a quiet hint, which the page has
  * already announced.
  */
-export function DictationStrip({ hint }: { hint: StripHint | null }) {
+export function DictationStrip({
+  hint,
+  placement = "below",
+}: {
+  hint: StripHint | null;
+  /**
+   * `above` is `/chat`, where every hint sits on top of the composer, near the
+   * pill it belongs to, and slides up from behind the box; `below` hangs under it.
+   */
+  placement?: "above" | "below";
+}) {
   const reduced = useReducedMotion();
   const slide = reduced ? { duration: 0 } : { duration: 0.23, ease: EASE_OUT };
   const fade = reduced ? { duration: 0 } : { duration: 0.18, ease: "linear" as const };
@@ -409,12 +419,13 @@ export function DictationStrip({ hint }: { hint: StripHint | null }) {
           >
             <motion.div
               data-testid="dictation-strip-panel"
-              initial={{ y: "-100%" }}
+              initial={{ y: placement === "above" ? "100%" : "-100%" }}
               animate={{ y: 0 }}
-              exit={{ y: "-100%" }}
+              exit={{ y: placement === "above" ? "100%" : "-100%" }}
               transition={slide}
               className={cn(
-                "border-border text-muted-foreground relative rounded-b-2xl border border-t-0 px-3.5 py-2.5 text-[12.5px] leading-[1.45] break-words transition-colors",
+                "border-border text-muted-foreground relative border px-3.5 py-2.5 text-[12.5px] leading-[1.45] break-words transition-colors",
+                placement === "above" ? "rounded-t-2xl border-b-0" : "rounded-b-2xl border-t-0",
                 error ? "bg-destructive/10" : "bg-muted",
               )}
             >

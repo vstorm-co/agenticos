@@ -1768,7 +1768,10 @@
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Dictation isn't set up.",
         "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
-      }
+      },
+      "pill": "Dictation",
+      "listening": "Listening",
+      "done": "Done dictating"
     },
     "voice": {
       "start": "Start a voice call",
