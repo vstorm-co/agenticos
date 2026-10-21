@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7c64b3a7b7"
+source_sha: "e3ab788c1fcd"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tool-Beschreibungen und Skills vor. Über jede entscheidet ein Mensch."
 ---
@@ -90,7 +90,10 @@ Entscheidungen sind endgültig, und die Leiste behält sie als Protokoll.
 **Mit Evals prüfen** führt ein [Dataset](datasets.md) gegen den Draft aus, wie er
 mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version im
 selben [Eval Run](evals.md#a-baseline-in-the-same-run). Durch die Prüfung wird
-nichts angenommen, und der Draft ändert sich nicht.
+nichts angenommen, und der Draft ändert sich nicht. Solange ein wartender
+Vorschlag nicht mehr zum Draft passt oder mit einem anderen kollidiert, wird die
+Prüfung abgelehnt, bis er angenommen oder verworfen ist: Der Run misst genau das,
+was wartet.
 
 Die Fälle aus den Gesprächen, aus denen die Vorschläge abgeleitet wurden, werden
 weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten

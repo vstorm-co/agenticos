@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7c64b3a7b7"
+source_sha: "e3ab788c1fcd"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las descripciones de herramientas y los skills de un agent. Una persona decide cada uno."
 ---
@@ -87,7 +87,9 @@ definitivas y la barra las conserva como registro.
 **Comprobar con evals** ejecuta un [dataset](datasets.md) contra el draft tal como
 quedaría con todas las sugerencias pendientes aceptadas, junto a la versión
 publicada en el mismo [eval run](evals.md#a-baseline-in-the-same-run). Comprobar
-no acepta nada y el draft no cambia.
+no acepta nada y el draft no cambia. Mientras una sugerencia pendiente ya no
+encaje en el draft, o choque con otra, la comprobación se rechaza hasta que se
+acepte o se descarte: el run mide exactamente lo que espera.
 
 Los casos tomados de las conversaciones de las que salieron las sugerencias
 quedan fuera, y el run dice cuántos: un cambio nunca se mide con los datos a los

@@ -82,7 +82,9 @@ the strip keeps them as a record.
 **Check with evals** runs a [dataset](datasets.md) against the draft as it would
 be with every waiting suggestion accepted, beside the published version in the
 same [eval run](evals.md#a-baseline-in-the-same-run). Nothing is accepted by
-checking, and the draft does not change.
+checking, and the draft does not change. While a waiting suggestion no longer
+fits the draft, or clashes with another, the check is refused until it is
+accepted or dismissed: the run measures exactly what waits.
 
 The cases taken from the conversations the suggestions were derived from are left
 out, and the run says how many: a change is never measured on the data it was

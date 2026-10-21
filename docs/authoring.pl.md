@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7c64b3a7b7"
+source_sha: "e3ab788c1fcd"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, opisach narzędzi i skillach. O każdej decyduje człowiek."
 ---
@@ -85,7 +85,9 @@ je jako zapis.
 **Sprawdź evalami** uruchamia [dataset](datasets.md) na drafcie takim, jaki byłby
 po przyjęciu wszystkich oczekujących sugestii, obok opublikowanej wersji w tym
 samym [eval runie](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
-przyjmuje i nie zmienia draftu.
+przyjmuje i nie zmienia draftu. Dopóki któraś oczekująca sugestia nie pasuje
+już do draftu albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
+nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
 
 Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją
