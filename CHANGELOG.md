@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
+
 ## [1.12.0] - 2026-10-22
 
 ### Added

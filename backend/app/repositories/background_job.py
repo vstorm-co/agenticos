@@ -464,6 +464,25 @@ async def unsettled_ends(
     ]
 
 
+async def claim_settlement(db: AsyncSession, job_id: UUID) -> bool:
+    """Lock `job_id` for its settler, if its settlement is still owed and nobody holds it.
+
+    Two callers reach one end: the worker that saw it die settles it right after
+    the death is committed, and every rescuer pass settles whatever it reads as
+    owed - which includes an end whose settler is running at that moment (#2334).
+    The row lock is held for the transaction, so the settler runs inside it: a
+    second caller skips the locked row, and one arriving after the commit finds
+    `settled_at` set. A settler that fails rolls the transaction back and leaves
+    the end owed, for the next rescuer pass.
+    """
+    result = await db.execute(
+        select(BackgroundJob.id)
+        .where(BackgroundJob.id == job_id, BackgroundJob.settled_at.is_(None))
+        .with_for_update(skip_locked=True)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def mark_settled(db: AsyncSession, job_id: UUID) -> None:
     """Record that what `job_id` left outside the queue is closed."""
     await db.execute(
