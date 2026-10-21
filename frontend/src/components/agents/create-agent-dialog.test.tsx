@@ -12,6 +12,11 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/components/authoring/describe-with-architect", () => ({
+  DescribeWithArchitect: ({ onAsked }: { onAsked: () => void }) => (
+    <button onClick={onAsked}>Describe it to the Architect</button>
+  ),
+}));
 
 import { toast } from "sonner";
 
@@ -58,6 +63,12 @@ describe("CreateAgentDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("closes once the description was handed to the Architect", async () => {
+    const { onOpenChange } = open();
+    await userEvent.click(screen.getByRole("button", { name: "Describe it to the Architect" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("shows the handle the name will produce, while it is being typed", async () => {
