@@ -20,7 +20,7 @@ the notifications and preferences of the new event type before narrowing the
 two CHECKs back.
 
 Revision ID: 0151_eval_suites
-Revises: 0149_knowledge_gaps
+Revises: 0150_case_generation
 Create Date: 2026-10-19
 """
 
@@ -32,7 +32,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0151_eval_suites"
-down_revision: str | None = "0149_knowledge_gaps"
+down_revision: str | None = "0150_case_generation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
