@@ -149,12 +149,15 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const [search, setSearch] = useState("");
   const query = useDebounced(search);
   const listed = useDatasets({ search: query, sort: "updated", limit: SHOWN });
-  const { datasets, isLoading } = listed;
+  const { isLoading } = listed;
+  // Scoring takes `datasets:run` on the dataset: one the caller may only read would refuse.
+  const datasets = listed.datasets.filter((item) => item.can_run);
   const { question, answerId } = useRunTurn(runId);
   // The datasets with a case asking the run's own question open the list, so the
   // dialog lands on one of them rather than on whichever changed last. The server
   // reads the question from the run: a conversation's words stay out of the URL.
-  const { datasets: holding } = useDatasets({ asksRun: runId, sort: "updated", limit: SHOWN });
+  const found = useDatasets({ asksRun: runId, sort: "updated", limit: SHOWN });
+  const holding = found.datasets.filter((item) => item.can_run);
   const offered =
     query === ""
       ? [...holding, ...datasets.filter((item) => !holding.some((held) => held.id === item.id))]
@@ -164,7 +167,9 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const [page, setPage] = useState(0);
   const [result, setResult] = useState<CaseScore | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const chosen = datasetId || offered[0]?.id || "";
+  // Nothing is picked for the reader before the server has said which datasets hold
+  // the question, so a score is never sent to the one about to be replaced.
+  const chosen = datasetId || (found.isLoading ? "" : (offered[0]?.id ?? ""));
   const dataset = offered.find((item) => item.id === chosen);
   const scoring = dataset?.scoring;
   const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
@@ -210,7 +215,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
           </p>
         ) : (
           <div className="space-y-4">
-            {(listed.total > datasets.length || search !== "") && (
+            {(listed.total > listed.datasets.length || search !== "") && (
               <SearchInput value={search} onChange={setSearch} placeholder={t("findDataset")} />
             )}
             <FormField htmlFor="score-dataset" label={td("dataset")}>
