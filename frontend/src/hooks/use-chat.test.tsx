@@ -142,7 +142,7 @@ beforeEach(() => {
   socket.isConnected = true;
   socket.getProtocols = null;
   useAgentSelectionStore.setState({ selectedAgentId: null });
-  useAuthStore.setState({ accessToken: "t-1" });
+  useAuthStore.setState({ accessToken: "t-1", user: null });
   useOrgStore.setState({ activeOrgId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
@@ -363,6 +363,42 @@ describe("useChat - the streamed answer", () => {
       status: "completed",
       result: "3 passages",
     });
+  });
+
+  const SPEAKS_POLISH = {
+    id: "u-1",
+    email: "ada@example.com",
+    is_active: true,
+    created_at: "2026-10-21T00:00:00Z",
+    locale: "pl" as const,
+  };
+
+  it("switches the account's language when an agent was asked to", () => {
+    // What "switch to English" in a chat does (#2301): the console follows the
+    // account, so the page changes as the agent's call answers.
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_language",
+      args: { locale: "en" },
+    });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("en");
+  });
+
+  it("leaves the language alone for any other tool", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "web_search", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("pl");
   });
 
   it("ignores a tool frame with no message open", () => {

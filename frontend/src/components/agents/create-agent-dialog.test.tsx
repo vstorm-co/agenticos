@@ -101,7 +101,7 @@ describe("CreateAgentDialog", () => {
   });
 
   it("starts every agent with the starter agent's recommended capabilities", async () => {
-    // What the Claude Code like template binds, config and all - ask_user among
+    // What the AgenticOS template binds, config and all - ask_user among
     // them (#2064) - and nothing the catalog does not recommend.
     const sandbox = {
       id: "sandbox",

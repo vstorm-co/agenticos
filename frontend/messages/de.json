@@ -892,7 +892,15 @@
     "voiceProviderChoose": "Provider wählen",
     "voicePreview": "Diese Stimme anhören",
     "voicePreviewStop": "Anhalten",
-    "voicePreviewNeedsKey": "Wählen Sie einen Schlüssel, um diese Stimme anzuhören"
+    "voicePreviewNeedsKey": "Wählen Sie einen Schlüssel, um diese Stimme anzuhören",
+    "startersTitle": "Erste Nachrichten",
+    "startersHint": "Was der Chat jemandem anbietet, der diesen Agent zum ersten Mal öffnet - ein Klick sendet sie. Höchstens {max}; ohne zeigt der Chat seine eigenen.",
+    "starterNumber": "Erste Nachricht {number}",
+    "removeStarter": "Erste Nachricht {number} entfernen",
+    "newStarter": "Neue erste Nachricht",
+    "newStarterPlaceholder": "Wobei kannst du mir helfen?",
+    "addStarter": "Hinzufügen",
+    "platformUngatedBadge": "eigene Einstellung, ohne Freigabe"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1151,11 +1159,11 @@
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
     "empty": {
-      "brainstormPrompt": "Gib mir 5 Ideen für unseren nächsten Team-Newsletter.",
-      "brainstormTitle": "Ideen sammeln",
       "commandPalette": "Befehlspalette",
-      "conceptPrompt": "Erkläre in einfachen Worten, was ein KI-Agent für mein Team tun könnte – unter 200 Wörtern.",
-      "conceptTitle": "Ein Konzept erklären",
+      "capabilitiesPrompt": "Was kannst du hier für mich tun? Zeig es mir an einem Beispiel aus meiner Arbeit.",
+      "capabilitiesTitle": "Was kannst du?",
+      "routinePrompt": "Schick mir jeden Montag um 9:00 eine kurze Zusammenfassung der wichtigsten KI-Nachrichten der letzten Woche.",
+      "routineTitle": "Eine Routine einrichten",
       "docsPrompt": "Fasse die Kernpunkte meiner neuesten Dokumente zusammen.",
       "docsTitle": "Meine Dokumente zusammenfassen",
       "greeting": "Wie kann ich helfen, {name}?",
@@ -4275,6 +4283,10 @@
       "agent-voice": {
         "title": "Stimme",
         "body": "Legen Sie auf dem Tab „Sprachanrufe“ Realtime-Modell und Stimme für Anrufe fest und auf dem Tab „Diktieren“, ob das Mikrofon im Chat einen Provider oder den Browser nutzt."
+      },
+      "agent-starters": {
+        "title": "Erste Nachrichten",
+        "body": "Was der Chat jemandem anbietet, der diesen Agent öffnet, bevor etwas gesagt wurde. Wer neu ist, erfährt daraus mehr darüber, wofür der Agent da ist, als aus seiner Beschreibung - machen Sie also jede zu einer echten Frage, die er gut beantwortet."
       }
     },
     "chooseLanguage": "Sprache"

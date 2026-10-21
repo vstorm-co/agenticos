@@ -215,7 +215,9 @@ function PlatformBindingDialog({
                         <span className="flex items-center gap-2">
                           <span className="font-mono text-xs">{tool.name}</span>
                           {tool.writes && (
-                            <Badge variant="outline">{t("platformWritesBadge")}</Badge>
+                            <Badge variant="outline">
+                              {tool.ungated ? t("platformUngatedBadge") : t("platformWritesBadge")}
+                            </Badge>
                           )}
                         </span>
                         <span className="text-muted-foreground block text-xs">

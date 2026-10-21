@@ -36,6 +36,7 @@ const UNGATED_LAUNCH = [
 // subset of these (instructions, tools, publish).
 const BUILDER_STEPS = [
   "agent-instructions",
+  "agent-starters",
   "agent-model",
   "agent-voice",
   "agent-identity",

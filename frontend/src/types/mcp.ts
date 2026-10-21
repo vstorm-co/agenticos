@@ -97,6 +97,8 @@ export interface PlatformMcpTool {
   description: string;
   /** Whether it changes something - held for approval under `approval: writes`. */
   writes: boolean;
+  /** Runs without approval under every policy: it changes only the caller's own preference. */
+  ungated?: boolean;
 }
 
 export interface PlatformMcpToolList {

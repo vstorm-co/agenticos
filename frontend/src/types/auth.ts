@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/locales";
+
 export interface User {
   id: string;
   email: string;
@@ -28,6 +30,11 @@ export interface User {
   notify_budget_alerts?: boolean;
   notify_approval_requests?: boolean;
   notify_usage_reports?: boolean;
+  /**
+   * The console language the person chose, on every device - by the menu or by
+   * asking an agent. Null until they choose, and the cookie decides as before.
+   */
+  locale?: Locale | null;
   /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates

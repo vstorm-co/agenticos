@@ -77,9 +77,11 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
   const { create, categoryOptions, tagOptions } = useAgents();
-  // A new agent starts with what the starter agent has - the Claude Code like
+  // A new agent starts with what the starter agent has - the AgenticOS
   // template - so it can ask, plan, search, work in a sandbox and delegate from
-  // its first run; its author switches off what it should not do.
+  // its first run; its author switches off what it should not do. The server
+  // fills in the rest of the starter - its instructions, skills, the
+  // platform's own tools and its budget - for a spec that leaves them empty.
   const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
   const starter = catalog.flatMap((entry) =>
     entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],

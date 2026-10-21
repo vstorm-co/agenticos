@@ -388,6 +388,8 @@ export interface AgentSpec {
   instructions: string;
   /** Custom variables the instructions may use. Optional here, always on the wire. */
   variables?: PromptVariableSpec[];
+  /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
+  starters?: string[];
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
@@ -512,6 +514,8 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** The published version's first messages, which an empty chat offers. Listing only. */
+  starters?: string[];
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is
@@ -698,7 +702,7 @@ export interface CapabilityCatalogEntry {
    */
   voice: "live" | "hand_off" | "never";
   /**
-   * How the starter agent (the Claude Code like template) binds this capability,
+   * How the starter agent (the AgenticOS template) binds this capability,
    * or null where it does not. Marked Recommended, and what a new agent starts with.
    */
   recommended: CapabilityBindingSpec | null;

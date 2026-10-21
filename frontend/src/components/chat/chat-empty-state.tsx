@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, FileSearch, Mail, Sparkles } from "lucide-react";
+import { CalendarClock, Compass, FileSearch, Mail, MessageSquare, Sparkles } from "lucide-react";
 
 import { useTranslations } from "next-intl";
 
@@ -8,14 +8,18 @@ import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
 import { useAgentSelectionStore } from "@/stores";
 
-import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
+import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
 
-/** The four openers, in order. Their words live in the catalog under `empty.<id>*`. */
+/**
+ * The four openers for an agent that names none of its own, in order. Their
+ * words live in the catalog under `empty.<id>*`. Two of them show what an agent
+ * here does beyond answering - say what it can, and run on a schedule (#2301).
+ */
 const PROMPTS = [
+  { icon: Compass, id: "capabilities" },
   { icon: FileSearch, id: "docs" },
-  { icon: BookOpen, id: "concept" },
+  { icon: CalendarClock, id: "routine" },
   { icon: Mail, id: "email" },
-  { icon: Sparkles, id: "brainstorm" },
 ] as const;
 
 interface ChatEmptyStateProps {
@@ -33,6 +37,23 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const { agents } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
   const description = agent?.description?.trim();
+  // The agent's own first messages, as its published version names them, in
+  // the words its author wrote - the card is the message, so nothing under it.
+  const starters = agent?.starters ?? [];
+  const suggestions: WelcomeSuggestion[] = starters.length
+    ? starters.map((starter, index) => ({
+        key: `starter-${index}`,
+        icon: MessageSquare,
+        title: starter,
+        prompt: starter,
+        description: "",
+      }))
+    : PROMPTS.map((p) => ({
+        key: p.id,
+        icon: p.icon,
+        title: t(`${p.id}Title`),
+        prompt: t(`${p.id}Prompt`),
+      }));
 
   return (
     <ChatWelcome
@@ -60,12 +81,7 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
           t("lead")
         )
       }
-      suggestions={PROMPTS.map((p) => ({
-        key: p.id,
-        icon: p.icon,
-        title: t(`${p.id}Title`),
-        prompt: t(`${p.id}Prompt`),
-      }))}
+      suggestions={suggestions}
       onPick={onPick}
       footer={
         <>

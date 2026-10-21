@@ -892,7 +892,15 @@
     "voiceProviderChoose": "Wybierz providera",
     "voicePreview": "Posłuchaj tego głosu",
     "voicePreviewStop": "Zatrzymaj",
-    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu"
+    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu",
+    "startersTitle": "Pierwsze wiadomości",
+    "startersHint": "Co czat proponuje komuś, kto otwiera tego agenta pierwszy raz - jedno kliknięcie wysyła wiadomość. Najwyżej {max}; bez nich czat pokazuje własne.",
+    "starterNumber": "Pierwsza wiadomość {number}",
+    "removeStarter": "Usuń pierwszą wiadomość {number}",
+    "newStarter": "Nowa pierwsza wiadomość",
+    "newStarterPlaceholder": "W czym możesz mi pomóc?",
+    "addStarter": "Dodaj",
+    "platformUngatedBadge": "własne ustawienie, bez zgody"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1151,11 +1159,11 @@
     "edit": "Edytuj",
     "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
     "empty": {
-      "brainstormPrompt": "Daj mi 5 pomysłów na następny newsletter zespołu.",
-      "brainstormTitle": "Burza mózgów",
       "commandPalette": "paleta komend",
-      "conceptPrompt": "Wyjaśnij prostymi słowami, co agent AI mógłby zrobić dla mojego zespołu - do 200 słów.",
-      "conceptTitle": "Wyjaśnij pojęcie",
+      "capabilitiesPrompt": "Co możesz tu dla mnie zrobić? Pokaż na przykładzie z mojej pracy.",
+      "capabilitiesTitle": "Co potrafisz?",
+      "routinePrompt": "W każdy poniedziałek o 9:00 wysyłaj mi krótkie podsumowanie najważniejszych wiadomości o AI z ostatniego tygodnia.",
+      "routineTitle": "Ustaw rutynę",
       "docsPrompt": "Podsumuj najważniejsze punkty z moich ostatnich dokumentów.",
       "docsTitle": "Podsumuj dokumenty",
       "greeting": "W czym mogę pomóc, {name}?",
@@ -4163,6 +4171,10 @@
       "agent-voice": {
         "title": "Głos",
         "body": "Na karcie Rozmowy głosowe ustaw model realtime i głos do rozmów, a na karcie Dyktowanie zdecyduj, czy mikrofon w czacie korzysta z providera, czy z przeglądarki."
+      },
+      "agent-starters": {
+        "title": "Pierwsze wiadomości",
+        "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
       }
     },
     "chooseLanguage": "Język"

@@ -41,6 +41,7 @@ import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
+import { StartersPanel } from "@/components/agents/starters-panel";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -1356,6 +1357,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onInsert={insertVariableAtCaret}
               onCustomChange={(variables) => update({ variables })}
               onTimeZoneChange={(time_zone) => update({ time_zone })}
+            />
+
+            <StartersPanel
+              starters={spec.starters ?? []}
+              disabled={!canEdit}
+              onChange={(starters) => update({ starters })}
             />
 
             {/* The model, then how it is asked: one card, apart from the

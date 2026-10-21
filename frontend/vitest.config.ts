@@ -137,6 +137,7 @@ export default defineConfig({
         // with what applies that preference app-wide (#1797).
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
+        "src/components/layout/account-locale.tsx",
         "src/components/settings/appearance-settings.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",

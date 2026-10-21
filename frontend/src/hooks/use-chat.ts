@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
+import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
@@ -775,6 +776,14 @@ export function useChat(options: UseChatOptions = {}) {
               result: content,
               status: "completed",
             });
+            // An agent asked to switch the console's language: the page follows
+            // the account, so switching here is recording what it chose.
+            const name = chatApi
+              .getState()
+              .messages.find((m) => m.id === currentMessageIdRef.current)
+              ?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
+            const chosen = name ? localeChosenBy(name, content) : null;
+            if (chosen) adoptAccountLocale(chosen);
           }
           break;
         }

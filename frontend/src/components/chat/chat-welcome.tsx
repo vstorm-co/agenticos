@@ -12,7 +12,7 @@ export interface WelcomeSuggestion {
   title: string;
   /** What is sent when it is picked, shown under the title unless `description` is. */
   prompt: string;
-  /** What the card says under its title, where that is not the prompt itself. */
+  /** What the card says under its title, where that is not the prompt itself; empty for nothing. */
   description?: string;
   /** Offered as a small × on the card - a pinned prompt taken off. */
   onRemove?: () => void;
@@ -107,16 +107,18 @@ export function ChatWelcome({
                 <span className="text-foreground block text-sm font-medium">
                   {suggestion.title}
                 </span>
-                <span
-                  className={cn(
-                    "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
-                    // A narrow window shows four cards and a composer at once only
-                    // when each says its prompt in a line.
-                    compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
-                  )}
-                >
-                  {suggestion.description ?? suggestion.prompt}
-                </span>
+                {suggestion.description !== "" && (
+                  <span
+                    className={cn(
+                      "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
+                      // A narrow window shows four cards and a composer at once only
+                      // when each says its prompt in a line.
+                      compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
+                    )}
+                  >
+                    {suggestion.description ?? suggestion.prompt}
+                  </span>
+                )}
               </span>
               {suggestion.onRemove ? (
                 // Room for the × that sits over this corner.

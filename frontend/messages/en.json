@@ -892,7 +892,15 @@
     "voiceProviderChoose": "Choose a provider",
     "voicePreview": "Listen to this voice",
     "voicePreviewStop": "Stop",
-    "voicePreviewNeedsKey": "Choose a key to listen to this voice"
+    "voicePreviewNeedsKey": "Choose a key to listen to this voice",
+    "startersTitle": "First messages",
+    "startersHint": "What the chat offers somebody opening this agent for the first time - one click sends one. Up to {max}; with none, the chat shows its own.",
+    "starterNumber": "First message {number}",
+    "removeStarter": "Remove first message {number}",
+    "newStarter": "New first message",
+    "newStarterPlaceholder": "What can you help me with?",
+    "addStarter": "Add",
+    "platformUngatedBadge": "your own setting, never asks"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1151,11 +1159,11 @@
     "edit": "Edit",
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
-      "brainstormPrompt": "Give me 5 ideas for our next team newsletter.",
-      "brainstormTitle": "Brainstorm",
       "commandPalette": "command palette",
-      "conceptPrompt": "Explain in plain words what an AI agent could do for my team - under 200 words.",
-      "conceptTitle": "Explain a concept",
+      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
+      "capabilitiesTitle": "What can you do?",
+      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
+      "routineTitle": "Set up a routine",
       "docsPrompt": "Summarize the key points from my latest documents.",
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
@@ -4393,6 +4401,10 @@
       "agent-voice": {
         "title": "Voice",
         "body": "Take calls with a realtime model and voice on the Voice calls tab, and on the Dictation tab choose whether the chat microphone uses a provider or the browser."
+      },
+      "agent-starters": {
+        "title": "First messages",
+        "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
       }
     },
     "chooseLanguage": "Language"
