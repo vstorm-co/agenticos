@@ -498,6 +498,24 @@ describe("useActiveOrganizationRecovery", () => {
     expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
   });
 
+  it("drops the cache on a switch made on a page a link named the organization of", async () => {
+    // The link's `?org=` stays in the URL after the switch, while every request
+    // from then on carries the organization switched to - so the cache has to
+    // follow the selection, not the URL, or the previous tenant stays on screen.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    search.mockReturnValue(new URLSearchParams({ org: OTHER }));
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+    client.setQueryData(["datasets", "d-1"], { id: "d-1", name: "The linked organization's" });
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    await waitFor(() => expect(client.getQueryData(["datasets", "d-1"])).toBeUndefined());
+  });
+
   it("leaves a working organization alone", async () => {
     useOrgStore.setState({ activeOrgId: PERSONAL });
     answerWith([{ id: PERSONAL, is_personal: true }], {

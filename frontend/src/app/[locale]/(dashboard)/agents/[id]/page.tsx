@@ -84,6 +84,7 @@ import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcu
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -151,7 +152,7 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -228,6 +229,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
+    error,
     fetchedAt,
     saveDraft,
     validate,
@@ -788,6 +790,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
     () => capabilities.filter((entry) => entry.id !== THINKING_ID),
     [capabilities],
   );
+
+  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
+  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
+  // still holds it (deleted from another tab); any other failure keeps the Builder open.
+  const gone = error instanceof ApiError && error.status === 404;
+  if (error && (!agent || gone)) {
+    return (
+      <ErrorState
+        title={t("agentUnavailable")}
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+      />
+    );
+  }
 
   if (isLoading || !spec || !agent) return <BuilderSkeleton />;
 

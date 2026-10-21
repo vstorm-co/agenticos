@@ -623,12 +623,43 @@ async def fail_abandoned(
         .with_for_update(of=EvalRun, skip_locked=True)
     )
     abandoned = [row[0] for row in result.all()]
-    if not abandoned:
-        return 0
+    if abandoned:
+        await _end_unfinished(
+            db,
+            abandoned,
+            now=now,
+            error="The worker running this eval stopped before it finished.",
+        )
+    return len(abandoned)
+
+
+async def fail_live(
+    db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, now: datetime, error: str
+) -> bool:
+    """Fail a run that is still live, with the attempts it had not finished.
+
+    Returns:
+        False when the run is gone or had already ended, which keeps its outcome.
+    """
+    run = await lock(db, eval_run_id, organization_id=organization_id)
+    if run is None or run.status not in _LIVE:
+        return False
+    await _end_unfinished(db, [run.id], now=now, error=error)
+    return True
+
+
+async def _end_unfinished(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, now: datetime, error: str
+) -> None:
+    """Fail the runs, their running attempts with them, and skip what never started.
+
+    The organization's eval concurrency counts running attempts, so an attempt
+    left running would hold its slot for good.
+    """
     await db.execute(
         update(EvalRunCase)
         .where(
-            EvalRunCase.eval_run_id.in_(abandoned),
+            EvalRunCase.eval_run_id.in_(eval_run_ids),
             EvalRunCase.status == CaseAttemptStatus.PENDING.value,
         )
         .values(status=CaseAttemptStatus.SKIPPED.value)
@@ -636,22 +667,17 @@ async def fail_abandoned(
     await db.execute(
         update(EvalRunCase)
         .where(
-            EvalRunCase.eval_run_id.in_(abandoned),
+            EvalRunCase.eval_run_id.in_(eval_run_ids),
             EvalRunCase.status == CaseAttemptStatus.RUNNING.value,
         )
         .values(status=CaseAttemptStatus.FAILED.value, error="The worker stopped mid-case.")
     )
     await db.execute(
         update(EvalRun)
-        .where(EvalRun.id.in_(abandoned))
-        .values(
-            status=EvalRunStatus.FAILED.value,
-            error="The worker running this eval stopped before it finished.",
-            ended_at=now,
-        )
+        .where(EvalRun.id.in_(eval_run_ids))
+        .values(status=EvalRunStatus.FAILED.value, error=error, ended_at=now)
     )
     await db.flush()
-    return len(abandoned)
 
 
 async def scores(

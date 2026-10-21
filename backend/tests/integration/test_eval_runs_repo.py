@@ -388,6 +388,38 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     assert claimed.id in {case.id for case in cases if case.error}
 
 
+async def test_a_live_run_is_failed_with_what_it_had_not_finished(db) -> None:
+    ctx, *_, run, _arm = await _setup(db)
+    claimed = await eval_run_repo.claim_next(
+        db, run.id, organization_id=ctx.organization_id, org_limit=10, now=_NOW
+    )
+    assert claimed is not None
+    run.status = EvalRunStatus.RUNNING.value
+    await db.flush()
+
+    elsewhere = await eval_run_repo.fail_live(
+        db, run.id, organization_id=uuid.uuid4(), now=_NOW, error="Stopped."
+    )
+    assert elsewhere is False
+
+    failed = await eval_run_repo.fail_live(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW, error="Stopped."
+    )
+    await db.refresh(run)
+    cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
+
+    assert failed is True
+    assert (run.status, run.error, run.ended_at) == (EvalRunStatus.FAILED.value, "Stopped.", _NOW)
+    assert sorted(case.status for case in cases) == ["failed", "skipped", "skipped"]
+
+    # An ended run keeps its outcome.
+    again = await eval_run_repo.fail_live(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW, error="Later."
+    )
+    await db.refresh(run)
+    assert (again, run.error) == (False, "Stopped.")
+
+
 async def test_a_queued_run_waits_its_own_window_before_it_is_given_up(db) -> None:
     ctx, *_, run, _arm = await _setup(db)
     run.created_at = _NOW - timedelta(hours=3)
