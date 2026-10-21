@@ -7,7 +7,7 @@ The claims a mocked session cannot make:
 - one Accept is one new version, whatever it carried, holding `synthetic` cases
   that keep the document, run or conversation they were drafted from;
 - a reviewer's edit is what lands, redacted like any other way in;
-- a draft decided twice is decided once;
+- a draft decided twice, or named twice in one decision, is decided once;
 - only a member who may edit the dataset sees or decides its drafts, and a grant
   is what lets a Viewer do it;
 - a draft from chats is read and decided only by a member who may view runs.
@@ -153,7 +153,7 @@ async def test_a_dismissed_draft_leaves_no_trace(db) -> None:
     generation, drafted = await world.proposals(db, org, dataset, agent, 2)
     service = CaseGenerationService(db, vector_store=MagicMock())
 
-    await service.dismiss(owner, dataset.id, CaseProposalDismiss(ids=[drafted[0].id]))
+    await service.dismiss(owner, dataset.id, CaseProposalDismiss(ids=[drafted[0].id] * 2))
 
     assert await db.scalar(select(func.count(DatasetVersion.id))) == 0
     remaining = await service.list_proposals(owner, dataset.id)
@@ -257,11 +257,15 @@ async def test_a_draft_from_chats_is_only_read_or_decided_by_who_may_view_runs(d
     )
     await db.flush()
     _, [chat] = await world.proposals(db, org, dataset, agent, 1, source_message_id=None)
-    _, [typical] = await world.proposals(db, org, dataset, agent, 1, origin=CaseOrigin.AGENT)
+    typical_generation, [typical] = await world.proposals(
+        db, org, dataset, agent, 1, origin=CaseOrigin.AGENT
+    )
     service = CaseGenerationService(db, vector_store=MagicMock())
 
     seen = await service.list_proposals(member, dataset.id)
     assert ([p.id for p in seen.items], seen.total, seen.hidden) == ([typical.id], 1, 1)
+    one = await service.list_proposals(member, dataset.id, generation_id=typical_generation.id)
+    assert (one.total, one.hidden) == (1, 0)
     assert (await DatasetService(db).read(member, dataset.id)).pending_proposals == 1
     with pytest.raises(NotFoundError):
         await service.accept(member, dataset.id, _accept(chat.id))
@@ -346,12 +350,17 @@ async def test_a_person_s_export_carries_the_drafts_taken_from_them(db) -> None:
     owner, org, agent, dataset = await _setup(db)
     person = await world.user(db)
     _, theirs, _ = await world.asked(db, org, agent, person, "Mine", minutes=1)
-    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=theirs.id)
+    await world.proposals(
+        db, org, dataset, agent, 1, source_conversation_id=theirs.id, counter_example="Not that."
+    )
     _, other, _ = await world.asked(db, org, agent, await world.user(db), "Not mine", minutes=2)
     await world.proposals(db, org, dataset, agent, 1, source_conversation_id=other.id)
 
     export = await PersonalDataService(db).export(person.id, actor_user_id=person.id)
 
     assert [row["source_conversation_id"] for row in export.case_proposals] == [theirs.id]
-    assert export.case_proposals[0]["input"] == "question 0"
+    row = export.case_proposals[0]
+    assert row["input"] == "question 0"
+    assert row["counter_example"] == "Not that."
+    assert {"history", "tags", "source_run_id", "source_message_id"} <= set(row)
     del owner

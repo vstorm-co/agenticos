@@ -81,14 +81,20 @@ _NOTIFICATION_FIELDS = (
     "created_at",
 )
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
+# Every field a draft can carry a person's words in, and every link back to them.
 _CASE_PROPOSAL_FIELDS = (
     "id",
     "dataset_id",
     "origin",
     "input",
+    "history",
     "reference_answer",
+    "counter_example",
     "note",
+    "tags",
+    "source_run_id",
     "source_conversation_id",
+    "source_message_id",
     "created_at",
 )
 

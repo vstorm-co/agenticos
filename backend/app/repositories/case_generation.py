@@ -139,11 +139,13 @@ async def count_pending(
     organization_id: UUID,
     without_origin: str | None = None,
     only_origin: str | None = None,
+    generation_id: UUID | None = None,
 ) -> dict[UUID, int]:
     """How many proposals wait on each dataset; a dataset with none is absent.
 
     `without_origin` leaves out the proposals drafted from that source, and
-    `only_origin` counts only those.
+    `only_origin` counts only those. `generation_id` counts only what that
+    generation drafted.
     """
     if not dataset_ids:
         return {}
@@ -155,6 +157,8 @@ async def count_pending(
         where.append(CaseProposal.origin != without_origin)
     if only_origin is not None:
         where.append(CaseProposal.origin == only_origin)
+    if generation_id is not None:
+        where.append(CaseProposal.generation_id == generation_id)
     result = await db.execute(
         select(CaseProposal.dataset_id, func.count(CaseProposal.id))
         .where(*where)
@@ -175,10 +179,11 @@ async def take_proposals(
 
     A `DELETE ... RETURNING`, so of two reviewers deciding the same proposal at
     once exactly one gets it back: the other's delete finds the row gone and
-    returns nothing for it. Returned in the order the ids were given; an id that
-    is not waiting on this dataset, or was drafted from `without_origin`, is
-    simply absent and stays waiting.
+    returns nothing for it. Returned in the order the ids were given, each once;
+    an id that is not waiting on this dataset, or was drafted from
+    `without_origin`, is simply absent and stays waiting.
     """
+    ids = list(dict.fromkeys(ids))
     if not ids:
         return []
     where = [

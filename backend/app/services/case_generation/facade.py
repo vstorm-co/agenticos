@@ -259,6 +259,7 @@ class CaseGenerationService:
                     [dataset.id],
                     organization_id=ctx.organization_id,
                     only_origin=hidden_origin,
+                    generation_id=generation_id,
                 )
             ).get(dataset.id, 0)
         )
