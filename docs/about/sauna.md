@@ -24,7 +24,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Surfaces | Web app, iOS app, iMessage, Slack, Gmail, Superhuman, email | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Sharing | Private by default; share with chosen people, and a company-wide shared brain on Team | Six roles, 33 permissions and per-resource grants, per organization |
 | Autonomy | Configurable, from suggesting actions to acting on its own | Approvals per capability, per tool and per MCP connection, decided by a person with `approvals:decide` |
-| Pricing | Free with 10 credits a day; Lite $29, Basic $99, Pro $299 and Team $999 a month, monthly only | No licence fee; you pay model providers and infrastructure |
+| Pricing | Free with 10 credits a day, or 20 with a verified card; Lite $29, Basic $99, Pro $299 and Team $999 a month, monthly only | No licence fee; you pay model providers and infrastructure |
 | Compliance evidence | SOC 2 Type II, CASA | Your controls on your infrastructure; see [security](../security.md) |
 
 ## Where AgenticOS goes further
@@ -76,11 +76,11 @@ Yes, if you want agents for a team rather than one assistant per person. Agentic
 
 ### Where does Sauna store data?
 
-Its security page says that for US customers, infrastructure and data storage are in the United States, and its privacy policy says data may be processed in the US and wherever its sub-processors operate. AgenticOS stores everything in your own Postgres, wherever you deploy it.
+Its security page says that for US customers, infrastructure and data storage are in the United States, and its privacy policy says data may be processed in the US and wherever its sub-processors operate. AgenticOS keeps its data on your own deployment, wherever you run it: conversations, documents and vectors in your Postgres, uploaded files and sandbox workspaces on its volumes, and short-lived state in Redis.
 
 ### How does pricing compare?
 
-Sauna has a free plan with 10 credits a day and paid plans from $29 to $999 a month, billed monthly. AgenticOS has no licence fee: you pay model providers directly, and each agent has its own monthly budget.
+Sauna has a free plan with 10 credits a day, or 20 with a verified card, and paid plans from $29 to $999 a month, billed monthly. AgenticOS has no licence fee: you pay model providers directly, and each agent has its own monthly budget.
 
 ### Can AgenticOS read my email like Sauna?
 

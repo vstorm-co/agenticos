@@ -1,5 +1,5 @@
 ---
-source_sha: "2384d035ea26"
+source_sha: "c53ca829ee5e"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: Open-Source-Agent-Tools im Vergleich"
 description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS eine Apache-2.0-Plattform für KI-Agents im Unternehmen, mit Rollen, Budgets und Audit-Logs."
@@ -9,7 +9,7 @@ description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS
 
 OpenCode ist ein Open-Source-Coding-Agent unter der MIT-Lizenz. Er läuft in einem Terminal, einer Desktop-App oder einer IDE und verbindet sich mit mehr als 75 Modell-Providern. Er ist eine starke Wahl für einen Entwickler, der seinen eigenen Agent in seinem eigenen Repository möchte. AgenticOS ist ebenfalls Open Source und für eine andere Aufgabe gebaut: viele Agents, viele Benutzer, ein kontrolliertes Deployment.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. OpenCode-Umfang: die Dokumentation auf opencode.ai und das Repository `anomalyco/opencode` in v1.18.32, kein getesteter Enterprise-Rollout.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. OpenCode-Umfang: die Dokumentation auf opencode.ai, einschließlich der Console-Seiten von OpenCode 2 unter `/v2/`, und das Repository `anomalyco/opencode` in v1.19.3 der 1.x-Linie, kein getesteter Enterprise-Rollout.
 
 ## Auf einen Blick { #at-a-glance }
 

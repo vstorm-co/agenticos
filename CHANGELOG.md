@@ -22,7 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **The comparison guides are checked again, on 21 October 2026, against
-  1.10.0.** Every vendor source was reread. ChatGPT's workspace-agent trigger
+  1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
+  was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
   now returns a conversation link and polls run status in beta, though the
   answer still cannot be read back; ChatGPT Business and Claude Team sell
   Premium seats; Copilot Studio's credit pack gave way to commit units; Google

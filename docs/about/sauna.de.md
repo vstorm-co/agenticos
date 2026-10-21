@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: eine selbst gehostete Alternative"
 description: "Sauna ist ein proaktiver KI-Assistent pro Person, in ihrer Cloud. AgenticOS: viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
-source_sha: "437c7960d403"
+source_sha: "e589e2dd5acb"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -25,7 +25,7 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Bas
 | Oberflächen | Web-App, iOS-App, iMessage, Slack, Gmail, Superhuman, E-Mail | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
 | Teilen | Standardmäßig privat; Freigabe für ausgewählte Personen und ein gemeinsames Unternehmensgehirn im Tarif Team | Sechs Rollen, 33 Berechtigungen und Grants pro Ressource, pro Organisation |
 | Autonomie | Konfigurierbar, vom Vorschlagen von Aktionen bis zum selbstständigen Handeln | Freigaben pro Capability, pro Werkzeug und pro MCP-Verbindung, entschieden von einer Person mit `approvals:decide` |
-| Preise | Free mit 10 Credits pro Tag; Lite 29 $, Basic 99 $, Pro 299 $ und Team 999 $ im Monat, nur monatlich | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
+| Preise | Free mit 10 Credits pro Tag oder 20 mit verifizierter Karte; Lite 29 $, Basic 99 $, Pro 299 $ und Team 999 $ im Monat, nur monatlich | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
 | Compliance-Nachweise | SOC 2 Type II, CASA | Ihre Kontrollen auf Ihrer Infrastruktur; siehe [Sicherheit](../security.md) |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -77,11 +77,11 @@ Ja, wenn Sie Agents für ein Team möchten statt eines Assistenten pro Person. A
 
 ### Wo speichert Sauna Daten? { #where-does-sauna-store-data }
 
-Die Sicherheitsseite sagt, dass Infrastruktur und Datenspeicherung für US-Kunden in den Vereinigten Staaten liegen, und die Datenschutzerklärung, dass Daten in den USA und überall dort verarbeitet werden können, wo die Unterauftragsverarbeiter tätig sind. AgenticOS speichert alles in Ihrem eigenen Postgres, wo auch immer Sie es bereitstellen.
+Die Sicherheitsseite sagt, dass Infrastruktur und Datenspeicherung für US-Kunden in den Vereinigten Staaten liegen, und die Datenschutzerklärung, dass Daten in den USA und überall dort verarbeitet werden können, wo die Unterauftragsverarbeiter tätig sind. AgenticOS hält seine Daten in Ihrem eigenen Deployment, wo auch immer Sie es betreiben: Konversationen, Dokumente und Vektoren in Ihrem Postgres, hochgeladene Dateien und Sandbox-Workspaces auf seinen Volumes und kurzlebigen Zustand in Redis.
 
 ### Wie unterscheiden sich die Preise? { #how-does-pricing-compare }
 
-Sauna hat einen kostenlosen Tarif mit 10 Credits pro Tag und bezahlte Tarife von 29 $ bis 999 $ im Monat, monatlich abgerechnet. AgenticOS hat keine Lizenzgebühr: Sie bezahlen die Modell-Provider direkt, und jeder Agent hat sein eigenes monatliches Budget.
+Sauna hat einen kostenlosen Tarif mit 10 Credits pro Tag, oder 20 mit verifizierter Karte, und bezahlte Tarife von 29 $ bis 999 $ im Monat, monatlich abgerechnet. AgenticOS hat keine Lizenzgebühr: Sie bezahlen die Modell-Provider direkt, und jeder Agent hat sein eigenes monatliches Budget.
 
 ### Kann AgenticOS meine E-Mails lesen wie Sauna? { #can-agenticos-read-my-email-like-sauna }
 

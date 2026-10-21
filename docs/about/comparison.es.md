@@ -1,5 +1,5 @@
 ---
-source_sha: "9556516ae468"
+source_sha: "5a104286b211"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -9,7 +9,7 @@ description: "Compara AgenticOS, capa soberana de agents de IA open source, con 
 
 La mayoría de los productos de este ámbito son una de cinco cosas: una app de asistente, un builder de agents, un servicio de compañero de equipo, una plataforma empresarial entregada o un agent de programación. AgenticOS es una capa soberana para los agents de una empresa que operas tú mismo. Estas guías muestran dónde encaja cada opción y qué añade AgenticOS.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Revisar antes del 21 de noviembre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026, y las de OpenAI Frontier el 14 de octubre. Versión de referencia de AgenticOS: v1.10.0. Revisar antes del 21 de noviembre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
 
 ## Elige la guía para tu decisión { #pick-the-guide-for-your-decision }
 

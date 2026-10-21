@@ -1,5 +1,5 @@
 ---
-source_sha: "9556516ae468"
+source_sha: "5a104286b211"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -9,7 +9,7 @@ description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, 
 
 Większość produktów w tej przestrzeni to jedna z pięciu rzeczy: aplikacja asystenta, builder agentów, usługa wirtualnego współpracownika, dostarczana platforma enterprise albo agent do kodowania. AgenticOS to suwerenna warstwa dla agentów firmy, którą uruchamiasz samodzielnie. Te poradniki pokazują, gdzie pasuje każda z opcji i co dodaje AgenticOS.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Przegląd do 21 listopada 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026, a OpenAI Frontier 14 października. Wersja bazowa AgenticOS: v1.10.0. Przegląd do 21 listopada 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
 
 ## Wybierz poradnik do swojej decyzji { #pick-the-guide-for-your-decision }
 

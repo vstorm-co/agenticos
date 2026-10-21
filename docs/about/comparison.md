@@ -8,7 +8,7 @@ description: "Compare AgenticOS, the open-source Sovereign Agentic AI Layer, wit
 
 Most products in this space are one of five things: an assistant app, an agent builder, a teammate service, a delivered enterprise platform or a coding agent. AgenticOS is a sovereign layer for a company's agents that you run yourself. These guides show where each option fits and what AgenticOS adds.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Review by 21 November 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
+Maintained by the AgenticOS team. Sources checked 21 October 2026, OpenAI Frontier's on 14 October. AgenticOS baseline: v1.10.0. Review by 21 November 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
 
 ## Pick the guide for your decision
 

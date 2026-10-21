@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: self-hosted alternatywa dla Sauny"
 description: "Sauna to proaktywny asystent AI dla każdej osoby, w jej chmurze. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
-source_sha: "437c7960d403"
+source_sha: "e589e2dd5acb"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -25,7 +25,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Powierzchnie | Aplikacja webowa, aplikacja iOS, iMessage, Slack, Gmail, Superhuman, e-mail | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Udostępnianie | Domyślnie prywatne; udostępnianie wybranym osobom i wspólny mózg firmy w planie Team | Sześć ról, 33 uprawnienia i granty per zasób, w każdej organizacji |
 | Autonomia | Konfigurowalna, od proponowania akcji po samodzielne działanie | Zatwierdzenia per capability, per narzędzie i per połączenie MCP, decyduje osoba z `approvals:decide` |
-| Ceny | Free z 10 kredytami dziennie; Lite $29, Basic $99, Pro $299 i Team $999 miesięcznie, tylko rozliczenie miesięczne | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
+| Ceny | Free z 10 kredytami dziennie albo 20 ze zweryfikowaną kartą; Lite $29, Basic $99, Pro $299 i Team $999 miesięcznie, tylko rozliczenie miesięczne | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
 | Dowody zgodności | SOC 2 Type II, CASA | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
@@ -77,11 +77,11 @@ Tak, jeśli chcesz agentów dla zespołu, a nie jednego asystenta na osobę. Age
 
 ### Gdzie Sauna przechowuje dane? { #where-does-sauna-store-data }
 
-Jej strona bezpieczeństwa mówi, że dla klientów z USA infrastruktura i przechowywanie danych są w Stanach Zjednoczonych, a polityka prywatności, że dane mogą być przetwarzane w USA i wszędzie tam, gdzie działają jej podprocesorzy. AgenticOS przechowuje wszystko w twoim własnym Postgresie, gdziekolwiek go wdrożysz.
+Jej strona bezpieczeństwa mówi, że dla klientów z USA infrastruktura i przechowywanie danych są w Stanach Zjednoczonych, a polityka prywatności, że dane mogą być przetwarzane w USA i wszędzie tam, gdzie działają jej podprocesorzy. AgenticOS trzyma swoje dane we własnym wdrożeniu, gdziekolwiek je uruchomisz: rozmowy, dokumenty i wektory w twoim Postgresie, przesłane pliki i workspace'y sandboksa na jego wolumenach, a krótkotrwały stan w Redisie.
 
 ### Jak wypadają ceny? { #how-does-pricing-compare }
 
-Sauna ma darmowy plan z 10 kredytami dziennie i płatne plany od $29 do $999 miesięcznie, rozliczane miesięcznie. AgenticOS nie ma opłaty licencyjnej: płacisz bezpośrednio providerom modeli, a każdy agent ma własny miesięczny budżet.
+Sauna ma darmowy plan z 10 kredytami dziennie albo 20 ze zweryfikowaną kartą i płatne plany od $29 do $999 miesięcznie, rozliczane miesięcznie. AgenticOS nie ma opłaty licencyjnej: płacisz bezpośrednio providerom modeli, a każdy agent ma własny miesięczny budżet.
 
 ### Czy AgenticOS może czytać moją pocztę jak Sauna? { #can-agenticos-read-my-email-like-sauna }
 
