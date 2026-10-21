@@ -46,6 +46,7 @@ const AGENT: AgentDetail = {
 
 let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
+  kind: "agent" as AgentDetail["kind"],
   params: "",
   validate: (() => undefined) as unknown,
   agent: undefined as unknown,
@@ -65,7 +66,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: page.agent,
+      agent: { ...(page.agent as AgentDetail), kind: page.kind },
       isLoading: false,
       saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
       validate: page.validate,
@@ -127,6 +128,9 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
+vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
+  KnowledgeGapsPanel: () => null,
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -168,6 +172,7 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   page.params = "";
+  page.kind = "agent";
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
   page.agent = { ...AGENT, can_edit: true, can_publish: true };
 });
@@ -197,6 +202,36 @@ describe("the detail page's Evals tab gate", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+describe("the detail page's Knowledge gaps tab", () => {
+  it("opens when a link names it for a caller who may read runs", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Knowledge gaps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+});
+
+describe("a system agent's page", () => {
+  it("holds what changes how it works, and nothing else", async () => {
+    allowed = new Set([Perm.runsView, Perm.agentsEdit]);
+    page.kind = "drafter";
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    for (const name of ["Toolbox", "Availability", "Evals", "Knowledge gaps"]) {
+      expect(screen.queryByRole("tab", { name })).toBeNull();
+    }
   });
 });
 

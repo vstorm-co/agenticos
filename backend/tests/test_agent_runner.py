@@ -381,7 +381,7 @@ class TestPrepare:
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
-        """`_collection_names` runs on every turn, so five bound collections cost
+        """`_collections` runs on every turn, so five bound collections cost
         one round trip rather than five serial reads at the front of it (#954)."""
         ctx = _ctx()
         service = AgentRunnerService(_db())

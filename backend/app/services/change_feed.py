@@ -163,6 +163,9 @@ _FEEDS = (
     _shared("/mcp-connections", "mcp_connection"),
     _Feed("/mcp-connections", "mcp_connection", "connection_id"),
     _Feed("/channels/bots", "channel", "bot_id"),
+    # Grouping now is started here and lands later; the pass announces what it placed.
+    _Feed("/knowledge-gaps/collections/{knowledge_base_id}/regroup", None),
+    _Feed("/knowledge-gaps", "knowledge_gap", "topic_id", creates=False),
     _Feed("/notifications", "notification", "notification_id", creates=False),
     _Feed("/orgs/{org_id}/members", "member", "target_user_id"),
     _Feed("/orgs/{org_id}/invitations", "invitation", "invitation_id"),
@@ -327,6 +330,22 @@ async def publish_run(run: AgentRun, action: ChangeAction) -> None:
     await publish(run_event(run, action))
 
 
+async def publish_knowledge_gaps_grouped(organization_id: UUID) -> None:
+    """Tell open consoles a grouping pass placed new questions in the organization's
+    topics. Called after the pass committed, from the worker that ran it."""
+    await publish(
+        ChangeEvent(
+            organization_id=organization_id,
+            resource="knowledge_gap",
+            id=None,
+            action="updated",
+            surface="system",
+            actor_user_id=None,
+            actor_name=None,
+        )
+    )
+
+
 async def publish(event: ChangeEvent) -> None:
     """Tell the organization's open consoles. Never raises: the write it reports
     has already succeeded, and a page that misses it is no worse off than before."""
@@ -439,6 +458,9 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
     if event.resource == "run":
         # The approvals inbox lists parked runs to whoever decides them.
         return ctx.has(Perm.RUNS_VIEW) or ctx.has(Perm.APPROVALS_DECIDE)
+    if event.resource == "knowledge_gap":
+        # Gaps are people's questions, read with the whole run history or not at all.
+        return ctx.scope_for(Perm.RUNS_VIEW) is PermScope.ALL
     resource_type = _OWNED.get(event.resource)
     if resource_type is None:
         return True

@@ -135,8 +135,9 @@ class AgentRead(BaseSchema):
     kind: AgentKind = Field(
         default=AgentKind.AGENT,
         description=(
-            "`judge` for an agent that grades evals: only the platform runs it, and "
-            "the console lists it apart, without chat, channels or delegation."
+            "`judge` for an agent that grades evals and `drafter` for the one that "
+            "drafts a knowledge gap's missing content: only the platform runs them, and "
+            "the console lists them apart, without chat, channels or delegation."
         ),
     )
     a2a_enabled: bool = Field(

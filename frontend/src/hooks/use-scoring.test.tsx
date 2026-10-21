@@ -48,7 +48,7 @@ describe("useCreateJudge", () => {
       instructions: "Be strict.",
     });
     expect(client.getQueryData(qk.datasets.detail("d1"))).toEqual(dataset);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.judges() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.ofKind("judge") });
   });
 });
 

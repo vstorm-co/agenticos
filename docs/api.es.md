@@ -1,5 +1,5 @@
 ---
-source_sha: "29cf0b5c3b94"
+source_sha: "1fcff23b562a"
 ---
 
 # La API HTTP { #the-http-api }
@@ -355,7 +355,9 @@ autenticado igual, con la organización en `?organization_id=`, envía un frame 
 por cada escritura correcta a través de la API pública en esa organización —
 `resource`, `id`, `action` (`created`, `updated` o `deleted`), `surface`
 (`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
-que quien llama puede leer.
+que quien llama puede leer. Los cambios que nadie escribió llegan igual: `run`
+para un run que pasa por sus estados, y `system` para el trabajo programado de
+la propia plataforma, como un pase de agrupación de lagunas de conocimiento.
 
 ## Errores { #errors }
 

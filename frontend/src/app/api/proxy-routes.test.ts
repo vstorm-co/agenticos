@@ -31,6 +31,7 @@ import * as evalRuns from "./eval-runs/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
@@ -121,6 +122,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["external-agents", externalAgents],
   ["visuals", visuals],
   ["kb", kb],
+  ["knowledge-gaps", knowledgeGaps],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
