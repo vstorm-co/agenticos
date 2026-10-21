@@ -620,7 +620,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "kb-tab-gaps",
     permission: Perm.runsView,
   },
-  // Offered only with AI assistance on, to who may change the base, with answers waiting.
+  // Offered only with AI assistance on, to whoever may change the base, with answers waiting.
   {
     id: "kb-gaps-check",
     page: KB_DETAIL,

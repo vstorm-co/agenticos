@@ -259,7 +259,6 @@ class KnowledgeGapClassification(Base):
     )
     # A `GapSignal` other than retrieval, or `none` for an answer that missed nothing.
     signal: Mapped[str] = mapped_column(String(16), nullable=False)
-    # The classifier's run, which Activity shows; kept as history when it goes.
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
