@@ -34,7 +34,7 @@ that way and the software cooperates:
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection. The web browser can stay when every site it may open is on `allowed_domains` and its steps go to a model you host |
 | Mail | Your own SMTP relay |
-| Speech and images | Profiles on a provider you host, or no such profile; no `text_to_speech` or `video_generation` capability |
+| Speech, images and video | Profiles on a provider you host, or no such profile; no `text_to_speech` or `video_generation` capability |
 
 Embeddings included: the catalog names OpenRouter and OpenAI, which a
 collection reaches with a vault key, and `ollama`, which a collection reaches

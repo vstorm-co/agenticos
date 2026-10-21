@@ -1,5 +1,5 @@
 ---
-source_sha: "07a30e248ed1"
+source_sha: "3cf07df5c076"
 ---
 
 # Datenschutz { #data-protection }
@@ -41,7 +41,7 @@ entsprechend, und die Software macht mit:
 | Traces | Lassen Sie `LOGFIRE_TOKEN` ungesetzt und binden Sie kein `observability`-Token an einen Spec oder ein Environment. Runs halten die Trace-Id weiterhin lokal fest |
 | Suche, Browsing, Memory, Tools | Binden Sie kein `search`-Secret, keine Capability `web_fetch`, `browser_use` oder `memory_mem0`, keine MCP-Verbindung. Der Webbrowser kann bleiben, wenn jede Seite, die er öffnen darf, auf `allowed_domains` steht und seine Schritte an ein Modell gehen, das Sie selbst betreiben |
 | E-Mail | Ihr eigenes SMTP-Relay |
-| Sprache und Bilder | Profile bei einem Provider, den Sie betreiben, oder gar kein solches Profil; keine Capability `text_to_speech` oder `video_generation` |
+| Sprache, Bilder und Video | Profile bei einem Provider, den Sie betreiben, oder gar kein solches Profil; keine Capability `text_to_speech` oder `video_generation` |
 
 Embeddings eingeschlossen: Der Katalog nennt OpenRouter und OpenAI, die eine
 Collection mit einem Vault-Schlüssel erreicht, und `ollama`, das eine Collection

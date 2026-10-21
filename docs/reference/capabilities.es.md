@@ -1,5 +1,5 @@
 ---
-source_sha: "29da4a63c669"
+source_sha: "886487e9576f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1168,8 +1168,9 @@ nunca llega al modelo.
 Crea un clip corto con el provider de vídeo que elige el autor y se comporta como
 la generación de imágenes: el clip se guarda, aparece en la conversación como
 reproductor y se escribe en `output/` cuando hay un workspace abierto (#2260).
-Puede empezar desde una imagen: el `filename` que devolvió `generate_image` o una
-ruta del workspace.
+Puede empezar desde una imagen: el `filename` que devolvió `generate_image` en la
+misma conversación o una ruta del workspace, reconocida por sus bytes y no por su
+nombre.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|
@@ -1177,9 +1178,9 @@ ruta del workspace.
 | `model` | `gemini-omni-1.1-flash` | Los modelos de ese provider, de `app/core/catalog/video_models.json` |
 | `resolution` | la primera del modelo | Las resoluciones que renderiza el modelo |
 | `aspect_ratio` | la primera del modelo | Las proporciones que renderiza el modelo |
-| `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; Gemini Omni lo ignora |
-| `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente |
-| `audio` | la del provider | Activado o no, cuando el modelo deja elegir el sonido |
+| `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; se rechaza para Gemini Omni, que decide su duración |
+| `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente; se rechaza para Gemini Omni |
+| `audio` | la del provider | Activado o no; se rechaza cuando el sonido del modelo es fijo |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **Lo que puede hacer cada modelo son datos.** El catálogo indica el rango de

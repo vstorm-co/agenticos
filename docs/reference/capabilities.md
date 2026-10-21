@@ -1093,7 +1093,8 @@ provider's own error text is logged and never reaches the model.
 Makes a short clip through a video provider the author picks, and behaves as
 image generation does: the clip is stored, shown in the conversation as a player,
 and written under `output/` when a workspace is open (#2260). It can start from an
-image - the `filename` `generate_image` returned, or a workspace path.
+image - the `filename` `generate_image` returned in the same conversation, or a
+workspace path - typed by its bytes, not its name.
 
 | Config | Default | Values |
 |---|---|---|
@@ -1101,9 +1102,9 @@ image - the `filename` `generate_image` returned, or a workspace path.
 | `model` | `gemini-omni-1.1-flash` | That provider's models, from `app/core/catalog/video_models.json` |
 | `resolution` | the model's first | The resolutions the model renders |
 | `aspect_ratio` | the model's first | The aspect ratios the model renders |
-| `seconds` | 5, or the nearest the model makes | Within the model's range; ignored by Gemini Omni |
-| `max_seconds` | the model's longest | The longest clip the agent may ask for |
-| `audio` | provider default | On or off, where the model makes sound optional |
+| `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
+| `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
+| `audio` | provider default | On or off, and refused where the model's sound is fixed |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **What each model can make is data.** The catalog states each model's length

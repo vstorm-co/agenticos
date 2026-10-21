@@ -854,7 +854,11 @@
     "videoLengthRange": "Dieses Modell erzeugt Clips von {min} bis {max} Sekunden.",
     "videoLengthDecided": "Dieses Modell bestimmt seine Länge selbst, {min} bis {max} Sekunden.",
     "videoProvidersLoading": "Lese, was jeder Provider anbietet…",
-    "videoProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet."
+    "videoProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet.",
+    "videoAudio": "Ton",
+    "videoAudioDefault": "Voreinstellung des Providers",
+    "videoAudioOn": "An",
+    "videoAudioOff": "Aus"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "29da4a63c669"
+source_sha: "886487e9576f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1219,8 +1219,9 @@ Fehlertext des Providers wird protokolliert und erreicht das Modell nie.
 Erzeugt einen kurzen Clip über einen Video-Provider, den der Autor wählt, und
 verhält sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als
 Player gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2260).
-Er kann mit einem Bild beginnen - dem `filename`, den `generate_image` zurückgab,
-oder einem Pfad im Workspace.
+Er kann mit einem Bild beginnen - dem `filename`, den `generate_image` im selben
+Gespräch zurückgab, oder einem Pfad im Workspace -, erkannt an seinen Bytes, nicht
+am Namen.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
@@ -1228,9 +1229,9 @@ oder einem Pfad im Workspace.
 | `model` | `gemini-omni-1.1-flash` | Die Modelle dieses Providers aus `app/core/catalog/video_models.json` |
 | `resolution` | die erste des Modells | Die Auflösungen, die das Modell rendert |
 | `aspect_ratio` | das erste des Modells | Die Seitenverhältnisse, die das Modell rendert |
-| `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; von Gemini Omni ignoriert |
-| `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf |
-| `audio` | Voreinstellung des Providers | An oder aus, wo das Modell Ton zur Wahl stellt |
+| `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet |
+| `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt |
+| `audio` | Voreinstellung des Providers | An oder aus; abgelehnt, wo der Ton des Modells feststeht |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **Was jedes Modell erzeugen kann, sind Daten.** Der Katalog nennt für jedes

@@ -58,7 +58,7 @@ class VideoGenerationConfig(BaseModel):
         ge=1,
         description=(
             "Seconds a clip runs unless the agent asks for another length; left empty, five, "
-            "or the nearest the model makes. Ignored by a model that decides its own length."
+            "or the nearest the model makes. Not for a model that decides its own length."
         ),
     )
     max_seconds: int | None = Field(
@@ -67,7 +67,7 @@ class VideoGenerationConfig(BaseModel):
         ge=1,
         description=(
             "The longest clip the agent may ask for, which caps what one call can cost; "
-            "left empty, the model's own limit."
+            "left empty, the model's own limit. Not for a model that decides its own length."
         ),
     )
     audio: bool | None = Field(
@@ -107,6 +107,16 @@ class VideoGenerationConfig(BaseModel):
         if self.aspect_ratio is not None and self.aspect_ratio not in model.aspect_ratios:
             raise ValueError(
                 f"{self.model} renders {', '.join(model.aspect_ratios)}, not {self.aspect_ratio}."
+            )
+        if not model.duration_choosable and (
+            self.seconds is not None or self.max_seconds is not None
+        ):
+            raise ValueError(
+                f"{self.model} decides its own length, so a length and a longest clip have no effect."
+            )
+        if self.audio is not None and model.audio != "optional":
+            raise ValueError(
+                f"{self.model} has no sound setting; its clips' sound is {model.audio}."
             )
         for name, value in (("seconds", self.seconds), ("max_seconds", self.max_seconds)):
             if value is not None and not model.min_seconds <= value <= model.max_seconds:
@@ -169,7 +179,8 @@ def _build(ctx: CapabilityBuildContext) -> VideoGeneration:
         model=config.model,
         resolution=config.resolution or model.resolutions[0],
         aspect_ratio=config.aspect_ratio or model.aspect_ratios[0],
-        seconds=config.seconds or min(max(USUAL_SECONDS, model.min_seconds), model.max_seconds),
+        seconds=config.seconds
+        or min(max(USUAL_SECONDS, model.min_seconds), config.max_seconds or model.max_seconds),
         max_seconds=config.max_seconds or model.max_seconds,
         audio=config.audio,
         timeout_seconds=config.timeout_seconds,

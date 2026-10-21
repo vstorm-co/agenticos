@@ -23,7 +23,17 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import { useTranslations } from "next-intl";
 
 /** The fields this panel draws itself; the rest is the generated form. */
-const HAND_ROLLED = ["provider", "model", "resolution", "aspect_ratio"];
+const HAND_ROLLED = ["provider", "model", "resolution", "aspect_ratio", "audio"];
+
+/** What a model that decides its own length would ignore, so it is not offered. */
+const LENGTH_FIELDS = ["seconds", "max_seconds"];
+
+/** The sound setting's three states, `default` being no value stored, and their copy. */
+const AUDIO_CHOICES = {
+  default: "videoAudioDefault",
+  on: "videoAudioOn",
+  off: "videoAudioOff",
+} as const;
 
 /** What a model decides for itself, which means nothing on another model. */
 const MODEL_SPECIFIC = ["resolution", "aspect_ratio", "seconds", "max_seconds", "audio"];
@@ -144,13 +154,52 @@ export function VideoGenerationSection({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-muted-foreground text-xs">
-              {model.duration_choosable
-                ? t("videoLengthRange", { min: model.min_seconds, max: model.max_seconds })
-                : t("videoLengthDecided", { min: model.min_seconds, max: model.max_seconds })}
-            </p>
           </div>
         </div>
+      )}
+
+      {model !== undefined && model.audio === "optional" && (
+        <div className="space-y-1.5">
+          <Label htmlFor="video-audio">{t("videoAudio")}</Label>
+          <Select
+            value={
+              binding.config.audio === true
+                ? "on"
+                : binding.config.audio === false
+                  ? "off"
+                  : "default"
+            }
+            disabled={disabled}
+            onValueChange={(next) => {
+              const rest = Object.fromEntries(
+                Object.entries(binding.config).filter(([name]) => name !== "audio"),
+              );
+              onChange({
+                ...binding,
+                config: next === "default" ? rest : { ...rest, audio: next === "on" },
+              });
+            }}
+          >
+            <SelectTrigger id="video-audio">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(AUDIO_CHOICES).map(([choice, label]) => (
+                <SelectItem key={choice} value={choice}>
+                  {t(label)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {model !== undefined && (
+        <p className="text-muted-foreground text-xs">
+          {model.duration_choosable
+            ? t("videoLengthRange", { min: model.min_seconds, max: model.max_seconds })
+            : t("videoLengthDecided", { min: model.min_seconds, max: model.max_seconds })}
+        </p>
       )}
 
       {isError && <p className="text-destructive text-xs">{t("videoProvidersUnavailable")}</p>}
@@ -159,7 +208,10 @@ export function VideoGenerationSection({
       {definition.config_schema && (
         <SchemaForm
           idPrefix={binding.id}
-          schema={withoutFields(definition.config_schema, HAND_ROLLED)}
+          schema={withoutFields(
+            definition.config_schema,
+            model?.duration_choosable === false ? [...HAND_ROLLED, ...LENGTH_FIELDS] : HAND_ROLLED,
+          )}
           value={binding.config}
           disabled={disabled}
           errors={configErrors}

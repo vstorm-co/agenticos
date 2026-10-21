@@ -71,6 +71,8 @@ const DEFINITION: CapabilityCatalogEntry = {
       resolution: { type: "string" },
       aspect_ratio: { type: "string" },
       seconds: { type: "integer", title: "Length" },
+      max_seconds: { type: "integer", title: "Longest clip" },
+      audio: { anyOf: [{ type: "boolean" }, { type: "null" }], title: "Sound" },
     },
   },
   requires_secret: null,
@@ -100,8 +102,31 @@ function mount(
   return onChange;
 }
 
+const ALIBABA = {
+  provider: "alibaba",
+  name: "Alibaba Cloud",
+  models: [
+    {
+      id: "wan3.0-video",
+      name: "Wan 3.0",
+      description: "Optional sound.",
+      min_seconds: 2,
+      max_seconds: 30,
+      duration_choosable: true,
+      aspect_ratios: ["16:9"],
+      resolutions: ["720p"],
+      audio: "optional" as const,
+      first_frame: true,
+    },
+  ],
+};
+
 beforeEach(() => {
-  providers.mockReturnValue({ providers: [XAI, GOOGLE], isLoading: false, isError: false });
+  providers.mockReturnValue({
+    providers: [XAI, GOOGLE, ALIBABA],
+    isLoading: false,
+    isError: false,
+  });
 });
 
 describe("choosing what makes the clip", () => {
@@ -220,5 +245,56 @@ describe("what the panel says about the catalog", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("what a model leaves to the author", () => {
+  it("offers sound in three states only where the model makes it optional", async () => {
+    const onChange = mount({ provider: "alibaba", model: "wan3.0-video", audio: false });
+
+    expect(screen.getByLabelText("Sound")).toHaveTextContent("Off");
+    await userEvent.click(screen.getByLabelText("Sound"));
+    await userEvent.click(await screen.findByRole("option", { name: "On" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: { provider: "alibaba", model: "wan3.0-video", audio: true },
+      }),
+    );
+
+    await userEvent.click(screen.getByLabelText("Sound"));
+    await userEvent.click(await screen.findByRole("option", { name: "Provider default" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: { provider: "alibaba", model: "wan3.0-video" } }),
+    );
+  });
+
+  it("shows the provider default for an untouched binding, rather than Off", () => {
+    mount({ provider: "alibaba", model: "wan3.0-video" });
+    expect(screen.getByLabelText("Sound")).toHaveTextContent("Provider default");
+  });
+
+  it("shows On for a binding that turned sound on", () => {
+    mount({ provider: "alibaba", model: "wan3.0-video", audio: true });
+    expect(screen.getByLabelText("Sound")).toHaveTextContent("On");
+  });
+
+  it("draws no sound control for a model whose sound is fixed", () => {
+    mount();
+
+    expect(screen.queryByLabelText("Sound")).toBeNull();
+  });
+
+  it("draws no length fields for a model that decides its own length", () => {
+    mount({ provider: "google", model: "gemini-omni-1.1-flash" });
+
+    expect(screen.queryByLabelText("Length")).toBeNull();
+    expect(screen.queryByLabelText("Longest clip")).toBeNull();
+  });
+
+  it("draws the length fields for a model that takes one", () => {
+    mount();
+
+    expect(screen.getByLabelText("Length")).toBeInTheDocument();
+    expect(screen.getByLabelText("Longest clip")).toBeInTheDocument();
   });
 });

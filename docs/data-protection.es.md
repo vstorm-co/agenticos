@@ -1,5 +1,5 @@
 ---
-source_sha: "07a30e248ed1"
+source_sha: "3cf07df5c076"
 ---
 
 # Protección de datos { #data-protection }
@@ -40,7 +40,7 @@ configura así y el software coopera:
 | Trazas | Deja `LOGFIRE_TOKEN` sin definir y no vincules ningún token `observability` a un spec ni a un entorno. Los runs siguen registrando localmente un id de traza |
 | Búsqueda, navegación, memoria, herramientas | No vincules ningún secreto `search`, ninguna capability `web_fetch`, `browser_use` ni `memory_mem0`, ninguna conexión MCP. El navegador web puede quedarse si cada sitio que puede abrir está en `allowed_domains` y sus pasos van a un modelo que alojas tú |
 | Correo | Tu propio relay SMTP |
-| Voz e imágenes | Perfiles en un provider que alojes tú, o ningún perfil de ese tipo; ninguna capability `text_to_speech` ni `video_generation` |
+| Voz, imágenes y vídeo | Perfiles en un provider que alojes tú, o ningún perfil de ese tipo; ninguna capability `text_to_speech` ni `video_generation` |
 
 Los embeddings incluidos: el catálogo nombra OpenRouter y OpenAI, a los que una
 colección llega con una clave del vault, y `ollama`, al que una colección llega a

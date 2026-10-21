@@ -1,5 +1,5 @@
 ---
-source_sha: "29da4a63c669"
+source_sha: "886487e9576f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1153,8 +1153,8 @@ operator. Własny tekst błędu providera jest logowany i nigdy nie trafia do mo
 Tworzy krótki klip przez providera wideo wybranego przez autora i zachowuje się
 jak generowanie obrazów: klip jest zapisywany, pokazywany w rozmowie jako
 odtwarzacz i zapisywany w `output/`, gdy workspace jest otwarty (#2260). Może
-zacząć od obrazu - `filename` zwróconego przez `generate_image` albo ścieżki w
-workspace.
+zacząć od obrazu - `filename` zwróconego przez `generate_image` w tej samej
+rozmowie albo ścieżki w workspace - rozpoznanego po bajtach, a nie po nazwie.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
@@ -1162,9 +1162,9 @@ workspace.
 | `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
 | `resolution` | pierwsza modelu | Rozdzielczości, które renderuje model |
 | `aspect_ratio` | pierwsze modelu | Proporcje obrazu, które renderuje model |
-| `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; pomijane przez Gemini Omni |
-| `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent |
-| `audio` | domyślne providera | Włączony albo wyłączony, gdy model pozwala wybrać |
+| `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; odrzucane dla Gemini Omni, który sam decyduje |
+| `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent; odrzucane dla Gemini Omni |
+| `audio` | domyślne providera | Włączony albo wyłączony; odrzucane, gdy dźwięk modelu jest stały |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **To, co potrafi każdy model, to dane.** Katalog podaje zakres długości modelu,

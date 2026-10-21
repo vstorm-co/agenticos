@@ -854,7 +854,11 @@
     "videoLengthRange": "Ten model tworzy klipy od {min} do {max} sekund.",
     "videoLengthDecided": "Ten model sam decyduje o długości, od {min} do {max} sekund.",
     "videoProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
-    "videoProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty."
+    "videoProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty.",
+    "videoAudio": "Dźwięk",
+    "videoAudioDefault": "Domyślnie u providera",
+    "videoAudioOn": "Włączony",
+    "videoAudioOff": "Wyłączony"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

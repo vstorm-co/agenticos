@@ -9,6 +9,7 @@ fix it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,13 @@ import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 from pydantic_ai_backends import StateBackend
@@ -32,6 +40,7 @@ from app.agents.capabilities.budget import (
     guarded_by,
     metered_by,
 )
+from app.agents.capabilities.image_generation._toolset import GeneratedImage
 from app.agents.capabilities.video_generation import VideoGeneration, VideoGenerationConfig
 from app.agents.capabilities.video_generation import _toolset as toolset_module
 from app.agents.capabilities.video_generation._toolset import (
@@ -76,7 +85,11 @@ def generation(monkeypatch: pytest.MonkeyPatch, tmp_path) -> _FakeGeneration:
 
 
 def _ctx(
-    organization_id: Any = None, *, retry: int = 0, workspace: Any = None
+    organization_id: Any = None,
+    *,
+    retry: int = 0,
+    workspace: Any = None,
+    messages: list[Any] | None = None,
 ) -> RunContext[AgentDeps]:
     ctx = RunContext(
         deps=AgentDeps(organization_id=organization_id),
@@ -84,6 +97,7 @@ def _ctx(
         usage=RunUsage(),
         retry=retry,
         max_retries=1,
+        messages=messages or [],
     )
     if workspace is not None:
         ctx.workspace = workspace
@@ -125,6 +139,24 @@ def _price(provider: str, model: str, resolution: str) -> Decimal:
 
 
 class TestConfiguration:
+    @pytest.mark.parametrize(
+        "config",
+        [{"seconds": 5}, {"max_seconds": 6}],
+        ids=["a length", "a longest clip"],
+    )
+    def test_a_model_that_decides_its_own_length_takes_no_length(self, config):
+        """Gemini Omni sends no length, so a cap there would be a setting with no effect."""
+        with pytest.raises(ValidationError, match="decides its own length"):
+            VideoGenerationConfig(provider="google", model="gemini-omni-1.1-flash", **config)
+
+    def test_sound_is_set_only_where_the_model_makes_it_optional(self):
+        with pytest.raises(ValidationError, match="has no sound setting"):
+            VideoGenerationConfig(provider="xai", model="grok-imagine-video-1.5", audio=False)
+        assert (
+            VideoGenerationConfig(provider="alibaba", model="wan3.0-video", audio=False).audio
+            is False
+        )
+
     def test_turning_it_on_is_enough_to_make_a_clip(self):
         config = VideoGenerationConfig()
 
@@ -195,8 +227,12 @@ def test_the_key_picker_narrows_to_the_chosen_provider():
             ("1080p", "16:9", 8, 12),
         ),
         ({"provider": "google", "model": "gemini-omni-1.1-flash"}, ("720p", "16:9", 5, 10)),
+        (
+            {"provider": "xai", "model": "grok-imagine-video-1.5", "max_seconds": 3},
+            ("720p", "16:9", 3, 3),
+        ),
     ],
-    ids=["defaults", "chosen", "nearest usual length"],
+    ids=["defaults", "chosen", "nearest usual length", "usual length under a lower cap"],
 )
 def test_the_builder_resolves_the_defaults_from_the_model(config, expected):
     definition = get("video_generation")
@@ -315,83 +351,180 @@ class TestMaking:
         assert ledger.has_unpriced_models is True
 
 
+PNG = b"\x89PNG\r\n\x1a\n" + b"logo"
+JPEG = b"\xff\xd8\xff\xe0" + b"logo"
+WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 logo"
+
+
+def _drawn(leaf: str, tool_name: str = "generate_image") -> list[Any]:
+    """A conversation in which a tool returned `leaf` as a generated image."""
+    payload = GeneratedImage(filename=leaf, url=None, media_type="image/png", prompt="a logo")
+    return [
+        ModelResponse(parts=[TextPart(content="Drawing it.")]),
+        ModelRequest(
+            parts=[
+                UserPromptPart(content=f"animate {leaf}"),
+                ToolReturnPart(
+                    tool_name=tool_name, content=payload.model_dump_json(), tool_call_id="c1"
+                ),
+            ]
+        ),
+    ]
+
+
 class TestStartingFromAnImage:
-    async def test_an_image_this_organization_generated_is_found_by_its_filename(
-        self, generation, tmp_path
-    ):
+    async def test_an_image_drawn_in_this_conversation_is_found_by_its_filename(self, generation):
         organization_id = uuid4()
-        leaf = await save_generated_media(organization_id, b"\x89PNG-logo", filename="image.png")
+        leaf = await save_generated_media(organization_id, PNG, filename="image.png")
 
-        await _make(_toolset(), _ctx(organization_id), first_frame=leaf)
+        await _make(_toolset(), _ctx(organization_id, messages=_drawn(leaf)), first_frame=leaf)
 
         frame = generation.calls[0]["first_frame"]
-        assert (frame.data, frame.mime_type) == (b"\x89PNG-logo", "image/png")
+        assert (frame.data, frame.mime_type) == (PNG, "image/png")
 
-    async def test_a_workspace_path_is_read_from_the_workspace(self, generation):
+    async def test_an_image_drawn_elsewhere_in_the_organization_is_not_reached(self, generation):
+        """A channel visitor who learned another chat's file name cannot have it
+        sent to a provider: only an image this conversation produced counts."""
+        organization_id = uuid4()
+        leaf = await save_generated_media(organization_id, PNG, filename="image.png")
+
+        with pytest.raises(ModelRetry, match="generated in this conversation"):
+            await _make(_toolset(), _ctx(organization_id), first_frame=leaf)
+        assert generation.calls == []
+
+    async def test_a_name_quoted_by_another_tool_is_not_an_image_drawn_here(self, generation):
+        """A fetched page that mentions a file name is not that file's having been made."""
+        organization_id = uuid4()
+        leaf = await save_generated_media(organization_id, PNG, filename="image.png")
+        quoted = [
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(tool_name="web_fetch", content=f"see {leaf}", tool_call_id="c1")
+                ]
+            )
+        ]
+
+        with pytest.raises(ModelRetry, match="generated in this conversation"):
+            await _make(_toolset(), _ctx(organization_id, messages=quoted), first_frame=leaf)
+
+    async def test_an_image_the_store_no_longer_holds_is_looked_for_in_the_workspace(
+        self, generation
+    ):
         document = StateBackend()
-        document.write_bytes("output/logo.jpg", b"jpeg-logo")
+        document.write_bytes("gone_image.png", JPEG)
+
+        await _make(
+            _toolset(),
+            _ctx(
+                uuid4(), workspace=document_workspace(document), messages=_drawn("gone_image.png")
+            ),
+            first_frame="gone_image.png",
+        )
+
+        assert generation.calls[0]["first_frame"].mime_type == "image/jpeg"
+
+    @pytest.mark.parametrize(
+        ("name", "data", "mime"),
+        [("logo.png", JPEG, "image/jpeg"), ("logo.webp", WEBP, "image/webp")],
+    )
+    async def test_a_workspace_image_is_typed_by_its_bytes_not_its_name(
+        self, generation, name, data, mime
+    ):
+        document = StateBackend()
+        document.write_bytes(f"output/{name}", data)
 
         await _make(
             _toolset(),
             _ctx(uuid4(), workspace=document_workspace(document)),
-            first_frame="output/logo.jpg",
+            first_frame=f"output/{name}",
         )
 
         frame = generation.calls[0]["first_frame"]
-        assert (frame.data, frame.mime_type) == (b"jpeg-logo", "image/jpeg")
-
-    async def test_a_leaf_not_generated_here_is_looked_for_in_the_workspace(self, generation):
-        document = StateBackend()
-        document.write_bytes("logo.webp", b"webp-logo")
-
-        await _make(
-            _toolset(),
-            _ctx(uuid4(), workspace=document_workspace(document)),
-            first_frame="logo.webp",
-        )
-
-        assert generation.calls[0]["first_frame"].mime_type == "image/webp"
+        assert (frame.data, frame.mime_type) == (data, mime)
 
     @pytest.mark.parametrize(
         ("source", "workspace", "says"),
         [
-            ("clip.gif", None, "PNG, JPEG or WebP"),
             (
                 "missing.png",
                 None,
-                "There is no image called 'missing.png' among the files generated here.",
+                "There is no image called 'missing.png' generated in this conversation.",
             ),
             ("missing.png", "document", "or in your workspace"),
-            ("missing.png", "failing", "or in your workspace"),
+            ("notes.png", "text", "is not a PNG, JPEG or WebP image"),
+            ("logo.gif", "gif", "is not a PNG, JPEG or WebP image"),
+            ("logo.png", "failing", "from your workspace failed"),
         ],
-        ids=["format", "nowhere", "not in the workspace", "a workspace that cannot read"],
+        ids=[
+            "nowhere",
+            "not in the workspace",
+            "not an image",
+            "a GIF",
+            "a workspace that cannot read",
+        ],
     )
     async def test_an_image_that_cannot_be_used_is_steered(
         self, generation, source, workspace, says
     ):
+        document = StateBackend()
+        document.write_bytes("notes.png", b"plain text")
+        document.write_bytes("logo.gif", b"GIF89a-logo")
+        document.write_bytes("logo.png", PNG)
         ctx_workspace = {
             None: None,
             "document": document_workspace(StateBackend()),
-            "failing": ShellFailing(document_workspace()),
+            "text": document_workspace(document),
+            "gif": document_workspace(document),
+            "failing": ShellFailing(document_workspace(document)),
         }[workspace]
 
         with pytest.raises(ModelRetry, match=says):
             await _make(_toolset(), _ctx(uuid4(), workspace=ctx_workspace), first_frame=source)
         assert generation.calls == []
 
-    async def test_an_image_too_large_to_send_is_steered(self, generation, monkeypatch):
-        monkeypatch.setattr(toolset_module, "MAX_FRAME_BYTES", 2)
-        organization_id = uuid4()
-        leaf = await save_generated_media(organization_id, b"\x89PNG-logo", filename="image.png")
+    async def test_a_workspace_that_refuses_the_read_says_so(self, generation, monkeypatch):
+        workspace = document_workspace(StateBackend())
+
+        async def refuse(_path: str) -> Any:
+            raise PermissionError("no")
+
+        monkeypatch.setattr(workspace, "stat", refuse)
+
+        with pytest.raises(ModelRetry, match="was refused"):
+            await _make(_toolset(), _ctx(uuid4(), workspace=workspace), first_frame="logo.png")
+
+    async def test_a_large_workspace_file_is_refused_before_it_is_read(
+        self, generation, monkeypatch
+    ):
+        monkeypatch.setattr(toolset_module, "MAX_FRAME_BYTES", 4)
+        document = StateBackend()
+        document.write_bytes("big.png", PNG)
+        workspace = document_workspace(document)
+        read = []
+
+        original = workspace.read_bytes
+
+        async def counting(path: str) -> bytes:
+            read.append(path)
+            return await original(path)
+
+        monkeypatch.setattr(workspace, "read_bytes", counting)
 
         with pytest.raises(ModelRetry, match="larger than"):
-            await _make(_toolset(), _ctx(organization_id), first_frame=leaf)
+            await _make(_toolset(), _ctx(uuid4(), workspace=workspace), first_frame="big.png")
+        assert read == []
+
+    async def test_a_large_generated_image_is_refused(self, generation, monkeypatch):
+        monkeypatch.setattr(toolset_module, "MAX_FRAME_BYTES", 4)
+        organization_id = uuid4()
+        leaf = await save_generated_media(organization_id, PNG, filename="image.png")
+
+        with pytest.raises(ModelRetry, match="larger than"):
+            await _make(_toolset(), _ctx(organization_id, messages=_drawn(leaf)), first_frame=leaf)
 
     async def test_a_model_that_cannot_start_from_an_image_is_steered(
         self, generation, monkeypatch
     ):
-        from dataclasses import replace
-
         entry = video_models.CATALOG[1]
         models = tuple(replace(model, first_frame=False) for model in entry.models)
         monkeypatch.setattr(video_models, "CATALOG", (replace(entry, models=models),))
@@ -409,6 +542,11 @@ class TestRefusingBeforeSubmitting:
     async def test_a_blank_prompt(self, generation):
         with pytest.raises(ModelRetry, match="empty"):
             await _make(_toolset(), _ctx(uuid4()), "  ")
+
+    async def test_a_length_of_zero_is_refused_rather_than_read_as_none(self, generation):
+        with pytest.raises(ModelRetry, match="must be 4 to 10"):
+            await _make(_toolset(), _ctx(uuid4()), seconds=0)
+        assert generation.calls == []
 
     async def test_a_length_past_the_agents_limit_names_the_range(self, generation):
         with pytest.raises(ModelRetry, match="must be 4 to 10"):

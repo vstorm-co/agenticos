@@ -1,5 +1,5 @@
 ---
-source_sha: "07a30e248ed1"
+source_sha: "3cf07df5c076"
 ---
 
 # Ochrona danych { #data-protection }
@@ -38,7 +38,7 @@ tak i oprogramowanie współpracuje:
 | Trace'y | Zostaw `LOGFIRE_TOKEN` nieustawiony i nie wiąż żadnego tokenu `observability` ze specem ani ze środowiskiem. Runy dalej zapisują id trace'u lokalnie |
 | Wyszukiwanie, przeglądanie, pamięć, narzędzia | Nie wiąż sekretu `search`, żadnej capability `web_fetch`, `browser_use` ani `memory_mem0`, żadnego połączenia MCP. Przeglądarka może zostać, gdy każda strona, którą może otworzyć, jest na `allowed_domains`, a jej kroki idą do modelu, który sam hostujesz |
 | Poczta | Twój własny relay SMTP |
-| Mowa i obrazy | Profile u providera, którego hostujesz, albo brak takich profili; brak capability `text_to_speech` ani `video_generation` |
+| Mowa, obrazy i wideo | Profile u providera, którego hostujesz, albo brak takich profili; brak capability `text_to_speech` ani `video_generation` |
 
 Embeddingi w to wliczone: katalog wymienia OpenRouter i OpenAI, do których
 kolekcja sięga kluczem z vaultu, oraz `ollama`, do której kolekcja sięga przez

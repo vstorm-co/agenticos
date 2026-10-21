@@ -27,8 +27,12 @@ through `app/agents/capabilities/_generated.py`, the helper `generate_image` and
 `generate_speech` use, and the Builder panel is the same provider and model selects
 with the resolution, shape and length beside them.
 
-A clip can start from an image: the `filename` `generate_image` returned, or a
-workspace path. "Draw a logo, then animate it" is two calls and nothing to upload.
+A clip can start from an image: the `filename` `generate_image` returned in the
+same conversation, or a workspace path. "Draw a logo, then animate it" is two
+calls and nothing to upload. The generated store is organization-wide and an agent
+can be driven by somebody who is not a member - a channel participant, a widget
+visitor - so it is reached only through an image this conversation produced, never
+by a file name alone. The image is typed by its bytes, not its name.
 
 ## A job, not a request
 
