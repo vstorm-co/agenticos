@@ -55,7 +55,7 @@ export function SuggestionList({
       )}
       {ordered.map((hunk) => (
         <SuggestionCard
-          key={hunk.id}
+          key={`${hunk.id}-${hunk.status}`}
           hunk={hunk}
           canEdit={open}
           busy={busy}

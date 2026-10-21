@@ -35,6 +35,26 @@ describe("SuggestionList", () => {
     });
   });
 
+  it("leaves the editor behind once an edited suggestion is accepted, and after an undo", async () => {
+    const props = { agentId: "agent-1", busy: false, onDecide: vi.fn() };
+    const waiting = hunk({ id: "h-1", new_text: "Waiting one." });
+    const { rerender } = render(<SuggestionList batch={batch({ hunks: [waiting] })} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+
+    rerender(
+      <SuggestionList
+        batch={batch({ hunks: [{ ...waiting, status: "accepted", accepted_text: "Mine." }] })}
+        {...props}
+      />,
+    );
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText("Mine.")).toBeInTheDocument();
+
+    rerender(<SuggestionList batch={batch({ hunks: [waiting] })} {...props} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
   it("is read-only once a newer request replaced it", () => {
     render(
       <SuggestionList
