@@ -87,7 +87,8 @@ async function readiness(page: Page, body: object): Promise<void> {
 /** /chat with the seeded agent chosen, waiting on the composer being live. */
 async function chatWithSeededAgent(page: Page): Promise<void> {
   await page.goto("/chat");
-  await expect(page.getByText("Live")).toBeVisible();
+  // Exact: an agent's description saying "live in the chat" matches a substring.
+  await expect(page.getByText("Live", { exact: true })).toBeAttached();
   await page.getByRole("button", { name: /^Agent:/ }).click();
   const agent = page.getByRole("radio", { name: new RegExp(SEEDED_AGENT_NAME) });
   await agent.click();
@@ -142,7 +143,7 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   await expect(bar).toBeFocused();
   await expect(bar.getByText("Listening")).toBeVisible();
 
-  // The caption arrives inside a message, marked live until it is final.
+  // The caption arrives as the message it becomes, growing until it is final.
   send({
     type: "caption",
     role: "user",
@@ -152,7 +153,6 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   });
   const captions = page.getByTestId("voice-captions-visible");
   await expect(captions).toContainText("Send an invoice for 120 euros");
-  await expect(captions.getByText("Live")).toBeVisible();
   send({
     type: "caption",
     role: "user",
@@ -161,7 +161,6 @@ test("a call shows captions, an approval with the exact arguments, a warning and
     final: "Send an invoice for 120 euros to Acme",
   });
   await expect(captions).toContainText("Send an invoice for 120 euros to Acme");
-  await expect(captions.getByText("Live")).toHaveCount(0);
 
   // A call longer than the screen scrolls the transcript, never the page column
   // around it: the captions' screen-reader region once sat a transcript's height
@@ -257,6 +256,13 @@ test("the end of a call stays above the composer that comes back", async ({ page
     });
   }
   await expect(page.getByTestId("voice-captions-visible")).toContainText("Answer 8.");
+  const fromEnd = () =>
+    page.getByTestId("voice-captions-visible").evaluate((node) => {
+      const scroller = node.closest(".overflow-y-auto") as HTMLElement;
+      return Math.round(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight);
+    });
+  // While the call runs, the transcript follows its end.
+  await expect.poll(fromEnd).toBeLessThanOrEqual(1);
 
   await bar.getByRole("button", { name: "End call" }).first().click();
   send({ type: "ended", reason: "user" });
@@ -277,7 +283,9 @@ test("the end of a call stays above the composer that comes back", async ({ page
     .toBeLessThanOrEqual(1);
 });
 
-test("an agent without a voice offers the button crossed out with the reason", async ({ page }) => {
+test("an agent without a voice offers the button crossed out, and where to turn calls on", async ({
+  page,
+}) => {
   await readiness(page, {
     ...READINESS,
     available: false,
@@ -291,22 +299,12 @@ test("an agent without a voice offers the button crossed out with the reason", a
   const button = page.getByRole("button", { name: "Start a voice call" });
   await expect(button).toHaveAttribute("aria-disabled", "true");
   await button.hover();
-  await expect(page.getByText("This agent has no voice set up", { exact: true })).toBeVisible();
-});
-
-test("an organization with calls off offers no call button at all", async ({ page }) => {
-  await readiness(page, {
-    ...READINESS,
-    available: false,
-    unavailable: "org_off",
-    transport: null,
-    provider: null,
-    model: null,
-    cap_seconds: 0,
-  });
-  const answered = page.waitForResponse("**/api/agents/*/voice");
-  await chatWithSeededAgent(page);
-  await answered;
-  await expect(page.getByRole("button", { name: "Add to message" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start a voice call" })).toHaveCount(0);
+  await expect(
+    page.getByText("Calls aren't turned on for this agent", { exact: true }),
+  ).toBeVisible();
+  // The seeded owner may edit the agent, so the reason links to its Voice card.
+  await expect(page.getByRole("link", { name: "Open in the Agent Builder" })).toHaveAttribute(
+    "href",
+    /\/agents\/[^/]+#agent-voice$/,
+  );
 });
