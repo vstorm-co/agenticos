@@ -17,8 +17,11 @@ by the length the provider reports where it reports one.
 
 **Whose mistake decides the shape of a failure** (`_failures.py`). A prompt, a
 length, a ratio or an image the model can fix is steered, as is a provider that
-is down. A refused key, a spent budget and a job past the binding's time limit are
-returned: the model cannot fix them, and a retry of a slow job is a second bill.
+is down. A refused key, a spent budget, a content-policy refusal and a job past
+the binding's time limit are returned: the model cannot fix the first two, a
+retry prompt on a refusal invites it to look for a way around one, and a retry of
+a slow job is a second bill. A job past its time limit is still booked, at its
+estimate: the provider may finish it and bill it after the call has given up.
 """
 
 from dataclasses import dataclass
@@ -259,16 +262,19 @@ def build_video_toolset(
                         "needs to replace the key in the vault."
                     )
                 case VideoFailure.TIMED_OUT:
+                    # Submitted and not cancelled in time, so possibly billed: an
+                    # estimate booked is a cap held, where nothing booked would let
+                    # the next clip spend the same money again.
+                    record_ambient_cost(ledger_name, estimate)
                     return (
                         f"Not made: the video was not ready within {settings.timeout_seconds} "
                         "seconds. Tell the user rather than trying again - a second attempt is "
                         "billed again."
                     )
                 case VideoFailure.POLICY:
-                    return steer(
-                        ctx,
-                        "The video provider's content policy refused this prompt or image. "
-                        "Describe the shot differently, or answer without a video.",
+                    return (
+                        "Not made: the video provider's content policy refused this prompt "
+                        "or image. Tell the user rather than rewording the same request."
                     )
                 case _:
                     return steer(ctx, f"{exc.message} Try once more, or answer without a video.")

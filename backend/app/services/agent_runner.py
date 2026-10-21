@@ -758,6 +758,15 @@ class PausedRunState(BaseModel):
             "without the capability, and for one parked before this existed"
         ),
     )
+    generated_files: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The generated files this run's own tools stored before it parked, by leaf "
+            "name. A file reaches `generate_video` as a starting image only if the run "
+            "made it, and a resume builds fresh deps - so without this a clip approved "
+            "after parking could not start from the picture drawn before it"
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -4428,6 +4437,7 @@ class AgentRunnerService:
                     for specialist in prepared.stash.registered.get(None, [])
                 ],
                 "plan": plan,
+                "generated_files": sorted(prepared.built.deps.generated_files),
             }
         )
 
@@ -4900,6 +4910,9 @@ class AgentRunnerService:
             plan_items=state.plan,
         )
         prepared.built.ledger.book(_spend_already_booked(run))
+        # What the run made before parking is still its own: the starting image a
+        # parked `generate_video` names was drawn earlier in this same run.
+        prepared.built.deps.generated_files.update(state.generated_files)
 
         # Out of the queue once the build has succeeded, and before anything is
         # replayed. Two different things keep two different resumes out, which is

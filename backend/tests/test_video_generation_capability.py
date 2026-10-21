@@ -194,6 +194,42 @@ class TestConfiguration:
         with pytest.raises(ValidationError, match=says):
             VideoGenerationConfig(**config)
 
+    @pytest.mark.parametrize(
+        ("config", "fields"),
+        [
+            ({"provider": "xai", "model": "grok-9"}, [("model",)]),
+            (
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "resolution": "4k"},
+                [("resolution",)],
+            ),
+            (
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "aspect_ratio": "5:4"},
+                [("aspect_ratio",)],
+            ),
+            (
+                {
+                    "provider": "google",
+                    "model": "gemini-omni-1.1-flash",
+                    "seconds": 5,
+                    "max_seconds": 6,
+                },
+                [("seconds",), ("max_seconds",)],
+            ),
+            ({"provider": "xai", "model": "grok-imagine-video-1.5", "audio": False}, [("audio",)]),
+            (
+                {"provider": "xai", "model": "grok-imagine-video-1.5", "max_seconds": 20},
+                [("max_seconds",)],
+            ),
+        ],
+        ids=["model", "resolution", "aspect ratio", "lengths", "sound", "longest"],
+    )
+    def test_a_refusal_names_the_field_it_is_about(self, config, fields):
+        """Unlocated, publish named only `config` and the Builder marked nothing."""
+        with pytest.raises(ValidationError) as refused:
+            VideoGenerationConfig(**config)
+
+        assert [error["loc"] for error in refused.value.errors()] == fields
+
     def test_a_model_dropped_after_validation_is_said_rather_than_guessed(self, monkeypatch):
         config = VideoGenerationConfig()
         monkeypatch.setattr(video_models, "CATALOG", ())
@@ -625,7 +661,8 @@ class TestAFailedJob:
         ("failure", "answer"),
         [
             (VideoFailure.CREDENTIALS, "refused this agent's API key"),
-            (VideoFailure.TIMED_OUT, "not ready within 600 seconds"),
+            # A refusal is answered: a retry prompt would invite a way around it.
+            (VideoFailure.POLICY, "content policy refused this prompt"),
         ],
     )
     async def test_what_the_model_cannot_fix_is_answered_not_retried(
@@ -639,11 +676,19 @@ class TestAFailedJob:
         assert result.startswith("Not made:") and answer in result
         assert ledger.entries == []
 
-    async def test_a_policy_refusal_asks_for_a_different_shot(self, generation):
-        generation.error = VideoProviderError(VideoFailure.POLICY, provider="byteplus")
+    async def test_a_job_past_its_time_limit_is_answered_and_booked_at_its_estimate(
+        self, generation
+    ):
+        """Submitted and not cancelled in time, it may still be billed; booking
+        nothing would let the next clip spend the same money again."""
+        generation.error = VideoProviderError(VideoFailure.TIMED_OUT, provider="byteplus")
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            result = await _make(_toolset(), _ctx(uuid4()))
 
-        with pytest.raises(ModelRetry, match="Describe the shot differently"):
-            await _make(_toolset(), _ctx(uuid4()))
+        assert result.startswith("Not made:") and "not ready within 600 seconds" in result
+        [entry] = ledger.entries
+        assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
 
     @pytest.mark.parametrize(
         "failure", [VideoFailure.REJECTED, VideoFailure.RATE_LIMITED, VideoFailure.UNAVAILABLE]

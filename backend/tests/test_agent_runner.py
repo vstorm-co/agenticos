@@ -58,6 +58,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.deps import AgentDeps
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
     AgentSpec,
@@ -1284,6 +1285,64 @@ class TestAPlanThatOutlivesTheTurn:
 
         store = build.call_args.kwargs["resources"][PLANNING_STORE_RESOURCE]
         assert [item.content for item in await store.get_items()] == ["Ship the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_resume_keeps_the_files_the_run_generated_before_it_parked(self):
+        """A starting image for `generate_video` must be one the run itself made, and
+        a resume builds fresh deps: without the parked list, a clip approved after a
+        park could not start from the picture drawn before it."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "generated_files": ["a1b2_image.png"],
+            },
+        )
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        stale = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "pending"}],
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=stale),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            build.return_value.deps = AgentDeps()
+            await service.resume(ctx, run.id)
+
+        assert build.return_value.deps.generated_files == {"a1b2_image.png"}
 
 
 class TestRecordedConversationState:
@@ -2715,6 +2774,8 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
+            # And no generated files, which is a run whose tools stored none.
+            "generated_files": [],
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
@@ -2750,6 +2811,25 @@ class TestParking:
 
         stored = finish.call_args.kwargs["paused_state"]["plan"]
         assert [item["content"] for item in stored] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_snapshots_the_files_it_generated(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.deps = AgentDeps(generated_files={"b2_video.mp4", "a1_image.png"})
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "animate the logo")
+
+        stored = finish.call_args.kwargs["paused_state"]["generated_files"]
+        assert stored == ["a1_image.png", "b2_video.mp4"]
 
     @pytest.mark.anyio
     async def test_the_plan_the_turn_ended_on_is_written_to_its_conversation(self):
