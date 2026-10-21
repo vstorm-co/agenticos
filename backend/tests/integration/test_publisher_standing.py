@@ -146,7 +146,8 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
     - unless the creator let that trigger act as them, which is why the trigger
     site sets it from the row rather than to a constant (#2027) - and
     `services/eval_run_worker.py` mints the same for an eval run's starter, whose
-    cases run unattended in a worker.
+    cases run unattended in a worker, and `services/authoring_worker.py` for the
+    person who asked the authoring assistant, whose request runs in a worker too.
     """
     app_root = Path(__file__).resolve().parents[2] / "app"
     setters = {
@@ -160,4 +161,5 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
         "services/access.py": ["True"],
         "services/agent_trigger.py": ["not trigger.runs_as_creator"],
         "services/eval_run_worker.py": ["True"],
+        "services/authoring_worker.py": ["True"],
     }, setters
