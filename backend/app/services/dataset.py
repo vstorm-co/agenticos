@@ -377,13 +377,15 @@ class DatasetService:
 
         None for a run of another organization, one the caller may not read -
         reading a run takes `runs:view`, as its transcript does - or one that
-        kept no question.
+        kept no question. Redacted as a case's input is when it is stored, so a
+        question holding a credential still finds the case taken from it.
         """
         if not ctx.has(Perm.RUNS_VIEW):
             return None
-        return await conversation_repo.question_of_run(
+        question = await conversation_repo.question_of_run(
             self.db, run_id=run_id, organization_id=ctx.organization_id
         )
+        return _redact(question)[0]
 
     async def _is_default_judge(self, ctx: AuthContext, agent_id: UUID) -> bool:
         default = await agent_repo.get_system(
