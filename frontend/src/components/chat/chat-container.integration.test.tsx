@@ -1056,6 +1056,40 @@ describe("the chat container - an answer still being written after its person le
     await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
   });
 
+  it("says nothing of an answer left behind while this tab holds the call that is the run", async () => {
+    // A call is a run in its conversation, and while the agent thinks the last
+    // spoken turn is the caller's: that is not a turn somebody walked away from.
+    voiceCall.call = { ...initialCall, phase: "live", callId: "call-1", startedAt: Date.now() };
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Write me a rollout plan",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+
+    // The list that says the run is at work has been read.
+    await vi.waitFor(
+      () =>
+        expect(get.mock.calls.some(([url]) => String(url).startsWith("/conversations?"))).toBe(
+          true,
+        ),
+      SETTLE,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByText(/still answering when you left/)).toBeNull();
+  });
+
   it("says the opened chat was seen, though nothing in it was unread", async () => {
     // A project chat lists who has seen it, and a teammate's chat never reads as
     // unread to anyone but its owner - so opening it has to count by itself.

@@ -403,8 +403,13 @@ export function ChatContainer({
   const runningSince =
     conversations.find((conversation) => conversation.id === currentConversationId)
       ?.running_since ?? null;
+  // Not while this tab holds a call: the call is that run, and its last spoken
+  // turn is the caller's while the agent thinks - nobody left anything.
   const answeringElsewhere =
-    runningSince !== null && !isProcessing && messages.at(-1)?.role === "user";
+    runningSince !== null &&
+    !isProcessing &&
+    !callActive(voice) &&
+    messages.at(-1)?.role === "user";
   // And fetch the answer when that run ends, rather than waiting for a reload:
   // the run's end clears `running_since`, and the transcript is where it landed.
   //
