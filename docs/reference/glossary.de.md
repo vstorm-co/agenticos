@@ -1,5 +1,5 @@
 ---
-source_sha: "5c26c6a43469"
+source_sha: "ca65b28942ee"
 ---
 
 # Glossar { #glossary }
@@ -29,8 +29,10 @@ nicht bricht.
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
 | System-Agent | Ein Agent, den die Plattform selbst ausführt, etwa ein Bewerter, der Lücken-Entwerfer oder der Lücken-Klassifizierer; getrennt aufgeführt unter **System-Agents** | `kind` außer `agent` |
-| Authoring-Assistent | Schlägt Änderungen an einem Agent oder Skill aus negativ bewerteten Antworten vor; über jede entscheidet ein Mensch | `authoring` |
+| Authoring-Assistent | Schlägt Änderungen an einem Agent, einem Skill oder einer Context-Datei aus negativ bewerteten Antworten vor; über jede entscheidet ein Mensch | `authoring` |
 | Vorschlag | Eine vorgeschlagene Änderung am Draft, einzeln angenommen, bearbeitet oder verworfen | `spec_proposal_hunk` |
+| Einstellungsänderung | Ein Vorschlag, einen Teil der Konfiguration eines Agents zu ändern, etwa sein Modell oder eine Capability | `spec_field`-Hunk |
+| Änderung an einer Context-Datei | Ein neuer Inhalt, den der Assistent für eine Context-Datei vorschlägt, auf der Context-Seite angewendet oder verworfen | `context_proposal` |
 
 ## Wo es läuft { #where-it-runs }
 

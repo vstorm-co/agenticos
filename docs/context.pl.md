@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "70c5a86639f1"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -93,6 +93,19 @@ całkowicie przewidywalne.
 Można też zacząć od pliku: **Dodaj do agenta** na jego karcie dodaje go do
 szkicu agenta razem z włączoną capability Kontekst, a karta mówi, którzy agenci
 już go mają. Baza wiedzy ma tę samą akcję na swojej stronie.
+
+## Zmiany proponowane przez asystenta { #changes-the-assistant-proposes }
+
+**Ulepsz z asystentem**, w edytorze pliku, prosi
+[asystenta tworzenia](authoring.md#context-files) o lepszą treść, napisaną na
+podstawie runów agentów, którzy czytają plik. To, co proponuje, nie jest
+stosowane: czeka nad listą na stronie Context, z uzasadnieniem, runami, na
+których się opiera, i agentami, którzy czytają plik.
+
+Zastosowanie jej to to samo co ręczna edycja pliku - działa od razu dla każdego
+podpiętego agenta - więc każdą zmianę można najpierw sprawdzić evalami, na
+jednym z tych agentów. Plik, który ktoś edytował po zaproponowaniu zmiany,
+odrzuca ją; ta edycja nigdy nie zostaje nadpisana.
 
 ## Dostęp { #access }
 

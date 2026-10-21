@@ -1,14 +1,15 @@
 ---
 title: "Authoring assistant"
-description: "The authoring assistant reads what people rated down and how runs ended, and suggests changes to an agent's instructions, tool descriptions and skills. A person decides each one."
+description: "The authoring assistant reads what people rated down and how runs ended, and suggests changes to an agent's instructions, tools, configuration, skills and context files. A person decides each one."
 ---
 
 # Authoring assistant
 
 The **authoring assistant** improves agents from evidence. It reads what people
 rated down and how runs ended, and suggests changes to an agent's instructions,
-to the names and descriptions of its tools, and to the skills it uses. It never
-changes anything on its own: each suggestion waits for a person, an accepted
+to the names and descriptions of its tools, to its
+[configuration](#configuration), and to the skills and context files it uses. It
+never changes anything on its own: each suggestion waits for a person, an accepted
 one lands in the [draft](concepts.md), and nothing reaches anybody until the
 draft is published.
 
@@ -18,7 +19,8 @@ It does three things:
 - **Verify** your own edits: compare the draft with the published version against
   the same evidence, and say what the edits improve, what they risk and what they
   removed.
-- **Improve a skill**: suggest a new body from the runs that opened it.
+- **Improve a skill** or a **context file**: suggest a new body from the runs
+  that read it.
 
 The assistant is a [system agent](datasets.md#judge) of its own, listed with
 the organization's other system agents. Its instructions can be edited like any
@@ -99,6 +101,54 @@ Each suggestion states the effect it expects. The strip shows it beside the eval
 runs that checked the suggestions, so you can compare the prediction with what
 the runs found.
 
+## Configuration { #configuration }
+
+Besides the text, the assistant can suggest a change to a few parts of an
+agent's configuration. Each one is a suggestion like any other, decided on its
+own in the strip, and shown by name: the model, knowledge base, context file,
+capability or MCP server it refers to, never an identifier.
+
+| Part | What a suggestion can do |
+|---|---|
+| Description | Set it |
+| Model | Change the model profile |
+| Model settings | Set temperature, top-p, max tokens, timeout or parallel tool calls |
+| Step limit | Set `max_steps` |
+| Capabilities | Add or remove one, or change its settings |
+| Approval | Make a capability or one of its tools ask first |
+| Specialists | Rewrite the description of an inline [specialist](reference/capabilities.md#delegation) |
+| Knowledge bases | Bind or unbind one |
+| Context files | Bind or unbind one |
+| MCP tools | Change which tools of a bound server the agent may call |
+
+Nothing else is a suggestion at all: eval suites and their thresholds, datasets,
+budgets, observability and a pinned delegate are never changed by the assistant.
+**Edit** works on a single value or a text - a setting, the step limit, a
+description; anything else is accepted or dismissed as suggested.
+
+### It never widens access { #never-widens-access }
+
+A suggestion that binds a knowledge base, a context file, a model profile or an
+MCP server, or lets the agent call more MCP tools, is accepted only by somebody
+who could make that change by hand: accepting it as anybody else is refused,
+as the Builder would refuse it. Approval only tightens: a suggestion can make a
+capability or a tool ask first, never stop asking. A capability the assistant
+adds arrives with each of its tools that changes something set to ask first, and
+the suggestion lists those tools, as it does for MCP tools a change makes
+reachable.
+
+### A change of model { #a-change-of-model }
+
+A suggestion to change the model says what one run would cost on each model,
+priced from the agent's recent runs. Priced from fewer than five, it says it is
+a rough estimate and from how many runs.
+
+A change of model is accepted only after it has paid off. **Accept** stays
+disabled, and says why, until a [check with evals](#check-with-evals) of the
+waiting suggestions has run on that model and found no confirmed regression. A
+check that decided nothing - an answer left ungraded, or no verdict - holds it
+back too: grade the answers or run the check again.
+
 ## Skills { #skills }
 
 A skill is improved from its workbench under Skills. What the assistant suggests
@@ -110,6 +160,20 @@ body on its next run. So a skill change can be checked with evals first, on an
 agent that uses the skill: both sides run that agent's published version, and
 only the skill's body differs. A change written against an older version of the
 skill is refused once somebody has changed the skill since.
+
+## Context files { #context-files }
+
+A [context file](context.md) is improved from its editor on the Context page,
+from the runs of the agents that read it. What the assistant suggests is a new
+body, and it waits above the list on that page with its rationale and evidence,
+and with the agents that read the file - as far as you may see them. One change
+waits for each file at a time.
+
+Applying it is live, as for a skill: every agent bound to the file reads the new
+body on its next run. So it can be checked with evals first, on an agent that
+uses the file, with only the file's body different. A file edited since the
+change was proposed cannot have the change applied: compare the two and edit the
+file by hand, or ask the assistant again.
 
 ## Describing a new agent { #describing-a-new-agent }
 
@@ -134,8 +198,11 @@ improvements**, apart from what evals cost.
 |---|---|
 | Start Improve or Verify on an agent | `runs:view`, edit access to the agent, and use of the assistant |
 | Improve a skill | `runs:view`, edit access to the skill, and use of the assistant |
+| Improve a context file | `runs:view`, `context:edit` on the file, and use of the assistant |
 | Accept, dismiss or undo a suggestion | Edit access to the agent |
+| Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
 | Apply or discard a skill change | `skills:edit` on the skill |
+| Apply or discard a context file change | `context:edit` on the file |
 | Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
 
 Grants count: a member with an edit grant on one agent may improve that agent.
@@ -143,7 +210,7 @@ Grants count: a member with an edit grant on one agent may improve that agent.
 ## When AI assistance is off { #when-ai-assistance-is-off }
 
 With the organization's **AI assistance** switch off, the assistant does not run:
-Improve, Verify and Improve on a skill are refused by the server, and the console
+Improve, Verify and Improve on a skill or a context file are refused by the server, and the console
 shows them disabled with a link to the switch. Suggestions already waiting can
 still be accepted, dismissed and undone, and an eval run that needs no judge
 still runs.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "70c5a86639f1"
 ---
 
 # Archivos de contexto { #context-files }
@@ -95,6 +95,19 @@ También se puede empezar por el archivo: **Add to an agent** en su tarjeta lo
 añade al borrador del agent con la capability Context activada, y la tarjeta dice
 qué agents lo llevan ya. Una base de conocimiento tiene la misma acción en su
 propia página.
+
+## Cambios que propone el asistente { #changes-the-assistant-proposes }
+
+**Mejorar con el asistente**, en el editor de un archivo, pide al
+[asistente de autoría](authoring.md#context-files) un cuerpo mejor, escrito a
+partir de los runs de los agents que leen el archivo. Lo que propone no se
+aplica: espera encima de la lista en la página Context, con su justificación, los
+runs en los que se apoya y los agents que leen el archivo.
+
+Aplicarlo es lo mismo que editar el archivo a mano - con efecto inmediato para
+cada agent vinculado -, así que cada cambio se puede comprobar antes con evals,
+en uno de esos agents. Un archivo que alguien editó después de proponerse el
+cambio lo rechaza; esa edición nunca se sobrescribe.
 
 ## Acceso { #access }
 

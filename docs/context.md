@@ -89,6 +89,19 @@ You can also start from the file: **Add to an agent** on its card adds it to the
 agent's draft with the Context capability switched on, and the card says which
 agents carry it already. A knowledge base has the same action on its own page.
 
+## Changes the assistant proposes
+
+**Improve with the assistant**, in a file's editor, asks the
+[authoring assistant](authoring.md#context-files) for a better body, written from
+the runs of the agents that read the file. What it proposes is not applied: it
+waits above the list on the Context page, with why, the runs it rests on, and
+the agents that read the file.
+
+Applying it is the same as editing the file by hand - live for every bound
+agent - so each change can be checked with evals first, on one of those agents.
+A file somebody edited after the change was proposed refuses the change; the
+edit is never written over.
+
 ## Access
 
 A context file has an owner and a visibility, like any other resource here, and

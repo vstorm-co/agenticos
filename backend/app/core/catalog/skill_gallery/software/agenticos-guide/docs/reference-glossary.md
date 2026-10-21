@@ -25,8 +25,10 @@ rename.
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
 | Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
 | System agent | An agent the platform runs itself, such as a judge, the gap drafter or the gap classifier; listed apart under **System agents** | `kind` other than `agent` |
-| Authoring assistant | Suggests changes to an agent or a skill from rated-down answers; a person decides each | `authoring` |
+| Authoring assistant | Suggests changes to an agent, a skill or a context file from rated-down answers; a person decides each | `authoring` |
 | Suggestion | One proposed change to a draft, accepted, edited or dismissed on its own | `spec_proposal_hunk` |
+| Setting change | A suggestion to change one part of an agent's configuration, such as its model or a capability | `spec_field` hunk |
+| Context file change | A new body the assistant proposed for a context file, applied or discarded on the Context page | `context_proposal` |
 
 ## Where it runs
 
