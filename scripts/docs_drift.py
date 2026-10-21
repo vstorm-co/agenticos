@@ -73,6 +73,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/agents/system_agents.py", "docs/concepts.md"),
     ("backend/app/services/system_agents.py", "docs/concepts.md"),
     ("backend/app/services/ai_assistance.py", "docs/governance.md"),
+    ("backend/app/services/case_generation/", "docs/datasets.md"),
     ("backend/app/services/skill_library.py", "docs/skills.md"),
     ("backend/app/core/catalog/skills/", "docs/skills.md"),
     ("backend/app/core/catalog/skill_gallery/", "docs/skills.md"),

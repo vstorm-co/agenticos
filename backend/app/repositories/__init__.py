@@ -55,6 +55,7 @@ from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
 from app.repositories import case_score as case_score_repo
 from app.repositories import dataset as dataset_repo
+from app.repositories import case_generation as case_generation_repo
 from app.repositories import eval_run as eval_run_repo
 from app.repositories import knowledge_gap as knowledge_gap_repo
 from app.repositories import memory as memory_repo
@@ -142,6 +143,7 @@ __all__ = [
     "context_repo",
     "case_score_repo",
     "dataset_repo",
+    "case_generation_repo",
     "eval_run_repo",
     "knowledge_gap_repo",
     "memory_repo",

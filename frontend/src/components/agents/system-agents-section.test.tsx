@@ -20,7 +20,7 @@ vi.mock("next/navigation", async (original) => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useSystemAgents: () => ({
-    groups: (["judge", "drafter"] as const).map((kind) => ({
+    groups: (["judge", "drafter", "generator"] as const).map((kind) => ({
       kind,
       agents: state.agents.filter((agent) => agent.kind === kind),
     })),
@@ -166,12 +166,14 @@ describe("SystemAgentsSection", () => {
     state.agents = [
       { id: "j1", name: "Eval judge", kind: "judge" },
       { id: "d1", name: "Knowledge gap drafter", kind: "drafter", published_model: null },
+      { id: "c1", name: "Case generator", kind: "generator", published_model: null },
     ];
     const { unmount } = render(<SystemAgentsSection query="" agentsMatched />);
-    await userEvent.click(screen.getByRole("button", { name: "System agents (2)" }));
+    await userEvent.click(screen.getByRole("button", { name: "System agents (3)" }));
 
-    expect(screen.getByRole("heading", { name: "Judges (1)" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Gap drafter (1)" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
+    ).toEqual(["Judges (1)", "Gap drafter (1)", "Case generator (1)"]);
     // Only a judge names the datasets it grades.
     expect(state.asked).toEqual([{ judge: "j1", limit: 3 }]);
     unmount();

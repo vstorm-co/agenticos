@@ -231,7 +231,7 @@ describe("create-dataset", () => {
       signal: { kind: "opened" },
     });
 
-    const groups = steps.slice(5, -3);
+    const groups = steps.slice(5, -4);
     expect(groups.map((step) => step.target)).toEqual([
       "case-group-question",
       "case-group-answers",
@@ -247,7 +247,7 @@ describe("create-dataset", () => {
       });
       expect(step.signal).toBeUndefined();
     }
-    const [save, sources, next] = steps.slice(-3);
+    const [save, sources, next, generate] = steps.slice(-4);
     expect(save).toMatchObject({
       target: "case-save",
       signal: { kind: "created", resource: "case" },
@@ -255,7 +255,12 @@ describe("create-dataset", () => {
     expect(save?.blockSubmit).toBeUndefined();
     expect(sources?.target).toBe("datasets-menu");
     expect(sources?.signal).toBeUndefined();
-    expect(next).toMatchObject({ target: "datasets-scoring-tab", page: DATASET_DETAIL });
+    expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
+    expect(generate).toMatchObject({
+      target: "datasets-generate",
+      activate: "datasets-generated-tab",
+      page: DATASET_DETAIL,
+    });
   });
 });
 

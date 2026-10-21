@@ -52,6 +52,10 @@ interface CaseEditorDialogProps {
   /** A stored case, opened to be read first; absent for a new case, opened to be written. */
   viewing?: DatasetCaseContent;
   title: string;
+  /** What saving does, when it is not "a new version of the dataset". */
+  description?: string;
+  /** The save button, when it is not "Save case". */
+  saveLabel?: string;
   /** The version a save makes. */
   nextVersion?: number;
   /** The dataset's Grading, to say what would grade the case as written. */
@@ -149,6 +153,8 @@ export function CaseEditorDialog({
   onSave,
   viewing,
   title,
+  description,
+  saveLabel,
   nextVersion,
   scoring,
   knownTools,
@@ -269,13 +275,14 @@ export function CaseEditorDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {onSave === undefined
-              ? t("caseReadOnly")
-              : !editing
-                ? t("caseOpened")
-                : nextVersion === undefined
-                  ? t("caseSavesVersion")
-                  : t("caseSavesVersionN", { number: nextVersion })}
+            {description ??
+              (onSave === undefined
+                ? t("caseReadOnly")
+                : !editing
+                  ? t("caseOpened")
+                  : nextVersion === undefined
+                    ? t("caseSavesVersion")
+                    : t("caseSavesVersionN", { number: nextVersion }))}
           </DialogDescription>
         </DialogHeader>
         <div className="-mx-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto px-1.5 py-1">
@@ -436,7 +443,7 @@ export function CaseEditorDialog({
               onClick={() => void save(onSave)}
               disabled={saving || missing !== null}
             >
-              {t("saveCase")}
+              {saveLabel ?? t("saveCase")}
             </Button>
           )}
         </DialogFooter>

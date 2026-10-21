@@ -1,5 +1,5 @@
 ---
-source_sha: "39877587ca0f"
+source_sha: "da763475f799"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -12,9 +12,10 @@ dass jemand ein paar Prompts von Hand ausprobiert und sich zu erinnern versucht,
 wie die letzte Antwort aussah.
 
 Jede Frage ist ein **Fall**: die Nachricht, die der Agent beantwortet, und wie
-eine gute Antwort aussieht. Fälle kommen aus drei Quellen - in der Konsole
-geschrieben, aus einer Datei importiert oder aus einem echten Gespräch
-übernommen, in dem jemand die Antwort negativ bewertet hat. Die letzte Quelle
+eine gute Antwort aussieht. Fälle kommen aus vier Quellen - in der Konsole
+geschrieben, aus einer Datei importiert, aus einem echten Gespräch übernommen,
+in dem jemand die Antwort negativ bewertet hat, oder vom Fallgenerator entworfen
+und von einem Menschen angenommen. Die letzte Quelle
 ist meist die wertvollste, weil es eine Frage ist, die ein Mensch wirklich
 gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 
@@ -56,8 +57,9 @@ Anhänge sind in dieser Version kein Teil eines Falls. Ein Fall ist Text.
 
 ## Jede Änderung ist eine neue Version { #versions }
 
-Einen Fall hinzufügen, bearbeiten oder entfernen und eine Datei importieren
-erzeugt jeweils eine neue **Version** des Datasets, nummeriert ab 1. Eine
+Einen Fall hinzufügen, bearbeiten oder entfernen, eine Datei importieren und
+generierte Fälle annehmen erzeugt jeweils eine neue **Version** des Datasets,
+nummeriert ab 1. Eine
 Version ändert sich nach ihrem Anlegen nie. Ein bearbeiteter Fall wird als neue
 Revision gespeichert, und die Version vor der Bearbeitung enthält weiterhin die
 alte.
@@ -190,6 +192,72 @@ einer anderen Organisation wird abgelehnt, als gäbe es sie nicht, und eine
 Antwort, die bereits ein Fall der neuesten Version des Datasets ist, wird
 abgelehnt, statt ein zweites Mal hinzugefügt zu werden.
 
+### Vom Fallgenerator { #generating-cases }
+
+Hundert gute Fälle von Hand zu schreiben ist der Grund, warum die meisten Teams
+keine haben. Der Tab **Generiert** auf der Seite eines Datasets, sichtbar für
+Mitglieder, die das Dataset bearbeiten dürfen, bittet den Fallgenerator, sie zu entwerfen, und Sie entscheiden, welche das Dataset behält.
+Wählen Sie den Agent, den die Fälle testen, die Quellen und wie viele Fälle Sie
+möchten - höchstens 50 und mindestens einen je Quelle, gleichmäßig auf die
+Quellen verteilt:
+
+| Quelle | Was der Generator entwirft | Was er gezeigt bekommt |
+|---|---|---|
+| Vom Agent | Typische Anfragen und Grenzfälle, mit den Aufrufen von Tools, die etwas ändern, die eine gute Antwort macht - ein Tool, das nur liest, wird nie erwartet, wie bei einem Fall, der aus einer Antwort hinzugefügt wird | Die Anweisungen des Agents, die seiner Skills, die Sie sehen dürfen, und seine Tools, unter den Namen, die der Agent ihnen gibt |
+| Aus dem Wissen | Fragen, die seine Wissensbasis beantwortet. Jeder Fall verweist auf das Dokument, aus dem sein Abschnitt stammt, behält den Abschnitt als Referenzantwort und trägt eine `judge`-Prüfung, dass die Antwort zum Abschnitt passt | Abschnitte aus höchstens 12 indexierten Dokumenten der Wissensbasen, die der Agent nutzt und die Sie lesen dürfen |
+| Aus Chats | Umformulierungen und schwierigere Varianten dessen, was Menschen den Agent gefragt haben, negativ bewertete Antworten zuerst. Jeder Fall verweist auf die Frage, die er abwandelt | Höchstens 60 Fragen, die dem Agent in dieser Organisation gestellt wurden, mit dem Kommentar zu einer negativ bewerteten Antwort. Nur Betriebsverkehr: Eval-Runs und isoliert gelaufene Runs haben auf einen Test geantwortet, nicht auf einen Menschen, und bleiben außen vor |
+| Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, die seiner Skills, die Sie sehen dürfen, und seine Tools |
+
+**Zuerst die geschätzten Kosten.** Der Dialog zeigt, wie viele Fälle jede Quelle
+liefern soll, woraus jede schöpft und eine Schätzung der Kosten, bevor etwas
+ausgegeben wird. Es ist eine Schätzung: Das Budget des Generators wird beim Lauf
+geprüft, wie das jedes Agents. Wer den Agent, die Quellen oder die Anzahl
+ändert, verwirft die Schätzung.
+
+**Nichts gelangt in das Dataset, bevor Sie es annehmen.** Die Entwürfe warten
+unter **Vorgeschlagene Fälle** im Tab Generiert. Nehmen Sie einen
+unverändert an, bearbeiten Sie ihn vorher oder verwerfen Sie ihn, einzeln oder
+eine Seite auf einmal. Ein Annehmen ist eine neue Version, egal wie viel es
+enthielt, und ihre Fälle haben die Quelle `synthetic`. Ein verworfener Entwurf
+wird gelöscht und hinterlässt nichts im Dataset. Ein angenommener verschwindet
+ebenfalls aus den Entwürfen: Die Version ist sein Nachweis. Ein Entwurf aus Chats
+formuliert um, was jemand gefragt hat, deshalb liest und entscheidet ihn nur, wer
+Runs ansehen darf; alle anderen, die das Dataset bearbeiten, sehen, wie viele
+warten.
+
+**Der Generator ist ein Agent.** Er ist ein Systemagent, der in jeder
+Organisation angelegt wird, daher werden seine Runs gegen sein eigenes Budget
+und das der Organisation gezählt, und jede Generierung ist ein Run, den Sie in
+der [Aktivität](console.md) öffnen können. Er hat keine Tools: Alles, was er
+liest, wird mit Ihren eigenen Zugriffsrechten für ihn gesammelt und im Prompt
+übergeben, sodass ein Dokument oder ein Gespräch, das ihm Anweisungen geben
+will, höchstens den Text eines Entwurfs ändern kann, den Sie prüfen. Ein
+Entwurf, der die Regel seiner Quelle nicht einhält - ein Wissensfall ohne einen
+Abschnitt, den der Generator bekam, ein Gesprächsfall ohne eine Frage, die er
+bekam, ein Red-Team-Fall ohne Kategorie, ein Fall, der nichts erwartet, ein
+Fall, dessen Referenzantwort sein Gegenbeispiel wiederholt und damit selbst
+durchfallen würde -, wird verworfen, bevor Sie ihn sehen.
+
+**Jede Quelle hat ihre eigene Schranke**, und eine Quelle, die Sie nicht nutzen
+dürfen, wird mit Namen abgelehnt statt stillschweigend ausgelassen:
+
+- jede Generierung braucht `datasets:edit` auf dem Dataset, `agents:view` auf
+  dem getesteten Agent und `agents:run` auf dem Fallgenerator, weil sie Geld der
+  Organisation ausgibt;
+- Wissen liest nur die Wissensbasen, die Sie lesen dürfen; der Dialog sagt, wie
+  viele der Wissensbasen des Agents ausgelassen wurden;
+- Gespräche brauchen `runs:view`, die Berechtigung, mit der die Aktivität jeden
+  Run liest;
+- die KI-Unterstützung ist in jeder Organisation ausgeschaltet, bis ein Owner
+  oder Admin sie in den Einstellungen der Organisation einschaltet, und solange
+  sie aus ist, startet keine Generierung - der Tab sagt das und wer es ändern
+  kann. Wartende Entwürfe lassen sich weiterhin annehmen oder
+  verwerfen, weil die Entscheidung kein Modell aufruft.
+
+Nur Mitglieder, die das Dataset bearbeiten dürfen, sehen seine Entwürfe. Ein
+Entwurf aus einem Gespräch ist Text, den die übrigen Leser des Datasets nicht zu
+sehen bekommen haben; angenommen ist er ein Fall wie jeder andere.
+
 ## Zugangsdaten werden geschwärzt { #credentials }
 
 Der Text von Fällen wird aus Gesprächen und hochgeladenen Dateien kopiert und
@@ -197,9 +265,10 @@ später exportiert und an Modelle übergeben. Bevor ein Fall gespeichert wird,
 ersetzt die Plattform jeden erkannten API-Schlüssel und jedes erkannte Token
 durch einen Platzhalter wie `[redacted:github_token]`. Das gilt für jedes Feld,
 das ein Modell liest oder ein Export enthält, auch für die Argumente eines
-erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
-Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
-Werte selbst.
+erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Eine
+Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem Generator
+übergibt, bevor sie an das Modell gehen. Der Audit-Eintrag der Änderung hält
+fest, wie viele Werte geschwärzt wurden, nie die Werte selbst.
 
 ## Bewertung { #scoring }
 
@@ -550,3 +619,13 @@ Wird der Run entfernt, den er bewertet hat, bleibt der Score ohne die Verbindung
 zu ihm, und wird die Person gelöscht, die ihn angefordert oder entschieden hat,
 wird ihr Name aus ihm entfernt. Die Begründung eines Bewerters kann die Antwort
 zitieren, die er bewertet hat.
+
+Ein generierter Fall, der noch auf eine Entscheidung wartet, wird nicht so
+aufbewahrt. Wird das Gespräch gelöscht, aus dem er entworfen wurde, oder die
+Person gelöscht, die die Frage gestellt hat, wird der Entwurf mit gelöscht:
+Niemand hat entschieden, ihn zu behalten. Der Datenexport einer Person enthält
+die Entwürfe aus ihren Fragen und Gesprächen. Eine Generierung aus Gesprächen
+schickt die gestellten Fragen, geschwärzt, an den Modellanbieter des
+Fallgenerators, und eine Generierung aus dem Wissen schickt Abschnitte der
+Dokumente - siehe
+[was das Deployment verlässt](data-protection.md#what-leaves-the-deployment).

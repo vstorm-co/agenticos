@@ -80,6 +80,7 @@ describe("pageKey", () => {
   it("collapses every concrete dataset route onto the one dataset identity", () => {
     expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
     expect(pageKey("/datasets")).toBe("/datasets");
+    expect(pageHasSteps("/datasets/abc-123")).toBe(true);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {

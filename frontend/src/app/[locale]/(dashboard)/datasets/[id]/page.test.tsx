@@ -39,6 +39,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       latest_version: 3,
       case_count: 1,
       can_edit: state.canEdit,
+      pending_proposals: 0,
       scoring: DEFAULT_SCORING,
     },
     error: null,
@@ -281,6 +282,7 @@ describe("the dataset page", () => {
     expect(screen.getByText("review")).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Cases",
+      "Generated",
       "Grading",
       "Evals",
       "Review",
