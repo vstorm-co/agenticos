@@ -193,6 +193,8 @@ class PublishedCandidate:
     """A published version to run, whichever version an environment pins."""
 
     version_id: UUID
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
 @dataclass(frozen=True)
