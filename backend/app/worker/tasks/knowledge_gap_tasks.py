@@ -11,7 +11,7 @@ from uuid import UUID
 
 from prefect import flow
 
-from app.db.session import get_db_context
+from app.db.session import get_worker_db_context
 from app.services import change_feed
 from app.services.knowledge_gaps import KnowledgeGapService
 
@@ -32,7 +32,7 @@ async def group_knowledge_gaps_flow(
     """
     # So a Knowledge gaps tab left open hears about the questions placed.
     await change_feed.connect_in_worker()
-    async with get_db_context() as db:
+    async with get_worker_db_context() as db:
         service = KnowledgeGapService(db)
         await service.forget_empty_topics()
         if organization_id is not None and knowledge_base_id is not None:
@@ -43,7 +43,7 @@ async def group_knowledge_gaps_flow(
     grouped = 0
     for org_id, kb_id in waiting:
         try:
-            async with get_db_context() as db:
+            async with get_worker_db_context() as db:
                 placed = await KnowledgeGapService(db).group_pending(
                     organization_id=org_id, knowledge_base_id=kb_id
                 )

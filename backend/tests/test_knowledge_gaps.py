@@ -284,7 +284,7 @@ class TestTheFlow:
         group = AsyncMock(side_effect=[RuntimeError("provider refused"), 4])
 
         with (
-            patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch("app.worker.tasks.knowledge_gap_tasks.get_worker_db_context", new=_Context),
             patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
             patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()) as told,
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()) as forget,
@@ -306,7 +306,7 @@ class TestTheFlow:
 
     async def test_a_pass_with_nothing_waiting_groups_nothing(self, caplog):
         with (
-            patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch("app.worker.tasks.knowledge_gap_tasks.get_worker_db_context", new=_Context),
             patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
             patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()) as told,
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()),
@@ -322,7 +322,7 @@ class TestTheFlow:
 
     async def test_a_named_knowledge_base_is_grouped_without_looking_for_others(self):
         with (
-            patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch("app.worker.tasks.knowledge_gap_tasks.get_worker_db_context", new=_Context),
             patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
             patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()),
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()),
