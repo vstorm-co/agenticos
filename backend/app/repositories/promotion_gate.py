@@ -86,6 +86,22 @@ async def guarded_by_dataset(
     return list(result.scalars().all())
 
 
+async def guarding_through(
+    db: AsyncSession, environment_id: UUID, *, organization_id: UUID
+) -> list[EvalSuite]:
+    """The guarding suites that run against this environment's test connections."""
+    result = await db.execute(
+        select(EvalSuite)
+        .where(
+            EvalSuite.environment_id == environment_id,
+            EvalSuite.organization_id == organization_id,
+            EvalSuite.id.in_(select(EnvironmentGuard.suite_id)),
+        )
+        .order_by(EvalSuite.name)
+    )
+    return list(result.scalars().all())
+
+
 async def guarded_following_latest(
     db: AsyncSession, agent_id: UUID, *, organization_id: UUID
 ) -> list[AgentEnvironment]:
@@ -99,6 +115,23 @@ async def guarded_following_latest(
             AgentEnvironment.id.in_(select(EnvironmentGuard.environment_id)),
         )
         .order_by(AgentEnvironment.name)
+    )
+    return list(result.scalars().all())
+
+
+async def guarded_followers(db: AsyncSession, *, limit: int) -> list[AgentEnvironment]:
+    """Environments of every organization that follow publishes and name a guard.
+
+    Unscoped, for the deployment's sweep; each row carries its organization.
+    """
+    result = await db.execute(
+        select(AgentEnvironment)
+        .where(
+            AgentEnvironment.tracks_latest.is_(True),
+            AgentEnvironment.id.in_(select(EnvironmentGuard.environment_id)),
+        )
+        .order_by(AgentEnvironment.id)
+        .limit(limit)
     )
     return list(result.scalars().all())
 

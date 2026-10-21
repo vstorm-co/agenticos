@@ -6,7 +6,9 @@ until it is removed. `agent_promotion_overrides` keeps each promotion made past
 guards that had not passed - who, why, and each guard's result at the time.
 
 Suite results learn the `gate` trigger - a run on a version before it is
-promoted - and notifications learn `promotion_overridden`.
+promoted - and a result waiting to run is one per suite, version and baseline,
+since a gate run beside staging's version and one beside production's are two
+checks. Notifications learn `promotion_overridden`.
 
 Both tables are new, so nothing is backfilled. The downgrade drops them, deletes
 the results, notifications and preferences of the new values, and narrows the
@@ -179,9 +181,31 @@ def upgrade() -> None:
     )
     _triggers(f"{_TRIGGERS}, 'gate'")
     _event_types(_WITH_OVERRIDES)
+    op.drop_index("uq_eval_suite_results_pending", table_name="eval_suite_results")
+    op.create_index(
+        "uq_eval_suite_results_pending",
+        "eval_suite_results",
+        ["suite_id", "agent_version_id", sa.text("coalesce(baseline_version_number, -1)")],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("uq_eval_suite_results_pending", table_name="eval_suite_results")
+    # Results waiting beside different baselines collapse back to one per version.
+    op.execute(
+        "DELETE FROM eval_suite_results WHERE status = 'pending' AND id NOT IN ("
+        "SELECT DISTINCT ON (suite_id, agent_version_id) id FROM eval_suite_results "
+        "WHERE status = 'pending' ORDER BY suite_id, agent_version_id, due_at)"
+    )
+    op.create_index(
+        "uq_eval_suite_results_pending",
+        "eval_suite_results",
+        ["suite_id", "agent_version_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
     for table in ("notifications", "notification_preferences"):
         op.execute(f"DELETE FROM {table} WHERE event_type = 'promotion_overridden'")
     _event_types(_EVENT_TYPE_VALUES)

@@ -1417,13 +1417,7 @@ class EvalSuiteService:
         )
         assert suite is not None, "a result goes with its suite"
         if status is EvalSuiteResultStatus.PASSED and result.agent_version_id is not None:
-            from app.services.promotion_gate import PromotionGateService
-
-            await PromotionGateService(self.db).follow(
-                organization_id=result.organization_id,
-                agent_id=suite.agent_id,
-                version_id=result.agent_version_id,
-            )
+            await self._follow(suite, result)
         if alerting_since is not None and alerting_since == result.id:
             from app.services.notifications import NotificationService
 
@@ -1434,6 +1428,31 @@ class EvalSuiteService:
             await NotificationService(self.db).eval_suite_failed(suite, result, agent=agent)
             await eval_suite_repo.update_result(self.db, result=result, values={"notified_at": now})
         self._announce(suite)
+
+    async def _follow(self, suite: EvalSuite, result: EvalSuiteResult) -> None:
+        """Move the environments this pass lets through, apart from the pass.
+
+        A promotion that fails here must not turn a real pass into an error: it
+        rolls back alone, and the sweep's reconcile step tries it again.
+        """
+        from app.services.promotion_gate import PromotionGateService
+
+        assert result.agent_version_id is not None, "a passed result checked a version"
+        try:
+            async with self.db.begin_nested():
+                await PromotionGateService(self.db).follow(
+                    organization_id=result.organization_id,
+                    agent_id=suite.agent_id,
+                    version_id=result.agent_version_id,
+                )
+        except Exception:
+            logger.exception("promotion_gate_follow_failed", extra={"result_id": str(result.id)})
+
+    async def reconcile_followers(self) -> int:
+        """The sweep's look at guarded environments that follow publishes."""
+        from app.services.promotion_gate import PromotionGateService
+
+        return await PromotionGateService(self.db).reconcile()
 
     async def _pause_for_owner(self, result: EvalSuiteResult, *, reason: str) -> None:
         """Pause the suite when the member a result ran as is still its owner.

@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
@@ -243,6 +244,8 @@ class AgentEnvironmentService:
             if data.connections is None
             else await self._checked_connections(ctx, data.connections)
         )
+        if connections is not None:
+            await self._check_guarding_connections(ctx, agent, environment)
 
         if changes.get("logfire_token_secret_id") is not None:
             await self._check_logfire_secret(ctx, changes["logfire_token_secret_id"])
@@ -340,6 +343,44 @@ class AgentEnvironmentService:
             },
         )
         return environment
+
+    async def _check_guarding_connections(
+        self, ctx: AuthContext, agent: Agent, environment: AgentEnvironment
+    ) -> None:
+        """Refuse new test connections under a guard, unless the caller may override.
+
+        A guarding suite run against this environment answers from these
+        systems, so pointing them elsewhere changes what the guard checks.
+        """
+        guarding = await promotion_gate_repo.guarding_through(
+            self.db, environment.id, organization_id=ctx.organization_id
+        )
+        if not guarding:
+            return
+        names = ", ".join(suite.name for suite in guarding)
+        if not PromotionGateService.may_override(ctx):
+            raise AuthorizationError(
+                message=(
+                    f"{names} guard{'s' if len(guarding) == 1 else ''} a promotion through "
+                    f"{environment.name}'s test connections. Changing them needs "
+                    "permission to override promotions."
+                ),
+                details={"environment_id": environment.id},
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.environment_guards_changed",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={
+                "environment_id": str(environment.id),
+                "name": environment.name,
+                "suites": [str(suite.id) for suite in guarding],
+                "fields": ["connections"],
+            },
+        )
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, environment_id: UUID) -> None:
         """Remove a named environment.

@@ -19,6 +19,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -42,6 +43,7 @@ from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.eval_suite import EvalSuiteThreshold, EvalSuiteUpdate
 from app.schemas.promotion_gate import PromotionGateRun
+from app.schemas.scoring import DatasetScoring
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
@@ -239,6 +241,24 @@ async def test_a_pass_over_an_older_dataset_version_or_threshold_is_stale(db) ->
 
     assert [g.state for g in after_cases.guards] == ["stale"]
     assert [g.state for g in after_threshold.guards] == ["stale"]
+
+
+async def test_a_pass_graded_under_scoring_since_changed_is_stale(db) -> None:
+    """Scoring changes without a dataset version, so the run's own fingerprint decides."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    env_id, _ = await _guarded(db, ctx, agent, first, dataset)
+    second = await _published(db, ctx, agent)
+    await _run_guards(db, ctx, agent, env_id, second, Model(db))
+    assert (await _check(db, ctx, agent, env_id, second)).passing
+
+    dataset.scoring = DatasetScoring.model_validate(
+        {**dataset.scoring, "trajectory": {"enabled": False, "required": False}}
+    ).model_dump(mode="json")
+    await db.flush()
+
+    assert [g.state for g in (await _check(db, ctx, agent, env_id, second)).guards] == ["stale"]
 
 
 async def test_a_paused_guard_with_nothing_to_show_holds_the_version_back(db) -> None:
@@ -561,6 +581,181 @@ async def test_nothing_of_the_gate_crosses_organizations(db) -> None:
         await PromotionGateService(db).run(
             stranger, agent.id, env_id, PromotionGateRun(version_id=first.id)
         )
+
+
+async def _serving(db: AsyncSession, ctx: AuthContext, agent: Agent, env_id) -> int:
+    listed = await AgentEnvironmentService(db).list_for_agent(ctx, agent.id)
+    return next(e.version for e in listed if e.id == env_id)
+
+
+async def _settle(db: AsyncSession, model: Model) -> None:
+    sweep = EvalSuiteService(db)
+    await sweep.start_due(now=datetime.now(UTC))
+    await _finish_runs(db, model)
+    await sweep.settle_finished(now=datetime.now(UTC))
+
+
+async def test_a_pass_beside_one_environments_version_does_not_open_another(db) -> None:
+    """Measured against staging's v2, a version says nothing about replacing production's v1."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    staging_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    second = await _published(db, ctx, agent)
+    environments = AgentEnvironmentService(db)
+    await _run_guards(db, ctx, agent, staging_id, second, Model(db))
+    await _promote(db, ctx, agent, staging_id, second)
+    [production] = [e for e in await environments.list_for_agent(ctx, agent.id) if e.is_default]
+    await environments.update(
+        ctx, agent.id, production.id, EnvironmentUpdate(guard_suite_ids=[suite.id])
+    )
+    third = await _published(db, ctx, agent)
+
+    await _run_guards(db, ctx, agent, staging_id, third, Model(db))
+
+    assert (await _check(db, ctx, agent, staging_id, third)).passing
+    production_gate = await _check(db, ctx, agent, production.id, third)
+    assert [g.state for g in production_gate.guards] == ["unchecked"]
+    # Production's own run is a check of its own, not absorbed into staging's.
+    await PromotionGateService(db).run(
+        ctx, agent.id, production.id, PromotionGateRun(version_id=third.id)
+    )
+    own = [
+        r
+        for r in await _results(db, suite.id)
+        if r.agent_version_id == third.id and r.baseline_version_number == 1
+    ]
+    assert len(own) == 1
+
+
+async def test_a_guard_paused_while_its_run_goes_on_holds_the_follower_back(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(
+        db, ctx, agent, first, await _dataset(db, ctx), tracks_latest=True
+    )
+    await _published(db, ctx, agent)
+    sweep = EvalSuiteService(db)
+    await sweep.start_due(now=datetime.now(UTC))
+    await sweep.update(ctx, agent.id, suite.id, EvalSuiteUpdate(is_active=False))
+    await _finish_runs(db, Model(db))
+    await sweep.settle_finished(now=datetime.now(UTC))
+
+    assert await _serving(db, ctx, agent, env_id) == 1
+
+
+@pytest.mark.security
+async def test_a_guards_test_connections_change_only_with_the_permission(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    environments = AgentEnvironmentService(db)
+    staging = await environments.create(
+        ctx, agent.id, EnvironmentCreate(name="staging", version_id=first.id)
+    )
+    through = await EvalSuiteService(db).create(
+        ctx, agent.id, _suite_data(await _dataset(db, ctx), environment_id=staging.id)
+    )
+    [production] = [e for e in await environments.list_for_agent(ctx, agent.id) if e.is_default]
+    await environments.update(
+        ctx, agent.id, production.id, EnvironmentUpdate(guard_suite_ids=[through.id])
+    )
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    agent.owner_user_id = builder.user_id
+    await db.flush()
+
+    with pytest.raises(AuthorizationError, match="test connections"):
+        await environments.update(builder, agent.id, staging.id, EnvironmentUpdate(connections=[]))
+    await environments.update(ctx, agent.id, staging.id, EnvironmentUpdate(connections=[]))
+
+    changes = await _audit(db, ctx, "agent.environment_guards_changed")
+    assert [c.details["fields"] for c in changes if c.details and "fields" in c.details] == [
+        ["connections"]
+    ]
+
+
+async def test_a_rollback_queues_the_guards_of_a_follower(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    _, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx), tracks_latest=True)
+    await _published(db, ctx, agent)
+
+    rolled = await AgentRegistryService(db).rollback(ctx, agent.id, to_version_id=first.id)
+
+    assert [r.trigger for r in await _results(db, suite.id) if r.agent_version_id == rolled.id] == [
+        "gate"
+    ]
+
+
+async def test_a_promotion_that_fails_after_a_pass_leaves_the_pass_and_tries_again(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(
+        db, ctx, agent, first, await _dataset(db, ctx), tracks_latest=True
+    )
+    second = await _published(db, ctx, agent)
+
+    with patch.object(PromotionGateService, "follow", side_effect=RuntimeError("busy")):
+        await _settle(db, Model(db))
+    [result] = [r for r in await _results(db, suite.id) if r.agent_version_id == second.id]
+    held = await _serving(db, ctx, agent, env_id)
+    moved = await EvalSuiteService(db).reconcile_followers()
+
+    assert (result.status, held) == ("passed", 1)
+    assert (moved, await _serving(db, ctx, agent, env_id)) == (1, 2)
+    assert await EvalSuiteService(db).reconcile_followers() == 0
+
+
+async def test_taking_off_the_guard_holding_a_follower_back_moves_it(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, _ = await _guarded(
+        db, ctx, agent, first, await _dataset(db, ctx), tracks_latest=True, threshold=_BAR
+    )
+    await _published(db, ctx, agent)
+    await _settle(db, Model(db, answer=lambda prompt: _FAIL))
+    held = await _serving(db, ctx, agent, env_id)
+
+    await AgentEnvironmentService(db).update(
+        ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[])
+    )
+
+    assert (held, await _serving(db, ctx, agent, env_id)) == (1, 2)
+
+
+async def test_an_unguarded_default_that_follows_catches_up_with_the_agent(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    suite = await EvalSuiteService(db).create(
+        ctx, agent.id, _suite_data(await _dataset(db, ctx), threshold=_BAR)
+    )
+    environments = AgentEnvironmentService(db)
+    [production] = await environments.list_for_agent(ctx, agent.id)
+    await environments.update(
+        ctx, agent.id, production.id, EnvironmentUpdate(guard_suite_ids=[suite.id])
+    )
+    await environments.update(ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True))
+    second = await _published(db, ctx, agent)
+
+    await environments.update(ctx, agent.id, production.id, EnvironmentUpdate(guard_suite_ids=[]))
+    await db.refresh(agent)
+
+    assert agent.current_version_id == second.id
+
+
+async def test_an_automatic_promotion_is_announced_as_a_change_to_the_agent(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    await _guarded(db, ctx, agent, first, await _dataset(db, ctx), tracks_latest=True)
+    await _published(db, ctx, agent)
+    announced = []
+
+    def spawn(_db, coro, *, name):
+        announced.append(name)
+        coro.close()
+
+    with patch("app.services.promotion_gate.spawn_after_commit", side_effect=spawn):
+        await _settle(db, Model(db))
+
+    assert [name for name in announced if name.startswith("promotion-gate-advance:")]
 
 
 async def _results(db: AsyncSession, suite_id) -> list[EvalSuiteResult]:

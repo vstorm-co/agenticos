@@ -173,6 +173,7 @@ TENANT_REQUIRED = [
     (promotion_gate_repo, "replace_guards"),
     (promotion_gate_repo, "guarded_by"),
     (promotion_gate_repo, "guarded_by_dataset"),
+    (promotion_gate_repo, "guarding_through"),
     (promotion_gate_repo, "guarded_following_latest"),
     (promotion_gate_repo, "add_override"),
     (promotion_gate_repo, "overrides_for_versions"),
@@ -194,6 +195,7 @@ CROSS_TENANT_BY_DESIGN = [
     (eval_suite_repo, "claim_due_schedules"),
     (eval_suite_repo, "claim_pending"),
     (eval_suite_repo, "claim_finished"),
+    (promotion_gate_repo, "guarded_followers"),
 ]
 
 

@@ -25,6 +25,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
+from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthorizationError, PromotionBlockedError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -39,6 +40,7 @@ from app.repositories import (
     member_repo,
     promotion_gate_repo,
 )
+from app.schemas.change_event import ChangeEvent
 from app.schemas.promotion_gate import (
     GuardState,
     PromotionGateRead,
@@ -48,11 +50,16 @@ from app.schemas.promotion_gate import (
     PromotionGuardRecord,
     PromotionOverrideRead,
 )
+from app.schemas.scoring import DatasetScoring
+from app.services import change_feed
 
 if TYPE_CHECKING:
     from app.db.models.promotion_gate import PromotionOverride
 
 logger = logging.getLogger(__name__)
+
+# Guarded followers the sweep looks at in one tick.
+_RECONCILE_LIMIT = 200
 
 _SETTLED_STATES: dict[str, GuardState] = {
     EvalSuiteResultStatus.FAILED.value: "failed",
@@ -64,38 +71,47 @@ _SETTLED_STATES: dict[str, GuardState] = {
 
 def guard_state(
     suite: EvalSuite,
-    settled: tuple[EvalSuiteResult, int | None] | None,
+    settled: tuple[EvalSuiteResult, int | None, str | None] | None,
     waiting: EvalSuiteResult | None,
     *,
     dataset_version: int,
+    scoring_hash: str,
 ) -> tuple[GuardState, EvalSuiteResult | None]:
     """Where one guard stands on a version, and the result that says so.
 
-    `settled` is its last settled result there, with the number of the dataset
-    version that result's run read; `waiting` is a result there still to start
-    or finish; `dataset_version` is the number the suite would read now.
+    `settled` is its last settled result there beside the environment's
+    version, with the number of the dataset version that result's run read and
+    the scoring it was graded under; `waiting` is such a result still to start
+    or finish; `dataset_version` and `scoring_hash` are what the suite would
+    read and grade by now. A paused guard holds the version back whatever it
+    found before the pause.
     """
     from app.services.eval_suite import threshold_of
 
-    current = settled is not None and (
-        settled[0].dataset_id == suite.dataset_id
-        and settled[0].threshold == threshold_of(suite).model_dump(mode="json")
-        and settled[1] in (None, dataset_version)
-    )
-    if (
-        current
-        and settled is not None
-        and settled[0].status == EvalSuiteResultStatus.PASSED.value
-        and settled[1] == dataset_version
-    ):
-        return "passed", settled[0]
+    if not suite.is_active:
+        return "paused", settled[0] if settled is not None else waiting
+    if settled is not None:
+        result, number, hashed = settled
+        current = (
+            result.dataset_id == suite.dataset_id
+            and result.threshold == threshold_of(suite).model_dump(mode="json")
+            and number in (None, dataset_version)
+            and hashed in (None, scoring_hash)
+        )
+        if (
+            current
+            and result.status == EvalSuiteResultStatus.PASSED.value
+            and number == dataset_version
+            and hashed == scoring_hash
+        ):
+            return "passed", result
     if waiting is not None:
         return "checking", waiting
     if settled is None:
-        return ("unchecked" if suite.is_active else "paused"), None
-    if not current or settled[0].status == EvalSuiteResultStatus.PASSED.value:
-        return ("stale" if suite.is_active else "paused"), settled[0]
-    return _SETTLED_STATES[settled[0].status], settled[0]
+        return "unchecked", None
+    if not current or result.status == EvalSuiteResultStatus.PASSED.value:
+        return "stale", result
+    return _SETTLED_STATES[result.status], result
 
 
 class PromotionGateService:
@@ -130,9 +146,12 @@ class PromotionGateService:
         With no caller - the sweep deciding whether an environment may follow -
         the failing cases are left out, as nobody is reading them.
         """
+        from app.services.eval_run import scoring_hash
         from app.services.eval_suite import EvalSuiteService
 
         org = agent.organization_id
+        serving = await agent_repo.get_version(self.db, environment.version_id, organization_id=org)
+        assert serving is not None, "an environment is always pinned"
         suite_ids = (
             await promotion_gate_repo.guards_for(self.db, [environment.id], organization_id=org)
         ).get(environment.id, [])
@@ -145,10 +164,10 @@ class PromotionGateService:
             self.db, sorted({suite.dataset_id for suite in suites}), organization_id=org
         )
         settled = await eval_suite_repo.settled_on_version(
-            self.db, suite_ids, version.id, organization_id=org
+            self.db, suite_ids, version.id, baseline_version=serving.version, organization_id=org
         )
         waiting = await eval_suite_repo.open_on_version(
-            self.db, suite_ids, version.id, organization_id=org
+            self.db, suite_ids, version.id, baseline_version=serving.version, organization_id=org
         )
         states = [
             (
@@ -158,6 +177,9 @@ class PromotionGateService:
                     settled.get(suite.id),
                     waiting.get(suite.id),
                     dataset_version=datasets[suite.dataset_id].latest_version,
+                    scoring_hash=scoring_hash(
+                        DatasetScoring.model_validate(datasets[suite.dataset_id].scoring)
+                    ),
                 ),
             )
             for suite in suites
@@ -277,6 +299,13 @@ class PromotionGateService:
         await promotion_gate_repo.replace_guards(
             self.db, environment.id, wanted, organization_id=org
         )
+        if environment.tracks_latest:
+            # The guard taken off may have been the last one holding it back.
+            newest = await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=org
+            )
+            assert newest is not None, "an environment pins a version"
+            await self._advance(agent, environment, newest)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -332,52 +361,97 @@ class PromotionGateService:
         The publish of the version already withdrew the trigger consents it had
         to, so moving onto it later withdraws none.
         """
-        from app.services.eval_suite import EvalSuiteService
-
         version = await agent_repo.get_version(self.db, version_id, organization_id=organization_id)
         agent = await agent_repo.get(self.db, agent_id, organization_id=organization_id)
         assert version is not None and agent is not None, "a result names its agent's version"
         for environment in await promotion_gate_repo.guarded_following_latest(
             self.db, agent.id, organization_id=organization_id
         ):
-            serving = await agent_repo.get_version(
-                self.db, environment.version_id, organization_id=organization_id
+            await self._advance(agent, environment, version)
+
+    async def reconcile(self) -> int:
+        """Move every guarded follower whose guards all pass on its agent's newest
+        version - the sweep's second look.
+
+        The settlement that should have moved it may have seen a sibling guard
+        still running in another transaction, or failed after the pass was
+        written; either way the next tick finds it here.
+        """
+        moved = 0
+        for environment in await promotion_gate_repo.guarded_followers(
+            self.db, limit=_RECONCILE_LIMIT
+        ):
+            org = environment.organization_id
+            agent = await agent_repo.get(self.db, environment.agent_id, organization_id=org)
+            newest = await agent_repo.newest_version(
+                self.db, agent_id=environment.agent_id, organization_id=org
             )
-            assert serving is not None, "an environment is always pinned"
-            if serving.version >= version.version:
-                continue
-            gate = await self.check(None, agent=agent, environment=environment, version=version)
-            if not gate.passing:
-                continue
-            replaced = environment.version_id
-            environment = await agent_environment_repo.update(
-                self.db, environment=environment, update_data={"version_id": version.id}
+            assert agent is not None and newest is not None, "an environment pins a version"
+            if await self._advance(agent, environment, newest):
+                moved += 1
+        return moved
+
+    async def _advance(
+        self, agent: Agent, environment: AgentEnvironment, version: AgentVersion
+    ) -> bool:
+        """Move a following environment onto a newer version its guards all pass."""
+        from app.services.eval_suite import EvalSuiteService
+
+        org = agent.organization_id
+        serving = await agent_repo.get_version(self.db, environment.version_id, organization_id=org)
+        assert serving is not None, "an environment is always pinned"
+        if serving.version >= version.version:
+            return False
+        gate = await self.check(None, agent=agent, environment=environment, version=version)
+        if not gate.passing:
+            return False
+        replaced = environment.version_id
+        environment = await agent_environment_repo.update(
+            self.db, environment=environment, update_data={"version_id": version.id}
+        )
+        if environment.is_default:
+            await agent_repo.update(
+                self.db, agent=agent, update_data={"current_version_id": version.id}
             )
-            if environment.is_default:
-                await agent_repo.update(
-                    self.db, agent=agent, update_data={"current_version_id": version.id}
+        await EvalSuiteService(self.db).environment_promoted(
+            agent=agent,
+            environment=environment,
+            version=version,
+            replaced_version_id=replaced,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=None,
+            organization_id=org,
+            action="agent.environment_promoted",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={
+                "environment_id": str(environment.id),
+                "name": environment.name,
+                "version": version.version,
+                "by": "gate",
+                "passed": [guard.suite_name for guard in gate.guards],
+            },
+        )
+        # Open consoles hear of it as of any change to the agent: the History
+        # tab reads the environments under it.
+        spawn_after_commit(
+            self.db,
+            change_feed.publish(
+                ChangeEvent(
+                    organization_id=org,
+                    resource="agent",
+                    id=agent.id,
+                    action="updated",
+                    surface="run",
+                    actor_user_id=None,
+                    actor_name=None,
                 )
-            await EvalSuiteService(self.db).environment_promoted(
-                agent=agent,
-                environment=environment,
-                version=version,
-                replaced_version_id=replaced,
-            )
-            await record_audit(
-                self.db,
-                actor_user_id=None,
-                organization_id=organization_id,
-                action="agent.environment_promoted",
-                target_type="agent",
-                target_id=str(agent.id),
-                details={
-                    "environment_id": str(environment.id),
-                    "name": environment.name,
-                    "version": version.version,
-                    "by": "gate",
-                    "passed": [guard.suite_name for guard in gate.guards],
-                },
-            )
+            ),
+            name=f"promotion-gate-advance:{environment.id}",
+        )
+        return True
 
     async def overrides(
         self, ctx: AuthContext, version_ids: list[UUID]

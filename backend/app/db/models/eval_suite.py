@@ -253,10 +253,13 @@ class EvalSuiteResult(Base):
         ),
         # A burst of triggers for one version is one run; a running result does not
         # count, so a change that lands mid-run is checked by the next run.
+        # The baseline is part of what is waiting: a gate run on a version beside
+        # staging's and one beside production's are two different checks.
         Index(
             "uq_eval_suite_results_pending",
             "suite_id",
             "agent_version_id",
+            text("coalesce(baseline_version_number, -1)"),
             unique=True,
             postgresql_where=text("status = 'pending'"),
         ),

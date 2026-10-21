@@ -64,6 +64,10 @@ def _no_guards(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.services.agent_environment.promotion_gate_repo.guards_for", AsyncMock(return_value={})
     )
+    monkeypatch.setattr(
+        "app.services.agent_environment.promotion_gate_repo.guarding_through",
+        AsyncMock(return_value=[]),
+    )
     monkeypatch.setattr("app.services.promotion_gate.PromotionGateService.enforce", AsyncMock())
 
 

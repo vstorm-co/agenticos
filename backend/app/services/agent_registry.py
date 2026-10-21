@@ -2350,6 +2350,11 @@ class AgentRegistryService:
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        from app.services.eval_suite import EvalSuiteService
+
+        # A rollback is a publish: the suites a publish runs - a guarded
+        # follower's guards among them - run on the version it minted.
+        await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, literal_column, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -152,14 +152,19 @@ async def add_result(
 ) -> EvalSuiteResult | None:
     """Write a result, or nothing when this suite already waits to check this version.
 
-    A waiting result absorbs the next one for the same version - whichever
-    trigger asked - so a burst of changes is one run, due when the first said.
+    A waiting result absorbs the next one for the same version and baseline -
+    whichever trigger asked - so a burst of changes is one run, due when the
+    first said.
     """
     statement = (
         insert(EvalSuiteResult)
         .values(organization_id=organization_id, **values)
         .on_conflict_do_nothing(
-            index_elements=["suite_id", "agent_version_id"],
+            index_elements=[
+                "suite_id",
+                "agent_version_id",
+                literal_column("coalesce(baseline_version_number, -1)"),
+            ],
             index_where=EvalSuiteResult.status == EvalSuiteResultStatus.PENDING.value,
         )
         .returning(EvalSuiteResult.id)
@@ -381,32 +386,45 @@ async def latest_results(
 
 
 async def settled_on_version(
-    db: AsyncSession, suite_ids: Sequence[UUID], version_id: UUID, *, organization_id: UUID
-) -> dict[UUID, tuple[EvalSuiteResult, int | None]]:
-    """Each suite's last settled result on this agent version, with the number of
-    the dataset version its eval run read - none when it never started one."""
+    db: AsyncSession,
+    suite_ids: Sequence[UUID],
+    version_id: UUID,
+    *,
+    baseline_version: int,
+    organization_id: UUID,
+) -> dict[UUID, tuple[EvalSuiteResult, int | None, str | None]]:
+    """Each suite's last settled result on this agent version beside this baseline,
+    with the number of the dataset version its eval run read and the scoring it
+    was graded under - none when it never started one."""
     if not suite_ids:
         return {}
     result = await db.execute(
-        select(EvalSuiteResult, DatasetVersion.number)
+        select(EvalSuiteResult, DatasetVersion.number, EvalRun.scoring_hash)
         .outerjoin(EvalRun, EvalRun.id == EvalSuiteResult.eval_run_id)
         .outerjoin(DatasetVersion, DatasetVersion.id == EvalRun.dataset_version_id)
         .where(
             EvalSuiteResult.suite_id.in_(suite_ids),
             EvalSuiteResult.organization_id == organization_id,
             EvalSuiteResult.agent_version_id == version_id,
+            EvalSuiteResult.baseline_version_number == baseline_version,
             EvalSuiteResult.status.in_(_SETTLED),
         )
         .order_by(EvalSuiteResult.suite_id, EvalSuiteResult.settled_at.desc())
         .ext(distinct_on(EvalSuiteResult.suite_id))
     )
-    return {row.suite_id: (row, number) for row, number in result.tuples().all()}
+    return {row.suite_id: (row, number, hashed) for row, number, hashed in result.tuples().all()}
 
 
 async def open_on_version(
-    db: AsyncSession, suite_ids: Sequence[UUID], version_id: UUID, *, organization_id: UUID
+    db: AsyncSession,
+    suite_ids: Sequence[UUID],
+    version_id: UUID,
+    *,
+    baseline_version: int,
+    organization_id: UUID,
 ) -> dict[UUID, EvalSuiteResult]:
-    """Each suite's result on this agent version that is waiting or running."""
+    """Each suite's result on this agent version beside this baseline that is
+    waiting or running."""
     if not suite_ids:
         return {}
     result = await db.execute(
@@ -415,6 +433,7 @@ async def open_on_version(
             EvalSuiteResult.suite_id.in_(suite_ids),
             EvalSuiteResult.organization_id == organization_id,
             EvalSuiteResult.agent_version_id == version_id,
+            EvalSuiteResult.baseline_version_number == baseline_version,
             EvalSuiteResult.status.in_(
                 [EvalSuiteResultStatus.PENDING.value, EvalSuiteResultStatus.RUNNING.value]
             ),
