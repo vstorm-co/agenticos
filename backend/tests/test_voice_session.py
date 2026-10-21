@@ -1629,6 +1629,7 @@ async def test_a_beat_already_writing_finishes_when_its_loop_is_cancelled(loop):
     assert finished == [True]
 
 
+@pytest.mark.security
 def test_a_visitor_is_told_a_budget_notice_as_calls_being_unavailable():
     """The reason is the operator's to know: a visitor reading the page's frames sees
     `unavailable`, for a notice as for the end itself."""
