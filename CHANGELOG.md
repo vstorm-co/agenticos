@@ -19,8 +19,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Interactive answers in the chat (#2302).** An agent with Visuals chooses
+  the form of each answer - text, a Markdown table, a native chart, or a
+  drawing - and a drawing can be a tool: an explainer with controls, a
+  calculator, a map. A button in a drawing can continue the conversation with
+  what the person picked through `agenticos.followUp(text)`: the console shows
+  the exact text under the drawing and sends it only when the person clicks
+  Send, so a drawing can never speak for them. In a saved app the call does
+  nothing.
+- **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
+  `openstreetmap`, `usgs-topo`, or a https URL template with
+  `VISUAL_MAP_TILES_ATTRIBUTION` - and pages may then load images from its tile
+  path and nothing else remote. Off by default. Leaflet 1.9.4 and the map kit
+  `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
+  replay, stop cards) join the library set; without tiles a map is drawn as an
+  outline of its stops. *Admin → System* shows whether the tile server answers.
+- **Starters for an agent that draws**: an empty chat with Visuals on opens on
+  four - explain in 3D, compare then chart, make a calculator, plan a trip on a
+  map. Switching Visuals on in the Builder binds Charts too.
+
 ### Changed
 
+- **Drawings sit in the conversation without a card around them**, from the
+  text's left edge, named by a quiet line underneath; a drawing holds the height
+  it declared while it streams, and shows nothing until its styles are written.
+  The `visual-design` skill says how to choose the form of an answer and how to
+  make a drawing look designed rather than generated, with templates for a 3D
+  explainer, a calculator and an itinerary. Messages in the chat sit a little
+  closer together, and a drawing and the answer after the steps a little
+  further apart.
 - **The comparison guides are checked again, on 21 October 2026, against
   1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
   was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
