@@ -1,5 +1,5 @@
 ---
-source_sha: "e52195064ce8"
+source_sha: "a2a5b8893b6f"
 ---
 
 # Governance { #governance }
@@ -1563,7 +1563,10 @@ en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
 
 El [asistente de autoría](authoring.md) es un agent de sistema de la misma
 manera, con su propio budget de $5. En el dashboard, lo que cuesta aparece
-aparte de los evals, como gastado en mejoras.
+aparte de los evals, como gastado en mejoras. Lo mismo ocurre con lo que cuestan
+el clasificador y el redactor de [lagunas de conocimiento](knowledge-gaps.md):
+completan lo que le falta a una base de conocimiento en lugar de medir un agent.
+El juez y el generador de casos siguen con los evals.
 
 Un juez nunca se expone: no se le puede conectar un canal, un
 embed, una página pública ni una programación, ningún agent puede delegar en

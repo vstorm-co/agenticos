@@ -1,5 +1,5 @@
 ---
-source_sha: "e52195064ce8"
+source_sha: "a2a5b8893b6f"
 ---
 
 # Governance { #governance }
@@ -1587,7 +1587,9 @@ agenta.
 
 [Asystent tworzenia](authoring.md) jest agentem systemowym w ten sam sposób, z
 własnym budżetem $5. Na dashboardzie jego koszt jest podawany osobno od evali,
-jako wydany na ulepszenia.
+jako wydany na ulepszenia. Tak samo koszt klasyfikatora i autora szkiców
+[luk w wiedzy](knowledge-gaps.md): uzupełniają to, czego brakuje bazie wiedzy, a
+nie mierzą agenta. Sędzia i generator przypadków zostają przy evalach.
 
 Sędzia nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
 embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
