@@ -23,6 +23,15 @@ capability or a tool from `never` towards `required` and not back. A capability
 the proposal adds arrives with every tool that writes gated. A safeguard - a
 capability the registry marks `protective` - may be added, and never removed or
 reconfigured, for the same reason.
+
+**A configuration is a target only where the capability opts in.** A capability
+the registry marks `tunable` has a configuration about quality alone; any other
+- one that reaches a URL, a domain, a connection, a provider or personal data -
+is neither reconfigured nor added configured, and a new capability is not a
+target until somebody decides it should be. Subagents are never added at all:
+their configuration holds whole agents - instructions, models, capabilities and
+their approval - which the checks on one binding never see, so a specialist's
+description is the one part of them a proposal may change.
 """
 
 from __future__ import annotations
@@ -88,6 +97,8 @@ def parse(path: str) -> Address | None:
     if len(parts) == 2 and parts[0] == "model_settings" and parts[1] in _MODEL_SETTINGS:
         return Address(pattern=path, setting=parts[1])
     if len(parts) == 3 and parts[0] == "capabilities" and parts[2] in ("config", "approval"):
+        if parts[2] == "config" and not _tunable(parts[1]):
+            return None
         return Address(pattern=f"capabilities/{{capability}}/{parts[2]}", capability=parts[1])
     if len(parts) == 4 and parts[0] == "capabilities" and parts[2] == "tool_approval":
         return Address(
@@ -293,16 +304,48 @@ def _tightens(address: Address, document: dict[str, Any], base: Any, new: Any) -
     return base in _STRICTNESS and _STRICTNESS[new] > _STRICTNESS[base]
 
 
+def standing_refusal(path: str, op: str, base: Any, new: Any) -> str | None:
+    """Why a stored change may never be accepted, whatever the draft holds now.
+
+    What staging refuses from the spec's shape alone, asked again of a row that
+    may have been written before the rule, or since.
+    """
+    if weakens_protection(path, op, base):
+        return "weakens_protection"
+    if parse(path) is None or _adds_untunable_config(path, op, new):
+        return "not_a_target"
+    return None
+
+
+def _tunable(capability: str) -> bool:
+    load_builtins()
+    definition = REGISTRY.get(capability)
+    return definition is not None and definition.tunable
+
+
+def _adds_untunable_config(path: str, op: str, value: Any) -> bool:
+    """An added capability carrying a configuration the assistant may not write.
+
+    Adding one with its default configuration is only switching it on; a
+    safeguard may arrive configured, since configuring one only adds to it.
+    """
+    if path != "capabilities" or op != FieldOp.ADD.value or not isinstance(value, dict):
+        return False
+    capability = str(value.get("id"))
+    definition = REGISTRY.get(capability)
+    if definition is None or definition.protective or _tunable(capability):
+        return False
+    return capability == _SUBAGENTS or bool(value.get("config"))
+
+
 def weakens_protection(path: str, op: str, base: Any) -> bool:
     """Whether a change removes a safeguard or changes its configuration."""
     load_builtins()
-    address = parse(path)
-    if address is None:
-        return False
-    if address.pattern == "capabilities" and op == FieldOp.REMOVE.value:
+    parts = path.split("/")
+    if path == "capabilities" and op == FieldOp.REMOVE.value:
         capability = base.get("id") if isinstance(base, dict) else None
-    elif address.pattern == "capabilities/{capability}/config":
-        capability = address.capability
+    elif len(parts) == 3 and parts[0] == "capabilities" and parts[2] == "config":
+        capability = parts[1]
     else:
         return False
     definition = REGISTRY.get(str(capability))
@@ -322,11 +365,15 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
     what it adds is the registry's question, asked separately.
     """
     load_builtins()
+    if weakens_protection(path, op, value):
+        return "weakens_protection"
     address = parse(path)
     if address is None:
         return "not_a_target"
     if op not in {allowed.value for allowed in ops(address)}:
         return "operation"
+    if _adds_untunable_config(path, op, value):
+        return "not_a_target"
     document = spec.model_dump(mode="json")
     adds_capability = address.pattern == "capabilities" and op == FieldOp.ADD.value
     if adds_capability and (not isinstance(value, dict) or str(value.get("id")) not in REGISTRY):
@@ -350,8 +397,6 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
     approval = address.pattern.endswith(("approval", "{tool}"))
     if approval and not _tightens(address, document, base, new):
         return "loosens_approval"
-    if weakens_protection(path, op, base):
-        return "weakens_protection"
     if _config_refused(address, new, adds_capability=adds_capability):
         return "invalid_config"
     if apply(spec, path, op, base, new) is None:
@@ -371,10 +416,8 @@ def _config_refused(address: Address, new: Any, *, adds_capability: bool) -> boo
     if adds_capability:
         definition, raw = REGISTRY[new["id"]], new.get("config")
     elif address.pattern == "capabilities/{capability}/config":
-        definition, raw = REGISTRY.get(str(address.capability)), new
+        definition, raw = REGISTRY[str(address.capability)], new
     else:
-        return False
-    if definition is None:
         return False
     try:
         definition.validate_config(raw if isinstance(raw, dict) else {})

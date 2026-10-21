@@ -301,3 +301,35 @@ async def test_a_safeguard_is_not_staged_and_a_stored_removal_is_never_accepted(
     await db.flush()
     with pytest.raises(BadRequestError, match="safeguard"):
         await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
+
+
+@pytest.mark.parametrize("path", ["capabilities/subagents/config", "capabilities/web_fetch/config"])
+async def test_a_stored_change_to_a_configuration_not_opted_in_is_never_accepted(db, path):
+    """Subagents hold whole agents and web fetch reaches the network; a row written
+    before the rule - or since - is refused at Accept as staging refuses it."""
+    ctx, agent, run = await _setup(db)
+    run_id = str(run.id)
+    model = _improver(
+        db,
+        run_id,
+        [
+            _change(run_id, "capabilities/subagents/config", "set", {"inline": []}),
+            _change(run_id, "capabilities", "add", {"id": "subagents", "config": {}}),
+            _change(run_id, "capabilities", "remove", {"id": "charts"}),
+        ],
+    )
+
+    await _improve(db, ctx, agent, model)
+
+    (row,) = list(
+        await db.scalars(select(SpecProposalHunk).where(SpecProposalHunk.path.is_not(None)))
+    )
+    row.path, row.op, row.base_value, row.new_value = (
+        path,
+        "set",
+        {},
+        {"inline": []},
+    )
+    await db.flush()
+    with pytest.raises(BadRequestError, match="may not propose"):
+        await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))

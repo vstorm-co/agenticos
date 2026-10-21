@@ -111,6 +111,7 @@ class ConfigurationService:
         bound = {binding.id for binding in spec.capabilities}
         grantable = [
             f"- {definition.id}: {definition.name} - {definition.description}"
+            + (" (configurable)" if definition.tunable else "")
             for definition in REGISTRY.values()
             if definition.selectable and definition.id not in bound
         ]
@@ -134,7 +135,9 @@ class ConfigurationService:
             + "\n\n# Rules for configuration changes\n"
             "Change only the paths above, with ids only from these lists. Approval may only "
             "become stricter. A safeguard (guardrails) may be added, never removed or "
-            "reconfigured. Every change states its expected effect on quality and on cost; "
+            "reconfigured. A config marked fixed never changes, and only a capability marked "
+            "configurable may be added with a config; add any other without one. Subagents are never added or reconfigured; of a specialist, only "
+            "its description may change. Every change states its expected effect on quality and on cost; "
             "a cheaper model must not cost quality the evidence shows the agent needs."
         )
 
@@ -147,7 +150,8 @@ class ConfigurationService:
             writes = authoring_fields.writing_tools(capability)
             lines.append(
                 f"capabilities/{capability}: {definition.name if definition else capability}"
-                f" - config {_json(binding.get('config') or {})}, approval "
+                f" - config{'' if definition and definition.tunable else ' (fixed)'} "
+                f"{_json(binding.get('config') or {})}, approval "
                 f"{binding.get('approval', 'default')}, tool_approval "
                 f"{_json(binding.get('tool_approval') or {})}"
                 + (f", tools that write: {', '.join(writes)}" if writes else "")

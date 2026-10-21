@@ -60,6 +60,7 @@ __all__ = [
         ),
     ),
     config_schema=ToolOutputLimitsConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> MeteredToolOutputLimits[object]:
     """Build the configured reduction, wrapped so a summary's spend is billed.
