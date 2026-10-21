@@ -117,20 +117,24 @@ class GeneratedCase:
 
 
 def _refuse_past_storage(used: int, adding: int) -> None:
-    """Refuse a version that would take the organization past its stored case rows.
+    """Refuse new case revisions that would take the organization past what it may store.
+
+    Every added or edited case is a stored revision, kept for the versions that
+    hold it; removing a case stores nothing, so it is never refused.
 
     Raises:
-        BadRequestError: Naming how many rows are held, how many this version
-            adds and the ceiling, and what to do about it.
+        BadRequestError: Naming how many revisions are stored, how many this
+            change adds and the ceiling, and what to do about it.
     """
     ceiling = settings.DATASET_MAX_VERSION_ROWS_PER_ORG
-    if used + adding > ceiling:
+    if adding and used + adding > ceiling:
         raise BadRequestError(
             message=(
-                f"This organization's datasets hold {used:,} cases across their versions, "
-                f"and this change would add {adding:,} more; the limit is {ceiling:,}. "
-                "Delete datasets you no longer need, or ask the deployment's "
-                "administrator to raise DATASET_MAX_VERSION_ROWS_PER_ORG."
+                f"This organization's datasets store {used:,} case revisions - every case "
+                f"added and every edit, kept for the versions that hold them - and this "
+                f"change would add {adding:,} more; the limit is {ceiling:,}. Delete "
+                "datasets you no longer need, or ask the deployment's administrator to "
+                "raise DATASET_MAX_VERSION_ROWS_PER_ORG."
             ),
             details={"version_rows": used, "adding": adding, "max_version_rows": ceiling},
         )
@@ -598,8 +602,10 @@ class DatasetService:
         """Write the next version: the previous one's cases, with this change applied.
 
         The caller holds the dataset's row lock (:func:`dataset_repo.lock`) and
-        read `previous` under it, so the number and the membership copied are
-        the ones no other edit can have moved.
+        read `previous` under it, so the number minted and the revisions closed
+        are the ones no other edit can have moved. Nothing is copied: the new
+        revisions are placed in this version, and the ones it leaves out are
+        closed at it, which no earlier version can see.
 
         Args:
             added: New revisions, appended after the last case in order.
@@ -609,50 +615,51 @@ class DatasetService:
         Raises:
             BadRequestError: When the change would take the dataset past
                 :data:`MAX_CASES`, or the organization past
-                `DATASET_MAX_VERSION_ROWS_PER_ORG` stored case rows.
+                `DATASET_MAX_VERSION_ROWS_PER_ORG` stored case revisions.
         """
         added = added or []
         before = previous.case_count if previous is not None else 0
         count = before + len(added) - (1 if removed is not None else 0)
+        number = dataset.latest_version + 1
         _refuse_past_ceiling(before, len(added))
-        _refuse_past_storage(
-            await dataset_repo.version_rows(self.db, organization_id=ctx.organization_id), count
-        )
         new_revisions = [*added, *([replaced[1]] if replaced is not None else [])]
+        _refuse_past_storage(
+            await dataset_repo.stored_revisions(self.db, organization_id=ctx.organization_id),
+            len(new_revisions),
+        )
+        next_position = (
+            await dataset_repo.last_position(
+                self.db, previous.id, organization_id=ctx.organization_id
+            )
+            + 1
+            if previous is not None
+            else 0
+        )
+        if replaced is not None:
+            replaced[1].position = replaced[2]
+        for index, case in enumerate(added):
+            case.position = next_position + index
+        for revision in new_revisions:
+            revision.added_in = number
         if new_revisions:
             await dataset_repo.add_cases(self.db, new_revisions)
+        await dataset_repo.close_revisions(
+            self.db,
+            [case.id for case in (removed, replaced[0] if replaced else None) if case],
+            organization_id=ctx.organization_id,
+            at=number,
+        )
 
         version = await dataset_repo.create_version(
             self.db,
             dataset_id=dataset.id,
             organization_id=ctx.organization_id,
-            number=dataset.latest_version + 1,
+            number=number,
             case_count=count,
             change=change.value,
             changed_cases=len(added) + (1 if replaced or removed else 0),
             created_by_user_id=ctx.subject_id,
         )
-        placements: list[tuple[UUID, int]] = []
-        next_position = 0
-        if previous is not None:
-            skip = {case.id for case in (removed, replaced[0] if replaced else None) if case}
-            await dataset_repo.copy_membership(
-                self.db,
-                organization_id=ctx.organization_id,
-                source_version_id=previous.id,
-                target_version_id=version.id,
-                skip=skip,
-            )
-            next_position = (
-                await dataset_repo.last_position(
-                    self.db, previous.id, organization_id=ctx.organization_id
-                )
-                + 1
-            )
-        if replaced is not None:
-            placements.append((replaced[1].id, replaced[2]))
-        placements.extend((case.id, next_position + index) for index, case in enumerate(added))
-        await dataset_repo.add_membership(self.db, version_id=version.id, placements=placements)
 
         await dataset_repo.update(
             self.db,

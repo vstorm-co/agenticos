@@ -1,25 +1,21 @@
 """Dataset repository (PostgreSQL async).
 
-Cases are read through a version: a version's membership rows say which case
-revisions it holds and in which order, so every case read here takes a version
-id rather than a dataset id. Minting a version is the service's to sequence; the
-pieces it is built from are here.
+Cases are read through a version: the versions a revision is held by are kept
+on the revision (see `app.db.models.dataset`), so every case read here takes a
+version id rather than a dataset id. Minting a version is the service's to
+sequence; the pieces it is built from are here.
 """
 
 from collections.abc import Sequence
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, insert, literal, or_, select, true
+from sqlalchemy import ColumnElement, and_, exists, func, or_, select, true
+from sqlalchemy import update as update_rows
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
-from app.db.models.dataset import (
-    Dataset,
-    DatasetCase,
-    DatasetVersion,
-    DatasetVersionCase,
-)
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.repositories._search import contains_ci
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
@@ -173,13 +169,11 @@ async def list_visible(
         )
     if asking is not None:
         where.append(
+            # The newest version holds exactly the revisions no change has removed yet.
             exists(
-                select(DatasetVersionCase.version_id)
-                .join(DatasetVersion, DatasetVersion.id == DatasetVersionCase.version_id)
-                .join(DatasetCase, DatasetCase.id == DatasetVersionCase.case_revision_id)
-                .where(
-                    DatasetVersion.dataset_id == Dataset.id,
-                    DatasetVersion.number == Dataset.latest_version,
+                select(DatasetCase.id).where(
+                    DatasetCase.dataset_id == Dataset.id,
+                    DatasetCase.removed_in.is_(None),
                     _asks(asking),
                 )
             )
@@ -291,6 +285,16 @@ async def create_version(
     return version
 
 
+def _held(version_id: UUID) -> ColumnElement[bool]:
+    """Join a version to the revisions it holds: those its number falls within."""
+    return and_(
+        DatasetVersion.id == version_id,
+        DatasetCase.dataset_id == DatasetVersion.dataset_id,
+        DatasetCase.added_in <= DatasetVersion.number,
+        or_(DatasetCase.removed_in.is_(None), DatasetCase.removed_in > DatasetVersion.number),
+    )
+
+
 async def list_cases(
     db: AsyncSession,
     version_id: UUID,
@@ -307,12 +311,9 @@ async def list_cases(
     """
     query = (
         select(DatasetCase)
-        .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
-        .where(
-            DatasetVersionCase.version_id == version_id,
-            DatasetCase.organization_id == organization_id,
-        )
-        .order_by(DatasetVersionCase.position.asc())
+        .join(DatasetVersion, _held(version_id))
+        .where(DatasetCase.organization_id == organization_id)
+        .order_by(DatasetCase.position.asc())
         .offset(skip)
     )
     if same_input is not None:
@@ -337,22 +338,10 @@ async def case_stats(
     """
     if not dataset_ids:
         return {}
-    latest = (
-        select(DatasetVersion.id, DatasetVersion.dataset_id)
-        .join(
-            Dataset,
-            (Dataset.id == DatasetVersion.dataset_id)
-            & (Dataset.latest_version == DatasetVersion.number),
-        )
-        .where(
-            DatasetVersion.dataset_id.in_(dataset_ids),
-            DatasetVersion.organization_id == organization_id,
-        )
-        .subquery()
-    )
+    # The newest version holds exactly the revisions no change has removed yet.
     held = (
         select(
-            latest.c.dataset_id,
+            DatasetCase.dataset_id,
             DatasetCase.reference_answer,
             DatasetCase.counter_example,
             DatasetCase.expected_tool_calls,
@@ -360,9 +349,11 @@ async def case_stats(
             DatasetCase.source,
             DatasetCase.tags,
         )
-        .join(DatasetVersionCase, DatasetVersionCase.version_id == latest.c.id)
-        .join(DatasetCase, DatasetCase.id == DatasetVersionCase.case_revision_id)
-        .where(DatasetCase.organization_id == organization_id)
+        .where(
+            DatasetCase.dataset_id.in_(dataset_ids),
+            DatasetCase.organization_id == organization_id,
+            DatasetCase.removed_in.is_(None),
+        )
         .subquery()
     )
     sources: tuple[CaseSourceLiteral, ...] = get_args(CaseSourceLiteral)
@@ -431,12 +422,10 @@ async def case_stats(
     return stats
 
 
-async def version_rows(db: AsyncSession, *, organization_id: UUID) -> int:
-    """How many case rows an organization's dataset versions hold, all of them together."""
+async def stored_revisions(db: AsyncSession, *, organization_id: UUID) -> int:
+    """How many case revisions an organization's datasets store, all of them together."""
     total = await db.scalar(
-        select(func.coalesce(func.sum(DatasetVersion.case_count), 0)).where(
-            DatasetVersion.organization_id == organization_id
-        )
+        select(func.count(DatasetCase.id)).where(DatasetCase.organization_id == organization_id)
     )
     return int(total or 0)
 
@@ -446,10 +435,9 @@ async def find_case(
 ) -> tuple[DatasetCase, int] | None:
     """The revision of a case a version holds, and its position there."""
     result = await db.execute(
-        select(DatasetCase, DatasetVersionCase.position)
-        .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
+        select(DatasetCase, DatasetCase.position)
+        .join(DatasetVersion, _held(version_id))
         .where(
-            DatasetVersionCase.version_id == version_id,
             DatasetCase.case_id == case_id,
             DatasetCase.organization_id == organization_id,
         )
@@ -464,9 +452,8 @@ async def case_from_message(
     """The case of a version made from this agent answer, if one was."""
     result = await db.execute(
         select(DatasetCase)
-        .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
+        .join(DatasetVersion, _held(version_id))
         .where(
-            DatasetVersionCase.version_id == version_id,
             DatasetCase.source_message_id == message_id,
             DatasetCase.organization_id == organization_id,
         )
@@ -478,63 +465,37 @@ async def case_from_message(
 async def last_position(db: AsyncSession, version_id: UUID, *, organization_id: UUID) -> int:
     """The highest position a version uses, or -1 when it holds nothing."""
     value = await db.scalar(
-        select(func.max(DatasetVersionCase.position))
-        .join(DatasetVersion, DatasetVersion.id == DatasetVersionCase.version_id)
-        .where(
-            DatasetVersionCase.version_id == version_id,
-            DatasetVersion.organization_id == organization_id,
-        )
+        select(func.max(DatasetCase.position))
+        .join(DatasetVersion, _held(version_id))
+        .where(DatasetCase.organization_id == organization_id)
     )
     return -1 if value is None else value
 
 
 async def add_cases(db: AsyncSession, cases: list[DatasetCase]) -> None:
-    """Write new case revisions. Their ids are set before the flush returns."""
+    """Write new case revisions, each already placed. Their ids are set before the flush returns."""
     db.add_all(cases)
     await db.flush()
 
 
-async def copy_membership(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    source_version_id: UUID,
-    target_version_id: UUID,
-    skip: set[UUID],
+async def close_revisions(
+    db: AsyncSession, revision_ids: Sequence[UUID], *, organization_id: UUID, at: int
 ) -> None:
-    """Give the new version every revision the old one held, bar `skip`, in place.
+    """Leave these revisions out of version `at` and every version after it.
 
-    One `INSERT ... SELECT`, so a one-case edit to a ten-thousand-case dataset
-    moves ten thousand ids inside the database rather than through Python.
+    Only a revision still held by the newest version, and added before `at`, is
+    closed, so no version that already exists can change what it holds.
     """
-    query = select(
-        literal(target_version_id),
-        DatasetVersionCase.case_revision_id,
-        DatasetVersionCase.position,
-    ).where(
-        DatasetVersionCase.version_id == source_version_id,
-        DatasetVersionCase.version_id.in_(
-            select(DatasetVersion.id).where(DatasetVersion.organization_id == organization_id)
-        ),
-    )
-    if skip:
-        query = query.where(DatasetVersionCase.case_revision_id.not_in(skip))
-    await db.execute(
-        insert(DatasetVersionCase).from_select(
-            ["version_id", "case_revision_id", "position"], query
-        )
-    )
-    await db.flush()
-
-
-async def add_membership(
-    db: AsyncSession, *, version_id: UUID, placements: list[tuple[UUID, int]]
-) -> None:
-    """Place case revisions in a version, each at its position."""
-    if not placements:
+    if not revision_ids:
         return
-    db.add_all(
-        DatasetVersionCase(version_id=version_id, case_revision_id=revision_id, position=position)
-        for revision_id, position in placements
+    await db.execute(
+        update_rows(DatasetCase)
+        .where(
+            DatasetCase.id.in_(revision_ids),
+            DatasetCase.organization_id == organization_id,
+            DatasetCase.removed_in.is_(None),
+            DatasetCase.added_in < at,
+        )
+        .values(removed_in=at)
     )
     await db.flush()

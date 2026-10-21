@@ -1,5 +1,5 @@
 ---
-source_sha: "ef111b36345c"
+source_sha: "1253cba3b629"
 ---
 
 # Konfiguration { #configuration }
@@ -771,7 +771,7 @@ Die Testfälle, über die Evals laufen. Siehe [Datasets](datasets.md).
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Wie viele Fallzeilen die Dataset-Versionen einer Organisation zusammen halten dürfen. Jede Änderung schreibt eine Version mit einer Zeile pro Fall, ein Dataset mit 10.000 Fällen, 500-mal bearbeitet, hält also 5 Millionen. Eine Änderung über das Limit wird abgelehnt und nennt, wie viele belegt sind; das Löschen nicht mehr benötigter Datasets gibt ihre Zeilen frei. Das Limit ist ungefähr: Jede Änderung wird für sich geprüft, daher können gleichzeitige Änderungen an verschiedenen Datasets es leicht überschreiten. Es schützt den Speicher und dient nicht der Abrechnung |
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Wie viele Fallrevisionen die Datasets einer Organisation zusammen speichern dürfen. Jeder hinzugefügte Fall und jede Bearbeitung ist eine Revision, gespeichert für die Versionen, die sie enthalten; eine Version speichert nur, was sie geändert hat, ein Dataset mit 10.000 Fällen, 500-mal bearbeitet, speichert also 10.500, nicht 5 Millionen. Ein Hinzufügen oder Bearbeiten über das Limit wird abgelehnt und nennt, wie viele gespeichert sind; einen Fall zu entfernen speichert nichts und ist immer erlaubt, und das Löschen nicht mehr benötigter Datasets gibt ihre Revisionen frei. Der Name ist älter als diese Bedeutung: Er zählte jeden Fall jeder Version, solange Versionen ihre Fälle kopierten. Das Limit ist ungefähr: Jede Änderung wird für sich geprüft, daher können gleichzeitige Änderungen an verschiedenen Datasets es leicht überschreiten. Es schützt den Speicher und dient nicht der Abrechnung |
 
 ## Agent-Workspaces { #agent-workspaces }
 

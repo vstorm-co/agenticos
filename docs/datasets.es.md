@@ -1,5 +1,5 @@
 ---
-source_sha: "a259d6dd283d"
+source_sha: "a6ff4cc6ff1f"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -71,11 +71,14 @@ Renombrar un dataset o cambiar su descripción, con **Editar detalles** en su
 página, no crea una versión, porque ninguna de las dos cosas cambia un caso.
 
 La lista de versiones muestra las cien más recientes; una más antigua se abre
-escribiendo su número. Cada versión guarda una fila por caso, así que las
-versiones de una organización guardan juntas como mucho
-`DATASET_MAX_VERSION_ROWS_PER_ORG` filas (5 millones por defecto, consulta
-[Configuración](configuration.md#datasets)). Un cambio que lo supere se rechaza
-indicando cuántas hay ocupadas; borrar un dataset libera sus filas.
+escribiendo su número. Una versión guarda solo lo que cambió: un caso
+añadido o editado es una nueva revisión de caso, y uno quitado no guarda nada,
+así que un historial largo cuesta lo que cambió y no cada caso en cada versión.
+Los datasets de una organización guardan juntos como mucho
+`DATASET_MAX_VERSION_ROWS_PER_ORG` revisiones de casos (5 millones por defecto,
+consulta [Configuración](configuration.md#datasets)). Añadir o editar por encima
+de eso se rechaza indicando cuántas hay guardadas; quitar un caso siempre está
+permitido, y borrar un dataset libera sus revisiones.
 
 ## Añadir casos { #adding-cases }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ef111b36345c"
+source_sha: "1253cba3b629"
 ---
 
 # Configuración { #configuration }
@@ -750,7 +750,7 @@ Los casos de prueba sobre los que corren los evals. Consulta [Datasets](datasets
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas filas de casos pueden guardar juntas las versiones de los datasets de una organización. Cada cambio escribe una versión con una fila por caso, así que un dataset de 10.000 casos editado 500 veces guarda 5 millones. Un cambio que supere el límite se rechaza indicando cuántas hay ocupadas; borrar los datasets que nadie necesita libera sus filas. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas revisiones de casos pueden guardar juntos los datasets de una organización. Cada caso añadido y cada edición es una revisión, guardada para las versiones que la contienen; una versión guarda solo lo que cambió, así que un dataset de 10.000 casos editado 500 veces guarda 10.500, no 5 millones. Añadir o editar por encima del límite se rechaza indicando cuántas hay guardadas; quitar un caso no guarda nada y siempre está permitido, y borrar los datasets que nadie necesita libera sus revisiones. El nombre es anterior a este significado: contaba cada caso de cada versión mientras las versiones copiaban sus casos. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
 
 ## Workspaces de los agents { #agent-workspaces }
 

@@ -65,10 +65,14 @@ Renaming a dataset or changing its description, with **Edit details** on its
 page, does not create a version, because neither changes a case.
 
 The version list shows the newest hundred versions; an older one is opened by
-typing its number. Every version keeps a row per case, so one organization's
-versions together hold at most `DATASET_MAX_VERSION_ROWS_PER_ORG` rows (5
-million by default, see [Configuration](configuration.md#datasets)). A change
-past that is refused with how many are held; deleting a dataset frees its rows.
+typing its number. A version stores only what it changed: an
+added or edited case is a new case revision, and a removed one stores nothing,
+so a long history costs what changed rather than every case on every version.
+One organization's datasets store at most `DATASET_MAX_VERSION_ROWS_PER_ORG`
+case revisions together (5 million by default, see
+[Configuration](configuration.md#datasets)). An add or an edit past that is
+refused with how many are stored; removing a case is always allowed, and
+deleting a dataset frees its revisions.
 
 ## Adding cases
 
