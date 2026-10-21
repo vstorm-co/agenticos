@@ -65,6 +65,12 @@ not count. A promotion that does not meet that is refused (`409`,
 failed, inconclusive, did not run and why, still checking, out of date, not
 checked, or paused.
 
+A pass counts for the environment it was run beside: measured against the
+version that environment serves now, and graded under the scoring its dataset
+holds now - one beside staging's version says nothing about replacing
+production's. A paused guard holds the version back whatever it found before the
+pause.
+
 The promotion dialog shows the same, and runs the guards that have not passed
 on the version, each beside the version the environment serves now
 (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
@@ -81,7 +87,7 @@ the history, and each failing guard's owner is told.
 
 Changing which suites guard an environment needs the same permission, since
 taking a guard off lets through what it would have stopped, and so does changing
-what a guarding suite checks - its threshold, dataset or environment. A suite
+what a guarding suite checks - its threshold, dataset, environment or that environment's test connections. A suite
 that guards, or a dataset one checks, cannot be deleted until it is taken off.
 
 A guarded environment with **tracks latest** on does not follow a publish at

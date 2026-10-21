@@ -1,5 +1,5 @@
 ---
-source_sha: "216f6a21d664"
+source_sha: "e9419e47f507"
 ---
 
 # Entornos { #environments }
@@ -72,6 +72,12 @@ el listón, no cuenta. Una promoción que no lo cumple se rechaza (`409`,
 no pasó, sin conclusión, no se ejecutó y por qué, comprobando todavía,
 desactualizada, sin comprobar o en pausa.
 
+Un aprobado cuenta para el entorno al lado del que se ejecutó: frente a la
+versión que ese entorno sirve ahora, y puntuado con el scoring que su dataset
+tiene ahora; uno al lado de la versión de staging no dice nada sobre sustituir
+la de producción. Una guardiana en pausa detiene la versión sea lo que sea que
+encontrara antes de la pausa.
+
 El diálogo de promoción muestra lo mismo y ejecuta las guardianas que no han
 pasado en la versión, cada una al lado de la versión que el entorno sirve ahora
 (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
@@ -88,7 +94,7 @@ historial, y se avisa al propietario de cada guardiana que no pasó.
 
 Cambiar qué suites guardan un entorno necesita el mismo permiso, porque quitar
 una guardiana deja pasar lo que habría detenido, y también cambiar lo que
-comprueba una guardiana: su umbral, su dataset o su entorno. Una suite que
+comprueba una guardiana: su umbral, su dataset, su entorno o las conexiones de prueba de ese entorno. Una suite que
 guarda, o un dataset que una comprueba, no se puede borrar hasta quitarla.
 
 Un entorno guardado con **tracks latest** no sigue una publicación enseguida:

@@ -1,5 +1,5 @@
 ---
-source_sha: "216f6a21d664"
+source_sha: "e9419e47f507"
 ---
 
 # Umgebungen { #environments }
@@ -74,6 +74,12 @@ nicht erfüllt, wird abgelehnt (`409`, `PROMOTION_BLOCKED`), und die Ablehnung
 nennt jeden Wächter und seinen Stand: nicht bestanden, ohne Ergebnis, nicht
 gelaufen und warum, prüft noch, veraltet, nicht geprüft oder pausiert.
 
+Ein Bestehen zählt für die Umgebung, neben der es lief: gemessen an der Version,
+die diese Umgebung jetzt ausliefert, und bewertet nach dem Scoring, das ihr
+Dataset jetzt hat - eines neben der Version von Staging sagt nichts darüber, die
+von Production zu ersetzen. Ein pausierter Wächter hält die Version zurück, was
+immer er vor der Pause fand.
+
 Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der
 Version nicht bestanden haben, jeden neben der Version, die die Umgebung jetzt
 ausliefert (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
@@ -90,8 +96,8 @@ Eigentümer jedes nicht bestandenen Wächters wird benachrichtigt.
 
 Welche Suites eine Umgebung bewachen, zu ändern, braucht dieselbe Berechtigung,
 weil ein abgenommener Wächter durchlässt, was er aufgehalten hätte, und ebenso,
-zu ändern, was ein Wächter prüft - seine Schwelle, sein Dataset oder seine
-Umgebung. Eine Suite, die bewacht, oder ein Dataset, das eine solche prüft,
+zu ändern, was ein Wächter prüft - seine Schwelle, sein Dataset, seine
+Umgebung oder deren Testverbindungen. Eine Suite, die bewacht, oder ein Dataset, das eine solche prüft,
 lässt sich erst löschen, wenn sie abgenommen ist.
 
 Eine bewachte Umgebung mit **tracks latest** folgt einer Veröffentlichung nicht

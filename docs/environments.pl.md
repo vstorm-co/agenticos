@@ -1,5 +1,5 @@
 ---
-source_sha: "216f6a21d664"
+source_sha: "e9419e47f507"
 ---
 
 # Środowiska { #environments }
@@ -71,6 +71,12 @@ liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
 przeszedł, bez rozstrzygnięcia, nie uruchomił się i dlaczego, jeszcze sprawdza,
 nieaktualny, niesprawdzony albo wstrzymany.
 
+Zaliczenie liczy się dla środowiska, obok którego zostało uruchomione: względem
+wersji, którą to środowisko serwuje teraz, i przy scoringu, który jego dataset
+ma teraz - zaliczenie obok wersji stagingu nic nie mówi o zastąpieniu wersji
+produkcji. Wstrzymany strażnik zatrzymuje wersję niezależnie od tego, co znalazł
+przed wstrzymaniem.
+
 Dialog promocji pokazuje to samo i uruchamia strażników, którzy nie przeszli na
 tej wersji, każdego obok wersji, którą środowisko serwuje teraz
 (`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
@@ -87,7 +93,7 @@ przeszedł, dostaje wiadomość.
 
 Zmiana listy strażników wymaga tego samego uprawnienia, bo zdjęcie strażnika
 przepuszcza to, co by zatrzymał, i tak samo zmiana tego, co strażnik sprawdza -
-jego progu, datasetu albo środowiska. Suity, która strzeże, ani datasetu, który
+jego progu, datasetu, środowiska albo połączeń testowych tego środowiska. Suity, która strzeże, ani datasetu, który
 taka suita sprawdza, nie da się usunąć, dopóki nie zostanie zdjęta.
 
 Strzeżone środowisko z włączonym **tracks latest** nie podąża za publikacją od
