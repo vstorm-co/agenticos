@@ -19,8 +19,10 @@ when a run checks a skill change; existing arms served none.
 so the constraint is the same whichever order the kinds' migrations land in.
 
 The downgrade drops the tables and columns and loses every proposal batch and
-request; skill proposals stay, as they were. It refuses while an agent of kind
-`improver` exists, since the narrower constraint would reject it.
+request; skill proposals stay, as they were. The improver stays too, as an
+ordinary agent - `kind` back to `agent` and its `system_key` cleared, as the
+other system agents' migrations do - so the narrower constraint holds and
+nothing anybody edited is deleted; upgrading again seeds a fresh improver.
 
 Revision ID: 0152_authoring_proposals
 Revises: 0148_eval_runs
@@ -319,12 +321,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM agents WHERE kind = 'improver') THEN "
-        "RAISE EXCEPTION 'agents of kind improver exist; archive and delete them first'; "
-        "END IF; END $$"
-    )
     op.drop_constraint("ck_agent_kind", "agents", type_="check")
+    op.execute("UPDATE agents SET kind = 'agent', system_key = NULL WHERE kind = 'improver'")
     op.create_check_constraint("ck_agent_kind", "agents", _KINDS_BEFORE)
 
     op.drop_column("eval_run_arms", "skill_bodies")
