@@ -9,21 +9,21 @@
   <script src="lib/agenticos-2.js"></script>
   <style>
     html, body { margin: 0; background: transparent; }
-    .wrap { padding: 20px; display: grid; gap: 16px; }
+    .wrap { padding: 4px 0 8px; display: grid; gap: 20px; }
     .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; }
     .control { display: grid; gap: 6px; }
     .control-head { display: flex; justify-content: space-between; font-size: 13px; }
     .control-head output { font-weight: 600; font-variant-numeric: tabular-nums; }
     input[type="range"] { width: 100%; accent-color: currentColor; }
+    .figures { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 0; }
+    .figures div { display: grid; gap: 2px; }
+    .figures dt { font-size: 13px; color: var(--ao-muted-fg); }
+    .figures dd { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .chart { height: 260px; }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <header>
-      <h1 style="margin: 0; font-size: 18px">Compound interest</h1>
-      <p class="ao-muted ao-small" style="margin: 4px 0 0">Interest earns interest. Move a slider and watch the gap grow.</p>
-    </header>
-
     <section class="controls" aria-label="Inputs">
       <label class="control">
         <span class="control-head"><span>Starting amount</span><output id="amount-out"></output></span>
@@ -39,13 +39,14 @@
       </label>
     </section>
 
-    <section class="ao-grid-3" aria-label="Result">
-      <div class="ao-card ao-stat"><div class="ao-stat-label">Final value</div><div class="ao-stat-value" id="final"></div></div>
-      <div class="ao-card ao-stat"><div class="ao-stat-label">Interest earned</div><div class="ao-stat-value" id="interest"></div></div>
-      <div class="ao-card ao-stat"><div class="ao-stat-label">More than simple interest</div><div class="ao-stat-value ao-up" id="gain"></div></div>
-    </section>
+    <!-- Three figures as a row with their labels, not three boxes. -->
+    <dl class="figures" aria-live="polite">
+      <div><dt>Final value</dt><dd id="final"></dd></div>
+      <div><dt>Interest earned</dt><dd id="interest"></dd></div>
+      <div><dt>More than simple interest</dt><dd class="ao-up" id="gain"></dd></div>
+    </dl>
 
-    <div class="ao-card"><div class="ao-chart"><canvas id="chart" role="img" aria-label="Value over the years"></canvas></div></div>
+    <div class="chart"><canvas id="chart" role="img" aria-label="Value over the years, compound against simple interest"></canvas></div>
   </main>
 
   <script>

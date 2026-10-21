@@ -31,6 +31,13 @@ const MAX_GROWTHS = 4;
  */
 const PREVIEW_MAX_HEIGHT = 560;
 
+/**
+ * The same for a page, which is taller: a page is something to use - a map with
+ * its stops, a calculator - and shrunk to a poster's height its text and its
+ * controls end up too small to read or hit (#2302).
+ */
+const PAGE_MAX_HEIGHT = 900;
+
 /** A ceiling on a page's measured height, past which it is not worth laying out. */
 const MAX_NATURAL = 6000;
 
@@ -236,7 +243,7 @@ export function VisualFrame({
     laidOut = footprint;
   } else {
     const natural = Math.min(MAX_NATURAL, Math.max(1, reported ?? clampHeight(height)));
-    const scale = Math.min(1, PREVIEW_MAX_HEIGHT / natural);
+    const scale = Math.min(1, PAGE_MAX_HEIGHT / natural);
     boxHeight = natural * scale;
     footprint = { width: boxWidth * scale * zoom, height: boxHeight * zoom };
     laidOut = scaled(boxWidth, natural, scale * zoom);
@@ -292,7 +299,9 @@ export function VisualFrame({
         >
           <div
             className="relative overflow-hidden"
-            style={{ ...footprint, marginLeft: Math.max(0, (boxWidth - footprint.width) / 2) }}
+            // From the left edge, where the message's text starts: the drawing is
+            // part of the answer, not a picture centred in a box of its own.
+            style={footprint}
           >
             {iframe}
           </div>

@@ -17,10 +17,12 @@
     }
     .field input[aria-invalid="true"] { border-color: var(--ao-danger); }
     .error { color: var(--ao-danger); font-size: 13px; min-height: 1.2em; margin: 0; }
-    .results { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-    .result { background: var(--ao-muted); border-radius: 12px; padding: 12px 14px; }
-    .result span { display: block; font-size: 12px; color: var(--ao-muted-fg); }
-    .result strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+    /* One large result, the rest as small figures beside it - not a row of boxes. */
+    .results { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 40px; margin: 0; }
+    .results div { display: grid; gap: 2px; }
+    .results dt { font-size: 13px; color: var(--ao-muted-fg); }
+    .results dd { margin: 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .results .main dd { font-size: 40px; letter-spacing: -0.03em; line-height: 1.1; }
     .assumption { font-size: 12px; color: var(--ao-muted-fg); margin: 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .ask[hidden] { display: none; }
@@ -48,16 +50,16 @@
     </form>
     <p class="error" id="error" role="alert"></p>
 
-    <section class="results" aria-live="polite" aria-label="Result">
-      <div class="result"><span>Each person pays</span><strong id="share">-</strong></div>
-      <div class="result"><span>Tip</span><strong id="tip-amount">-</strong></div>
-      <div class="result"><span>Collected</span><strong id="collected">-</strong></div>
-    </section>
+    <dl class="results" aria-live="polite">
+      <div class="main"><dt>Each person pays</dt><dd id="share">-</dd></div>
+      <div><dt>Tip</dt><dd id="tip-amount">-</dd></div>
+      <div><dt>Collected</dt><dd id="collected">-</dd></div>
+    </dl>
     <p class="assumption" id="assumption"></p>
 
     <div class="actions">
       <button class="ao-button" type="button" id="reset">Reset</button>
-      <button class="ao-button ask" type="button" id="ask" hidden>Use these numbers</button>
+      <button class="ao-button ao-button-primary ask" type="button" id="ask" hidden>Use these numbers</button>
     </div>
   </main>
 

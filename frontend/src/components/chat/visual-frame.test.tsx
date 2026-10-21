@@ -106,14 +106,14 @@ describe("VisualFrame", () => {
     expect(posted).not.toHaveBeenCalled();
   });
 
-  it("shows a page whole, shrunk only past the preview's height", () => {
+  it("shows a page whole, shrunk only past a page's height", () => {
     render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} />);
     const box = boxOf();
     expect(box.style.height).toBe("300px");
 
-    say({ type: "agenticos:visual-size", height: 1120 });
+    say({ type: "agenticos:visual-size", height: 1800 });
     expect(frameOf().style.transform).toBe("scale(0.5)");
-    expect(box.style.height).toBe("560px");
+    expect(box.style.height).toBe("900px");
     expect(frameOf().style.width).toBe("600px");
   });
 
@@ -130,7 +130,8 @@ describe("VisualFrame", () => {
     render(<VisualFrame kind="svg" title="T" content="<svg/>" done height={480} aspect={2} />);
     expect(frameOf().style.width).toBe("280px");
     expect(frameOf().style.height).toBe("560px");
-    expect(sizerOf().style.marginLeft).toBe("160px");
+    // From the left edge, where the message's text starts.
+    expect(sizerOf().style.marginLeft).toBe("");
   });
 
   it("zooms an SVG by drawing it larger, in a box that scrolls", () => {
@@ -140,18 +141,18 @@ describe("VisualFrame", () => {
     expect(frameOf().style.width).toBe("560px");
     expect(frameOf().style.height).toBe("1120px");
     expect(frameOf().style.transform).toBe("");
-    expect(sizerOf().style.marginLeft).toBe("20px");
+    expect(sizerOf().style.marginLeft).toBe("");
     expect(boxOf().style.height).toBe("560px");
     expect(boxOf().className).toContain("overflow-auto");
   });
 
   it("zooms a page by scaling it, clipped to what it shows", () => {
     render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} zoom={1.5} />);
-    say({ type: "agenticos:visual-size", height: 1120 });
+    say({ type: "agenticos:visual-size", height: 1800 });
     expect(frameOf().style.transform).toBe("scale(0.75)");
     expect(sizerOf().style.width).toBe("450px");
-    expect(sizerOf().style.height).toBe("840px");
-    expect(sizerOf().style.marginLeft).toBe("75px");
+    expect(sizerOf().style.height).toBe("1350px");
+    expect(sizerOf().style.marginLeft).toBe("");
   });
 
   it("keeps a page that fits unscrolled", () => {

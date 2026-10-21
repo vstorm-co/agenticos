@@ -72,10 +72,12 @@
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-    camera.position.set(7, 4, 9);
+    // Close enough that the aircraft fills about two thirds of the stage.
+    camera.position.set(1.6, 5.2, 6.4);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.enableZoom = false;
+    controls.target.set(-0.3, 0.3, 0);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.8));
     const sun = new THREE.DirectionalLight(0xffffff, 2);
@@ -87,6 +89,15 @@
     const moving = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
 
     // One group per axis, so each slider turns the plane about its own axis.
+    // A soft shadow under the model, so it sits in space rather than floats.
+    const shade = new THREE.Mesh(
+      new THREE.CircleGeometry(2.2, 48),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.06 }),
+    );
+    shade.rotation.x = -Math.PI / 2;
+    shade.position.y = -1.9;
+    scene.add(shade);
+
     const plane = new THREE.Group();
     scene.add(plane);
     plane.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 4, 8, 24).rotateZ(Math.PI / 2), body));

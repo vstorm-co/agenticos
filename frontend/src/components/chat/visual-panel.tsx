@@ -135,7 +135,9 @@ export function ConversationVisualsProvider({
 export function TurnVisuals({ calls }: { calls: ToolCall[] }) {
   if (calls.length === 0) return null;
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 py-1">
+    // More air around a drawing than between two lines of a turn: it is the
+    // largest thing in the answer, and text set 8px under it read as its caption.
+    <div className="flex w-full min-w-0 flex-col gap-6 py-2.5">
       {calls.map((call) => (
         <VisualPanel key={call.id} call={call} />
       ))}
@@ -472,7 +474,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
     // No card around it (#2302): a drawing is part of the answer, so it sits in
     // the transcript the way a paragraph does, and what names it - the title,
     // its state, what can be done with it - is a quiet line underneath.
-    <div data-tour="chat-visual" className="group/visual w-full max-w-3xl min-w-0">
+    <div data-tour="chat-visual" className="group/visual w-full min-w-0">
       {code ? (
         <pre className="bg-foreground/[0.04] max-h-[32rem] scrollbar-thin overflow-auto rounded-xl p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
           {shown.content}
@@ -490,7 +492,14 @@ function VisualPanel({ call }: { call: ToolCall }) {
           </button>
         </div>
       ) : (
-        <div className="relative">
+        <div
+          className={cn(
+            "relative rounded-xl transition-colors",
+            // The height the drawing declared, held while it is written - shaded,
+            // so the space reads as something arriving rather than a gap.
+            !done && "bg-foreground/[0.03]",
+          )}
+        >
           <VisualFrame
             key={frameKey}
             kind={shown.kind}
@@ -520,6 +529,28 @@ function VisualPanel({ call }: { call: ToolCall }) {
           <VisualZoom zoom={zoom} onZoom={setZoom} className={cn(ZOOM_CORNER, "hidden md:flex")} />
         </div>
       )}
+      <div className="text-muted-foreground mt-1.5 flex min-h-8 min-w-0 items-center gap-1.5 text-xs">
+        <Shapes className="size-3.5 shrink-0" aria-hidden />
+        <span className="text-foreground/80 min-w-0 truncate font-medium">{shown.title}</span>
+        {label !== null && (
+          <span className={cn("min-w-0 truncate", !shown.done && !unfinished && "shimmer-text")}>
+            {label}
+          </span>
+        )}
+        {savedHere && (
+          <Link
+            href={savedHere.url}
+            className="bg-foreground/[0.06] text-foreground hover:bg-foreground/10 shrink-0 rounded-full px-2 py-0.5 font-medium"
+          >
+            {t("savedBadge", { version: savedHere.version })}
+          </Link>
+        )}
+        {/* Shown on hover and focus where there is a pointer to hover with;
+            always on a touch screen, where there is not. */}
+        <div className="ml-auto flex shrink-0 items-center transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/visual:opacity-100">
+          {actions}
+        </div>
+      </div>
       {errors.length > 0 && (
         <div className="bg-destructive/[0.06] mt-2 flex items-start gap-2 rounded-xl px-3 py-2 text-xs">
           <TriangleAlert className="text-destructive mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -565,28 +596,6 @@ function VisualPanel({ call }: { call: ToolCall }) {
           onDismiss={() => setFollowUp(null)}
         />
       )}
-      <div className="text-muted-foreground mt-1.5 flex min-h-8 min-w-0 items-center gap-1.5 text-xs">
-        <Shapes className="size-3.5 shrink-0" aria-hidden />
-        <span className="text-foreground/80 min-w-0 truncate font-medium">{shown.title}</span>
-        {label !== null && (
-          <span className={cn("min-w-0 truncate", !shown.done && !unfinished && "shimmer-text")}>
-            {label}
-          </span>
-        )}
-        {savedHere && (
-          <Link
-            href={savedHere.url}
-            className="bg-foreground/[0.06] text-foreground hover:bg-foreground/10 shrink-0 rounded-full px-2 py-0.5 font-medium"
-          >
-            {t("savedBadge", { version: savedHere.version })}
-          </Link>
-        )}
-        {/* Shown on hover and focus where there is a pointer to hover with;
-            always on a touch screen, where there is not. */}
-        <div className="ml-auto flex shrink-0 items-center transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/visual:opacity-100">
-          {actions}
-        </div>
-      </div>
       <Dialog open={full} onOpenChange={setFull}>
         <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
           <DialogHeader className="gap-0 pr-10">
@@ -725,7 +734,7 @@ function VisualCard({
 
 function DrawingPlaceholder({ label }: { label: string }) {
   return (
-    <div className="bg-foreground/[0.04] flex h-32 w-full max-w-3xl items-center justify-center rounded-xl">
+    <div className="bg-foreground/[0.03] flex h-32 w-full items-center justify-center rounded-xl">
       <span className="shimmer-text text-muted-foreground text-sm">{label}</span>
     </div>
   );
