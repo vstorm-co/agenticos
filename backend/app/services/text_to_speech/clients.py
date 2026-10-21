@@ -13,7 +13,9 @@ repository controls, and it reaches a chat.
 
 import base64
 import binascii
+import json
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
@@ -57,10 +59,36 @@ _QUOTA_SPENT = "quota_exceeded"
 _VOICE_MISSING = "voice_not_found"
 """ElevenLabs' reason for a voice the account no longer has, which it answers 400."""
 
-LOGGED_BODY_CHARACTERS = 200
-"""How much of a provider's error body is logged. Enough for its error code; short
-of the text it may echo back, which is somebody's words, or a key in a format the
-log redaction does not know."""
+_ERROR_CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+"""What a provider's error code looks like. Anything else in its body - the text it
+may echo back, which is somebody's words, or a key in a format the log redaction
+does not know - is never logged."""
+
+
+def _error_code(body: str) -> str | None:
+    """The provider's own error code from its JSON body, or None.
+
+    Each names it in its own place - OpenAI `error.code` or `error.type`, Gemini
+    `error.status`, ElevenLabs `detail.status` - and only a value shaped like a
+    code is kept, so a body that put a sentence or a key there logs nothing.
+    """
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    for outer, inner in (
+        ("error", "code"),
+        ("error", "status"),
+        ("error", "type"),
+        ("detail", "status"),
+    ):
+        container = payload.get(outer)
+        value = container.get(inner) if isinstance(container, dict) else None
+        if isinstance(value, str) and _ERROR_CODE.fullmatch(value):
+            return value
+    return None
 
 
 def _failure_for(status: int, body: str) -> SpeechFailure:
@@ -89,16 +117,16 @@ def _failure_for(status: int, body: str) -> SpeechFailure:
 
 
 def _raise_for(call: SpeechCall, response: httpx.Response) -> None:
-    """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
+    """Refuse a non-2xx answer, logging only the provider's error code."""
     if response.is_success:
         return
-    body = response.text[:LOGGED_BODY_CHARACTERS]
+    body = response.text
     logger.warning(
         "Speech request to %s for model %s failed (%s): %s",
         call.provider,
         call.model,
         response.status_code,
-        body,
+        _error_code(body) or "no error code",
     )
     raise SpeechProviderError(
         _failure_for(response.status_code, body),

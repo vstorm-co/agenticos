@@ -8,6 +8,7 @@ refusal that never carries the provider's own words.
 
 import base64
 import json
+import logging
 import struct
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -371,6 +372,48 @@ class TestAFailedCall:
         }
         assert KEY not in caught.value.message
         assert KEY not in json.dumps(caught.value.details)
+
+    @pytest.mark.parametrize(
+        ("body", "logged"),
+        [
+            (
+                f'{{"error":{{"code":"invalid_api_key","message":"{KEY} is wrong"}}}}',
+                "invalid_api_key",
+            ),
+            ('{"error":{"code":400,"status":"INVALID_ARGUMENT"}}', "INVALID_ARGUMENT"),
+            ('{"detail":{"status":"voice_not_found","message":"Say: hello"}}', "voice_not_found"),
+            (f'{{"error":{{"code":"key {KEY} refused"}}}}', "no error code"),
+            (f"invalid key {KEY}", "no error code"),
+            ("[1, 2]", "no error code"),
+        ],
+        ids=[
+            "openai",
+            "gemini",
+            "elevenlabs",
+            "a sentence for a code",
+            "not json",
+            "not an object",
+        ],
+    )
+    async def test_only_the_providers_error_code_is_logged(self, caplog, body, logged):
+        """A body may echo the key or the words sent; the code is all the operator
+        needs, and anything not shaped like one is left out."""
+        with (
+            caplog.at_level(logging.WARNING),
+            _answering(lambda _: httpx.Response(400, text=body)),
+            pytest.raises(SpeechProviderError),
+        ):
+            await synthesize(
+                _provider("openai"),
+                model="gpt-4o-mini-tts",
+                voice="marin",
+                text="Say: hello",
+                audio_format="mp3",
+                api_key=KEY,
+            )
+
+        assert caplog.records[-1].getMessage().endswith(f"failed (400): {logged}")
+        assert KEY not in caplog.text and "Say: hello" not in caplog.text
 
     async def test_a_failure_halfway_through_discards_what_was_spoken(self):
         answers = iter([httpx.Response(200, content=b"\x01\x00"), httpx.Response(500)])
