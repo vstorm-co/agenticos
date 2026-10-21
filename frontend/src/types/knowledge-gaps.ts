@@ -50,13 +50,19 @@ export interface KnowledgeGapTopicList {
   ungrouped: number;
   /** Whether the caller may group a knowledge base's waiting misses now; false off its page. */
   can_regroup: boolean;
+  /** Recent answers on a knowledge base's page that no model has read for gaps yet. */
+  unchecked: number;
 }
 
 /** One time a topic's question was asked, and what the search found. */
+/** What makes a question a miss: a search that found nothing, or an answer read as one. */
+export type KnowledgeGapSignal = "retrieval" | "answer" | "rating";
+
 export interface KnowledgeGapQuestion {
   search_id: string;
-  /** What the agent searched for. */
+  /** What the agent searched for; the person's question when the answer was read as a miss. */
   query: string;
+  signal: KnowledgeGapSignal;
   /** What the person asked; null where no conversation is kept, as for an API run. */
   question: string | null;
   top_similarity: number | null;

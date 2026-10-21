@@ -108,6 +108,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
         listed = await http.get(_url())
+        runnable = await http.get(_url("?runnable=true&limit=1"))
         asking = await http.get(_url(f"?asks_run={_RUN_ID}"))
         created = await http.post(_url(), json={"name": "refunds"})
         read = await http.get(_url(dataset))
@@ -128,6 +129,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         deleted = await http.delete(_url(dataset))
 
     assert listed.json()["total"] == 1
+    assert runnable.status_code == 200
+    assert service.list_readable.call_args_list[1].kwargs["runnable"] is True
     assert asking.status_code == 200
     assert service.list_readable.call_args.kwargs["asked_by_run"] == _RUN_ID
     assert created.status_code == 201

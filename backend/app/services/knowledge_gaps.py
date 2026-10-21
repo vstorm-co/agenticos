@@ -10,6 +10,11 @@ missing document, or turn the questions into dataset cases to check it.
 Grouping embeds queries but asks no model to write anything, so it runs for
 every organization, like ingestion embeddings do. Nothing here ever adds a
 document to a collection.
+
+A model is asked only on request, as the person asking: to draft a topic's
+missing passage, or to read a knowledge base's recent answers - and the
+thumbs-down comments on them - for the questions it could not answer, which
+retrieval alone does not see.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import numpy as np
@@ -26,21 +31,25 @@ import numpy.typing as npt
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.system_agents import KNOWLEDGE_GAP_DRAFTER
+from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
+from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
+from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch, TopicStatus
+from app.db.models.knowledge_gap import GapSignal, KnowledgeGapTopic, KnowledgeSearch, TopicStatus
 from app.db.models.rag_document import RAGDocument
-from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo
-from app.repositories.knowledge_gap import DraftingRow, TopicRow
+from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo, member_repo
+from app.repositories.knowledge_gap import CandidateRow, DraftingRow, TopicRow, Verdict
 from app.schemas.knowledge_gap import (
     MAX_DRAFT_SOURCES,
+    ClassifiedAnswer,
     KnowledgeGapAgent,
     KnowledgeGapCasesAdded,
+    KnowledgeGapClassification,
     KnowledgeGapCollectionCount,
     KnowledgeGapDraft,
     KnowledgeGapDraftRead,
@@ -81,6 +90,15 @@ DRAFT_DOCUMENTS = 20
 """The most documents a drafting model is offered to cite."""
 
 EXAMPLES = 3
+
+CLASSIFY_WINDOW = timedelta(days=30)
+"""How far back the answers a knowledge base's check reads go."""
+
+CLASSIFY_BATCH = 20
+"""The answers one classifying run reads."""
+
+CLASSIFY_PER_REQUEST = 100
+"""The most answers one check reads; the rest wait for the next."""
 
 Vector = npt.NDArray[np.float64]
 
@@ -200,6 +218,46 @@ def _drafting_prompt(
             f"Reader's comment: {_clip(row.down_rating_comment, 500)}"
         )
     return "\n\n".join(parts)
+
+
+def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) -> str:
+    """The answers a classifying model reads, each numbered."""
+    parts = [
+        f'These answers were given from the knowledge base "{knowledge_base}". Classify '
+        "every one of them, citing it by its number.",
+    ]
+    for number, candidate in enumerate(candidates, start=1):
+        comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)
+        parts.append(
+            f"## Answer {number}\n"
+            f"Asked: {_clip(candidate.question, 600)}\n"
+            f"Answered: {_clip(candidate.answer, 1_200)}\n"
+            f"Comments of readers who rated it down:\n{comments or '(none)'}"
+        )
+    return "\n\n".join(parts)
+
+
+def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -> list[Verdict]:
+    """The verdicts on the candidates the model numbered, the first one each.
+
+    A number that names no candidate is dropped, and a candidate the model
+    skipped gets no verdict, so it waits for the next check rather than being
+    remembered as read.
+    """
+    decided: dict[int, ClassifiedAnswer] = {}
+    for answer in answers:
+        if 1 <= answer.number <= len(candidates):
+            decided.setdefault(answer.number, answer)
+    return [
+        Verdict(
+            candidate=candidates[number - 1],
+            signal=None if answer.signal == "none" else GapSignal(answer.signal),
+            query=(candidates[number - 1].question or candidates[number - 1].answer)[
+                :MAX_QUERY_CHARS
+            ],
+        )
+        for number, answer in sorted(decided.items())
+    ]
 
 
 def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
@@ -342,7 +400,17 @@ class KnowledgeGapService:
             ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit
         )
         listed.can_regroup = await writable_kb(self.db, ctx, kb)
+        listed.unchecked = await self._unchecked(ctx, kb.id)
         return listed
+
+    async def _unchecked(self, ctx: AuthContext, knowledge_base_id: UUID) -> int:
+        return await knowledge_gap_repo.count_unchecked(
+            self.db,
+            knowledge_base_id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            since=datetime.now(UTC) - CLASSIFY_WINDOW,
+        )
 
     async def _readable_with_misses(self, ctx: AuthContext, *, agent_id: UUID | None) -> list[UUID]:
         candidates = await knowledge_gap_repo.knowledge_bases_with_misses(
@@ -455,6 +523,7 @@ class KnowledgeGapService:
                 KnowledgeGapQuestion(
                     search_id=q.search.id,
                     query=q.search.query,
+                    signal=GapSignal(q.search.signal).value,
                     question=q.question,
                     top_similarity=q.search.top_similarity,
                     result_count=q.search.result_count,
@@ -716,6 +785,118 @@ class KnowledgeGapService:
             ),
             name=f"group-knowledge-gaps-{kb.id}",
         )
+
+    async def classify(self, ctx: AuthContext, knowledge_base_id: UUID) -> None:
+        """Have a model read a knowledge base's recent answers for questions it could not answer.
+
+        Every refusal is made here, before anything runs: the check reads
+        other people's questions, answers and comments, so it takes `runs:view`
+        across the organization, and records misses on the knowledge base, so it
+        takes what dismissing does. The reading itself happens after the
+        commit, in runs of the classifier as the caller - metered, checked
+        against budgets and listed in Activity - :data:`CLASSIFY_BATCH` answers a
+        run and at most :data:`CLASSIFY_PER_REQUEST` a request.
+
+        It runs later with the caller's role rather than this request's
+        limits, so it is started only by the caller in person: not through an
+        API key, whose scopes the worker would not carry, nor by an
+        administrator impersonating them.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the
+                organization, or one asking through an API key or impersonation.
+            NotFoundError: For a knowledge base the caller may not change.
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: The classifier cannot run for this caller.
+        """
+        _require_runs_view(ctx)
+        if ctx.api_key_id is not None or current_impersonator() is not None:
+            raise AuthorizationError(
+                message="Checking answers runs as you, so start it signed in as yourself",
+                details={"knowledge_base_id": knowledge_base_id},
+            )
+        kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
+        await SystemAgentRunner(self.db).require_runnable(ctx, key=KNOWLEDGE_GAP_CLASSIFIER.key)
+        # Imported here: the flow module imports this service.
+        from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps_flow
+
+        spawn_after_commit(
+            self.db,
+            classify_knowledge_gaps_flow(
+                organization_id=str(ctx.organization_id),
+                knowledge_base_id=str(kb.id),
+                user_id=str(ctx.user_id),
+            ),
+            name=f"classify-knowledge-gaps-{kb.id}",
+        )
+
+    async def acting_as(self, *, organization_id: UUID, user_id: UUID) -> AuthContext | None:
+        """Who a check runs as: the person who asked for it, with their role as it is now.
+
+        None when they are no longer an active member, so a check never outlives
+        the access that asked for it.
+        """
+        membership = await member_repo.get_active(
+            self.db, organization_id=organization_id, user_id=user_id
+        )
+        if membership is None:
+            return None
+        return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
+
+    async def classify_batch(self, ctx: AuthContext, knowledge_base_id: UUID) -> tuple[int, int]:
+        """Read the next :data:`CLASSIFY_BATCH` answers in one run, and record its verdicts.
+
+        The caller's access is checked again, since a check runs after the
+        request that asked for it.
+
+        Returns:
+            How many answers were read, and how many of them were misses.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a knowledge base the caller may no longer change.
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: The classifier cannot run for this caller.
+            SystemAgentRunError: The run ended without an answer, as a budget
+                refusal does; it is recorded.
+            SystemAgentOutputError: The classifier answered in a shape that could
+                not be read.
+        """
+        _require_runs_view(ctx)
+        kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
+        candidates = await knowledge_gap_repo.classification_candidates(
+            self.db,
+            kb.id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            since=datetime.now(UTC) - CLASSIFY_WINDOW,
+            limit=CLASSIFY_BATCH,
+        )
+        if not candidates:
+            return 0, 0
+        result = await SystemAgentRunner(self.db).run(
+            ctx,
+            key=KNOWLEDGE_GAP_CLASSIFIER.key,
+            prompt=_classification_prompt(kb.name, candidates),
+            output_type=KnowledgeGapClassification,
+        )
+        verdicts = _verdicts(candidates, result.output.answers)
+        # Taken in one order, after the model call, and held to the commit: an
+        # erasure of an asker takes the same lock, so it either removed their
+        # answer before this reads it or finds the miss to remove afterwards.
+        for asker in sorted({v.candidate.asker_id for v in verdicts if v.candidate.asker_id}):
+            await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asker)
+        kept = await knowledge_gap_repo.still_asked(
+            self.db, [v.candidate for v in verdicts], organization_id=ctx.organization_id
+        )
+        misses = await knowledge_gap_repo.record_classifications(
+            self.db,
+            [v for v in verdicts if v.candidate.message_id in kept],
+            kb.id,
+            organization_id=ctx.organization_id,
+            run_id=result.run.id,
+        )
+        return len(verdicts), misses
 
     async def waiting_to_be_grouped(self) -> list[tuple[UUID, UUID]]:
         """Every `(organization, knowledge base)` with a miss no topic has taken yet."""

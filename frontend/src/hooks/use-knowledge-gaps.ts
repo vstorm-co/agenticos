@@ -57,6 +57,7 @@ export function useKnowledgeGaps(
     byKnowledgeBase: data?.by_knowledge_base ?? [],
     ungrouped: data?.ungrouped ?? 0,
     canRegroup: data?.can_regroup ?? false,
+    unchecked: data?.unchecked ?? 0,
     isLoading,
     error,
     refetch,
@@ -119,6 +120,27 @@ export function useRegroupKnowledgeGaps(knowledgeBaseId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() });
       toast.success(t("regroupStarted"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+}
+
+/**
+ * Have a model read a knowledge base's recent answers for questions it could not answer.
+ *
+ * The server refuses before anything runs - AI assistance off, no access - and
+ * the reading lands later, announced like a grouping pass.
+ */
+export function useClassifyKnowledgeGaps(knowledgeBaseId: string) {
+  const t = useTranslations("knowledgeGaps");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<void>(`/knowledge-gaps/collections/${knowledgeBaseId}/classify`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() });
+      toast.success(t("checkStarted"));
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });

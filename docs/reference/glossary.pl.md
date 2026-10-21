@@ -1,5 +1,5 @@
 ---
-source_sha: "cfb1c420009c"
+source_sha: "0635a87c3de1"
 ---
 
 # Słownik { #glossary }
@@ -27,7 +27,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Luka w wiedzy | Temat pytań, na które baza wiedzy nie znała odpowiedzi, pogrupowanych według znaczenia | `knowledge_gap_topic` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
-| Agent systemowy | Agent, którego uruchamia sama platforma, na przykład sędzia albo autor szkiców luk; wymieniony osobno w sekcji **Agenci systemowi** | `kind` inny niż `agent` |
+| Agent systemowy | Agent, którego uruchamia sama platforma, na przykład sędzia, autor szkiców luk albo klasyfikator luk; wymieniony osobno w sekcji **Agenci systemowi** | `kind` inny niż `agent` |
 
 ## Gdzie to działa { #where-it-runs }
 

@@ -74,6 +74,8 @@ async def list_visible(
     shared_with_me: bool = False,
     edit_scope: Scope | None = None,
     edit_ids: Sequence[UUID] = (),
+    run_scope: Scope | None = None,
+    run_ids: Sequence[UUID] = (),
     search: str | None = None,
     judge_id: UUID | None = None,
     judge_is_default: bool = False,
@@ -91,6 +93,9 @@ async def list_visible(
         edit_scope: Narrow to the rows the caller may also edit: their role's
             scope for editing, with `edit_ids` granted at edit level. None
             narrows nothing.
+        run_scope: Narrow, the same way, to the rows the caller may run, with
+            `run_ids` granted at the level running takes - and to those whose
+            newest version holds a case, since there is nothing to run otherwise.
         judge_id: Narrow to the datasets of this judge: the ones that picked
             it, grading or not, and when `judge_is_default` the ones that
             picked none and grade with the judge or the reference comparison.
@@ -127,6 +132,26 @@ async def list_visible(
                 scope=edit_scope,
                 user_id=user_id,
                 granted_ids=edit_ids,
+            )
+        )
+    if run_scope is not None:
+        where.append(
+            reached_by_scope(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                scope=run_scope,
+                user_id=user_id,
+                granted_ids=run_ids,
+            )
+        )
+        where.append(
+            exists(
+                select(DatasetVersion.id).where(
+                    DatasetVersion.dataset_id == Dataset.id,
+                    DatasetVersion.number == Dataset.latest_version,
+                    DatasetVersion.case_count > 0,
+                )
             )
         )
     if search:

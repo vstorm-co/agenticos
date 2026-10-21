@@ -8,6 +8,7 @@ function question(overrides: Partial<KnowledgeGapQuestion> = {}): KnowledgeGapQu
   return {
     search_id: "s1",
     query: "parental leave duration",
+    signal: "retrieval",
     question: "How long can I take parental leave?",
     top_similarity: 0.4123,
     result_count: 3,
@@ -49,6 +50,32 @@ describe("KnowledgeGapQuestionItem", () => {
     expect(screen.getByText(/No conversation is kept for this run/)).toBeInTheDocument();
     expect(screen.getByText("No results")).toBeInTheDocument();
     expect(screen.queryByText("HR helper")).toBeNull();
+  });
+
+  it("says an answer was read as a miss instead of naming a search", () => {
+    const { unmount } = render(
+      <KnowledgeGapQuestionItem
+        question={question({ signal: "answer", query: "How long can I take parental leave?" })}
+      />,
+    );
+    expect(screen.getByText("The agent said it did not know")).toBeInTheDocument();
+    expect(screen.queryByText(/Searched for/)).toBeNull();
+    expect(screen.getByText("3 results, closest match 0.41")).toBeInTheDocument();
+    unmount();
+
+    render(
+      <KnowledgeGapQuestionItem
+        question={question({
+          signal: "rating",
+          result_count: 0,
+          top_similarity: null,
+          down_rating_comment: "Missing the 2025 rates",
+        })}
+      />,
+    );
+    expect(screen.getByText("A reader said information was missing")).toBeInTheDocument();
+    expect(screen.queryByText("No results")).toBeNull();
+    expect(screen.getByText("Rated down: Missing the 2025 rates")).toBeInTheDocument();
   });
 
   it("carries the comment left with a thumbs-down", () => {
