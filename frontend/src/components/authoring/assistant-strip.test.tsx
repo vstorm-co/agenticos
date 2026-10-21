@@ -69,6 +69,7 @@ function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
       agentId="agent-1"
       currentVersionId="v1"
       storedDraft={DRAFT}
+      canCheck
       persist={persist}
       onDraft={onDraft}
     />,
@@ -155,6 +156,7 @@ describe("AssistantStrip", () => {
         agentId="agent-1"
         currentVersionId="v1"
         storedDraft={DRAFT}
+        canCheck
         persist={vi.fn()}
         onDraft={vi.fn()}
       />,
@@ -193,6 +195,7 @@ describe("AssistantStrip", () => {
           agentId="agent-1"
           currentVersionId={null}
           storedDraft={DRAFT}
+          canCheck
           persist={vi.fn()}
           onDraft={vi.fn()}
         />,
@@ -217,6 +220,7 @@ describe("AssistantStrip", () => {
         agentId="agent-1"
         currentVersionId="v1"
         storedDraft={DRAFT}
+        canCheck
         persist={vi.fn()}
         onDraft={vi.fn()}
       />,

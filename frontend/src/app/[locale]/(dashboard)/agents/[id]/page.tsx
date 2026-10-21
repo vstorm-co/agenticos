@@ -1421,11 +1421,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
-            {agent.can_edit === true && (agent.kind ?? "agent") === "agent" && (
+            {canEdit && !isSystem && (
               <AssistantStrip
                 agentId={id}
                 currentVersionId={agent.current_version_id}
                 storedDraft={agent.draft_spec}
+                canCheck={canTestDraft}
                 persist={persist}
                 onDraft={setSpec}
               />

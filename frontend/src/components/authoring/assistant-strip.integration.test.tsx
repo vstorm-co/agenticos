@@ -22,6 +22,8 @@ vi.mock("@/hooks/use-authoring", () => {
   return {
     useAgentAuthoring: () => ({
       authoring: agentAuthoring(),
+      isLoading: false,
+      error: null,
       estimate: idle,
       start: idle,
       decide: idle,
@@ -41,13 +43,14 @@ vi.mock("@/hooks/use-authoring", () => {
 
 const DRAFT = { name: "Clerk", instructions: "Be brief." } as AgentSpec;
 
-function surfaces() {
+function surfaces({ canCheck = true } = {}) {
   render(
     <>
       <AssistantStrip
         agentId="agent-1"
         currentVersionId="v1"
         storedDraft={DRAFT}
+        canCheck={canCheck}
         persist={vi.fn()}
         onDraft={vi.fn()}
       />
@@ -84,5 +87,13 @@ describe("the assistant's controls, by permission", () => {
     expect(screen.getByRole("button", { name: "Verify my edits" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeInTheDocument();
+  });
+
+  it("offers no check on the agent to a reader of runs who may not run its draft on a dataset", () => {
+    held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
+    surfaces({ canCheck: false });
+    expect(screen.getByRole("button", { name: "Improve" })).toBeInTheDocument();
+    // The one left is the skill change's, which checks on an agent of its own.
+    expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(1);
   });
 });

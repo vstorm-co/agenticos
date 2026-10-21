@@ -36,6 +36,7 @@ export function AssistantStrip({
   agentId,
   currentVersionId,
   storedDraft,
+  canCheck,
   persist,
   onDraft,
 }: {
@@ -43,6 +44,8 @@ export function AssistantStrip({
   currentVersionId: string | null;
   /** The draft as stored - Verify needs it to differ from the published version. */
   storedDraft: AgentSpec;
+  /** Whether this caller may run the draft on a dataset, which checking does. */
+  canCheck: boolean;
   /** Store the page's draft; false when it did not store. */
   persist: () => Promise<boolean>;
   onDraft: (spec: AgentSpec) => void;
@@ -119,7 +122,7 @@ export function AssistantStrip({
           )}
           {pending.length > 0 && (
             <>
-              {canAsk && (
+              {canAsk && canCheck && (
                 <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
                   {t("check")}
                 </Button>
