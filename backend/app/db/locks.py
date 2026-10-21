@@ -63,6 +63,9 @@ class LockScope(IntEnum):
     #: and then places them, so two passes at once would put a question in two
     #: topics.
     KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 10
+    #: One knowledge base's check of its answers: two at once would pay twice for
+    #: the same answers. Session-scoped, since a check spans many runs.
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 11
 
 
 def _key(subject: UUID) -> int:

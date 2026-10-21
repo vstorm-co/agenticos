@@ -1,7 +1,7 @@
 ---
-source_sha: "0ba5c5cdec1b"
+source_sha: "e3d2d8bbc68f"
 title: "Wissenslücken"
-description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
+description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
 
 # Wissenslücken { #knowledge-gaps }
@@ -10,7 +10,7 @@ Viele schlechte Antworten liegen nicht an den Anweisungen des Agents. Die
 Wissensbasis enthält die Antwort nicht, und keine Änderung am Prompt behebt das.
 **Wissenslücken** zeigen genau diese Fragen: die, zu denen ein Agent seine
 [Wissensbasis](file-processing.md) durchsucht und nichts Passendes gefunden
-hat, nach Thema gruppiert, mit der Häufigkeit jeder Frage und den Agents, die
+oder ohne Wissen geantwortet hat, nach Thema gruppiert, mit der Häufigkeit jeder Frage und den Agents, die
 sie gestellt haben.
 
 Eine Lücke sagt, was fehlt. Sie fügt einer Wissensdatenbank nie selbst etwas hinzu.
@@ -44,9 +44,59 @@ Lücken, die du liest, sind immer die Suchen unter der aktuellen Einstellung.
 
 Gespeichert werden nur Suchen, die ein Agent während seines Runs macht, und nur
 zu Fragen, die Menschen gestellt haben: Eine Suche über `/rag/search` der HTTP
-API, eine Vorschau auf der Seite der Wissensdatenbank und eine Suche eines Eval-Runs
-werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
+API, eine Vorschau auf der Seite der Wissensdatenbank, eine Suche eines Eval-Runs
+und eine aus dem Test eines Entwurfs im Builder werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
 behalten.
+
+## Antworten und Kommentare { #answers-and-comments }
+
+Eine Suche kann eine Passage finden, und der Agent kennt die Antwort trotzdem
+nicht; ein Leser kann eine Antwort negativ bewerten, weil etwas fehlte. Die
+Suche allein sieht beides nicht. **N Antworten prüfen** auf dem Tab
+Wissenslücken der Wissensbasis lässt ein Modell ihre letzten Antworten darauf
+lesen. Die Schaltfläche erscheint, solange die
+[KI-Unterstützung](governance.md#ai-assistance) eingeschaltet ist, und zählt
+die noch ungelesenen Antworten. Ist der Schalter aus, sagt der Tab, wie viele
+Antworten warten, mit einem Link zum Schalter für alle, die ihn ändern dürfen.
+
+Das Modell ist der **Knowledge gap classifier**, ein
+[System-Agent](concepts.md#system-agents), den jede Organisation hat. Er liest
+jede Antwort mit ihrer Frage und den Kommentaren aller, die sie negativ bewertet
+haben, und entscheidet eines von drei Dingen:
+
+| Urteil | Wann |
+|---|---|
+| Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand |
+| Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
+| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler |
+
+Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
+Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
+steht, welcher der beiden Fälle es ist, statt einer Suche.
+
+Eine Antwort wird gelesen, wenn ihr Run aus den letzten 30 Tagen abgeschlossen
+ist und die Wissensbasis durchsucht und etwas gefunden hat oder mit einem
+Kommentar negativ bewertet wurde und auf einer Agent-Version läuft, die an die
+Wissensbasis gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war,
+zählt einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
+Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
+gelesen. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
+Starter kein Konto mehr hat, ebenso wenig.
+
+Eine Prüfung gehört zu einer Wissensbasis: Was sie findet, ist eine Lücke nur
+dieser Basis. Eine Antwort, deren Run zwei Wissensbasen durchsucht hat, wird
+erneut gelesen, wenn die andere geprüft wird.
+
+Eine Prüfung liest bis zu 100 Antworten, 20 je Run des Klassifizierers. Jeder
+Run wird gegen das Budget des Klassifizierers und der Organisation geprüft,
+bevor das Modell aufgerufen wird, und steht in der Aktivität unter der Person,
+die gefragt hat: Wählen Sie **Jede Oberfläche, Evals eingeschlossen**, um ihn zu
+sehen. Jede gelesene Antwort wird gemerkt, egal mit welchem Urteil, also wird
+für keine zweimal bezahlt. Eine als „keine Lücke“ gelesene Antwort wird erst
+nach einer neuen negativen Bewertung mit Kommentar erneut gelesen. Eine Prüfung
+hält bei einem Run an, der ohne Antwort endet, etwa einem, den ein
+aufgebrauchtes Budget verweigert, und behält, was sie gelesen hat. Für eine
+Wissensbasis läuft immer nur eine Prüfung.
 
 ## Themen { #topics }
 
@@ -89,7 +139,8 @@ Ein Thema zeigt, wie oft es gestellt wurde, wann zuletzt, welche Agents es
 gestellt haben, und bis zu drei seiner Fragen. Öffne es, um die neuesten Fragen
 zu sehen: was die Person gefragt hat, wonach der Agent gesucht hat, wie nah die
 nächste Passage war und den Kommentar aller, die die Antwort negativ bewertet
-haben.
+haben. Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
+oder ein Leser schrieb, dass Informationen fehlten.
 
 ## Was mit einer Lücke zu tun ist { #acting-on-a-gap }
 
@@ -155,6 +206,11 @@ und die API verweigert ihm den Zugriff.
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
 | Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
+| Antworten zu prüfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap classifier |
+
+Eine Prüfung der Antworten läuft später mit deiner Rolle, also startest du sie
+nur persönlich: nicht über einen API-Schlüssel und nicht, während ein
+Administrator dich impersoniert.
 
 Eine Wissensdatenbank, ein Agent, ein Thema oder ein Dataset, auf das du keinen
 Zugriff hast, antwortet mit „nicht gefunden“, ebenso eines aus einer anderen
@@ -182,12 +238,16 @@ Zugangsdaten, die er wiederholt, werden vor dem Speichern geschwärzt. Das
 Entwerfen schickt die Fragen, Antworten und Kommentare an den Modellanbieter des
 Entwerfers. Siehe [Datenschutz](data-protection.md#where-personal-data-lives).
 
+Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
+die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
+von Antworten schickt Fragen, Antworten und Kommentare zu negativen Bewertungen
+an den Modellanbieter des Klassifizierers. Von jeder gelesenen Antwort bleiben
+nur ihr Urteil und der Run des Klassifizierers, kein Text.
+
 ## Was Lücken noch nicht erkennen { #limits }
 
-Lücken entstehen nur aus der Suche. Eine Antwort, in der der Agent gesagt hat,
-dass er es nicht weiß, oder eine negativ bewertete Antwort mit einem Kommentar
-über fehlende Informationen wird nicht von selbst erkannt. Das zu erkennen
-braucht ein Modell und wird in
-[#2135](https://github.com/vstorm-co/agenticos/issues/2135) verfolgt. Gehört eine
-negativ bewertete Antwort zu einem Run, dessen Suche ein Fehltreffer war, wird
-ihr Kommentar bei der Frage angezeigt.
+Antworten werden nur gelesen, wenn jemand sie prüft, und nur aus den letzten 30
+Tagen. Runs über die HTTP-API behalten keine Antwort, also wird eine dort
+gestellte Frage nur dann zur Lücke, wenn ihre Suche ein Fehltreffer war. Eine
+ohne Kommentar negativ bewertete Antwort wird auf das gelesen, was der Agent
+gesagt hat, nicht auf die Bewertung.
