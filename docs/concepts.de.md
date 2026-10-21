@@ -1,5 +1,5 @@
 ---
-source_sha: "226eae780efc"
+source_sha: "1fdf117b8615"
 ---
 
 # Begriffe { #concepts }
@@ -645,7 +645,7 @@ Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
 **System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
 - jede Karte sagt, welche Datasets er bewertet, und der von der Plattform
 angelegte ist als **Standard-Bewerter** markiert -, dann der
-**Lücken-Entwerfer** und der **Lücken-Klassifizierer**. Agent-Auswahlen lassen
+**Lücken-Entwerfer** und zuletzt der **Lücken-Klassifizierer**. Agent-Auswahlen lassen
 sie weg.
 
 Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
@@ -662,6 +662,12 @@ und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
 eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
 ihr ganzes Budget für Evaluierung, Entwürfe oder das Prüfen von Antworten
 ausgibt.
+
+Auch der **Fallgenerator** ist ein System-Agent, von der Art `generator`: Er
+entwirft [Fälle für Datasets](datasets.md#generating-cases) und wird genauso
+angelegt, mit einem eigenen Budget. Er steht im selben Band, nach dem
+Drafter, und wird wie ein Bewerter geöffnet und bearbeitet; der Tab Generated eines
+Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
 
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent

@@ -90,6 +90,7 @@ describe("useSystemAgents", () => {
     expect(result.current.groups.map((group) => group.kind)).toEqual([
       "judge",
       "drafter",
+      "generator",
       "classifier",
     ]);
     expect(result.current.groups[0]?.agents[0]?.name).toBe("Eval judge");

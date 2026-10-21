@@ -1,5 +1,5 @@
 ---
-source_sha: "44c70173aa8d"
+source_sha: "b055cbfab1cd"
 ---
 
 # La consola { #the-console }
@@ -216,6 +216,11 @@ pregunta y terminan: un run que lanza una programación aparece en una página
 Activity abierta y cambia de estado allí, sin que haya ninguna petición tuya
 detrás.
 
+También los datasets: un caso añadido o quitado, un cambio en la calificación,
+una puntuación o una decisión de revisión, y los borradores que el
+[generador de casos](datasets.md#generating-cases) termina en segundo plano, que
+aparecen en la pestaña Generated de un dataset abierto sin recargar.
+
 Las lagunas de conocimiento se anuncian igual: un tema descartado o redactado en
 una pestaña, y las preguntas que un pase de agrupación coloca cada 15 minutos,
 aparecen en una pestaña Lagunas de conocimiento abierta sin recargar.
@@ -227,8 +232,8 @@ dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su vers
 o **Conservar mis cambios** (la tuya, guardada encima de la suya).
 
 Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
-de conocimiento, un archivo de contexto, una página, una clave o un servidor MCP
-que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
+de conocimiento, un archivo de contexto, una página, una clave, un servidor MCP
+o un dataset que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
 ven todas las filas de ese tipo. Los runs llegan a los roles que leen el historial
 de runs o deciden aprobaciones, las lagunas de conocimiento a los roles que leen
 todos los runs, los bots de canal a los roles que los gestionan, y

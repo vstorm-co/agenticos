@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { FlaskConical, Plus, Upload } from "lucide-react";
+import { FlaskConical, Plus, Sparkles, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button, ListCardEmpty } from "@/components/ui";
@@ -14,13 +14,16 @@ interface EmptyCasesProps {
   /** Absent for somebody who may not add a case, who is told what the tab holds and nothing more. */
   onAddCase?: () => void;
   onImport?: (file: File) => Promise<unknown>;
+  /** Opens the generator; absent where it is not offered. */
+  onGenerate?: () => void;
 }
 
 /**
- * A version with no case, and the three ways one arrives: written here, imported
- * from a file, or added from an answer in Activity or a conversation.
+ * A version with no case, and the ways one arrives: written here, imported from a
+ * file, drafted by the generator, or added from an answer in Activity or a
+ * conversation.
  */
-export function EmptyCases({ datasetId, onAddCase, onImport }: EmptyCasesProps) {
+export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: EmptyCasesProps) {
   const t = useTranslations("datasets");
   const picker = useRef<HTMLInputElement>(null);
   const { upload } = useDatasetFiles(datasetId, null);
@@ -50,6 +53,12 @@ export function EmptyCases({ datasetId, onAddCase, onImport }: EmptyCasesProps) 
           <Upload className="h-4 w-4" />
           {t("import")}
         </Button>
+        {onGenerate && (
+          <Button size="sm" variant="outline" onClick={onGenerate}>
+            <Sparkles className="h-4 w-4" />
+            {t("generateCases")}
+          </Button>
+        )}
         <Button size="sm" variant="outline" asChild>
           <Link href={`${ROUTES.RUNS}?${new URLSearchParams({ dataset: datasetId })}`}>
             {t("addFromActivity")}

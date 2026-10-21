@@ -1,5 +1,5 @@
 ---
-source_sha: "226eae780efc"
+source_sha: "1fdf117b8615"
 ---
 
 # Koncepcje { #concepts }
@@ -608,8 +608,8 @@ Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
 którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
 systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
 - każda karta mówi, które datasety ocenia dany sędzia, a ten utworzony przez
-platformę jest oznaczony jako **Domyślny sędzia** - potem **Autor szkiców luk** i
-**Klasyfikator luk**.
+platformę jest oznaczony jako **Domyślny sędzia** - potem **Autor szkiców luk**, a na
+końcu **Klasyfikator luk**.
 Wybory agenta ich pomijają.
 
 Kto ma `agents:edit`, otwiera takiego agenta, żeby zmienić jego instrukcje,
@@ -624,6 +624,12 @@ Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
 wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
 miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
 swojego budżetu na ewaluację, szkice albo sprawdzanie odpowiedzi.
+
+Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
+przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
+tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
+otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
+do niego każdego, kto może go edytować.
 
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która

@@ -12,7 +12,7 @@ so an upgrade seeds a fresh classifier, deletes the misses read from answers -
 which were never searches - and drops what this revision added.
 
 Revision ID: 0153_knowledge_gap_signals
-Revises: 0149_knowledge_gaps
+Revises: 0150_case_generation
 Create Date: 2026-10-21
 """
 
@@ -23,12 +23,12 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0153_knowledge_gap_signals"
-down_revision: str | None = "0149_knowledge_gaps"
+down_revision: str | None = "0150_case_generation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 # The kinds `ck_agent_kind` allows at the revision this one follows.
-_KINDS_BEFORE = ("agent", "judge", "drafter")
+_KINDS_BEFORE = ("agent", "judge", "drafter", "generator")
 
 
 def _kinds(kinds: Sequence[str]) -> str:

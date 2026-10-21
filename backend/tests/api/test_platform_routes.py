@@ -965,6 +965,9 @@ RESOURCE_AWARE_SERVICES = (
     # Scoring acts on one dataset: configuring it, scoring against it and
     # recording a verdict resolve the dataset's grants in the service.
     deps.get_scoring_service,
+    # Generated cases ride on their dataset: drafting and deciding them is
+    # `datasets:edit` on that dataset, resolved against its grants in the service.
+    deps.get_case_generation_service,
     # An eval run acts on one agent and one dataset, each resolved against its
     # grants in the service.
     deps.get_eval_run_service,

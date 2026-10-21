@@ -1,5 +1,5 @@
 ---
-source_sha: "226eae780efc"
+source_sha: "1fdf117b8615"
 ---
 
 # Conceptos { #concepts }
@@ -615,7 +615,7 @@ Un agent del sistema lo ejecuta la plataforma; no es un agent que usen las
 personas. Agents los muestra aparte, en una banda plegada **System agents** bajo
 **Agents**, agrupados por tipo: primero **Judges**, cada tarjeta diciendo qué
 datasets califica y el sembrado con **Default judge**, y después el **Gap
-drafter** y el **Gap classifier**. Los selectores de agents los dejan fuera.
+drafter** y, al final, el **Gap classifier**. Los selectores de agents los dejan fuera.
 
 Quien tiene `agents:edit` abre uno para cambiar sus instrucciones, su modelo y
 su budget, desde la banda o, para el drafter, desde **Edit the drafter's
@@ -630,6 +630,12 @@ Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un agent del sistema empieza con un budget mensual pequeño
 propio, para que una organización nueva no gaste por accidente todo su budget en
 evaluación, en borradores o en revisar respuestas.
+
+El **generador de casos** también es un agent de sistema, del tipo `generator`:
+redacta [casos de datasets](datasets.md#generating-cases) y se siembra de la
+misma forma, con un budget propio. Aparece en la misma banda, después del
+drafter, y se abre y edita como un juez; la pestaña Generated de un dataset enlaza
+con él para quien puede editarlo.
 
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el

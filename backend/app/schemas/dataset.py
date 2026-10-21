@@ -20,7 +20,7 @@ from app.schemas.scoring import (
 )
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
-DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
+DatasetChangeLiteral = Literal["add", "edit", "remove", "import", "generate"]
 DatasetSort = Literal["name", "updated"]
 DatasetFileFormat = Literal["csv", "jsonl"]
 
@@ -203,8 +203,19 @@ class DatasetCaseRead(StoredCaseContent):
     source_run_id: UUID | None = None
     source_conversation_id: UUID | None = None
     source_message_id: UUID | None = None
+    source_document_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
+
+
+class DatasetCaseQuestion(BaseSchema):
+    """A question to look for among a version's cases, in a body rather than a URL.
+
+    A query string is written to every access log it passes through, and a case's
+    question is often copied from somebody's conversation.
+    """
+
+    input: str = Field(min_length=1, max_length=MAX_CASE_TEXT)
 
 
 class DatasetCaseList(BaseSchema):
@@ -294,6 +305,10 @@ class DatasetRead(BaseSchema):
             "an answer against it. Resolved per caller: a run grant on one dataset "
             "reads true where the role alone would not, and a read grant reads false."
         ),
+    )
+    pending_proposals: int = Field(
+        default=0,
+        description="Generated cases waiting for a decision; 0 for a caller who may not decide",
     )
     scoring: DatasetScoring = Field(
         default_factory=DatasetScoring, description="How this dataset's cases are scored"

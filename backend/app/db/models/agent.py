@@ -57,13 +57,15 @@ class AgentKind(enum.StrEnum):
     delegation. `JUDGE` grades answers for evals; only the platform runs it, and
     it is listed apart. An organization may hold many judges - the default one
     the platform seeds, and one per dataset that wants its own. `DRAFTER` writes
-    the passage a knowledge gap is missing, and `CLASSIFIER` reads answers for
-    the ones in which the agent did not know; only the platform runs either.
+    the passage a knowledge gap is missing, `GENERATOR` drafts dataset cases,
+    and `CLASSIFIER` reads answers for the ones in which the agent did not know;
+    only the platform runs any of them.
     """
 
     AGENT = "agent"
     JUDGE = "judge"
     DRAFTER = "drafter"
+    GENERATOR = "generator"
     CLASSIFIER = "classifier"
 
 
@@ -169,7 +171,8 @@ class Agent(Base, TimestampMixin):
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
         CheckConstraint(
-            "kind IN ('agent', 'judge', 'drafter', 'classifier')", name="ck_agent_kind"
+            "kind IN ('agent', 'judge', 'drafter', 'generator', 'classifier')",
+            name="ck_agent_kind",
         ),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
         # index scan. Declared here as well as in the migration for the reason the

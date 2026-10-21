@@ -52,6 +52,7 @@ from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import dataset as dataset_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member as member_repo
@@ -63,6 +64,7 @@ from app.services.access import (
     ARTIFACT,
     COLLECTION,
     CONTEXT,
+    DATASET,
     MCP_CONNECTION,
     SECRET,
     SKILL,
@@ -155,6 +157,12 @@ _FEEDS = (
     _Feed("/kb", "knowledge_base", "kb_id"),
     _shared("/skills", "skill"),
     _Feed("/skills", "skill", "skill_id"),
+    # Estimating a generation spends and writes nothing, and finding a case's
+    # twins is a read that posts its question in the body.
+    _Feed("/datasets/{dataset_id}/generations/estimate", None),
+    _Feed("/datasets/{dataset_id}/cases/twins", None),
+    _shared("/datasets", "dataset"),
+    _Feed("/datasets", "dataset", "dataset_id"),
     _shared("/secrets", "secret"),
     _Feed("/secrets", "secret", "secret_id"),
     # Starting an OAuth dance or probing a server changes no row.
@@ -186,6 +194,7 @@ _OWNED: dict[ChangeResource, ResourceType] = {
     "artifact": ARTIFACT,
     "secret": SECRET,
     "mcp_connection": MCP_CONNECTION,
+    "dataset": DATASET,
 }
 
 _redis: RedisClient | None = None
@@ -332,6 +341,24 @@ async def publish_run(run: AgentRun, action: ChangeAction) -> None:
     await publish(run_event(run, action))
 
 
+async def publish_dataset(
+    *, organization_id: UUID, dataset_id: UUID, actor_user_id: UUID | None
+) -> None:
+    """Tell open consoles a dataset changed with no request to say so - a
+    generation finishing in the background. Called after its commit."""
+    await publish(
+        ChangeEvent(
+            organization_id=organization_id,
+            resource="dataset",
+            id=dataset_id,
+            action="updated",
+            surface="run",
+            actor_user_id=actor_user_id,
+            actor_name=None,
+        )
+    )
+
+
 async def publish_knowledge_gaps_grouped(organization_id: UUID) -> None:
     """Tell open consoles a grouping pass placed new questions in the organization's
     topics. Called after the pass committed, from the worker that ran it."""
@@ -423,6 +450,8 @@ async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResou
         return await context_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "artifact":
         return await artifact_repo.get(db, row_id, organization_id=organization_id)
+    if event.resource == "dataset":
+        return await dataset_repo.get(db, row_id, organization_id=organization_id)
     return await knowledge_base_repo.get_by_id(db, row_id)
 
 
