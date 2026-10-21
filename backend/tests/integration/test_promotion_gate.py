@@ -716,6 +716,8 @@ async def test_taking_off_the_guard_holding_a_follower_back_moves_it(db) -> None
     await _published(db, ctx, agent)
     await _settle(db, Model(db, answer=lambda prompt: _FAIL))
     held = await _serving(db, ctx, agent, env_id)
+    # Behind, but its guard failed: the sweep's look leaves it where it is.
+    assert await EvalSuiteService(db).reconcile_followers() == 0
 
     await AgentEnvironmentService(db).update(
         ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[])
