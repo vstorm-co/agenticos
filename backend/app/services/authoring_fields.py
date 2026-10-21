@@ -23,6 +23,11 @@ capability or a tool from `never` towards `required` and not back. A capability
 the proposal adds arrives with every tool that writes gated. A safeguard - a
 capability the registry marks `protective` - may be added, and never removed or
 reconfigured, for the same reason.
+
+**Subagents are never added or reconfigured.** Their configuration holds whole
+agents - instructions, models, capabilities and their approval - which the
+checks on one binding never see; a specialist's description is the one part of
+them a proposal may change.
 """
 
 from __future__ import annotations
@@ -39,6 +44,9 @@ from app.core.exceptions import AppException
 from app.db.models.authoring import FieldOp
 
 _SUBAGENTS = "subagents"
+# Holds whole agents - instructions, models, capabilities and their approval - which
+# the checks on one binding never see; only a specialist's description is a target.
+_HOLDS_AGENTS = frozenset({_SUBAGENTS})
 _MODEL_SETTINGS = ("temperature", "top_p", "max_tokens", "timeout", "parallel_tool_calls")
 _STRICTNESS = {"never": 0, "default": 1, "required": 2}
 
@@ -88,6 +96,8 @@ def parse(path: str) -> Address | None:
     if len(parts) == 2 and parts[0] == "model_settings" and parts[1] in _MODEL_SETTINGS:
         return Address(pattern=path, setting=parts[1])
     if len(parts) == 3 and parts[0] == "capabilities" and parts[2] in ("config", "approval"):
+        if parts[2] == "config" and parts[1] in _HOLDS_AGENTS:
+            return None
         return Address(pattern=f"capabilities/{{capability}}/{parts[2]}", capability=parts[1])
     if len(parts) == 4 and parts[0] == "capabilities" and parts[2] == "tool_approval":
         return Address(
@@ -293,6 +303,28 @@ def _tightens(address: Address, document: dict[str, Any], base: Any, new: Any) -
     return base in _STRICTNESS and _STRICTNESS[new] > _STRICTNESS[base]
 
 
+def standing_refusal(path: str, op: str, base: Any, new: Any) -> str | None:
+    """Why a stored change may never be accepted, whatever the draft holds now.
+
+    What staging refuses from the spec's shape alone, asked again of a row that
+    may have been written before the rule, or since.
+    """
+    if parse(path) is None or _adds_agents(path, op, new):
+        return "not_a_target"
+    if weakens_protection(path, op, base):
+        return "weakens_protection"
+    return None
+
+
+def _adds_agents(path: str, op: str, value: Any) -> bool:
+    return (
+        path == "capabilities"
+        and op == FieldOp.ADD.value
+        and isinstance(value, dict)
+        and value.get("id") in _HOLDS_AGENTS
+    )
+
+
 def weakens_protection(path: str, op: str, base: Any) -> bool:
     """Whether a change removes a safeguard or changes its configuration."""
     load_builtins()
@@ -327,6 +359,8 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
         return "not_a_target"
     if op not in {allowed.value for allowed in ops(address)}:
         return "operation"
+    if _adds_agents(path, op, value):
+        return "not_a_target"
     document = spec.model_dump(mode="json")
     adds_capability = address.pattern == "capabilities" and op == FieldOp.ADD.value
     if adds_capability and (not isinstance(value, dict) or str(value.get("id")) not in REGISTRY):

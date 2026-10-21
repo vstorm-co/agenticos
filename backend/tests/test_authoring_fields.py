@@ -74,6 +74,7 @@ class TestTargets:
             "capabilities/knowledge",
             "capabilities/knowledge/secret_id",
             "capabilities/subagents/inline/triage/instructions",
+            "capabilities/subagents/config",
             "subagents",
             "mcp_servers/x",
         ):
@@ -230,6 +231,22 @@ def test_a_safeguard_may_be_added():
     assert base is None and new["id"] == "guardrails"
 
 
+def test_a_change_never_accepted_says_why_whatever_the_draft_holds():
+    assert fields.standing_refusal("capabilities/subagents/config", "set", {}, {}) == (
+        "not_a_target"
+    )
+    assert (
+        fields.standing_refusal("capabilities", "add", None, {"id": "subagents"}) == "not_a_target"
+    )
+    assert (
+        fields.standing_refusal("capabilities", "remove", {"id": "guardrails"}, None)
+        == "weakens_protection"
+    )
+    assert fields.standing_refusal("capabilities", "add", None, {"id": "charts"}) is None
+    assert fields.standing_refusal("capabilities", "add", None, "subagents") is None
+    assert fields.standing_refusal("capabilities", "remove", {"id": "subagents"}, None) is None
+
+
 def test_only_a_removed_or_reconfigured_safeguard_weakens_protection():
     assert fields.weakens_protection("capabilities", "remove", {"id": "guardrails"})
     assert fields.weakens_protection("capabilities/guardrails/config", "set", {})
@@ -277,6 +294,8 @@ class TestRefusals:
                 {"id": "guardrails"},
                 "weakens_protection",
             ),
+            ({}, "capabilities/subagents/config", "set", {"inline": []}, "not_a_target"),
+            ({}, "capabilities", "add", {"id": "subagents", "config": {}}, "not_a_target"),
             (
                 {"capabilities": [{"id": "guardrails", "config": {}}]},
                 "capabilities/guardrails/config",

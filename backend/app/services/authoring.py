@@ -134,6 +134,17 @@ _EDITABLE = frozenset(
 )
 """The field changes whose value a person may edit before accepting, besides descriptions."""
 
+_STANDING_REFUSALS = {
+    "not_a_target": (
+        "This suggestion changes something the assistant may not propose. Make that change "
+        "in the Builder, or dismiss it."
+    ),
+    "weakens_protection": (
+        "This suggestion removes or reconfigures a safeguard, which the assistant may not "
+        "propose. Change safeguards in the Builder, or dismiss it."
+    ),
+}
+
 _GATE_MESSAGES = {
     "check_first": (
         "A change of model is accepted once it has paid off: run Check with evals on "
@@ -776,20 +787,20 @@ class AuthoringService:
         """The draft with a field change accepted, as the person accepting it.
 
         Raises:
-            BadRequestError: It removes or reconfigures a safeguard, the value was
-                edited where editing is not offered or does not validate, the draft
-                moved since, or - for a change of model - no check of the batch
-                shows it pays off yet.
+            BadRequestError: It is not a change the assistant may propose, it
+                removes or reconfigures a safeguard, the value was edited where
+                editing is not offered or does not validate, the draft moved since,
+                or - for a change of model - no check of the batch shows it pays
+                off yet.
             AuthorizationError: It adds something the person accepting it may not
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
-        if authoring_fields.weakens_protection(hunk.path or "", hunk.op or "", hunk.base_value):
+        refused = authoring_fields.standing_refusal(
+            hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
+        )
+        if refused is not None:
             raise BadRequestError(
-                message=(
-                    "This suggestion removes or reconfigures a safeguard, which the assistant "
-                    "may not propose. Change safeguards in the Builder, or dismiss it."
-                ),
-                details={"hunk_id": hunk.id, "reason": "weakens_protection"},
+                message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
             )
         value = hunk.new_value
         if decision.value is not None:

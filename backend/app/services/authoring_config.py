@@ -134,7 +134,8 @@ class ConfigurationService:
             + "\n\n# Rules for configuration changes\n"
             "Change only the paths above, with ids only from these lists. Approval may only "
             "become stricter. A safeguard (guardrails) may be added, never removed or "
-            "reconfigured. Every change states its expected effect on quality and on cost; "
+            "reconfigured. Subagents are never added or reconfigured; of a specialist, only "
+            "its description may change. Every change states its expected effect on quality and on cost; "
             "a cheaper model must not cost quality the evidence shows the agent needs."
         )
 

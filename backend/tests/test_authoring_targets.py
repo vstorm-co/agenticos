@@ -153,6 +153,35 @@ def test_a_safeguard_is_never_removed_or_reconfigured():
     )
 
 
+def test_subagents_are_never_added_or_reconfigured():
+    """A subagents binding holds whole agents - instructions, models, capabilities and
+    their approval - which the checks on one binding never see; of a specialist,
+    only the description is a target."""
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Clerk",
+            "capabilities": [
+                {
+                    "id": "subagents",
+                    "config": {"inline": [{"name": "t", "description": "d", "instructions": "i"}]},
+                }
+            ],
+        }
+    )
+    assert authoring_fields.stage(spec, "capabilities/subagents/config", "set", {}) == (
+        "not_a_target"
+    )
+    assert (
+        authoring_fields.stage(spec, "capabilities", "add", {"id": "subagents"}) == "not_a_target"
+    )
+    assert authoring_fields.standing_refusal("capabilities/subagents/config", "set", {}, {}) == (
+        "not_a_target"
+    )
+    assert authoring_fields.stage(
+        spec, "capabilities/subagents/inline/t/description", "set", "Sorts tickets"
+    ) == ("d", "Sorts tickets")
+
+
 def test_the_spec_fields_it_may_change_are_exactly_these():
     assert {path: {op.value for op in ops} for path, ops in authoring_fields.TARGETS} == (
         SPEC_FIELDS

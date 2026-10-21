@@ -226,6 +226,6 @@ async def test_the_registry_asks_only_about_what_a_change_adds(db):
         == []
     )
     assert (
-        await registry.reference_problems(ctx, spec, path="capabilities/subagents/config", op="set")
+        await registry.reference_problems(ctx, spec, path="capabilities/missing/config", op="set")
         == []
     )
