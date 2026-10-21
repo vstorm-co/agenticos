@@ -30,6 +30,7 @@ from typing import Any
 import httpx
 import logfire
 
+from app.services.provider_error_code import error_code, safe_code
 from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
 
 logger = logging.getLogger(__name__)
@@ -122,10 +123,6 @@ async def _pause(seconds: float) -> None:
     await asyncio.sleep(seconds)
 
 
-LOGGED_TEXT_CHARACTERS = 200
-"""How much of a provider's error body or code is logged: enough for its code,
-short of a prompt it may echo back or a key in a format redaction does not know."""
-
 _TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
 """Answers that say nothing about the request, only about the moment."""
 
@@ -166,13 +163,13 @@ def _raise_for(call: VideoCall, response: httpx.Response) -> None:
     """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
     if response.is_success:
         return
-    body = response.text[:LOGGED_TEXT_CHARACTERS]
+    body = response.text
     logger.warning(
         "Video request to %s for model %s failed (%s): %s",
         call.provider,
         call.model,
         response.status_code,
-        body,
+        error_code(body) or "no error code",
     )
     raise VideoProviderError(
         _failure_for(response.status_code, body),
@@ -218,7 +215,7 @@ def _job_failure(call: VideoCall, code: object) -> VideoProviderError:
         "Video job at %s for model %s failed: %s",
         call.provider,
         call.model,
-        str(code)[:LOGGED_TEXT_CHARACTERS],
+        safe_code(code) or "no error code",
     )
     lowered = str(code or "").lower()
     if any(marker in lowered for marker in _POLICY_MARKERS):
