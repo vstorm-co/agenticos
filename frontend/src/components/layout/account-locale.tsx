@@ -21,7 +21,12 @@ export function AccountLocale() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (chosen && chosen !== locale) router.replace(pathname, { locale: chosen });
+    // With the query string, read here rather than through `useSearchParams` -
+    // which would need a Suspense boundary around the whole dashboard - so a
+    // switch inside `/chat?id=...` or `/agents/<id>?test=open` stays put.
+    if (chosen && chosen !== locale) {
+      router.replace(`${pathname}${window.location.search}`, { locale: chosen });
+    }
   }, [chosen, locale, pathname, router]);
 
   return null;

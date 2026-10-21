@@ -38,306 +38,306 @@ def server(api: MagicMock) -> FastMCP:
     return server
 
 
-@pytest.mark.parametrize(
-    ("tool", "arguments", "call"),
-    [
-        ("whoami", {}, ("GET", "/me/permissions", {})),
-        ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
-        ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
+CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
+    ("whoami", {}, ("GET", "/me/permissions", {})),
+    ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
+    ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
+    (
+        "create_agent_draft",
+        {"name": "Bot", "instructions": "Be brief.", "description": "A bot"},
         (
-            "create_agent_draft",
-            {"name": "Bot", "instructions": "Be brief.", "description": "A bot"},
-            (
-                "POST",
-                "/agents",
-                {
-                    "json": {
-                        "spec": {
-                            "name": "Bot",
-                            "instructions": "Be brief.",
-                            "capabilities": [{"id": "ask_user"}],
-                            "description": "A bot",
-                        }
-                    }
-                },
-            ),
-        ),
-        (
-            "create_agent_draft",
-            {"name": "Bot", "instructions": "Be brief."},
-            (
-                "POST",
-                "/agents",
-                {
-                    "json": {
-                        "spec": {
-                            "name": "Bot",
-                            "instructions": "Be brief.",
-                            "capabilities": [{"id": "ask_user"}],
-                        }
-                    }
-                },
-            ),
-        ),
-        (
-            "run_agent",
-            {"agent_id": str(AGENT), "prompt": "hi", "conversation_id": str(RUN)},
-            (
-                "POST",
-                f"/agents/{AGENT}/run",
-                {"json": {"prompt": "hi", "conversation_id": str(RUN)}},
-            ),
-        ),
-        (
-            "run_agent",
-            {"agent_id": str(AGENT), "prompt": "hi"},
-            ("POST", f"/agents/{AGENT}/run", {"json": {"prompt": "hi"}}),
-        ),
-        (
-            "list_runs",
-            {"agent_id": str(AGENT)},
-            ("GET", "/runs", {"params": {"limit": 20, "skip": 0, "agent_id": str(AGENT)}}),
-        ),
-        ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 20, "skip": 0}})),
-        ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
-        ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
-        ("list_knowledge_bases", {}, ("GET", "/kb", {})),
-        ("list_embedding_models", {}, ("GET", "/rag/embedding-models", {})),
-        (
-            "create_knowledge_base",
+            "POST",
+            "/agents",
             {
-                "name": "Policies",
-                "embedding_provider": "openai",
-                "embedding_secret_id": str(KB),
-                "embedding_model": "text-embedding-3-small",
-                "description": "HR",
+                "json": {
+                    "spec": {
+                        "name": "Bot",
+                        "instructions": "Be brief.",
+                        "capabilities": [{"id": "ask_user"}],
+                        "description": "A bot",
+                    }
+                }
             },
-            (
-                "POST",
-                "/kb",
-                {
-                    "json": {
-                        "name": "Policies",
-                        "scope": "org",
-                        "embedding_provider": "openai",
-                        "embedding_secret_id": str(KB),
-                        "embedding_model": "text-embedding-3-small",
-                        "description": "HR",
-                    }
-                },
-            ),
         ),
+    ),
+    (
+        "create_agent_draft",
+        {"name": "Bot", "instructions": "Be brief."},
         (
-            "create_knowledge_base",
-            {"name": "Policies", "embedding_provider": "ollama", "embedding_endpoint_id": str(KB)},
-            (
-                "POST",
-                "/kb",
-                {
-                    "json": {
-                        "name": "Policies",
-                        "scope": "org",
-                        "embedding_provider": "ollama",
-                        "embedding_endpoint_id": str(KB),
-                    }
-                },
-            ),
-        ),
-        (
-            "add_document",
-            {"kb_id": str(KB), "filename": "a.md", "content": "# Hi"},
-            ("POST", f"/kb/{KB}/documents", {"files": {"file": ("a.md", b"# Hi", "text/plain")}}),
-        ),
-        (
-            "search_knowledge",
-            {"collection_name": "policies", "query": "refunds"},
-            (
-                "POST",
-                "/rag/search",
-                {"json": {"collection_name": "policies", "query": "refunds", "limit": 4}},
-            ),
-        ),
-        (
-            "list_skills",
-            {"skip": 50},
-            ("GET", "/skills", {"params": {"limit": 50, "skip": 50}}),
-        ),
-        ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
-        (
-            "create_agent_draft",
-            {"name": "Bot", "instructions": "Hi", "capabilities": ["web_research", "ask_user"]},
-            (
-                "POST",
-                "/agents",
-                {
-                    "json": {
-                        "spec": {
-                            "name": "Bot",
-                            "instructions": "Hi",
-                            "capabilities": [{"id": "ask_user"}, {"id": "web_research"}],
-                        }
-                    }
-                },
-            ),
-        ),
-        (
-            "list_members",
-            {"limit": 10},
-            ("GET", f"/orgs/{ORG}/members", {"params": {"limit": 10, "skip": 0}}),
-        ),
-        (
-            "invite_member",
-            {"email": "ada@example.com"},
-            (
-                "POST",
-                f"/orgs/{ORG}/invitations",
-                {"json": {"email": "ada@example.com", "role": "member"}},
-            ),
-        ),
-        (
-            "create_agent_draft",
+            "POST",
+            "/agents",
             {
-                "name": "Bot",
-                "instructions": "Hi",
-                "model_profile_id": str(KB),
-                "starters": ["What can you do?"],
-            },
-            (
-                "POST",
-                "/agents",
-                {
-                    "json": {
-                        "spec": {
-                            "name": "Bot",
-                            "instructions": "Hi",
-                            "capabilities": [{"id": "ask_user"}],
-                            "model_profile_id": str(KB),
-                            "starters": ["What can you do?"],
-                        }
+                "json": {
+                    "spec": {
+                        "name": "Bot",
+                        "instructions": "Be brief.",
+                        "capabilities": [{"id": "ask_user"}],
                     }
-                },
-            ),
+                }
+            },
         ),
+    ),
+    (
+        "run_agent",
+        {"agent_id": str(AGENT), "prompt": "hi", "conversation_id": str(RUN)},
         (
-            "test_agent_draft",
-            {"agent_id": str(AGENT), "prompt": "hi"},
-            ("POST", f"/agents/{AGENT}/run", {"json": {"prompt": "hi", "draft": True}}),
+            "POST",
+            f"/agents/{AGENT}/run",
+            {"json": {"prompt": "hi", "conversation_id": str(RUN)}},
         ),
+    ),
+    (
+        "run_agent",
+        {"agent_id": str(AGENT), "prompt": "hi"},
+        ("POST", f"/agents/{AGENT}/run", {"json": {"prompt": "hi"}}),
+    ),
+    (
+        "list_runs",
+        {"agent_id": str(AGENT)},
+        ("GET", "/runs", {"params": {"limit": 20, "skip": 0, "agent_id": str(AGENT)}}),
+    ),
+    ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 20, "skip": 0}})),
+    ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
+    ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
+    ("list_knowledge_bases", {}, ("GET", "/kb", {})),
+    ("list_embedding_models", {}, ("GET", "/rag/embedding-models", {})),
+    (
+        "create_knowledge_base",
+        {
+            "name": "Policies",
+            "embedding_provider": "openai",
+            "embedding_secret_id": str(KB),
+            "embedding_model": "text-embedding-3-small",
+            "description": "HR",
+        },
         (
-            "test_agent_draft",
-            {"agent_id": str(AGENT), "prompt": "and?", "conversation_id": str(RUN)},
-            (
-                "POST",
-                f"/agents/{AGENT}/run",
-                {"json": {"prompt": "and?", "draft": True, "conversation_id": str(RUN)}},
-            ),
-        ),
-        (
-            "publish_agent",
-            {"agent_id": str(AGENT), "note": "First version"},
-            ("POST", f"/agents/{AGENT}/publish", {"json": {"note": "First version"}}),
-        ),
-        (
-            "publish_agent",
-            {"agent_id": str(AGENT)},
-            ("POST", f"/agents/{AGENT}/publish", {"json": {}}),
-        ),
-        ("list_models", {}, ("GET", "/model-profiles", {})),
-        ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 50}})),
-        ("list_routines", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}/triggers", {})),
-        (
-            "create_routine",
+            "POST",
+            "/kb",
             {
-                "agent_id": str(AGENT),
-                "prompt": "Summarise the week's AI news in English.",
-                "cron_expression": "0 7 * * 1",
-                "name": "Weekly AI news",
+                "json": {
+                    "name": "Policies",
+                    "scope": "org",
+                    "embedding_provider": "openai",
+                    "embedding_secret_id": str(KB),
+                    "embedding_model": "text-embedding-3-small",
+                    "description": "HR",
+                }
             },
-            (
-                "POST",
-                f"/agents/{AGENT}/triggers",
-                {
-                    "json": {
-                        "prompt": "Summarise the week's AI news in English.",
-                        "runs_as_creator": True,
-                        "name": "Weekly AI news",
-                        "schedule_kind": "cron",
-                        "cron_expression": "0 7 * * 1",
-                    }
-                },
-            ),
         ),
+    ),
+    (
+        "create_knowledge_base",
+        {"name": "Policies", "embedding_provider": "ollama", "embedding_endpoint_id": str(KB)},
         (
-            "create_routine",
+            "POST",
+            "/kb",
             {
-                "agent_id": str(AGENT),
-                "prompt": "Check the site.",
-                "every_minutes": 60,
-                "runs_as_me": False,
+                "json": {
+                    "name": "Policies",
+                    "scope": "org",
+                    "embedding_provider": "ollama",
+                    "embedding_endpoint_id": str(KB),
+                }
             },
-            (
-                "POST",
-                f"/agents/{AGENT}/triggers",
-                {
-                    "json": {
-                        "prompt": "Check the site.",
-                        "runs_as_creator": False,
-                        "interval_seconds": 3600,
-                    }
-                },
-            ),
         ),
+    ),
+    (
+        "add_document",
+        {"kb_id": str(KB), "filename": "a.md", "content": "# Hi"},
+        ("POST", f"/kb/{KB}/documents", {"files": {"file": ("a.md", b"# Hi", "text/plain")}}),
+    ),
+    (
+        "search_knowledge",
+        {"collection_name": "policies", "query": "refunds"},
         (
-            "update_routine",
+            "POST",
+            "/rag/search",
+            {"json": {"collection_name": "policies", "query": "refunds", "limit": 4}},
+        ),
+    ),
+    (
+        "list_skills",
+        {"skip": 50},
+        ("GET", "/skills", {"params": {"limit": 50, "skip": 50}}),
+    ),
+    ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
+    (
+        "create_agent_draft",
+        {"name": "Bot", "instructions": "Hi", "capabilities": ["web_research", "ask_user"]},
+        (
+            "POST",
+            "/agents",
             {
-                "agent_id": str(AGENT),
-                "routine_id": str(RUN),
-                "active": False,
-                "prompt": "New",
-                "name": "Renamed",
-                "cron_expression": "0 8 * * *",
-            },
-            (
-                "PATCH",
-                f"/agents/{AGENT}/triggers/{RUN}",
-                {
-                    "json": {
-                        "is_active": False,
-                        "prompt": "New",
-                        "name": "Renamed",
-                        "schedule_kind": "cron",
-                        "cron_expression": "0 8 * * *",
+                "json": {
+                    "spec": {
+                        "name": "Bot",
+                        "instructions": "Hi",
+                        "capabilities": [{"id": "ask_user"}, {"id": "web_research"}],
                     }
-                },
-            ),
+                }
+            },
         ),
+    ),
+    (
+        "list_members",
+        {"limit": 10},
+        ("GET", f"/orgs/{ORG}/members", {"params": {"limit": 10, "skip": 0}}),
+    ),
+    (
+        "invite_member",
+        {"email": "ada@example.com"},
         (
-            "update_routine",
-            {"agent_id": str(AGENT), "routine_id": str(RUN), "every_minutes": 30},
-            (
-                "PATCH",
-                f"/agents/{AGENT}/triggers/{RUN}",
-                {"json": {"schedule_kind": "interval", "interval_seconds": 1800}},
-            ),
+            "POST",
+            f"/orgs/{ORG}/invitations",
+            {"json": {"email": "ada@example.com", "role": "member"}},
         ),
+    ),
+    (
+        "create_agent_draft",
+        {
+            "name": "Bot",
+            "instructions": "Hi",
+            "model_profile_id": str(KB),
+            "starters": ["What can you do?"],
+        },
         (
-            "run_routine_now",
-            {"agent_id": str(AGENT), "routine_id": str(RUN)},
-            ("POST", f"/agents/{AGENT}/triggers/{RUN}/run", {}),
+            "POST",
+            "/agents",
+            {
+                "json": {
+                    "spec": {
+                        "name": "Bot",
+                        "instructions": "Hi",
+                        "capabilities": [{"id": "ask_user"}],
+                        "model_profile_id": str(KB),
+                        "starters": ["What can you do?"],
+                    }
+                }
+            },
         ),
+    ),
+    (
+        "test_agent_draft",
+        {"agent_id": str(AGENT), "prompt": "hi"},
+        ("POST", f"/agents/{AGENT}/run", {"json": {"prompt": "hi", "draft": True}}),
+    ),
+    (
+        "test_agent_draft",
+        {"agent_id": str(AGENT), "prompt": "and?", "conversation_id": str(RUN)},
         (
-            "search_mcp_servers",
-            {"query": "notion"},
-            ("GET", "/agents/mcp-servers", {"params": {"q": "notion", "limit": 10}}),
+            "POST",
+            f"/agents/{AGENT}/run",
+            {"json": {"prompt": "and?", "draft": True, "conversation_id": str(RUN)}},
         ),
-        ("list_my_connections", {}, ("GET", "/me/mcp-connections", {})),
+    ),
+    (
+        "publish_agent",
+        {"agent_id": str(AGENT), "note": "First version"},
+        ("POST", f"/agents/{AGENT}/publish", {"json": {"note": "First version"}}),
+    ),
+    (
+        "publish_agent",
+        {"agent_id": str(AGENT)},
+        ("POST", f"/agents/{AGENT}/publish", {"json": {}}),
+    ),
+    ("list_models", {}, ("GET", "/providers/model-profiles", {})),
+    ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 50}})),
+    ("list_routines", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}/triggers", {})),
+    (
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Summarise the week's AI news in English.",
+            "cron_expression": "0 7 * * 1",
+            "name": "Weekly AI news",
+        },
         (
-            "set_my_language",
-            {"locale": "en"},
-            ("PUT", "/users/me/locale", {"json": {"locale": "en"}}),
+            "POST",
+            f"/agents/{AGENT}/triggers",
+            {
+                "json": {
+                    "prompt": "Summarise the week's AI news in English.",
+                    "runs_as_creator": True,
+                    "name": "Weekly AI news",
+                    "schedule_kind": "cron",
+                    "cron_expression": "0 7 * * 1",
+                }
+            },
         ),
-    ],
-)
+    ),
+    (
+        "create_routine",
+        {
+            "agent_id": str(AGENT),
+            "prompt": "Check the site.",
+            "every_minutes": 60,
+            "runs_as_me": False,
+        },
+        (
+            "POST",
+            f"/agents/{AGENT}/triggers",
+            {
+                "json": {
+                    "prompt": "Check the site.",
+                    "runs_as_creator": False,
+                    "interval_seconds": 3600,
+                }
+            },
+        ),
+    ),
+    (
+        "update_routine",
+        {
+            "agent_id": str(AGENT),
+            "routine_id": str(RUN),
+            "active": False,
+            "prompt": "New",
+            "name": "Renamed",
+            "cron_expression": "0 8 * * *",
+        },
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {
+                "json": {
+                    "is_active": False,
+                    "prompt": "New",
+                    "name": "Renamed",
+                    "schedule_kind": "cron",
+                    "cron_expression": "0 8 * * *",
+                }
+            },
+        ),
+    ),
+    (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "every_minutes": 30},
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {"json": {"schedule_kind": "interval", "interval_seconds": 1800}},
+        ),
+    ),
+    (
+        "run_routine_now",
+        {"agent_id": str(AGENT), "routine_id": str(RUN)},
+        ("POST", f"/agents/{AGENT}/triggers/{RUN}/run", {}),
+    ),
+    (
+        "search_mcp_servers",
+        {"query": "notion"},
+        ("GET", "/agents/mcp-servers", {"params": {"q": "notion", "limit": 10}}),
+    ),
+    ("list_my_connections", {}, ("GET", "/me/mcp-connections", {})),
+    (
+        "set_my_language",
+        {"locale": "en"},
+        ("PUT", "/users/me/locale", {"json": {"locale": "en"}}),
+    ),
+]
+
+
+@pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
@@ -346,6 +346,32 @@ async def test_each_tool_is_one_public_api_call(
     method, path, kwargs = call
     assert api.request.await_args.args == (method, path)
     assert api.request.await_args.kwargs == kwargs
+
+
+@pytest.mark.parametrize(
+    ("method", "path"), sorted({(call[0], call[1]) for _tool, _args, call in CALLS})
+)
+def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
+    """A tool is a call to the public API, so the route has to exist and admit a key.
+
+    The table above checks the call a tool makes, not that anything answers it:
+    `list_models` once asked for `/model-profiles`, which is mounted under
+    `/providers`, and every agent-building conversation hit a 404 (#2301).
+    """
+    import re
+
+    from app.api.public_api import public_operations
+    from app.core.config import settings
+    from app.main import app
+
+    full = f"{settings.API_V1_STR}{path}"
+    public = [
+        template
+        for verb, template in public_operations(app.routes)
+        if verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
+    ]
+
+    assert public, f"no public route answers {method} {path}"
 
 
 class TestUndoingADraft:

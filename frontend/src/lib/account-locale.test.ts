@@ -16,14 +16,19 @@ const ADA: User = {
 beforeEach(() => useAuthStore.setState({ user: ADA }));
 
 describe("localeChosenBy", () => {
-  it("reads the language an agent's call set, under any server prefix", () => {
+  it("reads the language the platform's own tool set", () => {
     expect(localeChosenBy("agenticos_set_my_language", '{"locale": "en"}')).toBe("en");
-    expect(localeChosenBy("set_my_language", '{"locale": "de"}')).toBe("de");
+  });
+
+  it("trusts no other server's tool of the same name", () => {
+    // Codex on #2324: an organization's or a person's own MCP server can expose a
+    // `set_my_language` too; its answer is that server's, not this account's.
+    expect(localeChosenBy("notion_set_my_language", '{"locale": "en"}')).toBeNull();
+    expect(localeChosenBy("set_my_language", '{"locale": "de"}')).toBeNull();
   });
 
   it("reads nothing from another tool, a refusal or a language the console lacks", () => {
     expect(localeChosenBy("web_search", '{"locale": "en"}')).toBeNull();
-    expect(localeChosenBy("my_set_my_language_x", '{"locale": "en"}')).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", "403 FORBIDDEN: no")).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", '{"locale": "es"}')).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", '"en"')).toBeNull();

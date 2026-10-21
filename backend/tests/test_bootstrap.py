@@ -268,6 +268,24 @@ class TestStarterAgents:
         mocks["sandbox"].assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_the_starter_from_before_its_rename_counts_as_it(self):
+        """Codex on #2324: an organization bootstrapped with `@claude-code-like`
+        rerunning bootstrap would have been given `@agenticos` beside it."""
+        legacy = MagicMock()
+        _, mocks, patches = self._patches()
+        mocks["get_by_slug"].side_effect = lambda _db, slug, **_kw: (
+            legacy if slug == "claude-code-like" else None
+        )
+
+        await self._run(patches, uuid.uuid4())
+
+        assert [call.args[1] for call in mocks["get_by_slug"].await_args_list] == [
+            "agenticos",
+            "claude-code-like",
+        ]
+        mocks["install"].assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_a_spec_this_deployment_cannot_publish_is_left_a_draft(self):
         """No sandbox to give it, say - the agent waits, the bootstrap does not stop."""
         publish = AsyncMock(side_effect=BadRequestError(message="No sandbox"))

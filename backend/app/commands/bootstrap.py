@@ -268,9 +268,13 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
         )
         return
     slug = slugify(template.name)
-    if await agent_repo.get_by_slug(db, slug, organization_id=ctx.organization_id):
-        info(f"Agent @{slug} already exists")
-        return
+    # The starter's handle before it was renamed AgenticOS (#2301) counts as the
+    # starter: a handle never changes, so an organization bootstrapped earlier
+    # keeps that agent, and a rerun must not install a second beside it.
+    for existing in (slug, *agent_templates.STARTER_FORMER_SLUGS):
+        if await agent_repo.get_by_slug(db, existing, organization_id=ctx.organization_id):
+            info(f"Agent @{existing} already exists")
+            return
     registry = AgentRegistryService(db)
     installed = await registry.install_template(
         ctx, agent_templates.STARTER_TEMPLATE, visibility=Visibility.ORG

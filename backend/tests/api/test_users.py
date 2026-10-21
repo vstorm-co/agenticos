@@ -162,6 +162,61 @@ async def test_the_console_language_is_kept_on_the_account(
 
 
 @pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("scopes", "admitted"),
+    [(frozenset(), False), (frozenset({"agents:view"}), False), (frozenset({"agents:run"}), True)],
+    ids=["no-scope", "read-only", "runs"],
+)
+async def test_a_key_reaches_the_person_s_own_routes_only_when_issued_for_runs(
+    scopes: frozenset[str], admitted: bool
+):
+    """Codex on #2324: any key of a person read their connections and set their
+    language. Only one issued for `agents:run` - what a run's credential holds -
+    reaches `/me/mcp-connections` and `/users/me/locale` now."""
+    from types import SimpleNamespace
+
+    from app.api.deps import key_needs_on_own_account
+    from app.core.exceptions import AuthorizationError
+    from app.core.permissions import AuthContext, OrgRoleName, Perm
+    from app.services.api_key import KeyCaller
+
+    context = AuthContext(
+        user_id=uuid4(),
+        organization_id=uuid4(),
+        role=OrgRoleName.MEMBER,
+        key_scopes=frozenset(Perm(scope) for scope in scopes),
+    )
+    caller = KeyCaller(
+        user=MagicMock(),
+        organization=MagicMock(),
+        context=context,
+        api_key_id=uuid4(),
+        prefix="aos_0123abcd",
+    )
+    gate = key_needs_on_own_account(Perm.AGENTS_RUN)
+    request = MagicMock(state=SimpleNamespace(api_key_caller=caller))
+
+    if admitted:
+        assert await gate(request, MagicMock()) is None
+    else:
+        with pytest.raises(AuthorizationError, match="agents:run"):
+            await gate(request, MagicMock())
+
+
+@pytest.mark.anyio
+async def test_a_session_reaches_the_person_s_own_routes_with_no_organization():
+    from types import SimpleNamespace
+
+    from app.api.deps import key_needs_on_own_account
+    from app.core.permissions import Perm
+
+    request = MagicMock(state=SimpleNamespace())
+
+    assert await key_needs_on_own_account(Perm.AGENTS_RUN)(request, MagicMock()) is None
+
+
+@pytest.mark.anyio
 async def test_a_language_the_console_is_not_translated_into_is_refused(
     auth_client: AsyncClient, mock_user_service: MagicMock
 ):

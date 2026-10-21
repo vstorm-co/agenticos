@@ -76,8 +76,10 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
     lines = [
         "# Your setup",
         "",
-        "What you can do here comes from your capabilities; each brings its own tools "
-        "and its own instructions. Switched on:",
+        (
+            "What you can do here comes from your capabilities; each brings its own tools "
+            "and its own instructions. Switched on:"
+        ),
         *(f"- **{d.name}**: {_summary(d.description)}" for d in has),
     ]
     if spec.collection_ids:
@@ -96,10 +98,12 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
         ]
     lines += [
         "",
-        "When somebody asks what you can do, answer from the first list in plain words, "
-        "with an example of each that fits what they do. When a request needs something "
-        "from the second, say so plainly, do what you can without it, and say that "
-        f"whoever edits you can switch it on {where}.",
+        (
+            "When somebody asks what you can do, answer from the first list in plain words, "
+            "with an example of each that fits what they do. When a request needs something "
+            "from the second, say so plainly, do what you can without it, and say that "
+            f"whoever edits you can switch it on {where}."
+        ),
     ]
     return "\n".join(lines)
 

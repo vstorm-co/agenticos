@@ -30,6 +30,16 @@ describe("AccountLocale", () => {
     expect(replace).toHaveBeenCalledWith("/agents", { locale: "de" });
   });
 
+  it("keeps the page's own state - the conversation, the open test panel", () => {
+    window.history.replaceState({}, "", "/agents/a-1?test=open");
+    useAuthStore.setState({ user: { ...ADA, locale: "pl" } });
+
+    render(<AccountLocale />);
+
+    expect(replace).toHaveBeenCalledWith("/agents?test=open", { locale: "pl" });
+    window.history.replaceState({}, "", "/");
+  });
+
   it("stays put when the page is already in it", () => {
     useAuthStore.setState({ user: { ...ADA, locale: "en" } });
 

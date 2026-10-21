@@ -12,7 +12,13 @@ import { useAuthStore } from "@/stores";
 
 import { locales, type Locale } from "./locales";
 
-const SET_MY_LANGUAGE = /(^|_)set_my_language$/;
+/**
+ * The platform's own tool, by the exact name a run gives it: its server is
+ * always attached as `agenticos` (`PLATFORM_MCP_NAME`). Matched whole, because
+ * any other MCP server's `set_my_language` arrives as `<its prefix>_set_my_language`
+ * and its answer is that server's word, not a write to this account.
+ */
+const SET_MY_LANGUAGE = "agenticos_set_my_language";
 
 /** Record `locale` as the signed-in account's choice, in this tab. */
 export function adoptAccountLocale(locale: Locale): void {
@@ -23,13 +29,11 @@ export function adoptAccountLocale(locale: Locale): void {
 /**
  * The locale an agent's tool call just chose, or null when it chose none.
  *
- * Matched on the tool's own name under any server prefix, so the platform's
- * server reached as `agenticos` - or from another deployment's agent - is read
- * the same. The result is the API's answer, `{"locale": "en"}`; anything else
- * is a refusal the model reads, and changes nothing here.
+ * The result is the API's answer, `{"locale": "en"}`; anything else is a
+ * refusal the model reads, and changes nothing here.
  */
 export function localeChosenBy(toolName: string, result: string): Locale | null {
-  if (!SET_MY_LANGUAGE.test(toolName)) return null;
+  if (toolName !== SET_MY_LANGUAGE) return null;
   try {
     const parsed: unknown = JSON.parse(result);
     const locale =

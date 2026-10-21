@@ -41,6 +41,9 @@ AVATAR = "avatar.png"
 # starts with, so "what a good agent has" is written once (#2301).
 STARTER_TEMPLATE = "general/agenticos"
 
+STARTER_FORMER_SLUGS = ("claude-code-like",)
+"""Handles the starter was installed under before its rename, which still count as it."""
+
 
 @dataclass(frozen=True, slots=True)
 class AgentTemplate:

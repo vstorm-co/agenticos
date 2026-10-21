@@ -300,7 +300,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         An agent names one as its `model_profile_id`. Needs `agents:view`.
         """
-        return await api.request("GET", "/model-profiles")
+        return await api.request("GET", "/providers/model-profiles")
 
     async def list_routines(agent_id: UUID | None = None, limit: int = 50) -> dict[str, Any]:
         """Routines: agents that run themselves on a schedule or when something happens.

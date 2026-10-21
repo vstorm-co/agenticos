@@ -4,7 +4,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 
 from app.api.deps import (
     CurrentAppAdmin,
@@ -13,6 +13,7 @@ from app.api.deps import (
     DBSession,
     DeploymentSettingsSvc,
     UserSvc,
+    key_needs_on_own_account,
 )
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
@@ -20,6 +21,7 @@ from app.api.routes.v1.admin_users import delete_user as admin_delete_user
 from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import Perm
 from app.schemas.user import UserLocale, UserRead, UserUpdate
 from app.services.email.service import get_email_service
 
@@ -86,7 +88,11 @@ async def update_current_user(
     return updated
 
 
-@router.put("/me/locale", response_model=UserLocale, dependencies=[PUBLIC])
+@router.put(
+    "/me/locale",
+    response_model=UserLocale,
+    dependencies=[PUBLIC, Depends(key_needs_on_own_account(Perm.AGENTS_RUN))],
+)
 async def set_current_user_locale(
     data: UserLocale, current_user: CurrentUser, user_service: UserSvc
 ) -> Any:
@@ -95,7 +101,8 @@ async def set_current_user_locale(
     Public, unlike the rest of `/users/me`, so an agent asked to "switch to
     English" can do it through the platform's MCP server, which calls as the
     person with a key (#2301). It changes nothing but the one preference, so a
-    key reaching it reaches no email, name or account state.
+    key reaching it reaches no email, name or account state - and only a key
+    issued for `agents:run`, which the credential a run is minted holds.
     """
     await user_service.update(current_user.id, UserUpdate(locale=data.locale))
     return data

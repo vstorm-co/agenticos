@@ -27,6 +27,9 @@ import type { GroupList } from "@/types/groups";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
 
+/** `STARTER_TEMPLATE`'s handle, then `STARTER_FORMER_SLUGS` - `services/agent_templates.py`. */
+const STARTER_SLUGS = ["agenticos", "claude-code-like"];
+
 /**
  * The organization a path names, for the `/orgs/<id>/…` detail routes, or `null`
  * for anything else — including `/orgs` itself, which names none.
@@ -89,8 +92,10 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     queryFn: () => apiClient.get<AgentList>("/agents"),
     enabled,
   });
+  // The seeded starter, under its handle or the one it had before its rename
+  // (#2301) - a handle never changes, so older organizations keep that one.
   const agentId =
-    agents.data?.items.find((agent) => agent.slug === "agenticos")?.id ??
+    agents.data?.items.find((agent) => STARTER_SLUGS.includes(agent.slug))?.id ??
     agents.data?.items[0]?.id ??
     null;
 

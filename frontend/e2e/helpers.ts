@@ -27,8 +27,8 @@ export const OWNER_EMAIL = process.env.E2E_OWNER_EMAIL ?? "admin@example.com";
 export const OWNER_PASSWORD = process.env.E2E_OWNER_PASSWORD ?? "admin123";
 
 /** The published agent bootstrap leaves behind, by name and by handle. */
-export const SEEDED_AGENT_NAME = "Claude Code like";
-export const SEEDED_AGENT_HANDLE = "@claude-code-like";
+export const SEEDED_AGENT_NAME = "AgenticOS";
+export const SEEDED_AGENT_HANDLE = "@agenticos";
 /** The default model profile bootstrap creates, and the model it points at. */
 export const SEEDED_MODEL_LABEL = "openai default";
 export const SEEDED_MODEL_ID = "gpt-4.1";
