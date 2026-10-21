@@ -8811,8 +8811,10 @@
       "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
       "agent": "Agent, der den Skill nutzt",
       "agentPlaceholder": "Agent wählen",
-      "dataset": "Dataset",
-      "datasetPlaceholder": "Dataset wählen",
+      "target": "Prüfen gegen",
+      "targetPlaceholder": "Suite oder Dataset wählen",
+      "suites": "Suites",
+      "datasets": "Datasets",
       "cancel": "Abbrechen",
       "start": "Prüfung starten"
     },

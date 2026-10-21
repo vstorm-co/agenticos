@@ -8704,8 +8704,10 @@
       "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
       "agent": "Agent, który używa tego skilla",
       "agentPlaceholder": "Wybierz agenta",
-      "dataset": "Dataset",
-      "datasetPlaceholder": "Wybierz dataset",
+      "target": "Sprawdź na",
+      "targetPlaceholder": "Wybierz suitę albo dataset",
+      "suites": "Suity",
+      "datasets": "Datasety",
       "cancel": "Anuluj",
       "start": "Uruchom sprawdzenie"
     },

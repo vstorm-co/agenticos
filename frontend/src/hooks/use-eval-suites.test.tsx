@@ -7,7 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { evalSuite, suiteResult } from "@/test-utils/eval-suites";
 import type { EvalSuiteInput } from "@/types/eval-suites";
-import { useEvalSuiteResults, useEvalSuites, useVisibleEvalSuites } from "./use-eval-suites";
+import {
+  useAgentEvalSuites,
+  useEvalSuiteResults,
+  useEvalSuites,
+  useVisibleEvalSuites,
+} from "./use-eval-suites";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -132,6 +137,22 @@ describe("useEvalSuites", () => {
       environment_id: null,
       schedule: null,
     });
+  });
+});
+
+describe("useAgentEvalSuites", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads one agent's suites, and nothing before an agent is chosen", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalSuite()], total: 1 });
+    const idle = renderHook(() => useAgentEvalSuites("", { enabled: false }), { wrapper });
+    expect(idle.result.current.suites).toEqual([]);
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    const { result } = renderHook(() => useAgentEvalSuites("agent-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.suites).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/eval-suites");
   });
 });
 

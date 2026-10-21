@@ -8928,8 +8928,10 @@
       "skillBody": "Runs a dataset on an agent that uses the skill, with its published version on both sides and only the skill's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
       "agent": "Agent that uses the skill",
       "agentPlaceholder": "Pick an agent",
-      "dataset": "Dataset",
-      "datasetPlaceholder": "Pick a dataset",
+      "target": "Check against",
+      "targetPlaceholder": "Pick a suite or a dataset",
+      "suites": "Suites",
+      "datasets": "Datasets",
       "cancel": "Cancel",
       "start": "Start the check"
     },

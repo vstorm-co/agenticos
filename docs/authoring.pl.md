@@ -1,5 +1,5 @@
 ---
-source_sha: "e3ab788c1fcd"
+source_sha: "9f2d6d57c080"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, opisach narzędzi i skillach. O każdej decyduje człowiek."
 ---
@@ -88,6 +88,10 @@ samym [eval runie](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
 przyjmuje i nie zmienia draftu. Dopóki któraś oczekująca sugestia nie pasuje
 już do draftu albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
 nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
+
+Zamiast datasetu sprawdzenie może uruchomić jedną z [suit](evals.md#suites)
+agenta: jej dataset, w jej środowisku. Próg suity nie jest stosowany; run
+porównuje draft z opublikowaną wersją tak jak każde sprawdzenie.
 
 Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją

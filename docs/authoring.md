@@ -86,6 +86,11 @@ checking, and the draft does not change. While a waiting suggestion no longer
 fits the draft, or clashes with another, the check is refused until it is
 accepted or dismissed: the run measures exactly what waits.
 
+Instead of a dataset, the check can run one of the agent's
+[eval suites](evals.md#suites): its dataset, in its environment. The suite's
+threshold is not applied; the run compares the draft with the published version
+as any check does.
+
 The cases taken from the conversations the suggestions were derived from are left
 out, and the run says how many: a change is never measured on the data it was
 fitted to. A dataset made only of such cases is refused.

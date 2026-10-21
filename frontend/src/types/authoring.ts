@@ -102,8 +102,10 @@ export interface HunkDecision {
   text?: string;
 }
 
+/** A check names a dataset, or an eval suite whose dataset and environment it runs. */
 export interface ProposalCheck {
-  dataset_id: string;
+  dataset_id?: string;
+  suite_id?: string;
   dataset_version?: number;
   environment_id?: string;
   agent_id?: string;

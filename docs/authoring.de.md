@@ -1,5 +1,5 @@
 ---
-source_sha: "e3ab788c1fcd"
+source_sha: "9f2d6d57c080"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tool-Beschreibungen und Skills vor. Über jede entscheidet ein Mensch."
 ---
@@ -94,6 +94,11 @@ nichts angenommen, und der Draft ändert sich nicht. Solange ein wartender
 Vorschlag nicht mehr zum Draft passt oder mit einem anderen kollidiert, wird die
 Prüfung abgelehnt, bis er angenommen oder verworfen ist: Der Run misst genau das,
 was wartet.
+
+Statt eines Datasets kann die Prüfung eine der [Suites](evals.md#suites) des
+Agents ausführen: ihr Dataset, in ihrer Umgebung. Der Schwellenwert der Suite wird
+nicht angewendet; der Run vergleicht den Draft wie jede Prüfung mit der
+veröffentlichten Version.
 
 Die Fälle aus den Gesprächen, aus denen die Vorschläge abgeleitet wurden, werden
 weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten

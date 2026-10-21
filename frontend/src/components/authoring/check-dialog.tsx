@@ -15,19 +15,23 @@ import {
   Label,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
 import { useEveryAgent, useEveryDataset } from "@/hooks/use-eval-runs";
+import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import type { ProposalCheck } from "@/types/authoring";
 import type { EvalRun, EvalRunEstimate } from "@/types/eval-runs";
 
 /**
- * Check suggestions with evals before deciding them: pick a dataset - and, for
- * a skill change, an agent that uses the skill - see what it costs, and start.
+ * Check suggestions with evals before deciding them: pick one of the agent's eval
+ * suites or a dataset - and, for a skill change, an agent that uses the skill -
+ * see what it costs, and start.
  *
  * The run measures the draft as it would be with every waiting suggestion, beside
  * the published version, and leaves out the cases taken from the suggestions'
@@ -53,18 +57,21 @@ export function CheckDialog({
   const tErrors = useTranslations("errors");
   const { datasets } = useEveryDataset();
   const { agents } = useEveryAgent({ enabled: agentId === null });
-  const [datasetId, setDatasetId] = useState("");
+  // `suite:<id>` or `dataset:<id>`: a suite brings its own dataset and environment.
+  const [target, setTarget] = useState("");
   const [chosenAgent, setChosenAgent] = useState(agentId ?? "");
+  const { suites } = useAgentEvalSuites(chosenAgent, { enabled: chosenAgent !== "" });
+  const [kind, targetId] = target.split(":");
   const [quote, setQuote] = useState<{ key: string; value: EvalRunEstimate } | null>(null);
   const [refused, setRefused] = useState<{ key: string; message: string } | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const body: ProposalCheck = {
-    dataset_id: datasetId,
+    ...(kind === "suite" ? { suite_id: targetId } : { dataset_id: targetId }),
     ...(agentId === null && { agent_id: chosenAgent }),
     ...(proposalId !== undefined && { proposal_id: proposalId }),
   };
-  const ready = datasetId !== "" && chosenAgent !== "";
+  const ready = target !== "" && chosenAgent !== "";
   const asked = JSON.stringify(body);
 
   useEffect(() => {
@@ -111,7 +118,14 @@ export function CheckDialog({
           {agentId === null && (
             <div className="space-y-1.5">
               <Label>{t("agent")}</Label>
-              <Select value={chosenAgent} onValueChange={setChosenAgent}>
+              <Select
+                value={chosenAgent}
+                onValueChange={(agent) => {
+                  setChosenAgent(agent);
+                  // A suite belongs to the agent it was picked for.
+                  if (kind === "suite") setTarget("");
+                }}
+              >
                 <SelectTrigger aria-label={t("agent")}>
                   <SelectValue placeholder={t("agentPlaceholder")} />
                 </SelectTrigger>
@@ -126,17 +140,32 @@ export function CheckDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>{t("dataset")}</Label>
-            <Select value={datasetId} onValueChange={setDatasetId}>
-              <SelectTrigger aria-label={t("dataset")}>
-                <SelectValue placeholder={t("datasetPlaceholder")} />
+            <Label>{t("target")}</Label>
+            <Select value={target} onValueChange={setTarget}>
+              <SelectTrigger aria-label={t("target")}>
+                <SelectValue placeholder={t("targetPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {datasets.map((dataset) => (
-                  <SelectItem key={dataset.id} value={dataset.id}>
-                    {dataset.name}
-                  </SelectItem>
-                ))}
+                {suites.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>{t("suites")}</SelectLabel>
+                    {suites.map((suite) => (
+                      <SelectItem key={suite.id} value={`suite:${suite.id}`}>
+                        {suite.dataset_name === null
+                          ? suite.name
+                          : `${suite.name} · ${suite.dataset_name}`}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                <SelectGroup>
+                  <SelectLabel>{t("datasets")}</SelectLabel>
+                  {datasets.map((dataset) => (
+                    <SelectItem key={dataset.id} value={`dataset:${dataset.id}`}>
+                      {dataset.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

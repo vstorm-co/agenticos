@@ -29,6 +29,7 @@ vi.mock("@/hooks", () => ({
   useAgentVersion: () => ({ version: state.published }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEveryDataset: () => ({ datasets: [{ id: "ds-1", name: "Refund cases" }] }),
   useEveryAgent: () => ({ agents: [] }),
@@ -238,7 +239,7 @@ describe("AssistantStrip", () => {
   it("goes to the eval run a check started", async () => {
     strip();
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
-    await userEvent.click(await screen.findByRole("combobox", { name: "Dataset" }));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Check against" }));
     await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
     await screen.findByText("priced");
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));

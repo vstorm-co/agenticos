@@ -33,6 +33,7 @@ vi.mock("@/stores/architect-ask-store", () => ({
   useArchitectAskStore: (select: (value: { ask: (text: string) => void }) => unknown) =>
     select({ ask: state.ask }),
 }));
+vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEveryDataset: () => ({ datasets: [{ id: "ds-1", name: "Refund cases" }] }),
   useEveryAgent: () => ({ agents: [{ id: "agent-2", name: "Clerk" }] }),
@@ -98,7 +99,7 @@ describe("SkillCheckButton", () => {
       await screen.findByRole("combobox", { name: "Agent that uses the skill" }),
     );
     await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
     await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
     await screen.findByText("priced");
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
