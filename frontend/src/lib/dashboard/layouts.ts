@@ -337,8 +337,10 @@ const ME_SECTIONS: SectionDef[] = [
       // ratings and deciding the scores sent for review is who this page is for.
       { widget: "datasets", span: "s6", rows: "r3" },
       { widget: "review-queue", span: "s6", rows: "r3" },
-      // How the agents fared on those datasets: the latest eval runs and their verdicts.
-      { widget: "eval-runs", span: "s12", rows: "r3" },
+      // How the agents fared on those datasets: the latest eval runs and their
+      // verdicts, beside the suites that run them on their own.
+      { widget: "eval-runs", span: "s6", rows: "r3" },
+      { widget: "eval-suites", span: "s6", rows: "r3" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read.
       { widget: "recent-visuals", span: "s12", rows: "r3" },

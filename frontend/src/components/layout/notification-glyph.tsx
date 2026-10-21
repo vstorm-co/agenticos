@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Database,
   KeyRound,
+  ListChecks,
   Megaphone,
   PanelsTopLeft,
   Plug,
@@ -46,6 +47,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   resource_shared: { icon: Share2, tone: NEUTRAL },
   mcp_server_down: { icon: PlugZap, tone: BAD },
   mcp_server_recovered: { icon: Plug, tone: GOOD },
+  eval_suite_failed: { icon: ListChecks, tone: BAD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

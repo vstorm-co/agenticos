@@ -248,6 +248,7 @@ class AgentEnvironmentService:
                 details={"agent_id": str(agent.id), "name": changes["name"]},
             )
 
+        replaced_version_id = environment.version_id
         version: AgentVersion | None = None
         if "version_id" in changes:
             version = await self._version_of(ctx, agent, changes["version_id"])
@@ -277,6 +278,16 @@ class AgentEnvironmentService:
             )
         if version is not None:
             await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
+        if version is not None and version.id != replaced_version_id:
+            from app.services.eval_suite import EvalSuiteService
+
+            await EvalSuiteService(self.db).environment_promoted(
+                ctx,
+                agent=agent,
+                environment=environment,
+                version=version,
+                replaced_version_id=replaced_version_id,
+            )
         if environment.is_default and version is not None:
             # The denormalized pointer is this environment's, so promoting the
             # default *is* the deploy every surface naming no environment reads.
@@ -357,6 +368,9 @@ class AgentEnvironmentService:
                 details={"environment_id": str(environment.id), "eval_runs": evals},
             )
         name = environment.name
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).environment_removed(environment)
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)
         await agent_environment_repo.delete(self.db, environment=environment)
         await record_audit(

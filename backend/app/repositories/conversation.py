@@ -1534,6 +1534,21 @@ async def get_open_tool_call_in_run(
     return result.scalar_one_or_none()
 
 
+async def question_of_run(db: AsyncSession, *, run_id: UUID, organization_id: UUID) -> str | None:
+    """The last turn a person wrote in one run - the question it answered - or None."""
+    return await db.scalar(
+        select(Message.content)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.run_id == run_id,
+            Message.role == "user",
+            Conversation.organization_id == organization_id,
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+
+
 async def list_tool_calls_for_run(
     db: AsyncSession, *, run_id: UUID, organization_id: UUID
 ) -> list[tuple[ToolCall, Message]]:

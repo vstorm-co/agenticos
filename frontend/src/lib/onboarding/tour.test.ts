@@ -47,6 +47,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-evals",
+  "agent-eval-suites",
   "agent-history",
   "agent-test-connections",
   "agent-test-draft",
@@ -278,6 +279,7 @@ describe("stepsForPage", () => {
           id !== "agent-test-connections" &&
           id !== "agent-test" &&
           id !== "agent-evals" &&
+          id !== "agent-eval-suites" &&
           id !== "agent-test-draft" &&
           id !== "agent-gaps",
       ),

@@ -329,6 +329,7 @@ class DatasetService:
         runnable: bool = False,
         search: str | None = None,
         judge_id: UUID | None = None,
+        asked_by_run: UUID | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -339,12 +340,20 @@ class DatasetService:
         it, and for the seeded default judge those that picked none. `runnable`
         narrows to those the caller may run that hold a case to run - what an
         eval or a score needs - so "may I run any" is the `total` of one row.
+        `asked_by_run` narrows to those whose newest version holds a case asking
+        that run's question - read from the run, so the question itself never
+        travels in a URL. A run the caller may not read narrows to nothing.
 
         Scoped like every shared resource: a role reaching the whole organization
         lists everything, anyone else their own, the org-visible ones and those
         shared with them - the set :func:`resolve_access` admits one row at a
         time. `can_edit` costs one grant query for the page, not one per row.
         """
+        asking = None
+        if asked_by_run is not None:
+            asking = await self._question_of(ctx, asked_by_run)
+            if asking is None:
+                return DatasetList(items=[], total=0)
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_VIEW
         )
@@ -382,6 +391,7 @@ class DatasetService:
             search=search,
             judge_id=judge_id,
             judge_is_default=judge_id is not None and await self._is_default_judge(ctx, judge_id),
+            asking=asking,
             sort=sort,
             skip=skip,
             limit=limit,
@@ -409,6 +419,21 @@ class DatasetService:
             ],
             total=total,
         )
+
+    async def _question_of(self, ctx: AuthContext, run_id: UUID) -> str | None:
+        """The question one run answered, for a caller who may read the run.
+
+        None for a run of another organization, one the caller may not read -
+        reading a run takes `runs:view`, as its transcript does - or one that
+        kept no question. Redacted as a case's input is when it is stored, so a
+        question holding a credential still finds the case taken from it.
+        """
+        if not ctx.has(Perm.RUNS_VIEW):
+            return None
+        question = await conversation_repo.question_of_run(
+            self.db, run_id=run_id, organization_id=ctx.organization_id
+        )
+        return redact_credentials(question)[0]
 
     async def _is_default_judge(self, ctx: AuthContext, agent_id: UUID) -> bool:
         default = await agent_repo.get_system(

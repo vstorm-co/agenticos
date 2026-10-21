@@ -96,15 +96,15 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the twenty togglable pairs the backend produces", () => {
+  it("offers exactly the togglable pairs the backend produces", () => {
     render(<NotificationsSettingsPage />);
 
     // run_completed, run_failed, artifact_version_published, resource_shared,
-    // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
-    // ingestion_failed and announcement each offer both channels (10*2 = 20);
-    // budget_exceeded, approval_requested, usage_report and agent_usage_report
-    // offer only in-app (4*1 = 4). 20 + 4 = 24, plus the three legacy email
-    // switches above = 27 on the page total.
+    // budget_warning, mcp_server_down, mcp_server_recovered, eval_suite_failed,
+    // ingestion_completed, ingestion_failed and announcement each offer both
+    // channels (11*2 = 22); budget_exceeded, approval_requested, usage_report
+    // and agent_usage_report offer only in-app (4*1 = 4). 22 + 4 = 26, plus the
+    // three legacy email switches above = 29 on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -126,7 +126,10 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "MCP server answering again - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(27);
+    expect(
+      screen.getByRole("switch", { name: "An eval suite failed - Email" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(29);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

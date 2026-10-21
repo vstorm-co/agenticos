@@ -75,6 +75,13 @@ async def list_datasets(
         ),
     ),
     judge: UUID | None = Query(None, description="Only the datasets of this judge"),
+    asks_run: UUID | None = Query(
+        None,
+        description=(
+            "Only the datasets whose newest version has a case asking this run's "
+            "question, ignoring case and spacing; none for a run the caller may not read"
+        ),
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -86,6 +93,7 @@ async def list_datasets(
         runnable=runnable,
         search=q,
         judge_id=judge,
+        asked_by_run=asks_run,
         sort=sort,
         skip=skip,
         limit=limit,
