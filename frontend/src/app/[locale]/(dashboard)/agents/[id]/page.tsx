@@ -1899,10 +1899,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
-              <EvalSuitesCard
-                agentId={id}
-                canManage={agent.can_edit === true && agent.can_run && can(Perm.datasetsRun)}
-              />
+              <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
               <EvalsPanel agentId={id} canStart={canStartEvals} />
             </TabsContent>
           )}
