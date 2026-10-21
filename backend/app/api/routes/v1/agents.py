@@ -263,7 +263,10 @@ async def list_agents(
     include_archived: bool = Query(False),
     kind: AgentKind = Query(
         AgentKind.AGENT,
-        description="`agent` for the agents people use, `judge` for the ones grading evals",
+        description=(
+            "`agent` for the agents people use, `judge` for the ones grading evals, "
+            "`drafter` for the one drafting knowledge gaps' missing content"
+        ),
     ),
     category: Annotated[
         list[str], Query(description="Keep agents in any of these categories")
@@ -367,11 +370,13 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
     agent = await service.get(ctx, agent_id)
     # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
     # `AgentSpec` off the schema field, so this route names only the one value the
-    # row does not carry: `can_run` and `can_edit` are this caller's, not the agent's.
+    # row does not carry: `can_run`, `can_edit` and `can_publish` are this caller's,
+    # not the agent's.
     return AgentDetail.model_validate(agent).model_copy(
         update={
             "can_run": await service.may_run(ctx, agent),
             "can_edit": await service.may_edit(ctx, agent),
+            "can_publish": await service.may_publish(ctx, agent),
         }
     )
 

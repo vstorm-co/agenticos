@@ -128,11 +128,17 @@ PLATFORM_MODULES = (
     "app/api/routes/v1/memory.py",
     "app/services/system_agents.py",
     "app/services/system_agent_runner.py",
+    "app/db/models/knowledge_gap.py",
+    "app/schemas/knowledge_gap.py",
+    "app/repositories/knowledge_gap.py",
+    "app/services/knowledge_gaps.py",
+    "app/api/routes/v1/knowledge_gaps.py",
     "app/services/ai_assistance.py",
     "app/services/scorers.py",
     "app/services/scoring.py",
     "app/repositories/case_score.py",
     "app/schemas/scoring.py",
+    "app/repositories/_visibility.py",
 )
 
 

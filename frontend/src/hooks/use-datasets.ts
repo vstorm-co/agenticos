@@ -119,7 +119,10 @@ export function useDatasets({
   };
 }
 
-/** One dataset: renaming or redescribing it - which is not a new version - and deleting it. */
+/**
+ * One dataset: renaming or redescribing it - which is not a new version - and
+ * deleting it. Idle without an id, for a page still reading which dataset it is.
+ */
 export function useDataset(datasetId: string) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -127,6 +130,7 @@ export function useDataset(datasetId: string) {
   const query = useQuery({
     queryKey: qk.datasets.detail(datasetId),
     queryFn: () => apiClient.get<Dataset>(`/datasets/${datasetId}`),
+    enabled: datasetId !== "",
   });
   const update = useMutation({
     mutationFn: (changes: Partial<NewDataset>) =>

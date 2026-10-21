@@ -7,12 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui";
 import { useDataset } from "@/hooks/use-datasets";
 import { useRescoreRun } from "@/hooks/use-eval-runs";
-import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvalRun } from "@/types/eval-runs";
 import { sideName } from "./names";
 import { quoted } from "./verdict-headline";
-import { Perm } from "@/types/permissions";
 
 /**
  * The run's answers no scorer reached a verdict on - the judge failed or was
@@ -23,7 +21,6 @@ import { Perm } from "@/types/permissions";
 export function UngradedNote({ run }: { run: EvalRun }) {
   const t = useTranslations("evals.ungraded");
   const tErrors = useTranslations("errors");
-  const { can } = usePermissions();
   const { dataset } = useDataset(run.dataset_id);
   const rescore = useRescoreRun(run.dataset_id);
   const tSide = useTranslations("evals");
@@ -49,7 +46,7 @@ export function UngradedNote({ run }: { run: EvalRun }) {
           </span>
         ))
       )}
-      {(can(Perm.datasetsRun) || dataset?.can_edit) && (
+      {dataset?.can_run === true && (
         <Button
           size="sm"
           variant="outline"

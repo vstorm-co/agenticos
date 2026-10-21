@@ -677,8 +677,12 @@
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych",
     "testDraft": "Przetestuj draft",
-    "judgesCount": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
-    "judgesHint": "Sędziowie oceniają odpowiedzi w ewaluacjach: domyślny i każdy własny sędzia datasetu. Uruchamia ich platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz sędziego, żeby zmienić jego instrukcje, model albo budżet.",
+    "systemAgentsCount": "{count, plural, one {Agenci systemowi (#)} few {Agenci systemowi (#)} many {Agenci systemowi (#)} other {Agenci systemowi (#)}}",
+    "systemAgentsHint": "Tych agentów uruchamia sama platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet.",
+    "judgeKind": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
+    "judgeKindHint": "Oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy własny sędzia datasetu.",
+    "drafterKind": "{count, plural, one {Autor szkiców luk (#)} few {Autorzy szkiców luk (#)} many {Autorzy szkiców luk (#)} other {Autorzy szkiców luk (#)}}",
+    "drafterKindHint": "Pisze szkic treści, której brakuje przy luce w wiedzy, gdy ktoś o niego poprosi.",
     "defaultJudge": "Domyślny sędzia",
     "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
@@ -2330,6 +2334,17 @@
           "synthetic": "{count} wygenerowane"
         }
       },
+      "knowledge-gaps": {
+        "title": "Luki w wiedzy",
+        "description": "Pytania, dla których agenci najczęściej nie znaleźli nic w bazach wiedzy.",
+        "asked": "{count, plural, one {zadane raz} few {zadane # razy} many {zadane # razy} other {zadane # razy}}",
+        "empty": {
+          "title": "Na razie brak luk w wiedzy",
+          "description": "Gdy agent przeszukuje bazę wiedzy i nie znajduje nic bliskiego pytaniu, pytanie trafia tutaj, pogrupowane z podobnymi. Luki są grupowane co 15 minut."
+        },
+        "breakdown": "Tematy w bazach wiedzy",
+        "perCollection": "{name} · {count}"
+      },
       "department-spend": {
         "title": "Wydatki działów",
         "description": "Ile w tym miesiącu uruchomili ludzie z każdego działu, na tle jego limitu. Osoba w dwóch działach liczy się w obu.",
@@ -3799,6 +3814,14 @@
         "title": "Utwórz go",
         "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
       },
+      "kb-gaps": {
+        "title": "Na co nie znalazła odpowiedzi",
+        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Dodaj brakujący dokument albo odrzuć temat, który go nie wymaga."
+      },
+      "agent-gaps": {
+        "title": "Czego szukał",
+        "body": "Pytania, dla których ten agent przeszukał bazę wiedzy i nic nie znalazł. Każde prowadzi do runu, z którego pochodzi."
+      },
       "flow-dataset-open": {
         "title": "Otwórz swój dataset",
         "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
@@ -3876,9 +3899,9 @@
         "title": "Przegląd",
         "body": "Ocenione odpowiedzi, które czekają na decyzję człowieka. Rozstrzygnij te, których sędzia nie był pewien; jego opinia zostaje zapisana."
       },
-      "agents-judges": {
-        "title": "Sędziowie",
-        "body": "Agenci, którzy oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy, którego dataset utworzył dla siebie. Otwórz sędziego, żeby zmienić, jak surowo ocenia, jego model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
+      "agents-system": {
+        "title": "Agenci systemowi",
+        "body": "Agenci, których uruchamia sama platforma, pogrupowani według tego, co robią: sędziowie oceniający odpowiedzi w ewaluacjach i autor szkiców, który pisze, czego brakuje przy luce w wiedzy. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
       },
       "dataset-judge": {
         "title": "Sędzia",
@@ -4275,6 +4298,8 @@
       "moreActions": "Więcej akcji",
       "n100Default": "100 (domyślnie)",
       "namedMissing": "{name} (brak)",
+      "agentUnavailable": "Agent niedostępny",
+      "backToAgents": "Powrót do agentów",
       "eachPersonsOwnNamed": "{name} (własne konto każdej osoby)",
       "namedPointersAtPublished": "Publikacja tworzy wersję; umieszczenie jej gdzieś to osobna decyzja. Środowisko albo czeka na promocję, albo idzie za każdą publikacją. Produkcja idzie za publikacjami, dopóki jest jedynym środowiskiem; przypnij ją, gdy obok pojawi się dev albo staging. Bot powiązany ze środowiskiem serwuje jego wersję.",
       "newAgent": "Nowy agent",
@@ -6853,6 +6878,66 @@
     "newDatasetHere": "Nie masz jeszcze datasetu, do którego można dodać odpowiedź, więc ta odpowiedź go zakłada, widoczny dla całej organizacji.",
     "newDatasetFromActivity": "Odpowiedzi z Aktywności",
     "backToDataset": "Wróć do {name}"
+  },
+  "knowledgeGaps": {
+    "tab": "Luki w wiedzy",
+    "title": "Luki w wiedzy",
+    "topicCount": "{count, plural, =0 {Brak tematów} one {1 temat} few {# tematy} many {# tematów} other {# tematu}}",
+    "descriptionCollection": "Pytania, dla których agenci przeszukali tę bazę wiedzy i nie znaleźli nic trafnego, pogrupowane w tematy.",
+    "descriptionAgent": "Pytania, dla których ten agent przeszukał swoje bazy wiedzy i nie znalazł nic trafnego, pogrupowane w tematy.",
+    "nothingAutomatic": "Nic nie trafia do bazy wiedzy automatycznie. Gdy temat wymaga dokumentu, dodaje go człowiek.",
+    "statusFilter": "Pokaż tematy",
+    "statusOpen": "Otwarte",
+    "statusDismissed": "Odrzucone",
+    "moreActions": "Więcej działań dla tego tematu",
+    "regroup": "Grupuj teraz",
+    "regroupStarted": "Grupowanie rozpoczęte. Nowe tematy pojawią się za minutę lub dwie.",
+    "ungrouped": "{count, plural, one {1 pytanie czeka} few {# pytania czekają} many {# pytań czeka} other {# pytania czeka}} na pogrupowanie. Grupowanie działa co 15 minut.",
+    "questionCount": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}}",
+    "lastAsked": "Ostatnio {ago}",
+    "emptyOpen": "Brak otwartych luk w wiedzy",
+    "emptyOpenBody": "Gdy agent szuka i nie znajduje nic trafnego, pytanie pojawia się tutaj, razem z podobnymi.",
+    "emptyDismissed": "Brak odrzuconych tematów",
+    "emptyDismissedBody": "Tu pojawiają się tematy oznaczone jako niewymagające dokumentu.",
+    "loadFailed": "Nie udało się wczytać luk w wiedzy",
+    "loadTopicFailed": "Nie udało się wczytać tego tematu",
+    "loadFailedBody": "To nie jest pusta lista: żądanie się nie powiodło. Spróbuj ponownie.",
+    "retry": "Spróbuj ponownie",
+    "topic": "Temat",
+    "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} w {knowledgeBase}",
+    "questions": "Pytania",
+    "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
+    "searchedFor": "Szukano: {query}",
+    "noResults": "Brak wyników",
+    "closestMatch": "{count, plural, one {1 wynik} few {# wyniki} many {# wyników} other {# wyniku}}, najbliższe dopasowanie {similarity}",
+    "openRun": "Otwórz run",
+    "ratedDown": "Ocena negatywna: {comment}",
+    "dismiss": "Odrzuć",
+    "reopen": "Otwórz ponownie",
+    "dismissedToast": "Temat odrzucony",
+    "reopenedToast": "Temat ponownie otwarty",
+    "addToDataset": "Dodaj do datasetu",
+    "addToDatasetBody": "Każde pytanie staje się przypadkiem, razem z odpowiedzią, której udzielił agent. Pytania bez odpowiedzi, którą możesz odczytać, są pomijane.",
+    "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",
+    "dataset": "Dataset",
+    "cancel": "Anuluj",
+    "add": "Dodaj",
+    "casesAdded": "{added, plural, =0 {Nie dodano żadnego przypadku} one {Dodano 1 przypadek} few {Dodano # przypadki} many {Dodano # przypadków} other {Dodano # przypadku}} do {name}{skipped, plural, =0 {} one {, pominięto 1 pytanie} few {, pominięto # pytania} many {, pominięto # pytań} other {, pominięto # pytania}}",
+    "draftContent": "Napisz szkic brakującej treści",
+    "draftAgain": "Napisz szkic ponownie",
+    "drafting": "Piszę szkic…",
+    "draftReady": "Szkic gotowy - sprawdź go, zanim go dodasz",
+    "draftNotice": "Napisany przez model na podstawie pytań powyżej. Sprawdź każdy fakt i uzupełnij miejsca do wypełnienia, zanim dodasz go do bazy wiedzy - nic nie zostanie dodane za ciebie.",
+    "draftSources": "Na czym się opiera",
+    "openDraftRun": "Otwórz run",
+    "editDrafter": "Edytuj instrukcje draftera",
+    "downloadDraft": "Pobierz .md",
+    "hasDraft": "Szkic",
+    "draftLabel": "Szkic — sprawdź przed dodaniem",
+    "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",
+    "aiOff": "Asystent AI jest wyłączony w tej organizacji, więc nie da się napisać szkicu. Wykrywanie i grupowanie luk działa dalej.",
+    "enableAi": "Włącz asystenta AI",
+    "askAdmin": "Poproś administratora o włączenie."
   },
   "apiKeys": {
     "title": "Klucze API",

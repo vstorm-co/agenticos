@@ -10,6 +10,12 @@
 import type { SecretRequirement } from "./secrets";
 import type { Visibility } from "./sharing";
 
+/** What an agent is for: `agent` for the ones people use, every other kind the platform's own. */
+export type AgentKind = "agent" | "judge" | "drafter";
+
+/** A kind only the platform runs. */
+export type SystemAgentKind = Exclude<AgentKind, "agent">;
+
 export type AgentStatus = "draft" | "published" | "archived";
 export type ApprovalMode = "default" | "required" | "never";
 
@@ -407,10 +413,12 @@ export interface Agent {
    */
   system_key?: string | null;
   /**
-   * `judge` for an agent grading evals: only the platform runs it, so it has no
-   * chat, channels or delegation, and the console lists it apart.
+   * What the agent is for. Anything but `agent` is a system agent - a judge
+   * grading evals, the drafter writing a knowledge gap's missing content: only
+   * the platform runs it, so it has no chat, channels or delegation, and the
+   * console lists it apart.
    */
-  kind?: "agent" | "judge";
+  kind?: AgentKind;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
@@ -426,10 +434,16 @@ export interface Agent {
   /**
    * Whether the current caller may edit this agent - resolved per caller like
    * `can_run`, so an edit grant on one agent reads true where the role check
-   * would not. What eval controls (testing the draft, stopping a run, publishing
-   * from one) read; the backend re-checks every edit.
+   * would not. What the agent page's edit controls, testing the draft and stopping
+   * an eval run read; the backend re-checks every edit.
    */
   can_edit?: boolean;
+  /**
+   * Whether the current caller may publish this agent - a version, a rollback, its
+   * embeds, exposures and environments. Resolved like `can_edit`, and not the same
+   * answer: a Member edits the agents they own but publishes none.
+   */
+  can_publish?: boolean;
   /** Whether other systems may reach it over A2A, by its agent card (#2092). */
   a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */

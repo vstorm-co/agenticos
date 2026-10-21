@@ -82,7 +82,7 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
-    judges: () => ["agents", "judges"] as const,
+    ofKind: (kind: string) => ["agents", "kind", kind] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -375,6 +375,13 @@ export const qk = {
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
+  },
+  knowledgeGaps: {
+    all: () => ["knowledge-gaps"] as const,
+    /** `scope` is `organization`, `collection:<id>` or `agent:<id>`. */
+    list: (scope: string, query: { status: string; skip: number; limit: number }) =>
+      ["knowledge-gaps", "list", scope, query] as const,
+    detail: (id: string) => ["knowledge-gaps", id] as const,
   },
   evalRuns: {
     all: () => ["eval-runs"] as const,

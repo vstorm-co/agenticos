@@ -337,7 +337,9 @@ authenticated the same way, with the organization in `?organization_id=`, it
 sends one JSON frame per successful public write in that organization —
 `resource`, `id`, `action` (`created`, `updated` or `deleted`), `surface`
 (`console`, `api_key`, `mcp` or `assistant`) and who made it — and only for rows
-the caller may read.
+the caller may read. Changes nobody wrote arrive the same way: `run` for a run
+moving through its states, and `system` for the platform's own scheduled work,
+such as a knowledge gaps grouping pass.
 
 ## Errors
 

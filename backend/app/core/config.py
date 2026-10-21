@@ -328,7 +328,7 @@ class Settings(BaseSettings):
     # A running eval run whose worker has not said it is alive, nor started or
     # finished a case, for this long lost its worker. The worker says so every
     # `EVAL_HEARTBEAT_SECONDS` while it works.
-    EVAL_ABANDONED_AFTER_MINUTES: float = 30.0
+    EVAL_ABANDONED_AFTER_MINUTES: float = 10.0
     EVAL_HEARTBEAT_SECONDS: float = 60.0
     # A queued run has no worker yet - it waits for a runner slot - so it is
     # given up on only after this long.
@@ -731,6 +731,9 @@ class Settings(BaseSettings):
     S3_RAG_SECRET_KEY: str = ""
     S3_RAG_BUCKET: str = "agenticos-rag"
     S3_RAG_REGION: str = "us-east-1"
+    # Cosine similarity, so what counts as close depends on the embedding model.
+    # Searches keep their similarity, so a change reclassifies the ones already made.
+    KNOWLEDGE_GAP_MIN_SIMILARITY: float = Field(default=0.30, ge=0.0, le=1.0)
 
     EMAIL_PROVIDER: str = "smtp"
     EMAIL_FROM: str = "noreply@agenticos.com"

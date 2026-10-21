@@ -165,11 +165,11 @@ class TestSeeding:
                 select(AppAdminAuditLog).where(
                     AppAdminAuditLog.organization_id == organization.id,
                     AppAdminAuditLog.action == "system_agent.published",
+                    AppAdminAuditLog.target_id == str(judge.id),
                 )
             )
         )
         assert entry.actor_user_id is None
-        assert entry.target_id == str(judge.id)
         assert entry.details == {
             "key": JUDGE.key,
             "model_profile_id": str(profile.id),

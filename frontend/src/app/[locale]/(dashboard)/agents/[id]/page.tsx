@@ -77,12 +77,15 @@ import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
-import { useEvalArmSpec } from "@/hooks/use-eval-runs";
+import { useEvalArmSpec, useEveryDataset } from "@/hooks/use-eval-runs";
+import { isRunnable } from "@/lib/datasets";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -150,13 +153,14 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { isSystemAgent } from "@/lib/system-agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -211,6 +215,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tGaps = useTranslations("knowledgeGaps");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
   // comparing the two versions it measured, or Build with the publish asked for.
@@ -225,6 +230,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
+    error,
     fetchedAt,
     saveDraft,
     validate,
@@ -347,10 +353,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
-  // Only the platform runs a judge - nobody chats with it, gives it tools or
-  // exposes it - so its page holds what changes how it grades, and nothing else.
+  // This caller on this agent, not their role: a grant widens what the role
+  // allows, and a role that may edit agents may still not reach this one.
+  const canEdit = agent?.can_edit === true;
+  const canPublish = agent?.can_publish === true;
+  // Duplicating creates an agent, which only the role allows - a grant on this
+  // one never does.
+  const canDuplicate = can(Perm.agentsEdit);
+  const duplicate = () =>
+    clone.mutate(id, { onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)) });
+  // Only the platform runs a system agent - nobody chats with it, gives it tools
+  // or exposes it - so its page holds what changes how it works, and nothing else.
+  const isSystem = isSystemAgent(agent?.kind);
   const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
   // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
@@ -358,17 +372,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // opens the first.
   const tabs = [
     "build",
-    ...(isJudge ? ["datasets"] : ["toolbox", "mcp", "availability"]),
+    ...(isJudge ? ["datasets"] : []),
+    ...(isSystem ? [] : ["toolbox", "mcp", "availability"]),
     "limits",
-    ...(canViewRuns && !isJudge ? ["evals"] : []),
+    ...(canViewRuns && !isSystem ? ["evals"] : []),
     "history",
+    ...(canViewRuns && !isSystem ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
+  // An eval needs a dataset this caller may run - a grant on one is enough - so
+  // the datasets are read for who may start one, and only for them.
+  const mayStartEvals = canViewRuns && !isSystem && agent?.can_run === true;
+  const { datasets: evalDatasets } = useEveryDataset({ enabled: mayStartEvals });
+  const canStartEvals = mayStartEvals && evalDatasets.some(isRunnable);
   // Testing the draft runs it - the editors' work in progress - on a dataset.
-  const canTestDraft =
-    !isJudge && canViewRuns && agent?.can_edit === true && !!agent.can_run && can(Perm.datasetsRun);
+  const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
-  useTestShortcut(canEdit && !isJudge, () => toggleTesting(!testing));
+  useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -779,6 +799,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
+  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
+  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
+  // still holds it (deleted from another tab); any other failure keeps the Builder open.
+  const gone = error instanceof ApiError && error.status === 404;
+  if (error && (!agent || gone)) {
+    return (
+      <ErrorState
+        title={t("agentUnavailable")}
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+      />
+    );
+  }
+
   if (isLoading || !spec || !agent) return <BuilderSkeleton />;
 
   const isPublished = agent.status === "published";
@@ -961,7 +995,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 instead of opening a chat that would answer as somebody else. */}
               {/* Trying it here, beside the Builder, needs nothing published: the
                 draft answers as a test (#2074). */}
-              {canEdit && !isJudge && (
+              {canEdit && !isSystem && (
                 <Button
                   variant={testing ? "secondary" : "outline"}
                   onClick={() => toggleTesting(!testing)}
@@ -974,7 +1008,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {t("testPanelOpen")}
                 </Button>
               )}
-              {!isJudge && (
+              {!isSystem && (
                 <Button
                   variant="outline"
                   onClick={openInChat}
@@ -988,7 +1022,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
-              {!isJudge && (
+              {!isSystem && (
                 <Button variant="outline" onClick={() => setMapOpen(true)}>
                   <Network className="h-4 w-4" />
                   {t("visualMap")}
@@ -1003,6 +1037,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <Download className="h-4 w-4" />
                     {t("exportYaml")}
                   </a>
+                </Button>
+              )}
+              {!canEdit && canDuplicate && !isSystem && (
+                <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
+                  <Copy className="h-4 w-4" />
+                  {t("duplicate")}
                 </Button>
               )}
               {/* Who reaches this agent, the way a document is shared: one
@@ -1040,15 +1080,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    {!isJudge && (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() =>
-                          clone.mutate(id, {
-                            onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                          })
-                        }
-                      >
+                    {canDuplicate && !isSystem && (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
                         <Copy className="h-4 w-4" />
                         <DropdownMenuItemText
                           label={t("duplicate")}
@@ -1233,7 +1266,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open={publishOpen}
           onOpenChange={setPublishOpen}
           version={nextVersion}
-          environments={isJudge ? null : environments}
+          environments={isSystem ? null : environments}
           publishing={publish.isPending}
           onConfirm={async () => {
             try {
@@ -1246,7 +1279,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          {canViewRuns && !isJudge && (
+          {canViewRuns && !isSystem && (
             <DraftEvalNote
               agentId={id}
               onTest={() => {
@@ -1352,7 +1385,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsTrigger value="build" data-tour="agent-tab-build">
               {t("build")}
             </TabsTrigger>
-            {!isJudge && (
+            {!isSystem && (
               <>
                 <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
                   {t("toolbox")}
@@ -1365,12 +1398,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               {t("limits")}
             </TabsTrigger>
-            {!isJudge && (
+            {!isSystem && (
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
                 {t("availability")}
               </TabsTrigger>
             )}
-            {canViewRuns && !isJudge && (
+            {canViewRuns && !isSystem && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
                 {t("evals")}
               </TabsTrigger>
@@ -1379,6 +1412,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {t("history")}
             </TabsTrigger>
             {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
+            {canViewRuns && !isSystem && (
+              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                {tGaps("tab")}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
@@ -1474,9 +1512,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same role-level `canEdit` every other
-              editing control on this page does. */}
-            {canEdit && !isJudge && (
+              avatar, so it hangs off the same `canEdit` every other editing
+              control on this page does. */}
+            {canEdit && !isSystem && (
               <Card>
                 <CardHeader>
                   <CardTitle>{t("discovery")}</CardTitle>
@@ -1535,7 +1573,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="toolbox" className="mt-6 space-y-6" hidden={isSystem}>
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1590,7 +1628,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isSystem}>
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -1780,7 +1818,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isSystem}>
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -1858,9 +1896,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          {canViewRuns && !isJudge && (
+          {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
-              <EvalsPanel agentId={id} canStart={agent.can_run && can(Perm.datasetsRun)} />
+              <EvalsPanel agentId={id} canStart={canStartEvals} />
             </TabsContent>
           )}
           {isJudge && (
@@ -1868,9 +1906,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
+          {canViewRuns && !isSystem && (
+            <TabsContent value="gaps" className="mt-6">
+              <div data-tour="agent-gaps">
+                <KnowledgeGapsPanel scope={{ kind: "agent", id }} />
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
-      {testing && canEdit && !isJudge && (
+      {testing && canEdit && !isSystem && (
         <TestPanel
           agentId={id}
           currentVersionId={agent.current_version_id}

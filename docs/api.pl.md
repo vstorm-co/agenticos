@@ -1,5 +1,5 @@
 ---
-source_sha: "29cf0b5c3b94"
+source_sha: "1fcff23b562a"
 ---
 
 # API HTTP { #the-http-api }
@@ -345,7 +345,10 @@ uwierzytelniony tak samo, z organizacją w `?organization_id=`, wysyła jedną r
 JSON na każdy udany zapis przez publiczne API w tej organizacji — `resource`,
 `id`, `action` (`created`, `updated` albo `deleted`), `surface` (`console`,
 `api_key`, `mcp` albo `assistant`) i kto go wykonał — i tylko o wierszach, które
-wywołujący może odczytać.
+wywołujący może odczytać. Tak samo przychodzą zmiany, których nikt nie zapisał:
+`run` dla runa przechodzącego przez kolejne stany i `system` dla pracy, którą
+platforma wykonuje sama według harmonogramu, takiej jak przejście grupujące luki
+w wiedzy.
 
 ## Błędy { #errors }
 

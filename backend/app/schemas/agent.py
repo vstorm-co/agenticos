@@ -135,8 +135,9 @@ class AgentRead(BaseSchema):
     kind: AgentKind = Field(
         default=AgentKind.AGENT,
         description=(
-            "`judge` for an agent that grades evals: only the platform runs it, and "
-            "the console lists it apart, without chat, channels or delegation."
+            "`judge` for an agent that grades evals and `drafter` for the one that "
+            "drafts a knowledge gap's missing content: only the platform runs them, and "
+            "the console lists them apart, without chat, channels or delegation."
         ),
     )
     a2a_enabled: bool = Field(
@@ -237,6 +238,16 @@ class AgentRead(BaseSchema):
             "can_run: an explicit edit grant reads true where the role-level check "
             "would say false, and a role that may edit agents reads false on one it "
             "cannot reach. Hides controls; every edit endpoint re-checks server-side."
+        ),
+    )
+    can_publish: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may publish the agent - a new version, a rollback, "
+            "its embeds, exposures and environments. Resolved per caller like "
+            "can_edit, and not the same answer: a Member edits the agents they own "
+            "but publishes none. Hides controls; every publish endpoint re-checks "
+            "server-side."
         ),
     )
     published_model: PublishedModel | None = Field(
