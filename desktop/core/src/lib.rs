@@ -113,22 +113,42 @@ pub fn pairing_link(link: &str, lan_http: bool) -> Result<Pairing, String> {
     })
 }
 
-/// What a button on a live activity asks for - the Dynamic Island, the
-/// lock screen, Android's ongoing notification - as the link it opens the app with.
+/// What a button outside the app asks for - on a live activity (the Dynamic
+/// Island, the lock screen, Android's ongoing notification) or a shortcut (the
+/// launcher, a Quick Settings tile, the Action Button) - as the link it opens
+/// the app with.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ActivityAction {
     /// Show this page of the console.
     Open(String),
     /// Approve or reject this approval, as the console's own buttons would.
     Decide { approval_id: String, approved: bool },
+    /// Open the chat and start talking to its agent.
+    Start(Mode),
 }
 
-/// Read `agenticos://activity/open?path=…` and `…/approve|reject?approval=…`.
+/// How a shortcut starts the chat: a voice call, or dictation into the composer.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Mode {
+    Call,
+    Dictate,
+}
+
+impl ActivityAction {
+    /// Whether the person must be through the app's lock first: a decision is
+    /// theirs to make, and a call or dictation opens the microphone.
+    pub fn needs_presence(&self) -> bool {
+        !matches!(self, ActivityAction::Open(_))
+    }
+}
+
+/// Read `agenticos://activity/open?path=…`, `…/approve|reject?approval=…` and
+/// `…/start?mode=call|dictate`.
 ///
 /// A path must be one of the console's own, as a notification's must
 /// (`is_console_path`): the link is text any app on the phone can fire, and
-/// all it may do is move the console within itself or ask it to decide - which
-/// it does only after the app's own lock.
+/// all it may do is move the console within itself, ask it to decide or open
+/// the chat - the last two only after the app's own lock.
 pub fn activity_link(link: &str) -> Option<ActivityAction> {
     let parsed = Url::parse(link).ok()?;
     if parsed.scheme() != DEEP_LINK_SCHEME || parsed.host_str() != Some("activity") {
@@ -149,6 +169,11 @@ pub fn activity_link(link: &str) -> Option<ActivityAction> {
             approval_id,
             approved: parsed.path() == "/approve",
         }),
+        "/start" => match value("mode").as_deref() {
+            Some("call") => Some(ActivityAction::Start(Mode::Call)),
+            Some("dictate") => Some(ActivityAction::Start(Mode::Dictate)),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -321,7 +346,7 @@ mod tests {
 
     use super::{
         activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
-        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction,
+        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction, Mode,
     };
 
     fn url(spelled: &str) -> Url {
@@ -660,8 +685,29 @@ mod tests {
     }
 
     #[test]
+    fn a_shortcut_starts_a_call_or_dictation_and_only_once_unlocked() {
+        assert_eq!(
+            activity_link("agenticos://activity/start?mode=call"),
+            Some(ActivityAction::Start(Mode::Call))
+        );
+        assert_eq!(
+            activity_link("agenticos://activity/start?mode=dictate"),
+            Some(ActivityAction::Start(Mode::Dictate))
+        );
+        assert!(ActivityAction::Start(Mode::Call).needs_presence());
+        assert!(ActivityAction::Decide {
+            approval_id: "ap1".into(),
+            approved: true
+        }
+        .needs_presence());
+        assert!(!ActivityAction::Open("/chat".into()).needs_presence());
+    }
+
+    #[test]
     fn an_activity_link_cannot_leave_the_console_or_decide_nothing() {
         for link in [
+            "agenticos://activity/start",
+            "agenticos://activity/start?mode=record",
             "agenticos://activity/open?path=https%3A%2F%2Fevil.example",
             "agenticos://activity/open?path=%2F%2Fevil.example",
             "agenticos://activity/approve",

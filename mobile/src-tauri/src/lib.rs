@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 
 use agenticos_shell_core::{
     activity_link, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
-    pairing_link, parse_server_url_with, ActivityAction, Pairing, PendingSignIn,
+    pairing_link, parse_server_url_with, ActivityAction, Mode, Pairing, PendingSignIn,
 };
 use serde::{Deserialize, Serialize};
 use tauri::webview::PageLoadEvent;
@@ -113,18 +113,26 @@ struct LockState {
     asked: Option<ActivityAction>,
 }
 
-/// A live activity's button, as the console reads it from `take_activity_action`.
+/// A live activity's button or a shortcut, as the console reads it from
+/// `take_activity_action`.
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum Asked {
     Open { path: String },
     Decide { approval_id: String, approved: bool },
+    Start { mode: &'static str },
 }
 
-/// Hand the console what was asked - except a decision while the console is
-/// locked: an approval made from the lock screen waits for the face behind it.
+/// Hand the console what was asked - except, while it is locked, what needs
+/// the person: an approval made from the lock screen, or a microphone opened
+/// from it, waits for the face behind it.
 fn take_asked(state: &mut LockState) -> Option<Asked> {
-    if state.locked && matches!(state.asked, Some(ActivityAction::Decide { .. })) {
+    if state.locked
+        && state
+            .asked
+            .as_ref()
+            .is_some_and(ActivityAction::needs_presence)
+    {
         return None;
     }
     state.asked.take().map(|action| match action {
@@ -136,6 +144,8 @@ fn take_asked(state: &mut LockState) -> Option<Asked> {
             approval_id,
             approved,
         },
+        ActivityAction::Start(Mode::Call) => Asked::Start { mode: "call" },
+        ActivityAction::Start(Mode::Dictate) => Asked::Start { mode: "dictate" },
     })
 }
 
@@ -372,15 +382,16 @@ fn take_activity_action(app: AppHandle) -> Option<Asked> {
         .and_then(|mut state| take_asked(&mut state))
 }
 
-/// A live activity's button: kept for the console, which is told to come and
-/// take it. A decision first puts the console behind the lock, if it has one, so
-/// an approval made from the lock screen is made by whoever can unlock the phone.
+/// A live activity's button or a shortcut: kept for the console, which is told
+/// to come and take it. A decision, a call or dictation first puts the console
+/// behind the lock, if it has one, so what is done from the lock screen is done
+/// by whoever can unlock the phone.
 fn on_activity(app: &AppHandle, action: ActivityAction) {
-    let deciding = matches!(action, ActivityAction::Decide { .. });
+    let needs_presence = action.needs_presence();
     if let Ok(mut state) = app.state::<Lock>().0.lock() {
         state.asked = Some(action);
     }
-    if deciding && settings(app).lock && lock(app) {
+    if needs_presence && settings(app).lock && lock(app) {
         return;
     }
     nudge(app);
@@ -489,7 +500,7 @@ pub fn run() {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use agenticos_shell_core::ActivityAction;
+    use agenticos_shell_core::{ActivityAction, Mode};
 
     use super::{shell_script, should_lock, take_asked, Asked, LockState, Settings, LOCK_AFTER};
 
@@ -510,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn a_decision_waits_for_the_lock_and_a_page_does_not() {
+    fn a_decision_or_a_microphone_waits_for_the_lock_and_a_page_does_not() {
         let decide = || ActivityAction::Decide {
             approval_id: "ap1".into(),
             approved: true,
@@ -530,6 +541,19 @@ mod tests {
             })
         );
         assert_eq!(take_asked(&mut state), None, "taken once");
+
+        state.locked = true;
+        state.asked = Some(ActivityAction::Start(Mode::Dictate));
+        assert_eq!(
+            take_asked(&mut state),
+            None,
+            "no microphone behind the lock"
+        );
+        state.locked = false;
+        assert_eq!(
+            take_asked(&mut state),
+            Some(Asked::Start { mode: "dictate" })
+        );
 
         state.locked = true;
         state.asked = Some(ActivityAction::Open("/runs".into()));

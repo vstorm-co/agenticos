@@ -59,6 +59,10 @@ Two things are versioned separately from this file and worth knowing about:
   or the queue. A decision made from the lock screen asks for Face ID or the
   fingerprint first, then goes through the same request as the queue's buttons.
   The iOS Dynamic Island half needs the Xcode project and follows.
+- **Phone shortcuts** (#2097): long-press the AgenticOS icon on Android for
+  Voice call, Dictate, Chat and Approvals, or add the "Ask AgenticOS" tile to
+  Quick Settings. A call or dictation starts once the agent's readiness is
+  known, and only after the app's lock.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.
@@ -68,6 +72,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Android app shows the AgenticOS icon**, not Tauri's default: the
+  generated launcher icons had never been copied into the Android project.
 - **The desktop app opens on the console, not on the sign-in form.** It
   opened the server's root, which sends everybody to the form, so a person
   with a perfectly good session was asked to sign in on every launch.

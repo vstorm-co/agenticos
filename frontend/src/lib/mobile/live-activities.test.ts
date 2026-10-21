@@ -40,6 +40,10 @@ describe("parseActivityAsk", () => {
       approval_id: "ap1",
       approved: false,
     });
+    expect(parseActivityAsk({ kind: "start", mode: "dictate" })).toEqual({
+      kind: "start",
+      mode: "dictate",
+    });
   });
 
   it("refuses a page outside the console and any shape it does not know", () => {
@@ -47,6 +51,7 @@ describe("parseActivityAsk", () => {
       { kind: "open", path: "https://evil.example" },
       { kind: "decide", approval_id: "ap1" },
       { kind: "delete" },
+      { kind: "start", mode: "record" },
       "open",
       undefined,
     ]) {

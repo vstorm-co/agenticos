@@ -10,6 +10,7 @@
 
 import { isConsolePath } from "@/lib/desktop/paths";
 import { invokeShell, ShellError } from "@/lib/desktop/shell";
+import type { ComposerIntent } from "@/stores/composer-intent-store";
 
 export type LiveActivityKind = "run" | "approval";
 
@@ -29,9 +30,11 @@ export interface LiveActivity {
   rejectLabel?: string;
 }
 
-/** What a live activity's button asked of the console. */
+/** What a live activity's button, or a shortcut, asked of the console. */
 export type ActivityAsk =
-  { kind: "open"; path: string } | { kind: "decide"; approval_id: string; approved: boolean };
+  | { kind: "open"; path: string }
+  | { kind: "decide"; approval_id: string; approved: boolean }
+  | { kind: "start"; mode: ComposerIntent };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -41,12 +44,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function parseActivityAsk(value: unknown): ActivityAsk | null {
   if (value === null) return null;
   if (isRecord(value)) {
-    const { kind, path, approval_id, approved } = value;
+    const { kind, path, approval_id, approved, mode } = value;
     if (kind === "open" && typeof path === "string" && isConsolePath(path)) {
       return { kind, path };
     }
     if (kind === "decide" && typeof approval_id === "string" && typeof approved === "boolean") {
       return { kind, approval_id, approved };
+    }
+    if (kind === "start" && (mode === "call" || mode === "dictate")) {
+      return { kind, mode };
     }
   }
   throw new ShellError("malformed", "an activity's action");

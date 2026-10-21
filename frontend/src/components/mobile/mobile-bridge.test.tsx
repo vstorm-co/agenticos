@@ -22,6 +22,7 @@ const env = vi.hoisted(() => ({
   end: vi.fn(async (_id: string) => {}),
   take: vi.fn(async (): Promise<unknown> => null),
   report: vi.fn(),
+  request: vi.fn(),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -35,6 +36,7 @@ vi.mock("@/hooks/use-runs", () => ({
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: env.agents }) }));
 vi.mock("@/stores", () => ({
   useAuthStore: (pick: (state: unknown) => unknown) => pick({ user: { id: "u1" } }),
+  useComposerIntentStore: (pick: (state: unknown) => unknown) => pick({ request: env.request }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
   useShellEvent: (event: string, handler: (payload: unknown) => void) =>
@@ -174,6 +176,13 @@ describe("MobileBridge", () => {
     await waitFor(() =>
       expect(env.decide.mutate).toHaveBeenCalledWith({ id: "ap1", approved: false }),
     );
+  });
+
+  it("opens the chat to start the call or dictation a shortcut asked for", async () => {
+    env.take.mockImplementation(async () => ({ kind: "start", mode: "call" }));
+    mount();
+    await waitFor(() => expect(env.push).toHaveBeenCalledWith("/chat"));
+    expect(env.request).toHaveBeenCalledWith("call");
   });
 
   it("reads nothing a person may not, and leaves refusing a decision to the server", async () => {

@@ -1,7 +1,15 @@
 "use client";
 
 import type { Mentionable } from "@/types/mention";
-import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
@@ -61,6 +69,7 @@ import {
   useOrgStore,
 } from "@/stores";
 import { useInChatScope } from "@/stores/chat-scope-context";
+import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
@@ -888,7 +897,7 @@ function ChatUI({
   // recording to a provider when one resolves, and the backend says what to
   // record for it - WAV, unless the deployment accepts compressed audio and
   // that provider takes WebM. The browser's own recognition until it answers.
-  const { status } = useDictationStatus(selectedAgentId);
+  const { status, failed: dictationStatusFailed } = useDictationStatus(selectedAgentId);
   const engine = status?.engine ?? "browser";
   // Opened by the composer's microphone button; the glow around the box reads
   // its level. With the browser engine it is a second capture (see
@@ -994,6 +1003,20 @@ function ChatUI({
     if (dictationState.phase !== "idle") cancelDictation();
     onStartCall(readiness?.transport ?? voice.call.transport ?? "webrtc");
   };
+  // A phone shortcut's "Voice call" or "Dictate" (#2097), acted on once this
+  // agent's readiness is known: started as its button would be, or dropped
+  // where the button is crossed out - which then says why.
+  const intent = useComposerIntentStore((state) => state.intent);
+  const clearIntent = useComposerIntentStore((state) => state.clear);
+  const callRequested = intent === "call" && offerCall && (readiness !== null || readinessFailed);
+  const callOnRequest = useEffectEvent(() => {
+    clearIntent();
+    if (readiness?.available && !onCall && !isProcessing && !isArchived) startCall();
+  });
+  useEffect(() => {
+    if (callRequested) callOnRequest();
+  }, [callRequested]);
+  const dictateNow = intent === "dictate" && hasAgent && (status !== null || dictationStatusFailed);
   const voiceHint = voiceFailureHint(
     { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
     tVoice,
@@ -1464,6 +1487,8 @@ function ChatUI({
                             state: dictationState,
                             actions: dictationActions,
                           }}
+                          dictateNow={dictateNow}
+                          onDictateStarted={clearIntent}
                           // Who answers first and largest: it is the most
                           // consequential choice in the composer.
                           controlsSlot={

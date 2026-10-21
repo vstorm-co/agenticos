@@ -1,4 +1,14 @@
 <resources>
     <string name="app_name">"AgenticOS"</string>
     <string name="main_activity_title">"AgenticOS"</string>
+    <!-- The launcher's shortcuts and the Quick Settings tile. -->
+    <string name="shortcut_call">Voice call</string>
+    <string name="shortcut_call_long">Call your agent</string>
+    <string name="shortcut_dictate">Dictate</string>
+    <string name="shortcut_dictate_long">Dictate a message</string>
+    <string name="shortcut_chat">Chat</string>
+    <string name="shortcut_chat_long">Open the chat</string>
+    <string name="shortcut_approvals">Approvals</string>
+    <string name="shortcut_approvals_long">Approvals waiting for you</string>
+    <string name="tile_ask">Ask AgenticOS</string>
 </resources>

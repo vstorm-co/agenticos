@@ -18,7 +18,7 @@ import {
   takeActivityAction,
   type LiveActivity,
 } from "@/lib/mobile/live-activities";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useComposerIntentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
 const APPROVALS_PATH = "/runs?tab=approvals";
@@ -33,7 +33,8 @@ const MAX_RUNS = 3;
 /**
  * The console's half of the phone app, mounted once: what is live - the
  * person's own runs in flight, the approvals waiting for them - told to the app
- * to draw outside itself, and what a button there asked, acted on here.
+ * to draw outside itself; and what a button there or a home-screen shortcut
+ * asked, acted on here.
  *
  * Every read is one a console page already makes, so the phone shows nothing the
  * console would not. A decision is made by this page's session, through the
@@ -59,6 +60,7 @@ function Bridge() {
     refetchIntervalMs: RUNNING_POLL_MS,
   });
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
+  const requestIntent = useComposerIntentStore((state) => state.request);
 
   const live = useMemo<LiveActivity[]>(() => {
     const names = new Map(agents.map((agent) => [agent.id, agent.name]));
@@ -124,6 +126,10 @@ function Bridge() {
         // arrived yet, and a decision taken then would be dropped. The server
         // refuses one this person may not make, and the refusal is its toast.
         if (ask?.kind === "decide") decide.mutate({ id: ask.approval_id, approved: ask.approved });
+        if (ask?.kind === "start") {
+          requestIntent(ask.mode);
+          router.push("/chat");
+        }
       })
       .catch((error: unknown) => reportShellFailure("could not read an activity's action", error));
   };

@@ -11,6 +11,7 @@ import {
   useAgentSelectionStore,
   useAuthStore,
   useChatStore,
+  useComposerIntentStore,
   useConversationStore,
   useOrgStore,
 } from "@/stores";
@@ -46,6 +47,8 @@ const dictation = vi.hoisted(() => ({
   inserted: false,
   /** The recorder's cancel, one for every render, as the hook's own is. */
   cancel: vi.fn(),
+  /** The recorder's start, which the microphone - or a shortcut - presses. */
+  start: vi.fn(),
   /** The format the container last handed the recorder. */
   format: undefined as string | undefined,
   /** Where the container last told the recorder to send a recording. */
@@ -80,7 +83,7 @@ vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
         inserted: dictation.inserted,
       },
       actions: {
-        start: vi.fn(),
+        start: dictation.start,
         stop: vi.fn(),
         cancel: dictation.cancel,
         retry: vi.fn(),
@@ -274,6 +277,7 @@ beforeEach(() => {
   });
   useOrgStore.setState({ activeOrgId: "org-1" });
   useAgentSelectionStore.setState({ selectedAgentId: null });
+  useComposerIntentStore.setState({ intent: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   voiceCall.call = initialCall;
@@ -578,6 +582,15 @@ describe("the chat container - server dictation", () => {
     await waitFor(() => expect(mic).not.toHaveAttribute("aria-disabled"));
   });
 
+  it("starts dictating once when a phone shortcut asked, as soon as the engine is known", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "dictate" });
+    mount();
+
+    await waitFor(() => expect(dictation.start).toHaveBeenCalledOnce());
+    expect(useComposerIntentStore.getState().intent).toBeNull();
+  });
+
   it("dictates in the browser for an agent whose switch is off or has no provider", async () => {
     readiness.current = { ...readiness.current, engine: "browser", requested: false };
     dictation.phase = "transcribing";
@@ -693,6 +706,28 @@ describe("the chat container - a voice call (#54)", () => {
       conversationId: "c-a",
       transport: "webrtc",
     });
+  });
+
+  it("starts the call a phone shortcut asked for once the agent can take one", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "call" });
+    mount();
+    await waitFor(() => expect(voiceCall.start).toHaveBeenCalledOnce());
+    expect(useComposerIntentStore.getState().intent).toBeNull();
+  });
+
+  it("drops a shortcut's call the agent cannot take, leaving the button to say why", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "call" });
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /\/voice$/.test(url)
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_key" })
+        : base(url),
+    );
+    mount();
+    await waitFor(() => expect(useComposerIntentStore.getState().intent).toBeNull());
+    expect(voiceCall.start).not.toHaveBeenCalled();
   });
 
   it("crosses the button out, with the reason, for an agent whose voice cannot take a call", async () => {

@@ -1,0 +1,11 @@
+<resources>
+    <string name="shortcut_call">Anruf</string>
+    <string name="shortcut_call_long">Agent anrufen</string>
+    <string name="shortcut_dictate">Diktieren</string>
+    <string name="shortcut_dictate_long">Nachricht diktieren</string>
+    <string name="shortcut_chat">Chat</string>
+    <string name="shortcut_chat_long">Chat öffnen</string>
+    <string name="shortcut_approvals">Freigaben</string>
+    <string name="shortcut_approvals_long">Freigaben, die auf dich warten</string>
+    <string name="tile_ask">AgenticOS fragen</string>
+</resources>

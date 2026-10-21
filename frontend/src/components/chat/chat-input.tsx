@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
@@ -172,6 +180,13 @@ interface ChatInputProps {
    */
   dictation?: ComposerDictation;
   /**
+   * Start dictating as if the microphone were pressed - a phone shortcut's
+   * "Dictate" (#2097), set once the agent's engine is known. `onDictateStarted`
+   * hears that it was taken, so it is taken once.
+   */
+  dictateNow?: boolean;
+  onDictateStarted?: () => void;
+  /**
    * Hears when the browser's own recognition starts listening, with how to stop
    * it, and when it stops - for the page's dictation pill (#54).
    */
@@ -217,6 +232,8 @@ export function ChatInput({
   onProject,
   actionsSlot,
   dictation,
+  dictateNow = false,
+  onDictateStarted,
   onListeningChange,
   incoming = null,
   agentId = null,
@@ -578,6 +595,22 @@ export function ChatInput({
     setIsListening(true);
     finalTranscript = message;
   }, [isListening, message, mic]);
+
+  // A shortcut's "Dictate": the microphone pressed for the person, once - the
+  // caret taken as the request arrives, the recording started after. The
+  // server's engine only: a phone's webview has no speech recognition of its
+  // own, and that is where the shortcut lives.
+  const startsDictating = dictateNow && server !== null && !disabled;
+  if (useChanged(startsDictating) && startsDictating) {
+    setCaret({ from: message.length, to: message.length, text: message });
+  }
+  const dictateOnRequest = useEffectEvent(() => {
+    onDictateStarted?.();
+    if (startsDictating) void server.actions.start();
+  });
+  useEffect(() => {
+    if (dictateNow) dictateOnRequest();
+  }, [dictateNow]);
 
   // File upload to backend - shared by the file picker, drag-and-drop and paste.
   const uploadFiles = useCallback(
