@@ -175,15 +175,15 @@ Writing a hundred good cases by hand is why most teams have none. The
 **Generated** tab on a dataset's page, shown to members who may edit the
 dataset, asks the case generator to draft them, and you decide which ones the
 dataset keeps. Choose the agent the cases test, the
-sources to draft from, and how many cases you want - at most 50, shared evenly
-across the sources:
+sources to draft from, and how many cases you want - at most 50 and at least one
+per source, shared evenly across the sources:
 
 | Source | What the generator drafts | What it is shown |
 |---|---|---|
-| From the agent | Typical requests and edge cases, with the calls a good answer makes to tools that change something - a tool that only reads is never expected, as in a case added from an answer | The agent's instructions, its skills and its tools, under the names the agent gives them |
+| From the agent | Typical requests and edge cases, with the calls a good answer makes to tools that change something - a tool that only reads is never expected, as in a case added from an answer | The agent's instructions, those of its skills you can view, and its tools, under the names the agent gives them |
 | From knowledge | Questions its knowledge base answers. Each case links to the document its passage came from, keeps the passage as the reference answer, and carries a `judge` check that the answer agrees with the passage | Passages from up to 12 indexed documents of the knowledge bases the agent uses and you can read |
 | From chats | Paraphrases and harder variants of what people asked the agent, rated-down answers first. Each case links to the question it varies | Up to 60 questions people asked the agent in this organization, with the comment left on a rated-down answer. Production traffic only: eval runs and runs that ran isolated answered a test, not a person, and are left out |
-| Red team | Out-of-scope requests, prompt injections, attempts to extract personal data and attempts to get around the agent's policies. Each case is tagged `red-team` and `red-team:<category>` and carries a `judge` check that the agent refuses | The agent's instructions, skills and tools |
+| Red team | Out-of-scope requests, prompt injections, attempts to extract personal data and attempts to get around the agent's policies. Each case is tagged `red-team` and `red-team:<category>` and carries a `judge` check that the agent refuses | The agent's instructions, those of its skills you can view, and its tools |
 
 **The estimated cost comes first.** The dialog shows how many cases each source
 will be asked for, how much each has to draft from, and an estimate of the

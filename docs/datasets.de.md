@@ -1,5 +1,5 @@
 ---
-source_sha: "a99231554545"
+source_sha: "5b4ba5d2602d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -197,14 +197,15 @@ Hundert gute Fälle von Hand zu schreiben ist der Grund, warum die meisten Teams
 keine haben. Der Tab **Generiert** auf der Seite eines Datasets, sichtbar für
 Mitglieder, die das Dataset bearbeiten dürfen, bittet den Fallgenerator, sie zu entwerfen, und Sie entscheiden, welche das Dataset behält.
 Wählen Sie den Agent, den die Fälle testen, die Quellen und wie viele Fälle Sie
-möchten - höchstens 50, gleichmäßig auf die Quellen verteilt:
+möchten - höchstens 50 und mindestens einen je Quelle, gleichmäßig auf die
+Quellen verteilt:
 
 | Quelle | Was der Generator entwirft | Was er gezeigt bekommt |
 |---|---|---|
-| Vom Agent | Typische Anfragen und Grenzfälle, mit den Aufrufen von Tools, die etwas ändern, die eine gute Antwort macht - ein Tool, das nur liest, wird nie erwartet, wie bei einem Fall, der aus einer Antwort hinzugefügt wird | Die Anweisungen des Agents, seine Skills und seine Tools, unter den Namen, die der Agent ihnen gibt |
+| Vom Agent | Typische Anfragen und Grenzfälle, mit den Aufrufen von Tools, die etwas ändern, die eine gute Antwort macht - ein Tool, das nur liest, wird nie erwartet, wie bei einem Fall, der aus einer Antwort hinzugefügt wird | Die Anweisungen des Agents, die seiner Skills, die Sie sehen dürfen, und seine Tools, unter den Namen, die der Agent ihnen gibt |
 | Aus dem Wissen | Fragen, die seine Wissensbasis beantwortet. Jeder Fall verweist auf das Dokument, aus dem sein Abschnitt stammt, behält den Abschnitt als Referenzantwort und trägt eine `judge`-Prüfung, dass die Antwort zum Abschnitt passt | Abschnitte aus höchstens 12 indexierten Dokumenten der Wissensbasen, die der Agent nutzt und die Sie lesen dürfen |
 | Aus Chats | Umformulierungen und schwierigere Varianten dessen, was Menschen den Agent gefragt haben, negativ bewertete Antworten zuerst. Jeder Fall verweist auf die Frage, die er abwandelt | Höchstens 60 Fragen, die dem Agent in dieser Organisation gestellt wurden, mit dem Kommentar zu einer negativ bewerteten Antwort. Nur Betriebsverkehr: Eval-Runs und isoliert gelaufene Runs haben auf einen Test geantwortet, nicht auf einen Menschen, und bleiben außen vor |
-| Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, seine Skills und seine Tools |
+| Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, die seiner Skills, die Sie sehen dürfen, und seine Tools |
 
 **Zuerst die geschätzten Kosten.** Der Dialog zeigt, wie viele Fälle jede Quelle
 liefern soll, woraus jede schöpft und eine Schätzung der Kosten, bevor etwas

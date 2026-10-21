@@ -1,5 +1,5 @@
 ---
-source_sha: "a99231554545"
+source_sha: "5b4ba5d2602d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -183,14 +183,15 @@ Napisanie stu dobrych przypadków ręcznie to powód, dla którego większość
 zespołów nie ma żadnych. Zakładka **Wygenerowane** na stronie datasetu,
 widoczna dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
 datasetu. Wybierz agenta, którego przypadki testują, źródła i liczbę
-przypadków - najwyżej 50, dzielonych po równo między źródła:
+przypadków - najwyżej 50 i co najmniej jeden na źródło, dzielonych po równo
+między źródła:
 
 | Źródło | Co przygotowuje generator | Co dostaje |
 |---|---|---|
-| Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które coś zmieniają, wykonywanymi przez dobrą odpowiedź - narzędzie, które tylko czyta, nigdy nie jest oczekiwane, tak jak w przypadku dodanym z odpowiedzi | Instrukcje agenta, jego skille i narzędzia, pod nazwami, które nadaje im agent |
+| Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które coś zmieniają, wykonywanymi przez dobrą odpowiedź - narzędzie, które tylko czyta, nigdy nie jest oczekiwane, tak jak w przypadku dodanym z odpowiedzi | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia, pod nazwami, które nadaje im agent |
 | Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
 | Z czatów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy eval i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
-| Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, jego skille i narzędzia |
+| Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia |
 
 **Najpierw szacowany koszt.** Okno pokazuje, o ile przypadków zostanie
 poproszone każde źródło, z ilu materiałów każde korzysta, i szacunek kosztu,
