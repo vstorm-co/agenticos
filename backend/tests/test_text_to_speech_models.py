@@ -6,8 +6,6 @@ than one that is absent; the rest are about the price a budget is checked agains
 which is the number that stops a run.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import replace
 from datetime import date

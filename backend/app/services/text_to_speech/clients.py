@@ -11,8 +11,6 @@ at the point it is received and is never put in the exception: it is not text th
 repository controls, and it reaches a chat.
 """
 
-from __future__ import annotations
-
 import base64
 import binascii
 import logging
@@ -201,7 +199,7 @@ def _gemini_audio(call: SpeechCall, response: httpx.Response) -> bytes:
             if content.get("type") == "audio"
         ]
         audio = base64.b64decode(blocks[-1], validate=True)
-    except (ValueError, KeyError, IndexError, AttributeError, TypeError, binascii.Error):
+    except ValueError, KeyError, IndexError, AttributeError, TypeError, binascii.Error:
         logger.warning("Gemini returned no audio for model %s", call.model, exc_info=True)
         raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=call.provider) from None
     return _audio(call, audio)
