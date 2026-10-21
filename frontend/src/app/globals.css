@@ -2527,12 +2527,12 @@ body .tour-spotlight {
 }
 /* The agent's message while it is spoken: a rule in the agent's colours. */
 .voice-live-rule {
-  background: linear-gradient(180deg, #a259ff, #4d7cff) left / 2px 100% no-repeat;
+  background: linear-gradient(var(--color-border), var(--color-border)) left / 2px 100% no-repeat;
   padding-left: 10px;
 }
 /* The agent's step in the stepped level meter. */
 .voice-meter-agent {
-  background: #4d7cff;
+  background: var(--color-muted-foreground);
 }
 /* A control the AI Architect pointed at (#2063): a ring that pulses three times
    and is gone, so the reader's eye lands on it without a coach mark to dismiss. */

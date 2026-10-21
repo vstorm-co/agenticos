@@ -34,6 +34,28 @@ describe("VoiceCaptions", () => {
     expect(visible.querySelector(".lucide-bot")).toBeNull();
   });
 
+  it("hands each turn to the page that draws it as its saved message", () => {
+    // `/chat` draws a spoken turn as the message it becomes, so nothing jumps
+    // when the saved one takes its place.
+    render(
+      <VoiceCaptions
+        agentName="Support"
+        hidden={new Set(["t0"])}
+        captions={[
+          { turnId: "t0", part: 0, role: "user", text: "Saved already", final: true },
+          { turnId: "t1", part: 0, role: "assistant", text: "Sunny", final: false },
+          { turnId: "t1", part: 1, role: "assistant", text: "today", final: false },
+        ]}
+        renderTurn={(turn) => (
+          <p data-testid="page-turn">{`${turn.role}:${turn.text}:${String(turn.live)}`}</p>
+        )}
+      />,
+    );
+    expect(screen.getAllByTestId("page-turn").map((node) => node.textContent)).toEqual([
+      "assistant:Sunny today:true",
+    ]);
+  });
+
   it("shows the words to sighted readers and announces whole sentences to screen readers", () => {
     render(
       <VoiceCaptions

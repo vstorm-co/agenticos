@@ -23,7 +23,7 @@ import {
 } from "./voice-approval-card";
 import type { VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallSummary } from "./voice-call-summary";
-import { VoiceCaptions } from "./voice-captions";
+import { VoiceCaptions, type LiveTurn } from "./voice-captions";
 
 export { callActive, useVoiceCallHint, VoiceCallBar } from "./voice-call-bar";
 
@@ -69,6 +69,7 @@ export function VoiceCallFeed({
   callerAvatar,
   agentAvatar,
   endingCopy,
+  renderTurn,
 }: {
   session: VoiceSession;
   agentName: string;
@@ -83,6 +84,8 @@ export function VoiceCallFeed({
   agentAvatar?: ReactNode;
   /** How the call's end is put, when not in the console's `chat.voice` words. */
   endingCopy?: VoiceEndingCopy;
+  /** How a turn is drawn while it is spoken - see `VoiceCaptions`. */
+  renderTurn?: (turn: LiveTurn) => ReactNode;
 }) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
@@ -102,6 +105,7 @@ export function VoiceCallFeed({
         speaking={live}
         callerAvatar={callerAvatar}
         agentAvatar={agentAvatar}
+        renderTurn={renderTurn}
       />
       {live && view === "thinking" && (
         <AgentRow>

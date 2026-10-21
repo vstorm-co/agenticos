@@ -12,7 +12,7 @@ import { useAuthStore } from "@/stores";
 import type { Agent } from "@/types/agents";
 
 /** One turn on screen: its parts' words together, live until every part is final. */
-interface LiveTurn {
+export interface LiveTurn {
   turnId: string;
   role: Caption["role"];
   text: string;
@@ -99,6 +99,7 @@ export function VoiceCaptions({
   speaking = true,
   callerAvatar,
   agentAvatar,
+  renderTurn,
 }: {
   captions: readonly Caption[];
   agentName: string;
@@ -114,6 +115,12 @@ export function VoiceCaptions({
   callerAvatar?: ReactNode;
   /** The agent's face, in place of `agent`'s avatar, for the same reason. */
   agentAvatar?: ReactNode;
+  /**
+   * How a page draws a turn as it is spoken: `/chat` draws it as the very
+   * message it becomes once saved, so nothing moves or changes colour when
+   * the saved one takes its place.
+   */
+  renderTurn?: (turn: LiveTurn) => ReactNode;
 }) {
   const t = useTranslations("chat.voice.captions");
   const user = useAuthStore((state) => state.user);
@@ -127,7 +134,9 @@ export function VoiceCaptions({
     <div className="relative">
       <div data-testid="voice-captions-visible" aria-hidden="true">
         {turns(captions, hidden, speaking).map((turn) =>
-          turn.role === "user" ? (
+          renderTurn ? (
+            <div key={turn.turnId}>{renderTurn(turn)}</div>
+          ) : turn.role === "user" ? (
             <div key={turn.turnId} className="flex flex-row-reverse gap-2 py-3 sm:gap-4">
               <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9">
                 {callerAvatar ??

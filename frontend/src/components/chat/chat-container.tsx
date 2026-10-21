@@ -86,6 +86,7 @@ import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
 import { AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { MessageItem } from "./message-item";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
@@ -1006,6 +1007,9 @@ function ChatUI({
   const delegatingAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { user: authUser } = useAuthStore();
   const callAgent = knownAgents.find((agent) => agent.id === selectedAgentId);
+  // A spoken turn's time until its saved message brings its own. Captions
+  // arrive only once the call is live, which is when it has a start.
+  const callStartedAt = useMemo(() => new Date(voice.call.startedAt ?? 0), [voice.call.startedAt]);
   // The turns the transcript already holds, so a call's live caption is not drawn beside its saved message.
   const savedTurns = useMemo(
     () => new Set(messages.flatMap((message) => (message.turnId ? [message.turnId] : []))),
@@ -1181,6 +1185,23 @@ function ChatUI({
               hidden={savedTurns}
               onCallAgain={startCall}
               onContinueInText={endForText}
+              // As the message it becomes once saved, so the saved one takes its
+              // place without the turn moving, restyling or changing colour.
+              renderTurn={(turn) => (
+                <MessageItem
+                  message={{
+                    id: `voice-${turn.turnId}`,
+                    role: turn.role === "user" ? "user" : "assistant",
+                    content: turn.text,
+                    timestamp: callStartedAt,
+                    turnId: turn.turnId,
+                    agentId: turn.role === "user" ? undefined : callAgent?.id,
+                    isStreaming: turn.role !== "user" && turn.live,
+                  }}
+                  agent={turn.role === "user" ? undefined : callAgent}
+                  agents={knownAgents}
+                />
+              )}
             />
           </div>
         </div>
