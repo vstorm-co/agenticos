@@ -85,8 +85,9 @@ Whose mistake decides the shape (`capabilities/_failures.py`):
 | Failure | Answer |
 |---|---|
 | Empty text, text over `max_characters`, text the provider refuses | `steer` - the model can fix its call |
+| A voice the model chose that the provider does not know | `steer` - the model picked it, so the model can pick another |
 | Provider rate limiting or unavailable | `steer` - transient, worth one more try |
-| Key refused, voice or model unknown | Returned - only the author or the operator can fix it |
+| Key refused, the usual voice or the model unknown | Returned - only the author or the operator can fix it |
 | Budget spent | Returned - a refusal, never a retry |
 
 The provider's own error text is logged where it is received and never reaches

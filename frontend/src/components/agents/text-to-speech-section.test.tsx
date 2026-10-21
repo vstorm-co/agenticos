@@ -475,6 +475,32 @@ describe("the other voices the agent may choose", () => {
     });
   });
 
+  it("takes the voice a new model speaks in by default out of the others", async () => {
+    // `tts-1` has no Marin, so its usual voice becomes its first: Alloy.
+    const onChange = mount({
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      voice: "marin",
+      voices: [{ id: "alloy" }],
+    });
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /TTS-1/ }));
+
+    expect(onChange.mock.lastCall?.[0].config).toEqual({ provider: "openai", model: "tts-1" });
+  });
+
+  it("lists what publish refused about a ticked voice, which has no row to mark", () => {
+    mount({ provider: "openai", model: "gpt-4o-mini-tts", voices: [{ id: "alloy" }] }, DEFINITION, [
+      {
+        field: "capabilities.text_to_speech.config.voices.0.id",
+        message: "This voice is listed already.",
+      },
+    ]);
+
+    expect(screen.getByText("This voice is listed already.")).toBeInTheDocument();
+  });
+
   it("says what publish refused about the list", () => {
     mount({ provider: "openai", model: "gpt-4o-mini-tts" }, DEFINITION, [
       {
@@ -503,12 +529,27 @@ describe("the other voices the agent may choose", () => {
   });
 
   it("keeps the voices the next model still speaks in, and drops the rest", async () => {
-    // `tts-1` has Alloy but not Marin, so only Alloy can stay on offer.
+    // `tts-1` here has Alloy and Echo but not Marin, so only Echo can stay on offer
+    // beside the usual Alloy.
+    const echo = { id: "echo", name: "Echo", description: "" };
+    providers.mockReturnValue({
+      providers: [
+        {
+          ...OPENAI,
+          models: OPENAI.models.map((model) =>
+            model.id === "tts-1" ? { ...model, voices: [...model.voices, echo] } : model,
+          ),
+        },
+        ELEVENLABS,
+      ],
+      isLoading: false,
+      isError: false,
+    });
     const onChange = mount({
       provider: "openai",
       model: "gpt-4o-mini-tts",
       voice: "alloy",
-      voices: [{ id: "marin" }, { id: "alloy" }, "junk"],
+      voices: [{ id: "marin" }, { id: "echo" }, "junk"],
     });
 
     await userEvent.click(screen.getByLabelText("Model"));
@@ -518,7 +559,7 @@ describe("the other voices the agent may choose", () => {
       provider: "openai",
       model: "tts-1",
       voice: "alloy",
-      voices: [{ id: "alloy" }],
+      voices: [{ id: "echo" }],
     });
   });
 

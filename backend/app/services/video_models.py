@@ -21,7 +21,10 @@ call asking for a length the model refuses is a call that fails mid-run.
 
 **Prices are per second and per resolution, and dated.** Every provider here
 bills a second of video, at a rate that rises with the resolution; token-billed
-models are listed at the per-second figure their own pricing converts to. A
+models are listed at the per-second figure their own pricing converts to. Sound
+has no price of its own: where a model makes it optional and the agent may turn
+it on per clip, the row has to be the rate with sound, so the estimate a budget
+is asked with stays an upper bound. A
 price carries the day it applies from - the day it was read off the provider's
 price list, where the provider states none - so a scheduled change lands on its
 date.

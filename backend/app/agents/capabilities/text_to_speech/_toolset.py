@@ -22,8 +22,9 @@ check reserves nothing.
 
 **Whose mistake decides the shape of a failure** (`_failures.py`). A text that is
 empty, too long or refused by the provider is the model's to fix, so it is
-steered. A provider that is down or rate limiting is transient, also steered. A
-refused key, an unknown voice and a spent budget are nobody the model can fix -
+steered, and so is a voice it chose that the provider does not know. A provider
+that is down or rate limiting is transient, also steered. A refused key, an
+unknown usual voice or model and a spent budget are nobody the model can fix -
 they are the author's or the operator's - so they are returned as the result.
 """
 
@@ -107,9 +108,9 @@ def build_speech_toolset(
 ) -> FunctionToolset[AgentDeps]:
     """A `generate_speech` tool bound to one provider, model and key.
 
-    Everything the model must not choose is closed over. It chooses the words,
-    one of the voices the author offered, and - where the model reads one - a
-    direction on how to say them.
+    Everything the model must not choose is closed over. It chooses the words, a
+    voice among those allowed - or, with `voices` of `None`, any id in the
+    account - and, where the model reads one, a direction on how to say them.
     """
     ledger_name = f"{provider}:{model}"
     usual_voice = voice
@@ -216,6 +217,14 @@ def build_speech_toolset(
                     return (
                         "Not spoken: the speech provider refused this agent's API key. Its "
                         "author needs to replace the key in the vault."
+                    )
+                case SpeechFailure.NOT_FOUND if speaker != usual_voice:
+                    # A voice the model chose - an id it made up, on a binding that
+                    # leaves the account's voices open - is the model's to fix.
+                    return steer(
+                        ctx,
+                        f"The speech provider has no voice {speaker!r}. Use a voice id the user "
+                        "gave you, or leave `voice` out to speak in the usual one.",
                     )
                 case SpeechFailure.NOT_FOUND:
                     return (

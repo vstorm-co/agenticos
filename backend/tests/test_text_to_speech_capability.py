@@ -193,7 +193,7 @@ class TestConfiguration:
                     "voice": "abc123",
                     "voices": [{"id": "def456", "note": "Anna"}, {"id": " def456", "note": "Igor"}],
                 },
-                "listed once",
+                "listed already",
             ),
             (
                 {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},
@@ -218,6 +218,22 @@ class TestConfiguration:
     def test_a_choice_the_provider_would_refuse_is_refused_here(self, config, says):
         with pytest.raises(ValidationError, match=says):
             TextToSpeechConfig(**config)
+
+    def test_a_refused_voice_is_named_at_its_own_row(self):
+        """The Builder marks the row a refusal names; a model validator's own
+        error has no location, so it could mark none."""
+        with pytest.raises(ValidationError) as refused:
+            TextToSpeechConfig(
+                provider="elevenlabs",
+                model="eleven_v4",
+                voice="n1",
+                voices=[{"id": "good1"}, {"id": "a b"}, {"id": "good1"}],
+            )
+
+        assert [(error["loc"], error["msg"]) for error in refused.value.errors()] == [
+            (("voices", 1, "id"), "'a b' is not a voice id: letters, digits, '-' and '_' only."),
+            (("voices", 2, "id"), "This voice is listed already."),
+        ]
 
     def test_with_no_voices_listed_every_voice_of_the_model_is_offered(self):
         config = TextToSpeechConfig(provider="openai", model="tts-1", voice="echo")
@@ -461,6 +477,25 @@ class TestAnyAccountVoice:
         await _speak(_toolset(voices=None), _ctx(uuid4()), voice=" villain2 ")
 
         assert synthesis.calls[0]["voice"] == "villain2"
+
+    async def test_an_id_the_account_does_not_have_is_the_models_to_fix(self, synthesis):
+        """The model chose it, so the model is steered - not told the author's
+        settings are wrong, which the usual voice shows they are not."""
+        synthesis.error = SpeechProviderError(
+            SpeechFailure.NOT_FOUND, provider="elevenlabs", status=404
+        )
+
+        with pytest.raises(ModelRetry, match="no voice 'Rachel'"):
+            await _speak(_toolset(voices=None), _ctx(uuid4()), voice="Rachel")
+
+    async def test_the_usual_voice_unknown_is_still_the_authors_to_fix(self, synthesis):
+        synthesis.error = SpeechProviderError(
+            SpeechFailure.NOT_FOUND, provider="elevenlabs", status=404
+        )
+
+        result = await _speak(_toolset(voices=None), _ctx(uuid4()))
+
+        assert "Its author needs to choose another" in result
 
     async def test_something_that_is_not_an_id_is_steered(self, synthesis):
         with pytest.raises(ModelRetry, match="voice id from the account"):

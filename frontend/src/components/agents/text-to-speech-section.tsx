@@ -108,9 +108,12 @@ export function TextToSpeechSection({
     const sameProvider = patch.provider === undefined;
     const accountVoices = next.current?.account_voices === true;
     const keepVoice = sameProvider && (accountVoices || offered.includes(storedVoice));
+    // The voice the new model will speak in leaves the others, where it would be
+    // hidden - the same reason choosing it by hand takes it out.
+    const nextUsual = keepVoice && storedVoice !== "" ? storedVoice : offered[0];
     const others = sameProvider
       ? storedVoices(binding.config.voices).filter(
-          (entry) => accountVoices || offered.includes(entry.id),
+          (entry) => (accountVoices || offered.includes(entry.id)) && entry.id !== nextUsual,
         )
       : [];
     const kept = Object.fromEntries(

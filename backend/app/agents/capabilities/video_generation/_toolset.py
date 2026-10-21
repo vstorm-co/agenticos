@@ -64,14 +64,15 @@ MAX_FRAME_BYTES = 10 * 1024 * 1024
 
 @dataclass(frozen=True)
 class VideoSettings:
-    """What the binding decided, which the model does not choose."""
+    """What the binding decided: the defaults a clip gets, and the limits on what
+    the model may ask for instead."""
 
     provider: str
     model: str
     resolution: str
     resolutions: tuple[str, ...]
-    """What the model may ask for, shortest first; `resolution` alone where the
-    author allowed no other."""
+    """What the model may ask for, shortest first: every resolution up to the
+    binding's highest, or every one the model renders where it sets none."""
 
     aspect_ratio: str
     aspect_ratios: tuple[str, ...]
@@ -174,7 +175,7 @@ async def _read_frame(ctx: RunContext[AgentDeps], source: str) -> FirstFrame | s
 def build_video_toolset(
     settings: VideoSettings, *, api_key: str | None
 ) -> FunctionToolset[AgentDeps]:
-    """A `generate_video` tool bound to one provider, model, resolution and key.
+    """A `generate_video` tool bound to one provider, model and key.
 
     The model chooses what the clip shows and, within the binding's limits, how
     long it runs, its shape, its resolution, and the image it starts from.

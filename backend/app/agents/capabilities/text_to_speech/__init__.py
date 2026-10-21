@@ -2,7 +2,8 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -128,13 +129,9 @@ class TextToSpeechConfig(BaseModel):
             raise ValueError(
                 f"{entry.name} voices belong to your account: name one by its voice id."
             )
-        for voice in [self.voice, *(choice.id for choice in self.voices)]:
-            if voice is not None:
-                _check_voice(entry, model, voice)
-        others = [choice.id.strip() for choice in self.voices]
-        if len(others) != len(set(others)):
-            # Two notes for one voice would leave the agent reading only the last.
-            raise ValueError("Each other voice may be listed once.")
+        if self.voice is not None and (problem := _voice_problem(entry, model, self.voice)):
+            raise ValueError(problem)
+        _refuse_listed_voices(entry, model, self.voices)
         if self.output_format is not None and self.output_format not in entry.formats:
             raise ValueError(
                 f"{entry.name} returns {', '.join(entry.formats)}, not {self.output_format}."
@@ -191,14 +188,46 @@ class TextToSpeechConfig(BaseModel):
         return self.output_format or self.offering().formats[0]
 
 
-def _check_voice(entry: TextToSpeechProvider, model: SpeechModel, voice: str) -> None:
-    """Refuse a voice the provider would refuse: not an id, or not the model's."""
+def _voice_problem(entry: TextToSpeechProvider, model: SpeechModel, voice: str) -> str | None:
+    """Why the provider would refuse a voice - not an id, or not the model's - or None."""
     if entry.account_voices:
         if not ACCOUNT_VOICE_ID.fullmatch(voice.strip()):
-            raise ValueError(f"{voice!r} is not a voice id: letters, digits, '-' and '_' only.")
-    elif voice not in {offered.id for offered in entry.voices_for(model)}:
-        voices = ", ".join(offered.id for offered in entry.voices_for(model))
-        raise ValueError(f"{model.id} has no voice {voice!r}. Offered: {voices}.")
+            return f"{voice!r} is not a voice id: letters, digits, '-' and '_' only."
+        return None
+    offered = [voice.id for voice in entry.voices_for(model)]
+    if voice not in offered:
+        return f"{model.id} has no voice {voice!r}. Offered: {', '.join(offered)}."
+    return None
+
+
+def _refuse_listed_voices(
+    entry: TextToSpeechProvider, model: SpeechModel, voices: list[VoiceChoice]
+) -> None:
+    """Refuse the allowed voices row by row, each at its own `voices.N.id`.
+
+    A model validator's own error has no location, so the Builder could mark no
+    row and the publish refusal read only "Invalid configuration". Raised as a
+    `ValidationError` located at the row, every bad row is named at once.
+    """
+    errors: list[InitErrorDetails] = []
+    seen: set[str] = set()
+    for index, choice in enumerate(voices):
+        voice = choice.id.strip()
+        # Two notes for one voice would leave the agent reading only the last.
+        problem = _voice_problem(entry, model, choice.id) or (
+            "This voice is listed already." if voice in seen else None
+        )
+        seen.add(voice)
+        if problem is not None:
+            errors.append(
+                InitErrorDetails(
+                    type=PydanticCustomError("voice", "{problem}", {"problem": problem}),
+                    loc=("voices", index, "id"),
+                    input=choice.id,
+                )
+            )
+    if errors:
+        raise ValidationError.from_exception_data("TextToSpeechConfig", errors)
 
 
 @register(

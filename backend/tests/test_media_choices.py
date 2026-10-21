@@ -1,4 +1,5 @@
-"""What a media tool offers the model: the author's choices as an enum, or nothing.
+"""What a media tool offers the model: the author's choices as an enum, an open
+choice with its usual value named, or nothing.
 
 `offer_choices` rewrites a tool's generated schema, and a schema is prompt - so
 these pin that a choice narrows a parameter rather than describing it, that a

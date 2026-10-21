@@ -47,7 +47,7 @@ interface SpeechVoiceChoicesProps {
    * `voices.0.id`. Drawn here because the generated form, which shows the rest,
    * leaves this field to this control.
    */
-  errors?: Readonly<Record<string, string>>;
+  errors: Readonly<Record<string, string>>;
   disabled?: boolean;
   onChange: (voices: VoiceChoice[]) => void;
 }
@@ -103,7 +103,16 @@ export function SpeechVoiceChoices({
             })}
         </div>
       )}
-      {errors?.voices !== undefined && <p className="text-destructive text-xs">{errors.voices}</p>}
+      {errors.voices !== undefined && <p className="text-destructive text-xs">{errors.voices}</p>}
+      {/* Ticked voices have no row to mark, so what publish said about one is listed here. */}
+      {!provider.account_voices &&
+        Object.entries(errors)
+          .filter(([path]) => path.startsWith("voices."))
+          .map(([path, message]) => (
+            <p key={path} className="text-destructive text-xs">
+              {message}
+            </p>
+          ))}
       {value.length === 0 && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
@@ -128,7 +137,7 @@ function AccountVoices({
   onChange,
 }: {
   value: VoiceChoice[];
-  errors?: Readonly<Record<string, string>>;
+  errors: Readonly<Record<string, string>>;
   disabled?: boolean;
   onChange: (voices: VoiceChoice[]) => void;
 }) {
@@ -139,8 +148,8 @@ function AccountVoices({
   return (
     <div className="space-y-2">
       {value.map((entry, index) => {
-        const idError = errors?.[`voices.${index}.id`];
-        const noteError = errors?.[`voices.${index}.note`];
+        const idError = errors[`voices.${index}.id`];
+        const noteError = errors[`voices.${index}.note`];
         return (
           <div key={index} className="space-y-1">
             <div className="flex items-center gap-2">
