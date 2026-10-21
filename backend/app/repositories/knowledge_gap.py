@@ -434,19 +434,21 @@ async def list_questions(
     ]
 
 
-async def knowledge_bases_with_topics(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID | None
+async def knowledge_bases_with_misses(
+    db: AsyncSession, *, organization_id: UUID, threshold: float, agent_id: UUID | None
 ) -> list[UUID]:
-    """The knowledge bases holding a topic - one this agent's searches are in, when named."""
-    query = (
-        select(distinct(KnowledgeGapTopic.knowledge_base_id))
-        .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
-        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
-        .where(KnowledgeGapTopic.organization_id == organization_id)
+    """The knowledge bases a miss searched - one of this agent's misses, when named.
+
+    A topic only ever holds misses in its own knowledge base, so this covers
+    every base with a topic to show and every base whose misses still wait for
+    their first grouping pass.
+    """
+    searched = func.unnest(KnowledgeSearch.knowledge_base_ids, type_=PG_UUID())
+    result = await db.execute(
+        select(distinct(searched)).where(
+            *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id)
+        )
     )
-    if agent_id is not None:
-        query = query.where(KnowledgeSearch.agent_id == agent_id)
-    result = await db.execute(query)
     return list(result.scalars().all())
 
 

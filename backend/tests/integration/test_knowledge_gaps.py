@@ -681,6 +681,28 @@ async def test_the_organizations_gaps_leave_out_a_knowledge_base_the_caller_cann
     assert [c.knowledge_base_id for c in operators.by_knowledge_base] == [kb.id]
 
 
+async def test_misses_no_pass_has_grouped_yet_are_counted_before_any_topic_exists(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    private = await _knowledge_base(db, ctx, "private", scope="personal")
+    agent = await _agent(db, ctx)
+    run, _ = await _turn(db, ctx, agent)
+    await _searched(db, ctx, run, kb, query="parking permit")
+    await _searched(db, ctx, run, private, query="lunch menu")
+    await _searched(db, ctx, run, kb, query="parking garage hours", top_similarity=0.9)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+
+    owners = await KnowledgeGapService(db).list_for_organization(ctx)
+    operators = await KnowledgeGapService(db).list_for_organization(operator)
+    agents = await KnowledgeGapService(db).list_for_agent(ctx, agent.id)
+    others = await KnowledgeGapService(db).list_for_agent(ctx, (await _agent(db, ctx)).id)
+
+    assert (owners.total, owners.ungrouped) == (0, 2)
+    assert (operators.total, operators.ungrouped) == (0, 1)
+    assert (agents.total, agents.ungrouped) == (0, 2)
+    assert (others.total, others.ungrouped) == (0, 0)
+
+
 async def test_an_agents_gaps_hold_only_its_own_questions(db) -> None:
     ctx = await _owner(db)
     kb, agent, _ = await _a_topic(db, ctx)

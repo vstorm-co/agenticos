@@ -340,9 +340,12 @@ class KnowledgeGapService:
         kb = await self._knowledge_base(ctx, knowledge_base_id)
         return await self._list(ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit)
 
-    async def _readable_with_topics(self, ctx: AuthContext, *, agent_id: UUID | None) -> list[UUID]:
-        candidates = await knowledge_gap_repo.knowledge_bases_with_topics(
-            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+    async def _readable_with_misses(self, ctx: AuthContext, *, agent_id: UUID | None) -> list[UUID]:
+        candidates = await knowledge_gap_repo.knowledge_bases_with_misses(
+            self.db,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            agent_id=agent_id,
         )
         found = await knowledge_base_repo.get_by_ids(self.db, candidates)
         return [
@@ -365,7 +368,7 @@ class KnowledgeGapService:
             AuthorizationError: For a caller without `runs:view` across the organization.
         """
         _require_runs_view(ctx)
-        readable = await self._readable_with_topics(ctx, agent_id=None)
+        readable = await self._readable_with_misses(ctx, agent_id=None)
         return await self._list(ctx, readable, agent_id=None, status=status, skip=skip, limit=limit)
 
     async def list_for_agent(
@@ -389,7 +392,7 @@ class KnowledgeGapService:
             self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
-        readable = await self._readable_with_topics(ctx, agent_id=agent.id)
+        readable = await self._readable_with_misses(ctx, agent_id=agent.id)
         return await self._list(
             ctx, readable, agent_id=agent.id, status=status, skip=skip, limit=limit
         )

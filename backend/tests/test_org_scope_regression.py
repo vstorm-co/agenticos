@@ -76,7 +76,7 @@ TENANT_REQUIRED = [
     (knowledge_gap_repo, "topics_per_knowledge_base"),
     (knowledge_gap_repo, "get_topic"),
     (knowledge_gap_repo, "list_questions"),
-    (knowledge_gap_repo, "knowledge_bases_with_topics"),
+    (knowledge_gap_repo, "knowledge_bases_with_misses"),
     (knowledge_gap_repo, "drafting_material"),
     (knowledge_gap_repo, "member_queries"),
     (knowledge_gap_repo, "documents_named"),
