@@ -155,6 +155,18 @@ def test_an_invalid_comparison_is_inconclusive_never_a_pass() -> None:
     assert reasons[0].detail == "A different judge graded the baseline"
 
 
+def test_a_pass_rate_below_the_minimum_fails_even_when_the_baseline_cannot_be_compared() -> None:
+    """The minimum is the candidate's own number; an incomparable baseline does not excuse it."""
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=0.8),
+        _summary(pass_rate=0.5),
+        _comparison(verdict="invalid", invalid_reason="A different judge graded the baseline"),
+        ungraded=0,
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [r.code for r in reasons] == ["pass_rate_below"]
+
+
 def test_efficiency_is_held_only_where_a_ceiling_was_set() -> None:
     dearer = _summary(cost_per_pass_usd=Decimal("0.20"), p95_ms=3000.0)
 

@@ -9,10 +9,11 @@ regression somebody can reproduce is a regression whatever the test says.
 
 Efficiency is the second axis and is checked only where the owner set a
 ceiling: a rise in cost per passed case or in p95 latency against the baseline.
-A comparison the two sides of which were graded differently decides nothing,
-and neither does a run in which a case could not be graded - the judge erred
-on it - unless something failed outright: such a result is inconclusive,
-never passed, until every case has a verdict.
+A comparison the two sides of which were graded differently decides nothing
+beyond the minimum pass rate, which never needed a baseline; nor does a run in
+which a case could not be graded - the judge erred on it - unless something
+failed outright: such a result is inconclusive, never passed, until every case
+has a verdict.
 """
 
 from __future__ import annotations
@@ -44,10 +45,6 @@ def judge(
     candidate against its baseline, over the cases both answered; `ungraded`
     is how many of the candidate's first answers no scorer reached a verdict on.
     """
-    if comparison.verdict == "invalid":
-        return EvalSuiteResultStatus.INCONCLUSIVE, [
-            ThresholdReason(code="invalid_comparison", detail=comparison.invalid_reason)
-        ]
     if summary.pass_rate is None:
         return EvalSuiteResultStatus.INCONCLUSIVE, [
             ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate)
@@ -59,6 +56,12 @@ def judge(
                 code="pass_rate_below", value=summary.pass_rate, limit=threshold.min_pass_rate
             )
         )
+    if comparison.verdict == "invalid":
+        if reasons:
+            return EvalSuiteResultStatus.FAILED, reasons
+        return EvalSuiteResultStatus.INCONCLUSIVE, [
+            ThresholdReason(code="invalid_comparison", detail=comparison.invalid_reason)
+        ]
     if (
         comparison.baseline is not None
         and comparison.regressions_confirmed > threshold.max_confirmed_regressions
