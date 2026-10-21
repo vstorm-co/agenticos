@@ -490,6 +490,8 @@ class DatasetService:
 
         `same_input` narrows to the cases asking that question, as a new case is
         checked for one already there; `total` then counts the matches on this page.
+        It is redacted as a case's input is when stored, so a question holding a
+        credential still finds the case asking it.
         """
         dataset = await self.get(ctx, dataset_id)
         held = await self._version(ctx, dataset, version)
@@ -501,7 +503,7 @@ class DatasetService:
             organization_id=ctx.organization_id,
             skip=skip,
             limit=limit,
-            same_input=same_input,
+            same_input=_redact(same_input)[0],
         )
         total = held.case_count if same_input is None else len(cases)
         return DatasetCaseList(
