@@ -11,8 +11,6 @@ the surfaces something serves, cascades from both sides - is asserted against a
 real database in `tests/integration/test_schema_guarantees.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

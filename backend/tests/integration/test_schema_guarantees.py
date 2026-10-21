@@ -6,8 +6,6 @@ what it should. These are the promises the schema makes to the code above it,
 and code that trusts an unenforced promise fails in production rather than here.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

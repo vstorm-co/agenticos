@@ -12,8 +12,6 @@ assembly lives in `SkillService.list_readable`, and a stubbed service would
 prove only that the route returns whatever it was handed.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

@@ -18,8 +18,6 @@ arrived by needing exactly the first one's rule: a Mattermost server URL is
 private-range denylist would refuse the deployment the feature exists for.
 """
 
-from __future__ import annotations
-
 import ipaddress
 from typing import Annotated
 from urllib.parse import urlparse

@@ -7,8 +7,6 @@ bytes fetched before the address expires, and a refusal that never carries the
 provider's own words.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import json
@@ -143,7 +141,7 @@ class TestGemini:
                 "delivery": "uri",
             },
             "background": False,
-            "store": False,
+            "store": True,
             "stream": False,
         }
         assert seen[-1].headers["x-goog-api-key"] == KEY

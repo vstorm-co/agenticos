@@ -1,7 +1,5 @@
 """Giving an agent a voice: text in, an audio clip out."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

@@ -76,6 +76,7 @@ async def list_conversations(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    auth: Auth,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
     search: str | None = Query(default=None, description="Search by title"),
@@ -115,6 +116,7 @@ async def list_conversations(
         sort_dir=sort_dir,
         hide_api=hide_api,
         project_id=project_id,
+        reader=auth,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 

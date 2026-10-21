@@ -95,12 +95,16 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
 describe("YourConnections", () => {
   beforeEach(() => {
     state.selectedAgentId = "a1";
-    state.bindings = [{ account: "personal", catalog_key: "notion", allowed_tools: null }];
+    state.bindings = [
+      { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "none" },
+    ];
     state.connections = [];
   });
 
   it("renders nothing for an agent whose bindings are all the organization's", () => {
-    state.bindings = [{ account: "organization", connection_id: "c1", allowed_tools: null }];
+    state.bindings = [
+      { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
+    ];
     const { container } = render(<YourConnections />);
 
     expect(container).toBeEmptyDOMElement();
@@ -156,7 +160,9 @@ describe("YourConnections", () => {
 describe("YourConnections' dialog", () => {
   it("closes when the person backs out of connecting", async () => {
     state.selectedAgentId = "a1";
-    state.bindings = [{ account: "personal", catalog_key: "notion", allowed_tools: null }];
+    state.bindings = [
+      { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "none" },
+    ];
     state.connections = [];
     render(<YourConnections />);
     await userEvent.click(screen.getByRole("button", { name: "Connect" }));
@@ -170,7 +176,9 @@ describe("YourConnections' dialog", () => {
 describe("YourConnections and a key the catalog no longer holds", () => {
   it("names the service by its key and sends the person to the servers page", () => {
     state.selectedAgentId = "a1";
-    state.bindings = [{ account: "personal", catalog_key: "gone", allowed_tools: null }];
+    state.bindings = [
+      { account: "personal", catalog_key: "gone", allowed_tools: null, approval: "none" },
+    ];
     state.connections = [];
     render(<YourConnections />);
 

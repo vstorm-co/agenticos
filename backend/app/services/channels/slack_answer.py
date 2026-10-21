@@ -11,8 +11,6 @@ that rate the answer, and a table in the answer drawn as a Block Kit table
 rather than as pipes and dashes.
 """
 
-from __future__ import annotations
-
 import re
 from typing import TYPE_CHECKING, Any
 

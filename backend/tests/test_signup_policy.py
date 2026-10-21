@@ -30,8 +30,6 @@ acceptances, acceptance needs a session, and registration does not - so one
 is created, atomically, which is what makes the ceiling mean both (#914).
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

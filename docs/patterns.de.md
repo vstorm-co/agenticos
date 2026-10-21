@@ -1,5 +1,5 @@
 ---
-source_sha: "df313b9bcff6"
+source_sha: "5f2679674e19"
 ---
 
 # Code-Patterns { #code-patterns }
@@ -295,7 +295,9 @@ Coroutine zusätzlich an der Session ein, sodass nichts startet, bevor die
 Transaktion, von der die Arbeit abhängt, gelandet ist — ein Flow, der seine eigene
 Zeile per Id liest, liefe sonst gegen eine Datenbank, die sie noch nicht hat
 ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Keines von beiden
-überlebt einen Neustart; Arbeit, die das muss, gehört in ein Prefect-Deployment.
+überlebt einen Neustart; Arbeit, die das muss, ist ein Job, eingereiht mit
+`app.services.background_jobs.enqueue` in derselben Transaktion - siehe
+[Einen Hintergrund-Task hinzufügen](howto/add-background-task.md).
 
 ## Connector-Pattern (RAG-Sync) { #connector-pattern-rag-sync }
 

@@ -11,8 +11,6 @@ the sandbox beside the work, so the second task in a chat knows what the first
 read without the model carrying ids around. `fresh_session` starts over.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import uuid

@@ -11,8 +11,6 @@ measured must answer nothing, because `$0.0000` is a claim. And the sum ignoring
 nulls, so one unmeasured turn among ten does not zero the other nine.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 

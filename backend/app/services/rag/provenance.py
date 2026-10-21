@@ -8,8 +8,6 @@ value never depends on a server's local timezone and the range filter compares
 like calendar dates.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime
 
 

@@ -41,8 +41,6 @@ Turning it on now means choosing a model profile whose key the organization
 pays for, which is a decision somebody should make rather than inherit.
 """
 
-from __future__ import annotations
-
 import logging
 from enum import StrEnum
 from uuid import UUID

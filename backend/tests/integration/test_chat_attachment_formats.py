@@ -7,8 +7,6 @@ field. A row written *before* this change keeps its declared MIME, and every rea
 must tolerate both shapes.
 """
 
-from __future__ import annotations
-
 import io
 import uuid
 

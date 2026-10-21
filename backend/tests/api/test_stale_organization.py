@@ -14,8 +14,6 @@ it carries the refused id in `details.org_id`. Both halves are asserted here,
 because the recovery in `use-active-organization.ts` is built on them.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -51,11 +49,16 @@ class TestARefusedOrganizationHeader:
 
         A stale header and a switch that raced a removal are the same status
         code; only the echoed id tells the browser the refusal is about the
-        organization it is currently holding rather than a previous one.
+        organization it is currently holding rather than a previous one. A
+        deleted organization is the same answer: its membership is read joined
+        to it, so a missing row and a missing organization are one `None`.
         """
         stale = uuid4()
 
-        with patch("app.api.deps.member_repo.get", new=AsyncMock(return_value=None)):
+        with patch(
+            "app.api.deps.member_repo.get_with_organization",
+            new=AsyncMock(return_value=None),
+        ):
             async with _client_for(uuid4()) as client:
                 response = await client.get(
                     f"{settings.API_V1_STR}/me/permissions",
@@ -68,26 +71,6 @@ class TestARefusedOrganizationHeader:
             "message": "Organization not found or access denied",
             "details": {"org_id": str(stale)},
         }
-
-    async def test_a_deleted_organization_is_refused_like_a_forbidden_one(self) -> None:
-        """Membership rows outlive nothing; the org row can vanish underneath one."""
-        deleted = uuid4()
-
-        with (
-            patch("app.api.deps.member_repo.get", new=AsyncMock(return_value=MagicMock())),
-            patch(
-                "app.api.deps.organization_repo.get_by_id",
-                new=AsyncMock(return_value=None),
-            ),
-        ):
-            async with _client_for(uuid4()) as client:
-                response = await client.get(
-                    f"{settings.API_V1_STR}/me/permissions",
-                    headers={"X-Organization-Id": str(deleted)},
-                )
-
-        assert response.status_code == 404
-        assert response.json()["error"]["details"] == {"org_id": str(deleted)}
 
     @pytest.mark.security
     def test_the_permissions_route_can_refuse_for_no_other_reason(self) -> None:

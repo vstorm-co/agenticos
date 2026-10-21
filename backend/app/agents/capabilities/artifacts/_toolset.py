@@ -15,8 +15,6 @@ that reaches an existing page only when the run's person may open it (to read)
 or edit it (to publish).
 """
 
-from __future__ import annotations
-
 from pathlib import PurePosixPath
 from typing import Literal
 from uuid import UUID
@@ -252,7 +250,7 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
                     data = await ctx.workspace.read_bytes(path)
                 except PermissionError as exc:
                     return f"Reading {path!r} was refused: {exc}"
-                except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                except FileNotFoundError, IsADirectoryError, NotADirectoryError:
                     data = b""
                 except WorkspaceError as exc:
                     # A container's shell could not produce the file - the

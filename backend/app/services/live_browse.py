@@ -8,7 +8,7 @@ done, and a queue of commands from the people watching. A console page at
 `/browse/{run_id}/{call_id}` reads it, and a channel posts that address.
 
 Redis rather than the process the browse runs in, because that process is the API
-for a chat and a Prefect worker for a routine, and a person's socket lands on
+for a chat and the worker for a routine, and a person's socket lands on
 whichever API instance the load balancer picked. Everything here expires an hour
 after the browse last did anything: a live view is not a record, and the run's
 own trace is.
@@ -19,8 +19,6 @@ the agent, may take the browser over - what they do in it is done as the agent.
 What a person types waits in the command queue only until the browse reads it,
 and is never recorded: the run's history says only that somebody took over.
 """
-
-from __future__ import annotations
 
 import contextlib
 import json

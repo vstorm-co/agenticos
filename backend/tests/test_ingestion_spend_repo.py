@@ -6,8 +6,6 @@ budget, and a dropped window would bill this month for every month there ever
 was.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

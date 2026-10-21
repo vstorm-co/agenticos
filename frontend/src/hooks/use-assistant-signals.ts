@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { useAgents, useApprovals, usePermissions, useRuns } from "@/hooks";
-import { useAuthStore } from "@/stores";
-import { Perm } from "@/types/permissions";
+import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores";
+import type { AssistantSignals as SignalsRead } from "@/types/assistant";
 
 /** How often the page is looked at for a form somebody is stuck in. */
 const LOOK_EVERY_MS = 5000;
 /** How long a form stays open, unfinished, before the Architect offers help. */
 export const STUCK_AFTER_MS = 60_000;
-/** How far back a failed run is still worth raising. */
-const RECENT_MS = 24 * 60 * 60 * 1000;
 /** The Architect's own window is a dialog too, and never a form to be stuck in. */
 const ASSISTANT_WINDOW = "data-assistant-window";
 
@@ -43,17 +43,15 @@ function openForm(): { element: Element; title: string } | null {
  * they have had open, unfinished, for a minute.
  */
 export function useAssistantSignals(): AssistantSignals {
-  const { can } = usePermissions();
-  const userId = useAuthStore((state) => state.user?.id ?? null);
-  const { agents, isLoading: agentsLoading } = useAgents();
-  const { total: pendingApprovals } = useApprovals({ enabled: can(Perm.approvalsDecide) });
-  // Fixed for the widget's life, so the query is asked once rather than per render.
-  const [since] = useState(() => new Date(Date.now() - RECENT_MS).toISOString());
-  const { runs: failed } = useRuns(undefined, {
-    enabled: can(Perm.runsView) && userId !== null,
-    statuses: ["failed"],
-    userId: userId ?? undefined,
-    startedFrom: since,
+  const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
+  // One read on every page. The widget used to fetch every agent, the approval
+  // queue and the reader's failed runs to count them (#2248); the server asks
+  // each through the scope its own page uses, and says 0 or null where the
+  // reader may not look.
+  const { data } = useQuery({
+    queryKey: qk.runs.assistantSignals(orgId),
+    queryFn: () => apiClient.get<SignalsRead>("/assistant/signals"),
+    enabled: orgId !== "",
   });
   const [stuckIn, setStuckIn] = useState<string | null>(null);
   const watched = useRef<{ element: Element; since: number } | null>(null);
@@ -76,9 +74,9 @@ export function useAssistantSignals(): AssistantSignals {
   }, []);
 
   return {
-    pendingApprovals,
-    noAgents: !agentsLoading && agents.length === 0,
-    failedRunId: failed[0]?.id ?? null,
+    pendingApprovals: data?.pending_approvals ?? 0,
+    noAgents: data !== undefined && !data.has_agents,
+    failedRunId: data?.failed_run_id ?? null,
     stuckIn,
   };
 }

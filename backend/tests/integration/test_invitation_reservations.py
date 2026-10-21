@@ -12,8 +12,6 @@ registrations racing on the last use do not both get it, because what makes it t
 is the row lock and the `WHERE` being re-evaluated against the version it locked.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import secrets

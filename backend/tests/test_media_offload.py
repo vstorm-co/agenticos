@@ -12,8 +12,6 @@ is about a conversation days later rather than about the run it happened in
   a model was paid to produce is worth more than the space it takes.
 """
 
-from __future__ import annotations
-
 import base64
 from typing import Any
 from uuid import uuid4

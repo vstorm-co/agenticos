@@ -1,4 +1,4 @@
-<!-- source_sha: 7fe613360627 -->
+<!-- source_sha: ab4f14389941 -->
 
 <div align="center">
 
@@ -376,14 +376,14 @@ Es gibt zwei übliche Varianten. **Selbst gehostet, mit gehosteten Modellen:** A
 
 ## 🛠️ Für Entwickler und Betreiber
 
-AgenticOS ist gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis, Prefect und Next.js. Entwickler ergänzen Capabilities, Sync-Konnektoren und Einträge im MCP-Katalog in typisiertem Python; Teams stellen in der Konsole Agenten aus den registrierten Capabilities zusammen.
+AgenticOS ist gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis und Next.js. Entwickler ergänzen Capabilities, Sync-Konnektoren und Einträge im MCP-Katalog in typisiertem Python; Teams stellen in der Konsole Agenten aus den registrierten Capabilities zusammen.
 
 | Schicht | Was dort läuft |
 |---|---|
 | Konsole | Next.js |
 | API | FastAPI |
 | Agent-Laufzeit | [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness), ein Runner hinter jeder Oberfläche |
-| Hintergrundarbeit | Prefect-Worker, Redis oder Valkey |
+| Hintergrundarbeit | Eine Job-Queue in PostgreSQL, bedient von `python -m app.worker` |
 | Daten | PostgreSQL mit pgvector |
 | Codeausführung | Container, gestartet von `sandboxd` |
 

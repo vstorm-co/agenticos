@@ -32,6 +32,7 @@ export const ROUTES = {
   ADMIN_USERS: "/admin/users",
   ADMIN_ORGANIZATIONS: "/admin/organizations",
   ADMIN_SYSTEM: "/admin/system",
+  ADMIN_BACKGROUND_JOBS: "/admin/background-jobs",
   ADMIN_SETTINGS: "/admin/settings",
   ORGS: "/orgs",
   ORGS_CREATE: "/orgs?create=1",

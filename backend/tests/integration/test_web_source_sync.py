@@ -14,8 +14,6 @@ embedding provider, with a deterministic bag-of-words embedder - a search for a
 word has to find the page that holds it, which is all retrieval is asked here.
 """
 
-from __future__ import annotations
-
 import hashlib
 import re
 import socket
@@ -109,7 +107,7 @@ def _public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None]:
     """The runtime table is not a model, so the suite's reset does not reach it."""
     async with engine.begin() as conn:
         await conn.execute(text(f"DROP TABLE IF EXISTS rag_{COLLECTION}"))

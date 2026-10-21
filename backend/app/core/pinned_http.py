@@ -41,8 +41,6 @@ this flow POSTs form-encoded token grants through the MCP SDK's own request
 builders.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 

@@ -34,8 +34,6 @@ prefix (tools, system, the real conversation) stays byte-identical turn over tur
 while only the small reminder falls outside the cache.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace

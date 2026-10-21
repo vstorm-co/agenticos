@@ -6,8 +6,6 @@ every way the platform cannot answer refuses, and the cache never widens an
 answer - it only remembers one.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 

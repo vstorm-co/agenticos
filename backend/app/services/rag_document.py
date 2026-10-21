@@ -29,6 +29,7 @@ from app.schemas.rag import (
 )
 from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
+from app.services.background_jobs import enqueue
 from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
@@ -36,6 +37,7 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
+from app.worker.jobs import INGEST_DOCUMENT, IngestDocument
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +308,7 @@ class RAGDocumentService:
 
         await self._queue_parse(
             doc_id,
+            organization_id=rag_doc.organization_id,
             collection_name=collection_name,
             filename=filename,
             file_data=file_data,
@@ -325,6 +328,7 @@ class RAGDocumentService:
         self,
         doc_id: UUID,
         *,
+        organization_id: UUID | None,
         collection_name: str,
         filename: str,
         file_data: bytes,
@@ -343,9 +347,12 @@ class RAGDocumentService:
         storage may be somewhere the worker container cannot reach, and the
         directory is shared between the two.
 
-        Dispatched with `spawn_after_commit`, not `spawn`. The flow's first act
-        is to read this document by id on a session of its own, and until this
-        request's transaction commits there is no such row to find (#417).
+        Queued as an `ingest-document` job in this request's transaction: the job
+        reads this document by id on a session of its own, and the two commit
+        together, so a worker never looks for a row that is not there yet (#417)
+        and an upload whose request rolled back leaves no job behind. The job runs
+        in a child process of the ingest pool, so a parse that runs out of memory
+        is stopped there and written down on the job, not in the API.
         """
         tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -354,20 +361,18 @@ class RAGDocumentService:
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
             await f.write(file_data)
-        from app.core.background import spawn_after_commit
-        from app.worker.tasks.rag_tasks import ingest_document_flow
-
-        spawn_after_commit(
+        await enqueue(
             self.db,
-            ingest_document_flow(
-                rag_document_id=str(doc_id),
+            INGEST_DOCUMENT,
+            IngestDocument(
+                rag_document_id=doc_id,
                 collection_name=collection_name,
                 filepath=tmp_path,
                 source_path=filename,
                 replace=replace,
                 attempt=attempt,
             ),
-            name=f"ingest-document-{doc_id}",
+            organization_id=organization_id,
         )
 
     async def complete_ingestion(
@@ -390,7 +395,7 @@ class RAGDocumentService:
         of the document just replaced. `attempt` is the same shape again, one
         layer up (#1598): it is the attempt this settlement is *about*,
         carried from whichever call dispatched it (`dispatch_upload` or
-        `retry_ingestion`, by way of `ingest_document_flow`) rather than read
+        `retry_ingestion`, by way of the `ingest-document` job) rather than read
         back from `doc.ingestion_attempt` here - a slow attempt settling after
         a newer retry has already bumped that column would otherwise steal the
         newer attempt's notification dedup key. A settlement whose `attempt`
@@ -447,11 +452,10 @@ class RAGDocumentService:
         gone, and a directory synced nightly accumulates one dead row per file
         per run.
 
-        The stored files are unlinked by a durable cleanup handed over after the
-        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a
-        rollback leaves them beside the rows it restores rather than gone (#1293),
-        and a worker restart mid-drain no longer orphans the ones still queued -
-        the run is recorded on the Prefect server and retried (#1349). An unlink
+        The stored files are unlinked by a cleanup job queued in this transaction
+        (`queue_external_state_cleanup`), so a rollback leaves them beside the rows
+        it restores rather than gone (#1293), and a worker restart mid-drain no
+        longer orphans the ones still queued - the job is retried (#1349). An unlink
         before the commit would strand a restored row on a missing file.
 
         The sync sources claiming a superseded row at the replacement's own
@@ -477,14 +481,9 @@ class RAGDocumentService:
         for stale in superseded:
             await rag_document_repo.delete(self.db, stale.id)
         if storage_paths:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, []),
-                name="retire-superseded-cleanup",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, [])
 
     async def fail_ingestion(self, doc_id: str, error_message: str, *, attempt: int) -> None:
         """Mark a document ingestion as failed.
@@ -581,6 +580,7 @@ class RAGDocumentService:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
         await self._queue_parse(
             updated.id,
+            organization_id=updated.organization_id,
             collection_name=updated.collection_name,
             filename=updated.filename,
             file_data=file_data,
@@ -622,9 +622,9 @@ class RAGDocumentService:
 
         A single document's cleanup stays in-process, where the bulk teardown paths
         (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
-        hand theirs to a durable Prefect run (#1349): the leak a lost single-document
-        task would strand is one file and one document's vectors, and a durable run
-        per document delete is disproportionate to that.
+        queue theirs as a durable job (#1349): the leak a lost single-document task
+        would strand is one file and one document's vectors, and a durable job per
+        document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -764,24 +764,18 @@ class RAGDocumentService:
 
         The bulk row delete used to return only a count, so nothing removed the
         uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink is handed to a durable cleanup after the commit
-        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
-        keeps the files beside the rows it restores (#1293) and a worker restart
-        mid-drain no longer loses the ones still queued - the run is recorded on the
-        Prefect server and retried (#1349). Best-effort: the cleanup resolves the
-        storage backend only when it runs, so a misconfigured backend fails the
-        background run, not the drop.
+        dropped (#1265). The unlink is a cleanup job queued in this transaction
+        (`queue_external_state_cleanup`), so a rollback keeps the files beside the
+        rows it restores (#1293) and a worker restart mid-drain no longer loses the
+        ones still queued - the job is retried (#1349). Best-effort: the cleanup
+        resolves the storage backend only when it runs, so a misconfigured backend
+        fails the job, not the drop.
         """
         storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
         if storage_paths:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, []),
-                name="delete-collection-cleanup",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, [])
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

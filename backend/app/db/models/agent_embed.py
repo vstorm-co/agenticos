@@ -23,8 +23,6 @@ allow-list is a rule about other people's sites.
 pricing page and in the help centre, in different colours, told where it is.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

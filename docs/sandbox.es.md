@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "3a56d4c17513"
 ---
 
 # La sandbox { #the-sandbox }
@@ -358,13 +358,13 @@ un operador pulsa el botón.
 
 ## Cuándo aparece un contenedor { #when-a-container-appears }
 
-**En la primera operación sobre el workspace, que no es lo mismo que la primera
-llamada a una tool del agent.** Un run prepara lo que alguien adjuntó y
-materializa los skills del agent *antes* de llamar al modelo, y cualquiera de las
-dos cosas abre la sesión de forma perezosa, así que puede existir un contenedor
-para un turno en el que el agent nunca tocó la shell. Vale la pena saberlo al leer
-una lista de sesiones: una sandbox cuyo registro de actividad solo tiene
-escrituras es una que todavía nadie ha pedido.
+**En la primera operación sobre el workspace: una tool que el agent llama allí, o
+un archivo adjunto que se coloca en él.** Los skills del agent se escriben en el
+workspace en ese momento, justo antes de la operación, y no mientras se prepara el
+run, así que un turno que nunca usa la sandbox no abre sesión ni arranca un
+contenedor. Un turno que sí la usa encuentra los skills ya en disco. Una lista de
+sesiones aún puede mostrar una sandbox cuyo registro de actividad solo tiene
+escrituras: una a la que se adjuntó un archivo y que luego quedó sin usar.
 
 ## Qué se hizo en una, y dónde vive ese registro { #what-was-done-in-one-and-where-that-record-lives }
 
@@ -608,7 +608,11 @@ no tiene TTL detrás, así que solo esto lo termina.
 A una conexión apagada se le siguen eliminando sus sandboxes, porque apagarla
 detiene el trabajo nuevo y no la factura. Una conexión a la que le quedan
 tombstones no se puede borrar: se irían con ella, y son el único registro de lo
-que sigue en marcha en el proveedor.
+que sigue en marcha en el proveedor. Cuando el barrido no puede tener éxito
+nunca, porque la credencial de la conexión se borró o se revocó, borra los
+sandboxes en la consola del proveedor. Después vuelve a borrar la conexión y
+confirma que lo hiciste: sus tombstones se olvidan, y cuántos eran queda en el
+registro de auditoría.
 
 ## Resumen { #recap }
 

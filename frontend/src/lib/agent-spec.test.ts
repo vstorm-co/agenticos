@@ -374,12 +374,17 @@ describe("withResource", () => {
   });
 
   it("binds one of the organization's MCP servers once, with every tool it allows", () => {
-    const personal = { account: "personal" as const, catalog_key: "c1", allowed_tools: null };
+    const personal = {
+      account: "personal" as const,
+      catalog_key: "c1",
+      allowed_tools: null,
+      approval: "none" as const,
+    };
     const bound = withResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" });
 
     expect(bound.mcp_servers).toEqual([
       personal,
-      { account: "organization", connection_id: "c1", allowed_tools: null },
+      { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
     ]);
     expect(hasResource(bound, { kind: "mcp", id: "c1" })).toBe(true);
     expect(withResource(bound, { kind: "mcp", id: "c1" })).toBe(bound);

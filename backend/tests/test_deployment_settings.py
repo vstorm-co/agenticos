@@ -18,8 +18,6 @@ content type, never taken from the upload: this file is served from the origin t
 app's own pages run on, and `logo.html` there is a script rather than a picture.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import UTC, datetime
 from pathlib import Path

@@ -34,6 +34,7 @@ from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
+from app.worker.jobs import Restamp
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -67,7 +68,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
 class OrganizationService:
     _ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
-    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
+    def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
         # Present only on the teardown path, where the request built a store to
         # drop the tenant's vector tables with; None everywhere else, so ordinary
@@ -381,14 +382,13 @@ class OrganizationService:
         without a tenant column to filter on.
 
         The external side effects - dropping each physical vector table and
-        unlinking the stored uploads - are handed to a durable Prefect flow after
-        the request commits, via `spawn_after_commit`. Deferral means they run
-        only if the relational teardown committed, so a final commit that fails
-        rolls back the org, KB and doc rows and leaves none of them pointing at a
-        table or a file already gone (#1137). A Prefect deployment run rather than
-        an in-process task means a process that dies after the commit no longer
-        takes the cleanup with it - the run is recorded on the server and retried
-        by a worker (#1274). A collection another organization still references is
+        unlinking the stored uploads - are a cleanup job queued in the purge's own
+        transaction (`queue_external_state_cleanup`). It runs only if the
+        relational teardown committed, so a final commit that fails rolls back the
+        org, KB and doc rows - and the job with them - and leaves none of them
+        pointing at a table or a file already gone (#1137); and a process that
+        dies after the commit no longer takes the cleanup with it - the job is in
+        the database, and a worker retries it (#1274). A collection another organization still references is
         not dropped - `collection_name` is not tenant-unique (#913) - and each name
         that is dropped is reserved in `collection_teardowns`, committed with the
         delete, so a claim of the name in the commit-to-drop window is refused rather
@@ -459,15 +459,15 @@ class OrganizationService:
                     continue
                 to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
-        restamps = [[kb.collection_name, str(org.id), str(kb.id)] for kb in restamp_orphans]
+        restamps = [
+            Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
+            for kb in restamp_orphans
+        ]
         if storage_paths or to_drop or restamps:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, to_drop, restamps),
-                name="org_purge_cleanup",
+            await queue_external_state_cleanup(
+                self.db, storage_paths, to_drop, restamps, organization_id=org.id
             )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who

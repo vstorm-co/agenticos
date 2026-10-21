@@ -20,8 +20,6 @@ Four callers, four entry points:
   allowed to be framed only by the origins the artifact names.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import logging

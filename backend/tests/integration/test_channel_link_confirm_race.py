@@ -9,8 +9,6 @@ NOTHING) closes it, and only the database can show it, because what makes it wor
 is the unique index across two transactions.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid

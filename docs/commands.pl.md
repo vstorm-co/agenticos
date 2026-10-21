@@ -1,5 +1,5 @@
 ---
-source_sha: "5e7cbb840c77"
+source_sha: "0925d704b4b2"
 ---
 
 # Polecenia { #commands }
@@ -154,17 +154,18 @@ zgłoszenia.
 | `make user-create` | Tworzy nowego użytkownika (interaktywnie) |
 | `make user-list` | Wypisuje wszystkich użytkowników |
 
-### Prefect { #prefect }
+### Zadania w tle { #background-jobs }
 
-Prefect działa w stosie deweloperskim jako dwa kontenery — startują automatycznie razem z `make dev`:
+Worker działa w stosie deweloperskim jako jeden kontener i startuje z `make dev`:
 
-- **`prefect-server`** — API orkiestracji + UI webowe pod <http://localhost:4200>
-- **`prefect-runner`** — rejestruje zaplanowane deploymenty i odpytuje o pracę
+- **`worker`** — `python -m app.worker`, z obrazu backendu. Pobiera zadania z
+  tabeli `background_jobs`, wykonuje pulę ingest w procesach potomnych i odpala
+  harmonogramy wdrożenia.
 
-Runnerem jest `python -m app.worker.prefect_app`; flow żyją w `app/worker/tasks/`.
-Otwórz UI, żeby oglądać przebiegi flow, przeglądać logi i ręcznie wyzwalać
-deploymenty.
-Domyślnie self-hosted — ustaw `PREFECT_API_KEY` (oraz chmurowy `PREFECT_API_URL`), żeby korzystać z Prefect Cloud.
+Rodzaje zadań są zadeklarowane w `app/worker/jobs.py`, ich handlery leżą w
+`app/worker/tasks/` i są podłączone w `app/worker/handlers.py`, a harmonogramy
+są w `app/worker/schedules.py`. Obserwuj, ponawiaj, anuluj i wznawiaj na
+stronie konsoli **Admin → Background jobs**, jako właściciel wdrożenia.
 
 ### Docker (rozwój) { #docker-development }
 
@@ -330,9 +331,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
-# that has not completed for five intervals fails it, whatever Prefect's own
-# health endpoint says.
+# holding the wrong token. Then whether background work runs: no worker heard
+# from in two minutes, a minute schedule that has not fired for five intervals,
+# or a kind of job paused by its circuit breaker fails it.
 uv run agenticos cmd doctor
 
 # To samo plus drugi arkusz: jeden wiersz na kontrolę profilu bezpieczeństwa,

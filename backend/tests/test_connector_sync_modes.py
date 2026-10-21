@@ -19,8 +19,6 @@ reads the collection's own listing and answers a precedence (#548). What the
 tests control is the listing.
 """
 
-from __future__ import annotations
-
 import hashlib
 import uuid
 from contextlib import asynccontextmanager
@@ -125,7 +123,7 @@ async def _syncing(
     sources = MagicMock(
         get_source=AsyncMock(return_value=source),
         update_after_sync=AsyncMock(),
-        trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        open_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
     )
     ingest = AsyncMock(return_value=_result(replaced=replaced))
     documents = MagicMock(
@@ -259,6 +257,18 @@ class TestAnIngestAlwaysReplaces:
 
         assert answer["updated"] == 1
         assert ingest.await_args.kwargs["replace"] is True
+
+
+class TestAScheduledRun:
+    async def test_it_opens_its_own_log_and_queues_no_second_sync(self):
+        """Codex on #2248: `trigger_sync` queued another job behind the running one."""
+        async with _syncing(mode="full", listing=[], connector=_connector(), replaced=None) as _:
+            sources = rag_tasks.SyncSourceService.return_value  # ty: ignore[unresolved-attribute]
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=None)
+
+        sources.open_sync_log.assert_awaited_once()
+        assert sources.open_sync_log.await_args.kwargs == {"collection_name": "docs"}
+        sources.trigger_sync.assert_not_called()
 
 
 class TestAnUnchangedFile:
@@ -598,7 +608,7 @@ class TestAListingTheStoreCannotAnswer:
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
             update_after_sync=AsyncMock(),
-            trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            open_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         )
         ingest = AsyncMock(return_value=_result())
 

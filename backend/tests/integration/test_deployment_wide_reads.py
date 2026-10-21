@@ -15,8 +15,6 @@ decides which agents a weekly job will resolve recipients for, so its status
 filter is what keeps a draft's unpublished audience out of the mail queue.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

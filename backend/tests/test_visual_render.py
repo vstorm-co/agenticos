@@ -6,8 +6,6 @@ browser is allowed, what each of its requests is answered with, and which of a
 turn's calls becomes the picture.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, patch
 

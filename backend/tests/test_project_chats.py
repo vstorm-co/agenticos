@@ -70,7 +70,7 @@ class _Access:
             patch(f"{MODULE}.resolve_access", self.resolve),
         ]
 
-    def __enter__(self) -> "_Access":
+    def __enter__(self) -> _Access:
         for p in self.patches:
             p.start()
         return self

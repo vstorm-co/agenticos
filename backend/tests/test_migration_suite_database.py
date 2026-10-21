@@ -13,8 +13,6 @@ decision has to be made before anything is created, and it is the part a machine
 with no Postgres can still check.
 """
 
-from __future__ import annotations
-
 import os
 
 import pytest

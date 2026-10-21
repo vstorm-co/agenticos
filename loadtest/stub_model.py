@@ -28,8 +28,6 @@ Run it with the backend's interpreter, which already has uvicorn and FastAPI:
     uv run --directory backend python ../loadtest/stub_model.py --port 4020
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import hashlib

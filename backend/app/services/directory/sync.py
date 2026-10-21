@@ -25,8 +25,6 @@ The sync runs in the sign-in's own transaction: the memberships it writes commit
 with the session they are for, or not at all.
 """
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from collections.abc import Iterable

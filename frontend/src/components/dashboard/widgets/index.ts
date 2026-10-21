@@ -17,6 +17,7 @@ import { BudgetHeadroomWidget } from "./budget-headroom";
 import { DepartmentQualityWidget } from "./department-quality";
 import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
+import { BackgroundJobsWidget } from "./background-jobs";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
 import { LatencyWidget } from "./latency";
@@ -61,6 +62,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,
+  "background-jobs": BackgroundJobsWidget,
   "top-orgs": TopOrgsWidget,
   "platform-ratings": PlatformRatingsWidget,
   runs: RunsWidget,

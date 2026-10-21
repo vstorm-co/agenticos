@@ -8,8 +8,6 @@ never the temporary file it was handed - the rule a stored `error_message` lives
 by (#423).
 """
 
-from __future__ import annotations
-
 import asyncio
 import tempfile
 import threading
@@ -92,20 +90,20 @@ async def test_a_pdf_is_parsed_natively_without_touching_libreoffice(
         raise AssertionError("convert_to_pdf must not run for a PDF")
 
     monkeypatch.setattr(documents, "convert_to_pdf", tripwire)
-    sentinel = object()
+    marker = object()
 
     async def fake_parse_pdf(
         _self: LiteParseParser, parse_target: Path, *, source: Path, deadline: float | None = None
     ) -> object:
         assert parse_target == source
         assert deadline is None
-        return sentinel
+        return marker
 
     monkeypatch.setattr(LiteParseParser, "_parse_pdf", fake_parse_pdf)
 
     result = await LiteParseParser().parse(tmp_path / "manual.pdf")
 
-    assert result is sentinel
+    assert result is marker
 
 
 async def test_an_office_file_is_read_as_the_converted_pdf_but_keeps_its_identity(

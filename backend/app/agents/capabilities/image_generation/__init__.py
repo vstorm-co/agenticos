@@ -78,7 +78,7 @@ class ImageGenerationConfig(BaseModel):
         return {**data, "provider": provider, "model": model}
 
     @model_validator(mode="after")
-    def _must_be_offered(self) -> "ImageGenerationConfig":
+    def _must_be_offered(self) -> ImageGenerationConfig:
         """Refuse a pair the platform does not offer.
 
         Both halves, because both fail differently: a provider whose class lacks

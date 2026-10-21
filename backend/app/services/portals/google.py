@@ -18,8 +18,6 @@ than as an error: the alternative is a mailbox that stops firing for ever becaus
 nobody looked at it for eight days.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -89,7 +87,7 @@ def _body_text(part: dict[str, Any], depth: int = 0) -> str:
             decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode(
                 "utf-8", "replace"
             )
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return ""
         return decoded
     plain = ""

@@ -1,7 +1,5 @@
 """The Slack app manifest route: whoever manages channels reads it (#2067)."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

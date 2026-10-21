@@ -22,8 +22,6 @@ expires in an hour and no way to renew it - a mailbox that works for an hour and
 then silently stops.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass

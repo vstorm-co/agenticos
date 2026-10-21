@@ -10,8 +10,6 @@ mixes the two shapes must be refused - a card filed under the wrong mode
 pre-fills a form that cannot use it.
 """
 
-from __future__ import annotations
-
 import pytest
 from pydantic import ValidationError
 

@@ -33,15 +33,12 @@ def setup_logfire(*, service_name: str | None = None) -> None:
 
 
 def setup_worker_observability() -> None:
-    """Configure Logfire in a flow process, which is not the one that starts it.
+    """Configure Logfire in the worker, which never runs the API's lifespan.
 
-    `serve()` runs each flow in its own subprocess: it imports the flow's module
-    and never ran the startup the API's lifespan does, which is the same reason
-    `setup_logging` is called inside a flow rather than once in
-    `prefect_app.main` (#440). So a deployment-wide `LOGFIRE_TOKEN` traced every
-    run the API served and no scheduled one, and a fired run's
-    `logfire_trace_id` was null because nothing was tracing for
-    `current_trace_id` to read (#1700).
+    `python -m app.worker` calls this once on start, beside `setup_logging`
+    (#440). Without it a deployment-wide `LOGFIRE_TOKEN` traced every run the API
+    served and no scheduled one, and a fired run's `logfire_trace_id` was null
+    because nothing was tracing for `current_trace_id` to read (#1700).
 
     The service name carries a suffix so one project can separate them. A slow
     scheduled run and a slow chat turn are different problems, and a dashboard

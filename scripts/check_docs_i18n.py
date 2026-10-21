@@ -47,8 +47,6 @@ the translations you retranslated, and touches only those.
 `docs/howto/translate.md` is the workflow this enforces.
 """
 
-from __future__ import annotations
-
 import argparse
 import sys
 from pathlib import Path

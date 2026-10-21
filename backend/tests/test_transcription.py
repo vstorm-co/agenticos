@@ -10,8 +10,6 @@ failing request URL in its exception message, and a URL carries a key in its
 query string.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

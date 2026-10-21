@@ -12,8 +12,6 @@ side-effecting tool runs unapproved with nothing reporting it - which is why
 than asserting on a set of strings.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import dataclass, field
 from types import SimpleNamespace

@@ -19,8 +19,6 @@ lead can fix the refund policy without a deploy, and a live link back to this
 directory would take that away.
 """
 
-from __future__ import annotations
-
 import hashlib
 import logging
 from collections.abc import Iterable

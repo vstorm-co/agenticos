@@ -6,8 +6,6 @@ and tens of MB for a tenant with 50k documents. The service now pages and report
 the collection's own count, and the route takes the standard `skip`/`limit`.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from typing import Any, cast

@@ -11,8 +11,6 @@ the run's audience (`app.agents.audience`), so the corpus is one person's - the
 person the run is answering - and there is no argument the model can widen.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext

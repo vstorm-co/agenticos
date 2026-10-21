@@ -5,8 +5,6 @@ dashboard. All reads - no mutation. Should remain cheap (single COUNT(*) per
 metric); if usage grows we'd promote to materialized views.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any

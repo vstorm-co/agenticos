@@ -41,8 +41,6 @@ refused. Choosing one of the two would give an operator a deployment whose
 behaviour disagrees with its own settings page.
 """
 
-from __future__ import annotations
-
 from typing import Final, Literal, get_args
 
 RetentionClass = Literal[

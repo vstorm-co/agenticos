@@ -25,3 +25,10 @@ export interface AssistantUpdate {
   enabled?: boolean;
   greeting?: string | null;
 }
+
+/** What the widget's bubble may raise, read through each page's own scope. */
+export interface AssistantSignals {
+  pending_approvals: number;
+  has_agents: boolean;
+  failed_run_id: string | null;
+}

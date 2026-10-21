@@ -36,8 +36,6 @@ role and grants exactly as it would for the same request from the web app. A
 handle typed into a public channel is a name, not a key.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re

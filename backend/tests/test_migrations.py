@@ -25,8 +25,6 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

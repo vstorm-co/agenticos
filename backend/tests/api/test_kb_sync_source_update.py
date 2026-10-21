@@ -6,8 +6,6 @@ merging the config, judging it, checking the credential - is the service's,
 which is mocked.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

@@ -33,8 +33,6 @@ whatever was saved, and the follower's chat stops waiting on an answer nobody is
 writing any more.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import json

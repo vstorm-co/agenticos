@@ -48,8 +48,6 @@ window, the filters that were applied and the row count - never the request body
 or a resolved row.
 """
 
-from __future__ import annotations
-
 import json
 from dataclasses import replace
 from datetime import UTC, datetime

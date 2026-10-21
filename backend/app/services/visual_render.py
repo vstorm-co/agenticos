@@ -8,8 +8,6 @@ and every other request is refused before it leaves the browser. A tab of its
 own, in a browser context of its own, closed afterwards.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import ipaddress

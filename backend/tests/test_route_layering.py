@@ -17,8 +17,6 @@ fails just as loudly as an import that is not on it, so it cannot quietly become
 list of things nobody has looked at since.
 """
 
-from __future__ import annotations
-
 import ast
 from pathlib import Path
 

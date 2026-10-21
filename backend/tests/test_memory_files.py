@@ -14,8 +14,6 @@ instructions are what it obeys, so an index is injected only where its content
 could have steered nobody but its reader.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock
 from uuid import uuid4
 

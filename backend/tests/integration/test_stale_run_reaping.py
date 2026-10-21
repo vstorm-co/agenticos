@@ -6,8 +6,6 @@ human resolver, and a run that already recorded its own outcome. A mock cannot
 say which rows a WHERE returned; only the database can.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

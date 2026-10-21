@@ -35,8 +35,6 @@ are held to the mirror-image rule - a gating job may prepare its runner however
 it likes, as long as `make install` prepares a laptop the same way.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any
@@ -60,7 +58,7 @@ GATING_JOBS = ("lint", "test", "test-frontend", "docs", "security")
 # `install` instead, which is what INSTALL_EXEMPT below is about.
 ENVIRONMENT_SETUP = frozenset(
     {
-        "uv python install 3.12",
+        "uv python install 3.15",
         "uv sync --directory backend --dev",
         "uv sync --directory backend --group docs",
         "bun install --frozen-lockfile",
@@ -73,7 +71,7 @@ INSTALL_EXEMPT = frozenset(
     {
         # `uv sync` reads `backend/.python-version` and fetches the interpreter
         # itself; the runner needs it named because it starts with none.
-        "uv python install 3.12",
+        "uv python install 3.15",
         # `docs` and `docs-build` pass `--group docs` to `uv run`, which resolves
         # the group at the point of use rather than into a synced virtualenv.
         "uv sync --directory backend --group docs",

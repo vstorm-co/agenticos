@@ -52,8 +52,6 @@ a finished delegation to `SubagentRuntime.record`, which the runner supplied, an
 a `None` recorder is not an error - it is a preview, or a test.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import AsyncIterable, Generator
@@ -1075,7 +1073,7 @@ class DelegationJournal:
         return stream
 
     @contextmanager
-    def delegating(self, delegation: Delegation) -> Generator[None, None, None]:
+    def delegating(self, delegation: Delegation) -> Generator[None]:
         """Make `delegation` the current one, for the library and for the ledger.
 
         Two context variables, set together because they are two halves of one

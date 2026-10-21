@@ -61,12 +61,17 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
 
 /** A binding to the organization's connection - what ticking a row writes. */
 function bound(connectionId: string, tools: string[] | null = null): OrgMcpServerRef {
-  return { account: "organization", connection_id: connectionId, allowed_tools: tools };
+  return {
+    account: "organization",
+    connection_id: connectionId,
+    allowed_tools: tools,
+    approval: "none",
+  };
 }
 
 /** A binding to each person's own account on a catalog service. */
 function personal(catalogKey: string, tools: string[] | null = null): PersonalMcpServerRef {
-  return { account: "personal", catalog_key: catalogKey, allowed_tools: tools };
+  return { account: "personal", catalog_key: catalogKey, allowed_tools: tools, approval: "none" };
 }
 
 function picker(props: {
@@ -265,7 +270,7 @@ describe("McpServerPicker", () => {
 
   it("never counts the platform's own server as unresolved", () => {
     // It is this deployment, so there is nothing that can have gone.
-    render(picker({ value: [{ account: "platform" }] }));
+    render(picker({ value: [{ account: "platform", allowed_tools: null, approval: "writes" }] }));
 
     expect(screen.queryByText(/does not offer/)).toBeNull();
   });
@@ -1150,8 +1155,12 @@ describe("bindingKey", () => {
   });
 
   it("names the platform's own server once, whatever its settings", () => {
-    expect(bindingKey({ account: "platform" })).toBe("platform");
-    expect(bindingKey({ account: "platform", approval: "all" })).toBe("platform");
+    expect(bindingKey({ account: "platform", allowed_tools: null, approval: "writes" })).toBe(
+      "platform",
+    );
+    expect(bindingKey({ account: "platform", allowed_tools: null, approval: "all" })).toBe(
+      "platform",
+    );
   });
 
   it("is the same for the same binding whatever its tools", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "852d8bf0dfea"
+source_sha: "3a56d4c17513"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -370,13 +370,14 @@ wenn ein Betreiber die Schaltfläche drückt.
 
 ## Wann ein Container erscheint { #when-a-container-appears }
 
-**Bei der ersten Workspace-Operation, was nicht dasselbe ist wie der erste
-Tool-Aufruf des Agents.** Ein Run stellt bereit, was jemand angehängt hat, und
-materialisiert die Skills des Agents, *bevor* das Modell aufgerufen wird, und beides
-öffnet die Session verzögert — ein Container kann also für einen Zug existieren, in
-dem der Agent nie nach der Shell gegriffen hat. Gut zu wissen beim Lesen einer
-Session-Liste: ein Sandbox, dessen Aktivitätslog nichts als Schreibvorgänge enthält,
-ist einer, den noch nichts angefordert hat.
+**Bei der ersten Workspace-Operation: einem Tool, das der Agent dort aufruft, oder
+einer angehängten Datei, die in den Workspace gelegt wird.** Die Skills des Agents
+werden in diesem Moment in den Workspace geschrieben, kurz bevor die Operation
+läuft, und nicht schon, während der Run vorbereitet wird. Ein Zug, der den Sandbox
+nie benutzt, öffnet also keine Session und startet keinen Container. Ein Zug, der
+ihn benutzt, findet die Skills bereits auf der Platte. In einer Session-Liste kann
+trotzdem ein Sandbox stehen, dessen Aktivitätslog nur Schreibvorgänge enthält: einer,
+in den eine Datei gelegt wurde und der danach unbenutzt blieb.
 
 ## Was in einem getan wurde, und wo dieser Nachweis liegt { #what-was-done-in-one-and-where-that-record-lives }
 
@@ -625,7 +626,11 @@ gelingt. Hinter einer Daytona-Sandbox steht keine TTL, also beendet nur das sie.
 Auch eine abgeschaltete Verbindung bekommt ihre Sandboxes entfernt, denn
 Abschalten stoppt neue Arbeit, nicht die Rechnung. Eine Verbindung mit
 verbliebenen Tombstones lässt sich nicht löschen: Die Tombstones gingen mit ihr,
-und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft.
+und sie sind die einzige Aufzeichnung dessen, was beim Anbieter noch läuft. Kann
+der Sweep nie gelingen, weil die Zugangsdaten der Verbindung gelöscht oder
+widerrufen wurden, lösche die Sandboxes in der Konsole des Anbieters. Lösche dann
+die Verbindung erneut und bestätige das: Ihre Tombstones werden vergessen, und
+ihre Anzahl landet im Audit-Log.
 
 ## Zusammenfassung { #recap }
 

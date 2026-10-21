@@ -108,7 +108,7 @@ class TextToSpeechConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _must_be_offered(self) -> "TextToSpeechConfig":
+    def _must_be_offered(self) -> TextToSpeechConfig:
         """Refuse a choice the provider would refuse on the first call.
 
         The pair, the voice, the other voices and the format are each checked

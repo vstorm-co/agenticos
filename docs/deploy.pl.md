@@ -1,5 +1,5 @@
 ---
-source_sha: "64fce98b00b5"
+source_sha: "ecc5b8b8c62c"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -13,6 +13,9 @@ kontenerów, z których dwa trzymają stan, jeden potrafi uruchamiać własne ko
 a jeden jest Postgresem, który musi mieć pgvector - co już przekracza to, co
 modeluje cel wdrożeniowy typu `git push`, a przewodnik udający inaczej opisywałby
 wdrożenie, którego nikt nie uruchomił.
+
+Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - prowadzi
+[Skalowanie poza jeden host](scaling.md).
 
 !!! tip "Przeczytaj najpierw [listę kontrolną produkcji](configuration.md#production-checklist)"
 
@@ -31,8 +34,8 @@ wdrożenie, którego nikt nie uruchomił.
 | **Reverse proxy** | [Traefik](#option-a-traefik) albo [Nginx](#option-b-nginx). To on terminuje TLS |
 | **Bez klucza providera** | modele czatowe i embedy są kluczowane per organizacja, w vaulcie produktu. Środowisko nie trzyma poświadczeń ani dla jednych, ani dla drugich — zobacz [Ochrona danych](data-protection.md#nothing-leaves-by-default) |
 
-Host potrzebuje też otwartych portów 80 i 443, i niczego więcej. Postgres, Redis i
-API Prefect nie są publikowane na żadnym interfejsie.
+Host potrzebuje też otwartych portów 80 i 443, i niczego więcej. Postgres i Redis
+nie są publikowane na żadnym interfejsie, a worker niczego nie serwuje.
 
 ### Dlaczego dwie nazwy hostów { #why-two-hostnames }
 
@@ -53,8 +56,7 @@ Zmierzone na bezczynnym wdrożeniu, nie oszacowane:
 |---|---|---|
 | `app` (2 workery uvicorna) | ~1,0 GB | 2,5 GB przy domyślnych 4 workerach |
 | `db` | ~1,3 GB przy strojeniu poniżej | 2 GB |
-| `prefect-runner` | 241 MiB | 1,5 GB |
-| `prefect-server` | 245 MiB | 768 MB |
+| `worker` (jeden proces potomny ingestu) | 387 MiB | 2,5 GB (`WORKER_MEMORY_LIMIT`) |
 | `frontend` | ~300 MB | 1 GB |
 | `redis` | 9 MiB | 512 MB |
 
@@ -94,6 +96,12 @@ Dwa ustawienia sprawiają, że wolne wdrożenie da się zdiagnozować:
     równoległy skan po wektorach kolekcji, raportując
     `could not resize shared memory segment`. Przesuwasz limit — przesuń strojenie
     razem z nim; są zapisane obok siebie właśnie dlatego.
+
+    Ustawia też `max_connections=200`, bo pule potrafią otworzyć więcej niż
+    domyślne 100 Postgresa: dwie pule po 15 na worker uvicorna, czyli 120 przy
+    domyślnych czterech, i 30 więcej dla workera zadań w tle. Podnieś je razem z
+    `UVICORN_WORKERS` albo `DB_POOL_SIZE`, inaczej Postgres odrzuci połączenia
+    z „too many clients”, zanim pula zdąży je zakolejkować albo zrzucić nadmiar.
 
 ## Skieruj nazwy na host { #point-the-names-at-the-host }
 
@@ -139,7 +147,7 @@ niego nie działa. Tym, co działa, są dwa obrazy, które publikuje repozytoriu
 
 | | |
 |---|---|
-| `ghcr.io/vstorm-co/agenticos-backend` | API, runner Prefect i migracje - jeden obraz, trzy komendy |
+| `ghcr.io/vstorm-co/agenticos-backend` | API, worker i migracje - jeden obraz, trzy komendy |
 | `ghcr.io/vstorm-co/agenticos-frontend` | Konsola |
 
 Oba budowane są dla `linux/amd64` i `linux/arm64` przez
@@ -233,7 +241,7 @@ host został postawiony, a nie tego, które założył jakiś skrypt.
 
     To jedno ustawienie w `traefik/traefik.yml` warte przeczytania, zanim go
     uruchomisz. Tylko `app` i `frontend` niosą `traefik.enable=true`, więc
-    Postgres, Redis, serwer Prefect i demon sandboksa są nieosiągalne z niczego
+    Postgres, Redis, worker i demon sandboksa są nieosiągalne z niczego
     spoza hosta — a to jest właściwość *nieoznaczenia etykietą*, więc przeżywa
     dodanie przez kogoś usługi bez myślenia o proxy.
 
@@ -268,7 +276,7 @@ temu, co terminuje TLS.
     `agenticos` — a podniesienie frontendu raportowało wtedy pięć kontenerów
     backendu jako **osierocone**, wraz z własną podpowiedzią Compose, żeby
     uruchomić komendę ponownie z `--remove-orphans`. Posłuchanie tej rady
-    zatrzymuje API, bazę danych, Redisa i obie usługi Prefect. Targety `make` i
+    zatrzymuje API, bazę danych, Redisa i workera. Targety `make` i
     `scripts/deploy.sh` przekazują `-p agenticos-frontend`, więc tego ostrzeżenia
     już nie ma. Pliki Compose nie ustalają też na stałe nazw kontenerów - każdy
     projekt nazywa własne, więc dwa stacki na jednym hoście nie mogą przejąć
@@ -472,7 +480,6 @@ Liczy się jeden wolumen i nie jest oczywiste który:
 |---|---|---|
 | `postgres_data` | wszystko — agentów, konwersacje, zapieczętowane poświadczenia | **tak** |
 | `media_data` | wgrane pliki, przed ingestią | tak |
-| `prefect_data` | baza Prefecta: deploymenty, historia uruchomień, runy w kolejce | nie |
 
 Cache nie ma już żadnego wolumenu. Kubełki limitów, znaczniki deduplikacji
 kanałów i odpowiedzi o członkostwie mają TTL i odtwarzają się same, więc Valkey

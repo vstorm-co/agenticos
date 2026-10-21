@@ -1,7 +1,5 @@
 """How well agents answer a department's people, against a real database (#2101)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

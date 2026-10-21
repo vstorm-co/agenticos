@@ -9,8 +9,6 @@ delegates to the right service method. The service runs for real here, with
 scope for these tests.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

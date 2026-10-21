@@ -12,8 +12,6 @@ Rolling back publishes a *new* version copied from an old one. The alternative -
 moving a pointer backwards - would make run history lie about what was live.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import re
@@ -848,6 +846,19 @@ class AgentRegistryService:
             resource_type=AGENT.key,
         )
         return True, grant_ids
+
+    async def any_visible(self, ctx: AuthContext) -> bool:
+        """Whether the caller sees at least one agent: the listing's own scope, one row of it."""
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=False)
+        agents, _total = await agent_repo.list_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=grant_ids,
+            limit=1,
+        )
+        return bool(agents)
 
     async def list_labels(
         self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False

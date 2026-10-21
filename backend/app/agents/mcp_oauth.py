@@ -25,8 +25,6 @@ check approved* (see :func:`_client`), because discovery means the remote
 server, not the user, picks most of the addresses we call.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 

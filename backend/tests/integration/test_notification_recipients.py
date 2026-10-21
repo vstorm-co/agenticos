@@ -23,8 +23,6 @@ applies afterward, per recipient, per channel - see
 `tests/integration/test_notification_center.py` for that half.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

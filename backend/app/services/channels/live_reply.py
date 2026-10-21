@@ -18,8 +18,6 @@ Telegram all rate-limit. One edit a second, and only when the text actually
 changed, keeps it readable and keeps us a good citizen of a server we do not own.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping

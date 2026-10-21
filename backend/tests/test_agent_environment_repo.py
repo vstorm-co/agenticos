@@ -6,8 +6,6 @@ are the point - a dropped `organization_id` is a cross-tenant read, and a
 default lookup that forgot `is_default` would resolve a random environment.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

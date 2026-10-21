@@ -11,6 +11,11 @@ const useRecentVisualsMock = vi.fn();
 vi.mock("@/hooks/use-recent-visuals", () => ({
   useRecentVisuals: (...args: unknown[]) => useRecentVisualsMock(...args),
 }));
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: ({ artifactId }: { artifactId: string }) => (
+    <div data-testid="live-page" data-artifact={artifactId} />
+  ),
+}));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-16", to: "2026-10-16" };
 
@@ -61,10 +66,36 @@ describe("RecentVisualsWidget", () => {
 
     expect(useRecentVisualsMock).toHaveBeenCalledWith(6);
     expect(screen.getByRole("link", { name: /Order flow/ })).toHaveAttribute("href", "/chat?id=c1");
-    // A page with none kept yet is asked for too: asking is what draws it.
     const thumbnails = [...document.querySelectorAll("img")].map((img) => img.getAttribute("src"));
-    expect(thumbnails).toEqual(["/api/visuals/v1/thumbnail", "/api/visuals/v2/thumbnail"]);
+    expect(thumbnails).toEqual(["/api/visuals/v1/thumbnail"]);
+    // A published page with no thumbnail is shown live, needing no browser on the
+    // server - where there is none, it used to be the kind's mark.
+    expect(screen.getByTestId("live-page")).toHaveAttribute("data-artifact", "a");
     expect(screen.getByText("App")).toBeInTheDocument();
+  });
+
+  it("asks for an unpublished page's thumbnail, since asking is what draws it", () => {
+    useRecentVisualsMock.mockReturnValue({
+      visuals: [visual({ kind: "html", has_thumbnail: false })],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    widget();
+    expect(document.querySelector("img")).toHaveAttribute("src", "/api/visuals/v1/thumbnail");
+    expect(screen.queryByTestId("live-page")).toBeNull();
+  });
+
+  it("prefers a kept thumbnail to a live page", () => {
+    useRecentVisualsMock.mockReturnValue({
+      visuals: [visual({ kind: "html", artifact_id: "a", has_thumbnail: true })],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    widget();
+    expect(document.querySelector("img")).toHaveAttribute("src", "/api/visuals/v1/thumbnail");
+    expect(screen.queryByTestId("live-page")).toBeNull();
   });
 
   it("shows the kind's mark for a diagram with no thumbnail yet", () => {

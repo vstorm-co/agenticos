@@ -1,5 +1,5 @@
 ---
-source_sha: "9a3d99efe68e"
+source_sha: "767b18fe1f07"
 ---
 
 # El inventario de componentes { #the-component-inventory }
@@ -56,7 +56,7 @@ de terceros y nada aparece en los avisos.
 | Componente | Dónde | Qué es | Se entrega en |
 |---|---|---|---|
 | API y plataforma | `backend/app` | La aplicación FastAPI: routes, services, repositories, el runner de agents, el registro de capabilities | `agenticos-backend` |
-| Worker en segundo plano | `backend/app/worker` | El runner de Prefect para ingesta, sincronizaciones, barridos y disparadores programados | `agenticos-backend` |
+| Worker en segundo plano | `backend/app/worker` | Recoge jobs de la cola en PostgreSQL - runs de agents, ingesta, sincronizaciones, barridos - y dispara las programaciones del despliegue (`python -m app.worker`) | `agenticos-backend` |
 | Migraciones | `backend/alembic` | La cadena de esquema, aplicada por el servicio de migración antes de que arranque la API | `agenticos-backend` |
 | Línea de comandos | `backend/app/commands` | `agenticos cmd …` — bootstrap, doctor, los comandos de RAG | `agenticos-backend` |
 | Consola | `frontend/src` | La aplicación Next.js que ven un operador y un usuario | `agenticos-frontend` |
@@ -97,7 +97,7 @@ en los documentos CycloneDX, porque el generador lee la imagen publicada y no el
 árbol de fuentes.
 
 Los servicios que un despliegue ejecuta junto a estas tres — PostgreSQL con
-pgvector, Redis, un proxy inverso, un servidor de Prefect, el proxy de salida del navegador (Squid) — los descarga el
+pgvector, Redis, un proxy inverso, el proxy de salida del navegador (Squid) — los descarga el
 operador de sus propios editores. Están nombrados en los ficheros compose, no se
 compilan aquí y no están en el SBOM de este proyecto.
 

@@ -55,8 +55,6 @@ store. That difference is what keeps "a secret with no value" out of the API
 schema.
 """
 
-from __future__ import annotations
-
 import json
 from dataclasses import replace
 from enum import StrEnum

@@ -90,17 +90,30 @@ ANOTHER_POLLER = (
 
 
 class _ConflictWatch(BaseRequestMiddleware):
-    """Tells the adapter when Telegram ends this bot's poll for somebody else's (#2224).
+    """Tells the adapter when Telegram ends this bot's poll for somebody else's (#2224),
+    and when it stops (#2252).
 
     aiogram catches every error a poll raises, logs it and polls again, so two
     pollers on one token end each other's requests for as long as both run - on
     prod that was fifteen minutes, about ten times a minute. Only a request made
     with the bot can see the error, which is why this sits on the polling bot's
     session rather than around `start_polling`.
+
+    The poll that succeeds after a conflict is the recovery, in the same
+    dispatcher session: `record_up` ran once before polling began, so without
+    this the channels listing kept naming the other poller until the heartbeat
+    overwrote it - and the heartbeat, firing mid-conflict, briefly read `up`.
+    `conflicted` is what keeps it from doing so.
     """
 
-    def __init__(self, on_conflict: Callable[[], Awaitable[None]]) -> None:
+    def __init__(
+        self,
+        on_conflict: Callable[[], Awaitable[None]],
+        on_recovery: Callable[[], Awaitable[None]],
+    ) -> None:
         self._on_conflict = on_conflict
+        self._on_recovery = on_recovery
+        self.conflicted = False
 
     async def __call__(
         self,
@@ -109,11 +122,16 @@ class _ConflictWatch(BaseRequestMiddleware):
         method: TelegramMethod[TelegramType],
     ) -> Response[TelegramType]:
         try:
-            return await make_request(bot, method)
+            response = await make_request(bot, method)
         except TelegramConflictError:
             if isinstance(method, GetUpdates):
+                self.conflicted = True
                 await self._on_conflict()
             raise
+        if self.conflicted and isinstance(method, GetUpdates):
+            self.conflicted = False
+            await self._on_recovery()
+        return response
 
 
 def _where(platform_chat_id: str) -> dict[str, Any]:
@@ -137,7 +155,7 @@ class TelegramAdapter(ChannelAdapter):
     @contextlib.asynccontextmanager
     async def _bot(
         bot_token: str, *, default: DefaultBotProperties | None = None
-    ) -> AsyncGenerator[Bot, None]:
+    ) -> AsyncGenerator[Bot]:
         """A Telegram bot bound to one token, its TLS session closed on the way out.
 
         aiogram opens a fresh session per `Bot` and leaks the connection if it is
@@ -400,7 +418,11 @@ class TelegramAdapter(ChannelAdapter):
         async with self._bot(
             bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         ) as bot:
-            bot.session.middleware(_ConflictWatch(lambda: self._another_poller(bot_id)))
+            watch = _ConflictWatch(
+                lambda: self._another_poller(bot_id),
+                lambda: connection_state.record_up(bot_id),
+            )
+            bot.session.middleware(watch)
             dp = Dispatcher()
 
             @dp.message()
@@ -415,7 +437,9 @@ class TelegramAdapter(ChannelAdapter):
 
             await self._offer_commands(bot)
             await connection_state.record_up(bot_id)
-            beat = asyncio.create_task(connection_state.heartbeat(bot_id))
+            beat = asyncio.create_task(
+                connection_state.heartbeat(bot_id, live=lambda: not watch.conflicted)
+            )
             try:
                 await dp.start_polling(bot, handle_signals=False)
             except TelegramUnauthorizedError as exc:

@@ -6,8 +6,6 @@ the platform script that turns a link into a question. The database is stubbed
 at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace

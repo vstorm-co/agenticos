@@ -22,8 +22,6 @@ Wired as a Stop hook in `.claude/settings.json`, so it runs when an agent finish
 a turn - the moment the change is fresh and the page is cheap to fix.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import subprocess
@@ -46,6 +44,9 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/agent_templates.py", "docs/first-agent.md"),
     ("backend/app/core/catalog/agent_templates/", "docs/first-agent.md"),
     ("backend/app/agents/mcp", "docs/mcp.md"),
+    ("backend/app/worker/schedules.py", "docs/configuration.md"),
+    ("backend/app/worker/", "docs/howto/add-background-task.md"),
+    ("backend/app/services/api_runs.py", "docs/api.md"),
     ("backend/app/agents/model_resolver.py", "docs/models.md"),
     ("backend/app/services/mcp_", "docs/mcp.md"),
     ("backend/app/core/catalog/mcp_servers.json", "docs/mcp.md"),
@@ -136,7 +137,7 @@ def repo_root() -> Path | None:
             text=True,
             check=True,
         ).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return None
     return Path(top) if top else None
 
@@ -154,7 +155,7 @@ def changed_paths(root: Path) -> list[str]:
             text=True,
             check=True,
         ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return []
 
     paths: list[str] = []

@@ -12,8 +12,6 @@ conversations, and the files in one are whatever somebody uploaded to a chat - s
 query and not only of its text.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest
@@ -242,3 +240,35 @@ class TestWhatAListingCarries:
         (entry,) = stored_entries(dict(workspace.files))
 
         assert entry.get("modified_at") == stored.files["/report.md"]["modified_at"]
+
+
+class TestWhatAListingReads:
+    """#2248: the reader query read every stored workspace's whole content."""
+
+    async def test_the_stored_files_are_read_only_for_the_rows_that_need_them(self, db) -> None:
+        from sqlalchemy.exc import InvalidRequestError
+
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        stored = await _workspace(db, organization, agent, files={"/a.md": {"content": ["a"]}})
+        hosted = await _workspace(
+            db, organization, agent, backend="service", session_id="dc-1", files=None
+        )
+        db.expunge_all()
+
+        rows = await agent_workspace_repo.list_for_reader(
+            db, organization_id=organization.id, user_id=None, see_all=True
+        )
+        by_id = {row.id: row for row in rows}
+
+        # Left out, and loudly: a read of it without `load_files` is a bug, not a query.
+        with pytest.raises(InvalidRequestError):
+            _ = by_id[stored.id].files
+
+        await agent_workspace_repo.load_files(db, rows)
+        await agent_workspace_repo.load_files(db, rows)
+
+        assert by_id[stored.id].files == {"/a.md": {"content": ["a"]}}
+        assert by_id[stored.id] not in db.dirty
+        assert by_id[hosted.id].backend == "service"

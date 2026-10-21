@@ -11,8 +11,6 @@ on this surface is the record of the call, which is read and never written by a
 client.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 

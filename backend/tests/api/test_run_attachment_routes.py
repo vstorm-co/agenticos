@@ -12,8 +12,6 @@ that reason: what a browser may *display* must not depend on which route
 authorized the read.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path

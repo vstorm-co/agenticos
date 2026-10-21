@@ -21,8 +21,6 @@ reached through `app.services.memory`, which opens its own session so a mid-run
 read or write never rides the session the run is on.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any

@@ -11,8 +11,6 @@ person an AI Architect run acts for. How a refusal is answered is a parameter:
 the server sends an MCP client a tool error carrying the API's own reason.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from typing import Any
 

@@ -11,8 +11,6 @@ against small fixture trees, so the suite is about the rules and not about which
 packages happen to be installed on the machine running it.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import json
 import sys

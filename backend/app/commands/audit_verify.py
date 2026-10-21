@@ -21,8 +21,6 @@ database is immutable. Closing the superuser gap needs a checkpoint kept outside
 this database, which #1648 tracks as the next step.
 """
 
-from __future__ import annotations
-
 import asyncio
 from uuid import UUID
 

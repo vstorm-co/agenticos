@@ -14,8 +14,6 @@ Its vehicle is `GET /users/avatar/{user_id}`, the one route that reaches a
 service without authenticating first - the handler it exercises is global.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from datetime import UTC, datetime
@@ -28,6 +26,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient, Response
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
@@ -38,6 +37,7 @@ from app.api.exception_handlers import (
     app_exception_handler,
     budget_exceeded_handler,
     http_exception_handler,
+    pool_exhausted_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
@@ -235,7 +235,7 @@ class TestHTTPExceptionJoinsTheEnvelope:
 
         assert response is not None
         body = json.loads(bytes(response.body))
-        assert body["error"]["message"] == "Unprocessable entity"
+        assert body["error"]["message"] == "Unprocessable content"
         assert body["error"]["details"] == {"detail": [{"loc": ["body"], "msg": "bad"}]}
 
     @pytest.mark.anyio
@@ -295,6 +295,40 @@ class TestARateLimitCarriesItsIntervalInAHeader:
 
         assert response is not None
         assert "retry-after" not in response.headers
+
+
+class TestAnExhaustedPoolIsBusyNotBroken:
+    """No connection within `DB_POOL_TIMEOUT` is load to shed, not a fault (#2219)."""
+
+    @pytest.mark.anyio
+    async def test_a_route_that_waited_out_the_pool_answers_503_with_retry_after(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            user_repo, "get_by_id", AsyncMock(side_effect=PoolTimeoutError("QueuePool limit"))
+        )
+
+        response = await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
+
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == "5"
+        assert response.json()["error"] == {
+            "code": "SERVICE_BUSY",
+            "message": "The server is busy. Try again in a few seconds.",
+            "details": None,
+        }
+
+    @pytest.mark.anyio
+    async def test_it_logs_one_line_not_a_traceback(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.WARNING, logger="app.api.exception_handlers"):
+            await pool_exhausted_handler(_HttpConnection(), PoolTimeoutError("QueuePool limit"))
+
+        (record,) = caplog.records
+        assert (record.getMessage(), record.exc_info) == ("db_pool_exhausted", None)
+
+    @pytest.mark.anyio
+    async def test_a_socket_gets_no_body(self):
+        assert await pool_exhausted_handler(_WebsocketConnection(), PoolTimeoutError("x")) is None
 
 
 class _HttpConnection:

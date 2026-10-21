@@ -9,20 +9,17 @@ the pending list kept offering it.
 
 import logging
 
-from prefect import flow
-
 from app.db.session import get_db_context
 from app.services.invitation import InvitationService
 
 logger = logging.getLogger(__name__)
 
 
-@flow(name="invitation-expiry-sweep")
-async def invitation_expiry_sweep_flow() -> int:
+async def expire_invitations() -> int:
     """Mark every PENDING invitation past `expires_at` as EXPIRED.
 
-    Returns how many invitations were expired, so a flow run's result says
-    what it found without anybody reading the logs.
+    Returns how many invitations were expired, so a caller can say what the
+    sweep found without anybody reading the logs.
     """
     async with get_db_context() as db:
         expired = await InvitationService(db).expire_stale()

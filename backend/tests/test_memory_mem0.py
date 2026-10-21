@@ -9,8 +9,6 @@ client makes a blocking network call from its constructor - so the client must b
 built once, off the loop, and never on a host this deployment has not allowed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -42,8 +42,6 @@ kept per route list, and a list that grows (a test adding a route) is flattened
 again.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable
 from typing import Any

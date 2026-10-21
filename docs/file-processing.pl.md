@@ -1,5 +1,5 @@
 ---
-source_sha: "4c7d4614d816"
+source_sha: "79b06939c535"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -391,11 +391,11 @@ z pracą tego flow.**
 **Jedna pętla jest właścicielem pul procesu, a wszystko inne buduje własny
 engine.** Lifespan API zajmuje je przy starcie: obsługuje każdy request i
 likwiduje je przy zamknięciu, więc to jedyna pętla, której połączenia mogą
-cache'ować. Poza tą pętlą `get_db_context` zachowuje się jak
-`get_worker_db_context` — engine z `NullPool` na czas wywołania, likwidowany na
-końcu — bo sięga się po niego z flow Prefecta (raport, odświeżanie MCP, zadania
-zaproszeń i zatwierdzeń, pętle kanałów) oraz z resolvera embeddingów agenta,
-każdy na własnej pętli
+cache'ować. Worker zajmuje je tak samo dla swojej jednej pętli, a każdy proces
+potomny ingestii dla własnej. Poza pętlą-właścicielem `get_db_context` zachowuje
+się jak `get_worker_db_context` — engine z `NullPool` na czas wywołania,
+likwidowany na końcu — bo sięga się po niego z pętli kanałów oraz z resolvera
+embeddingów agenta, każdy na własnej pętli
 ([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
 
 Wyszukiwanie w wiedzy przez agenta trzyma się tej samej reguły dla swojego
@@ -613,8 +613,8 @@ klucza ogólnowdrożeniowego, na który można by spaść, więc odmowa nigdy ni
 ustawić zmiennej.
 
 To zejście jest ogłaszane, a nie zakładane. Rozwiązanie niesie informację, na
-które z pięciu źródeł trafiło, a ingestia wpisuje każde gorsze do logu runu
-Prefecta, łącznie z kolekcją, która po prostu nie wskazuje żadnego klucza. Przed
+które z pięciu źródeł trafiło, a ingestia wpisuje każde gorsze do logu workera,
+łącznie z kolekcją, która po prostu nie wskazuje żadnego klucza. Przed
 zgłoszeniem #306 worker ingestii był jedynym wywołującym, który nigdy nie pytał
 resolvera, więc każdy wgrany dokument był embedowany modelem wdrożenia i kluczem
 ogólnowdrożeniowym, niezależnie od tego, co wybrała jego kolekcja; tamtego klucza
@@ -1027,12 +1027,15 @@ monthly budget exhausted: $40.15 spent of $40.00 limit”*.
 Tym, czego **nie** zapisujemy, jest własny tekst klienta, który zawiódł. SDK
 providera, `httpx`, `boto3` i klient Google Drive wkładają w komunikat swojego
 wyjątku request, który właśnie wykonywały, co rutynowo oznacza endpoint,
-wewnętrznego hosta, bucket albo URL z kluczem w query stringu — a w odróżnieniu
-od ciała błędu HTTP kolumnę czyta się ponownie tygodnie później, przez każdego,
-kto otworzy nieudany dokument. Ten tekst nie ginie: każde z tych miejsc wywołania
-loguje go przez `logger.exception`, więc log workera ma komunikat i traceback, a
-flow Prefecta, który rzuca ponownie, ma oba w swoim runie. Miejscem, gdzie te dwa
-są rozdzielane, jest `app/services/rag/failures.py`.
+wewnętrznego hosta, bucket albo URL z kluczem w query stringu — a w odróżnieniu od
+ciała błędu HTTP kolumnę czyta się ponownie tygodnie później, przez każdego, kto
+otworzy nieudany dokument.
+
+Ten tekst nie ginie: każde z tych miejsc wywołania loguje go przez
+`logger.exception`, więc log workera ma komunikat i traceback, a zadanie, które
+rzuca ponownie, ma typ, komunikat i ostatnie ramki w swoim wierszu w
+`background_jobs`, gdzie czyta je tylko właściciel wdrożenia. Miejscem, gdzie
+kolumna i log są rozdzielane, jest `app/services/rag/failures.py`.
 
 Log to mniejsza publiczność niż kolumna, a nie publiczność bezpieczna — traktuj
 log workera jako coś, co czytają wyłącznie operatorzy, i zobacz [#440], żeby

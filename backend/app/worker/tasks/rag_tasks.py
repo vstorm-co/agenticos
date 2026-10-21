@@ -13,13 +13,10 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from prefect import flow, get_run_logger
-from prefect.exceptions import MissingContextError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
-from app.core.logging import setup_logging
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.locks import LockScope, try_hold_subject_on_connection
@@ -34,6 +31,7 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
 )
+from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -58,6 +56,8 @@ from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
+from app.worker.attempt import is_final_attempt
+from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
 
 logger = logging.getLogger(__name__)
 
@@ -72,21 +72,6 @@ def _walk_files(root: Path) -> list[Path]:
     """Every non-hidden file under a tree. Blocking - `rglob` plus a `stat` per
     entry - so it runs through `asyncio.to_thread`, not on the loop (#1100)."""
     return [f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")]
-
-
-def _say_in_flow_log(message: str) -> None:
-    """Put one line where the operator of a failing ingestion is looking.
-
-    Prefect ships a run's log to the UI through the logger `get_run_logger`
-    hands out; a `logging` call from a library module goes to the worker's
-    stdout and no further. Outside a run there is no such logger, and this is
-    still a plain module function - a direct CLI ingest, or a test - so the
-    module logger is the fallback rather than a crash on a log line.
-    """
-    try:
-        get_run_logger().warning(message)
-    except MissingContextError:
-        logger.warning(message)
 
 
 def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
@@ -110,7 +95,7 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
     per operation rather than per cache miss, so indexing one document asks
     twice (once to create the table, once to embed), and a sync of two hundred
     files would otherwise print four hundred copies of the line it exists to
-    make noticeable. The set is per ingestion service, so it is per flow run
+    make noticeable. The set is per ingestion service, so it is per job
     rather than per process; a credential fixed between runs is reported again
     on the next one.
     """
@@ -128,7 +113,7 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
             and collection_name not in announced
         ):
             announced.add(collection_name)
-            _say_in_flow_log(f"Embedding {resolved.describe(collection_name)}.")
+            logger.warning("Embedding %s.", resolved.describe(collection_name))
         return resolved
 
     return resolve
@@ -137,7 +122,7 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
 @asynccontextmanager
 async def _ingestion_service(
     *, processor: DocumentProcessor, organization_id: UUID | None, tenant: UUID | None
-) -> AsyncGenerator[IngestionService, None]:
+) -> AsyncGenerator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     `organization_id` is the flow's own, and scopes embedding resolution to the
@@ -167,10 +152,9 @@ async def _ingestion_service(
     parse that fails, the sync cancelled from inside its file loop. A flow that
     built a store and disposed none left its pool open for the life of the
     worker, and two hundred uploads reached Postgres `max_connections` (#948).
-    The engine cannot be the process's own: each flow runs in an event loop of
-    its own, and a pooled connection made on one loop breaks whoever checks it
-    out on the next - the reason `get_worker_db_context` builds per-call
-    engines too.
+    The engine is per job rather than the process's own so that its pool is
+    bounded by the job that opened it and closed when the job ends, whatever
+    the job's way out.
     """
     rag_settings = settings.rag
     engine = create_async_engine(settings.DATABASE_URL)
@@ -261,122 +245,121 @@ async def _still_ingestable(document_id: str, collection_name: str) -> bool:
         return True
 
 
-@flow(name="ingest-document", log_prints=True)
-async def ingest_document_flow(
-    rag_document_id: str,
-    collection_name: str,
-    filepath: str,
-    source_path: str,
-    replace: bool = False,
-    attempt: int = 1,
-) -> dict[str, Any]:
+async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     """Process a document: parse, chunk, embed, store in vector DB.
 
     The row this puts an error on is read on the documents page, so what lands
     there is a summary rather than the exception's own text (#423). The text
-    itself is in this flow's log twice over - the line below, and the traceback
-    Prefect records because the failure is re-raised.
+    itself is in the worker's log, with the traceback, because the failure is
+    re-raised - which is also what lets the queue retry it.
 
-    `attempt` is which dispatch this run is (#1598) - `1` for an upload,
-    whatever `retry_ingestion` bumped it to for a retry - carried through to
-    every settlement so a stale one (superseded by a later retry) is ignored
-    rather than notifying under the wrong attempt's dedup key. Defaulted for a
-    Prefect deployment run started with an older parameter set, not because a
-    caller may reasonably omit it - `RAGDocumentService._queue_parse`, the one
-    caller this codebase has, always passes it explicitly.
+    `job.attempt` is which dispatch of the document this is (#1598) - `1` for an
+    upload, whatever `retry_ingestion` bumped it to for a retry - carried through
+    to every settlement so a stale one (superseded by a later retry) is ignored
+    rather than notifying under the wrong attempt's dedup key. It is not the
+    job's own attempt, which the queue counts.
     """
-    # `serve()` runs each flow in its own subprocess, which imports this module but
-    # never ran the redaction setup `prefect_app.main` does - so without this the
-    # traceback below reaches the aggregator as clear text (#440).
-    setup_logging()
-    logger.info("Starting ingestion: %s -> %s", source_path, collection_name)
+    logger.info("Starting ingestion: %s -> %s", job.source_path, job.collection_name)
     try:
         return await _run_ingestion(
-            rag_document_id, collection_name, filepath, source_path, replace, attempt
+            str(job.rag_document_id),
+            job.collection_name,
+            job.filepath,
+            job.source_path,
+            job.replace,
+            job.attempt,
         )
     except Exception as exc:
-        logger.exception("Ingestion failed for %s", source_path)
+        logger.exception("Ingestion failed for %s", job.source_path)
         await _fail_document(
-            rag_document_id,
+            str(job.rag_document_id),
             error_message=failure_summary(exc, stage=IngestionStage.INGEST),
-            attempt=attempt,
+            attempt=job.attempt,
         )
         raise
 
 
-@flow(name="sync-collection", log_prints=True)
-async def sync_collection_flow(
-    sync_log_id: str,
-    source: str,
-    collection_name: str,
-    mode: str,
-    path: str,
-    knowledge_base_id: str | None = None,
-) -> dict[str, Any]:
+async def sync_collection(job: SyncCollection) -> dict[str, Any]:
     """Sync a collection from a local directory.
 
-    `knowledge_base_id` is the base the route authorized this sync to write; it
-    defaults to `None` so a run queued before it existed - an upgrade replaying an
-    old run under the retained deployment name - still binds and stays
-    deployment-wide, as a local sync was before it carried a tenant (#1684).
+    `knowledge_base_id` is the base the route authorized this sync to write, or
+    `None` for a deployment-wide local sync.
     """
-    setup_logging()
-    logger.info("Starting sync: %s -> %s (mode=%s)", source, collection_name, mode)
+    logger.info("Starting sync: %s -> %s (mode=%s)", job.source, job.collection_name, job.mode)
     try:
-        return await _run_sync(sync_log_id, source, collection_name, mode, path, knowledge_base_id)
-    except Exception as exc:
-        logger.exception("Sync failed for %s -> %s", source, collection_name)
-        await _update_sync_log(
-            sync_log_id, "error", error_message=failure_summary(exc, stage=IngestionStage.SYNC)
+        return await _run_sync(
+            str(job.sync_log_id),
+            job.source,
+            job.collection_name,
+            job.mode,
+            job.path,
+            None if job.knowledge_base_id is None else str(job.knowledge_base_id),
         )
+    except Exception as exc:
+        logger.exception("Sync failed for %s -> %s", job.source, job.collection_name)
+        if is_final_attempt():
+            await _update_sync_log(
+                str(job.sync_log_id),
+                "error",
+                error_message=failure_summary(exc, stage=IngestionStage.SYNC),
+            )
         raise
 
 
-@flow(name="sync-single-source", log_prints=True)
-async def sync_single_source_flow(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
-    """Sync a single connector source. If sync_log_id provided, use existing log."""
-    setup_logging()
-    logger.info("Starting source sync: %s", source_id)
-    return await _run_source_sync(source_id, sync_log_id=sync_log_id)
+async def sync_source(job: SyncConnectorSource) -> dict[str, Any]:
+    """Sync a single connector source, onto the given log when the caller made one."""
+    logger.info("Starting source sync: %s", job.source_id)
+    return await _run_source_sync(
+        str(job.source_id), sync_log_id=None if job.sync_log_id is None else str(job.sync_log_id)
+    )
 
 
-_SYNC_CHECK_DEPLOYMENT = "rag-sync-check/rag-sync-check"
-"""`check_scheduled_syncs_flow`'s on-demand deployment, as `prefect_app` registers it."""
+async def dispatch_due_syncs() -> int:
+    """Queue a sync for each source that has come due. Answers how many were queued.
 
-
-async def dispatch_due_syncs() -> bool:
-    """Start the sync check when a source is due, and only then. Answers whether it did.
-
-    One of the worker's in-process sweeps (`app/worker/sweeps.py`), every minute.
-    The question is one query; the syncs themselves stay a Prefect flow run, in a
-    process of their own, because they parse and embed. Asking from a deployment
-    instead cost a process importing the whole application every minute to learn,
-    nearly always, that nothing was due (#2213).
-
-    Not awaited: the deployment runs one check at a time and cancels a submission
-    that finds one running, so a tick that comes round while the last batch still
-    syncs adds nothing.
+    The `dispatch-due-syncs` schedule, every minute. A source whose sync is
+    already queued or running is left alone - it stays "due" until that sync
+    finishes and stamps it, and a second copy behind the first would sync the
+    same files again for nothing.
     """
-    from prefect.deployments import run_deployment
+    from app.services.background_jobs import enqueue
+    from app.worker.jobs import SYNC_SOURCE
 
+    queued = 0
     async with get_worker_db_context() as db:
-        due = await sync_source_repo.any_due_for_sync(db)
-    if not due:
-        return False
-    # `run_deployment` is sync-compatible: see `dispatch_trigger_fire`.
-    await run_deployment(name=_SYNC_CHECK_DEPLOYMENT, timeout=0)  # ty: ignore[invalid-await]
-    return True
-
-
-@flow(name="rag-sync-check", log_prints=True)
-async def check_scheduled_syncs_flow() -> None:
-    """Find sources due for sync and run each one's flow; started by `dispatch_due_syncs`."""
-    async with get_worker_db_context() as db:
-        sources = await sync_source_repo.get_due_for_sync(db)
-        tasks = [asyncio.create_task(sync_single_source_flow(str(source.id))) for source in sources]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("Scheduled sync check: dispatched %d source(s)", len(sources))
+        if not await sync_source_repo.any_due_for_sync(db):
+            return 0
+        sources = SyncSourceService(db)
+        for source in await sync_source_repo.get_due_for_sync(db):
+            key = sync_source_key(source.id)
+            # The log and its job in one savepoint, as a manual trigger queues them:
+            # the job then names its own log, and a job that dies leaves that log
+            # to close rather than whichever of the source's logs is newest - a
+            # manual sync queued behind it, which was then failed in its place
+            # (Codex, #2248). A sync already queued or running keeps the source,
+            # and the log opened for nothing goes with the savepoint.
+            savepoint = await db.begin_nested()
+            log_id = None
+            if source.collection_name:
+                log = await sources.open_sync_log(source, collection_name=source.collection_name)
+                log_id = log.id
+            job_id = await enqueue(
+                db,
+                SYNC_SOURCE,
+                SyncConnectorSource(source_id=source.id, sync_log_id=log_id),
+                organization_id=source.organization_id,
+                dedupe_key=key,
+                dedupe_active=True,
+                concurrency_key=key,
+            )
+            if job_id is None:
+                await savepoint.rollback()
+            else:
+                await savepoint.commit()
+                queued += 1
+    if queued:
+        logger.info("Scheduled sync check: queued %d source(s)", queued)
+    return queued
 
 
 async def _run_ingestion(
@@ -729,16 +712,26 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     `PROCESSING` before dispatching again, so the guard cannot mistake a
     previous attempt's already-recorded failure for this one's.
 
+    Only a document still `processing` is failed: a settler that runs after the
+    queue gave up on the job finds a `done` or already-failed row and leaves it.
+    And only on the job's last attempt (`is_final_attempt`): an earlier one is
+    retried, and failing the row then reported a failure the retry undid.
+
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
     `complete_ingestion` itself.
     """
     from app.services.rag_document import RAGDocumentService
 
+    if not is_final_attempt():
+        # The queue tries again: the document stays `processing`, and its owner is
+        # told nothing yet - the retry may well index it (Codex, #2248).
+        logger.info("Ingestion of %s failed; the queue retries it", rag_document_id)
+        return
     try:
         async with get_worker_db_context() as db:
             doc_svc = RAGDocumentService(db)
-            if (await doc_svc.get_document(rag_document_id)).status == DocumentStatus.ERROR:
+            if (await doc_svc.get_document(rag_document_id)).status != DocumentStatus.PROCESSING:
                 return
             await doc_svc.fail_ingestion(
                 rag_document_id, error_message=error_message or "Unknown error", attempt=attempt
@@ -1132,7 +1125,7 @@ OVERLAPPING_RUN = "Another sync of this source is still running, so this one did
 
 
 @asynccontextmanager
-async def _exclusive_source_run(source_id: str) -> AsyncGenerator[bool, None]:
+async def _exclusive_source_run(source_id: str) -> AsyncGenerator[bool]:
     """Whether this run is the only one of its source, held for as long as it runs.
 
     A connection of its own, kept open for the whole sync, because the lock
@@ -1203,10 +1196,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             # Both callers guarantee this before dispatching: `trigger_sync`
             # refuses a source with no collection, and the scheduler's own
             # query only selects sources that have one. Guarded again here
-            # because this flow can also be dispatched directly by name as a
-            # Prefect deployment, outside either call path - and because a
-            # source can be edited between `trigger_sync`'s check and this
-            # flow actually running, the same stuck-log risk as above applies.
+            # because a source can be edited between `trigger_sync`'s check and
+            # this job actually running, the same stuck-log risk as above applies.
             message = "Source has no assigned collection."
             await _notify_sync_start_failure(
                 db,
@@ -1230,11 +1221,15 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # for a deployment-wide fallback, because there is not one.
         credential = await _connector_credential(db, source.secret_id, organization_id)
 
-        # Use existing SyncLog (from API trigger) or create new one (from scheduler)
+        # The log the job was queued with - a manual trigger and the schedule both
+        # open one - or, for a source that had no collection when it was
+        # queued and has one now, one opened here. Opened, not triggered:
+        # `trigger_sync` queues a job too, and this one is already running, so it
+        # queued a second sync of the same source behind this one (Codex, #2248).
         if sync_log_id:
             log_id = sync_log_id
         else:
-            log = await source_svc.trigger_sync(source_id)
+            log = await source_svc.open_sync_log(source, collection_name=collection_name)
             log_id = str(log.id)
 
         # Before a single file is downloaded: a scheduled sync answers to the
@@ -1641,8 +1636,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
     }
 
 
-@flow(name="retention-sweep", log_prints=True)
-async def retention_sweep_flow() -> None:
+async def apply_retention() -> None:
     """Apply every organization's retention policy once.
 
     Here rather than beside the other sweeps in `trigger_tasks.py` because of the
@@ -1693,3 +1687,46 @@ async def retention_sweep_flow() -> None:
                 "failed": result.failed,
             },
         )
+
+
+def _stopped(reason: str) -> str:
+    return f"Stopped before it finished: {reason}"
+
+
+async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:
+    """A document whose ingestion job ended for good without the handler saying so.
+
+    A child killed by the memory watchdog or the kernel cannot mark its own row,
+    so the row stayed `processing` with nothing left to finish it (Codex, #2248).
+    A document the handler already settled - done, or failed with its own
+    reason - is left as it is.
+    """
+    await _fail_document(
+        str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
+    )
+
+
+async def settle_lost_collection_sync(job: SyncCollection, reason: str) -> None:
+    """A collection sync that ended for good with its log still running."""
+    await _close_running_log(str(job.sync_log_id), reason)
+
+
+async def settle_lost_source_sync(job: SyncConnectorSource, reason: str) -> None:
+    """A source sync that ended for good with its log still running.
+
+    Its own log, by the id it was queued with: a scheduled run opens its log
+    when it is queued, as a manual one does. Never the source's newest running
+    log, which can be a later sync's (Codex, #2248).
+    """
+    async with get_worker_db_context() as db:
+        await SyncSourceService(db).update_after_sync(str(job.source_id), "error", _stopped(reason))
+    if job.sync_log_id is not None:
+        await _close_running_log(str(job.sync_log_id), reason)
+
+
+async def _close_running_log(sync_log_id: str, reason: str) -> None:
+    async with get_worker_db_context() as db:
+        log = await sync_log_repo.get_by_id(db, UUID(sync_log_id))
+        if log is None or log.status != "running":
+            return
+    await _update_sync_log(sync_log_id, "error", error_message=_stopped(reason))

@@ -11,8 +11,6 @@ for a model that ignores the schema.
 A parameter with nothing to choose between is taken out of the schema altogether.
 """
 
-from __future__ import annotations
-
 import copy
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
