@@ -422,22 +422,28 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
-def unreachable_briefing(server: str, *, binding: str | None) -> str:
+def unreachable_briefing(server: str, *, binding: str | None, held_by: str | None = None) -> str:
     """What the model is told about a bound server that did not answer this turn.
 
     Told nothing, the model reads the missing tools as an empty answer and
     reports "no data". The failure may be a timeout, a refused token or a
     protocol error, so the text promises neither that a retry works nor that it
-    does not.
+    does not. `held_by` is another binding attached under the same prefix.
     """
     named = f"{server} server ({binding})" if binding else f"{server} server"
+    prefix = tool_prefix(server)
+    attached = (
+        f"so none of its {prefix}_* tools are attached"
+        if held_by is None
+        else f"so it is not attached; the {prefix}_* tools that are attached belong to "
+        f"{held_by}, and what they return comes from that account, not this one"
+    )
     return (
         f"The {named} is not available this turn: it did not answer, or refused the "
-        f"connection, when the turn started, so none of its {tool_prefix(server)}_* tools "
-        f"are attached. If asked for anything that needs {server}, say it could not be "
-        "reached just now - trying again may work, and if it keeps failing the connection "
-        "needs checking. Do not answer as though it returned nothing, and do not guess "
-        "what it would have said."
+        f"connection, when the turn started, {attached}. If asked for anything that "
+        f"needs it, say it could not be reached just now - trying again may work, and "
+        "if it keeps failing the connection needs checking. Do not answer as though it "
+        "returned nothing, and do not guess what it would have said."
     )
 
 

@@ -5225,6 +5225,29 @@ class TestTellingTheAgentWhatItCannotReach:
         assert "if it keeps failing the connection needs checking" in spec.instructions
         assert "is bound to the account" not in spec.instructions
 
+    def test_a_dead_server_whose_prefix_another_holds_names_whose_tools_those_are(self):
+        """Its prefix's tools are attached from another account, so "none of its
+        tools" would be false - and saying nothing lets the live account's
+        results pass for the dead one's."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailableUnreachableServer(
+                    server="github",
+                    binding="the connection 'github'",
+                    held_by="the connection 'GitHub'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "github server (the connection 'github') is not available" in spec.instructions
+        assert "none of its github_* tools" not in spec.instructions
+        assert (
+            "the github_* tools that are attached belong to the connection 'GitHub', and "
+            "what they return comes from that account, not this one"
+        ) in spec.instructions
+
     def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):
         """An organization `notion` and each person's own `notion` collide under
         one name. Briefed by name, the model would read that `notion` is both

@@ -1795,7 +1795,7 @@ def _binding_gap_briefing(
             "under one name, which the agent's author resolves by renaming one connection."
         )
     if isinstance(gap, UnavailableUnreachableServer):
-        return unreachable_briefing(gap.server, binding=gap.binding)
+        return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
     return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
 
 

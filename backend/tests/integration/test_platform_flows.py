@@ -2621,9 +2621,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[tuple[str, str]]] = []
 
-        async def fake_build(specs) -> list[tuple[Any, None]]:
+        # Answering: a server that did not would be briefed as unreachable, and
+        # the question here is only which connection the lookup found.
+        async def fake_build(specs) -> list[tuple[Any, str]]:
             seen.append([(spec.name, spec.url) for spec in specs])
-            return [(spec, None) for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
         monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
