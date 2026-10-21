@@ -1,5 +1,5 @@
 ---
-source_sha: "0dc46f479226"
+source_sha: "4d597d189a74"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -144,6 +144,8 @@ Ejecuta tantos procesos worker como necesite el trabajo, en cualquier host.
 Reclaman jobs con `SKIP LOCKED`, así que nunca dos ejecutan el mismo, y
 cualquiera de ellos dispara una programación que toca. Un worker que muere
 devuelve sus jobs en menos de `WORKER_LEASE_SECONDS`.
+Por qué la cola son filas en Postgres, medida frente a otros nueve motores, se
+explica en [el benchmark de jobs en segundo plano](task-queue-benchmark.md).
 
 Separa los pools cuando el análisis de documentos compite con las ejecuciones
 de agentes. `WORKER_POOLS=agent,system` en un grupo de procesos y

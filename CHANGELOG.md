@@ -39,6 +39,13 @@ Two things are versioned separately from this file and worth knowing about:
 - **Starters for an agent that draws**: an empty chat with Visuals on opens on
   four - explain in 3D, compare then chart, make a calculator, plan a trip on a
   map. Switching Visuals on in the Builder binds Charts too.
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
 
 ### Changed
 
@@ -50,6 +57,11 @@ Two things are versioned separately from this file and worth knowing about:
   explainer, a calculator and an itinerary. Messages in the chat sit a little
   closer together, and a drawing and the answer after the steps a little
   further apart.
+
+## [1.10.1] - 2026-10-21
+
+### Changed
+
 - **The comparison guides are checked again, on 21 October 2026, against
   1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
   was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
