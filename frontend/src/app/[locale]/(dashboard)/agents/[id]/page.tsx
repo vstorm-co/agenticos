@@ -151,7 +151,7 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -782,8 +782,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   );
 
   // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
-  // below cannot tell it from a slow load.
-  if (error && !agent) {
+  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
+  // still holds it (deleted from another tab); any other failure keeps the Builder open.
+  const gone = error instanceof ApiError && error.status === 404;
+  if (error && (!agent || gone)) {
     return (
       <ErrorState
         title={t("agentUnavailable")}
