@@ -207,6 +207,16 @@ class DatasetCaseRead(StoredCaseContent):
     created_at: datetime
 
 
+class DatasetCaseQuestion(BaseSchema):
+    """A question to look for among a version's cases, in a body rather than a URL.
+
+    A query string is written to every access log it passes through, and a case's
+    question is often copied from somebody's conversation.
+    """
+
+    input: str = Field(min_length=1, max_length=MAX_CASE_TEXT)
+
+
 class DatasetCaseList(BaseSchema):
     items: list[DatasetCaseRead]
     total: int
