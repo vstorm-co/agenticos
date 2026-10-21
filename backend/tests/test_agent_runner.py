@@ -93,6 +93,7 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _RunRendering,
     _spend_already_booked,
     _start_turn_on_first_use,
     _with_account_notes,
@@ -3284,7 +3285,7 @@ class TestResume:
         """Review on #2062: after an approval every request was told the
         approver's name, email and departments - a visitor's agent the admin's."""
         with patch.object(AgentRunnerService, "_variable_renderer", autospec=True) as renderer:
-            renderer.return_value = lambda spec: spec
+            renderer.return_value = _RunRendering(variables=lambda spec: spec, person=None)
             await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
 
         told_about = renderer.call_args.args[1]

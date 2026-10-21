@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Check, ChevronRight, PartyPopper } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -11,7 +12,6 @@ import { useRecentConversations } from "@/hooks/use-dashboard-data";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { ROUTES } from "@/lib/constants";
-import { useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
@@ -24,8 +24,12 @@ type StepKey = "profile" | "chat" | "routine" | "connection" | "agent";
 interface Step {
   key: StepKey;
   done: boolean;
-  go: () => void;
+  /** Where the step is done; a step with none is a question to the Architect. */
+  href?: string;
 }
+
+const ROW =
+  "bg-muted/60 flex h-full w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors";
 
 /**
  * The next things worth doing here, from what the person has actually done (#2301).
@@ -37,7 +41,6 @@ interface Step {
  */
 export function GettingStartedWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.getting-started");
-  const router = useRouter();
   const ask = useArchitectAskStore((state) => state.ask);
   const user = useAuthStore((state) => state.user);
   const conversations = useRecentConversations(1);
@@ -55,30 +58,17 @@ export function GettingStartedWidget({ title, hint, options }: DashboardWidgetPr
   }
 
   const steps: Step[] = [
-    {
-      key: "profile",
-      done: Boolean(user?.job_title),
-      go: () => router.push(ROUTES.SETTINGS_PROFILE),
-    },
-    {
-      key: "chat",
-      done: conversations.conversations.length > 0,
-      go: () => router.push(ROUTES.CHAT),
-    },
+    { key: "profile", done: Boolean(user?.job_title), href: ROUTES.SETTINGS_PROFILE },
+    { key: "chat", done: conversations.conversations.length > 0, href: ROUTES.CHAT },
     {
       key: "routine",
       done: triggers.some((trigger) => trigger.created_by_user_id === user?.id),
-      go: () => router.push(ROUTES.ROUTINES),
+      href: ROUTES.ROUTINES,
     },
-    {
-      key: "connection",
-      done: connections.length > 0,
-      go: () => router.push(ROUTES.MCP_SERVERS),
-    },
+    { key: "connection", done: connections.length > 0, href: ROUTES.MCP_SERVERS },
     {
       key: "agent",
       done: agents.some((agent) => agent.owner_user_id === user?.id && !SEEDED.has(agent.slug)),
-      go: () => ask(t("agentAsk")),
     },
   ];
   const left = steps.filter((step) => !step.done).length;
@@ -92,6 +82,24 @@ export function GettingStartedWidget({ title, hint, options }: DashboardWidgetPr
     );
   }
 
+  const content = (step: Step) => (
+    <>
+      <span
+        className={cn(
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px]",
+          step.done ? "bg-success border-transparent text-white" : "border-border",
+        )}
+      >
+        {step.done && <Check className="h-3 w-3" aria-hidden />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{t(`steps.${step.key}.title`)}</span>
+        <span className="text-muted-foreground block text-xs">{t(`steps.${step.key}.body`)}</span>
+      </span>
+      {!step.done && <ChevronRight className="text-muted-foreground mt-0.5 h-4 w-4" />}
+    </>
+  );
+
   return frame(
     <div className="space-y-2">
       <p className="text-muted-foreground text-xs">
@@ -100,31 +108,21 @@ export function GettingStartedWidget({ title, hint, options }: DashboardWidgetPr
       <ul className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
         {steps.map((step) => (
           <li key={step.key}>
-            <button
-              type="button"
-              onClick={step.go}
-              disabled={step.done}
-              className={cn(
-                "bg-muted/60 hover:bg-muted flex h-full w-full items-start gap-2.5 rounded-xl p-3 text-left transition-colors disabled:cursor-default",
-                step.done && "hover:bg-muted/60 opacity-60",
-              )}
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px]",
-                  step.done ? "bg-success border-transparent text-white" : "border-border",
-                )}
+            {step.done ? (
+              <div className={cn(ROW, "opacity-60")}>{content(step)}</div>
+            ) : step.href ? (
+              <Link href={step.href} className={cn(ROW, "hover:bg-muted")}>
+                {content(step)}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => ask(t("agentAsk"))}
+                className={cn(ROW, "hover:bg-muted")}
               >
-                {step.done && <Check className="h-3 w-3" aria-hidden />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{t(`steps.${step.key}.title`)}</span>
-                <span className="text-muted-foreground block text-xs">
-                  {t(`steps.${step.key}.body`)}
-                </span>
-              </span>
-              {!step.done && <ChevronRight className="text-muted-foreground mt-0.5 h-4 w-4" />}
-            </button>
+                {content(step)}
+              </button>
+            )}
           </li>
         ))}
       </ul>

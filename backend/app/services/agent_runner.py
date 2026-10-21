@@ -1002,6 +1002,24 @@ def _delegation_frames(
 
 
 @dataclass(frozen=True)
+class _RunRendering:
+    """What a run fills into instructions: its `{{variables}}`, and its person.
+
+    Two halves because they reach different agents. Every agent in the run reads
+    the same variables (#2065); only the run's own agent is talking to the
+    person (#2301) - a delegate answers that agent, and telling it "the person
+    you are talking to" would be untrue.
+    """
+
+    variables: Callable[[AgentSpec], AgentSpec]
+    person: Person | None
+
+    def for_the_run(self, spec: AgentSpec) -> AgentSpec:
+        """`spec` as the run's own agent reads it: variables filled, the person after."""
+        return with_person(self.variables(spec), self.person)
+
+
+@dataclass(frozen=True)
 class _ResumePlan:
     """How a parked run and everything it parked inside are continued.
 
@@ -2434,8 +2452,9 @@ class AgentRunnerService:
         surface: RunSurface,
         user_name: str | None,
         person_time_zone: str | None,
-    ) -> Callable[[AgentSpec], AgentSpec]:
-        """What fills `{{variables}}` for this run, the same for every agent in it (#2065).
+    ) -> _RunRendering:
+        """What fills `{{variables}}` for this run, the same for every agent in it (#2065),
+        and the person the run's own agent is told about (#2301).
 
         The person is the run's real subject. A publisher standing in for an
         unidentified asker is not named - their name and address are not the
@@ -2478,9 +2497,9 @@ class AgentRunnerService:
         )
 
         def render(spec: AgentSpec) -> AgentSpec:
-            return with_person(prompt_variables.render(spec, facts, person_zone=zone), about)
+            return prompt_variables.render(spec, facts, person_zone=zone)
 
-        return render
+        return _RunRendering(variables=render, person=about)
 
     async def _run_owner_context(
         self, ctx: AuthContext, existing_run: AgentRun | None
@@ -2920,7 +2939,7 @@ class AgentRunnerService:
         # `period_spend` below - reading the same organization.
         organization = await self.organizations.get_by_id(ctx.organization_id)
 
-        render_variables = await self._variable_renderer(
+        rendering = await self._variable_renderer(
             # Who the run is about: on a resume `ctx` is the approver's, and the
             # agent was told the person who started it - their name and address,
             # or "a visitor" - before it parked.
@@ -2936,7 +2955,7 @@ class AgentRunnerService:
             user_name=user_name,
             person_time_zone=person_time_zone,
         )
-        spec = render_variables(spec)
+        spec = rendering.for_the_run(spec)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
@@ -3296,7 +3315,7 @@ class AgentRunnerService:
             resources=resources,
             approvals=channel,
             budget=run_budget,
-            render_variables=render_variables,
+            render_variables=rendering.variables,
             runtimes=runtimes,
             delegations=delegations,
             delegate_recorders=delegate_recorders,

@@ -194,7 +194,7 @@ class TestTheRunnersFacts:
                 new=AsyncMock(return_value=["Finance", "Sales"]),
             ),
         ):
-            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
                 organization_name="Acme",
                 surface=RunSurface.WEB,
@@ -202,13 +202,15 @@ class TestTheRunnersFacts:
                 person_time_zone="Europe/Warsaw",
             )
 
-        spec = render_for_run(
-            _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
-        )
-        assert spec.instructions == (
+        template = _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
+        assert rendering.for_the_run(template).instructions == (
             "ada@example.com ada@example.com the AgenticOS console Finance, Sales\n\n"
             "# The person you are talking to\n\n"
             "- Their time zone is Europe/Warsaw; read and state times in it."
+        )
+        # A delegate reads the same variables and is not told it talks to the person.
+        assert rendering.variables(template).instructions == (
+            "ada@example.com ada@example.com the AgenticOS console Finance, Sales"
         )
 
     async def test_a_person_is_described_from_their_account(self) -> None:
@@ -237,7 +239,7 @@ class TestTheRunnersFacts:
                 new=AsyncMock(return_value=[]),
             ),
         ):
-            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
                 organization_name=None,
                 surface=RunSurface.SCHEDULE,
@@ -245,7 +247,7 @@ class TestTheRunnersFacts:
                 person_time_zone=None,
             )
 
-        spec = render_for_run(_spec("Help."))
+        spec = rendering.for_the_run(_spec("Help."))
         assert spec.instructions == (
             "Help.\n\n# The person you are talking to\n\n"
             "- Their console is in Polish: answer in Polish unless they write in another language.\n"
@@ -269,7 +271,7 @@ class TestTheRunnersFacts:
         )
         lookup = AsyncMock()
         with patch("app.services.agent_runner.user_repo.get_by_id", new=lookup):
-            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
                 organization_name=None,
                 surface=RunSurface.EMBED,
@@ -277,7 +279,7 @@ class TestTheRunnersFacts:
                 person_time_zone=None,
             )
 
-        spec = render_for_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
+        spec = rendering.for_the_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
         assert spec.instructions == "a visitor||"
         lookup.assert_not_awaited()
 

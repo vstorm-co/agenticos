@@ -18,13 +18,11 @@ import type { User } from "@/types";
  * which state ticks which step - a checklist ticked by the wrong read lies.
  */
 
-const pushMock = vi.fn();
 const agentsMock = vi.fn();
 const conversationsMock = vi.fn();
 const triggersMock = vi.fn();
 const connectionsMock = vi.fn();
 
-vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 vi.mock("@/hooks", () => ({ useAgents: () => agentsMock() }));
 vi.mock("@/hooks/use-dashboard-data", () => ({
   useRecentConversations: () => conversationsMock(),
@@ -70,10 +68,12 @@ function renderWidget(state: State = {}) {
   );
 }
 
-const step = (name: string) => screen.getByRole("button", { name: new RegExp(name) });
+/** An open step: a link to its page, or the button that asks the Architect. */
+const open = (name: string) =>
+  screen.queryByRole("link", { name: new RegExp(name) }) ??
+  screen.queryByRole("button", { name: new RegExp(name) });
 
 beforeEach(() => {
-  pushMock.mockReset();
   useArchitectAskStore.setState({ request: null });
 });
 
@@ -81,16 +81,15 @@ describe("the getting-started widget", () => {
   it("waits for every read before ticking anything", () => {
     renderWidget({ loading: true });
 
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("opens with nothing done and every step a way to do it", () => {
     renderWidget();
 
     expect(screen.getByText("0 of 5 done")).toBeVisible();
-    expect(screen.getAllByRole("button").every((button) => !button.hasAttribute("disabled"))).toBe(
-      true,
-    );
+    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.getAllByRole("button", { name: /Build an agent/ })).toHaveLength(1);
   });
 
   it("ticks each step from the state that proves it", () => {
@@ -103,10 +102,12 @@ describe("the getting-started widget", () => {
     });
 
     expect(screen.getByText("3 of 5 done")).toBeVisible();
-    expect(step("Tell agents about you")).toBeDisabled();
-    expect(step("Start a conversation")).toBeDisabled();
-    expect(step("Set up a routine")).toBeDisabled();
-    expect(step("Connect a service")).toBeEnabled();
+    // A done step is a line to read, not one more thing to click.
+    expect(open("Tell agents about you")).toBeNull();
+    expect(open("Start a conversation")).toBeNull();
+    expect(open("Set up a routine")).toBeNull();
+    expect(screen.getByText("Set up a routine")).toBeVisible();
+    expect(open("Connect a service")).not.toBeNull();
   });
 
   it("does not count somebody else's routine, or an agent every organization opens with", () => {
@@ -119,19 +120,14 @@ describe("the getting-started widget", () => {
       ],
     });
 
-    expect(step("Set up a routine")).toBeEnabled();
-    expect(step("Build an agent")).toBeEnabled();
+    expect(open("Set up a routine")).not.toBeNull();
+    expect(open("Build an agent")).not.toBeNull();
   });
 
-  it("goes to the page each open step is done on", async () => {
+  it("links each open step to the page it is done on", () => {
     renderWidget();
 
-    await userEvent.click(step("Tell agents about you"));
-    await userEvent.click(step("Start a conversation"));
-    await userEvent.click(step("Set up a routine"));
-    await userEvent.click(step("Connect a service"));
-
-    expect(pushMock.mock.calls.map(([path]) => path)).toEqual([
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/settings/profile",
       "/chat",
       "/routines",
@@ -142,12 +138,11 @@ describe("the getting-started widget", () => {
   it("hands building an agent to the Architect rather than to a page", async () => {
     renderWidget();
 
-    await userEvent.click(step("Build an agent"));
+    await userEvent.click(screen.getByRole("button", { name: /Build an agent/ }));
 
     expect(useArchitectAskStore.getState().request?.text).toBe(
       messages.dashboard.widgets["getting-started"].agentAsk,
     );
-    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("says so once every step is done", () => {
