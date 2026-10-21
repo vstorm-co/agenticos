@@ -16,6 +16,7 @@ SWEEPS = (
     "notification-delivery-sweep",
     "rag-sync-check",
     "sandbox-destroy-retry",
+    "eval-abandon-sweep",
 )
 """Every sweep `app/worker/prefect_app.py` runs, by name - each records on its own."""
 
