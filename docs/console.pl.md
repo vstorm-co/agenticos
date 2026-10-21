@@ -1,5 +1,5 @@
 ---
-source_sha: "44c70173aa8d"
+source_sha: "b055cbfab1cd"
 ---
 
 # Konsola { #the-console }
@@ -213,6 +213,11 @@ Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub p
 i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
 stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
+Ogłaszane są też datasety: dodany albo usunięty przypadek, zmiana oceniania,
+wynik albo decyzja przeglądu, a także propozycje, które
+[generator przypadków](datasets.md#generating-cases) kończy w tle - pojawiają się
+w zakładce Generated otwartego datasetu bez przeładowania.
+
 Tak samo ogłaszane są luki w wiedzy: temat odrzucony albo z nowym szkicem w
 jednej karcie i pytania, które co 15 minut umieszcza przejście grupujące,
 pojawiają się na otwartej karcie Luki w wiedzy bez przeładowania.
@@ -224,7 +229,7 @@ którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
 **Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
 
 Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
-pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
+pliku kontekstu, strony, klucza, serwera MCP albo datasetu, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
 decydują o zatwierdzeniach, luki w wiedzy do ról, które czytają każdy run, boty

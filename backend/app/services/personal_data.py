@@ -82,6 +82,22 @@ _NOTIFICATION_FIELDS = (
     "created_at",
 )
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
+# Every field a draft can carry a person's words in, and every link back to them.
+_CASE_PROPOSAL_FIELDS = (
+    "id",
+    "dataset_id",
+    "origin",
+    "input",
+    "history",
+    "reference_answer",
+    "counter_example",
+    "note",
+    "tags",
+    "source_run_id",
+    "source_conversation_id",
+    "source_message_id",
+    "created_at",
+)
 
 #: The account's own values, as an export hands them over.
 #:
@@ -204,6 +220,10 @@ class PersonalDataService:
             oauth_grants=personal_data_repo.as_rows(
                 await personal_data_repo.oauth_grants_of(self.db, user_id), _OAUTH_GRANT_FIELDS
             ),
+            case_proposals=personal_data_repo.as_rows(
+                await personal_data_repo.case_proposals_from(self.db, user_id),
+                _CASE_PROPOSAL_FIELDS,
+            ),
         )
 
         details: dict[str, Any] = {
@@ -296,7 +316,16 @@ class PersonalDataService:
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
-        if notes or identities or workspaces or dataset_cases or searches or scored_answers:
+        case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
+        if (
+            notes
+            or identities
+            or workspaces
+            or dataset_cases
+            or searches
+            or scored_answers
+            or case_proposals
+        ):
             logger.info(
                 "personal_data_purged",
                 extra={
@@ -307,6 +336,7 @@ class PersonalDataService:
                     "dataset_cases": dataset_cases,
                     "knowledge_searches": searches,
                     "scored_answers": scored_answers,
+                    "case_proposals": case_proposals,
                 },
             )
         return PersonalDataPurge(
@@ -316,4 +346,5 @@ class PersonalDataService:
             dataset_cases=dataset_cases,
             knowledge_searches=searches,
             scored_answers=scored_answers,
+            case_proposals=case_proposals,
         )

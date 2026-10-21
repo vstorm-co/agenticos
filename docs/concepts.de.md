@@ -1,5 +1,5 @@
 ---
-source_sha: "8a6ce582650b"
+source_sha: "837d9c8b79a2"
 ---
 
 # Begriffe { #concepts }
@@ -657,6 +657,12 @@ Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
 und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
 eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
 ihr ganzes Budget für Evaluierung oder Entwürfe ausgibt.
+
+Auch der **Fallgenerator** ist ein System-Agent, von der Art `generator`: Er
+entwirft [Fälle für Datasets](datasets.md#generating-cases) und wird genauso
+angelegt, mit einem eigenen Budget. Er steht im selben Band, nach dem
+Drafter, und wird wie ein Bewerter geöffnet und bearbeitet; der Tab Generated eines
+Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
 
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent

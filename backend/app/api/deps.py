@@ -1481,6 +1481,18 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
+from app.services.case_generation import CaseGenerationService
+
+
+def get_case_generation_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> CaseGenerationService:
+    """Create CaseGenerationService instance with database session."""
+    return CaseGenerationService(db, vector_store=vector_store)
+
+
+CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
+
 
 def get_organization_teardown_service(
     db: DBSession, vector_store: VectorStoreSvc

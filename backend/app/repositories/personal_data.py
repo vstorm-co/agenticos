@@ -25,6 +25,7 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.browser_sign_in import BrowserSignIn
+from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
@@ -195,6 +196,35 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
     """Runs they started, for what each cost and which agent answered."""
     result = await db.execute(
         select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+def _proposals_drafted_from(user_id: UUID) -> ColumnElement[bool]:
+    """A proposal drafted from this person: from a question they typed, a thread they
+    own or a run they started. A project's chat is continued by its members, so the
+    thread's owner alone does not say whose question it was."""
+    return or_(
+        CaseProposal.source_message_id.in_(
+            select(Message.id).where(Message.author_user_id == user_id)
+        ),
+        CaseProposal.source_conversation_id.in_(
+            select(Conversation.id).where(Conversation.user_id == user_id)
+        ),
+        CaseProposal.source_run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+    )
+
+
+async def case_proposals_from(db: AsyncSession, user_id: UUID) -> list[CaseProposal]:
+    """Drafted dataset cases taken from their questions, conversations or runs, still waiting.
+
+    Unscoped by organization on purpose, like every read of an export: it is
+    about one person, in every organization they were in.
+    """
+    result = await db.execute(
+        select(CaseProposal)
+        .where(_proposals_drafted_from(user_id))
+        .order_by(CaseProposal.created_at.desc(), CaseProposal.id)
     )
     return list(result.scalars().all())
 
@@ -372,17 +402,24 @@ _NO_SOURCE: dict[str, None] = {
 async def unlink_dataset_cases_from_conversation(
     db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> int:
-    """Cut every dataset case taken from this conversation loose from it.
+    """Cut every dataset case taken from this conversation loose from it, and drop its drafts.
 
     A case keeps the question and answer it copied, which is the point of
     taking one, but not where they came from: the run outlives a deleted
-    conversation, and a link to it would still lead back to who asked. Run
-    *before* the conversation goes, while `source_conversation_id` still names
-    it.
+    conversation, and a link to it would still lead back to who asked. A
+    generated draft nobody has accepted yet is not kept at all - nobody chose
+    to keep it, and its source is going. Run *before* the conversation goes,
+    while `source_conversation_id` still names it.
 
     Returns:
         How many case revisions were unlinked.
     """
+    await db.execute(
+        sa_delete(CaseProposal).where(
+            CaseProposal.source_conversation_id == conversation_id,
+            CaseProposal.organization_id == organization_id,
+        )
+    )
     result = await db.execute(
         update(DatasetCase)
         .where(
@@ -420,6 +457,20 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
         )
         .values(**_NO_SOURCE)
     )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
+    """Delete every proposed case drafted from this person's questions, conversations or runs.
+
+    Unscoped by organization on purpose, like :func:`unlink_dataset_cases_of`:
+    an erasure is about one person, in every organization they were in.
+
+    Returns:
+        How many proposals were deleted.
+    """
+    result = await db.execute(sa_delete(CaseProposal).where(_proposals_drafted_from(user_id)))
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
