@@ -57,12 +57,14 @@ class AgentKind(enum.StrEnum):
     delegation. `JUDGE` grades answers for evals; only the platform runs it, and
     it is listed apart. An organization may hold many judges - the default one
     the platform seeds, and one per dataset that wants its own. `DRAFTER` writes
-    the passage a knowledge gap is missing; only the platform runs it too.
+    the passage a knowledge gap is missing, and `CLASSIFIER` reads answers for
+    the ones in which the agent did not know; only the platform runs either.
     """
 
     AGENT = "agent"
     JUDGE = "judge"
     DRAFTER = "drafter"
+    CLASSIFIER = "classifier"
 
 
 class Agent(Base, TimestampMixin):
@@ -166,7 +168,9 @@ class Agent(Base, TimestampMixin):
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
-        CheckConstraint("kind IN ('agent', 'judge', 'drafter')", name="ck_agent_kind"),
+        CheckConstraint(
+            "kind IN ('agent', 'judge', 'drafter', 'classifier')", name="ck_agent_kind"
+        ),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
         # index scan. Declared here as well as in the migration for the reason the
         # comment above says: a schema built from the models must carry them too.

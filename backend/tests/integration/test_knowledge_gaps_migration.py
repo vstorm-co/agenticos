@@ -1,9 +1,10 @@
-"""The 0149 revision's downgrade, exercised on a drafter that existed before it ran.
+"""The knowledge-gap revisions' downgrades, exercised on rows that existed before they ran.
 
 `tests/test_migrations.py` runs the chain over empty tables, so a downgrade that
-left the drafter's `system_key` on an ordinary agent would pass it - and the next
-upgrade would find an agent anybody may chat with under the drafter's key. This
-upgrades to 0149, seeds a drafter, downgrades one step, reads the row and
+left a drafter's or a classifier's `system_key` on an ordinary agent would pass
+it - and the next upgrade would find an agent anybody may chat with under that
+key. Nor would it see a miss read from an answer survive as a search. Each test
+upgrades to its revision, seeds the rows, downgrades one step, reads them and
 upgrades again.
 
 It owns a database of its own - created here, dropped when the module is done -
@@ -29,7 +30,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_knowledge_gaps_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_REVISION = "0149_knowledge_gaps"
+_DRAFTERS = "0149_knowledge_gaps"
+_SIGNALS = "0153_knowledge_gap_signals"
 
 
 def _url(database: str) -> str:
@@ -87,7 +89,8 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
-def _seed_drafter() -> uuid.UUID:
+def _seed_system_agent(kind: str, key: str) -> tuple[uuid.UUID, uuid.UUID]:
+    """An organization holding one system agent, and their ids."""
     user_id, org_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     engine = create_engine(_url(MIGRATION_DATABASE), isolation_level="AUTOCOMMIT")
     try:
@@ -116,14 +119,64 @@ def _seed_drafter() -> uuid.UUID:
                 text(
                     "INSERT INTO agents "
                     "(id, organization_id, slug, name, status, visibility, kind, system_key) "
-                    "VALUES (:id, :org, 'knowledge-gap-drafter', 'Knowledge gap drafter', "
-                    "'draft', 'org', 'drafter', 'knowledge_gap_drafter')"
+                    "VALUES (:id, :org, :slug, :name, 'draft', 'org', :kind, :key)"
                 ),
-                {"id": agent_id, "org": org_id},
+                {
+                    "id": agent_id,
+                    "org": org_id,
+                    "slug": key.replace("_", "-"),
+                    "name": key,
+                    "kind": kind,
+                    "key": key,
+                },
             )
     finally:
         engine.dispose()
-    return agent_id
+    return org_id, agent_id
+
+
+def _seed_misses(org_id: uuid.UUID, agent_id: uuid.UUID) -> None:
+    """A run with one search and one answer read as a miss."""
+    run_id = uuid.uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE), isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, status, surface, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                    "VALUES (:id, :org, :agent, 'completed', 'api', 0, 0, 0, false)"
+                ),
+                {"id": run_id, "org": org_id, "agent": agent_id},
+            )
+            for signal in ("retrieval", "answer"):
+                conn.execute(
+                    text(
+                        "INSERT INTO knowledge_searches (id, organization_id, run_id, agent_id, "
+                        "knowledge_base_ids, query, result_count, signal) VALUES "
+                        "(:id, :org, :run, :agent, ARRAY[:kb]::uuid[], :query, 0, :signal)"
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "org": org_id,
+                        "run": run_id,
+                        "agent": agent_id,
+                        "kb": uuid.uuid4(),
+                        "query": signal,
+                        "signal": signal,
+                    },
+                )
+    finally:
+        engine.dispose()
+
+
+def _queries() -> list[str]:
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as conn:
+            return list(conn.execute(text("SELECT query FROM knowledge_searches")).scalars())
+    finally:
+        engine.dispose()
 
 
 def _kind_and_key(agent_id: uuid.UUID) -> tuple[str, str | None]:
@@ -139,12 +192,26 @@ def _kind_and_key(agent_id: uuid.UUID) -> tuple[str, str | None]:
 
 
 def test_a_downgraded_drafter_is_an_ordinary_agent_holding_no_system_key() -> None:
-    _alembic("upgrade", _REVISION)
-    drafter = _seed_drafter()
+    _alembic("upgrade", _DRAFTERS)
+    _, drafter = _seed_system_agent("drafter", "knowledge_gap_drafter")
 
     _alembic("downgrade", "-1")
     after = _kind_and_key(drafter)
-    _alembic("upgrade", _REVISION)
+    _alembic("upgrade", _DRAFTERS)
 
     assert after == ("agent", None)
     assert _kind_and_key(drafter) == ("agent", None)
+
+
+def test_undoing_signals_keeps_the_searches_and_unmarks_the_classifier() -> None:
+    _alembic("upgrade", _SIGNALS)
+    org_id, classifier = _seed_system_agent("classifier", "knowledge_gap_classifier")
+    _seed_misses(org_id, classifier)
+
+    _alembic("downgrade", "-1")
+    after = _kind_and_key(classifier)
+    queries = _queries()
+    _alembic("upgrade", _SIGNALS)
+
+    assert after == ("agent", None)
+    assert queries == ["retrieval"]

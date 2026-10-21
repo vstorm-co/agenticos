@@ -265,7 +265,8 @@ async def list_agents(
         AgentKind.AGENT,
         description=(
             "`agent` for the agents people use, `judge` for the ones grading evals, "
-            "`drafter` for the one drafting knowledge gaps' missing content"
+            "`drafter` for the one drafting knowledge gaps' missing content, "
+            "`classifier` for the one reading answers for knowledge gaps"
         ),
     ),
     category: Annotated[
