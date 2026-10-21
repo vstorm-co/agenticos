@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAgentEnvironments } from "@/hooks";
 import { isPromotionBlocked } from "@/hooks/use-agent-environments";
 import { usePromotionGate, useRunPromotionGate } from "@/hooks/use-promotion-gate";
+import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
 import type { AgentEnvironment } from "@/types/agents";
@@ -103,7 +104,8 @@ export function PromotionDialog({
 }) {
   const t = useTranslations("promotionGate");
   const tc = useTranslations("common");
-  const { gate, isLoading } = usePromotionGate(agentId, environment.id, versionId);
+  const tErrors = useTranslations("errors");
+  const { gate, isLoading, error, refetch } = usePromotionGate(agentId, environment.id, versionId);
   const run = useRunPromotionGate(agentId);
   const { promote } = useAgentEnvironments(agentId);
   const [reason, setReason] = useState("");
@@ -135,7 +137,15 @@ export function PromotionDialog({
           </DialogTitle>
           <DialogDescription>{t("body", { name: environment.name })}</DialogDescription>
         </DialogHeader>
-        {isLoading || !gate ? (
+        {error && !gate ? (
+          <div role="alert" className="space-y-2 text-sm">
+            <p className="text-destructive">{t("readFailed")}</p>
+            <p className="text-muted-foreground text-xs">{getErrorMessage(error, tErrors)}</p>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              {t("retry")}
+            </Button>
+          </div>
+        ) : isLoading || !gate ? (
           <Spinner />
         ) : (
           <div className="space-y-4">

@@ -266,6 +266,26 @@ describe("promoting onto a guarded environment", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
+  it("says when the gate could not be read, and reads it again on retry", async () => {
+    let failing = true;
+    const serveGate = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string, options?: unknown) => {
+      if (path === `/agents/${AGENT_ID}/environments/env-prod/gate` && failing) {
+        throw new Error("down");
+      }
+      return serveGate(path, options as never);
+    });
+    const dialog = await openGate();
+
+    expect(
+      await within(dialog).findByText("Could not read the evals guarding this environment."),
+    ).toBeInTheDocument();
+    failing = false;
+    await userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
+
+    expect(await within(dialog).findByText("Not checked")).toBeInTheDocument();
+  });
+
   it("closes on cancel or Escape without promoting", async () => {
     const dialog = await openGate();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));

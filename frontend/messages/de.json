@@ -8779,6 +8779,8 @@
     "guardsFor": "Eval-Suites, die {name} bewachen",
     "overriddenOn": "Auf {name} übergangen",
     "overrideDetail": "{who} hat sie an {suites} vorbei promotet: {reason}",
-    "someoneWhoLeft": "Jemand, der gegangen ist"
+    "someoneWhoLeft": "Jemand, der gegangen ist",
+    "readFailed": "Die Evals, die diese Umgebung bewachen, konnten nicht gelesen werden.",
+    "retry": "Erneut versuchen"
   }
 }

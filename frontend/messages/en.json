@@ -8896,6 +8896,8 @@
     "guardsFor": "Eval suites guarding {name}",
     "overriddenOn": "Overridden on {name}",
     "overrideDetail": "{who} promoted it past {suites}: {reason}",
-    "someoneWhoLeft": "Someone who has left"
+    "someoneWhoLeft": "Someone who has left",
+    "readFailed": "Could not read the evals guarding this environment.",
+    "retry": "Try again"
   }
 }

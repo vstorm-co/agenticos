@@ -8672,6 +8672,8 @@
     "guardsFor": "Suity evali strzegące {name}",
     "overriddenOn": "Pominięto evale na {name}",
     "overrideDetail": "{who} wypromował(a) ją z pominięciem {suites}: {reason}",
-    "someoneWhoLeft": "Osoba, która odeszła"
+    "someoneWhoLeft": "Osoba, która odeszła",
+    "readFailed": "Nie udało się odczytać evali strzegących tego środowiska.",
+    "retry": "Spróbuj ponownie"
   }
 }

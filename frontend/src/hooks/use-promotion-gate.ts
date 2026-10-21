@@ -21,7 +21,7 @@ export function usePromotionGate(
   versionId: string,
   { enabled = true }: { enabled?: boolean } = {},
 ) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.evalSuites.gate(agentId, environmentId, versionId),
     queryFn: () =>
       apiClient.get<PromotionGate>(`/agents/${agentId}/environments/${environmentId}/gate`, {
@@ -29,7 +29,7 @@ export function usePromotionGate(
       }),
     enabled,
   });
-  return { gate: data, isLoading, error };
+  return { gate: data, isLoading, error, refetch };
 }
 
 /** Run an environment's guards that have not passed on a version, as the caller. */
