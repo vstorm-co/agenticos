@@ -225,6 +225,21 @@ class TestLists:
         assert fields.stage(_spec(), "collection_ids", "add", added) == (None, str(added))
 
 
+def test_a_safeguard_may_be_added():
+    base, new = fields.stage(_spec(), "capabilities", "add", {"id": "guardrails", "config": {}})
+    assert base is None and new["id"] == "guardrails"
+
+
+def test_only_a_removed_or_reconfigured_safeguard_weakens_protection():
+    assert fields.weakens_protection("capabilities", "remove", {"id": "guardrails"})
+    assert fields.weakens_protection("capabilities/guardrails/config", "set", {})
+    assert not fields.weakens_protection("capabilities", "remove", {"id": "charts"})
+    assert not fields.weakens_protection("capabilities", "remove", "guardrails")
+    assert not fields.weakens_protection("capabilities/knowledge/config", "set", {})
+    assert not fields.weakens_protection("capabilities/guardrails/approval", "set", "never")
+    assert not fields.weakens_protection("budget", "set", 5)
+
+
 class TestRefusals:
     @pytest.mark.parametrize(
         ("spec_values", "path", "op", "value", "reason"),
@@ -255,6 +270,20 @@ class TestRefusals:
             ({}, "capabilities", "add", {"id": "knowledge"}, "does_not_apply"),
             ({}, "model_settings/temperature", "set", 5, "does_not_apply"),
             ({}, "collection_ids", "remove", OTHER_MODEL, "does_not_apply"),
+            (
+                {"capabilities": [{"id": "guardrails", "config": {}}]},
+                "capabilities",
+                "remove",
+                {"id": "guardrails"},
+                "weakens_protection",
+            ),
+            (
+                {"capabilities": [{"id": "guardrails", "config": {}}]},
+                "capabilities/guardrails/config",
+                "set",
+                {},
+                "weakens_protection",
+            ),
         ],
     )
     def test_what_cannot_be_staged_says_why(self, spec_values, path, op, value, reason):

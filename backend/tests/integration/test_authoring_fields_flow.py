@@ -21,6 +21,7 @@ from sqlalchemy import select
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import AgentRun
+from app.db.models.authoring import SpecProposalHunk
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import OrganizationMember
@@ -269,3 +270,34 @@ async def test_verify_reads_the_edit_to_the_configuration(db):
         ("max_steps", 40, 20)
     ]
     assert AuthoringStart(kind="verify").kind == "verify"
+
+
+async def test_a_safeguard_is_not_staged_and_a_stored_removal_is_never_accepted(db):
+    ctx, agent, run = await _setup(db)
+    agent.draft_spec = {
+        **agent.draft_spec,
+        "capabilities": [*agent.draft_spec["capabilities"], {"id": "guardrails", "config": {}}],
+    }
+    await db.flush()
+    run_id = str(run.id)
+    model = _improver(
+        db,
+        run_id,
+        [
+            _change(run_id, "capabilities", "remove", {"id": "guardrails"}),
+            _change(run_id, "capabilities/guardrails/config", "set", {"input": {}}),
+            _change(run_id, "capabilities", "remove", {"id": "charts"}),
+        ],
+    )
+
+    await _improve(db, ctx, agent, model)
+
+    rows = list(
+        await db.scalars(select(SpecProposalHunk).where(SpecProposalHunk.path.is_not(None)))
+    )
+    (row,) = rows
+    assert row.base_value["id"] == "charts"
+    row.base_value = {**row.base_value, "id": "guardrails"}
+    await db.flush()
+    with pytest.raises(BadRequestError, match="safeguard"):
+        await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))

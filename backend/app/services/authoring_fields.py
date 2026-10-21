@@ -20,7 +20,9 @@ edited.
 **Approval only tightens.** Loosening a gate widens what runs unattended, which
 is a governance decision rather than a quality one, so a proposal may move a
 capability or a tool from `never` towards `required` and not back. A capability
-the proposal adds arrives with every tool that writes gated.
+the proposal adds arrives with every tool that writes gated. A safeguard - a
+capability the registry marks `protective` - may be added, and never removed or
+reconfigured, for the same reason.
 """
 
 from __future__ import annotations
@@ -291,6 +293,22 @@ def _tightens(address: Address, document: dict[str, Any], base: Any, new: Any) -
     return base in _STRICTNESS and _STRICTNESS[new] > _STRICTNESS[base]
 
 
+def weakens_protection(path: str, op: str, base: Any) -> bool:
+    """Whether a change removes a safeguard or changes its configuration."""
+    load_builtins()
+    address = parse(path)
+    if address is None:
+        return False
+    if address.pattern == "capabilities" and op == FieldOp.REMOVE.value:
+        capability = base.get("id") if isinstance(base, dict) else None
+    elif address.pattern == "capabilities/{capability}/config":
+        capability = address.capability
+    else:
+        return False
+    definition = REGISTRY.get(str(capability))
+    return definition is not None and definition.protective
+
+
 def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | str:
     """The `(base, new)` a proposed change is stored with, or why it may not be staged.
 
@@ -298,8 +316,9 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
     takes out, so Undo can put it back; an added capability arrives gated, in the
     form the spec stores it. Refused is everything that can be told from the spec
     alone: a path that is not a target, an operation it does not allow, approval
-    that does not tighten, a capability that does not exist, a configuration that
-    does not validate, a change that does not apply. Whether the person may grant
+    that does not tighten, a safeguard removed or reconfigured, a capability that
+    does not exist, a configuration that does not validate, a change that does
+    not apply. Whether the person may grant
     what it adds is the registry's question, asked separately.
     """
     load_builtins()
@@ -331,6 +350,8 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
     approval = address.pattern.endswith(("approval", "{tool}"))
     if approval and not _tightens(address, document, base, new):
         return "loosens_approval"
+    if weakens_protection(path, op, base):
+        return "weakens_protection"
     if _config_refused(address, new, adds_capability=adds_capability):
         return "invalid_config"
     if apply(spec, path, op, base, new) is None:

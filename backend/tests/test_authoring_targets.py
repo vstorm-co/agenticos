@@ -13,7 +13,8 @@ import re
 
 import pytest
 
-from app.agents.capabilities import ToolOverride
+from app.agents.capabilities import REGISTRY, ToolOverride, load_builtins
+from app.agents.spec import AgentSpec
 from app.db.models.authoring import (
     AuthoringRequest,
     AuthoringTarget,
@@ -132,6 +133,24 @@ def test_a_context_file_change_carries_only_the_file_s_description_and_body():
         ContextFile.__table__.columns.keys()
     )
     assert shared - bookkeeping == {"description", "content"}
+
+
+def test_a_safeguard_is_never_removed_or_reconfigured():
+    """Guardrails are what refuses; weakening them is a governance decision, so the
+    assistant may add one and never take one away or change how it is set."""
+    load_builtins()
+    assert {key for key, definition in REGISTRY.items() if definition.protective} == {"guardrails"}
+    spec = AgentSpec.model_validate(
+        {"name": "Clerk", "capabilities": [{"id": "guardrails", "config": {}}]}
+    )
+    assert (
+        authoring_fields.stage(spec, "capabilities", "remove", {"id": "guardrails"})
+        == "weakens_protection"
+    )
+    assert (
+        authoring_fields.stage(spec, "capabilities/guardrails/config", "set", {})
+        == "weakens_protection"
+    )
 
 
 def test_the_spec_fields_it_may_change_are_exactly_these():

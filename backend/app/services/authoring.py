@@ -776,12 +776,21 @@ class AuthoringService:
         """The draft with a field change accepted, as the person accepting it.
 
         Raises:
-            BadRequestError: The value was edited where editing is not offered or
-                does not validate, the draft moved since, or - for a change of
-                model - no check of the batch shows it pays off yet.
+            BadRequestError: It removes or reconfigures a safeguard, the value was
+                edited where editing is not offered or does not validate, the draft
+                moved since, or - for a change of model - no check of the batch
+                shows it pays off yet.
             AuthorizationError: It adds something the person accepting it may not
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
+        if authoring_fields.weakens_protection(hunk.path or "", hunk.op or "", hunk.base_value):
+            raise BadRequestError(
+                message=(
+                    "This suggestion removes or reconfigures a safeguard, which the assistant "
+                    "may not propose. Change safeguards in the Builder, or dismiss it."
+                ),
+                details={"hunk_id": hunk.id, "reason": "weakens_protection"},
+            )
         value = hunk.new_value
         if decision.value is not None:
             if hunk.path not in _EDITABLE and not (hunk.path or "").endswith("/description"):
