@@ -58,7 +58,7 @@ Two things are versioned separately from this file and worth knowing about:
   **Settings → Profile** keeps it with what you work on and your time zone, which
   is taken from the browser until you choose one. Every run is told them after its
   instructions, so "every Monday at 9" is the person's 9 and nobody repeats their
-  role in a chat. Migration `0159_user_profile` adds nullable `users.locale`,
+  role in a chat. Migration `0160_user_profile` adds nullable `users.locale`,
   `time_zone`, `job_title` and `about`; nothing changes for anybody until they set
   one.
 - **Next steps as buttons.** The new `follow_ups` capability's
@@ -69,7 +69,7 @@ Two things are versioned separately from this file and worth knowing about:
   published at once when the draft held nothing else, otherwise saved to it - and
   anyone else asks the owner, who is notified
   (`POST /agents/{id}/capabilities/{capability_id}/enable` and `/request`, console
-  only). Migration `0160_capability_requested` adds the `capability_requested`
+  only). Migration `0161_capability_requested` adds the `capability_requested`
   event.
 - **Keeping a request that worked.** Under your own message, one click makes it a
   weekly routine on the agent that answered, another asks the Architect to build
@@ -91,13 +91,15 @@ Two things are versioned separately from this file and worth knowing about:
   routes under `/agents/{id}/triggers` and `GET /triggers`,
   `GET /providers/model-profiles`, `GET /me/mcp-connections` and the new
   `PUT /users/me/locale` are reachable with an organization key.
-- **The background-job benchmark, as a docs page.** Why the job queue is rows
-  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
-  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
-  job that runs its worker out of memory, which started three times on the
-  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
-  1.9.0, and what one run on one machine cannot show. See
-  [the background-job benchmark](docs/task-queue-benchmark.md).
+- **A default organization for new accounts, and personal organizations made
+  optional** (#2156). Two settings under Admin → Deployment → New accounts: turn
+  personal organizations off, and name the organization every new account joins,
+  with a role other than owner - an account admitted only by another
+  organization's invitation does not join it. A session request naming no organization now acts
+  in the default organization first, then the personal one, then the only one,
+  and is refused with a `400` naming `X-Organization-Id` rather than guessing
+  between several. The console selects the default organization when nothing else
+  is selected, and switches to the organization an accepted invitation joined.
 
 ### Changed
 
@@ -105,6 +107,18 @@ Two things are versioned separately from this file and worth knowing about:
   (`@agenticos`). An organization bootstrapped earlier keeps its
   `@claude-code-like` agent as it is - an agent's handle never changes - and
   rerunning bootstrap there installs AgenticOS beside it.
+
+## [1.10.2] - 2026-10-21
+
+### Added
+
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
 
 ## [1.10.1] - 2026-10-21
 

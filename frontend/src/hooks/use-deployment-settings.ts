@@ -42,6 +42,11 @@ export interface DeploymentSettings extends BrandingResponse {
    * impersonation either way.
    */
   notify_impersonated_users: boolean;
+  /** Whether a new account gets an organization of its own (#2156). */
+  personal_organizations: boolean;
+  /** The organization every new account joins, or null for none. */
+  default_organization_id: string | null;
+  default_organization_role: DefaultOrganizationRole;
   /**
    * Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM WAV. Off
    * until an administrator accepts the risk: a compressed file states its own
@@ -50,6 +55,17 @@ export interface DeploymentSettings extends BrandingResponse {
   dictation_compressed_audio: boolean;
   updated_at: string | null;
 }
+
+/** Every role but owner - a newcomer never gets the company's keys by default. */
+export const DEFAULT_ORGANIZATION_ROLES = [
+  "admin",
+  "builder",
+  "operator",
+  "member",
+  "viewer",
+] as const;
+
+export type DefaultOrganizationRole = (typeof DEFAULT_ORGANIZATION_ROLES)[number];
 
 export interface DeploymentSettingsPatch {
   app_name?: string | null;
@@ -67,6 +83,9 @@ export interface DeploymentSettingsPatch {
   max_organizations_per_user?: number | null;
   max_agents_per_organization?: number | null;
   notify_impersonated_users?: boolean;
+  personal_organizations?: boolean;
+  default_organization_id?: string | null;
+  default_organization_role?: DefaultOrganizationRole;
   dictation_compressed_audio?: boolean;
 }
 

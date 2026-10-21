@@ -5,8 +5,8 @@ now says so with a card, and a person who may not change the agent asks its
 owner from it. The owner is told through the notification centre, as a new
 event type both CHECK constraints have to admit.
 
-Revision ID: 0160_capability_requested
-Revises: 0159_user_profile
+Revision ID: 0161_capability_requested
+Revises: 0160_user_profile
 Create Date: 2026-10-21
 """
 
@@ -14,8 +14,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0160_capability_requested"
-down_revision: str | None = "0159_user_profile"
+revision: str = "0161_capability_requested"
+down_revision: str | None = "0160_user_profile"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

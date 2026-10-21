@@ -1,5 +1,5 @@
 ---
-source_sha: "ab0e013250f0"
+source_sha: "f2c1bb1791c0"
 ---
 
 # API HTTP { #the-http-api }
@@ -140,9 +140,13 @@ organizację; wskazanie innej kończy się `400` z
 **Token sesji bierze najemcę z `X-Organization-Id`.** Wywołujący, który należy do
 trzech organizacji, jest w każdej z nich innym podmiotem, z inną rolą i innymi
 grantami, więc wysyłaj nagłówek przy każdym żądaniu. Gdy go brakuje, żądanie
-wraca do **osobistej organizacji** wywołującego — skrypt, który o nim zapomni,
-działa tam, z agentami, grantami i budżetem tej organizacji, i nie dostaje żadnego
-błędu. Wyślij zły, a dostaniesz odmowę, która wygląda dokładnie jak nieistniejący
+wraca do **domyślnej organizacji** wdrożenia, jeśli wywołujący do niej należy,
+potem do jego **osobistej organizacji**, potem do jedynej, do której należy —
+skrypt, który zapomni nagłówka, działa tam, z agentami, grantami i budżetem tej
+organizacji, i nie dostaje żadnego błędu. Wywołujący, który należy do kilku i nie
+ma żadnej z nich, dostaje `400` z `details.header = "X-Organization-Id"` zamiast
+zgadywania ([gdzie zaczyna nowe konto](deployment.md#where-a-new-account-starts)).
+Wyślij zły, a dostaniesz odmowę, która wygląda dokładnie jak nieistniejący
 zasób — celowo, żeby identyfikatorów nie dało się sondować.
 
 ## Uruchamianie agenta { #running-an-agent }
@@ -612,7 +616,8 @@ tylko do przodu.
 - Klucz niesie uprawnienia wydającego **zawężone do swoich uprawnień i do jego
   obecnej roli**, jest pokazywany raz i działa wyłącznie w publicznym API.
 - **Klucz działa we własnej organizacji; sesja czyta `X-Organization-Id`** i bez
-  niego wraca do organizacji osobistej. Zły nagłówek wygląda jak brakujący zasób.
+  niego wraca do organizacji domyślnej, osobistej albo jedynej. Zły nagłówek
+  wygląda jak brakujący zasób.
 - Uruchomienie agenta przez HTTP to **ten sam runner** — budżet, zatwierdzenie i
   audyt obowiązują tak samo.
 - Skrypt zdobywa własny klucz **bez przeglądarki** — logowanie, wydanie,

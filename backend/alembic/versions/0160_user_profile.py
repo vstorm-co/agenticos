@@ -13,8 +13,8 @@ and an answer is pitched at the person asking.
 All nullable, nothing backfilled: a person who never chose keeps whatever their
 cookie or URL already says, and an agent is told only what is known.
 
-Revision ID: 0159_user_profile
-Revises: 0158_voice_call_resume_token
+Revision ID: 0160_user_profile
+Revises: 0159_default_organization
 Create Date: 2026-10-21
 """
 
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0159_user_profile"
-down_revision: str | None = "0158_voice_call_resume_token"
+revision: str = "0160_user_profile"
+down_revision: str | None = "0159_default_organization"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
