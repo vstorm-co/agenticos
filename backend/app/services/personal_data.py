@@ -270,9 +270,9 @@ class PersonalDataService:
           for the same reason `owner_key` is - a workspace can belong to a
           conversation, an agent or a person - so no cascade follows it, and a
           state-backed one holds the person's files themselves.
-        - `knowledge_searches` from a run with no conversation, whose
-          `agent_runs.user_id` is `SET NULL`, so the query an agent phrased from
-          their question would outlive them.
+        - `knowledge_searches` of the runs they started, whose
+          `agent_runs.user_id` is `SET NULL` and whose project chat outlives
+          them, so the query an agent phrased from their question would too.
 
         Called from `UserService.delete`, inside the same transaction, so a
         deletion that fails afterwards takes this with it.

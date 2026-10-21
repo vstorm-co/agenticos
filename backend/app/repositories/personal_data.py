@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,13 +199,13 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
     return list(result.scalars().all())
 
 
-def _their_searches(user_id: UUID) -> Any:
-    return or_(
-        KnowledgeSearch.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
-        KnowledgeSearch.conversation_id.in_(
-            select(Conversation.id).where(Conversation.user_id == user_id)
-        ),
-    )
+def _their_searches(user_id: UUID) -> ColumnElement[bool]:
+    """Searches of runs they started.
+
+    By the run, never the conversation: a project chat is continued by other
+    members, whose questions are in it too.
+    """
+    return KnowledgeSearch.run_id.in_(_runs_they_started(user_id))
 
 
 async def knowledge_searches_of(db: AsyncSession, user_id: UUID) -> list[KnowledgeSearch]:
@@ -225,10 +225,11 @@ async def knowledge_searches_of(db: AsyncSession, user_id: UUID) -> list[Knowled
 async def purge_knowledge_searches_of(db: AsyncSession, user_id: UUID) -> int:
     """Remove the searches made while answering this person, in every organization.
 
-    Unscoped by organization on purpose: an erasure is about one person. A search in one of their conversations would go with the conversation; one in
-    a run with no conversation - the HTTP API - would outlive the account, because
-    `agent_runs.user_id` is `SET NULL` and the run is the organization's record of
-    what it spent.
+    Unscoped by organization on purpose: an erasure is about one person. A
+    search goes with its run or its conversation, and neither goes with the
+    account: `agent_runs.user_id` is `SET NULL` because the run is the
+    organization's record of what it spent, and a project chat is kept for the
+    team.
 
     Returns:
         How many searches were removed.

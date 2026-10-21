@@ -58,7 +58,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
-from app.repositories import knowledge_gap_repo
+from app.repositories import knowledge_gap_repo, personal_data_repo
 from app.schemas.dataset import DatasetCreate
 from app.schemas.knowledge_gap import (
     KnowledgeGapDraft,
@@ -298,6 +298,42 @@ async def test_erasing_a_person_removes_the_searches_of_their_api_runs(db) -> No
 
     assert await _search_count(db, theirs_id) == 0
     assert await _search_count(db, others_id) == 1
+
+
+async def test_a_shared_chat_carries_each_members_searches_to_their_own_export_alone(db) -> None:
+    """A project chat one member started and another continued holds both their
+    questions; each is exported and erased with the run that asked it."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    person = await _user(db)
+    person_id = person.id
+    conversation = Conversation(
+        id=uuid.uuid4(), user_id=person_id, organization_id=ctx.organization_id, title="Team"
+    )
+    db.add(conversation)
+    await db.flush()
+    runs = {}
+    for name, user_id in (("theirs", person_id), ("colleagues", ctx.user_id)):
+        runs[name] = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            user_id=user_id,
+            conversation_id=conversation.id,
+            status="completed",
+            started_at=_START,
+        )
+        db.add(runs[name])
+        await db.flush()
+        await _searched(db, ctx, runs[name], kb, query=f"{name} query")
+
+    export = await PersonalDataService(db).export(person_id, actor_user_id=person_id)
+    removed = await personal_data_repo.purge_knowledge_searches_of(db, person_id)
+
+    assert [row["query"] for row in export.knowledge_searches] == ["theirs query"]
+    assert removed == 1
+    assert await _search_count(db, runs["colleagues"].id) == 1
 
 
 # Queries about one thing point one way, about another thing another way.
