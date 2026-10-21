@@ -76,7 +76,7 @@ export function TurnParts({
   const elapsed = useTurnElapsed(startedAt, isStreaming);
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
-  const render = (run: PartRun, browses = true) =>
+  const render = (run: PartRun, browses = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The rail folds its own earlier steps away, but it cannot see what is
@@ -128,6 +128,7 @@ export function TurnParts({
         showCursor={isStreaming && run.isLast}
         isUser={isUser}
         onCiteClick={onCiteClick}
+        afterWork={afterWork}
       />
     );
 
@@ -135,12 +136,16 @@ export function TurnParts({
     return (
       <>
         {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
-        {runs.map((run) => render(run))}
+        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
       </>
     );
   }
   const split = foldWork(runs, stopped);
-  if (split === null) return <>{runs.map((run) => render(run))}</>;
+  if (split === null) {
+    return (
+      <>{runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}</>
+    );
+  }
   return (
     <>
       <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
@@ -148,7 +153,10 @@ export function TurnParts({
       </WorkFold>
       <TurnBrowses calls={browseCalls(split.folded)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
-      {split.shown.map((run) => render(run))}
+      {split.shown.map((run, index) =>
+        // The first thing after the fold opens the answer, as anything after a step does.
+        render(run, true, index === 0 || isWork(split.shown[index - 1]!)),
+      )}
     </>
   );
 }
@@ -286,6 +294,7 @@ export function TextBubble({
   isUser,
   onCiteClick,
   mentions,
+  afterWork = false,
 }: {
   text: string;
   showCursor: boolean;
@@ -293,6 +302,8 @@ export function TextBubble({
   onCiteClick?: (index: number) => void;
   /** What the person picked with `@`, shown where it sits in their text. */
   mentions?: readonly Mentionable[];
+  /** It follows the turn's steps or thoughts, so it opens the answer. */
+  afterWork?: boolean;
 }) {
   const visible = useSmoothText(text, showCursor && !isUser);
   // The narrow chat beside a page reads at the size of the page around it.
@@ -329,6 +340,9 @@ export function TextBubble({
       className={cn(
         "prose-sm max-w-none leading-relaxed",
         compact ? "text-[13.5px]" : "text-[15px]",
+        // A little more air after the steps than between two rows of them: the
+        // answer starts here, and set as tight as a step it read as one more.
+        afterWork && !compact && "pt-1",
         showCursor && "stream-in",
       )}
     >

@@ -107,6 +107,7 @@ the current figure.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Attribution and a link to the source | Named with its source in the notices |
 | AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft: the image is conveyed under AGPL-3.0 terms and a modified deployment owes its users the modified source (s.13) | Kept deliberately, terms stated: [the section below](#the-agpl-component) and the wheel's `COPYING` in the image |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 families | Licence text and copyright notices with the fonts; no selling the fonts alone; no reuse of the reserved names for modified fonts | `frontend/src/app/fonts/OFL.txt` carries all three notices; the fonts are served unmodified |
+| MIT, ISC, BSD-2-Clause, 0BSD (the [library set](artifacts.md#the-library-set)) | 7 libraries, and code adapted from Open Intelligent UI | Keep the notices with the copies | Chart.js, d3, Lucide, three.js, Mermaid, idiomorph and Leaflet are copied byte for byte into `backend/app/core/catalog/artifact_lib/`, whose README carries each licence text; `agenticos-map-1.js` adapts the pin-drop timing of Open Intelligent UI (MIT) and keeps its notice in its header, and the `visual-design` skill borrows its guidance. `NOTICE` and `licenses/components.toml` name all of them |
 | CC0-1.0, MIT (brand glyphs) | 4 sources | MIT notices for @lobehub/icons and theSVG; the marks stay their owners' trademarks | `NOTICE` names the sources and the trademark position |
 
 **A package that publishes no licence file** cannot have one copied. Several npm

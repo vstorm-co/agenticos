@@ -1164,7 +1164,15 @@
       "slashCommands": "komendy slash",
       "emailTitle": "Napisz e-mail",
       "emailPrompt": "Napisz krótki, uprzejmy e-mail z prośbą do klienta o potwierdzenie spotkania w przyszłym tygodniu.",
-      "unpin": "Odepnij {prompt}"
+      "unpin": "Odepnij {prompt}",
+      "visualExplainTitle": "Wyjaśnij to w 3D",
+      "visualExplainPrompt": "Pokaż mi w 3D, jak skręca samolot - z suwakami pochylenia, przechylenia i odchylenia, przyciskiem odtwarzania i resetem.",
+      "visualCompareTitle": "Porównaj, potem wykres",
+      "visualComparePrompt": "Porównaj w tabeli pięć największych gospodarek UE: ludność, PKB i PKB na osobę.",
+      "visualToolTitle": "Zrób kalkulator",
+      "visualToolPrompt": "Zrób mi kalkulator dzielenia rachunku: kwota, napiwek i liczba osób, przeliczane na bieżąco.",
+      "visualMapTitle": "Zaplanuj podróż na mapie",
+      "visualMapPrompt": "Zaplanuj pięć dni w Japonii na mapie: ponumerowane przystanki po kolei i co robić w każdym."
     },
     "failedArchiveConversation": "Nie udało się zarchiwizować rozmowy",
     "failedCreateConversation": "Nie udało się utworzyć rozmowy",
@@ -1724,7 +1732,12 @@
       "savedUnchanged": "Aplikacja ma już dokładnie tę wersję",
       "savedBadge": "Zapisano · v{version}",
       "openApp": "Otwórz",
-      "openInConsole": "Widoczny w AgenticOS"
+      "openInConsole": "Widoczny w AgenticOS",
+      "followUpLabel": "Dalszy ciąg z wizualizacji",
+      "followUpAsks": "Wizualizacja prosi o wysłanie tego jako Twojej wiadomości:",
+      "followUpSend": "Wyślij",
+      "followUpEdit": "Edytuj",
+      "followUpDismiss": "Odrzuć"
     },
     "dictation": {
       "cancel": "Anuluj dyktowanie",
@@ -4394,7 +4407,9 @@
       "monthlyBudgetUsd": "Miesięczny budget (USD)",
       "noBudget": "Bez budgetu",
       "noMembers": "Brak członków",
-      "membersTruncated": "Pokazano pierwszych {shown} z {total} członków"
+      "membersTruncated": "Pokazano pierwszych {shown} z {total} członków",
+      "serviceMapTiles": "Kafelki map",
+      "serviceMapTilesDetail": "Skąd mapy w wizualizacjach biorą tło"
     },
     "agentDetail": {
       "perMonth": "${amount} miesięcznie"

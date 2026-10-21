@@ -18,15 +18,17 @@ that is not listed there is not served.
 | `three-0.186.0/three.module.js`, `three.core.js`, `addons/controls/OrbitControls.js` | three.js as ES modules, in the package's own layout - the module imports its core by relative path | 0.186.0 | MIT | npm `three@0.186.0`, `build/` and `examples/jsm/controls/` |
 | `mermaid-12.1.0.min.js` | Mermaid, the bundled build (`window.mermaid`) | 12.1.0 | MIT, with bundled dependencies below | npm `mermaid@12.1.0`, `dist/mermaid.min.js` |
 | `idiomorph-0.8.0.min.js` | idiomorph, which morphs a visual's markup in place while it streams (`window.Idiomorph`) | 0.8.0 | 0BSD | npm `idiomorph@0.8.0`, `dist/idiomorph.min.js` |
+| `leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet, the map library (`window.L`), which the map kit draws on | 1.9.4 | BSD-2-Clause | npm `leaflet@1.9.4`, `dist/` |
 | `agenticos-1.css` | The console's design tokens for pages | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.css` | The console's look and the `ao-` components pages are built from | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
+| `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 
 The libraries are copied byte for byte from the registry tarballs, whose
 `sha512` integrity was checked against the npm registry when they were added
 (Chart.js, d3 and Lucide on 2026-09-30; three.js, Mermaid and idiomorph on
-2026-10-16). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
-they stay that way. Chart.js and Lucide end with a `sourceMappingURL` comment for a
+2026-10-16; Leaflet on 2026-10-21). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
+they stay that way. Chart.js, Lucide and Leaflet end with a `sourceMappingURL` comment for a
 map that is not shipped; a browser asks for it only with developer tools open.
 
 Lucide is the version the console draws its own icons from (`lucide-react`), so an
@@ -196,3 +198,62 @@ FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY
 DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
 AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+### Leaflet
+
+BSD 2-Clause License
+
+Copyright (c) 2010-2023, Volodymyr Agafonkin
+Copyright (c) 2010-2011, CloudMade
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+### Open Intelligent UI
+
+`agenticos-map-1.js` adapts the pin-drop timing of `createTripAnimator`, and the
+`visual-design` skill borrows guidance from the playbook and skills, of Open
+Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI, at
+`8391a94c1c3939c679e40ddd7bfc08a9ef690e70`). The notice is kept in the file's
+header.
+
+The MIT License
+
+Copyright (c) Atai Barkai
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

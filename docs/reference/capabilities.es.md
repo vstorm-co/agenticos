@@ -1,5 +1,5 @@
 ---
-source_sha: "39f077da4c2c"
+source_sha: "8bdf39c42a5d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1231,9 +1231,32 @@ fallida, agotado su tiempo o detenida.
 
 Dibuja en el propio chat. `kind` es `svg` para diagramas e ilustraciones, `mermaid`
 para diagramas de flujo, secuencias y diagramas ER, o `html` para todo lo
-interactivo - controles deslizantes, `<canvas>`, three.js. Sin configuración; el skill
-incluido `visual-design` lleva el estilo y tres plantillas, y el Builder lo vincula al
-activar Visuals.
+interactivo - controles deslizantes, `<canvas>`, three.js, un mapa. Sin
+configuración; el skill incluido `visual-design` lleva el estilo y cinco plantillas,
+y el Builder lo vincula, junto con Charts, al activar Visuals.
+
+**Primero elige la forma.** No toda respuesta es un dibujo. El texto de la
+herramienta y el skill le indican al modelo que responda un dato con texto, valores
+exactos con una tabla Markdown y cifras que ver con `create_chart` - así «ahora en
+gráfico» convierte una tabla en un gráfico nativo - y que dibuje cuando la persona
+deba entender cómo funciona algo, usar una herramienta hecha para el momento o
+seguir lugares en un mapa. El skill también dice cómo debe verse un dibujo para que
+parezca hecho para la respuesta y no generado: un tema grande, espacio en lugar de
+cajas, solo los colores del tema, sin píldoras, sombras ni degradados.
+
+**Un dibujo puede continuar la conversación.** `agenticos.followUp(text)` en un
+dibujo pide enviar la elección de la persona como su siguiente mensaje -
+*Planificar esta parada*, *Usar estas cifras*. La consola muestra el texto bajo el
+dibujo y lo envía solo cuando la persona hace clic en *Enviar*; una petición sin un
+clic detrás se descarta. Consulte
+[mensajes de seguimiento](../artifacts.md#visuals).
+
+**Mapas.** `lib/agenticos-map-1.js` dibuja un itinerario - chinchetas numeradas que
+caen en orden, la línea entre ellas, pausa y repetición, y una tarjeta por parada -
+sobre el servidor de teselas que nombra `VISUAL_MAP_TILES`, o como un contorno de
+las paradas en un despliegue que no nombra ninguno. Las instrucciones de la
+capability le dicen al modelo cuál es el caso, para que no prometa calles que no
+puede mostrar.
 
 **Aparece mientras se escribe.** El dibujo es el argumento `content` de la llamada. La
 consola lo lee de los argumentos en streaming y lo envía a un marco bajo el mensaje,
@@ -1270,10 +1293,10 @@ redirigirse a otro host. Cada imagen tiene como mucho 2 MiB, y un visual lleva
 solo las imágenes que su dibujo todavía usa, seis como máximo entre todas sus
 revisiones.
 
-**Tiene el aislamiento de una aplicación.** El marco es el sandbox de las aplicaciones
-- un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto de bibliotecas
-del despliegue, que ahora incluye three.js y Mermaid. Consulte
-[Visuals](../artifacts.md#visuals).
+**Tiene el aislamiento de una aplicación.** El marco es el sandbox de las
+aplicaciones - un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto
+de bibliotecas del despliegue, que ahora incluye three.js, Mermaid y Leaflet, y la
+propia ruta de teselas del despliegue. Consulte [Visuals](../artifacts.md#visuals).
 
 ## Aplicaciones { #artifacts }
 

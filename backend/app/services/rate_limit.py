@@ -512,6 +512,19 @@ async def embed_voice_visitor_allowed(*, public_key: str, visitor: str) -> Decis
     )
 
 
+async def map_tiles_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may fetch another map tile through the deployment right now.
+
+    Per address: the tile route is cookieless and token-free - every page, saved
+    or shared, loads it - so the network address is the one thing to count.
+    """
+    return await consume(
+        surface="map_tiles",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_MAP_TILES_PER_MINUTE),
+    )
+
+
 async def embed_script_allowed(connection: HTTPConnection) -> Decision:
     """Whether this address may fetch a widget's script right now.
 
