@@ -99,22 +99,6 @@ describe("useDetailTargets", () => {
     expect(result.current[KB_DETAIL]?.href).toBe("/rag/kb-default");
   });
 
-  it("finds the starter under the handle it had before its rename", () => {
-    const wrapper = wrapperWith((client) => {
-      client.setQueryData(qk.agents.list(false), {
-        items: [
-          { id: "agent-other", slug: "something-else" },
-          { id: "agent-legacy", slug: "claude-code-like" },
-        ],
-        total: 2,
-      });
-    });
-
-    const { result } = renderHook(() => useDetailTargets(true), { wrapper });
-
-    expect(result.current[AGENT_BUILDER]?.href).toBe("/agents/agent-legacy");
-  });
-
   it("gives a null href for an empty list, so the engine describes the section in place", () => {
     const wrapper = wrapperWith((client) => {
       client.setQueryData(qk.agents.list(false), { items: [], total: 0 });

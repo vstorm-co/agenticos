@@ -74,7 +74,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A fresh organization's starter agent is installed as **AgenticOS**
   (`@agenticos`). An organization bootstrapped earlier keeps its
-  `@claude-code-like` agent as it is - an agent's handle never changes.
+  `@claude-code-like` agent as it is - an agent's handle never changes - and
+  rerunning bootstrap there installs AgenticOS beside it.
 
 ## [1.10.1] - 2026-10-21
 
