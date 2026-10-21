@@ -26,7 +26,16 @@ function token(name: string): string {
  * second redraws the canvas without re-rendering anything. The layout leaves it
  * out under reduced motion; a stepped meter stands in.
  */
-export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: WaveLevels }) {
+export function VoiceWaveform({
+  visual,
+  levels,
+  compact = false,
+}: {
+  visual: WaveVisual;
+  levels: WaveLevels;
+  /** `/chat`'s pill: a short wave in the ink of whatever holds it, both voices alike. */
+  compact?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef({ visual, levels });
   useEffect(() => {
@@ -42,13 +51,20 @@ export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: 
     let agentMix = 0;
     let warnMix = 0;
     // The colours, read once and again when the theme changes - not every frame.
-    let ink = token("--color-foreground");
-    let agentInk = token("--color-muted-foreground");
-    let warning = token("--color-warning");
+    const read = () => {
+      if (compact) {
+        const own = getComputedStyle(canvas).color;
+        return { ink: own, agentInk: own, warning: token("--color-warning") };
+      }
+      return {
+        ink: token("--color-foreground"),
+        agentInk: token("--color-muted-foreground"),
+        warning: token("--color-warning"),
+      };
+    };
+    let { ink, agentInk, warning } = read();
     const theme = new MutationObserver(() => {
-      ink = token("--color-foreground");
-      agentInk = token("--color-muted-foreground");
-      warning = token("--color-warning");
+      ({ ink, agentInk, warning } = read());
     });
     theme.observe(document.documentElement, {
       attributes: true,
@@ -105,7 +121,13 @@ export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: 
       cancelAnimationFrame(frame);
       theme.disconnect();
     };
-  }, []);
+  }, [compact]);
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="block h-10 w-full sm:h-11" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className={compact ? "block h-6 w-full" : "block h-10 w-full sm:h-11"}
+    />
+  );
 }

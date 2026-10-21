@@ -1,7 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { DictationStrip } from "@/components/chat/dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
@@ -81,10 +88,11 @@ export function useVoiceCallHint({
  * push to talk, Mute and End. Focus moves here when the call starts; Escape does
  * nothing, because only End ends a call.
  *
- * `inline` is the console's `/chat`: the row stands in for the composer's own
- * controls row, inside its box, the way dictation's bar does, and the composer
- * draws the strip from `useVoiceCallHint`. Otherwise - a hosted page - the bar
- * is a panel of its own with its glow and its strip.
+ * `pill` is the console's `/chat`: one dark pill floating above a composer that
+ * does not change at all - the agent's face, what the call is doing, its time,
+ * a small wave and the controls - and the composer draws the strip from
+ * `useVoiceCallHint`. Otherwise - a hosted page - the bar is a panel of its own
+ * with its glow and its strip.
  *
  * Under reduced motion there is no canvas and no glow: a stepped meter and the
  * label carry the state.
@@ -95,7 +103,8 @@ export function VoiceCallBar({
   canDecide,
   onShowApproval,
   endingCopy,
-  inline = false,
+  pill = false,
+  avatar,
 }: {
   session: VoiceSession;
   agentName: string;
@@ -104,7 +113,9 @@ export function VoiceCallBar({
   onShowApproval: () => void;
   /** How a limit ending the call and its notices are put, when not the console's `chat.voice`. */
   endingCopy?: VoiceEndingCopy;
-  inline?: boolean;
+  pill?: boolean;
+  /** The agent's face, at the pill's start. */
+  avatar?: ReactNode;
 }) {
   const tView = useTranslations("chat.voice.view");
   const { call, pressToTalk, setMuted, end } = session;
@@ -140,7 +151,7 @@ export function VoiceCallBar({
     canDecide,
     onShowApproval,
     endingCopy,
-    active: !inline,
+    active: !pill,
   });
   // Hold to talk replaces Mute, so turning it on unmutes: a held microphone
   // that stays closed would say "talking" to nobody.
@@ -158,7 +169,7 @@ export function VoiceCallBar({
       {/* The agent's voice. Never with controls: End is the only control a call has. */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the captions are the call's own, drawn live in the conversation and announced by its polite region; a live WebRTC stream has no track file to attach. */}
       <audio ref={audioRef} autoPlay data-testid="voice-call-audio" />
-      {!inline && !reduced && glowStyle !== "off" && (
+      {!pill && !reduced && glowStyle !== "off" && (
         <div
           aria-hidden
           data-testid="voice-call-glow"
@@ -169,66 +180,106 @@ export function VoiceCallBar({
           style={{ "--voice-level": Math.max(input, output).toFixed(3) } as CSSProperties}
         />
       )}
-      <div
-        ref={barRef}
-        role="group"
-        aria-label={tView("bar")}
-        tabIndex={-1}
-        className={cn(
-          "relative outline-none",
-          inline
-            ? "pt-0.5 pb-1"
-            : "panel rounded-[18px] py-2.5 pr-2 pl-3 transition-colors @xl:pr-2.5 @xl:pl-4",
-          !inline && hint !== null && "rounded-b-none",
-          !inline && call.approval !== null && "border-warning/55",
-        )}
-      >
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 [grid-template-areas:'status_ctrls'_'vis_vis'] @xl:grid-cols-[minmax(170px,auto)_minmax(0,1fr)_auto] @xl:gap-x-3.5 @xl:[grid-template-areas:'status_vis_ctrls']">
-          <div className="min-w-0 [grid-area:status]">
-            <VoiceCallStatus
-              call={call}
-              now={now}
-              agentName={agentName}
-              pushToTalk={pushToTalk}
-              holding={holding}
-              endingCopy={endingCopy}
-            />
-          </div>
-          <div className="flex min-w-0 items-center [grid-area:vis]">
-            {reduced ? (
-              <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                <VoiceLevelMeter
-                  level={agentSide ? output : input}
-                  label={who}
-                  tone={agentSide ? "agent" : "caller"}
+      {pill ? (
+        <div
+          ref={barRef}
+          role="group"
+          aria-label={tView("bar")}
+          tabIndex={-1}
+          className={cn(
+            "bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 flex items-center gap-2 rounded-full py-1.5 pr-1.5 pl-1.5 shadow-lg outline-none",
+            call.approval !== null && "ring-warning ring-2",
+          )}
+        >
+          {avatar && (
+            <span className="ring-background/20 shrink-0 rounded-full ring-2">{avatar}</span>
+          )}
+          <VoiceCallStatus
+            call={call}
+            now={now}
+            agentName={agentName}
+            pushToTalk={pushToTalk}
+            holding={holding}
+            endingCopy={endingCopy}
+            compact
+          />
+          {!reduced && (
+            <span className="w-14 shrink-0 @md:w-20">
+              <VoiceWaveform visual={visual} levels={{ input, output }} compact />
+            </span>
+          )}
+          <VoiceControls
+            muted={call.muted}
+            pushToTalk={pushToTalk}
+            holding={holding}
+            onMutedChange={setMuted}
+            onPushToTalkChange={changePushToTalk}
+            onPress={press}
+            onEnd={end}
+            inverse
+          />
+        </div>
+      ) : (
+        <>
+          <div
+            ref={barRef}
+            role="group"
+            aria-label={tView("bar")}
+            tabIndex={-1}
+            className={cn(
+              "panel relative rounded-[18px] py-2.5 pr-2 pl-3 transition-colors outline-none @xl:pr-2.5 @xl:pl-4",
+              hint !== null && "rounded-b-none",
+              call.approval !== null && "border-warning/55",
+            )}
+          >
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 [grid-template-areas:'status_ctrls'_'vis_vis'] @xl:grid-cols-[minmax(170px,auto)_minmax(0,1fr)_auto] @xl:gap-x-3.5 @xl:[grid-template-areas:'status_vis_ctrls']">
+              <div className="min-w-0 [grid-area:status]">
+                <VoiceCallStatus
+                  call={call}
+                  now={now}
+                  agentName={agentName}
+                  pushToTalk={pushToTalk}
+                  holding={holding}
+                  endingCopy={endingCopy}
                 />
-                <span aria-hidden>{who}</span>
               </div>
-            ) : (
-              <VoiceWaveform visual={visual} levels={{ input, output }} />
+              <div className="flex min-w-0 items-center [grid-area:vis]">
+                {reduced ? (
+                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                    <VoiceLevelMeter
+                      level={agentSide ? output : input}
+                      label={who}
+                      tone={agentSide ? "agent" : "caller"}
+                    />
+                    <span aria-hidden>{who}</span>
+                  </div>
+                ) : (
+                  <VoiceWaveform visual={visual} levels={{ input, output }} />
+                )}
+              </div>
+              <div className="[grid-area:ctrls]">
+                <VoiceControls
+                  muted={call.muted}
+                  pushToTalk={pushToTalk}
+                  holding={holding}
+                  onMutedChange={setMuted}
+                  onPushToTalkChange={changePushToTalk}
+                  onPress={press}
+                  onEnd={end}
+                />
+              </div>
+            </div>
+            {!reduced && (
+              <div
+                aria-hidden
+                className="voice-call-edge"
+                style={{ opacity: agentSide ? output * 0.9 : 0 }}
+              />
             )}
           </div>
-          <div className="[grid-area:ctrls]">
-            <VoiceControls
-              muted={call.muted}
-              pushToTalk={pushToTalk}
-              holding={holding}
-              onMutedChange={setMuted}
-              onPushToTalkChange={changePushToTalk}
-              onPress={press}
-              onEnd={end}
-            />
-          </div>
-        </div>
-        {!inline && !reduced && (
-          <div
-            aria-hidden
-            className="voice-call-edge"
-            style={{ opacity: agentSide ? output * 0.9 : 0 }}
-          />
-        )}
-      </div>
-      {!inline && <DictationStrip hint={hint} />}
+          <DictationStrip hint={hint} />
+        </>
+      )}
     </div>
   );
 }

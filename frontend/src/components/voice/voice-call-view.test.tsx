@@ -503,6 +503,64 @@ describe("the call view", () => {
   });
 });
 
+describe("the call pill in /chat", () => {
+  const Pill = ({ call, avatar }: { call: CallState; avatar?: boolean }) => (
+    <VoiceCallBar
+      pill
+      session={fake(call)}
+      agentName="Support"
+      canDecide
+      onShowApproval={() => {}}
+      avatar={avatar ? <span data-testid="agent-face" /> : undefined}
+    />
+  );
+
+  it("is one dark pill: the agent's face, the state and its time, a wave and round controls", () => {
+    const { container } = render(<Pill call={live()} avatar />);
+    const pill = screen.getByRole("group", { name: "Voice call" });
+    expect(pill).toHaveClass("bg-foreground", "text-background", "rounded-full");
+    expect(within(pill).getByTestId("agent-face")).toBeInTheDocument();
+    expect(within(pill).getByText("Listening")).toBeInTheDocument();
+    expect(within(pill).getByText("0:12")).toBeInTheDocument();
+    expect(container.querySelector("canvas")).toHaveClass("h-6");
+    // No glow and no strip of its own: the composer below draws the strip.
+    expect(screen.queryByTestId("voice-call-glow")).toBeNull();
+    expect(screen.queryByTestId("dictation-strip")).toBeNull();
+    // End stays round and says nothing but its name.
+    const end = within(pill).getByRole("button", { name: "End call" });
+    expect(end).toHaveClass("rounded-full");
+    expect(end).not.toHaveTextContent("End");
+    expect(within(pill).getByRole("button", { name: "Mute" })).toHaveClass("rounded-full");
+  });
+
+  it("presses a control in the page's ink, on the pill", () => {
+    render(<Pill call={live({ type: "muted", muted: true })} />);
+    expect(screen.getByRole("button", { name: "Unmute" })).toHaveClass("bg-background");
+    useVoiceCallStore.setState({ pushToTalk: true });
+    render(<Pill call={live()} />);
+    expect(screen.getAllByRole("button", { pressed: true })[0]).toHaveClass("bg-background");
+  });
+
+  it("spins while it connects, with no time yet, and rings while an approval waits", () => {
+    const { rerender } = render(<Pill call={connecting()} />);
+    expect(screen.getByTestId("voice-call-connecting")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+:\d\d$/)).toBeNull();
+    rerender(<Pill call={live(frame(APPROVAL))} />);
+    expect(screen.getByRole("group", { name: "Voice call" })).toHaveClass("ring-warning");
+  });
+
+  it("marks the last minute in the warning colour", () => {
+    render(<Pill call={live(frame({ type: "limit", seconds_left: 60 }))} />);
+    expect(screen.getByText("0:12")).toHaveClass("text-warning");
+  });
+
+  it("leaves the wave out under reduced motion", () => {
+    useMotionStore.setState({ motion: "reduce" });
+    const { container } = render(<Pill call={live()} />);
+    expect(container.querySelector("canvas")).toBeNull();
+  });
+});
+
 describe("showVoiceApproval", () => {
   it("brings the waiting card into view and puts focus on Approve", () => {
     // In the chat's own scroller: `scrollIntoView` scrolls every scrollable

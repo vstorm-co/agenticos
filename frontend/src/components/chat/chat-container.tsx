@@ -85,6 +85,7 @@ import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
 import { AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
@@ -1282,11 +1283,33 @@ function ChatUI({
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
             <div className="@container">
-              {/* While a call is on the call's row stands in for the composer's
-                  controls row, in the same box, the way dictation's bar does: the
-                  chat stays the chat, and a draft and its attachments are still
-                  there when the call ends. */}
-              <div>
+              {/* While a call is on, the composer does not change: the call is one
+                  pill floating above it, so the chat stays the chat and a draft
+                  and its attachments are still there when the call ends. */}
+              <div className="relative">
+                {onCall && (
+                  <div className="absolute bottom-full left-1/2 z-10 mb-3 -translate-x-1/2">
+                    <VoiceCallBar
+                      pill
+                      session={voice}
+                      agentName={callAgent?.name ?? t("rail.agent")}
+                      avatar={
+                        callAgent ? (
+                          <AgentAvatar
+                            agentId={callAgent.id}
+                            slug={callAgent.slug}
+                            hasAvatar={callAgent.has_avatar}
+                            colorSlot={callAgent.avatar_color}
+                            size="sm"
+                            className="rounded-full"
+                          />
+                        ) : undefined
+                      }
+                      canDecide={can(Perm.approvalsDecide)}
+                      onShowApproval={showVoiceApproval}
+                    />
+                  </div>
+                )}
                 {/* Around the whole composer, not around a row inside it: the glow
                 blooms outward from the edge it is given, and given an inner row
                 it bloomed into the card's own fill and was all but invisible.
@@ -1364,17 +1387,6 @@ function ChatUI({
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}
-                          callRow={
-                            onCall ? (
-                              <VoiceCallBar
-                                inline
-                                session={voice}
-                                agentName={callAgent?.name ?? t("rail.agent")}
-                                canDecide={can(Perm.approvalsDecide)}
-                                onShowApproval={showVoiceApproval}
-                              />
-                            ) : undefined
-                          }
                           dictation={{
                             engine,
                             state: dictationState,
@@ -1417,7 +1429,12 @@ function ChatUI({
                                 />
                               </div>
                               {offerCall && (
-                                <span ref={callButtonRef} className="contents">
+                                // Hidden, not unmounted, during a call: the pill holds
+                                // its controls, and focus comes back here when it ends.
+                                <span
+                                  ref={callButtonRef}
+                                  className={onCall ? "hidden" : "contents"}
+                                >
                                   <VoiceCallButton
                                     readiness={readiness}
                                     failed={readinessFailed}

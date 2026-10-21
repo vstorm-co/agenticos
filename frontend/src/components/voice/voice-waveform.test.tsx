@@ -86,6 +86,23 @@ describe("VoiceWaveform", () => {
     document.documentElement.classList.remove("dark");
   });
 
+  it("draws both voices in the ink of whatever holds it when compact", () => {
+    const { context, fills } = fakeContext();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as never);
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
+      element instanceof HTMLCanvasElement
+        ? ({ color: "ivory", getPropertyValue: () => "" } as unknown as CSSStyleDeclaration)
+        : real(element),
+    );
+    const { container } = render(
+      <VoiceWaveform visual="agent" levels={{ input: 0, output: 1 }} compact />,
+    );
+    tick(60);
+    expect(fills.at(-1)?.style).toBe("ivory");
+    expect(container.querySelector("canvas")).toHaveClass("h-6");
+  });
+
   it("draws quiet bars faintly and never at less than three pixels", () => {
     const { context, fills } = fakeContext();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as never);

@@ -39,6 +39,7 @@ export function VoiceCallStatus({
   pushToTalk,
   holding,
   endingCopy,
+  compact = false,
 }: {
   call: CallState;
   now: number;
@@ -47,6 +48,11 @@ export function VoiceCallStatus({
   holding: boolean;
   /** How a call's end and its notices are put, when not the console's `chat.voice`. */
   endingCopy?: VoiceEndingCopy;
+  /**
+   * One line for `/chat`'s pill: the label and the time the call has run, in
+   * the pill's own ink - no shimmer, which is drawn in the page's ink.
+   */
+  compact?: boolean;
 }) {
   const t = useTranslations("chat.voice");
   const tTools = useTranslations("chat.tools");
@@ -66,10 +72,52 @@ export function VoiceCallStatus({
   else label = t(`state.${view}`, { agent: agentName });
 
   const timed = call.startedAt !== null && call.capSeconds !== null;
+  const connecting = view === "connecting" || view === "reconnecting";
+  const announcements = (
+    <div role="alert" aria-live="assertive" className="sr-only">
+      {call.approval && (
+        <p>
+          {t("view.announceApproval", {
+            tool: toolDisplayName(call.approval.tool, tTools),
+            seconds: call.approval.timeoutSeconds,
+          })}
+        </p>
+      )}
+      {call.warningSecondsLeft !== null && (
+        <p>{tEnding("notice.limitWarning", { seconds: call.warningSecondsLeft })}</p>
+      )}
+      {noticeKey && <p>{tEnding(`notice.${noticeKey}`)}</p>}
+    </div>
+  );
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
+        {connecting && (
+          <Loader2
+            data-testid="voice-call-connecting"
+            className="h-3.5 w-3.5 shrink-0 opacity-70 motion-safe:animate-spin"
+            aria-hidden
+          />
+        )}
+        <span className="max-w-40 truncate font-medium">{label}</span>
+        {timed && (
+          <span
+            className={cn(
+              "font-mono text-xs tabular-nums opacity-60",
+              call.warningSecondsLeft !== null && "text-warning font-semibold opacity-100",
+            )}
+          >
+            {clock((now - (call.startedAt as number)) / 1000)}
+          </span>
+        )}
+        {announcements}
+      </div>
+    );
+  }
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
-        {(view === "connecting" || view === "reconnecting") && (
+        {connecting && (
           <Loader2
             data-testid="voice-call-connecting"
             className="text-muted-foreground h-3.5 w-3.5 shrink-0 motion-safe:animate-spin"
@@ -103,20 +151,7 @@ export function VoiceCallStatus({
           </>
         )}
       </p>
-      <div role="alert" aria-live="assertive" className="sr-only">
-        {call.approval && (
-          <p>
-            {t("view.announceApproval", {
-              tool: toolDisplayName(call.approval.tool, tTools),
-              seconds: call.approval.timeoutSeconds,
-            })}
-          </p>
-        )}
-        {call.warningSecondsLeft !== null && (
-          <p>{tEnding("notice.limitWarning", { seconds: call.warningSecondsLeft })}</p>
-        )}
-        {noticeKey && <p>{tEnding(`notice.${noticeKey}`)}</p>}
-      </div>
+      {announcements}
     </div>
   );
 }

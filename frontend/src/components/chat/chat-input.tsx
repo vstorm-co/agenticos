@@ -174,12 +174,6 @@ interface ChatInputProps {
    */
   dictation?: ComposerDictation;
   /**
-   * A voice call's row (#54), drawn in place of the controls row while the call
-   * is on - the way dictation's bar is - so the box, and the draft in it, stay
-   * where they were.
-   */
-  callRow?: ReactNode;
-  /**
    * Files handed in from outside the composer - the AI Architect's screenshot of
    * the page (#2063) - attached as if picked, once per `id`.
    */
@@ -220,7 +214,6 @@ export function ChatInput({
   onProject,
   actionsSlot,
   dictation,
-  callRow,
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
@@ -775,16 +768,12 @@ export function ChatInput({
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       {server && dictating && <DictationBar state={server.state} actions={server.actions} />}
-      {callRow}
       {/* Hidden rather than unmounted while dictating: the pickers on it hold
           state of their own (the model override), and the agent the recording
           goes to must not change under it. */}
       <div
-        className={cn(
-          "flex items-center gap-1.5 pt-0.5 pb-1",
-          (dictating || callRow !== undefined) && "hidden",
-        )}
-        inert={dictating || callRow !== undefined}
+        className={cn("flex items-center gap-1.5 pt-0.5 pb-1", dictating && "hidden")}
+        inert={dictating}
       >
         <input
           ref={fileInputRef}

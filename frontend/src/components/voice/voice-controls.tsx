@@ -34,6 +34,8 @@ interface VoiceControlsProps {
   onPushToTalkChange: (on: boolean) => void;
   onPress: (down: boolean) => void;
   onEnd: () => void;
+  /** On a dark ground - `/chat`'s pill - with the page's ink as the pressed state. */
+  inverse?: boolean;
 }
 
 const ICON = "h-9 w-9 shrink-0 pointer-coarse:h-11 pointer-coarse:w-11";
@@ -52,6 +54,7 @@ export function VoiceControls({
   onPushToTalkChange,
   onPress,
   onEnd,
+  inverse = false,
 }: VoiceControlsProps) {
   const t = useTranslations("chat.voice.controls");
   // Held by the pointer, and by Space: each lets go once, whatever happens in between.
@@ -104,6 +107,11 @@ export function VoiceControls({
     };
   }, [pushToTalk, onPress]);
 
+  // Pressed reads as the opposite ink: the page's on the pill, the pill's on the page.
+  const on = inverse
+    ? "bg-background text-foreground hover:bg-background/90"
+    : "bg-foreground text-background hover:bg-foreground/90";
+  const ghost = inverse ? "text-background hover:bg-background/15 hover:text-background" : "";
   const release = () => {
     if (!held.current) return;
     held.current = false;
@@ -121,14 +129,14 @@ export function VoiceControls({
         aria-label={t("pushToTalk")}
         title={t("pushToTalk")}
         onClick={() => onPushToTalkChange(!pushToTalk)}
-        className={cn(ICON, pushToTalk && "bg-foreground text-background hover:bg-foreground/90")}
+        className={cn(ICON, ghost, inverse && "rounded-full", pushToTalk && on)}
       >
         <Hand className="h-4 w-4" />
       </Button>
       {pushToTalk ? (
         <Button
           type="button"
-          variant="outline"
+          variant={inverse ? "ghost" : "outline"}
           aria-pressed={holding}
           data-voice-hold
           onPointerDown={() => {
@@ -141,7 +149,9 @@ export function VoiceControls({
           onLostPointerCapture={release}
           className={cn(
             "h-9 touch-none gap-2 px-3 select-none pointer-coarse:h-11",
-            holding && "bg-foreground text-background hover:bg-foreground motion-safe:scale-[0.97]",
+            inverse && "bg-background/10 rounded-full",
+            ghost,
+            holding && cn(on, "motion-safe:scale-[0.97]"),
           )}
         >
           <Mic className="h-4 w-4" aria-hidden />
@@ -163,7 +173,7 @@ export function VoiceControls({
           aria-label={muted ? t("unmute") : t("mute")}
           title={muted ? t("unmute") : t("mute")}
           onClick={() => onMutedChange(!muted)}
-          className={cn(ICON, muted && "bg-foreground text-background hover:bg-foreground/90")}
+          className={cn(ICON, ghost, inverse && "rounded-full", muted && on)}
         >
           {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </Button>
@@ -173,10 +183,14 @@ export function VoiceControls({
         variant="destructive"
         aria-label={t("end")}
         onClick={onEnd}
-        className="h-9 w-9 gap-1.5 px-0 @xl:w-auto @xl:px-4 pointer-coarse:h-11 pointer-coarse:w-11"
+        className={cn(
+          "h-9 w-9 gap-1.5 px-0 pointer-coarse:h-11 pointer-coarse:w-11",
+          // The pill keeps End round and icon-only: its label is the call's.
+          inverse ? "rounded-full" : "@xl:w-auto @xl:px-4",
+        )}
       >
         <PhoneOff className="h-4 w-4" aria-hidden />
-        <span className="hidden @xl:inline">{t("endShort")}</span>
+        {!inverse && <span className="hidden @xl:inline">{t("endShort")}</span>}
       </Button>
     </div>
   );
