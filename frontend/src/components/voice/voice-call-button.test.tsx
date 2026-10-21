@@ -12,7 +12,6 @@ const READY: VoiceReadiness = {
   provider: "openai",
   model: "gpt-realtime",
   cap_seconds: 600,
-  minutes_left: 540,
 };
 
 const NAME = "Start a voice call";
@@ -44,7 +43,6 @@ describe("VoiceCallButton", () => {
     ["no_voice", "This agent has no voice set up"],
     ["not_offered", "This agent's voice model is no longer offered"],
     ["no_key", "This agent's voice has no key"],
-    ["minutes_exhausted", "No call minutes left this month"],
   ] as const)("is crossed out with the reason when %s", (reason, title) => {
     const onStart = vi.fn();
     render(
@@ -68,21 +66,6 @@ describe("VoiceCallButton", () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
-
-  it.each(["org_off", "not_in_chat"] as const)(
-    "is not there at all when the organization has calls off (%s)",
-    (reason) => {
-      const { container } = render(
-        <VoiceCallButton
-          readiness={{ ...READY, available: false, unavailable: reason }}
-          failed={false}
-          onStart={vi.fn()}
-          canSetUp
-        />,
-      );
-      expect(container).toBeEmptyDOMElement();
-    },
-  );
 
   it("says it could not check when an unavailable answer names no reason", () => {
     render(
@@ -116,11 +99,11 @@ describe("VoiceCallButton", () => {
     );
     const button = screen.getByRole("button", { name: NAME });
     expect(button).toHaveAccessibleDescription(
-      expect.stringContaining("You can set this up in Voice settings."),
+      expect.stringContaining("You can set this up on the agent's Voice card."),
     );
     fireEvent.focus(button);
     expect(
-      screen.getByText("You can set this up in Voice settings.", { selector: "p" }),
+      screen.getByText("You can set this up on the agent's Voice card.", { selector: "p" }),
     ).toBeInTheDocument();
   });
 

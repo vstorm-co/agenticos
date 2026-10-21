@@ -58,11 +58,10 @@ import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
 import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
-import type { DictationEngine } from "@/types/organization";
+import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
 
 import { DictationBar } from "./dictation-bar";
 import { movesOn } from "./dictation-strip";
-import { DictationUnavailable } from "./dictation-unavailable";
 
 /**
  * Dictation for the selected agent, as the composer needs it.
@@ -72,26 +71,13 @@ import { DictationUnavailable } from "./dictation-unavailable";
  * it, and inserts what comes back.
  */
 export interface ComposerDictation {
-  engine: DictationEngine;
   /**
-   * Whether the `server` engine reaches a provider for the selected agent - its
-   * own speech-to-text override or the organization's, with a credential.
+   * `server` when the selected agent's Dictation switch sends recordings to a
+   * provider it can reach; `browser`, the browser's own recognition, otherwise.
    */
-  ready: boolean;
-  /** Whether there is an agent to send the recording through. */
-  hasAgent: boolean;
-  /** Whether what is missing is only a key for the resolved pair ("choose a key"). */
-  noKey?: boolean;
-  /** Whether readiness could not be read at all - not the same as "not set up". */
-  unchecked?: boolean;
+  engine: DictationEngine;
   state: DictationState;
   actions: DictationActions;
-  /** Where an `org:settings` holder sets dictation up; null for everyone else. */
-  voiceSettingsHref: string | null;
-  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
-  agentVoiceHref: string | null;
-  /** Opens or closes the explanation of a crossed-out microphone under the box. */
-  onExplain: () => void;
 }
 
 /**
@@ -183,7 +169,7 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
-   * The organization's dictation engine and, for `server`, the recording.
+   * The selected agent's dictation engine and, for `server`, the recording.
    * Absent, the microphone is the browser's own speech recognition.
    */
   dictation?: ComposerDictation;
@@ -261,7 +247,6 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  const engine = dictation?.engine ?? "browser";
   const server = dictation?.engine === "server" ? dictation : null;
   const phase = server?.state.phase ?? "idle";
   // The box is the recording's while it runs and while its text is on the way:
@@ -800,15 +785,9 @@ export function ChatInput({
         />
         <ComposerSheet
           onAttach={() => fileInputRef.current?.click()}
-          // The engine the organization chose: the browser's recogniser, a
-          // recording sent to its provider, or no microphone at all.
-          onVoice={
-            engine === "browser"
-              ? toggleMic
-              : server?.ready && server.hasAgent
-                ? startDictation
-                : undefined
-          }
+          // The agent's engine: the browser's recogniser, or a recording sent
+          // to its provider.
+          onVoice={server ? startDictation : toggleMic}
           onCommand={
             slashContext
               ? () => {
@@ -827,40 +806,25 @@ export function ChatInput({
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
-          {server && !(server.ready && server.hasAgent) && (
-            <DictationUnavailable
-              why={
-                !server.hasAgent
-                  ? "no_agent"
-                  : server.unchecked
-                    ? "unchecked"
-                    : server.noKey
-                      ? "no_key"
-                      : "not_ready"
-              }
-              canSetUp={server.voiceSettingsHref !== null || server.agentVoiceHref !== null}
-              onExplain={server.onExplain}
-            />
-          )}
-          {engine === "browser" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={toggleMic}
-              disabled={disabled}
-              // It starts from the `+`, and shows here only to stop.
-              className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
-              title={isListening ? t("stopRecording") : t("voiceInput")}
-              aria-label={isListening ? t("stopRecording") : t("voiceInput")}
-            >
-              {isListening ? (
-                <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-              ) : (
-                <Mic className="text-muted-foreground h-4 w-4" />
-              )}
-            </Button>
-          )}
+          {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
+              server recording takes the box over with its own bar, so this
+              button only ever starts one. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={server ? startDictation : toggleMic}
+            disabled={disabled}
+            className="h-9 w-9 shrink-0"
+            title={isListening ? t("stopRecording") : t("voiceInput")}
+            aria-label={isListening ? t("stopRecording") : t("voiceInput")}
+          >
+            {isListening ? (
+              <MicOff className="text-destructive h-4 w-4 animate-pulse" />
+            ) : (
+              <Mic className="text-muted-foreground h-4 w-4" />
+            )}
+          </Button>
 
           {isProcessing && onStop ? (
             <Button

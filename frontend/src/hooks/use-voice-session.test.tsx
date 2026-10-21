@@ -136,7 +136,6 @@ const READY: VoiceServerFrame = {
   input_sample_rate: 24000,
   output_sample_rate: 24000,
   cap_seconds: 600,
-  minutes_left: 540,
   resume_token: "tok1",
 };
 

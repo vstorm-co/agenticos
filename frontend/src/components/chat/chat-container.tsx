@@ -66,7 +66,6 @@ import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
-import { useChanged } from "@/hooks/use-changed";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
@@ -868,24 +867,22 @@ function ChatUI({
 }: ChatUIProps) {
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
-  // The organization decides how the microphone turns speech into text.
+  // The organization sets the longest recording.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data: orgs } = useOrganizationList();
   const activeOrg = orgs?.find((org) => org.id === activeOrgId) ?? null;
-  const engine = activeOrg?.chat_dictation ?? "browser";
   const maxSeconds = activeOrg?.dictation_max_seconds ?? DEFAULT_DICTATION_SECONDS;
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  // The engine and the format are the agent's: its Dictation switch sends the
+  // recording to a provider when one resolves, and the backend says what to
+  // record for it - WAV, unless the deployment accepts compressed audio and
+  // that provider takes WebM. The browser's own recognition until it answers.
+  const { status } = useDictationStatus(selectedAgentId);
+  const engine = status?.engine ?? "browser";
   // Opened by the composer's microphone button; the glow around the box reads
   // its level. With the browser engine it is a second capture (see
   // `VoiceGlow`); with the server engine it is the one being recorded.
   const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
-  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  // Readiness and the format are the agent's: its published speech-to-text
-  // override can name another engine than the organization's, and the backend
-  // says what to record for it - WAV, unless the deployment accepts compressed
-  // audio and that provider takes WebM.
-  const { status, failed: statusFailed } = useDictationStatus(
-    engine === "server" ? selectedAgentId : null,
-  );
   const sendDictation = useMemo<DictationSend | null>(
     () =>
       selectedAgentId === null
@@ -900,7 +897,7 @@ function ChatUI({
     maxSeconds,
     format: status?.format ?? "wav",
   });
-  // The organization left `server` mid-dictation: the composer draws the
+  // The agent left `server` mid-dictation: the composer draws the
   // browser's microphone now, and a recording with no Stop button would run on
   // to the limit unseen, so it goes.
   const dictationPhase = dictationState.phase;
@@ -920,27 +917,6 @@ function ChatUI({
       ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_DICTATION_ANCHOR}`
       : null;
   const hasAgent = selectedAgentId !== null;
-  const dictationReady = hasAgent && status?.ready === true;
-  // The explanation a click on the crossed-out microphone opens under the box.
-  const [explaining, setExplaining] = useState(false);
-  // Shut again whenever the microphone's availability changes, so an explanation
-  // opened once does not come back by itself the next time it is crossed out.
-  if (useChanged(dictationReady)) setExplaining(false);
-  // Without an agent there is nothing to ask readiness of, so choosing one is
-  // the first thing to say. A pair with no key is told apart, because the fix is
-  // "choose a key", not "set dictation up"; and a readiness that could not be
-  // read is not a setup that is missing.
-  const noKey = status?.unavailable === "no_key";
-  const unavailable =
-    engine === "server" && explaining && !dictationReady
-      ? !hasAgent
-        ? ("no_agent" as const)
-        : statusFailed
-          ? ("unchecked" as const)
-          : noKey
-            ? ("no_key" as const)
-            : ("not_ready" as const)
-      : null;
   const dictationStrip =
     engine === "server"
       ? dictationHint(
@@ -948,10 +924,8 @@ function ChatUI({
             state: dictationState,
             actions: dictationActions,
             maxSeconds,
-            unavailable,
             voiceSettingsHref,
             agentVoiceHref,
-            closeExplanation: () => setExplaining(false),
             // `ChatInput` says "Inserted N words" in its status region.
             insertAnnounced: true,
           },
@@ -1392,15 +1366,8 @@ function ChatUI({
                           mic={mic}
                           dictation={{
                             engine,
-                            ready: dictationReady,
-                            hasAgent,
-                            noKey,
-                            unchecked: statusFailed,
                             state: dictationState,
                             actions: dictationActions,
-                            voiceSettingsHref,
-                            agentVoiceHref,
-                            onExplain: () => setExplaining((open) => !open),
                           }}
                           // Who answers first and largest: it is the most
                           // consequential choice in the composer.

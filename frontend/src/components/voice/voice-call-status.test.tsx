@@ -11,7 +11,6 @@ const LIVE: CallState = {
   activity: "listening",
   startedAt: 0,
   capSeconds: 600,
-  minutesLeft: 540,
   callId: "c1",
 };
 
@@ -28,17 +27,11 @@ function show(call: CallState, now = 1, { pushToTalk = false, holding = false } 
 }
 
 describe("VoiceCallStatus", () => {
-  it("shows the state, the elapsed time against the cap and the minutes left", () => {
+  it("shows the state and the elapsed time against the cap", () => {
     show(LIVE, 65_000);
     expect(screen.getByText("Listening")).toBeInTheDocument();
     expect(screen.getByText("1:05")).toBeInTheDocument();
     expect(screen.getByText(/\/ 10:00/)).toBeInTheDocument();
-    expect(screen.getByText(/540 min left this month/)).toBeInTheDocument();
-  });
-
-  it("says nothing of minutes where only the budgets bound calls", () => {
-    show({ ...LIVE, minutesLeft: null }, 65_000);
-    expect(screen.queryByText(/left this month/)).toBeNull();
   });
 
   it("names the agent while it speaks", () => {
@@ -65,11 +58,10 @@ describe("VoiceCallStatus", () => {
     },
   );
 
-  it("names the tool that is running, and its id in place of the minutes", () => {
+  it("names the tool that is running, and its id", () => {
     show({ ...LIVE, activity: "tool_running", tool: "web_search" });
     expect(screen.getByText("Searching the web")).toHaveClass("voice-call-shimmer");
     expect(screen.getByText(/web_search/)).toBeInTheDocument();
-    expect(screen.queryByText(/left this month/)).toBeNull();
   });
 
   it("says a tool is working before it knows which", () => {

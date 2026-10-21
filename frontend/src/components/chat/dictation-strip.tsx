@@ -35,30 +35,15 @@ export interface StripHint {
   quiet?: boolean;
 }
 
-/**
- * Why the crossed-out microphone is crossed out, when somebody asked: nothing
- * set up, a pair with no key chosen for it, or no agent to dictate to.
- */
-/**
- * Why the microphone is crossed out. `unchecked` is readiness that could not be
- * read at all - a failed request, not a setup that is missing - so it says to try
- * again rather than pointing at the Voice card.
- */
-export type DictationUnavailable = "not_ready" | "no_key" | "no_agent" | "unchecked";
-
 export interface DictationHintInput {
   state: DictationState;
   actions: DictationActions;
   /** The organization's longest recording, for the countdown's sentence. */
   maxSeconds: number;
-  /** Set while the explanation of a crossed-out microphone is open. */
-  unavailable: DictationUnavailable | null;
   /** Where an `org:settings` holder sets dictation up; null for everyone else. */
   voiceSettingsHref: string | null;
   /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
   agentVoiceHref: string | null;
-  /** Closes the explanation of a crossed-out microphone. */
-  closeExplanation: () => void;
   /**
    * A hosted page's visitor rather than a member: nobody to ask and nowhere to
    * go, so "not set up" says what to do instead and names no admin or setting.
@@ -126,15 +111,15 @@ function StripButton({
 const SETUP_LINK = "text-foreground font-medium underline underline-offset-[3px]";
 
 /**
- * The explanation for an engine that is on but not set up: whom to ask, or
- * where to go - the organization's default, this agent's own, or both.
+ * The explanation for a recording the server refused as not set up - a key
+ * revoked since the agent was published: whom to ask, or where to go - the
+ * organization's default, this agent's own, or both.
  */
 function notSetUp(
   t: Translate,
   orgHref: string | null,
   agentHref: string | null,
   visitor = false,
-  noKey = false,
 ): ReactNode {
   if (visitor) {
     return (
@@ -145,8 +130,7 @@ function notSetUp(
   }
   return (
     <>
-      {noKey ? strong(t("hint.noKeyTitle")) : strong(t("hint.notSetUpTitle"))}{" "}
-      {noKey ? t("hint.noKeyBody") : t("hint.notSetUpBody")}{" "}
+      {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}{" "}
       {orgHref === null && agentHref === null && t("askAdmin")}
       {orgHref !== null && (
         <Link href={orgHref} className={SETUP_LINK}>
@@ -166,8 +150,7 @@ function notSetUp(
 /**
  * What the strip under the composer says, or `null` when it is shut.
  *
- * In priority order: the explanation somebody asked for, the browser's
- * permission prompt, the near-limit countdown, the silence hint, the auto-stop
+ * In priority order: the browser's permission prompt, the near-limit countdown, the silence hint, the auto-stop
  * at the limit while that recording is transcribed, the words a transcript
  * inserted, then whatever ended the last attempt. Pure, so every branch is a
  * table row in the test.
@@ -177,15 +160,12 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
     state,
     actions,
     maxSeconds,
-    unavailable,
     voiceSettingsHref,
     agentVoiceHref,
-    closeExplanation,
     visitor = false,
     insertAnnounced = false,
   } = input;
   const dismiss = <StripButton onClick={actions.dismiss}>{t("dismiss")}</StripButton>;
-  const close = <StripButton onClick={closeExplanation}>{t("dismiss")}</StripButton>;
   const keep = (reason: string, sentence: ReactNode): StripHint => ({
     key: reason,
     tone: "error",
@@ -213,41 +193,6 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
     ),
   });
 
-  if (unavailable === "no_agent") {
-    return {
-      key: "noAgent",
-      tone: "hint",
-      icon: MicOff,
-      message: (
-        <>
-          {strong(t("hint.noAgentTitle"))} {t("hint.noAgentBody")}
-        </>
-      ),
-      actions: close,
-    };
-  }
-  if (unavailable === "unchecked") {
-    return {
-      key: "unchecked",
-      tone: "hint",
-      icon: MicOff,
-      message: (
-        <>
-          {strong(t("hint.uncheckedTitle"))} {t("hint.uncheckedBody")}
-        </>
-      ),
-      actions: close,
-    };
-  }
-  if (unavailable === "not_ready" || unavailable === "no_key") {
-    return {
-      key: "notReady",
-      tone: "hint",
-      icon: MicOff,
-      message: notSetUp(t, voiceSettingsHref, agentVoiceHref, false, unavailable === "no_key"),
-      actions: close,
-    };
-  }
   if (state.phase === "requesting") {
     return {
       key: "requesting",

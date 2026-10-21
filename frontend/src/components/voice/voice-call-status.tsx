@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 export const ENDING_NOTICES: Record<string, string> = {
   time_limit: "timeLimit",
   budget: "budget",
-  minutes: "minutes",
   unavailable: "unavailable",
 };
 
@@ -95,14 +94,7 @@ export function VoiceCallStatus({
             </span>
             {view === "tool" && call.tool !== null ? (
               <span className="font-mono"> · {call.tool}</span>
-            ) : (
-              call.minutesLeft !== null && (
-                <span className="hidden @md:inline">
-                  {" · "}
-                  {t("minutesLeft", { minutes: call.minutesLeft })}
-                </span>
-              )
-            )}
+            ) : null}
           </>
         )}
       </p>

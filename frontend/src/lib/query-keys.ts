@@ -7,7 +7,6 @@
  */
 import { canonicalFacet } from "@/lib/agent-facets";
 import type { SharingResourceType } from "@/types/sharing";
-import type { VoiceCallSurface } from "@/types/voice";
 
 export const qk = {
   auth: {
@@ -113,8 +112,7 @@ export const qk = {
   voice: {
     // Whether one agent can take a call, and the organization's call minutes (#54).
     all: () => ["voice"] as const,
-    readiness: (agentId: string, surface: VoiceCallSurface = "web") =>
-      ["voice", "readiness", agentId, surface] as const,
+    readiness: (agentId: string) => ["voice", "readiness", agentId] as const,
     usage: (start: string, end: string) => ["voice", "usage", start, end] as const,
   },
   ml: {

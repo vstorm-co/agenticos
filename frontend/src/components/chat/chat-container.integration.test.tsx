@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { messageOf } from "./composer-editor";
@@ -152,7 +152,7 @@ const organization = vi.hoisted(() => ({ current: null as Record<string, unknown
 const readiness = vi.hoisted(() => ({
   current: {
     engine: "server",
-    ready: true,
+    requested: true,
     server_available: true,
     unavailable: null,
     max_seconds: 300,
@@ -265,7 +265,15 @@ beforeEach(() => {
             : Promise.resolve({ items: [], total: 0 }),
   );
   organization.current = null;
-  readiness.current = { engine: "server", ready: true, max_seconds: 300, provider: "openai" };
+  readiness.current = {
+    engine: "server",
+    requested: true,
+    server_available: true,
+    unavailable: null,
+    max_seconds: 300,
+    provider: "openai",
+    format: "wav",
+  };
   dictation.phase = "idle";
   dictation.reason = null;
   dictation.upload = null;
@@ -492,17 +500,17 @@ describe("the chat container - server dictation", () => {
     organization.current = {
       id: "org-1",
       name: "Acme",
-      chat_dictation: "server",
-      chat_dictation_ready: true,
       dictation_max_seconds: 300,
     };
+    // The engine is the agent's: its readiness says `server` once it is read.
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
   });
 
   it("keeps the glow lit and sweeping while the recording is transcribed", async () => {
     dictation.phase = "transcribing";
     mount();
 
-    // The bar is the composer's own row once the organization's engine is read.
+    // The bar is the composer's own row once the agent's engine is read.
     expect(await screen.findByText("0:42 of audio")).toBeInTheDocument();
     const glow = screen.getByTestId("voice-glow");
     expect(glow).toHaveAttribute("data-active", "true");
@@ -540,37 +548,6 @@ describe("the chat container - server dictation", () => {
     expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
   });
 
-  it("closes the crossed-out microphone's explanation on Dismiss", async () => {
-    mount();
-    // Crossed out once the organization is read; before that it is the browser's.
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Voice input", description: /^Pick an agent/ }),
-    );
-    const strip = screen.getByTestId("dictation-strip");
-    expect(strip).toHaveTextContent("Pick an agent first.");
-
-    fireEvent.click(within(strip).getByRole("button", { name: "Dismiss" }));
-
-    await waitFor(() => expect(strip).toBeEmptyDOMElement());
-  });
-
-  it("does not bring the explanation back by itself once the microphone was usable", async () => {
-    mount();
-    // Crossed out once the organization is read; before that it is the browser's.
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Voice input", description: /^Pick an agent/ }),
-    );
-    const strip = screen.getByTestId("dictation-strip");
-    expect(strip).toHaveTextContent("Pick an agent first.");
-
-    act(() => useAgentSelectionStore.setState({ selectedAgentId: "a-1" }));
-    // Usable once that agent's readiness answers, which shuts the explanation.
-    await waitFor(() => expect(strip).toBeEmptyDOMElement());
-    act(() => useAgentSelectionStore.setState({ selectedAgentId: null }));
-
-    expect(strip).toBeEmptyDOMElement();
-  });
-
   it("tells the recorder the format the agent's readiness names", async () => {
     // A deployment that accepts compressed audio, and an agent on a provider
     // that takes WebM: the backend says so, not a list of providers kept here.
@@ -585,6 +562,7 @@ describe("the chat container - server dictation", () => {
 
   it("records PCM WAV and has nowhere to send before an agent is chosen", () => {
     organization.current = null;
+    useAgentSelectionStore.setState({ selectedAgentId: null });
     mount();
 
     expect(dictation.format).toBe("wav");
@@ -615,49 +593,17 @@ describe("the chat container - server dictation", () => {
     await waitFor(() => expect(mic).not.toHaveAttribute("aria-disabled"));
   });
 
-  it("crosses the microphone out for an agent that resolves to nothing usable", async () => {
-    readiness.current = { ...readiness.current, ready: false };
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
-
-    expect(
-      await screen.findByRole("button", {
-        name: "Voice input",
-        description: /^Dictation isn't set up yet\./,
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("says a key is what is missing when the agent's pair has none", async () => {
-    readiness.current = {
-      ...readiness.current,
-      ready: false,
-      server_available: false,
-      unavailable: "no_key",
-    };
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
-
-    const mic = await screen.findByRole("button", {
-      name: "Voice input",
-      description: /^Dictation needs a key\./,
-    });
-    fireEvent.click(mic);
-    expect(screen.getByTestId("dictation-strip")).toHaveTextContent(
-      "Dictation needs a key. A speech-to-text model is chosen, but no key for its provider.",
-    );
-  });
-
-  it("asks no agent about readiness while the organization dictates in the browser", async () => {
-    organization.current = { ...organization.current, chat_dictation: "browser" };
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+  it("dictates in the browser for an agent whose switch is off or has no provider", async () => {
+    readiness.current = { ...readiness.current, engine: "browser", requested: false };
+    dictation.phase = "transcribing";
     mount();
 
     expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
-    expect(get).not.toHaveBeenCalledWith("/agents/a-1/dictation");
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
+    expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
-  it("cancels a recording when the organization leaves the server engine mid-sentence", async () => {
+  it("cancels a recording when the agent leaves the server engine mid-sentence", async () => {
     dictation.phase = "recording";
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -668,7 +614,7 @@ describe("the chat container - server dictation", () => {
     await screen.findByRole("button", { name: "Stop and transcribe" });
     dictation.cancel.mockClear();
 
-    organization.current = { ...organization.current, chat_dictation: "browser" };
+    readiness.current = { ...readiness.current, engine: "browser" };
     await act(() => client.invalidateQueries());
 
     // The bar with its Stop button is gone, so the recording goes with it.
@@ -677,7 +623,7 @@ describe("the chat container - server dictation", () => {
   });
 
   it("leaves the glow to the open microphone for the browser engine", async () => {
-    organization.current = { ...organization.current, chat_dictation: "browser" };
+    readiness.current = { ...readiness.current, engine: "browser" };
     dictation.phase = "transcribing";
     mount();
 
@@ -696,7 +642,6 @@ describe("the chat container - a voice call (#54)", () => {
     provider: "openai",
     model: "gpt-realtime",
     cap_seconds: 600,
-    minutes_left: 540,
   };
   const LIVE_CALL = {
     ...initialCall,
@@ -706,7 +651,6 @@ describe("the chat container - a voice call (#54)", () => {
     conversationId: "c-a",
     startedAt: Date.now(),
     capSeconds: 600,
-    minutesLeft: 540,
   };
 
   /** The call button once the agent's readiness has said yes. */
@@ -826,21 +770,6 @@ describe("the chat container - a voice call (#54)", () => {
     // The server naming the call's conversation afterwards does not pull the person back.
     act(() => voiceCall.options.onConversation?.("c-new"));
     expect(useConversationStore.getState().currentConversationId).toBe("c-b");
-  });
-
-  it("offers no call at all where the organization has calls off", async () => {
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
-    get.mockImplementation((url: string) =>
-      /\/voice$/.test(url)
-        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "org_off" })
-        : base(url),
-    );
-    mount();
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/voice"));
-    await screen.findByRole("button", { name: "Voice input" });
-    await act(async () => {});
-    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
   });
 
   /** The container, and a way to draw it again once the test changed the call. */

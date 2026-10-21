@@ -41,10 +41,6 @@ export function VoiceCallSummary({
     title = t("view.summary.ended", { duration: clock(seconds) });
   else title = tEnding(`ended.${ENDED_KEYS[call.endReason]}`);
 
-  const minutesLeft =
-    limit && call.minutesLeft !== null
-      ? Math.max(0, Math.floor((call.minutesLeft * 60 - seconds) / 60))
-      : null;
   const Icon = view === "dropped" ? WifiOff : limit ? Clock : PhoneOff;
 
   return (
@@ -69,7 +65,6 @@ export function VoiceCallSummary({
           {view === "dropped"
             ? t("failure.dropped")
             : t("view.summary.turns", { count: call.savedTurns })}
-          {minutesLeft !== null && <> {t("view.summary.minutesLeft", { minutes: minutesLeft })}</>}
         </p>
         <Button type="button" variant="outline" size="sm" className="mt-2.5" onClick={onCallAgain}>
           <Phone aria-hidden />

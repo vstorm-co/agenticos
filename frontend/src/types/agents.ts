@@ -100,12 +100,12 @@ export interface ObservabilitySpec {
 }
 
 /**
- * Which engine and language this agent's speech is transcribed with, where it
- * differs from the organization's. A null field inherits. The provider and
- * model are a pair - both or neither, refused at publish otherwise - and the
- * language stands alone. Written with all three keys, in this order, and an
- * all-null block is written as `null`: the server stores it that way, and the
- * Builder compares the draft as JSON.
+ * Which provider and language this agent's speech is transcribed with, where it
+ * differs from the organization's, and whether `/chat` dictation uses it. A null
+ * field inherits. The provider and model are a pair - both or neither, refused
+ * at publish otherwise - and the language stands alone. Written with every key,
+ * in this order, and a block at its defaults is written as `null`: the server
+ * stores it that way, and the Builder compares the draft as JSON.
  */
 export interface SpeechToTextSpec {
   provider: string | null;
@@ -118,6 +118,11 @@ export interface SpeechToTextSpec {
    * keeps the organization's pair and key.
    */
   secret_id: string | null;
+  /**
+   * Send `/chat` dictation to the provider this block resolves to. Off - and
+   * on while no pair or key resolves - the browser's own recognition does it.
+   */
+  dictation: boolean;
 }
 
 /**

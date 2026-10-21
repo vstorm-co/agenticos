@@ -23,8 +23,6 @@ const USAGE: VoiceUsage = {
   seconds: 720,
   calls: 4,
   by_agent: [],
-  month_seconds: 900,
-  monthly_minutes: 600,
 };
 
 describe("useVoiceUsage", () => {

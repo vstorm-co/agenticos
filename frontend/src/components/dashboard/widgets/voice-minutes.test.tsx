@@ -18,8 +18,6 @@ function usage(overrides: Partial<VoiceUsage> = {}): VoiceUsage {
     end: "2026-09-22T23:59:59.999Z",
     seconds: 720,
     calls: 4,
-    month_seconds: 900,
-    monthly_minutes: 600,
     by_agent: [
       { agent_id: "a", agent_name: "Support", seconds: 600, calls: 3 },
       { agent_id: "b", agent_name: "Sales", seconds: 60, calls: 1 },
@@ -51,7 +49,7 @@ function widget(period: Period = PERIOD) {
 describe("VoiceMinutesWidget", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the period's minutes, the calls and the month against the limit", () => {
+  it("shows the period's minutes, the calls and the top agents", () => {
     answer({ usage: usage() });
     widget();
     expect(useVoiceUsage).toHaveBeenCalledWith(
@@ -60,9 +58,7 @@ describe("VoiceMinutesWidget", () => {
     );
     expect(screen.getByText("12 min")).toBeInTheDocument();
     expect(screen.getByText("4 calls")).toBeInTheDocument();
-    const meter = screen.getByRole("meter", { name: "Call minutes this month" });
-    expect(meter).toHaveAttribute("aria-valuenow", "15");
-    expect(meter).toHaveAttribute("aria-valuemax", "600");
+    expect(screen.queryByRole("meter")).toBeNull();
     expect(screen.getByText("Support")).toBeInTheDocument();
     // The top three agents; the rest are a click away.
     expect(screen.getByText("Billing")).toBeInTheDocument();
@@ -109,41 +105,10 @@ describe("VoiceMinutesWidget", () => {
     );
   });
 
-  it("colours a nearly spent month as a warning, and a spent one as a stop", () => {
-    answer({ usage: usage({ month_seconds: 450 * 60 }) });
-    const { unmount } = widget();
-    expect(
-      screen.getByRole("meter", { name: "Call minutes this month" }).firstElementChild,
-    ).toHaveClass("bg-warning");
-    unmount();
-    answer({ usage: usage({ month_seconds: 700 * 60 }) });
-    widget();
-    const meter = screen.getByRole("meter", { name: "Call minutes this month" });
-    expect(meter.firstElementChild).toHaveClass("bg-destructive");
-    expect(meter.firstElementChild).toHaveStyle({ width: "100%" });
-  });
-
-  it("states the month alone when only budgets bound calls", () => {
-    answer({ usage: usage({ monthly_minutes: null, by_agent: [] }) });
-    widget();
-    expect(screen.queryByRole("meter")).toBeNull();
-    expect(screen.getByText("This month: 15 min · no monthly limit")).toBeInTheDocument();
-  });
-
   it("says so when nobody called", () => {
-    answer({ usage: usage({ seconds: 0, calls: 0, month_seconds: 0, by_agent: [] }) });
-    widget();
-    expect(screen.getByText("No voice calls yet")).toBeInTheDocument();
-  });
-
-  it("still shows the month when the period itself was quiet", () => {
     answer({ usage: usage({ seconds: 0, calls: 0, by_agent: [] }) });
     widget();
-    expect(screen.getByText("0 calls")).toBeInTheDocument();
-    expect(screen.getByRole("meter", { name: "Call minutes this month" })).toHaveAttribute(
-      "aria-valuenow",
-      "15",
-    );
+    expect(screen.getByText("No voice calls yet")).toBeInTheDocument();
   });
 
   it("shows a skeleton while loading", () => {

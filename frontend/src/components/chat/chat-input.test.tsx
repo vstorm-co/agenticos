@@ -438,8 +438,6 @@ function serverDictation(
 ): ComposerDictation {
   return {
     engine: "server",
-    ready: true,
-    hasAgent: true,
     state: dictationState(state),
     actions: {
       start: vi.fn(async () => {}),
@@ -449,9 +447,6 @@ function serverDictation(
       dismiss: vi.fn(),
       dismissInserted: vi.fn(),
     },
-    voiceSettingsHref: null,
-    agentVoiceHref: null,
-    onExplain: vi.fn(),
     ...overrides,
   };
 }
@@ -488,15 +483,6 @@ function caretOf(box: HTMLElement): number {
 }
 
 describe("ChatInput dictation engines", () => {
-  it("offers no microphone when the organization turned dictation off", async () => {
-    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "off" })} />);
-
-    expect(screen.queryByRole("button", { name: "Voice input" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
-    await screen.findByRole("menuitem", { name: /Attach/ });
-    expect(screen.queryByRole("menuitem", { name: /Voice input/ })).not.toBeInTheDocument();
-  });
-
   it("keeps the browser's own speech recognition for the browser engine", async () => {
     render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
 
@@ -518,37 +504,17 @@ describe("ChatInput dictation engines", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
-  it("crosses the mic out when the server engine is not set up", async () => {
-    const dictation = serverDictation({ ready: false });
-    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+  it("shows the microphone beside Send whichever engine dictates", async () => {
+    const dictation = serverDictation();
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
 
-    const mic = screen.getByRole("button", { name: "Voice input" });
-    expect(mic).toHaveAttribute("aria-disabled", "true");
-    expect(mic).toHaveAccessibleDescription(/^Dictation isn't set up yet\./);
-    await userEvent.click(mic);
-    expect(dictation.actions.start).not.toHaveBeenCalled();
-    expect(dictation.onExplain).toHaveBeenCalledOnce();
-    // Nothing in the `+` to press instead.
-    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
-    await screen.findByRole("menuitem", { name: /Attach/ });
-    expect(screen.queryByRole("menuitem", { name: /Voice input/ })).not.toBeInTheDocument();
-  });
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    expect(dictation.actions.start).toHaveBeenCalledOnce();
 
-  it("crosses the mic out when there is no agent to send the recording through", () => {
-    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ hasAgent: false })} />);
-
-    expect(screen.getByRole("button", { name: "Voice input" })).toHaveAccessibleDescription(
-      /^Pick an agent first\./,
-    );
-  });
-
-  it("says readiness did not load, rather than that nothing is set up", () => {
-    render(
-      <ChatInput onSend={vi.fn()} dictation={serverDictation({ ready: false, unchecked: true })} />,
-    );
-
-    expect(screen.getByRole("button", { name: "Voice input" })).toHaveAccessibleDescription(
-      /^Couldn't check dictation\./,
+    rerender(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    expect(toast.info).toHaveBeenCalledWith(
+      "Voice input is only supported in Chrome. Use Chrome for speech-to-text.",
     );
   });
 });

@@ -52,11 +52,11 @@ const calls = vi.hoisted(() => ({
     unavailable: string | null;
   } | null,
   failed: false,
-  asked: [] as [string | null, string | undefined][],
+  asked: [] as (string | null)[],
 }));
 vi.mock("@/hooks/use-voice-readiness", () => ({
-  useVoiceReadiness: (agentId: string | null, surface?: string) => {
-    calls.asked.push([agentId, surface]);
+  useVoiceReadiness: (agentId: string | null) => {
+    calls.asked.push(agentId);
     return { readiness: calls.current, failed: calls.failed };
   },
 }));
@@ -996,11 +996,11 @@ describe("publishing a surface", () => {
 });
 
 describe("voice calls on an embed", () => {
-  it("asks whether a call would start from an embed, not from /chat", async () => {
+  it("asks whether a call to the agent would start, as the chat does", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await pick("page");
 
-    expect(calls.asked).toContainEqual(["a-1", "embed"]);
+    expect(calls.asked).toContain("a-1");
   });
 
   it("publishes a widget with calls switched on", async () => {
@@ -1023,14 +1023,6 @@ describe("voice calls on an embed", () => {
     await pick("page");
 
     expect(screen.getByRole("switch", { name: "Voice calls" })).toBeDisabled();
-  });
-
-  it("does not lock it for a month out of minutes, which the backend accepts", async () => {
-    calls.current = { available: false, unavailable: "minutes_exhausted" };
-    render(<EmbedsPanel agentId="a-1" canManage />);
-    await pick("page");
-
-    expect(screen.getByRole("switch", { name: "Voice calls" })).toBeEnabled();
   });
 
   it("keeps an embed already on editable after its agent lost its voice", async () => {
@@ -1057,7 +1049,7 @@ describe("voice calls on an embed", () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await pick("socket");
 
-    expect(calls.asked.every(([agentId]) => agentId === null)).toBe(true);
+    expect(calls.asked.every((agentId) => agentId === null)).toBe(true);
     expect(screen.queryByRole("switch", { name: "Voice calls" })).toBeNull();
   });
 });

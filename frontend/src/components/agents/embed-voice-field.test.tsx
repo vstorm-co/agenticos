@@ -40,7 +40,7 @@ describe("EmbedVoiceField", () => {
     const { rerender } = field({ available: false });
 
     expect(screen.getByRole("switch", { name: "Voice calls" })).toBeDisabled();
-    expect(screen.getByText(/need the organization's voice switch on/)).toBeInTheDocument();
+    expect(screen.getByText(/need a voice set up on this agent's Voice card/)).toBeInTheDocument();
 
     rerender(
       <EmbedVoiceField

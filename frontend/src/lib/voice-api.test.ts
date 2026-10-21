@@ -14,12 +14,6 @@ describe("voice api", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/voice");
   });
 
-  it("asks about the embed surface for a widget or a hosted page", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ available: true });
-    await voiceReadiness("a1", "embed");
-    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/voice?surface=embed");
-  });
-
   it("reads the realtime catalog", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     await realtimeModels();

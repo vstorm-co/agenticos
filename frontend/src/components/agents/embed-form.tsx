@@ -107,16 +107,11 @@ export function EmbedForm({
     unchecked: readiness.failed,
     wasServer: stored !== undefined && stored.kind !== "socket" && stored.dictation === "server",
   };
-  // Whether a visitor's call would start - asked for the embed surface, which
-  // the organization's `/chat` switch does not gate. A month out of minutes is
-  // still a complete setup, which the backend accepts, so it does not lock the
-  // switch either.
-  const voice = useVoiceReadiness(kind === "socket" ? null : agentId, "embed");
+  // Whether a visitor's call would start: the agent's own setup, the same
+  // answer the chat gets.
+  const voice = useVoiceReadiness(kind === "socket" ? null : agentId);
   const voiceCall: EmbedVoiceChoice = {
-    available:
-      voice.readiness === null
-        ? null
-        : voice.readiness.available || voice.readiness.unavailable === "minutes_exhausted",
+    available: voice.readiness === null ? null : voice.readiness.available,
     unchecked: voice.failed,
     wasOn: stored !== undefined && stored.kind !== "socket" && stored.voice_conversation === true,
   };

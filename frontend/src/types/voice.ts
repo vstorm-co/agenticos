@@ -30,32 +30,28 @@ export type VoiceEndReason =
   // A reconnect refused because the call had used its whole time.
   | "call_limit"
   | "budget"
-  | "minutes"
   | "disconnected"
   | "revoked"
   | "guardrail"
   | "error"
   | "shutdown"
   | "reaped"
-  | "voice_off"
   | "no_agent"
   | "forbidden"
   | "not_configured"
   | "bad_offer"
   | "data_channel"
   | "resume_refused"
-  | "minutes_exhausted"
   | "not_priced"
   | "busy"
   | "line_busy"
   | "no_start"
   // What a visitor is told for any refusal or end that is the operator's to
-  // know about - minutes, budget, a missing price or setup (`session.py`).
+  // know about - budget, a missing price or setup (`session.py`).
   | "unavailable";
 
 /** Why the call button is crossed out. */
-export type VoiceUnavailable =
-  "org_off" | "not_in_chat" | "no_voice" | "not_offered" | "no_key" | "minutes_exhausted";
+export type VoiceUnavailable = "no_voice" | "not_offered" | "no_key";
 
 /** `GET /agents/{id}/voice`: whether a call to this agent would start, and why not. */
 export interface VoiceReadiness {
@@ -64,10 +60,8 @@ export interface VoiceReadiness {
   transport: VoiceTransport | null;
   provider: string | null;
   model: string | null;
-  /** The longest this call could run, after the minutes left. */
+  /** The longest this call could run: the agent's longest call. */
   cap_seconds: number;
-  /** This month's remaining call minutes; null when only the budgets bound calls. */
-  minutes_left: number | null;
 }
 
 /** A finished turn, as the message it was saved as. */
@@ -92,7 +86,6 @@ export type VoiceServerFrame =
       input_sample_rate: number;
       output_sample_rate: number;
       cap_seconds: number;
-      minutes_left: number | null;
       /** What a reconnect of this connection sends as `start.resume_token`; only this caller gets it. */
       resume_token: string;
     }
@@ -185,7 +178,7 @@ export interface VoiceAgentMinutes {
   calls: number;
 }
 
-/** Call time over a window by agent, and this month's against the organization's limit. */
+/** Call time over a window, by agent. */
 export interface VoiceUsage {
   /** The window, as instants: calls started at or after `start` and before `end`. */
   start: string;
@@ -194,8 +187,4 @@ export interface VoiceUsage {
   calls: number;
   /** Most seconds first; deleted agents' calls together in one row. */
   by_agent: VoiceAgentMinutes[];
-  /** This calendar month's call seconds: what the monthly limit counts. */
-  month_seconds: number;
-  /** `null` = no monthly limit, budgets only. */
-  monthly_minutes: number | null;
 }

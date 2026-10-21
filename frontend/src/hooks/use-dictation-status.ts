@@ -22,7 +22,7 @@ export interface DictationStatusRead {
  * WAV, unless the deployment accepts compressed audio and the provider takes WebM.
  *
  * `agentId` null asks nothing, which is how the composer keeps this off the
- * network until the organization's engine is `server` and an agent is chosen.
+ * network until an agent is chosen.
  * The previous agent's answer is not held while the next one's loads: a press
  * in that moment would record in the previous agent's format and call it ready,
  * so the microphone is crossed out until this agent answers.

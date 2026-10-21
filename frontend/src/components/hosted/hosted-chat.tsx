@@ -188,7 +188,6 @@ function offered(transport: VoiceTransport): VoiceReadiness {
     provider: null,
     model: null,
     cap_seconds: 0,
-    minutes_left: null,
   };
 }
 
@@ -473,11 +472,8 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           state: dictation,
           actions: dictationActions,
           maxSeconds: config.dictation_max_seconds,
-          unavailable: null,
           voiceSettingsHref: null,
           agentVoiceHref: null,
-          // Never reached: there is no crossed-out microphone to explain here.
-          closeExplanation: dictationActions.dismiss,
           visitor: true,
         },
         tDictation,

@@ -7,8 +7,6 @@ import type { SpeechToTextSpec } from "@/types/agents";
 
 interface Org {
   id: string;
-  voice_max_call_seconds?: number;
-  chat_dictation: "off" | "browser" | "server";
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
   speech_to_text_language: string | null;
@@ -49,10 +47,8 @@ vi.mock("@/components/vault/speech-key-field", () => ({
   },
 }));
 vi.mock("./voice-conversation-fields", () => ({
-  VoiceConversationFields: (props: { orgMaxSeconds: number; disabled?: boolean }) => (
-    <p data-testid="voice-conversation-fields">
-      {`max ${props.orgMaxSeconds} disabled ${String(props.disabled)}`}
-    </p>
+  VoiceConversationFields: (props: { disabled?: boolean }) => (
+    <p data-testid="voice-conversation-fields">{`disabled ${String(props.disabled)}`}</p>
   ),
 }));
 vi.mock("@/stores", () => ({
@@ -73,7 +69,6 @@ function mount(value: SpeechToTextSpec | null = null) {
 beforeEach(() => {
   state.org = {
     id: "org-1",
-    chat_dictation: "server",
     speech_to_text_provider: "openai",
     speech_to_text_model: "gpt-4o-transcribe",
     speech_to_text_language: "en",
@@ -91,7 +86,7 @@ beforeEach(() => {
 });
 
 function pair(provider: string, modelId: string, language: string | null = null) {
-  return { provider, model: modelId, language, secret_id: `key-${provider}` };
+  return { provider, model: modelId, language, secret_id: `key-${provider}`, dictation: false };
 }
 
 describe("the agent's Voice card", () => {
@@ -121,12 +116,14 @@ describe("the agent's Voice card", () => {
       model: "whisper-large-v3",
       language: null,
       secret_id: null,
+      dictation: false,
     });
     expect(Object.keys(onChange.mock.calls[0]![0])).toEqual([
       "provider",
       "model",
       "language",
       "secret_id",
+      "dictation",
     ]);
   });
 
@@ -156,6 +153,7 @@ describe("the agent's Voice card", () => {
       model: "whisper-1",
       language: null,
       secret_id: null,
+      dictation: false,
     });
   });
 
@@ -171,6 +169,7 @@ describe("the agent's Voice card", () => {
       model: "whisper-1",
       language: "pl",
       secret_id: null,
+      dictation: false,
     });
   });
 
@@ -194,6 +193,7 @@ describe("the agent's Voice card", () => {
       model: null,
       language: "pl",
       secret_id: null,
+      dictation: false,
     });
   });
 
@@ -215,11 +215,18 @@ describe("the agent's Voice card", () => {
       model: null,
       language: "pl",
       secret_id: null,
+      dictation: false,
     });
   });
 
   it("inheriting the language back clears the block", async () => {
-    const { onChange } = mount({ provider: null, model: null, language: "pl", secret_id: null });
+    const { onChange } = mount({
+      provider: null,
+      model: null,
+      language: "pl",
+      secret_id: null,
+      dictation: false,
+    });
 
     await userEvent.click(screen.getByLabelText("Language"));
     await userEvent.click(screen.getByRole("option", { name: "Inherit (English)" }));
@@ -234,37 +241,56 @@ describe("the agent's Voice card", () => {
     expect(screen.getByLabelText("Language")).toHaveTextContent("Inherit (auto-detect)");
   });
 
-  it("says the override reaches only channel bots where chat dictates in the browser", () => {
-    state.org!.chat_dictation = "browser";
+  it("says the provider reaches only channel bots while the Dictation switch is off", () => {
     mount();
 
-    expect(screen.getByText(/runs in the browser, so this only changes/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Transcribe with a provider" })).not.toBeChecked();
+    expect(screen.getByText(/only changes how voice notes/)).toBeInTheDocument();
   });
 
-  it("says the same where chat dictation is off", () => {
-    state.org!.chat_dictation = "off";
-    mount();
+  it("switches provider dictation on, written as a block of its own", async () => {
+    const { onChange } = mount();
 
-    expect(
-      screen.getByText(/is off in this organization, so this only changes/),
-    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "Transcribe with a provider" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      provider: null,
+      model: null,
+      language: null,
+      secret_id: null,
+      dictation: true,
+    });
   });
 
-  it("says dictation needs a provider here when the organization has none", () => {
+  it("writes a block with only the switch back as nothing when it goes off", async () => {
+    const { onChange } = mount({
+      provider: null,
+      model: null,
+      language: null,
+      secret_id: null,
+      dictation: true,
+    });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Transcribe with a provider" }));
+
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("says the browser keeps transcribing when the switch is on and nothing resolves", () => {
     state.org!.speech_to_text_provider = null;
     state.org!.speech_to_text_model = null;
-    mount();
+    mount({ provider: null, model: null, language: null, secret_id: null, dictation: true });
 
-    expect(screen.getByText(/unavailable until you choose one here/)).toBeInTheDocument();
+    expect(screen.getByText(/the browser keeps transcribing/)).toBeInTheDocument();
     expect(screen.getByText(/nothing to inherit/)).toBeInTheDocument();
   });
 
-  it("says dictation runs on this agent's provider when the organization has none", () => {
+  it("says nothing more once this agent's own provider is chosen", () => {
     state.org!.speech_to_text_provider = null;
     state.org!.speech_to_text_model = null;
-    mount(pair("groq", "whisper-large-v3"));
+    mount({ ...pair("groq", "whisper-large-v3"), dictation: true });
 
-    expect(screen.getByText(/runs on the one chosen here/)).toBeInTheDocument();
+    expect(screen.queryByText(/the browser keeps transcribing/)).not.toBeInTheDocument();
   });
 
   it("chooses the first offered provider when none has a key", async () => {
@@ -278,11 +304,18 @@ describe("the agent's Voice card", () => {
       model: "whisper-1",
       language: null,
       secret_id: null,
+      dictation: false,
     });
   });
 
   it("shows a half-made pair from a draft as a choice still to finish", () => {
-    mount({ provider: null, model: "whisper-1", language: null, secret_id: null });
+    mount({
+      provider: null,
+      model: "whisper-1",
+      language: null,
+      secret_id: null,
+      dictation: false,
+    });
     expect(screen.getByRole("radio", { name: "This agent's own" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -291,7 +324,7 @@ describe("the agent's Voice card", () => {
   });
 
   it("offers the key once a provider is chosen, before its model is", () => {
-    mount({ provider: "groq", model: null, language: null, secret_id: null });
+    mount({ provider: "groq", model: null, language: null, secret_id: null, dictation: false });
     expect(screen.getByRole("button", { name: "choose key" })).toBeInTheDocument();
   });
 
@@ -342,16 +375,13 @@ describe("the agent's Voice card", () => {
       );
     });
 
-    it("open on their own tab, apart from dictation, capped at the organization's longest call", async () => {
-      state.org = { ...state.org!, voice_max_call_seconds: 900 };
+    it("open on their own tab, apart from dictation", async () => {
       render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />);
       expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
-      expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent(
-        "max 900 disabled true",
-      );
+      expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent("disabled true");
       // Dictation's settings are on the other tab, not stacked beneath.
       expect(screen.queryByLabelText("Language")).toBeNull();
       await userEvent.click(screen.getByRole("tab", { name: "Dictation" }));
@@ -366,12 +396,6 @@ describe("the agent's Voice card", () => {
         "true",
       );
       window.history.replaceState({}, "", "/");
-    });
-
-    it("use the server's default cap before the organization is read", () => {
-      state.org = null;
-      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
-      expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent("max 600");
     });
   });
 });

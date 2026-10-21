@@ -170,8 +170,6 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       seconds: 1260,
       calls: 9,
       by_agent: [{ agent_id: "a1", agent_name: "Front desk", seconds: 1260, calls: 9 }],
-      month_seconds: 1500,
-      monthly_minutes: 600,
     };
   }
   switch (path) {

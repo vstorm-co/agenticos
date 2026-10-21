@@ -19,13 +19,6 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-// Its own form with its own Save, tested on its own
-// (`org-voice-conversations.integration.test.tsx`).
-vi.mock("./org-voice-conversations", () => ({
-  OrgVoiceConversations: ({ org }: { org: Organization }) => (
-    <div data-testid="org-voice-conversations">{org.id}</div>
-  ),
-}));
 
 const ORG_ID = "org-1";
 
@@ -80,17 +73,11 @@ function org(overrides: Partial<Organization> = {}): Organization {
     subscription_tier: "free",
     seats_limit: null,
     monthly_budget_usd: null,
-    chat_dictation: "browser",
     speech_to_text_provider: null,
     speech_to_text_model: null,
     speech_to_text_secret_id: null,
     speech_to_text_language: null,
     dictation_max_seconds: 300,
-    chat_dictation_ready: false,
-    voice_conversations_enabled: false,
-    voice_in_chat: true,
-    voice_max_call_seconds: 600,
-    voice_monthly_minutes: 600,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -204,53 +191,31 @@ describe("OrgVoiceSettings", () => {
     expect(apiClient.get).not.toHaveBeenCalledWith("/providers/speech-to-text-models");
   });
 
-  it("offers three engines, each saying where the audio goes", async () => {
+  it("shows the default provider and the longest recording, with no engine to choose", async () => {
     await mount();
 
-    expect(screen.getByRole("radio", { name: /^Off/ })).toHaveAccessibleName(
-      /No microphone in chat\./,
-    );
-    expect(screen.getByRole("radio", { name: /^Browser/ })).toHaveAccessibleName(
-      /Audio goes to the browser vendor \(Google, Apple\)\. Not in Firefox\./,
-    );
-    expect(screen.getByRole("radio", { name: /^Server/ })).toHaveAccessibleName(
-      /Audio goes through this deployment to the provider you pick\. Every browser\./,
-    );
-    expect(screen.getByRole("radio", { name: /^Browser/ })).toBeChecked();
-    // Browser needs no length, so the server's own fields are not drawn - but
-    // the default provider is, because channel bots inherit it.
-    expect(screen.queryByLabelText("Max recording length")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
-    // Its path says the organization's provider is not involved.
-    expect(screen.getByText("Browser vendor's speech service")).toBeInTheDocument();
-    expect(
-      screen.getByText("The organization's provider is not used. Firefox shows no microphone."),
-    ).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("radio", { name: /^Off/ }));
-    expect(screen.queryByText("Browser vendor's speech service")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Max recording length")).toHaveValue("5");
+    expect(screen.getByRole("combobox", { name: "Unit" })).toHaveTextContent("minutes");
+    // No provider, so no path for a recording to take.
+    expect(screen.queryByText(/^Sent with/)).not.toBeInTheDocument();
   });
 
-  it("never disables Server: a key can be added from the key field", async () => {
+  it("offers a provider with no key yet, and says how to add one", async () => {
     await mount({}, { vault: [] });
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
-
-    expect(screen.getByRole("radio", { name: /^Server/ })).toBeChecked();
-    // No provider has a key, so none is preselected and the pair stays empty.
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
     await choose("Provider", "OpenAI (no key yet)");
     expect(
       await screen.findByText(/No organization-wide OpenAI keys in the vault yet/),
     ).toBeInTheDocument();
   });
 
-  it("shows the server fields, marking providers with no organization-wide key", async () => {
+  it("shows the provider's fields, marking providers with no organization-wide key", async () => {
     await mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Provider", "OpenAI");
 
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenAI");
     expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("GPT-4o Transcribe");
     // The only organization-wide OpenAI key, chosen by itself.
     expect(screen.getByRole("combobox", { name: "Key" })).toHaveTextContent("team-openai");
@@ -258,9 +223,6 @@ describe("OrgVoiceSettings", () => {
     expect(
       screen.getByText(/^Sent with the organization's OpenAI key chosen below\./),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Browser vendor's speech service")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Max recording length")).toHaveValue("5");
-    expect(screen.getByRole("combobox", { name: "Unit" })).toHaveTextContent("minutes");
     expect(screen.getByText(/only the text is kept/)).toBeInTheDocument();
 
     // A private Mistral key does not count: this one is spent for everybody.
@@ -273,11 +235,9 @@ describe("OrgVoiceSettings", () => {
 
   it("starts the language list on Auto-detect, then names each language", async () => {
     await mount({
-      chat_dictation: "server",
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
       speech_to_text_secret_id: "team-openai",
-      chat_dictation_ready: true,
     });
 
     expect(screen.getByRole("combobox", { name: "Language" })).toHaveTextContent("Auto-detect");
@@ -289,11 +249,9 @@ describe("OrgVoiceSettings", () => {
   it("warns that Mistral may not take every language or the recording format", async () => {
     await mount(
       {
-        chat_dictation: "server",
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
         speech_to_text_secret_id: "team-openai",
-        chat_dictation_ready: true,
       },
       { vault: [...VAULT, key("team-mistral", "mistral")] },
     );
@@ -313,11 +271,9 @@ describe("OrgVoiceSettings", () => {
     vi.mocked(apiClient.patch).mockResolvedValue(org());
     await mount(
       {
-        chat_dictation: "server",
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
         speech_to_text_secret_id: "team-openai",
-        chat_dictation_ready: true,
       },
       { vault: [...VAULT, key("team-groq-2", "groq")] },
     );
@@ -339,7 +295,6 @@ describe("OrgVoiceSettings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "server",
         speech_to_text_provider: "groq",
         speech_to_text_model: "whisper-large-v3-turbo",
         speech_to_text_secret_id: "team-groq-2",
@@ -349,13 +304,13 @@ describe("OrgVoiceSettings", () => {
     );
   });
 
-  it("saves all six settings in one request, the key explicitly, the length in seconds", async () => {
+  it("saves every setting in one request, the key explicitly, the length in seconds", async () => {
     vi.mocked(apiClient.patch).mockImplementation(async (_path, body) =>
       org(body as Partial<Organization>),
     );
     await mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Provider", "OpenAI");
     await choose("Model", "Whisper");
     await choose("Language", "Polish (pl)");
     const length = screen.getByLabelText("Max recording length");
@@ -365,7 +320,6 @@ describe("OrgVoiceSettings", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "server",
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
         speech_to_text_secret_id: "team-openai",
@@ -380,13 +334,11 @@ describe("OrgVoiceSettings", () => {
   it("sends auto-detect as null and takes a length in seconds", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue(org());
     await mount({
-      chat_dictation: "server",
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
       speech_to_text_secret_id: "team-openai",
       speech_to_text_language: "de",
       dictation_max_seconds: 90,
-      chat_dictation_ready: true,
     });
 
     expect(screen.getByLabelText("Max recording length")).toHaveValue("90");
@@ -403,7 +355,6 @@ describe("OrgVoiceSettings", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "server",
         speech_to_text_language: null,
         dictation_max_seconds: 90,
       }),
@@ -412,7 +363,6 @@ describe("OrgVoiceSettings", () => {
 
   it("refuses a length under ten seconds without asking the server", async () => {
     await mount();
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
     await choose("Unit", "seconds");
     const length = screen.getByLabelText("Max recording length");
     await userEvent.clear(length);
@@ -432,65 +382,51 @@ describe("OrgVoiceSettings", () => {
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
-  it("switches a broken server engine to the browser without naming the stale pair", async () => {
+  it("warns of a withdrawn model, and saves the language without naming the stale pair", async () => {
     // Naming the pair asks the server to check it against the catalog; a model
-    // withdrawn since must not stop somebody turning server dictation off.
+    // withdrawn since must not stop somebody changing the language.
     vi.mocked(apiClient.patch).mockResolvedValue(org());
-    // What the server reports for it: a stored pair, and not ready.
     await mount({
-      chat_dictation: "server",
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-0",
       speech_to_text_secret_id: "team-openai",
       dictation_max_seconds: 45,
-      chat_dictation_ready: false,
     });
 
-    // The pair is chosen, so the warning names the model rather than saying
-    // nothing is; and it is fixed here.
     const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("The default provider can't transcribe")).toBeInTheDocument();
     expect(alert).toHaveTextContent("The chosen model, whisper-0, is no longer offered.");
-    expect(alert).not.toHaveTextContent("Only agents with their own provider can dictate");
     expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
+    await choose("Language", "Polish (pl)");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "browser",
-        speech_to_text_language: null,
+        speech_to_text_language: "pl",
         dictation_max_seconds: 45,
       }),
     );
   });
 
-  it("puts the server's refusal under the engine choice", async () => {
+  it("puts the server's refusal of the model under the model field", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(
       new ApiError(422, "Invalid request", {
         error: {
           code: "VALIDATION_ERROR",
           message: "Invalid request",
           details: {
-            fields: [
-              {
-                field: "chat_dictation",
-                message: "Server dictation needs a speech-to-text provider and model first.",
-              },
-            ],
+            fields: [{ field: "speech_to_text_model", message: "Not in the catalog." }],
           },
         },
       }),
     );
     await mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Provider", "OpenAI");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
-    const message = await screen.findByText(
-      "Server dictation needs a speech-to-text provider and model first.",
-    );
-    expect(screen.getByRole("radiogroup", { name: "Dictation engine" })).toContainElement(message);
+    expect(await screen.findByText("Not in the catalog.")).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -498,7 +434,7 @@ describe("OrgVoiceSettings", () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(500, "Server exploded"));
     await mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Off/ }));
+    await choose("Language", "Polish (pl)");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
@@ -511,64 +447,26 @@ describe("OrgVoiceSettings", () => {
     expect(save).toBeDisabled();
     expect(cancel).toBeDisabled();
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Provider", "OpenAI");
     expect(save).toBeEnabled();
     await userEvent.click(cancel);
 
-    expect(screen.getByRole("radio", { name: /^Browser/ })).toBeChecked();
-    expect(screen.queryByLabelText("Max recording length")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
     expect(save).toBeDisabled();
-  });
-
-  it("leaves the default pair as stored when Server was only passed through", async () => {
-    // Server fills in the first pair with a key; leaving it again untouched
-    // must not save that pair as the organization's default.
-    await mount();
-
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
-    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("GPT-4o Transcribe");
-    await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
-
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
-  });
-
-  it("keeps a pair somebody changed on Server when the engine moves away", async () => {
-    vi.mocked(apiClient.patch).mockResolvedValue(org());
-    await mount();
-
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
-    await choose("Model", "Whisper");
-    await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
-
-    await waitFor(() =>
-      expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "browser",
-        speech_to_text_provider: "openai",
-        speech_to_text_model: "whisper-1",
-        speech_to_text_secret_id: "team-openai",
-        speech_to_text_language: null,
-        dictation_max_seconds: 300,
-      }),
-    );
   });
 
   it("says to choose a key when the stored pair has none - deleted since", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue(org());
     await mount(
       {
-        chat_dictation: "server",
         speech_to_text_provider: "groq",
         speech_to_text_model: "whisper-large-v3",
-        chat_dictation_ready: false,
       },
       { vault: [key("a", "groq"), key("b", "groq")] },
     );
 
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByText("Dictation is unavailable in chat")).toBeInTheDocument();
+    expect(within(alert).getByText("The default provider can't transcribe")).toBeInTheDocument();
     expect(alert).toHaveTextContent("No key is chosen for Groq.");
     expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Key" })).toHaveTextContent("Choose a key");
@@ -577,7 +475,6 @@ describe("OrgVoiceSettings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "server",
         speech_to_text_provider: "groq",
         speech_to_text_model: "whisper-large-v3",
         speech_to_text_secret_id: "b",
@@ -589,10 +486,8 @@ describe("OrgVoiceSettings", () => {
 
   it("names a stored provider the catalog no longer lists by its id", async () => {
     await mount({
-      chat_dictation: "server",
       speech_to_text_provider: "deepgram",
       speech_to_text_model: "nova",
-      chat_dictation_ready: false,
     });
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No key is chosen for deepgram.");
@@ -618,49 +513,33 @@ describe("OrgVoiceSettings", () => {
     expect(await screen.findByText("'x' is a key for groq")).toBeInTheDocument();
   });
 
-  it("notes that only agents with their own provider dictate when server has no default", async () => {
-    await mount({ chat_dictation: "server", chat_dictation_ready: false });
+  it("does not warn when no default provider is chosen: agents choose their own", async () => {
+    await mount();
 
-    // A setup, not a fault: a note naming who can still dictate, and nothing to fix in the vault.
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Only agents with their own provider can dictate");
-    expect(alert).not.toHaveTextContent("Dictation is unavailable in chat");
-    expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("does not warn while server dictation is configured with a key", async () => {
     await mount({
-      chat_dictation: "server",
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
       speech_to_text_secret_id: "team-openai",
-      chat_dictation_ready: true,
     });
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 
-  it("preselects the first provider with an organization-wide key", async () => {
-    await mount({}, { vault: [key("team-mistral", "mistral")] });
-
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
-
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Mistral");
-    expect(screen.getByRole("combobox", { name: "Key" })).toHaveTextContent("team-mistral");
-  });
-
   it("marks no provider when the vault cannot be listed, and says why no key is offered", async () => {
     await mount({}, { vault: "fail" });
 
-    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Provider", "OpenAI");
 
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenAI");
     expect(await screen.findByText(/You cannot list the vault's keys/)).toBeInTheDocument();
   });
 
-  it("shows and saves the default provider while the engine is the browser", async () => {
-    // A bot inheriting sends its voice notes to this pair whatever chat uses.
+  it("saves the default provider with its only organization-wide key", async () => {
+    // A bot inheriting sends its voice notes to this pair, and agents dictate to it.
     vi.mocked(apiClient.patch).mockResolvedValue(org());
     await mount();
 
@@ -672,7 +551,6 @@ describe("OrgVoiceSettings", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "browser",
         speech_to_text_language: null,
         dictation_max_seconds: 300,
         speech_to_text_provider: "groq",
@@ -696,7 +574,6 @@ describe("OrgVoiceSettings", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        chat_dictation: "browser",
         speech_to_text_language: null,
         dictation_max_seconds: 300,
         speech_to_text_provider: null,
@@ -706,27 +583,15 @@ describe("OrgVoiceSettings", () => {
     );
   });
 
-  it("marks nothing as lacking a key when the catalog cannot be read", async () => {
+  it("offers no provider when the catalog cannot be read, and draws no path", async () => {
     // Gated on agents:view, which a custom role holding org:settings may lack.
     await mount({}, { catalog: "fail" });
     await waitFor(() =>
       expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
     );
 
-    const server = screen.getByRole("radio", { name: /^Server/ });
-    expect(server).toBeEnabled();
-
-    // Nothing to preselect, so the pair stays empty for the server to name.
-    await userEvent.click(server);
-    expect(server).toBeChecked();
-    expect(screen.getByRole("combobox", { name: "Provider" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
     expect(screen.queryByText(/^Sent with/)).not.toBeInTheDocument();
-  });
-
-  it("holds the voice conversations section under dictation", async () => {
-    await mount();
-
-    expect(screen.getByTestId("org-voice-conversations")).toHaveTextContent("org-1");
   });
 
   describe("transcription usage", () => {

@@ -61,7 +61,6 @@ export interface CallState {
   conversationId: string | null;
   transport: VoiceTransport | null;
   capSeconds: number | null;
-  minutesLeft: number | null;
   /** When the first connection of the call went live; a reconnect keeps it. */
   startedAt: number | null;
   warningSecondsLeft: number | null;
@@ -99,8 +98,6 @@ export const LIMIT_REASONS: ReadonlySet<VoiceEndReason> = new Set<VoiceEndReason
   "time_limit",
   "call_limit",
   "budget",
-  "minutes",
-  "minutes_exhausted",
   "unavailable",
 ]);
 
@@ -112,7 +109,6 @@ export const initialCall: CallState = {
   conversationId: null,
   transport: null,
   capSeconds: null,
-  minutesLeft: null,
   startedAt: null,
   warningSecondsLeft: null,
   warningAt: null,
@@ -149,7 +145,6 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
         capSeconds: resumed
           ? Math.round((now - (state.startedAt as number)) / 1000) + frame.cap_seconds
           : frame.cap_seconds,
-        minutesLeft: resumed ? state.minutesLeft : frame.minutes_left,
         startedAt: state.startedAt ?? now,
         failure: null,
       };

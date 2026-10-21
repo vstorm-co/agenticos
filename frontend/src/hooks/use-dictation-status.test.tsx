@@ -19,12 +19,17 @@ beforeEach(() => {
 
 describe("useDictationStatus", () => {
   it("answers the agent's readiness and provider", async () => {
-    get.mockResolvedValue({ engine: "server", ready: true, max_seconds: 300, provider: "mistral" });
+    get.mockResolvedValue({
+      engine: "server",
+      requested: true,
+      max_seconds: 300,
+      provider: "mistral",
+    });
 
     const { result } = renderHook(() => useDictationStatus("a1"), { wrapper });
 
     await waitFor(() => expect(result.current.status?.provider).toBe("mistral"));
-    expect(result.current.status?.ready).toBe(true);
+    expect(result.current.status?.engine).toBe("server");
     expect(result.current.failed).toBe(false);
     expect(get).toHaveBeenCalledWith("/agents/a1/dictation");
   });

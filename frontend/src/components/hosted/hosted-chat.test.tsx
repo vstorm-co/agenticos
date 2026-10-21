@@ -971,9 +971,6 @@ describe("a voice call on the page (#54)", () => {
     transport: "webrtc",
     startedAt: Date.now(),
     capSeconds: 600,
-    // The server sends a visitor no month's minutes: the operator's business,
-    // like what a turn cost (`ready.minutes_left`).
-    minutesLeft: null,
   };
   const saved = (overrides: Partial<VoiceSavedTurn> = {}): VoiceSavedTurn => ({
     id: "m1",

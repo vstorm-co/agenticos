@@ -27,9 +27,9 @@ import type { RealtimeModel, RealtimeProvider } from "@/types/voice";
 
 /** Radix `SelectItem` refuses `""`, so following the caller needs a value of its own. */
 const FOLLOW_CALLER = "caller";
-/** The longest call left to the organization, for the same reason. */
-const ORG_LIMIT = "org";
 const MAX_MINUTES = 50;
+/** What a call runs for when the agent names no length: the server's 600 s. */
+const DEFAULT_MINUTES = 10;
 const NOTE_LIMIT = 1000;
 
 const EMPTY: VoiceSpec = {
@@ -50,8 +50,6 @@ export interface VoiceConversationProps {
   /** The capabilities this agent has on, to list the ones a call cannot use. */
   capabilityIds: string[];
   hasGuardrails: boolean;
-  /** The organization's longest call, which an agent can only shorten. */
-  orgMaxSeconds: number;
   disabled?: boolean;
 }
 
@@ -197,7 +195,7 @@ function BlockFields({ block, providers, write, disabled, ...rest }: BlockFields
         {model && <VoiceField model={model} block={block} disabled={disabled} write={write} />}
         <LanguageField block={block} disabled={disabled} write={write} />
       </div>
-      <LongestCall {...rest} block={block} disabled={disabled} write={write} />
+      <LongestCall block={block} disabled={disabled} write={write} />
       {/* The same editor as the agent's instructions, which this adds to: Markdown,
           with a preview, rather than a bare box under a name nobody could read. */}
       <FormField
@@ -325,53 +323,45 @@ function LanguageField({ block, disabled, write }: PartProps) {
   );
 }
 
-/** How long a call may run, in minutes: the organization's limit, or a shorter one. */
-const CALL_LENGTHS = [5, 10, 15, 20, 30, 45, MAX_MINUTES] as const;
+/** How long a call may run, in minutes, up to the 50 the server allows. */
+const CALL_LENGTHS = [5, DEFAULT_MINUTES, 15, 20, 30, 45, MAX_MINUTES] as const;
 
 /**
  * The longest call, picked from lengths rather than typed: a number field took a
  * value it then refused, and its empty state said nothing until read about.
- * "The organization's limit" is the first choice and says what that is; only
- * lengths up to it are offered, since an agent may shorten a call and never
- * lengthen it - plus a stored length no longer on the list, so it still shows.
+ * Ten minutes is the default and is written as no length at all, which is how
+ * the server stores it - plus a stored length no longer on the list, so it
+ * still shows.
  */
-function LongestCall({
-  block,
-  disabled,
-  write,
-  orgMaxSeconds,
-}: PartProps & { orgMaxSeconds: number }) {
+function LongestCall({ block, disabled, write }: PartProps) {
   const t = useTranslations("agents");
-  const orgMinutes = Math.floor(orgMaxSeconds / 60);
   const stored = block.max_call_seconds === null ? null : Math.round(block.max_call_seconds / 60);
-  const lengths = [
-    ...new Set([...CALL_LENGTHS.filter((m) => m < orgMinutes), ...(stored ? [stored] : [])]),
-  ].sort((a, b) => a - b);
-  const overOrg = stored !== null && stored > orgMinutes;
+  const lengths = [...new Set([...CALL_LENGTHS, ...(stored ? [stored] : [])])].sort(
+    (a, b) => a - b,
+  );
   return (
     <FormField
       label={t("voiceConversationMaxLength")}
       htmlFor="agent-voice-call-max"
-      description={overOrg ? undefined : t("voiceConversationMaxHint")}
-      error={overOrg ? t("voiceConversationMaxOverOrg", { minutes: orgMinutes }) : null}
+      description={t("voiceConversationMaxHint")}
     >
       <Select
-        value={stored === null ? ORG_LIMIT : String(stored)}
+        value={String(stored ?? DEFAULT_MINUTES)}
         disabled={disabled}
-        onValueChange={(next) =>
-          write({ max_call_seconds: next === ORG_LIMIT ? null : Number(next) * 60 })
-        }
+        onValueChange={(next) => {
+          const minutes = Number(next);
+          write({ max_call_seconds: minutes === DEFAULT_MINUTES ? null : minutes * 60 });
+        }}
       >
         <SelectTrigger id="agent-voice-call-max" className="sm:w-1/2">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ORG_LIMIT}>
-            {t("voiceConversationMaxOrg", { minutes: orgMinutes })}
-          </SelectItem>
           {lengths.map((minutes) => (
             <SelectItem key={minutes} value={String(minutes)}>
-              {t("voiceConversationMaxMinutes", { minutes })}
+              {minutes === DEFAULT_MINUTES
+                ? t("voiceConversationMaxDefault", { minutes })
+                : t("voiceConversationMaxMinutes", { minutes })}
             </SelectItem>
           ))}
         </SelectContent>

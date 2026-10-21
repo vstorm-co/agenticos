@@ -15,11 +15,11 @@ export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "v
 export type MembershipSource = "manual" | "directory";
 
 /**
- * How dictation in `/chat` turns speech into text.
+ * How a hosted page's or a widget's microphone turns speech into text.
  *
  * `off` hides the microphone, `browser` uses the browser vendor's own speech
  * service (absent in Firefox), and `server` records the audio and sends it
- * through this deployment to the organization's speech-to-text provider.
+ * through this deployment to the agent's speech-to-text provider.
  */
 export type DictationEngine = "off" | "browser" | "server";
 
@@ -61,9 +61,10 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
-  /** Which engine the chat composer's microphone uses. */
-  chat_dictation: DictationEngine;
-  /** A provider from the speech-to-text catalog, for the `server` engine. */
+  /**
+   * A provider from the speech-to-text catalog: the default agents and channel
+   * bots inherit when they transcribe with a provider.
+   */
   speech_to_text_provider: string | null;
   /** A model that provider offers in the catalog. Set and cleared with the provider. */
   speech_to_text_model: string | null;
@@ -77,22 +78,6 @@ export interface Organization {
   speech_to_text_language: string | null;
   /** The longest dictation in seconds (10-600); the composer's timer stops there. */
   dictation_max_seconds: number;
-  /**
-   * Whether server dictation is configured: engine `server` with a catalog pair
-   * and a key named for it.
-   *
-   * Read from the settings alone, so a key made private since still reads
-   * `true` here and is refused per recording as `not_configured`.
-   */
-  chat_dictation_ready: boolean;
-  /** Whether members may call agents (#54). Off by default. */
-  voice_conversations_enabled: boolean;
-  /** Whether `/chat` offers a call once voice is on; embeds are switched on their own. */
-  voice_in_chat: boolean;
-  /** The longest call in seconds (60-3000); an agent may set a shorter one. */
-  voice_max_call_seconds: number;
-  /** Call minutes a month across the organization, or null when only the budgets bound calls. */
-  voice_monthly_minutes: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -107,7 +92,7 @@ export interface Organization {
  */
 export type VoiceSettingsUpdate = Pick<
   Organization,
-  "chat_dictation" | "speech_to_text_language" | "dictation_max_seconds"
+  "speech_to_text_language" | "dictation_max_seconds"
 > &
   Partial<
     Pick<
@@ -115,21 +100,6 @@ export type VoiceSettingsUpdate = Pick<
       "speech_to_text_provider" | "speech_to_text_model" | "speech_to_text_secret_id"
     >
   >;
-
-/**
- * The voice-call settings one PATCH carries (#54). The server splits the
- * permission: the monthly minutes need `budgets:manage`, the rest
- * `org:settings`, so only the fields that changed are sent.
- */
-export type VoiceConversationsUpdate = Partial<
-  Pick<
-    Organization,
-    | "voice_conversations_enabled"
-    | "voice_in_chat"
-    | "voice_max_call_seconds"
-    | "voice_monthly_minutes"
-  >
->;
 
 export interface OrganizationMember {
   id: string;

@@ -130,7 +130,6 @@ function mount(props: Partial<VoiceConversationProps> = {}) {
       onChange={onChange}
       capabilityIds={[]}
       hasGuardrails={false}
-      orgMaxSeconds={600}
       {...props}
     />,
   );
@@ -285,7 +284,6 @@ describe("VoiceConversationFields", () => {
         onChange={onChange}
         capabilityIds={[]}
         hasGuardrails={false}
-        orgMaxSeconds={600}
       />,
     );
     await choose("Spoken language", "Follow the caller");
@@ -316,25 +314,32 @@ describe("VoiceConversationFields", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers lengths up to the organization's limit, the limit itself first", async () => {
+  it("offers lengths up to 50 minutes, ten of them the default", async () => {
     const { onChange } = mount();
     await userEvent.click(screen.getByLabelText("Longest call"));
     const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
-    expect(options).toEqual(["Organization's limit (10 min)", "5 min"]);
-    await userEvent.click(screen.getByRole("option", { name: "5 min" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI, max_call_seconds: 300 });
+    expect(options).toEqual([
+      "5 min",
+      "10 min (default)",
+      "15 min",
+      "20 min",
+      "30 min",
+      "45 min",
+      "50 min",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "50 min" }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI, max_call_seconds: 3000 });
   });
 
-  it("goes back to the organization's limit as no length at all", async () => {
+  it("goes back to the default as no length at all", async () => {
     const { onChange } = mount({ value: { ...OPENAI, max_call_seconds: 300 } });
-    await choose("Longest call", "Organization's limit (10 min)");
+    await choose("Longest call", "10 min (default)");
     expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI });
   });
 
-  it("still shows a stored length over the organization's limit, and says it is", () => {
-    mount({ value: { ...OPENAI, max_call_seconds: 1200 } });
-    expect(screen.getByLabelText("Longest call")).toHaveTextContent("20 min");
-    expect(screen.getByText("At most 10 minutes in this organization.")).toBeInTheDocument();
+  it("still shows a stored length that is not on the list", () => {
+    mount({ value: { ...OPENAI, max_call_seconds: 1500 } });
+    expect(screen.getByLabelText("Longest call")).toHaveTextContent("25 min");
   });
 
   it("writes the voice note, and an emptied one as null", async () => {

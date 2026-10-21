@@ -841,9 +841,8 @@
     "voiceLanguageInherit": "Inherit ({language})",
     "voiceLanguageAuto": "auto-detect",
     "voiceLanguageOption": "{name} ({code})",
-    "voiceNoteChannelsOnly": "{engine, select, off {Dictation in chat is off in this organization} other {Chat dictation in this organization runs in the browser}}, so this only changes how voice notes sent to this agent's channel bots are transcribed.",
-    "voiceNoteNoProvider": "The organization has no speech-to-text provider, so dictation to this agent is unavailable until you choose one here.",
-    "voiceNoteOwnProvider": "The organization has no provider of its own; dictation to this agent runs on the one chosen here.",
+    "voiceNoteChannelsOnly": "The browser transcribes chat dictation to this agent, so the provider below only changes how voice notes sent to its channel bots are transcribed.",
+    "voiceNoteNoProvider": "Neither the organization nor this agent has a speech-to-text provider, so the browser keeps transcribing until you choose one here.",
     "embedDictation": "Voice input",
     "embedDictationOff": "Off",
     "embedDictationOffHint": "No microphone.",
@@ -855,13 +854,13 @@
     "embedDictationServerDrift": "No speech-to-text provider answers for this agent right now, so visitors see no microphone until one does.",
     "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again.",
     "embedVoice": "Voice calls",
-    "embedVoiceHint": "Visitors can call the agent. They can't approve anything, so tools that need approval are left out of their calls. Calls count against the organization's call minutes and the budgets.",
-    "embedVoiceUnavailable": "Voice calls need the organization's voice switch on and a voice set up on this agent's Voice card.",
+    "embedVoiceHint": "Visitors can call the agent. They can't approve anything, so tools that need approval are left out of their calls. Calls count against the budgets.",
+    "embedVoiceUnavailable": "Voice calls need a voice set up on this agent's Voice card.",
     "embedVoiceDrift": "Visitors see no call button until this agent can take calls again.",
     "embedVoiceUnchecked": "Voice calls can't be checked right now: this agent's call readiness didn't load. Reload the page to try again.",
     "voiceProviderNoKey": "{name} (no key yet)",
     "voiceConversationEnabled": "Allow voice calls",
-    "voiceConversationEnabledHint": "Off until you switch it on. The organization also has to allow calls.",
+    "voiceConversationEnabledHint": "Off until you switch it on. Takes effect when the agent is published.",
     "voiceConversationProvider": "Call provider",
     "voiceConversationModel": "Call model",
     "voiceConversationBaseModel": "Base model",
@@ -875,8 +874,7 @@
     "voiceConversationLanguageHint": "The language the agent speaks in calls.",
     "voiceConversationFollowCaller": "Follow the caller",
     "voiceConversationMaxLength": "Longest call",
-    "voiceConversationMaxHint": "An agent can end calls sooner than the organization does, never later.",
-    "voiceConversationMaxOverOrg": "{minutes, plural, one {At most # minute in this organization.} other {At most # minutes in this organization.}}",
+    "voiceConversationMaxHint": "Calls end at this length. The budgets still apply.",
     "voiceConversationNote": "Instructions for calls",
     "voiceConversationNoteHint": "Added to the agent's instructions only during calls, after its built-in speaking style: how to greet, how long to talk, what to say before a tool runs.",
     "voiceConversationHandedOff": "Done by the agent's text model in calls",
@@ -889,8 +887,10 @@
     "voiceCallsLead": "A live, two-way conversation: the agent listens, answers out loud and keeps its tools. People call it from the chat, the website widget and the hosted page. Runs on a realtime voice model.",
     "voiceDictationLead": "Speech turned into text that the person reads before sending: the microphone in the chat, and voice notes sent to this agent's channel bots. Runs on a transcription model.",
     "voiceConversationNotePlaceholder": "Greet the caller by name. Keep each answer to two sentences, then ask whether they want more detail.",
-    "voiceConversationMaxOrg": "Organization's limit ({minutes} min)",
-    "voiceConversationMaxMinutes": "{minutes} min"
+    "voiceConversationMaxMinutes": "{minutes} min",
+    "voiceDictationProvider": "Transcribe with a provider",
+    "voiceDictationProviderHint": "The chat microphone sends the recording to the provider below: the organization's, or this agent's own. Off, or with no key to send it with, the browser transcribes it for free.",
+    "voiceConversationMaxDefault": "{minutes} min (default)"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1739,7 +1739,6 @@
       "tryAgain": "Try again",
       "recordAgain": "Record again",
       "askAdmin": "Ask an admin to set it up.",
-      "pressToSetUp": "Press the microphone to see where to set it up.",
       "openVoiceSettings": "Open Voice settings",
       "setForAgent": "Set one for this agent",
       "announceRecording": "Recording",
@@ -1768,19 +1767,13 @@
         "offlineBody": "The server couldn't be reached.",
         "rateLimitedBody": "Too many dictations in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
-        "notSetUpTitle": "Dictation isn't set up yet.",
-        "notSetUpBody": "This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent.",
-        "noAgentTitle": "Pick an agent first.",
-        "noAgentBody": "A dictation is transcribed for the agent this conversation talks to.",
-        "noKeyTitle": "Dictation needs a key.",
-        "noKeyBody": "A speech-to-text model is chosen, but no key for its provider.",
-        "uncheckedTitle": "Couldn't check dictation.",
-        "uncheckedBody": "Whether this agent can take a recording didn't load. Reload the page to try again."
+        "notSetUpTitle": "Dictation isn't set up.",
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
       }
     },
     "voice": {
       "start": "Start a voice call",
-      "canSetUp": "You can set this up in Voice settings.",
+      "canSetUp": "You can set this up on the agent's Voice card.",
       "unavailable": {
         "noVoice": {
           "title": "This agent has no voice set up",
@@ -1793,10 +1786,6 @@
         "noKey": {
           "title": "This agent's voice has no key",
           "body": "Choose a key on its Voice card."
-        },
-        "minutesExhausted": {
-          "title": "No call minutes left this month",
-          "body": "An admin can raise the monthly minutes."
         },
         "unchecked": {
           "title": "Could not check whether this agent can take a call",
@@ -1854,7 +1843,6 @@
         "reconnecting": "Reconnecting…",
         "dropped": "Call dropped"
       },
-      "minutesLeft": "{minutes, plural, other {# min left this month}}",
       "callAgain": "Call again",
       "notice": {
         "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
@@ -1862,17 +1850,14 @@
         "providerError": "The voice provider reported an error.",
         "timeLimit": "This call has reached its time limit. The call is ending.",
         "budget": "The budget has run out. The call is ending.",
-        "minutes": "This month's call minutes are used up. The call is ending.",
         "unavailable": "Calls aren't available right now. The call is ending."
       },
       "ended": {
         "timeLimit": "The call ended: it reached its time limit",
         "budget": "The call ended: the budget ran out",
-        "minutes": "The call ended: this month's call minutes are used up",
         "revoked": "The call ended: your access changed",
         "guardrail": "The call ended: a guardrail stopped it",
         "shutdown": "The call ended: the server restarted",
-        "voiceOff": "Voice calls are switched off here",
         "busy": "You're already on a call",
         "lineBusy": "Too many calls are open here right now. Try again in a few minutes.",
         "forbidden": "This agent can't take your call",
@@ -1905,7 +1890,6 @@
         "ending": {
           "timeLimit": "Ending: time limit reached",
           "budget": "Ending: the budget ran out",
-          "minutes": "Ending: this month's minutes are used up",
           "unavailable": "Ending: calls aren't available right now"
         },
         "strip": {
@@ -1916,8 +1900,7 @@
           "noApproval": "<strong>{tool} needs an approval you can't give here.</strong> The card above explains what you can do.",
           "ending": {
             "timeLimit": "<strong>Time limit reached.</strong> The agent is saying so, then the call ends.",
-            "budget": "<strong>The budget has run out.</strong> The agent is saying so, then the call ends.",
-            "minutes": "<strong>This month's call minutes are used up.</strong> The agent is saying so, then the call ends."
+            "budget": "<strong>The budget has run out.</strong> The agent is saying so, then the call ends."
           },
           "limitWarning": "<strong>{remaining} left in this call.</strong> At {limit} the agent says so and hangs up. You can start a new call after.",
           "pushToTalk": "<strong>Push to talk is on.</strong> Hold <kbd>Space</kbd> or the button while you speak; let go to send."
@@ -1929,7 +1912,6 @@
           "ended": "Voice call ended · {duration}",
           "timeLimit": "{minutes, plural, =1 {Call ended at the 1-minute limit} other {Call ended at the #-minute limit}}",
           "turns": "{count, plural, =0 {No turns were saved. Keep going by typing, or call again.} =1 {1 turn saved as a message. Keep going by typing, or call again.} other {# turns saved as messages. Keep going by typing, or call again.}}",
-          "minutesLeft": "{minutes, plural, =1 {Your organization has 1 voice minute left this month.} other {Your organization has # voice minutes left this month.}}",
           "newCall": "Start a new call"
         },
         "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
@@ -2600,12 +2582,9 @@
       },
       "voice-minutes": {
         "title": "Voice minutes",
-        "description": "Call minutes in the period and which agents took them, with this month's minutes against the organization's monthly limit.",
+        "description": "Call minutes in the period and which agents took them.",
         "minutes": "{minutes} min",
         "calls": "{count, plural, one {# call} other {# calls}}",
-        "month": "Call minutes this month",
-        "monthUsed": "This month: {used} of {limit} min",
-        "noLimit": "This month: {used} min · no monthly limit",
         "empty": {
           "title": "No voice calls yet",
           "description": "Minutes appear here once members or visitors call an agent."
@@ -2956,14 +2935,12 @@
         "ending": {
           "timeLimit": "Ending: time limit reached",
           "budget": "Ending: calls aren't available right now",
-          "minutes": "Ending: no call minutes are left",
           "unavailable": "Ending: calls aren't available right now"
         },
         "strip": {
           "ending": {
             "timeLimit": "<strong>Time limit reached.</strong> The assistant is saying so, then the call ends.",
-            "budget": "<strong>Calls aren't available right now.</strong> The assistant is saying so, then the call ends.",
-            "minutes": "<strong>No call minutes are left this month.</strong> The assistant is saying so, then the call ends."
+            "budget": "<strong>Calls aren't available right now.</strong> The assistant is saying so, then the call ends."
           }
         }
       },
@@ -2977,11 +2954,9 @@
       "ended": {
         "timeLimit": "The call reached its time limit.",
         "budget": "This assistant can't take calls right now. Please type your message instead.",
-        "minutes": "No call minutes are left this month. Please type your message instead.",
         "revoked": "Calls were switched off here.",
         "guardrail": "The call was ended by a content rule.",
         "shutdown": "The server restarted. Please try again.",
-        "voiceOff": "Calls are switched off here.",
         "busy": "A call from here is already open.",
         "lineBusy": "All lines are busy. Try again in a few minutes, or type your message.",
         "forbidden": "Calls aren't available here right now. Please type your message instead.",
@@ -2997,7 +2972,6 @@
         "providerError": "The call ran into a problem.",
         "timeLimit": "This call has reached its time limit. The call is ending.",
         "budget": "Calls aren't available right now. The call is ending.",
-        "minutes": "No call minutes are left this month. The call is ending.",
         "unavailable": "Calls aren't available right now. The call is ending."
       }
     }
@@ -4403,15 +4377,11 @@
       },
       "org-voice": {
         "title": "Voice",
-        "body": "Choose how dictation in chat turns speech into text: the browser's own service, or your provider through this deployment."
+        "body": "Choose the speech-to-text provider, key and language agents and channel bots inherit. Dictation and calls are switched on in each agent."
       },
       "agent-voice": {
         "title": "Voice",
-        "body": "Choose how this agent is dictated to and, under Voice conversations, the realtime model, key and voice it takes calls with."
-      },
-      "org-voice-conversations": {
-        "title": "Voice conversations",
-        "body": "Turn calls on, cap their length and the organization's monthly minutes. Calls also count against budgets."
+        "body": "Take calls with a realtime model and voice on the Voice calls tab, and on the Dictation tab choose whether the chat microphone uses a provider or the browser."
       }
     },
     "chooseLanguage": "Language"
@@ -6267,9 +6237,9 @@
     "you": "(you)",
     "voice": {
       "title": "Voice",
-      "description": "How people in this organization talk to agents.",
+      "description": "The speech-to-text default agents and channel bots inherit. Dictation and voice calls are switched on in each agent's Voice card.",
       "sttTitle": "Speech to text",
-      "sttDescription": "Dictation in the chat composer. Text lands in the box for editing; nothing is sent until the person presses Send.",
+      "sttDescription": "When an agent's Dictation switch is on, the chat microphone sends the recording to a provider; otherwise the browser transcribes it. Text lands in the box for editing; nothing is sent until the person presses Send.",
       "usage": {
         "label": "Transcription usage",
         "summary": "{days, plural, one {Last day} other {Last # days}}: {duration} · {count, plural, one {# recording} other {# recordings}}",
@@ -6283,28 +6253,11 @@
         "rowStats": "{duration} · {count, plural, one {# recording} other {# recordings}}",
         "unknownNote": "Minutes count only recordings with a known length. GPT-4o transcription models and Mattermost voice notes report none."
       },
-      "engineLabel": "Dictation engine",
-      "engines": {
-        "off": {
-          "label": "Off",
-          "hint": "No microphone in chat."
-        },
-        "browser": {
-          "label": "Browser",
-          "hint": "Audio goes to the browser vendor (Google, Apple). Not in Firefox."
-        },
-        "server": {
-          "label": "Server",
-          "hint": "Audio goes through this deployment to the provider you pick. Every browser."
-        }
-      },
       "defaultTitle": "Default provider",
-      "defaultDescription": "Used by dictation in chat and by voice messages sent to channel bots, unless an agent or a bot chooses its own.",
+      "defaultDescription": "Used by agents that transcribe with a provider and by voice messages sent to channel bots, unless an agent or a bot chooses its own.",
       "providerNone": "None",
-      "notReadyTitle": "Dictation is unavailable in chat",
-      "agentsOnlyTitle": "Only agents with their own provider can dictate",
-      "agentsOnlyBody": "No default provider is chosen, so dictation in chat works only for agents that set their own speech-to-text provider in their Voice card. Other agents show a crossed-out microphone. Pick a default here to turn it on for every agent.",
-      "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Members see a crossed-out microphone until you pick another model or switch the engine.",
+      "notReadyTitle": "The default provider can't transcribe",
+      "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Agents and bots that inherit it can't transcribe with a provider until you pick another model.",
       "provider": "Provider",
       "providerHint": "From the speech-to-text catalog. Sent with the key chosen below.",
       "model": "Model",
@@ -6323,34 +6276,11 @@
       "pathBrowser": "Browser",
       "pathDeployment": "This deployment",
       "pathNote": "Sent with the organization's {provider} key chosen below. The audio is discarded after transcription; only the text is kept.",
-      "pathVendor": "Browser vendor's speech service",
-      "browserNote": "The organization's provider is not used. Firefox shows no microphone.",
       "cancel": "Cancel",
       "save": "Save changes",
       "saved": "Voice settings saved",
-      "conversationsTitle": "Voice conversations",
-      "conversationsDescription": "Talk to an agent and hear it answer.",
       "providerNoKey": "{name} (no key yet)",
-      "notReadyNoKey": "No key is chosen for {provider}. Members see a crossed-out microphone until you choose one below or switch the engine.",
-      "conversations": {
-        "enabled": "Allow voice conversations",
-        "enabledHint": "Members can call agents that have a voice set up. Off by default.",
-        "inChat": "Offer calls in chat",
-        "inChatHint": "The widget and the hosted page are switched on per embed.",
-        "maxLength": "Longest call (minutes)",
-        "maxHint": "1 to 50 minutes. An agent can set a shorter limit.",
-        "maxInvalid": "Enter between 1 and 50 minutes.",
-        "monthly": "Monthly call minutes",
-        "monthlyHint": "Every call in the organization counts, from the first second.",
-        "monthlyInvalid": "Enter a whole number of minutes above 0.",
-        "monthlyNone": "No monthly limit (budgets only)",
-        "monthlyReadOnly": "{minutes, plural, one {# call minute a month} other {# call minutes a month}}",
-        "monthlyUnlimited": "No monthly limit",
-        "budgetsNote": "Calls also count against the organization's and each agent's budget.",
-        "saved": "Voice conversation settings saved",
-        "used": "Call minutes used this month: {used} of {limit}",
-        "usedNoLimit": "Call minutes used this month: {used}"
-      }
+      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     }
   },
   "theme": {

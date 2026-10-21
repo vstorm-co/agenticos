@@ -18,11 +18,13 @@ import {
   CardHeader,
   CardTitle,
   FormField,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -47,33 +49,30 @@ export const AGENT_DICTATION_ANCHOR = "agent-voice-dictation";
 
 type VoiceTab = "calls" | "dictation";
 
-/** The organization's longest call before its settings are read - the server's default. */
-const DEFAULT_MAX_CALL_SECONDS = 600;
-
 interface VoiceCardProps {
   value: SpeechToTextSpec | null | undefined;
   onChange: (next: SpeechToTextSpec | null) => void;
   disabled?: boolean;
-  /**
-   * The agent's voice conversations (#54), under the transcription settings.
-   * The organization's longest call is read here, beside its other settings.
-   */
-  conversation?: Omit<VoiceConversationProps, "disabled" | "orgMaxSeconds">;
+  /** The agent's voice conversations (#54), on a tab beside dictation. */
+  conversation?: Omit<VoiceConversationProps, "disabled">;
 }
 
 /**
- * Which engine and language this agent's speech is transcribed with.
+ * How this agent is dictated to, and which provider and language transcribe it.
  *
- * An override on the organization's Voice settings, read for dictation in the
- * chat composer and for voice notes sent to this agent's channel bots. Part of
+ * Its Dictation switch decides whether the chat composer sends recordings to a
+ * provider; without it, or with no provider and key to send to, the browser's
+ * own recognition transcribes. The provider and language are an override on
+ * the organization's, read for that and for voice notes sent to this agent's
+ * channel bots, whatever the switch. Part of
  * the spec like every other card on the Build tab: it autosaves into the draft
  * and takes effect when the agent is published.
  *
  * **The provider, model and key move as one**, and the language on its own - so
  * a Polish agent can keep the organization's provider and its key. The key is
  * any API key for the provider this person can see: publishing lends it to
- * whoever runs the agent. The block is always written with all four keys in the
- * spec's order and explicit nulls, and an all-null block is written as `null`,
+ * whoever runs the agent. The block is always written with every key in the
+ * spec's order and explicit nulls, and a block at its defaults is written as `null`,
  * because the server stores it that way and the Builder compares the draft as
  * JSON: any other spelling would show as an unpublished change that is not one.
  */
@@ -89,6 +88,7 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
   const model = value?.model ?? null;
   const language = value?.language ?? null;
   const secretId = value?.secret_id ?? null;
+  const dictation = value?.dictation ?? false;
   const mode: PairMode = provider !== null || model !== null ? "choose" : "inherit";
   const hasKey = useSpeechKeyCheck(false);
 
@@ -98,12 +98,14 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
       model: next.model !== undefined ? next.model : model,
       language: next.language !== undefined ? next.language : language,
       secret_id: next.secret_id !== undefined ? next.secret_id : secretId,
+      dictation: next.dictation !== undefined ? next.dictation : dictation,
     };
     const empty =
       block.provider === null &&
       block.model === null &&
       block.language === null &&
-      block.secret_id === null;
+      block.secret_id === null &&
+      !block.dictation;
     onChange(empty ? null : block);
   };
 
@@ -129,7 +131,6 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
           model: org.speech_to_text_model,
         })
       : null;
-  const engine = org?.chat_dictation ?? null;
   // The card renders once the agent has loaded, in the browser, so the hash a
   // link arrived with is there to read.
   const [tab, setTab] = useState<VoiceTab>(() =>
@@ -157,16 +158,24 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
           {conversation && (
             <TabsContent value="calls" className="mt-4 space-y-4">
               <p className="text-muted-foreground text-sm">{t("voiceCallsLead")}</p>
-              <VoiceConversationFields
-                {...conversation}
-                orgMaxSeconds={org?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS}
-                disabled={disabled}
-              />
+              <VoiceConversationFields {...conversation} disabled={disabled} />
             </TabsContent>
           )}
           <TabsContent value="dictation" className="mt-4 space-y-4">
             <p className="text-muted-foreground text-sm">{t("voiceDictationLead")}</p>
-            <Notes engine={engine} orgHasPair={orgPair !== null} choosing={mode === "choose"} />
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="agent-voice-dictation-switch">{t("voiceDictationProvider")}</Label>
+                <p className="text-muted-foreground text-xs">{t("voiceDictationProviderHint")}</p>
+              </div>
+              <Switch
+                id="agent-voice-dictation-switch"
+                checked={dictation}
+                disabled={disabled}
+                onCheckedChange={(on) => write({ dictation: on })}
+              />
+            </div>
+            <Notes dictation={dictation} hasPair={orgPair !== null || mode === "choose"} />
             <div className="space-y-2">
               <p id="agent-voice-pair" className="text-sm font-medium">
                 {t("voicePair")}
@@ -238,23 +247,23 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
 }
 
 interface NotesProps {
-  engine: string | null;
-  orgHasPair: boolean;
-  choosing: boolean;
+  dictation: boolean;
+  /** A pair resolves: the agent's own, or the organization's it inherits. */
+  hasPair: boolean;
 }
 
 /**
- * What this override changes, where that is not the obvious answer: nothing in
- * the chat when the organization dictates in the browser or not at all, and the
- * whole of dictation when the organization has no provider of its own.
+ * What the switch and the provider below do together, where that is not the
+ * obvious answer: with the switch off they only change channel voice notes, and
+ * with it on but nothing to send to, the browser still transcribes.
  */
-function Notes({ engine, orgHasPair, choosing }: NotesProps) {
+function Notes({ dictation, hasPair }: NotesProps) {
   const t = useTranslations("agents");
   let note: string | null = null;
-  if (engine === "off" || engine === "browser") {
-    note = t("voiceNoteChannelsOnly", { engine });
-  } else if (engine === "server" && !orgHasPair) {
-    note = choosing ? t("voiceNoteOwnProvider") : t("voiceNoteNoProvider");
+  if (!dictation) {
+    note = t("voiceNoteChannelsOnly");
+  } else if (!hasPair) {
+    note = t("voiceNoteNoProvider");
   }
   if (note === null) return null;
   return (

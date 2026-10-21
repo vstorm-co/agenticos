@@ -10,13 +10,7 @@ import de from "../../../messages/de.json";
 import en from "../../../messages/en.json";
 import pl from "../../../messages/pl.json";
 
-import {
-  dictationHint,
-  DictationStrip,
-  movesOn,
-  type DictationHintInput,
-  type DictationUnavailable,
-} from "./dictation-strip";
+import { dictationHint, DictationStrip, movesOn, type DictationHintInput } from "./dictation-strip";
 
 const motionState = vi.hoisted(() => ({ reduced: false }));
 
@@ -81,31 +75,26 @@ function Harness(input: DictationHintInput) {
 
 function show({
   state = {},
-  unavailable = null,
   href = null,
   agentHref = null,
   maxSeconds = 300,
 }: {
   state?: Partial<DictationState>;
-  unavailable?: DictationUnavailable | null;
   href?: string | null;
   agentHref?: string | null;
   maxSeconds?: number;
 } = {}) {
   const actions = fakeActions();
-  const closeExplanation = vi.fn();
   const view = render(
     <Harness
       state={dictationState(state)}
       actions={actions}
       maxSeconds={maxSeconds}
-      unavailable={unavailable}
       voiceSettingsHref={href}
       agentVoiceHref={agentHref}
-      closeExplanation={closeExplanation}
     />,
   );
-  return { ...view, actions, closeExplanation };
+  return { ...view, actions };
 }
 
 /** The strip's box, which carries its background and its slide. */
@@ -127,10 +116,8 @@ describe("DictationStrip", () => {
     const input = {
       actions: fakeActions(),
       maxSeconds: 300,
-      unavailable: null,
       voiceSettingsHref: null,
       agentVoiceHref: null,
-      closeExplanation: vi.fn(),
     };
     const { rerender } = render(
       <Harness {...input} state={dictationState({ phase: "recording" })} />,
@@ -327,19 +314,7 @@ describe("dictationHint", () => {
     [
       "a server not set up, to a member",
       { state: { phase: "failed", reason: "not_configured" } },
-      /Dictation isn't set up yet\. .* Ask an admin to set it up\./,
-      ["Dismiss"],
-    ],
-    [
-      "the crossed-out mic, with no agent",
-      { unavailable: "no_agent" },
-      /Pick an agent first\./,
-      ["Dismiss"],
-    ],
-    [
-      "the crossed-out mic, not set up, to a member",
-      { unavailable: "not_ready" },
-      /Dictation isn't set up yet\. This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent\. Ask an admin to set it up\./,
+      /Dictation isn't set up\. This agent's speech-to-text provider has no usable key any more\. Ask an admin to set it up\./,
       ["Dismiss"],
     ],
   ])("says %s", (_label, input, text, buttons) => {
@@ -354,10 +329,8 @@ describe("dictationHint", () => {
     const input = {
       actions: fakeActions(),
       maxSeconds: 300,
-      unavailable: null,
       voiceSettingsHref: null,
       agentVoiceHref: null,
-      closeExplanation: vi.fn(),
     };
     const state = dictationState({ inserted: true, transcript: { id: 1, text: "hello" } });
     const { rerender } = render(<Harness {...input} state={state} />);
@@ -428,10 +401,8 @@ describe("dictationHint", () => {
               state: dictationState({ inserted: true, transcript: { id: count, text } }),
               actions: fakeActions(),
               maxSeconds: 300,
-              unavailable: null,
               voiceSettingsHref: null,
               agentVoiceHref: null,
-              closeExplanation: vi.fn(),
             },
             t,
           )}
@@ -456,10 +427,8 @@ describe("dictationHint", () => {
               state: dictationState({ phase: "transcribing", stoppedAtLimit: true }),
               actions: fakeActions(),
               maxSeconds: 300,
-              unavailable: null,
               voiceSettingsHref: null,
               agentVoiceHref: null,
-              closeExplanation: vi.fn(),
               visitor: true,
             },
             t,
@@ -483,10 +452,8 @@ describe("dictationHint", () => {
         state={dictationState({ phase: "failed", reason: "not_configured" })}
         actions={fakeActions()}
         maxSeconds={300}
-        unavailable={null}
         voiceSettingsHref={null}
         agentVoiceHref={null}
-        closeExplanation={vi.fn()}
         visitor
       />,
     );
@@ -497,7 +464,10 @@ describe("dictationHint", () => {
   });
 
   it("links an org:settings holder to the Voice card instead of asking an admin", () => {
-    show({ unavailable: "not_ready", href: "/orgs/o1/members#org-voice" });
+    show({
+      state: { phase: "failed", reason: "not_configured" },
+      href: "/orgs/o1/members#org-voice",
+    });
 
     expect(screen.getByRole("link", { name: "Open Voice settings" })).toHaveAttribute(
       "href",
@@ -508,7 +478,7 @@ describe("dictationHint", () => {
 
   it("offers both the organization's settings and this agent's, side by side", () => {
     show({
-      unavailable: "not_ready",
+      state: { phase: "failed", reason: "not_configured" },
       href: "/orgs/o1/members#org-voice",
       agentHref: "/agents/a1#agent-voice",
     });
@@ -521,17 +491,11 @@ describe("dictationHint", () => {
     expect(panel().textContent).toContain("Open Voice settings · Set one for this agent");
   });
 
-  it("says a key is what is missing when the pair has none, with the same links", () => {
-    show({ unavailable: "no_key", agentHref: "/agents/a1#agent-voice" });
-
-    expect(panel().textContent).toContain(
-      "Dictation needs a key. A speech-to-text model is chosen, but no key for its provider.",
-    );
-    expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
-  });
-
   it("links an agent editor without org settings to the agent alone", () => {
-    show({ unavailable: "not_ready", agentHref: "/agents/a1#agent-voice" });
+    show({
+      state: { phase: "failed", reason: "not_configured" },
+      agentHref: "/agents/a1#agent-voice",
+    });
 
     expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open Voice settings" })).not.toBeInTheDocument();
@@ -556,10 +520,8 @@ describe("dictationHint", () => {
         })}
         actions={actions}
         maxSeconds={300}
-        unavailable={null}
         voiceSettingsHref={null}
         agentVoiceHref={null}
-        closeExplanation={vi.fn()}
       />
     );
     rerender(later);
@@ -575,10 +537,8 @@ describe("dictationHint", () => {
         state={dictationState({ phase: "recording", remaining })}
         actions={fakeActions()}
         maxSeconds={300}
-        unavailable={null}
         voiceSettingsHref={null}
         agentVoiceHref={null}
-        closeExplanation={vi.fn()}
       />
     );
     const { rerender } = render(at(22));
@@ -610,18 +570,6 @@ describe("dictationHint", () => {
 
     expect(actions[action]).toHaveBeenCalledOnce();
   });
-
-  it.each<DictationUnavailable>(["no_agent", "not_ready", "no_key"])(
-    "closes the %s explanation on Dismiss",
-    async (unavailable) => {
-      const { actions, closeExplanation } = show({ unavailable });
-
-      await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-
-      expect(closeExplanation).toHaveBeenCalledOnce();
-      expect(actions.dismiss).not.toHaveBeenCalled();
-    },
-  );
 });
 
 describe("movesOn", () => {

@@ -28,7 +28,6 @@ const READY: VoiceServerFrame = {
   input_sample_rate: 24000,
   output_sample_rate: 24000,
   cap_seconds: 600,
-  minutes_left: 540,
   resume_token: "tok1",
 };
 
@@ -406,20 +405,17 @@ describe("the call view", () => {
   it.each([
     ["time_limit", /Time limit reached/],
     ["budget", /The budget has run out/],
-    ["minutes", /This month's call minutes are used up/],
   ])("says a %s limit is ending the call while the agent says so", (kind, text) => {
     render(<View session={fake(live(frame({ type: "notice", kind })))} />);
     expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent(text);
   });
 
-  it("sums up a call ended by its limit, with the minutes left", () => {
+  it("sums up a call ended by its limit, offering a new one", () => {
     const onCallAgain = vi.fn();
     render(
       <View session={fake((STATES.limitend as () => CallState)())} onCallAgain={onCallAgain} />,
     );
-    expect(screen.getByText(/No turns were saved/)).toHaveTextContent(
-      "Your organization has 530 voice minutes left this month.",
-    );
+    expect(screen.getByText(/No turns were saved/)).not.toHaveTextContent(/minutes left/);
     fireEvent.click(screen.getByRole("button", { name: "Start a new call" }));
     expect(onCallAgain).toHaveBeenCalledOnce();
   });

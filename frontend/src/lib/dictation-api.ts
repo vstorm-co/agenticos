@@ -3,23 +3,29 @@ import type { QueryClient } from "@tanstack/react-query";
 import { apiClient, sendWithProgress, type UploadProgress } from "@/lib/api-client";
 import { ApiError, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { DictationEngine, RecordingFormat } from "@/types/organization";
+import type { RecordingFormat } from "@/types/organization";
 
 export type { RecordingFormat };
 
+/**
+ * How the composer transcribes for one agent. Browser recognition is always
+ * there; `server` sends the recording to a provider instead.
+ */
+export type ComposerDictation = "browser" | "server";
+
 /** Whether the composer can dictate to one agent, as the server resolves it. */
 export interface DictationStatus {
-  /** The organization's engine for `/chat`. */
-  engine: DictationEngine;
   /**
-   * The engine is `server`, a provider and model resolve for this agent - its
-   * published override or the organization's - the catalog offers them, and
-   * a usable key is named beside the pair.
+   * `server` when the agent's published Dictation switch is on, it is not
+   * archived, a provider and model resolve, the catalog offers them and a
+   * usable key is named; `browser` otherwise.
    */
-  ready: boolean;
+  engine: ComposerDictation;
+  /** The agent's published Dictation switch: send dictation to its provider. */
+  requested: boolean;
   /**
-   * `ready` without the `/chat` engine: a provider, a model and a key resolve
-   * for this agent. What a hosted page or a widget on `server` needs.
+   * A provider, a model and a key resolve for this agent, whatever the switch.
+   * What a hosted page or a widget on `server` needs.
    */
   server_available: boolean;
   /**

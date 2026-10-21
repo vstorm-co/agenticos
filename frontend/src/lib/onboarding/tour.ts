@@ -564,13 +564,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "org-voice",
     permission: Perm.orgSettings,
   },
-  // Inside the Voice card, after its dictation half; gated like the card (#54).
-  {
-    id: "org-voice-conversations",
-    page: ORG_MEMBERS,
-    target: "org-voice-conversations",
-    permission: Perm.orgSettings,
-  },
   // The AI Architect's card: drawn only on the active organization's page, and
   // only for somebody who may change the organization's settings.
   {

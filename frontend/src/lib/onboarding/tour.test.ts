@@ -58,14 +58,7 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 // The organization detail walk: the members page (profile, the Voice card, the
 // AI Architect's card, then the list), then across into the roles matrix. None
 // are inTour — orgs is a "?"-only section.
-const ORG_STEPS = [
-  "org-profile",
-  "org-voice",
-  "org-voice-conversations",
-  "org-assistant",
-  "org-members",
-  "org-roles",
-];
+const ORG_STEPS = ["org-profile", "org-voice", "org-assistant", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -431,13 +424,13 @@ describe("voice call stops (#54)", () => {
     expect(step?.permission).toBeUndefined();
   });
 
-  it.each([
-    ["org-voice-conversations", "org-voice-conversations", Perm.orgSettings, undefined],
-    ["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"],
-  ])("%s spotlights %s, gated like its control", (id, target, permission, activate) => {
-    const step = TOUR_STEPS.find((s) => s.id === id);
-    expect(step).toMatchObject({ target });
-    expect(step?.permission).toBe(permission);
-    expect(step?.activate).toBe(activate);
-  });
+  it.each([["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"]])(
+    "%s spotlights %s, gated like its control",
+    (id, target, permission, activate) => {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step).toMatchObject({ target });
+      expect(step?.permission).toBe(permission);
+      expect(step?.activate).toBe(activate);
+    },
+  );
 });
