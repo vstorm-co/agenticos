@@ -10,7 +10,7 @@ Viktor sells one AI teammate per Slack or Microsoft Teams workspace, run in its 
 
 If you want one helpful colleague in chat by this afternoon, Viktor is quick to try. If you want to decide what each agent may do, what it costs and where the data lives, AgenticOS gives you that control.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Viktor scope: its public product, pricing, security and enterprise pages and changelog, not a tested account or negotiated contract.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Viktor scope: its public product, pricing, security and enterprise pages and changelog, not a tested account or negotiated contract.
 
 ## At a glance
 
@@ -58,7 +58,7 @@ Viktor learns from conversations and connected tools. AgenticOS adds managed doc
 - You want one assistant in Slack or Teams with no infrastructure to run.
 - Its catalog of more than 9,800 tools and its code sandbox cover your tasks.
 - Credit billing and US hosting meet your requirements.
-- You need Microsoft Teams, voice or an email inbox today. AgenticOS has no Teams, voice or email conversation channel yet.
+- You need Microsoft Teams, a phone line or an email inbox today. AgenticOS has no Teams, phone or email conversation channel yet; its [voice calls](../voice.md) run in the browser.
 
 ## Try one handbook question
 

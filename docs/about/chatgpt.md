@@ -10,7 +10,7 @@ ChatGPT Business and Enterprise give employees OpenAI's assistant, and in 2026 a
 
 AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to eight surfaces. That includes a website widget and an API that returns the answer.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
 
 ## At a glance
 

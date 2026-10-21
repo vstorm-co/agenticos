@@ -1,5 +1,5 @@
 ---
-source_sha: "256647295ebc"
+source_sha: "9993496881e6"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
 description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
@@ -9,7 +9,7 @@ description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agen
 
 Google Gemini Enterprise, ehemals Agentspace, gibt Mitarbeitern einen Assistenten, eine Unternehmenssuche über Google Workspace, Microsoft 365 und viele SaaS-Werkzeuge, von Google gebaute Agents wie Deep Research und einen No-Code-Workflow-Builder, alles in Google Cloud. AgenticOS gibt Ihrer Organisation Agents, die ihr gehören. Sie laufen auf Ihrer Infrastruktur mit jedem Modell und antworten Kunden und Systemen ebenso wie Mitarbeitern.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.9.1. Gemini-Enterprise-Umfang: Produktseite, Dokumentation und Release Notes von Google, kein getestetes Projekt.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. Gemini-Enterprise-Umfang: Produktseite, Dokumentation und Release Notes von Google, kein getestetes Projekt.
 
 ## Auf einen Blick { #at-a-glance }
 

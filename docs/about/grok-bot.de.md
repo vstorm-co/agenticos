@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: ein selbst gehostetes KI-Teammitglied"
 description: "Grok Bot gibt jedem benannten Teammitglied einen Cloud-Computer mit Grok. Vergleichen Sie AgenticOS: jedes Modell, ein Audit-Log, getrennte Anmeldungen, Ihre Server."
-source_sha: "757e8074f61b"
+source_sha: "2fd2c16c9165"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -11,7 +11,7 @@ Mit Grok Bot von xAI und Cursor legen Sie benannte KI-Teammitglieder an. Jedes h
 
 Wenn Sie diese Woche ein Team von KI-Kollegen auf den Modellen von xAI ausprobieren möchten, ist Grok Bot schnell gestartet. Wenn Sie zeigen müssen, wer was getan hat, die Logins jeder Person trennen und das Modell wählen wollen, ist AgenticOS genau dafür gebaut.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.9.1. Umfang Grok Bot: die am 11. August 2026 angekündigte öffentliche Beta, wie Presse und unabhängige Tests sie beschreiben, kein getestetes Konto. Ein Test stammt von einem konkurrierenden Anbieter und ist unten so gekennzeichnet.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Grok Bot: die am 11. August 2026 angekündigte öffentliche Beta, wie Presse und unabhängige Tests sie beschreiben, kein getestetes Konto. Ein Test stammt von einem konkurrierenden Anbieter und ist unten so gekennzeichnet.
 
 ## Auf einen Blick { #at-a-glance }
 

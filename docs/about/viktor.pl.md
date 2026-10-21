@@ -1,5 +1,5 @@
 ---
-source_sha: "bf18f8d902e6"
+source_sha: "3f2886a77dd8"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: self-hosted alternatywa dla Viktora"
 description: "Viktor to jeden współpracownik AI na workspace Slacka lub Teams. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
@@ -11,7 +11,7 @@ Viktor sprzedaje jednego współpracownika AI na workspace Slacka lub Microsoft 
 
 Jeśli chcesz jeszcze dziś po południu mieć na czacie jednego pomocnego kolegę, Viktora można szybko wypróbować. Jeśli chcesz decydować, co może każdy agent, ile kosztuje i gdzie leżą dane, AgenticOS daje Ci tę kontrolę.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Viktor: jego publiczne strony produktu, cennika, bezpieczeństwa i oferty enterprise oraz changelog, a nie przetestowane konto ani negocjowana umowa.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Viktor: jego publiczne strony produktu, cennika, bezpieczeństwa i oferty enterprise oraz changelog, a nie przetestowane konto ani negocjowana umowa.
 
 ## W skrócie { #at-a-glance }
 
@@ -59,7 +59,7 @@ Viktor uczy się z rozmów i podłączonych narzędzi. AgenticOS dodaje zarządz
 - Chcesz jednego asystenta w Slacku lub Teams bez żadnej infrastruktury do utrzymania.
 - Jego katalog ponad 9800 narzędzi i jego sandbox do kodu pokrywają twoje zadania.
 - Rozliczanie w kredytach i hosting w USA spełniają twoje wymagania.
-- Potrzebujesz dziś Microsoft Teams, głosu albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, głos ani e-mail.
+- Potrzebujesz dziś Microsoft Teams, linii telefonicznej albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, telefon ani e-mail; jego [rozmowy głosowe](../voice.md) działają w przeglądarce.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
 

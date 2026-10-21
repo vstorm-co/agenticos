@@ -1,5 +1,5 @@
 ---
-source_sha: "c179368a8891"
+source_sha: "3b14d176991a"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: agents de empresa o de código"
 description: "Claude Code es un agent de código para desarrolladores. AgenticOS es una plataforma open source de agents de IA para empresas. Diferencias y cómo usar ambos."
@@ -11,7 +11,7 @@ Claude Code es la herramienta de programación agéntica de Anthropic. Lee un re
 
 La mayoría de los equipos de ingeniería querrán ambos. Claude Code escribe y revisa código. AgenticOS publica, gobierna y mide el consumo de los agents que ese código hace posibles.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Claude Code: la documentación de Anthropic en code.claude.com, sus páginas de precios y el repositorio público; no un despliegue empresarial probado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Claude Code: la documentación de Anthropic en code.claude.com, sus páginas de precios y el repositorio público; no un despliegue empresarial probado.
 
 ## De un vistazo { #at-a-glance }
 

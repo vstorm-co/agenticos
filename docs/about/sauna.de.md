@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: eine selbst gehostete Alternative"
 description: "Sauna ist ein proaktiver KI-Assistent pro Person, in ihrer Cloud. AgenticOS: viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
-source_sha: "a21b30e13b90"
+source_sha: "437c7960d403"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -11,7 +11,7 @@ Sauna von HeyDaily Inc. ist ein proaktiver KI-Assistent für jede Person. Er lie
 
 Wenn Sie einen persönlichen Assistenten möchten, der in zehn Minuten an Ihrem Postfach arbeitet, ist Sauna schnell ausprobiert. Wenn Sie entscheiden möchten, was jeder Agent darf, was er kostet und wo die Daten liegen, gibt Ihnen AgenticOS diese Kontrolle.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.9.1. Umfang Sauna: die öffentlichen Seiten zu Preisen, Sicherheit und Datenschutz (die Datenschutzerklärung mit Stand 6. Oktober 2026), kein getestetes Konto und kein verhandelter Vertrag.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Sauna: die öffentlichen Seiten zu Preisen, Sicherheit und Datenschutz (die Datenschutzerklärung mit Stand 6. Oktober 2026), kein getestetes Konto und kein verhandelter Vertrag.
 
 ## Auf einen Blick { #at-a-glance }
 

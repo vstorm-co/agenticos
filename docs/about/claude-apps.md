@@ -10,7 +10,7 @@ Claude Team and Claude Enterprise give each employee Anthropic's assistant: chat
 
 They are not either-or. AgenticOS can run Claude models through the Anthropic API or Amazon Bedrock, so a Claude subscription and an AgenticOS deployment often sit side by side.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Claude scope: Anthropic's pricing, product and Help Center pages for the Team and Enterprise plans, not a tested account.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude scope: Anthropic's pricing, product and Help Center pages for the Team and Enterprise plans, not a tested account.
 
 ## At a glance
 

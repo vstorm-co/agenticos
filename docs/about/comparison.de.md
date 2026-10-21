@@ -1,5 +1,5 @@
 ---
-source_sha: "275dc49bc45f"
+source_sha: "9556516ae468"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -9,7 +9,7 @@ description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im 
 
 Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine souveräne Schicht für die Agents eines Unternehmens, die Sie selbst betreiben. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.9.1. Nächste Prüfung bis 21. November 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Nächste Prüfung bis 21. November 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
 
 ## Den Leitfaden für Ihre Entscheidung wählen { #pick-the-guide-for-your-decision }
 
@@ -99,7 +99,7 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt nur die sechs eingebauten Rollen; benutzerdefinierte Rollen sind noch nicht verfügbar.
 - Die Anmeldung hat noch kein SAML und kein SCIM; SAML funktioniert über einen Identity-Broker wie Keycloak. Siehe [was die Verzeichnisanmeldung noch nicht kann](../directory.md#what-this-does-not-do-yet).
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
-- Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.
+- Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Telefon oder E-Mail. [Sprachgespräche](../voice.md) laufen im Web-Chat, im Widget und auf der gehosteten Seite, nicht über eine Telefonleitung.
 - Es gibt keine visuelle Workflow-Arbeitsfläche. Mehrstufige Arbeit nutzt Delegation, Planung und Trigger.
 - Eine MCP-Bindung mit `writes` vertraut den Nur-Lesen-Markierungen des Servers selbst, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt; `all` hält jeden Aufruf an. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
 - Die Bereitstellung erfolgt mit Docker Compose, und ein Host ist der ausgelieferte Weg. Ein externes Postgres sowie weitere API-Hosts und Worker sind [dokumentiert](../scaling.md), aber es gibt keine Kubernetes-Manifeste.

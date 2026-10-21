@@ -10,7 +10,7 @@ n8n is a workflow automation tool. You connect triggers, integrations and code s
 
 They fit together well. n8n moves data between systems on a schedule. AgenticOS runs the agents that need an owner, an approver and a spending limit.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
 
 ## At a glance
 

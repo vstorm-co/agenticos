@@ -1,5 +1,5 @@
 ---
-source_sha: "a583c9c22db0"
+source_sha: "88fad9bc6ae2"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: selbstgehostete Alternative"
 description: "ChatGPT Business, Enterprise und Workspace-Agents im Vergleich mit AgenticOS: selbst gehostet, jedes Modell, acht Oberflächen, Budgets pro Agent und Audit-Logs."
@@ -11,7 +11,7 @@ ChatGPT Business und Enterprise geben Mitarbeitern den Assistenten von OpenAI un
 
 AgenticOS läuft auf Ihrer Infrastruktur, nutzt das Modell Ihrer Wahl und veröffentlicht einen Agent auf acht Oberflächen. Dazu gehören ein Website-Widget und eine API, die die Antwort zurückgibt.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.9.1. ChatGPT-Umfang: Preis-, Business-Data-, Help-Center- und Entwicklerseiten von OpenAI, kein getesteter Workspace. Workspace-Agents sind eine Research Preview; prüfen Sie daher vor der Entscheidung den aktuellen Stand.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. ChatGPT-Umfang: Preis-, Business-Data-, Help-Center- und Entwicklerseiten von OpenAI, kein getesteter Workspace. Workspace-Agents sind eine Research Preview; prüfen Sie daher vor der Entscheidung den aktuellen Stand.
 
 ## Auf einen Blick { #at-a-glance }
 

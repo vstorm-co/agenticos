@@ -1,5 +1,5 @@
 ---
-source_sha: "4492a434628a"
+source_sha: "a08f44a4897c"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
 description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
@@ -11,7 +11,7 @@ OpenAI Codex to agent do inżynierii oprogramowania. Obejmuje open-source'owe CL
 
 Oba mają część wspólną: licencję Apache-2.0 dla części otwartych, MCP, wykonywanie w sandboksie i zatwierdzanie przed ryzykownymi działaniami. Stosują to jednak wobec różnych użytkowników.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Codex: dokumentacja Codex OpenAI na learn.chatgpt.com, jej strona z cennikiem i repozytorium `openai/codex`, bez testowanego wdrożenia enterprise.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Codex: dokumentacja Codex OpenAI na learn.chatgpt.com, jej strona z cennikiem i repozytorium `openai/codex`, bez testowanego wdrożenia enterprise.
 
 ## W skrócie { #at-a-glance }
 

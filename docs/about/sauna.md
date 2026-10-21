@@ -10,7 +10,7 @@ Sauna, from HeyDaily Inc., is a proactive AI teammate for each person. It reads 
 
 If you want one personal assistant that starts working on your inbox in ten minutes, Sauna is quick to try. If you want to decide what each agent may do, what it costs and where the data lives, AgenticOS gives you that control.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Sauna scope: its public pricing, security and privacy pages (the privacy policy updated 6 October 2026), not a tested account or negotiated contract.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Sauna scope: its public pricing, security and privacy pages (the privacy policy updated 6 October 2026), not a tested account or negotiated contract.
 
 ## At a glance
 

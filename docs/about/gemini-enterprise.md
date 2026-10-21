@@ -8,7 +8,7 @@ description: "Compare Google Gemini Enterprise with AgenticOS: any model in ever
 
 Google Gemini Enterprise, formerly Agentspace, gives employees an assistant, enterprise search across Google Workspace, Microsoft 365 and many SaaS tools, Google-made agents such as Deep Research, and a no-code Workflow Builder, all in Google Cloud. AgenticOS gives your organization agents it owns. They run on your infrastructure with any model, and they answer customers and systems as well as employees.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Gemini Enterprise scope: Google's product page, documentation and release notes, not a tested project.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Gemini Enterprise scope: Google's product page, documentation and release notes, not a tested project.
 
 ## At a glance
 

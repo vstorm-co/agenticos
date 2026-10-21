@@ -1,5 +1,5 @@
 ---
-source_sha: "d61260abb5b1"
+source_sha: "3b37854bab7f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: Apache-2.0-Alternative für KI-Agents"
 description: "n8n und AgenticOS für KI-Agents: Lizenz, SSO und Rollen ohne kostenpflichtige Tarife, Budgets pro Agent statt Ausführungskontingenten, und Freigaben."
@@ -11,7 +11,7 @@ n8n ist ein Werkzeug zur Workflow-Automatisierung. Sie verbinden Trigger, Integr
 
 Beide passen gut zusammen. n8n bewegt Daten nach Zeitplan zwischen Systemen. AgenticOS betreibt die Agents, die einen Verantwortlichen, einen Genehmiger und ein Ausgabenlimit brauchen.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.9.1. n8n-Umfang: Preisseite, Dokumentation und Lizenz in n8n@2.44.5, kein getesteter Cloud-Tarif und keine selbst betriebene Enterprise-Lizenz.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. n8n-Umfang: Preisseite, Dokumentation und Lizenz in n8n@2.44.5, kein getesteter Cloud-Tarif und keine selbst betriebene Enterprise-Lizenz.
 
 ## Auf einen Blick { #at-a-glance }
 

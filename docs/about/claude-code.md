@@ -10,7 +10,7 @@ Claude Code is Anthropic's agentic coding tool. It reads a repository, edits fil
 
 Most engineering teams will want both. Claude Code writes and reviews code. AgenticOS publishes, governs and meters the agents that code makes possible.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Claude Code scope: Anthropic's documentation at code.claude.com, its pricing pages and the public repository, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude Code scope: Anthropic's documentation at code.claude.com, its pricing pages and the public repository, not a tested enterprise rollout.
 
 ## At a glance
 

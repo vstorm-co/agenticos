@@ -1,5 +1,5 @@
 ---
-source_sha: "2423ba712dcc"
+source_sha: "0202c6a280dd"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternativa autoalojada"
 description: "Compara Microsoft Copilot Studio con AgenticOS: sin Copilot Credits, cualquier provider de modelos, tu infraestructura, budgets por agent y auditoría abierta."
@@ -11,7 +11,7 @@ Microsoft Copilot Studio construye agents dentro de Power Platform. Tiene los co
 
 Si tu empresa vive en Microsoft 365, Copilot Studio es un candidato natural. AgenticOS es el candidato cuando quieres ser dueño de la plataforma, mantener los datos donde elijas y evitar un contador por función.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Copilot Studio: la página de precios de Microsoft, la API de precios minoristas de Azure y Microsoft Learn, no un tenant probado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Copilot Studio: la página de precios de Microsoft, la API de precios minoristas de Azure y Microsoft Learn, no un tenant probado.
 
 ## De un vistazo { #at-a-glance }
 
@@ -23,7 +23,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Facturación | $0,01 por Copilot Credit en pago por uso, o Copilot Credit Commit Units prepagadas con hasta un 20 % de descuento | Sin cuota de licencia; uso del modelo a las tarifas de tu provider |
 | Cómo se cuenta el uso | Créditos por función: una respuesta generativa son 2, una acción de agent 5, el grounding en el grafo del tenant 10 | Tokens del modelo, con el precio de cada provider |
 | Aplicación del gasto | Límites mensuales por agent; los agents se desactivan al 125 % de la capacidad prepagada | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
-| Superficies | Teams, Microsoft 365, SharePoint, web, WhatsApp, voz, y Slack o Telegram a través de Azure Bot Service | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Superficies | Teams, Microsoft 365, SharePoint, web, WhatsApp, voz, y Slack o Telegram a través de Azure Bot Service | Chat web con llamadas de voz, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
 | Identidad | Microsoft Entra ID | SSO OIDC, Entra incluido, LDAP y Kerberos |
 | Gobernanza | Políticas de datos de Power Platform, auditoría de Purview, Entra Agent ID | Catálogo de permisos, concesiones, aprobaciones y un registro de auditoría con detección de manipulaciones |
 
@@ -52,7 +52,7 @@ AgenticOS inicia la sesión de las personas con Entra ID a través de [OIDC](../
 ## Cuándo Copilot Studio encaja mejor { #when-copilot-studio-is-the-better-fit }
 
 - Tus agents pertenecen a Teams y Microsoft 365 Copilot, y tus usuarios ya tienen licencias de Microsoft 365 Copilot.
-- Necesitas conectores de Power Platform, agent flows, voz o WhatsApp. AgenticOS no tiene canal de Teams, de voz ni de WhatsApp.
+- Necesitas conectores de Power Platform, agent flows, telefonía o WhatsApp. AgenticOS no tiene canal de Teams, de teléfono ni de WhatsApp; sus [llamadas de voz](../voice.md) funcionan en el navegador.
 - Purview, Sentinel y las políticas de datos de Power Platform son la forma en que tu organización gobierna todo lo demás.
 
 ## Pruébalo con una tarea { #try-it-on-one-task }

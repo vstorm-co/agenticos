@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: una alternativa autoalojada"
 description: "Sauna es un asistente de IA proactivo por persona, en su nube. AgenticOS: muchos agents gobernados, cualquier modelo y budgets por agent en tus servidores."
-source_sha: "a21b30e13b90"
+source_sha: "437c7960d403"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -11,7 +11,7 @@ Sauna, de HeyDaily Inc., es un asistente de IA proactivo para cada persona. Lee 
 
 Si quieres un asistente personal que empiece a trabajar en tu bandeja de entrada en diez minutos, Sauna se prueba rápido. Si quieres decidir qué puede hacer cada agent, cuánto cuesta y dónde están los datos, AgenticOS te da ese control.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Sauna: sus páginas públicas de precios, seguridad y privacidad (la política de privacidad actualizada el 6 de octubre de 2026), no una cuenta probada ni un contrato negociado.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Sauna: sus páginas públicas de precios, seguridad y privacidad (la política de privacidad actualizada el 6 de octubre de 2026), no una cuenta probada ni un contrato negociado.
 
 ## De un vistazo { #at-a-glance }
 

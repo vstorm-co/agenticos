@@ -10,7 +10,7 @@ Grok Bot, from xAI with Cursor, lets you create named AI teammates. Each has a j
 
 If you want to try a team of AI colleagues on xAI's models this week, Grok Bot is quick to start. If you need to show who did what, keep each person's logins separate and choose the model, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Grok Bot scope: the public beta announced 11 August 2026, as described by press and independent reviews, not a tested account. One review comes from a competing vendor and is marked as such below.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Grok Bot scope: the public beta announced 11 August 2026, as described by press and independent reviews, not a tested account. One review comes from a competing vendor and is marked as such below.
 
 ## At a glance
 

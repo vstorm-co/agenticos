@@ -8,7 +8,7 @@ description: "Compare Dify and AgenticOS, two self-hosted AI agent platforms: li
 
 Both products self-host and both do document retrieval, so the difference is elsewhere. Dify is a visual canvas for LLM apps and workflows, with multi-workspace tenancy, SSO and audit logs in its Enterprise edition. AgenticOS is Apache-2.0 and multi-tenant in the open-source product, with budgets, approvals, directory sign-in and a tamper-evident audit log included.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
 
 ## At a glance
 

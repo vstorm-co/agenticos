@@ -8,7 +8,7 @@ description: "OpenCode is an MIT coding agent for one developer. AgenticOS is an
 
 OpenCode is an open-source coding agent under the MIT licence. It runs in a terminal, a desktop app or an IDE and connects to more than 75 model providers. It is a strong choice for a developer who wants their own agent in their own repository. AgenticOS is open source too, and it is built for a different job: many agents, many users, one governed deployment.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. OpenCode scope: its documentation at opencode.ai and the `anomalyco/opencode` repository at v1.18.32, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. OpenCode scope: its documentation at opencode.ai and the `anomalyco/opencode` repository at v1.18.32, not a tested enterprise rollout.
 
 ## At a glance
 

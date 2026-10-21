@@ -1,5 +1,5 @@
 ---
-source_sha: "275dc49bc45f"
+source_sha: "9556516ae468"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -9,7 +9,7 @@ description: "Compara AgenticOS, capa soberana de agents de IA open source, con 
 
 La mayoría de los productos de este ámbito son una de cinco cosas: una app de asistente, un builder de agents, un servicio de compañero de equipo, una plataforma empresarial entregada o un agent de programación. AgenticOS es una capa soberana para los agents de una empresa que operas tú mismo. Estas guías muestran dónde encaja cada opción y qué añade AgenticOS.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Revisar antes del 21 de noviembre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Revisar antes del 21 de noviembre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
 
 ## Elige la guía para tu decisión { #pick-the-guide-for-your-decision }
 
@@ -99,7 +99,7 @@ Una comparación que oculta sus propias carencias es un anuncio. Contrasta estos
 - Los roles son los seis integrados; los roles personalizados todavía no están disponibles.
 - El inicio de sesión todavía no tiene SAML ni SCIM; SAML funciona a través de un broker de identidad como Keycloak. Consulta [lo que el inicio de sesión con directorio todavía no hace](../directory.md#what-this-does-not-do-yet).
 - No hay un entorno de evaluación ni un panel de trazas. Existen las valoraciones y el historial de runs. Consulta [dónde no está terminado](index.md#where-this-one-is-not-finished).
-- No hay canal de conversación para Microsoft Teams, WhatsApp, voz ni correo electrónico.
+- No hay canal de conversación para Microsoft Teams, WhatsApp, teléfono ni correo electrónico. Las [conversaciones de voz](../voice.md) funcionan en el chat web, el widget y la página alojada, no por una línea telefónica.
 - No hay un lienzo visual de workflows. El trabajo de varios pasos usa delegación, planificación y disparadores.
 - Una vinculación MCP configurada en `writes` confía en las marcas de solo lectura del propio servidor, así que una herramienta que marca mal como de solo lectura se ejecuta sin preguntar; `all` retiene cada llamada. Consulta [lo que MCP no te da](../mcp.md#what-mcp-does-not-get-you).
 - El despliegue es Docker Compose, y un único host es el camino que se entrega. Un Postgres externo y más hosts de API y workers están [documentados](../scaling.md), pero no hay manifiestos de Kubernetes.

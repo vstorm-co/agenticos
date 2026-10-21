@@ -8,7 +8,7 @@ description: "Compare AgenticOS, the open-source Sovereign Agentic AI Layer, wit
 
 Most products in this space are one of five things: an assistant app, an agent builder, a teammate service, a delivered enterprise platform or a coding agent. AgenticOS is a sovereign layer for a company's agents that you run yourself. These guides show where each option fits and what AgenticOS adds.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Review by 21 November 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Review by 21 November 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
 
 ## Pick the guide for your decision
 
@@ -98,7 +98,7 @@ A comparison that hides its own gaps is an advertisement. Check these against yo
 - Roles are the six built-in ones; custom roles are not available yet.
 - Sign-in has no SAML or SCIM yet; SAML works through an identity broker such as Keycloak. See [what directory sign-in does not do yet](../directory.md#what-this-does-not-do-yet).
 - There is no evaluation harness and no trace dashboard. Ratings and run history exist. See [where it is not finished](index.md#where-this-one-is-not-finished).
-- There is no Microsoft Teams, WhatsApp, voice or email conversation channel.
+- There is no Microsoft Teams, WhatsApp, phone or email conversation channel. [Voice conversations](../voice.md) run in web chat, the widget and the hosted page, not over a phone line.
 - There is no visual workflow canvas. Multi-step work uses delegation, planning and triggers.
 - An MCP binding set to `writes` trusts the server's own read-only marks, so a tool it mislabels as read-only runs unasked; `all` holds every call. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
 - Deployment is Docker Compose, and one host is the shipped path. An external Postgres and more API hosts and workers are [documented](../scaling.md), but there are no Kubernetes manifests.

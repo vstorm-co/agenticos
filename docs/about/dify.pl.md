@@ -1,5 +1,5 @@
 ---
-source_sha: "ed0edc7861e2"
+source_sha: "08e887dac448"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: wielotenantowa alternatywa na Apache-2.0"
 description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted: warunki licencji, wielotenantowość, SSO, budżety, zatwierdzenia, logi audytowe i ceny."
@@ -9,7 +9,7 @@ description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted
 
 Oba produkty da się hostować samodzielnie i oba wyszukują w dokumentach, więc różnica leży gdzie indziej. Dify to wizualny canvas do aplikacji LLM i workflow, z wieloma workspace'ami, SSO i logami audytowymi w edycji Enterprise. AgenticOS jest na licencji Apache-2.0 i wielotenantowy w produkcie open source, z budżetami, zatwierdzeniami, logowaniem przez katalog i logiem audytowym wykrywającym manipulacje w zestawie.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Dify: publiczne repozytorium w wersji 1.17.1, jego licencja, dokumentacja i strona cennika, a nie przetestowany plan chmurowy ani przypięte wdrożenie.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Dify: publiczne repozytorium w wersji 1.17.1, jego licencja, dokumentacja i strona cennika, a nie przetestowany plan chmurowy ani przypięte wdrożenie.
 
 ## W skrócie { #at-a-glance }
 

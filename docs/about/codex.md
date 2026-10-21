@@ -10,7 +10,7 @@ OpenAI Codex is a software engineering agent. It spans an open-source CLI, an ID
 
 The two share some ground: an Apache-2.0 licence for the open parts, MCP, sandboxed execution and approval before risky actions. They apply it to different users.
 
-Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.9.1. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
 
 ## At a glance
 

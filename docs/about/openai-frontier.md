@@ -10,7 +10,7 @@ OpenAI Frontier is an enterprise platform for building and managing "AI coworker
 
 If you are committed to OpenAI and want it to deliver the platform, Frontier is the vendor's own answer. If you want to own the platform, read its code and choose the models, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v1.9.1. Frontier scope: OpenAI's announcement of 5 February 2026 as reported by the press; pricing was not published, and no account was tested.
+Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v1.10.0. Frontier scope: OpenAI's announcement of 5 February 2026 as reported by the press; pricing was not published, and no account was tested.
 
 ## At a glance
 

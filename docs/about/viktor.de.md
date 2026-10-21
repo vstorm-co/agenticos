@@ -1,5 +1,5 @@
 ---
-source_sha: "bf18f8d902e6"
+source_sha: "3f2886a77dd8"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: selbst gehostete Teammate-Alternative"
 description: "Viktor ist ein KI-Teammate pro Slack- oder Teams-Workspace. AgenticOS bietet viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
@@ -11,7 +11,7 @@ Viktor verkauft einen KI-Teammate pro Slack- oder Microsoft-Teams-Workspace, bet
 
 Wenn Sie noch heute Nachmittag einen hilfsbereiten Kollegen im Chat haben möchten, ist Viktor schnell ausprobiert. Wenn Sie entscheiden möchten, was jeder Agent darf, was er kostet und wo die Daten liegen, gibt Ihnen AgenticOS diese Kontrolle.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.9.1. Umfang bei Viktor: die öffentlichen Produkt-, Preis-, Sicherheits- und Enterprise-Seiten sowie das Changelog, kein getestetes Konto und kein verhandelter Vertrag.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Umfang bei Viktor: die öffentlichen Produkt-, Preis-, Sicherheits- und Enterprise-Seiten sowie das Changelog, kein getestetes Konto und kein verhandelter Vertrag.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -59,7 +59,7 @@ Viktor lernt aus Konversationen und verbundenen Werkzeugen. AgenticOS ergänzt v
 - Sie möchten einen Assistenten in Slack oder Teams, ohne Infrastruktur betreiben zu müssen.
 - Sein Katalog von mehr als 9.800 Tools und seine Code-Sandbox decken Ihre Aufgaben ab.
 - Credit-Abrechnung und Hosting in den USA erfüllen Ihre Anforderungen.
-- Sie brauchen heute Microsoft Teams, Sprache oder ein E-Mail-Postfach. AgenticOS hat noch keinen Konversationskanal für Teams, Sprache oder E-Mail.
+- Sie brauchen heute Microsoft Teams, eine Telefonleitung oder ein E-Mail-Postfach. AgenticOS hat noch keinen Konversationskanal für Teams, Telefon oder E-Mail; seine [Sprachanrufe](../voice.md) laufen im Browser.
 
 ## Eine Handbuchfrage ausprobieren { #try-one-handbook-question }
 

@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: un compañero de IA autoalojado"
 description: "Grok Bot da a cada compañero con nombre un ordenador en la nube con Grok. Compáralo con AgenticOS: cualquier modelo, registro de auditoría, sesiones separadas, tus servidores."
-source_sha: "757e8074f61b"
+source_sha: "2fd2c16c9165"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -11,7 +11,7 @@ Grok Bot, de xAI con Cursor, te permite crear compañeros de IA con nombre. Cada
 
 Si quieres probar esta semana un equipo de compañeros de IA con los modelos de xAI, Grok Bot arranca rápido. Si necesitas demostrar quién hizo qué, mantener separados los accesos de cada persona y elegir el modelo, AgenticOS está hecho para eso.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.9.1. Alcance de Grok Bot: la beta pública anunciada el 11 de agosto de 2026, según la prensa y análisis independientes; no una cuenta probada. Uno de los análisis es de un proveedor competidor y se indica abajo.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Grok Bot: la beta pública anunciada el 11 de agosto de 2026, según la prensa y análisis independientes; no una cuenta probada. Uno de los análisis es de un proveedor competidor y se indica abajo.
 
 ## De un vistazo { #at-a-glance }
 

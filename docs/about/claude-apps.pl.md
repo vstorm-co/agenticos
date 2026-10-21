@@ -1,5 +1,5 @@
 ---
-source_sha: "28e7f0cf3605"
+source_sha: "b46700ad236c"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -11,7 +11,7 @@ Claude Team i Claude Enterprise dają każdemu pracownikowi asystenta od Anthrop
 
 To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez Anthropic API albo Amazon Bedrock, więc subskrypcja Claude i wdrożenie AgenticOS często działają obok siebie.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
 
 ## W skrócie { #at-a-glance }
 

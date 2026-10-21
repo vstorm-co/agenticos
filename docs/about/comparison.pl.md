@@ -1,5 +1,5 @@
 ---
-source_sha: "275dc49bc45f"
+source_sha: "9556516ae468"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -9,7 +9,7 @@ description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, 
 
 Większość produktów w tej przestrzeni to jedna z pięciu rzeczy: aplikacja asystenta, builder agentów, usługa wirtualnego współpracownika, dostarczana platforma enterprise albo agent do kodowania. AgenticOS to suwerenna warstwa dla agentów firmy, którą uruchamiasz samodzielnie. Te poradniki pokazują, gdzie pasuje każda z opcji i co dodaje AgenticOS.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.9.1. Przegląd do 21 listopada 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Przegląd do 21 listopada 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
 
 ## Wybierz poradnik do swojej decyzji { #pick-the-guide-for-your-decision }
 
@@ -99,7 +99,7 @@ Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty wzgl
 - Role to sześć ról wbudowanych; role niestandardowe nie są jeszcze dostępne.
 - Logowanie nie ma jeszcze SAML ani SCIM; SAML działa przez brokera tożsamości, takiego jak Keycloak. Zobacz [czego logowanie przez katalog jeszcze nie robi](../directory.md#what-this-does-not-do-yet).
 - Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
-- Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, głos ani e-mail.
+- Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, telefon ani e-mail. [Rozmowy głosowe](../voice.md) działają w czacie webowym, widgecie i na hostowanej stronie, nie przez linię telefoniczną.
 - Nie ma wizualnego canvasu workflow. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
 - Powiązanie MCP ustawione na `writes` ufa oznaczeniom „tylko do odczytu” nadanym przez sam serwer, więc narzędzie błędnie oznaczone jako tylko do odczytu działa bez pytania; `all` wstrzymuje każde wywołanie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
 - Wdrożenie to Docker Compose, a jeden host to dostarczana ścieżka. Zewnętrzny Postgres oraz kolejne hosty API i workery są [opisane](../scaling.md), ale manifestów Kubernetes nie ma.
