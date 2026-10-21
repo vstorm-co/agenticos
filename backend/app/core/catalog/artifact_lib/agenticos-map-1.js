@@ -255,27 +255,33 @@
     var svg = document.createElementNS(ns, "svg");
     svg.setAttribute("class", "aom-outline");
     svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    // Stretched with the box, and the pins placed in percentages of it, so the
+    // two stay together when the column narrows or a phone turns.
+    svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
     for (var gx = 0; gx <= width; gx += 48) {
       var v = document.createElementNS(ns, "line");
       v.setAttribute("class", "aom-grid");
+      v.setAttribute("vector-effect", "non-scaling-stroke");
       v.setAttribute("x1", gx); v.setAttribute("x2", gx); v.setAttribute("y1", 0); v.setAttribute("y2", height);
       svg.appendChild(v);
     }
     for (var gy = 0; gy <= height; gy += 48) {
       var h = document.createElementNS(ns, "line");
       h.setAttribute("class", "aom-grid");
+      h.setAttribute("vector-effect", "non-scaling-stroke");
       h.setAttribute("x1", 0); h.setAttribute("x2", width); h.setAttribute("y1", gy); h.setAttribute("y2", gy);
       svg.appendChild(h);
     }
     var route = document.createElementNS(ns, "polyline");
     route.setAttribute("class", "aom-route");
+    route.setAttribute("vector-effect", "non-scaling-stroke");
     svg.appendChild(route);
     box.appendChild(svg);
     var pins = places.map(function (p, i) {
       var place = element("div", "aom-place");
-      place.style.left = points[i][0] + "px";
-      place.style.top = points[i][1] + "px";
+      place.style.left = (points[i][0] / width) * 100 + "%";
+      place.style.top = (points[i][1] / height) * 100 + "%";
       var pin = makePin(p.number, p.stop.name);
       place.appendChild(pin);
       place.appendChild(element("span", "aom-label", p.stop.name));
@@ -298,12 +304,9 @@
     // The credit goes in the note under the map, with the line about the route,
     // rather than in a corner the pins can cover.
     var map = L.map(box, { scrollWheelZoom: false, zoomControl: true, attributionControl: false });
-    var layer = L.tileLayer(server.url, {
-      maxZoom: server.maxZoom,
-      // Only the content origin, never the page's address: a saved app's address
-      // carries the signed token that opens it.
-      referrerPolicy: "origin",
-    });
+    // `server.url` is this deployment's own tile path, which fetches the tiles
+    // from the tile server: a page never talks to it.
+    var layer = L.tileLayer(server.url, { maxZoom: server.maxZoom });
     var loaded = 0;
     var failed = 0;
     layer.on("tileload", function () { loaded += 1; });

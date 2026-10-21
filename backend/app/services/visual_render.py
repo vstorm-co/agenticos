@@ -20,8 +20,10 @@ from uuid import UUID
 
 from app.agents.capabilities.browser_use._endpoint import pin_host, version_url, websocket_url
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.repositories.conversation import ToolCallArgs
 from app.services import artifact as artifacts
+from app.services import tile_proxy
 from app.services import visual as visuals
 from app.services.visual import VISUAL_RUNTIME, VISUAL_TOOLS, VisualKind, visual_document
 
@@ -34,6 +36,9 @@ MAX_HEIGHT = 2400
 """The tallest picture taken, in CSS pixels; a longer page is cut there."""
 
 _LEAD = re.compile(r"\A(?:﻿)?(?:\s+|<!--(?:[^-]|-(?!->))*-->)*(?:<!doctype\b[^>]*>)?", re.I)
+
+_TILE = re.compile(r"(\d{1,2})/(\d{1,7})/(\d{1,7})")
+"""A tile path's three numbers - what the tile route itself takes."""
 
 # Set by the drawing's own runtime when it has loaded and run for a moment - the
 # message it posts to its parent, which a top-level page posts to itself.
@@ -87,6 +92,17 @@ async def answer(url: str, document: bytes) -> Answer:
         name = url[len(prefix) :].split("?", 1)[0]
         if name in artifacts.ARTIFACT_LIBRARY:
             data, media_type = await artifacts.library_file(name)
+            return Answer(body=data, content_type=media_type)
+    tiles_prefix = artifacts.tile_source()
+    if url.startswith(tiles_prefix):
+        # A map's tile, from the deployment's tile path as in the chat, so a
+        # picture of a map has its streets.
+        found = _TILE.fullmatch(url[len(tiles_prefix) :].split("?", 1)[0])
+        if found is not None:
+            try:
+                data, media_type = await tile_proxy.tile(*map(int, found.groups()))
+            except NotFoundError, ExternalServiceError:
+                return Answer(body=None)
             return Answer(body=data, content_type=media_type)
     return Answer(body=None)
 
@@ -272,6 +288,12 @@ async def _photograph(  # pragma: no cover - needs a live browser
                 "deviceScaleFactor": 1,
                 "mobile": False,
             },
+            session_id=session,
+        )
+        # A picture is one moment: an animated drawing - pins dropping in, a
+        # rotor turning - is shown finished rather than caught part-way.
+        await client.send.Emulation.setEmulatedMedia(
+            params={"features": [{"name": "prefers-reduced-motion", "value": "reduce"}]},
             session_id=session,
         )
         await client.send.Page.enable(session_id=session)

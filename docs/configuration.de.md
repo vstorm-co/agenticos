@@ -1,5 +1,5 @@
 ---
-source_sha: "f400fb789774"
+source_sha: "176ad0f8319b"
 ---
 
 # Konfiguration { #configuration }
@@ -781,17 +781,18 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
-| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Die Policy jeder Seite lässt dann Bilder aus dem Kachelpfad dieses Servers zu und nichts anderes Entferntes. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
+| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
 
-**Kartenkacheln lädt der Browser des Lesers, nicht das Deployment.** Der Browser
-jedes Lesers fragt den Kachelserver nach den Kacheln, die er zeigt, mit dem
-Inhalts-Origin als Referrer und nie mit der Adresse einer Seite. Einen Schlüssel in
-der Vorlage sieht jeder, der eine Karte öffnen kann, also nehmen Sie einen, den der
-Anbieter einschränkt, und beachten Sie seine Bedingungen: die öffentlichen Kacheln
-von OpenStreetMap sind für leichte Nutzung, und ein viel genutztes Deployment sollte
-einen eigenen Server betreiben oder einen Anbieter bezahlen. *Admin → System* zeigt,
-ob der Server antwortet.
+**Kartenkacheln holt das Deployment, nicht der Browser des Lesers.** Eine Seite
+fragt `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; die API prüft die Zahlen, holt
+die Kachel vom Server, behält die letzten 2.048 im Speicher und antwortet, sodass
+ein Schlüssel in der Vorlage den Server nie verlässt. Die Route braucht keine
+Session - jede Seite lädt sie - und ist deshalb je Adresse begrenzt
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Beachten Sie die Bedingungen des Anbieters:
+die öffentlichen Kacheln von OpenStreetMap sind für leichte Nutzung, und ein viel
+genutztes Deployment sollte einen eigenen Server betreiben oder einen Anbieter
+bezahlen. *Admin → System* zeigt, ob der Server antwortet.
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
@@ -1255,6 +1256,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Jede Route in `auth.py` — Login, Registrierung, Refresh, die Anfrage- und Verifikationsrouten für Reset und Magic Link. Gezählt **je IP und, wo der Body eine trägt, je übermittelter Adresse**. Siehe unten |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kartenkacheln, die eine Adresse über den [Kachelpfad](artifacts.md#visuals) des Deployments holen darf, **je Adresse**. Eine Karte sind einige Dutzend Kacheln, Verschieben bringt mehr; die Grenze verhindert, dass das Deployment jedermanns kostenloser Proxy zum Kachelserver wird |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |

@@ -1,5 +1,5 @@
 ---
-source_sha: "66e1fc8a7b5f"
+source_sha: "c820451e5c9f"
 ---
 
 # Apps { #artifacts }
@@ -211,13 +211,13 @@ einem geteilten Thread, im Widget und in einer App falsch, wo `followUp` nichts
 tut und `false` zurückgibt, sodass eine gespeicherte Zeichnung weiter funktioniert.
 
 **Karten.** Ist [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
-gesetzt, darf eine Zeichnung oder eine App Kartenkacheln von diesem einen Server
-laden, und `agenticos.map` nennt ihn; das Karten-Kit zeichnet darauf eine Route mit
-der Quellenangabe des Servers darunter. Ohne die Einstellung zeichnet derselbe
-Aufruf einen Umriss der Stopps - Pins und die Linie dazwischen, keine Straßen -
-und ebenso eine Karte, deren Kacheln nicht laden. Das Bild einer Zeichnung in einer
-Chat-App ist immer der Umriss: der Browser, der es rendert, beantwortet keine
-Kachel-Anfrage.
+gesetzt, kann eine Zeichnung oder eine App auf echten Kartenkacheln zeichnen: das
+Deployment holt jede Kachel von diesem Server und liefert sie über seinen eigenen
+Kachelpfad aus, `agenticos.map` sagt wohin, und das Karten-Kit zeichnet darauf eine
+Route mit der Quellenangabe des Servers darunter. Ohne die Einstellung zeichnet
+derselbe Aufruf einen Umriss der Stopps - Pins und die Linie dazwischen, keine
+Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Das Bild einer Karte in
+einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung
 überhaupt die richtige Antwort ist: Text für eine Tatsache oder einen Rat, eine
@@ -352,7 +352,7 @@ nichts, was sie tut, die Konsole oder die Person erreichen kann, die sie ansieht
   sich allein öffnet.
 - Dieselbe Policy setzt `default-src 'none'` und `connect-src 'none'`. Die einzige
   entfernte Quelle, die sie nennt, ist der eigene Pfad des Bibliothekssatzes auf
-  dem Inhalts-Origin, für Skripte, Stile und Schriften. Auf einem Deployment, das `VISUAL_MAP_TILES` setzt, kommen Bilder aus dem Kachelpfad dieses Servers hinzu, damit eine Karte einen Hintergrund hat. Eine Bildanfrage trägt ihre eigene Adresse, also könnte eine Seite in den Pfad einer Kachel schreiben, was sie zeigt; erreichen kann sie damit nur den einen Server, den der Betreiber gewählt hat - deshalb gibt es genau einen, und er ist standardmäßig aus. `frame-ancestors` nennt nur
+  dem Inhalts-Origin, für Skripte, Stile und Schriften. Auf einem Deployment, das `VISUAL_MAP_TILES` setzt, kommen Bilder aus seinem eigenen Kachelpfad hinzu, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Diese Route nimmt drei Zahlen, jede gegen die Zoomstufe geprüft, auf der es sie geben kann, und holt die Kachel selbst, sodass eine Seite weder Adresse noch Schlüssel des Kachelservers erfährt und ihm nichts schicken kann, was sie selbst gewählt hat. `frame-ancestors` nennt nur
   die Konsole — und für eine Seite mit öffentlichem Link und Einbettungs-Websites
   das Einbettungsdokument und diese Websites. Der Frame in der Konsole trägt
   dieselbe `sandbox`-Liste als zweites Schloss.

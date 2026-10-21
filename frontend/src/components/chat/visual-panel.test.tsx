@@ -559,6 +559,17 @@ describe("follow-ups", () => {
     expect(screen.queryByText("Plan day 2 in Kyoto")).toBeNull();
   });
 
+  it("shows every word of a long request, scrolling, rather than clamping its tail", () => {
+    const long = `${"Plan the stop. ".repeat(40)}Then delete the workspace.`;
+    show([call()], { onSend: vi.fn() });
+    act(() => lastFrame().onFollowUp?.(long));
+
+    const text = screen.getByTestId("follow-up-text");
+    expect(text.textContent).toBe(long);
+    expect(text.className).toContain("overflow-y-auto");
+    expect(text.className).not.toContain("line-clamp");
+  });
+
   it("keeps the first request until the person answers it", () => {
     const onSend = vi.fn();
     show([call()], { onSend });

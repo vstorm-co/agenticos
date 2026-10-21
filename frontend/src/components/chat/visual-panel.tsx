@@ -670,7 +670,12 @@ export function FollowUpRequest({
         <CornerDownRight className="size-3.5 shrink-0" aria-hidden />
         {t("followUpAsks")}
       </p>
-      <p className="text-foreground mt-1 line-clamp-6 text-sm break-words whitespace-pre-wrap">
+      {/* Every word of it, scrolling when it is long: what is sent is exactly
+          what was shown, never a tail a clamp hid. */}
+      <p
+        data-testid="follow-up-text"
+        className="text-foreground mt-1 max-h-48 scrollbar-thin overflow-y-auto text-sm break-words whitespace-pre-wrap"
+      >
         {text}
       </p>
       <div className="mt-2 flex flex-wrap justify-end gap-1.5">

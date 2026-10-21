@@ -54,6 +54,9 @@ class TestOwnServer:
             ("https://tiles.example.com/{z}/{x}.png", "{z}, {x} and {y}"),
             ("https://tiles.example.com/{z}/{x}/{y}/{r}.png", "{z}, {x} and {y}"),
             ("https://tiles.example.com/{z}/{z}/{x}/{y}.png", "{z}, {x} and {y}"),
+            ("https://tiles.example.com:99999/{z}/{x}/{y}.png", "port"),
+            ("https://tiles.example.com:abc/{z}/{x}/{y}.png", "port"),
+            ("https://user:pass@tiles.example.com/{z}/{x}/{y}.png", "user name"),
         ],
     )
     def test_a_template_that_could_widen_the_policy_is_refused(
@@ -64,29 +67,6 @@ class TestOwnServer:
         assert problem in refusal
         with pytest.raises(ValueError, match="VISUAL_MAP_TILES"):
             resolve(url, "© Example")
-
-
-class TestSource:
-    @pytest.mark.security
-    @pytest.mark.parametrize(
-        ("url", "source"),
-        [
-            ("https://tile.openstreetmap.org/{z}/{x}/{y}.png", "https://tile.openstreetmap.org/"),
-            (
-                "https://api.example.com:8443/maps/streets/{z}/{x}/{y}.png?key=k",
-                "https://api.example.com:8443/maps/streets/",
-            ),
-            ("https://tiles.example.com/v2/z{z}/{x}/{y}", "https://tiles.example.com/v2/"),
-            ("https://tiles.example.com/tile?z={z}&x={x}&y={y}", "https://tiles.example.com/tile"),
-            ("https://tiles.example.com?z={z}&x={x}&y={y}", "https://tiles.example.com/"),
-        ],
-    )
-    def test_the_policy_admits_the_tile_path_and_not_the_rest_of_the_host(
-        self, url: str, source: str
-    ) -> None:
-        tiles = resolve(url, "© Example")
-        assert tiles is not None
-        assert tiles.source == source
 
 
 class TestSettings:

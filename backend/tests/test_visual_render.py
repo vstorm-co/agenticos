@@ -59,6 +59,32 @@ class TestWhatTheBrowserIsGiven:
         assert reply.policy is not None
         assert reply.policy.startswith("sandbox allow-scripts allow-modals;")
 
+    async def test_a_map_tile_is_served_from_the_tile_path_as_in_the_chat(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        png = b"\x89PNG\r\n\x1a\n"
+        fetched = AsyncMock(return_value=(png, "image/png"))
+        monkeypatch.setattr(visual_render.tile_proxy, "tile", fetched)
+        prefix = visual_render.artifacts.tile_source()
+
+        reply = await visual_render.answer(f"{prefix}3/4/5", b"")
+
+        assert reply.body == png
+        assert reply.content_type == "image/png"
+        fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_tile_that_cannot_be_had_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            visual_render.tile_proxy,
+            "tile",
+            AsyncMock(side_effect=visual_render.NotFoundError(message="none")),
+        )
+        prefix = visual_render.artifacts.tile_source()
+        assert (await visual_render.answer(f"{prefix}3/4/5", b"")).body is None
+        assert (await visual_render.answer(f"{prefix}3/4/not-a-number", b"")).body is None
+
     async def test_a_library_file_is_served_from_disk(self) -> None:
         reply = await visual_render.answer(
             visual_render.library_prefix() + "d3-7.9.0.min.js?v=1", b""

@@ -1212,7 +1212,7 @@ pictures its drawing still uses, six at most across its revisions.
 
 **It has an app's isolation.** The frame is the app sandbox - an opaque origin,
 `connect-src 'none'`, nothing remote but the deployment's library set, which now
-includes three.js, Mermaid and Leaflet, and the map tiles the deployment named.
+includes three.js, Mermaid and Leaflet, and the deployment's own map tile path.
 See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }

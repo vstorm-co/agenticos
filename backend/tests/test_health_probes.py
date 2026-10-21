@@ -602,7 +602,7 @@ class TestMapTilesProbe:
         assert check.status == "healthy"
         assert check.latency_ms is not None
         assert str(asked[0].url) == "https://t.example/0/0/0.png?key=secret"
-        assert asked[0].headers["user-agent"] == health.MAP_TILES_USER_AGENT
+        assert asked[0].headers["user-agent"] == health.tile_proxy.USER_AGENT
 
     @pytest.mark.security
     @pytest.mark.parametrize(

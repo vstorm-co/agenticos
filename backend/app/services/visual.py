@@ -148,6 +148,9 @@ VISUAL_RUNTIME = """<script data-agenticos="visual">(function () {
   function fail(message) { post({ type: "agenticos:visual-error", message: String(message) }); }
   window.addEventListener("error", function (event) {
     var target = event.target;
+    // A map tile that did not load is the map kit's to handle - it falls back to
+    // an outline - not a broken drawing for the model to fix.
+    if (target && target.classList && target.classList.contains("leaflet-tile")) return;
     if (target && target !== window && (target.src || target.href)) {
       fail("Could not load " + (target.src || target.href));
       return;

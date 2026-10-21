@@ -1,5 +1,5 @@
 ---
-source_sha: "5addb81c10d9"
+source_sha: "8bdf39c42a5d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1295,8 +1295,8 @@ revisiones.
 
 **Tiene el aislamiento de una aplicación.** El marco es el sandbox de las
 aplicaciones - un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto
-de bibliotecas del despliegue, que ahora incluye three.js, Mermaid y Leaflet, y las
-teselas de mapa que nombra el despliegue. Consulte [Visuals](../artifacts.md#visuals).
+de bibliotecas del despliegue, que ahora incluye three.js, Mermaid y Leaflet, y la
+propia ruta de teselas del despliegue. Consulte [Visuals](../artifacts.md#visuals).
 
 ## Aplicaciones { #artifacts }
 

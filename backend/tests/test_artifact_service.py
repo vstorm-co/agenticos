@@ -639,16 +639,16 @@ class TestThePolicy:
         assert directives["img-src"] == ["data:", "blob:"]
 
     @pytest.mark.security
-    def test_map_tiles_come_from_the_named_server_s_tile_path_and_nowhere_else(
+    def test_map_tiles_come_from_the_deployment_s_own_tile_path_and_no_remote_host(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "openstreetmap")
         policy = artifacts.content_security_policy()
         directives = {part.split()[0]: part.split()[1:] for part in policy.split("; ")}
-        assert directives["img-src"] == ["data:", "blob:", "https://tile.openstreetmap.org/"]
-        # Images only: a map's tiles open no way for script or a request out.
+        tiles = f"{artifacts.settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/artifact-content/tiles/"
+        assert directives["img-src"] == ["data:", "blob:", tiles]
+        assert "openstreetmap" not in policy
         assert directives["connect-src"] == ["'none'"]
-        assert "https://tile.openstreetmap.org/" not in directives["script-src"]
 
     @pytest.mark.security
     def test_an_embeddable_page_may_be_framed_by_its_sites_and_the_embed_document(self) -> None:

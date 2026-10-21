@@ -47,6 +47,7 @@ from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.db.models.credential import ModelProfile
 from app.schemas.health import SystemCheck, SystemHealthResponse
+from app.services import tile_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,6 @@ Short on purpose: each of these is a local round trip, and what a readiness
 probe needs when Postgres is unreachable is "not ready" now rather than the
 truth in thirty seconds.
 """
-
-MAP_TILES_USER_AGENT = "AgenticOS map tiles health check"
-"""Tile servers ask a client to say who it is; OpenStreetMap's policy refuses one that does not."""
 
 _PGVECTOR_VERSION = text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
 
@@ -471,7 +469,7 @@ async def probe_map_tiles() -> SystemCheck:
     start = perf_counter()
     try:
         async with httpx.AsyncClient(
-            timeout=PROBE_TIMEOUT_SECONDS, headers={"User-Agent": MAP_TILES_USER_AGENT}
+            timeout=PROBE_TIMEOUT_SECONDS, headers={"User-Agent": tile_proxy.USER_AGENT}
         ) as client:
             response = await client.get(url)
     except httpx.TimeoutException:

@@ -1,5 +1,5 @@
 ---
-source_sha: "f400fb789774"
+source_sha: "176ad0f8319b"
 ---
 
 # Configuración { #configuration }
@@ -760,16 +760,18 @@ dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por aplicación. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
-| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. La política de cada página admite entonces imágenes de la ruta de teselas de ese servidor y nada más remoto. Vacío dibuja un mapa como un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
+| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. El despliegue trae cada tesela y la sirve a las páginas desde su propia ruta de teselas; ninguna página habla con el servidor. Vacío dibuja un mapa como un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (vacío) | El crédito que se muestra bajo un mapa en un servidor de teselas propio, p. ej. `© OpenStreetMap contributors`. Obligatorio con una plantilla de URL; un preset trae el suyo |
 
-**Las teselas las carga el navegador del lector, no el despliegue.** El navegador
-de cada lector pide al servidor de teselas las que muestra, con el origen del
-contenido como referer y nunca con la dirección de una página. Una clave en la
-plantilla la ve cualquiera que pueda abrir un mapa, así que use una clave que el
-proveedor restrinja y respete sus condiciones: las teselas públicas de OpenStreetMap
-son para un uso ligero, y un despliegue con mucho tráfico debería tener su propio
-servidor o pagar a un proveedor. *Admin → System* muestra si el servidor responde.
+**Las teselas las trae el despliegue, no el navegador del lector.** Una página
+pide `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; la API comprueba los números,
+trae la tesela del servidor, guarda las últimas 2.048 en memoria y responde, así que
+una clave en la plantilla nunca sale del servidor. La ruta no requiere sesión -
+la carga cualquier página - así que tiene un límite por dirección
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Respete las condiciones del proveedor: las
+teselas públicas de OpenStreetMap son para un uso ligero, y un despliegue con mucho
+tráfico debería tener su propio servidor o pagar a un proveedor. *Admin → System*
+muestra si el servidor responde.
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
@@ -1195,6 +1197,7 @@ esta.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Todas las rutas de `auth.py` — login, registro, refresh y las rutas de petición y verificación del restablecimiento y del enlace mágico. Se cuenta **por IP y, donde el cuerpo lleve una, por dirección enviada**. Ver más abajo |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Por dirección, y **dos contadores separados de este tamaño**: uno para `widget.js`, otro para la admisión — el `/config` del widget más el handshake del socket de cualquiera de las dos superficies. Ver más abajo |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Teselas de mapa que una dirección puede traer por la [ruta de teselas](artifacts.md#visuals) del despliegue, **por dirección**. Un mapa son unas decenas de teselas y desplazarlo suma más; el límite evita que el despliegue sea el proxy gratuito de cualquiera hacia su servidor de teselas |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |

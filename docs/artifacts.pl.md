@@ -1,5 +1,5 @@
 ---
-source_sha: "66e1fc8a7b5f"
+source_sha: "c820451e5c9f"
 ---
 
 # Aplikacje { #artifacts }
@@ -193,11 +193,12 @@ robi i zwraca `false`, więc zapisany rysunek nadal działa.
 
 **Mapy.** Gdy ustawione jest
 [`VISUAL_MAP_TILES`](configuration.md#published-artifacts), rysunek albo aplikacja
-mogą ładować kafelki map z tego jednego serwera, a `agenticos.map` go nazywa; kit
-map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to samo
-wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic - i tak
-samo mapa, której kafelki się nie ładują. Obraz rysunku w aplikacji czatowej to
-zawsze zarys: przeglądarka, która go renderuje, nie odpowiada na żądania kafelków.
+mogą rysować na prawdziwych kafelkach map: deployment pobiera każdy kafelek z
+tego serwera i serwuje go z własnej ścieżki kafelków, `agenticos.map` mówi
+gdzie, a kit map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to
+samo wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic -
+i tak samo mapa, której kafelki się nie ładują. Obraz mapy w aplikacji czatowej
+jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
 właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych
@@ -321,7 +322,7 @@ ani osoby, która ją ogląda:
   bezpośrednio.
 - Ta sama polityka ustawia `default-src 'none'` i `connect-src 'none'`. Jedynym
   zdalnym źródłem, jakie wymienia, jest własna ścieżka zestawu bibliotek w
-  originie treści, dla skryptów, stylów i fontów. Na deploymencie, który ustawia `VISUAL_MAP_TILES`, dochodzą obrazy ze ścieżki kafelków tego serwera, żeby mapa miała tło. Żądanie obrazu niesie własny adres, więc strona mogłaby zapisać w ścieżce kafelka to, co pokazuje; trafia ono jednak tylko do jednego serwera wybranego przez operatora - dlatego jest jeden i domyślnie jest wyłączony. `frame-ancestors` wymienia tylko
+  originie treści, dla skryptów, stylów i fontów. Na deploymencie, który ustawia `VISUAL_MAP_TILES`, dochodzą obrazy z jego własnej ścieżki kafelków, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Ta trasa przyjmuje trzy liczby, każdą sprawdzoną względem przybliżenia, przy którym kafelek istnieje, i sama pobiera kafelek, więc strona nigdy nie poznaje adresu ani klucza serwera kafelków i nie może mu wysłać niczego, co sama wybrała. `frame-ancestors` wymienia tylko
   konsolę — a dla strony z publicznym linkiem i witrynami do osadzania także
   dokument osadzenia i te witryny. Ramka w konsoli niesie tę samą listę `sandbox`
   jako drugi zamek.

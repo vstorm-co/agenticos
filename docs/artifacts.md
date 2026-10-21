@@ -185,12 +185,12 @@ where `followUp` does nothing and returns `false`, so a saved drawing keeps
 working.
 
 **Maps.** With [`VISUAL_MAP_TILES`](configuration.md#published-artifacts) set, a
-drawing or an app may load map tiles from that one server, and
-`agenticos.map` names it; the map kit draws an itinerary on it with the server's
-credit underneath. Without it, the same call draws an outline of the stops -
-pins and the line between them, no streets - and so does a map whose tiles do
-not load. A chat app's picture of a drawing is always the outline: the browser
-that renders it answers no tile request.
+drawing or an app can draw on real map tiles: the deployment fetches each tile
+from that server and serves it from its own tile path, `agenticos.map` says
+where, and the map kit draws an itinerary on it with the server's credit
+underneath. Without it, the same call draws an outline of the stops - pins and
+the line between them, no streets - and so does a map whose tiles do not load.
+A chat app's picture of a map is drawn finished, with every pin in place.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing
 is the right answer at all: text for a fact or advice, a Markdown table for
@@ -314,10 +314,11 @@ the person looking at it:
 - The same policy sets `default-src 'none'` and `connect-src 'none'`. The only
   remote source it names is the library set's own path on the content origin,
   for scripts, styles and fonts - and, on a deployment that sets
-  `VISUAL_MAP_TILES`, images from that tile server's tile path, so a map has a
-  background. An image request carries its own address, so a page could spell
-  what it shows into a tile's path; what it reaches is the one server the
-  operator chose, which is why there is one and it is off by default. `frame-ancestors` names only the console - and,
+  `VISUAL_MAP_TILES`, images from its own tile path,
+  `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. That route takes three numbers,
+  each checked against the zoom it can exist at, and fetches the tile itself, so
+  a page never learns the tile server's address or key and can send it nothing
+  it chose. `frame-ancestors` names only the console - and,
   for a page with a public link and embedding sites, the embed document and
   those sites. The frame in the console carries the same `sandbox` list as a
   second lock.

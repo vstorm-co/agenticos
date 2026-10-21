@@ -1,5 +1,5 @@
 ---
-source_sha: "66e1fc8a7b5f"
+source_sha: "c820451e5c9f"
 ---
 
 # Aplicaciones { #artifacts }
@@ -203,12 +203,13 @@ el widget y en una app, donde `followUp` no hace nada y devuelve `false`, así q
 dibujo guardado sigue funcionando.
 
 **Mapas.** Con [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
-definido, un dibujo o una app pueden cargar teselas de mapa de ese único servidor,
-y `agenticos.map` lo nombra; el kit de mapas dibuja sobre él un itinerario con el
-crédito del servidor debajo. Sin él, la misma llamada dibuja un contorno de las
-paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo hace un mapa
-cuyas teselas no cargan. La imagen de un dibujo en una app de chat es siempre el
-contorno: el navegador que la renderiza no responde a ninguna petición de teselas.
+definido, un dibujo o una app pueden dibujar sobre teselas de mapa reales: el
+despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
+teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
+itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
+contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
+hace un mapa cuyas teselas no cargan. La imagen de un mapa en una app de chat se
+dibuja terminada, con todas las chinchetas en su sitio.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
@@ -338,7 +339,7 @@ consola ni a la persona que la mira:
   sola.
 - La misma política fija `default-src 'none'` y `connect-src 'none'`. El único
   origen remoto que nombra es la ruta propia del conjunto de bibliotecas en el
-  origen del contenido, para scripts, estilos y fuentes. En un despliegue que define `VISUAL_MAP_TILES`, se suman las imágenes de la ruta de teselas de ese servidor, para que un mapa tenga fondo. Una petición de imagen lleva su propia dirección, así que una página podría escribir en la ruta de una tesela lo que muestra; solo llega al único servidor que eligió el operador, y por eso hay uno y está desactivado por defecto. `frame-ancestors` nombra
+  origen del contenido, para scripts, estilos y fuentes. En un despliegue que define `VISUAL_MAP_TILES`, se suman las imágenes de su propia ruta de teselas, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Esa ruta toma tres números, cada uno comprobado contra el zoom en el que puede existir, y trae la tesela ella misma, así que una página nunca conoce la dirección ni la clave del servidor de teselas y no puede enviarle nada que haya elegido. `frame-ancestors` nombra
   solo la consola — y, para una página con enlace público y sitios que la
   incrustan, el documento de incrustación y esos sitios. El frame de la consola
   lleva la misma lista `sandbox` como segundo cerrojo.

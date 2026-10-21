@@ -1,5 +1,5 @@
 ---
-source_sha: "f400fb789774"
+source_sha: "176ad0f8319b"
 ---
 
 # Konfiguracja { #configuration }
@@ -743,15 +743,17 @@ serwowane. Zobacz [Aplikacje](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
-| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Polityka każdej strony dopuszcza wtedy obrazy ze ścieżki kafelków tego serwera i nic innego zdalnego. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
 
-**Kafelki map ładuje przeglądarka czytelnika, nie deployment.** Przeglądarka
-każdego czytelnika prosi serwer kafelków o te, które pokazuje, z originem treści jako
-refererem, nigdy z adresem strony. Klucz w szablonie widzi każdy, kto może otworzyć
-mapę, więc użyj klucza ograniczonego przez dostawcę i pilnuj jego warunków: publiczne
-kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment powinien mieć
-własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy serwer odpowiada.
+**Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o
+`/api/v1/artifact-content/tiles/{z}/{x}/{y}`; API sprawdza liczby, pobiera kafelek
+z serwera, trzyma ostatnie 2048 w pamięci i odpowiada, więc klucz z szablonu nigdy
+nie opuszcza serwera. Trasa nie wymaga sesji - ładuje ją każda strona - więc ma
+limit na adres (`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Pilnuj warunków dostawcy:
+publiczne kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment
+powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy
+serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
@@ -1176,6 +1178,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |

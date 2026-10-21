@@ -1203,6 +1203,13 @@ async def limit_artifact_content(token: str) -> None:
     )
 
 
+async def limit_map_tiles(request: Request) -> None:
+    """Refuse an address fetching map tiles through the deployment too fast."""
+    _refuse_if_over(
+        await rate_limit.map_tiles_allowed(request), "Too many requests. Try again shortly."
+    )
+
+
 async def limit_hosted_logo(public_key: str) -> None:
     """Refuse a hosted page whose logo is being fetched too often."""
     _refuse_if_over(

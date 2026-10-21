@@ -1,5 +1,5 @@
 ---
-source_sha: "5addb81c10d9"
+source_sha: "8bdf39c42a5d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1353,8 +1353,8 @@ seine Zeichnung noch verwendet, über alle Revisionen höchstens sechs.
 
 **Es hat die Isolation einer App.** Der Rahmen ist die App-Sandbox - ein opaker
 Origin, `connect-src 'none'`, nichts Entferntes außer dem Bibliothekssatz des
-Deployments, der jetzt three.js, Mermaid und Leaflet enthält, und den Kartenkacheln,
-die das Deployment nennt. Siehe [Visuals](../artifacts.md#visuals).
+Deployments, der jetzt three.js, Mermaid und Leaflet enthält, und dem eigenen
+Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 

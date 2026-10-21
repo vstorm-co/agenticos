@@ -180,8 +180,9 @@ def platform_script() -> str:
     working. Like a link, it is a request: the console shows the text and sends
     it only when the person clicks Send there, so a page cannot speak for them.
 
-    **`agenticos.map`** is the deployment's tile server (`VISUAL_MAP_TILES`), or
-    `null`, so a map knows whether it has a background to load.
+    **`agenticos.map`** is the deployment's map tiles (`VISUAL_MAP_TILES`), served
+    through its own tile path, or `null`, so a map knows whether it has a
+    background to load.
 
     Injected when served rather than when stored, so the stored bytes stay what
     the agent wrote - what `read_artifact` returns and what the digest is taken over.
@@ -189,8 +190,9 @@ def platform_script() -> str:
     tiles = settings.map_tiles()
     config = (
         {
-            "name": tiles.name,
-            "url": tiles.url,
+            # This deployment's own tile path, never the server's address: that
+            # may carry the operator's key, and this script is in a public page.
+            "url": f"{tile_source()}{{z}}/{{x}}/{{y}}",
             "attribution": tiles.attribution,
             "attributionUrl": tiles.attribution_url,
             "maxZoom": tiles.max_zoom,
@@ -286,6 +288,11 @@ def _library_source() -> str:
     return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/lib/"
 
 
+def tile_source() -> str:
+    """Where a page loads map tiles: this deployment's tile path, as a source expression."""
+    return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/tiles/"
+
+
 def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
     """The policy every content response carries.
 
@@ -318,9 +325,9 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             "default-src 'none'",
             f"script-src 'unsafe-inline' 'unsafe-eval' data: blob: {library}",
             f"style-src 'unsafe-inline' data: {library}",
-            # A map's tiles, from the one server the deployment named - see
-            # `app/core/map_tiles.py` for why that is the whole exception.
-            "img-src data: blob:" + (f" {tiles.source}" if tiles is not None else ""),
+            # A map's tiles, through this deployment's own tile path, which takes
+            # three numbers and nothing else - see `app/services/tile_proxy.py`.
+            "img-src data: blob:" + (f" {tile_source()}" if tiles is not None else ""),
             f"font-src data: {library}",
             "media-src data: blob:",
             "worker-src blob:",

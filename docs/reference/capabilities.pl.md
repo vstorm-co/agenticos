@@ -1,5 +1,5 @@
 ---
-source_sha: "5addb81c10d9"
+source_sha: "8bdf39c42a5d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1271,7 +1271,7 @@ wszystkie rewizje.
 
 **Ma izolację aplikacji.** Ramka to sandbox aplikacji - nieprzezroczysty origin,
 `connect-src 'none'`, nic zdalnego poza zestawem bibliotek deploymentu, który zawiera
-teraz three.js, Mermaid i Leaflet, oraz kafelkami map wskazanymi przez deployment.
+teraz three.js, Mermaid i Leaflet, oraz własną ścieżką kafelków map deploymentu.
 Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }

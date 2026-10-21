@@ -31,8 +31,10 @@ Two things are versioned separately from this file and worth knowing about:
   nothing.
 - **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
   `openstreetmap`, `usgs-topo`, or a https URL template with
-  `VISUAL_MAP_TILES_ATTRIBUTION` - and pages may then load images from its tile
-  path and nothing else remote. Off by default. Leaflet 1.9.4 and the map kit
+  `VISUAL_MAP_TILES_ATTRIBUTION`. The deployment fetches the tiles and serves
+  them from its own tile path, by three checked numbers and limited per address
+  (`RATE_LIMIT_MAP_TILES_PER_MINUTE`), so a page never sees the server's address
+  or key and can send it nothing. Off by default. Leaflet 1.9.4 and the map kit
   `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
   replay, stop cards) join the library set; without tiles a map is drawn as an
   outline of its stops. *Admin → System* shows whether the tile server answers.

@@ -1,13 +1,11 @@
-"""The one tile server a drawing may load a map from, when the deployment names one (#2302).
+"""The one tile server the deployment draws maps on, when it names one (#2302).
 
-A visual and a published page have no network: their policy admits nothing
-remote but the deployment's own library set, so a page cannot send what it shows
-anywhere. A map needs its background, which is a few hundred small images from
-a tile server - so an operator may name one, and the content policy then admits
-images from that server's tile path and from nowhere else. Scripts, styles and
-`connect-src` stay closed. An image request still carries its own address, so a
-page could spell something into a tile's path; what it reaches is the server the
-operator chose, which is why there is exactly one and it is off by default.
+A visual and a published page have no network. A map needs its background, a
+few dozen small images from a tile server, so an operator may name one - and
+this deployment fetches the tiles for the page, by three checked numbers, through
+its own tile path (`app/services/tile_proxy.py`). The page never learns the
+server's address, which may carry the operator's key, and cannot write anything
+into a request to it. Off by default.
 
 `VISUAL_MAP_TILES` is a preset from `catalog/map_tiles.json` or a URL template
 of the operator's own, which then needs `VISUAL_MAP_TILES_ATTRIBUTION`: a tile
@@ -29,8 +27,8 @@ CUSTOM_MAX_ZOOM = 18
 
 _PLACEHOLDER = re.compile(r"\{[^{}]*\}")
 
-# Anything that could end a source expression, or start another, once the address
-# is written into the content policy.
+# What no tile address has: a template carrying one is a typo or a pasted
+# snippet, refused at startup rather than requested.
 _UNSAFE = re.compile(r"[\s;,'\"<>\\]")
 
 
@@ -43,6 +41,12 @@ def template_problem(url: str) -> str | None:
     parts = urlsplit(url)
     if not parts.hostname or _PLACEHOLDER.search(parts.netloc):
         return "a tile server's URL template must name its host without placeholders"
+    if "@" in parts.netloc:
+        return "a tile server's URL template must not carry a user name or password"
+    try:
+        parts.port  # noqa: B018 - reading it is the check: a bad port raises
+    except ValueError:
+        return "a tile server's URL template names a port no client can use"
     if sorted(_PLACEHOLDER.findall(url)) != ["{x}", "{y}", "{z}"]:
         return "a tile server's URL template must hold {z}, {x} and {y} once each, and no other placeholder"
     return None
@@ -68,21 +72,6 @@ class MapTiles(BaseModel):
         if problem is not None:
             raise ValueError(problem)
         return url
-
-    @property
-    def source(self) -> str:
-        """The content policy's source for these tiles: the host and the path up to the tiles.
-
-        A source ending in `/` matches every path under it, so the policy admits
-        this server's tile directory and not the rest of the host. A template
-        whose placeholders are all in the query admits its exact path.
-        """
-        parts = urlsplit(self.url)
-        path = parts.path
-        first = path.find("{")
-        if first >= 0:
-            path = path[: path.rfind("/", 0, first) + 1]
-        return f"https://{parts.netloc}{path or '/'}"
 
 
 PRESETS: dict[str, MapTiles] = {

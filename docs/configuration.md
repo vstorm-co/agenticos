@@ -731,16 +731,17 @@ file storage above; these bound them and say where they are served from. See
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
-| `VISUAL_MAP_TILES` | (empty) | The one tile server a [visual](artifacts.md#visuals) or an app may draw a map on: `openstreetmap`, `usgs-topo`, or a `https://` URL template with `{z}`, `{x}` and `{y}` once each. Every page's policy then admits images from that server's tile path and nothing else remote. Empty draws a map as an outline of its stops. A value that cannot be served is refused at startup |
+| `VISUAL_MAP_TILES` | (empty) | The one tile server a [visual](artifacts.md#visuals) or an app may draw a map on: `openstreetmap`, `usgs-topo`, or a `https://` URL template with `{z}`, `{x}` and `{y}` once each. The deployment fetches each tile and serves it to pages from its own tile path; no page talks to the server. Empty draws a map as an outline of its stops. A value that cannot be served is refused at startup |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | The credit shown under a map on a tile server of your own, e.g. `© OpenStreetMap contributors`. Required with a URL template; a preset brings its own |
 
-**Map tiles are loaded by the reader's browser, not by the deployment.** Each
-reader's browser asks the tile server for the tiles it shows, with the content
-origin as its referrer and never a page's address. A template's key is visible
-to anyone who can open a map, so use a key the provider restricts, and mind the
-provider's terms: OpenStreetMap's public tiles are for light use, and a busy
-deployment should run its own server or pay a provider. *Admin → System* shows
-whether the server answers.
+**Map tiles are fetched by the deployment, not by the reader's browser.** A page
+asks `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; the API checks the numbers,
+fetches the tile from the server, keeps the last 2,048 in memory and answers, so
+a key in the template never leaves the server. The route takes no session -
+every page loads it - so it is limited per address
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Mind the provider's terms: OpenStreetMap's
+public tiles are for light use, and a busy deployment should run its own server
+or pay a provider. *Admin → System* shows whether the server answers.
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
 content addresses on it, and the frontend adds it to the console's `frame-src`.
@@ -1151,6 +1152,7 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Every `auth.py` route — login, register, refresh, the reset/magic-link request and verify routes. Counted **per IP and, where the body carries one, per submitted address**. See below |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Map tiles one address may fetch through the deployment's [tile path](artifacts.md#visuals), **per address**. A map is a few dozen tiles and panning adds more; the bound keeps the deployment from being anybody's free proxy to its tile server |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictation in chat](ml-services.md#dictation-in-chat), per person, on its own counter so dictating and an integration calling the ML services do not spend each other's allowance. Each one is a call to the organization's paid provider |

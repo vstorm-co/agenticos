@@ -627,6 +627,10 @@ class Settings(BaseSettings):
     # image: behind a proxy every visitor arrives as the proxy and shares one
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
+    # Map tiles one address may fetch through this deployment in a minute (#2302).
+    # A map is a few dozen tiles and panning adds more; the bound is what keeps
+    # the deployment from being anybody's free proxy to its tile server.
+    RATE_LIMIT_MAP_TILES_PER_MINUTE: int = 600
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
     # Concurrent voice calls one person may hold (#54). One by default: a second
     # tab's call is almost always a mistake, and each is billed.

@@ -871,15 +871,18 @@ class TestThePlatformScript:
         monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "")
         assert "var MAP = null;" in artifacts.platform_script()
 
-    def test_a_deployment_with_tiles_tells_a_page_where_they_are(
+    @pytest.mark.security
+    def test_a_page_is_told_the_deployment_s_tile_path_never_the_server_or_its_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            artifacts.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png"
+            artifacts.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png?key=secret"
         )
         monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES_ATTRIBUTION", "</script> & co")
         script = artifacts.platform_script()
-        assert '"url": "https://t.example/{z}/{x}/{y}.png"' in script
+        assert f'"url": "{artifacts.tile_source()}{{z}}/{{x}}/{{y}}"' in script
+        assert "t.example" not in script
+        assert "secret" not in script
         assert '"maxZoom": 18' in script
         # Written into a script element: an attribution cannot close it.
         assert "<\\/script> & co" in script
