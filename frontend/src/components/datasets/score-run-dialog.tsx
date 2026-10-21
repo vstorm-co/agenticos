@@ -150,17 +150,25 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const query = useDebounced(search);
   const listed = useDatasets({ search: query, sort: "updated", limit: SHOWN });
   const { datasets, isLoading } = listed;
+  const { question, answerId } = useRunTurn(runId);
+  // The datasets with a case asking the run's own question open the list, so the
+  // dialog lands on one of them rather than on whichever changed last. The server
+  // reads the question from the run: a conversation's words stay out of the URL.
+  const { datasets: holding } = useDatasets({ asksRun: runId, sort: "updated", limit: SHOWN });
+  const offered =
+    query === ""
+      ? [...holding, ...datasets.filter((item) => !holding.some((held) => held.id === item.id))]
+      : datasets;
   const [datasetId, setDatasetId] = useState("");
   const [caseId, setCaseId] = useState("");
   const [page, setPage] = useState(0);
   const [result, setResult] = useState<CaseScore | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const chosen = datasetId || datasets[0]?.id || "";
-  const dataset = datasets.find((item) => item.id === chosen);
+  const chosen = datasetId || offered[0]?.id || "";
+  const dataset = offered.find((item) => item.id === chosen);
   const scoring = dataset?.scoring;
   const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
   const { cases } = listing;
-  const { question, answerId } = useRunTurn(runId);
   const [adding, setAdding] = useState(false);
   const asked = cases.find((item) => question !== null && normal(item.input) === question);
   const target = caseId || asked?.case_id || "";
@@ -218,7 +226,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {datasets.map((dataset) => (
+                  {offered.map((dataset) => (
                     <SelectItem key={dataset.id} value={dataset.id}>
                       {dataset.name}
                     </SelectItem>
@@ -226,6 +234,11 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 </SelectContent>
               </Select>
             </FormField>
+            {holding.length > 1 && query === "" && (
+              <p className="text-muted-foreground text-xs">
+                {t("askedInSeveral", { count: holding.length })}
+              </p>
+            )}
             <FormField htmlFor="score-case" label={td("case")} error={failure}>
               <Select value={target} onValueChange={setCaseId} disabled={cases.length === 0}>
                 <SelectTrigger id="score-case">

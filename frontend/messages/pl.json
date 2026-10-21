@@ -6620,6 +6620,7 @@
       "unverified": "Zacytowane, ale nie ma tego w odpowiedzi: {quotes}",
       "decision": "Decyzja przeglądu",
       "noCaseAsks": "Żaden przypadek tego datasetu nie zadaje pytania z tego runa.",
+      "askedInSeveral": "{count, plural, one {# dataset ma przypadek z pytaniem tego runa; jest na początku listy.} few {# datasety mają przypadek z pytaniem tego runa; są na początku listy.} many {# datasetów ma przypadek z pytaniem tego runa; są na początku listy.} other {# datasetu ma przypadek z pytaniem tego runa; są na początku listy.}}",
       "addAsCase": "Dodaj go jako przypadek",
       "pickCase": "Wybierz przypadek do oceny",
       "filterOutcome": "Wynik",

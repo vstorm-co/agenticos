@@ -349,6 +349,7 @@ export const qk = {
       limit: number;
       editable: boolean;
       judge: string;
+      asksRun: string;
     }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,

@@ -80,6 +80,12 @@ describe("useDatasets", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/datasets?judge=j1&sort=name&skip=0&limit=3");
   });
 
+  it("narrows to the datasets with a case asking one run's question, by the run's id", async () => {
+    renderHook(() => useDatasets({ asksRun: "run-1", limit: 2 }), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets?asks_run=run-1&sort=name&skip=0&limit=2");
+  });
+
   it("narrows to the datasets the caller may edit", async () => {
     renderHook(() => useDatasets({ editable: true, limit: 1 }), { wrapper });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());

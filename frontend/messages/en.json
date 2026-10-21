@@ -6854,6 +6854,7 @@
       "unverified": "Quoted, but not in the answer: {quotes}",
       "decision": "Review decision",
       "noCaseAsks": "No case of this dataset asks this run's question.",
+      "askedInSeveral": "{count, plural, one {# dataset has a case asking this run's question; it comes first in the list.} other {# datasets have a case asking this run's question; they come first in the list.}}",
       "addAsCase": "Add it as a case",
       "pickCase": "Pick the case to grade against",
       "filterOutcome": "Outcome",

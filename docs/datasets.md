@@ -414,8 +414,10 @@ score then waits for review again.
 ### Scoring a run { #scoring-a-run }
 
 In **Activity**, open a run, open its **⋯** menu and choose **Score against a
-case**. The case that asks the run's own question is picked for you; when the
-dataset has none, the dialog offers to add the run's answer as a case. The run's
+case**. The dialog opens on a dataset with a case asking the run's own question,
+and picks that case; when several datasets have one, it says so and lists them
+first. When the dataset chosen has none, the dialog offers to add the run's
+answer as a case. The run's
 answer and tool calls are graded with every scorer the dataset configures. A run
 with no transcript has no answer to grade.
 

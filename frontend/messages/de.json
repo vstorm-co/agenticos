@@ -6737,6 +6737,7 @@
       "unverified": "Zitiert, aber nicht in der Antwort: {quotes}",
       "decision": "Prüfentscheidung",
       "noCaseAsks": "Kein Fall dieses Datasets stellt die Frage dieses Runs.",
+      "askedInSeveral": "{count, plural, one {# Dataset hat einen Fall mit der Frage dieses Runs; es steht oben in der Liste.} other {# Datasets haben einen Fall mit der Frage dieses Runs; sie stehen oben in der Liste.}}",
       "addAsCase": "Als Fall hinzufügen",
       "pickCase": "Fall zum Bewerten wählen",
       "filterOutcome": "Ergebnis",

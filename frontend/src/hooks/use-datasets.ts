@@ -33,6 +33,8 @@ export interface DatasetQuery {
   editable?: boolean;
   /** Only the datasets this judge grades. */
   judge?: string;
+  /** Only the datasets whose newest version has a case asking this run's question. */
+  asksRun?: string;
   /** False holds the request until it is needed, as a picker behind a checkbox is. */
   enabled?: boolean;
 }
@@ -57,6 +59,7 @@ export function useDatasets({
   limit = PAGE_SIZE,
   editable = false,
   judge = "",
+  asksRun = "",
   enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
@@ -64,12 +67,13 @@ export function useDatasets({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge }),
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge, asksRun }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (editable) params.set("editable", "true");
       if (judge) params.set("judge", judge);
+      if (asksRun) params.set("asks_run", asksRun);
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
