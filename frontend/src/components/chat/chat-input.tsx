@@ -503,11 +503,18 @@ export function ChatInput({
     }
   };
 
+  // Through a ref: `useMicrophone` answers a new object every render, and a stop
+  // that changed with it was handed to the page on every render while the browser
+  // listened - which re-rendered this, which handed it over again, without end.
+  const micRef = useRef(mic);
+  useLayoutEffect(() => {
+    micRef.current = mic;
+  });
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
-    mic?.stop();
+    micRef.current?.stop();
     setIsListening(false);
-  }, [mic]);
+  }, []);
   useEffect(() => {
     onListeningChange?.(isListening ? stopListening : null);
   }, [isListening, stopListening, onListeningChange]);

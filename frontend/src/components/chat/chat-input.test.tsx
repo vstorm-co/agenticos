@@ -519,6 +519,41 @@ describe("ChatInput dictation engines", () => {
   });
 });
 
+describe("ChatInput listening in the browser", () => {
+  it("hands the page one stop for a recognition, however often the microphone object changes", async () => {
+    class FakeRecognition {
+      start = vi.fn();
+      stop = vi.fn();
+    }
+    vi.stubGlobal("SpeechRecognition", FakeRecognition);
+    // `useMicrophone` answers a new object on every render, and so does this.
+    const micOf = () => ({
+      stream: null,
+      state: "idle" as const,
+      error: null,
+      supported: true,
+      start: vi.fn(async () => null),
+      stop: vi.fn(),
+    });
+    const onListeningChange = vi.fn();
+    const draw = () => (
+      <ChatInput
+        onSend={vi.fn()}
+        dictation={serverDictation({ engine: "browser" })}
+        mic={micOf()}
+        onListeningChange={onListeningChange}
+      />
+    );
+    const { rerender } = render(draw());
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    for (let i = 0; i < 5; i += 1) rerender(draw());
+
+    const stops = onListeningChange.mock.calls.map(([stop]) => stop).filter(Boolean);
+    expect(new Set(stops).size).toBe(1);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("ChatInput while dictating", () => {
   it.each(["recording", "transcribing"] as const)(
     "while %s the box is read-only and nothing can be sent",
