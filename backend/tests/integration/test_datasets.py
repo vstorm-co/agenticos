@@ -195,6 +195,79 @@ async def test_a_question_holding_a_credential_finds_the_case_stored_redacted(db
     assert [case.case_id for case in twins.items] == [asked.case_id]
 
 
+async def test_the_datasets_asking_a_runs_question_are_found_by_their_newest_version(db) -> None:
+    """What Score against a case opens on: a dataset holding the run's own question."""
+    ctx = await _owner(db)
+    run, _ = await _rated_down_turn(db, ctx)
+    service = DatasetService(db)
+    question = DatasetCaseCreate(
+        input="  how LONG do I have to\nreturn it? ", reference_answer="90"
+    )
+    holds = await service.create(ctx, DatasetCreate(name="holds it"))
+    await service.add_case(ctx, holds.id, question)
+    other = await service.create(ctx, DatasetCreate(name="asks something else"))
+    await service.add_case(
+        ctx, other.id, DatasetCaseCreate(input="Lost receipt?", reference_answer="yes")
+    )
+    dropped = await service.create(ctx, DatasetCreate(name="dropped it"))
+    removed = await service.add_case(ctx, dropped.id, question)
+    await service.remove_case(ctx, dropped.id, removed.case_id)
+
+    found = await service.list_readable(ctx, asked_by_run=run.id)
+
+    # Only the newest version counts: the case is still in the older one.
+    assert [item.name for item in found.items] == ["holds it"]
+    assert found.total == 1
+
+
+@pytest.mark.security
+async def test_a_runs_question_holding_a_credential_finds_the_case_stored_redacted(db) -> None:
+    ctx = await _owner(db)
+    run, _ = await _rated_down_turn(db, ctx)
+    asked = f"My key is sk-ant-api03-{'a' * 40}, how long do I have to return it?"
+    question = await db.scalar(
+        select(Message).where(Message.run_id == run.id, Message.role == "user")
+    )
+    assert question is not None
+    question.content = asked
+    await db.flush()
+    service = DatasetService(db)
+    holds = await service.create(ctx, DatasetCreate(name="holds it"))
+    stored = await service.add_case(
+        ctx, holds.id, DatasetCaseCreate(input=asked, reference_answer="90")
+    )
+    assert "[redacted:" in stored.input
+
+    found = await service.list_readable(ctx, asked_by_run=run.id)
+
+    assert [item.name for item in found.items] == ["holds it"]
+
+
+@pytest.mark.security
+async def test_a_run_the_caller_may_not_read_narrows_the_datasets_to_none(db) -> None:
+    """Another organization's run, or a reader without runs:view: nothing, not a refusal."""
+    ctx = await _owner(db)
+    run, _ = await _rated_down_turn(db, ctx)
+    service = DatasetService(db)
+    holds = await service.create(ctx, DatasetCreate(name="holds it"))
+    await service.add_case(
+        ctx,
+        holds.id,
+        DatasetCaseCreate(input="How long do I have to return it?", reference_answer="90"),
+    )
+    stranger = await _owner(db)
+    elsewhere, _ = await _rated_down_turn(db, stranger)
+    member = await _member(db, Organization(id=ctx.organization_id), OrgRoleName.MEMBER)
+
+    across = await service.list_readable(ctx, asked_by_run=elsewhere.id)
+    unread = await service.list_readable(member, asked_by_run=run.id)
+
+    assert (across.total, across.items) == (0, [])
+    assert (unread.total, unread.items) == (0, [])
+    # The member sees the dataset itself; only the run is out of their reach.
+    assert (await service.list_readable(member)).total == 1
+
+
 async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)

@@ -68,11 +68,13 @@ from app.db.models.eval_run import (
     EvalRunPurpose,
     EvalRunStatus,
 )
+from app.db.models.eval_suite import EvalSuiteTrigger
 from app.repositories import (
     agent_repo,
     agent_run_repo,
     dataset_repo,
     eval_run_repo,
+    eval_suite_repo,
     organization_repo,
 )
 from app.schemas.dataset import StoredCaseContent
@@ -94,6 +96,7 @@ from app.schemas.eval_run import (
     EvalRunList,
     EvalRunRead,
     EvalRunRequest,
+    EvalRunSuiteRead,
     EvalUngradedCaseRead,
     RoutingErrorRead,
 )
@@ -222,6 +225,7 @@ class RunPlan:
     environment_id: UUID | None
     purpose: EvalRunPurpose
     paired: bool
+    baseline_run_id: UUID | None
     reruns: int
     from_recordings: bool
     live_reads: bool
@@ -352,6 +356,8 @@ class EvalRunService:
             for profile_id in (request.model_profile_ids or [spec.model_profile_id])
         ]
         paired = request.paired_baseline or purpose is EvalRunPurpose.GATE
+        if request.baseline_run_id is not None:
+            await self._earlier_baseline(ctx, request.baseline_run_id, agent, dataset, paired)
         hashed = scoring_hash(config)
         arms = list(candidates)
         if paired:
@@ -394,11 +400,33 @@ class EvalRunService:
             environment_id=request.environment_id,
             purpose=purpose,
             paired=paired,
+            baseline_run_id=request.baseline_run_id,
             reruns=settings.EVAL_RERUNS if request.reruns is None else request.reruns,
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
         )
+
+    async def _earlier_baseline(
+        self, ctx: AuthContext, run_id: UUID, agent: Agent, dataset: Dataset, paired: bool
+    ) -> None:
+        """Refuse an earlier run a candidate cannot be measured against."""
+        if paired:
+            raise BadRequestError(
+                message="Measure against a baseline run beside the candidate or an earlier run, not both",
+                details={"baseline_run_id": run_id},
+            )
+        earlier = await self._readable(ctx, run_id)
+        if earlier.status != EvalRunStatus.COMPLETED.value:
+            raise BadRequestError(
+                message="A baseline must be a run that completed",
+                details={"baseline_run_id": run_id},
+            )
+        if earlier.agent_id != agent.id or earlier.dataset_id != dataset.id:
+            raise BadRequestError(
+                message="A baseline must be a run of the same agent on the same dataset",
+                details={"baseline_run_id": run_id},
+            )
 
     async def _dataset_version(
         self, ctx: AuthContext, dataset: Dataset, number: int | None
@@ -808,6 +836,7 @@ class EvalRunService:
             status=EvalRunStatus.QUEUED.value,
             purpose=plan.purpose.value,
             paired=plan.paired,
+            baseline_run_id=plan.baseline_run_id,
             from_recordings=plan.from_recordings,
             live_reads=plan.live_reads,
             reruns=plan.reruns,
@@ -1170,6 +1199,9 @@ class EvalRunService:
         numbers = await eval_run_repo.dataset_version_numbers(
             self.db, sorted({run.dataset_version_id for run in runs}), organization_id=org
         )
+        suites = await eval_suite_repo.started_runs(
+            self.db, [run.id for run in runs], organization_id=org
+        )
         reads = []
         for run in runs:
             attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
@@ -1271,6 +1303,15 @@ class EvalRunService:
                     ),
                     ungraded_score_ids=sorted(
                         borrowed | {score.id for score in scores.values() if _not_graded(score)}
+                    ),
+                    suite=(
+                        EvalRunSuiteRead(
+                            id=suites[run.id][0].id,
+                            name=suites[run.id][0].name,
+                            trigger=EvalSuiteTrigger(suites[run.id][1].trigger),
+                        )
+                        if run.id in suites
+                        else None
                     ),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
@@ -1458,9 +1499,12 @@ class EvalRunService:
 
         The baseline that ran in this run, if one did. One reused from an
         earlier run is that run's arm, so the comparison names where it came
-        from and when it finished. Otherwise the cheap default: the last completed run of this dataset on
-        the version before the candidate's (the published one, for a draft),
-        whatever its model and dataset version - the comparison says both.
+        from and when it finished. Then the earlier run the run was started
+        against, if it named one - its first candidate arm, the one its own
+        verdict reads. Otherwise the cheap default: the last
+        completed run of this dataset on the version before the candidate's
+        (the published one, for a draft), whatever its model and dataset
+        version - the comparison says both.
         """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         paired = next((a for a in arms if a.role == ArmRole.BASELINE.value), None)
@@ -1468,6 +1512,17 @@ class EvalRunService:
             return Baseline(arm=paired, run=run, paired=True)
         if paired is not None:
             return await self._reused(ctx, paired)
+        if run.baseline_run_id is not None:
+            earlier = await eval_run_repo.get(
+                self.db, run.baseline_run_id, organization_id=ctx.organization_id
+            )
+            # The reference is set null when that run goes.
+            assert earlier is not None, "a run names only a baseline run that exists"
+            earlier_arms = await eval_run_repo.list_arms(
+                self.db, [earlier.id], organization_id=ctx.organization_id
+            )
+            first = next(a for a in earlier_arms if a.role == ArmRole.CANDIDATE.value)
+            return Baseline(arm=first, run=earlier, paired=False)
         if arm.version_number is not None:
             previous = await agent_repo.version_before(
                 self.db,

@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   datasets: [] as {
     id: string;
     name: string;
+    can_run?: boolean;
     scoring?: DatasetScoring;
     judge_name?: string | null;
   }[],
@@ -39,6 +40,10 @@ const state = vi.hoisted(() => ({
   refetchCases: vi.fn(),
   caseCalls: [] as { datasetId: string; skip?: number }[],
   searches: [] as string[],
+  // The datasets the server says have a case asking the run's question, and the runs it was asked about.
+  holding: [] as { id: string; name: string; can_run?: boolean }[],
+  holdingLoading: false,
+  asked: [] as string[],
   score: vi.fn(),
   pending: false,
   turns: [] as { id: string; role: string; content: string }[] | null,
@@ -58,10 +63,17 @@ vi.mock("./add-to-dataset-dialog", () => ({
   ),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: ({ search }: { search: string }) => {
-    state.searches.push(search);
+  useDatasets: ({ search, asksRun }: { search?: string; asksRun?: string }) => {
+    if (asksRun !== undefined) {
+      state.asked.push(asksRun);
+      return {
+        datasets: state.holding.map((item) => ({ can_run: true, ...item })),
+        isLoading: state.holdingLoading,
+      };
+    }
+    state.searches.push(search ?? "");
     return {
-      datasets: state.datasets,
+      datasets: state.datasets.map((item) => ({ can_run: true, ...item })),
       total: state.datasetTotal ?? state.datasets.length,
       isLoading: state.isLoading,
       error: state.datasetsError,
@@ -150,6 +162,9 @@ beforeEach(() => {
   state.casesLoading = false;
   state.caseCalls = [];
   state.searches = [];
+  state.holding = [];
+  state.holdingLoading = false;
+  state.asked = [];
   state.cases = {
     d1: [{ case_id: "c1", input: "How long is the refund window?" }],
     d2: [{ case_id: "c2", input: "x".repeat(100), reference_answer: "Thirty days." }],
@@ -175,6 +190,97 @@ describe("Score against a case", () => {
     // The footer's and the dialog's own close both answer to the name.
     await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
     expect(screen.queryByText("Matches the schema")).toBeNull();
+  });
+
+  it("opens on the dataset holding the run's question, not the one changed last", async () => {
+    state.score.mockResolvedValue(SCORE);
+    state.datasets = [
+      { id: "d2", name: "returns" },
+      { id: "d1", name: "refunds" },
+    ];
+    state.holding = [{ id: "d1", name: "refunds" }];
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("refunds");
+    await userEvent.click(screen.getByRole("button", { name: "Score" }));
+
+    await waitFor(() =>
+      expect(state.score).toHaveBeenCalledWith({ datasetId: "d1", caseId: "c1", runId: "run-1" }),
+    );
+    // By the run's id: the question itself never goes into a URL.
+    expect(state.asked).toEqual(expect.arrayContaining(["run-1"]));
+    expect(state.asked).not.toContain("how long is the refund window?");
+    // One dataset holds it: nothing to choose between, so nothing is said.
+    expect(screen.queryByText(/come first in the list/)).toBeNull();
+  });
+
+  it("picks nothing to score against until it knows which datasets hold the question", async () => {
+    state.holdingLoading = true;
+    state.datasets = [
+      { id: "d2", name: "returns" },
+      { id: "d1", name: "refunds" },
+    ];
+    // The newest dataset asks the question too: picked early, a score would land there.
+    state.cases.d2 = [{ case_id: "c2", input: "How long is the refund window?" }];
+    const { rerender } = render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+    expect(screen.getByRole("combobox", { name: "Case" })).toHaveTextContent(
+      "Pick a dataset first",
+    );
+    expect(screen.getByRole("button", { name: "Score" })).toBeDisabled();
+
+    state.holdingLoading = false;
+    state.holding = [{ id: "d1", name: "refunds" }];
+    rerender(<RunMoreMenu runId="run-1" />);
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("refunds");
+    expect(screen.getByRole("button", { name: "Score" })).toBeEnabled();
+  });
+
+  it("offers no dataset the caller may not run, holding the question or not", async () => {
+    state.datasets = [
+      { id: "d3", name: "read only", can_run: false },
+      { id: "d1", name: "refunds" },
+      { id: "d2", name: "returns" },
+    ];
+    state.holding = [
+      { id: "d3", name: "read only", can_run: false },
+      { id: "d1", name: "refunds" },
+    ];
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("refunds");
+    // One holding dataset the caller may run: nothing to choose between, so nothing is said.
+    expect(screen.queryByText(/come first in the list/)).toBeNull();
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "refunds",
+      "returns",
+    ]);
+  });
+
+  it("says when several datasets hold the run's question, and offers them first", async () => {
+    state.holding = [
+      { id: "d3", name: "faq" },
+      { id: "d1", name: "refunds" },
+    ];
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+
+    expect(
+      screen.getByText(
+        "2 datasets have a case asking this run's question; they come first in the list.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "faq",
+      "refunds",
+      "returns",
+    ]);
   });
 
   it("says which scorers will run, and that the judge's half is a paid run", async () => {

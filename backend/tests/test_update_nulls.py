@@ -48,6 +48,7 @@ from app.db.models.conversation import Conversation
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.eval_suite import EvalSuite
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -76,6 +77,7 @@ from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
+from app.schemas.eval_suite import EvalSuiteUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -112,6 +114,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ContextFileUpdate: ContextFile,
     DatasetCaseUpdate: DatasetCase,
     DatasetUpdate: Dataset,
+    EvalSuiteUpdate: EvalSuite,
     ConversationUpdate: Conversation,
     DashboardLayoutUpdate: DashboardLayout,
     DeploymentSettingsUpdate: DeploymentSettings,

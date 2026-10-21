@@ -36,6 +36,7 @@ from app.core.logging import setup_logging
 from app.services.sandbox_workspace import retry_pending_destroys
 from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.eval_suite_tasks import check_eval_suites
 from app.worker.tasks.eval_tasks import run_eval_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
@@ -85,6 +86,8 @@ SWEEPS = (
     # Destroy the remote sandboxes a deleted conversation or project left behind
     # (#2209). Each tombstone carries its own backoff, so most ticks find none due.
     Sweep("sandbox-destroy-retry", 60, retry_pending_destroys),
+    # Schedule, start and settle the eval suites.
+    Sweep("eval-suites-check", 60, check_eval_suites),
     # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
     Sweep("eval-abandon-sweep", 60, reap_abandoned_evals),
 )

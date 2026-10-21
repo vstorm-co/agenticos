@@ -9,6 +9,7 @@ import {
   FileX2,
   Hand,
   KeyRound,
+  ListChecks,
   Mail,
   Megaphone,
   PieChart,
@@ -129,6 +130,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "mcp_server_recovered",
     words: "prefMcpServerRecovered",
     icon: ServerCog,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "eval_suite_failed",
+    words: "prefEvalSuiteFailed",
+    icon: ListChecks,
     channels: ["in_app", "email"],
   },
   {

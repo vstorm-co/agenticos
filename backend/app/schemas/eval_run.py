@@ -16,6 +16,7 @@ from app.db.models.eval_run import (
     EvalRunPurpose,
     EvalRunStatus,
 )
+from app.db.models.eval_suite import EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.scoring import CaseScoreRead
@@ -49,6 +50,9 @@ class EvalRunRequest(BaseSchema):
             baseline is reused instead of run again.
         baseline_version: The version the candidate is measured against. The
             published version for a draft, the one before it for a version.
+        baseline_run_id: An earlier run of the same agent and dataset to
+            measure against instead, when no baseline runs beside the candidate:
+            flipped cases are rerun against it, and the verdict is read from it.
         from_recordings: Answer tool calls from the run each case was taken
             from, where there is one, instead of calling anything.
         live_reads: With recordings, let a call the recording cannot answer
@@ -64,6 +68,7 @@ class EvalRunRequest(BaseSchema):
     model_profile_ids: list[UUID] = Field(default_factory=list, max_length=MAX_MODELS)
     paired_baseline: bool = False
     baseline_version: int | None = Field(default=None, ge=1)
+    baseline_run_id: UUID | None = None
     from_recordings: bool = False
     live_reads: bool = False
     reruns: int | None = Field(default=None, ge=0, le=MAX_RERUNS)
@@ -213,6 +218,14 @@ class RoutingErrorRead(BaseSchema):
     message: str
 
 
+class EvalRunSuiteRead(BaseSchema):
+    """The eval suite that started a run, and what made it run."""
+
+    id: UUID
+    name: str
+    trigger: EvalSuiteTrigger
+
+
 class EvalRunRead(BaseSchema):
     """One eval run, with each arm's results so far."""
 
@@ -274,6 +287,10 @@ class EvalRunRead(BaseSchema):
             "scorer reached no verdict - the judge errored or was skipped - and no "
             "person decided: what grading again can settle"
         ),
+    )
+    suite: EvalRunSuiteRead | None = Field(
+        default=None,
+        description="The eval suite that started this run; null for one started by hand",
     )
     draft_changed: bool | None = Field(
         default=None,
