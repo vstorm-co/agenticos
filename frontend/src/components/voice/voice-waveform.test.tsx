@@ -14,7 +14,6 @@ function fakeContext() {
     beginPath: vi.fn(),
     roundRect: vi.fn(),
     fill: vi.fn(() => fills.push({ style: context.fillStyle, alpha: context.globalAlpha })),
-    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn(), gradient: true })),
   };
   return { context, fills };
 }
@@ -34,6 +33,7 @@ beforeEach(() => {
     () => size.height,
   );
   document.documentElement.style.setProperty("--color-foreground", "black");
+  document.documentElement.style.setProperty("--color-muted-foreground", "grey");
   document.documentElement.style.setProperty("--color-warning", "orange");
 });
 
@@ -59,12 +59,12 @@ describe("VoiceWaveform", () => {
     expect(new Set(fills.map((fill) => fill.style))).toEqual(new Set(["black"]));
   });
 
-  it("crossfades to the agent's colours as it speaks, and to the warning while an approval waits", () => {
+  it("crossfades to the agent's muted ink as it speaks, and to the warning while an approval waits", () => {
     const { context, fills } = fakeContext();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as never);
     const { rerender } = render(<VoiceWaveform visual="agent" levels={{ input: 0, output: 1 }} />);
     tick(60);
-    expect(fills.at(-1)?.style).toMatchObject({ gradient: true });
+    expect(fills.at(-1)?.style).toBe("grey");
     rerender(<VoiceWaveform visual="approval" levels={{ input: 0, output: 0 }} />);
     tick(120);
     expect(fills.at(-1)?.style).toBe("orange");
@@ -77,7 +77,7 @@ describe("VoiceWaveform", () => {
     render(<VoiceWaveform visual="user" levels={{ input: 1, output: 0 }} />);
     tick(5);
     const reads = computed.mock.calls.length;
-    expect(reads).toBe(2);
+    expect(reads).toBe(3);
     document.documentElement.style.setProperty("--color-foreground", "white");
     document.documentElement.classList.add("dark");
     await Promise.resolve();

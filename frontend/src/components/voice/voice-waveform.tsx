@@ -12,9 +12,6 @@ import {
 
 const BAR_WIDTH = 3;
 const BAR_GAP = 3;
-/** The agent's colours, violet to cyan: the vivid voice glow's middle stops. */
-const AGENT_STOPS = ["#a259ff", "#4d7cff", "#22d3ee"] as const;
-
 /** A colour token as the canvas can paint it: its declared value. */
 function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -22,8 +19,9 @@ function token(name: string): string {
 
 /**
  * The call bar's waveform (#54): mirrored bars, weighted to the centre, drawn
- * from the real levels - the theme's ink for the caller, the voice glow's
- * colours for the agent, the warning colour while an approval waits. The props
+ * from the real levels - the theme's ink for the caller, its muted ink for the
+ * agent, the warning colour while an approval waits. No hue of its own: the
+ * console is neutral, and colour is for meaning. The props
  * are read through refs by one animation loop, so a level changing many times a
  * second redraws the canvas without re-rendering anything. The layout leaves it
  * out under reduced motion; a stepped meter stands in.
@@ -45,9 +43,11 @@ export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: 
     let warnMix = 0;
     // The colours, read once and again when the theme changes - not every frame.
     let ink = token("--color-foreground");
+    let agentInk = token("--color-muted-foreground");
     let warning = token("--color-warning");
     const theme = new MutationObserver(() => {
       ink = token("--color-foreground");
+      agentInk = token("--color-muted-foreground");
       warning = token("--color-warning");
     });
     theme.observe(document.documentElement, {
@@ -75,8 +75,6 @@ export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: 
       agentMix += (agentShare(shown, now) - agentMix) * 0.08;
       warnMix += ((shown === "approval" ? 1 : 0) - warnMix) * 0.06;
       const left = (width - (count * (BAR_WIDTH + BAR_GAP) - BAR_GAP)) / 2;
-      const gradient = context.createLinearGradient(0, 0, width, 0);
-      AGENT_STOPS.forEach((stop, index) => gradient.addColorStop(index / 2, stop));
       const alpha = shown === "quiet" ? 0.3 : 0.85;
 
       for (let index = 0; index < count; index++) {
@@ -86,10 +84,10 @@ export function VoiceWaveform({ visual, levels }: { visual: WaveVisual; levels: 
         const barHeight = Math.max(3, (bars[index] as number) * height);
         const x = left + index * (BAR_WIDTH + BAR_GAP);
         const y = (height - barHeight) / 2;
-        // Three layers crossfaded: the caller's ink, the agent's colours, the warning.
-        const layers: [string | CanvasGradient, number][] = [
+        // Three layers crossfaded: the caller's ink, the agent's muted ink, the warning.
+        const layers: [string, number][] = [
           [ink, (1 - agentMix) * (1 - warnMix)],
-          [gradient, agentMix * (1 - warnMix)],
+          [agentInk, agentMix * (1 - warnMix)],
           [warning, warnMix],
         ];
         for (const [fill, share] of layers) {

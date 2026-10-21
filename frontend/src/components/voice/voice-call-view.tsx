@@ -25,7 +25,7 @@ import type { VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallSummary } from "./voice-call-summary";
 import { VoiceCaptions } from "./voice-captions";
 
-export { callActive, VoiceCallBar } from "./voice-call-bar";
+export { callActive, useVoiceCallHint, VoiceCallBar } from "./voice-call-bar";
 
 /**
  * Bring the approval waiting on the call into view and put focus on Approve -

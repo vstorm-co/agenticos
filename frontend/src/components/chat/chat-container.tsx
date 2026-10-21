@@ -89,6 +89,7 @@ import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
   callActive,
+  useVoiceCallHint,
   showVoiceApproval,
   VoiceCallBar,
   VoiceCallFeed,
@@ -973,7 +974,13 @@ function ChatUI({
     { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
     tVoice,
   );
-  const composerStrip = voiceHint ?? dictationStrip;
+  const callHint = useVoiceCallHint({
+    session: voice,
+    canDecide: can(Perm.approvalsDecide),
+    onShowApproval: showVoiceApproval,
+    active: onCall,
+  });
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -1275,18 +1282,11 @@ function ChatUI({
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
             <div className="@container">
-              {/* While a call is on the composer becomes the call bar. The
-                  composer stays mounted underneath, hidden, so a draft and its
-                  attachments are still there when the call ends. */}
-              {onCall && (
-                <VoiceCallBar
-                  session={voice}
-                  agentName={callAgent?.name ?? t("rail.agent")}
-                  canDecide={can(Perm.approvalsDecide)}
-                  onShowApproval={showVoiceApproval}
-                />
-              )}
-              <div className={cn(onCall && "hidden")}>
+              {/* While a call is on the call's row stands in for the composer's
+                  controls row, in the same box, the way dictation's bar does: the
+                  chat stays the chat, and a draft and its attachments are still
+                  there when the call ends. */}
+              <div>
                 {/* Around the whole composer, not around a row inside it: the glow
                 blooms outward from the edge it is given, and given an inner row
                 it bloomed into the card's own fill and was all but invisible.
@@ -1364,6 +1364,17 @@ function ChatUI({
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}
+                          callRow={
+                            onCall ? (
+                              <VoiceCallBar
+                                inline
+                                session={voice}
+                                agentName={callAgent?.name ?? t("rail.agent")}
+                                canDecide={can(Perm.approvalsDecide)}
+                                onShowApproval={showVoiceApproval}
+                              />
+                            ) : undefined
+                          }
                           dictation={{
                             engine,
                             state: dictationState,

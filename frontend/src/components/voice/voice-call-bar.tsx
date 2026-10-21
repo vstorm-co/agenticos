@@ -41,13 +41,50 @@ export function useSecondClock(running: boolean): number {
   return now;
 }
 
+/** What the call's strip says right now, for whoever draws the strip under the call. */
+export function useVoiceCallHint({
+  session,
+  canDecide,
+  onShowApproval,
+  endingCopy,
+  active,
+}: {
+  session: VoiceSession;
+  canDecide: boolean;
+  onShowApproval: () => void;
+  endingCopy?: VoiceEndingCopy;
+  /** Whether a call is on; off, nothing is said and the clock does not tick. */
+  active: boolean;
+}) {
+  const tVoice = useTranslations("chat.voice");
+  const tView = useTranslations("chat.voice.view");
+  const tTools = useTranslations("chat.tools");
+  const now = useSecondClock(active);
+  const pushToTalk = useVoiceCallStore((state) => state.pushToTalk);
+  if (!active) return null;
+  return voiceCallHint(
+    {
+      call: session.call,
+      now,
+      pushToTalk,
+      tTools,
+      tEnding: endingCopy ?? tVoice,
+      onShowApproval: canDecide ? onShowApproval : null,
+    },
+    tView,
+  );
+}
+
 /**
- * The composer, become a call bar while a call is on (#54): what the call is
- * doing and its time, a waveform of both voices drawn from their real levels -
- * the theme's ink for the caller, the voice glow's colours for the agent - with
- * the glow beneath, and push to talk, Mute and End. The strip under it says
- * whatever needs the person. Focus moves here when the call starts; Escape does
+ * The call bar while a call is on (#54): what the call is doing and its time, a
+ * waveform of both voices drawn from their real levels in the theme's ink, and
+ * push to talk, Mute and End. Focus moves here when the call starts; Escape does
  * nothing, because only End ends a call.
+ *
+ * `inline` is the console's `/chat`: the row stands in for the composer's own
+ * controls row, inside its box, the way dictation's bar does, and the composer
+ * draws the strip from `useVoiceCallHint`. Otherwise - a hosted page - the bar
+ * is a panel of its own with its glow and its strip.
  *
  * Under reduced motion there is no canvas and no glow: a stepped meter and the
  * label carry the state.
@@ -58,6 +95,7 @@ export function VoiceCallBar({
   canDecide,
   onShowApproval,
   endingCopy,
+  inline = false,
 }: {
   session: VoiceSession;
   agentName: string;
@@ -66,10 +104,9 @@ export function VoiceCallBar({
   onShowApproval: () => void;
   /** How a limit ending the call and its notices are put, when not the console's `chat.voice`. */
   endingCopy?: VoiceEndingCopy;
+  inline?: boolean;
 }) {
-  const tVoice = useTranslations("chat.voice");
   const tView = useTranslations("chat.voice.view");
-  const tTools = useTranslations("chat.tools");
   const { call, pressToTalk, setMuted, end } = session;
   const now = useSecondClock(true);
   const { pushToTalk, setPushToTalk } = useVoiceCallStore();
@@ -98,17 +135,13 @@ export function VoiceCallBar({
   const agentSide = visual === "agent";
   const working = visual === "thinking" || visual === "tool" ? visual : undefined;
   const quiet = visual === "quiet" || visual === "connecting" || visual === "approval";
-  const hint = voiceCallHint(
-    {
-      call,
-      now,
-      pushToTalk,
-      tTools,
-      tEnding: endingCopy ?? tVoice,
-      onShowApproval: canDecide ? onShowApproval : null,
-    },
-    tView,
-  );
+  const hint = useVoiceCallHint({
+    session,
+    canDecide,
+    onShowApproval,
+    endingCopy,
+    active: !inline,
+  });
   // Hold to talk replaces Mute, so turning it on unmutes: a held microphone
   // that stays closed would say "talking" to nobody.
   const changePushToTalk = useCallback(
@@ -125,7 +158,7 @@ export function VoiceCallBar({
       {/* The agent's voice. Never with controls: End is the only control a call has. */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the captions are the call's own, drawn live in the conversation and announced by its polite region; a live WebRTC stream has no track file to attach. */}
       <audio ref={audioRef} autoPlay data-testid="voice-call-audio" />
-      {!reduced && glowStyle !== "off" && (
+      {!inline && !reduced && glowStyle !== "off" && (
         <div
           aria-hidden
           data-testid="voice-call-glow"
@@ -142,9 +175,12 @@ export function VoiceCallBar({
         aria-label={tView("bar")}
         tabIndex={-1}
         className={cn(
-          "panel relative rounded-[18px] py-2.5 pr-2 pl-3 transition-colors outline-none @xl:pr-2.5 @xl:pl-4",
-          hint !== null && "rounded-b-none",
-          call.approval !== null && "border-warning/55",
+          "relative outline-none",
+          inline
+            ? "pt-0.5 pb-1"
+            : "panel rounded-[18px] py-2.5 pr-2 pl-3 transition-colors @xl:pr-2.5 @xl:pl-4",
+          !inline && hint !== null && "rounded-b-none",
+          !inline && call.approval !== null && "border-warning/55",
         )}
       >
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 [grid-template-areas:'status_ctrls'_'vis_vis'] @xl:grid-cols-[minmax(170px,auto)_minmax(0,1fr)_auto] @xl:gap-x-3.5 @xl:[grid-template-areas:'status_vis_ctrls']">
@@ -184,7 +220,7 @@ export function VoiceCallBar({
             />
           </div>
         </div>
-        {!reduced && (
+        {!inline && !reduced && (
           <div
             aria-hidden
             className="voice-call-edge"
@@ -192,7 +228,7 @@ export function VoiceCallBar({
           />
         )}
       </div>
-      <DictationStrip hint={hint} />
+      {!inline && <DictationStrip hint={hint} />}
     </div>
   );
 }
