@@ -217,9 +217,8 @@ export function useRunsADataset({ enabled = true } = {}): boolean {
  * Every dataset the caller sees, by name and page by page - the start dialog
  * offers any of them, and the listing's first page alone would hide the rest.
  */
-export function useEveryDataset({ enabled = true } = {}) {
+export function useEveryDataset() {
   const query = useQuery({
-    enabled,
     queryKey: qk.datasets.every(),
     queryFn: async () => {
       const datasets: Dataset[] = [];
