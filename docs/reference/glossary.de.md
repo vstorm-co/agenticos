@@ -1,5 +1,5 @@
 ---
-source_sha: "cfb1c420009c"
+source_sha: "0635a87c3de1"
 ---
 
 # Glossar { #glossary }
@@ -28,7 +28,7 @@ nicht bricht.
 | Wissenslücke | Ein Thema aus Fragen, die eine Wissensdatenbank nicht beantworten konnte, nach Bedeutung gruppiert | `knowledge_gap_topic` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
-| System-Agent | Ein Agent, den die Plattform selbst ausführt, etwa ein Bewerter oder der Lücken-Entwerfer; getrennt aufgeführt unter **System-Agents** | `kind` außer `agent` |
+| System-Agent | Ein Agent, den die Plattform selbst ausführt, etwa ein Bewerter, der Lücken-Entwerfer oder der Lücken-Klassifizierer; getrennt aufgeführt unter **System-Agents** | `kind` außer `agent` |
 
 ## Wo es läuft { #where-it-runs }
 

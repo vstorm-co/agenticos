@@ -22,6 +22,14 @@ the searches it still holds, so when those go with their conversation the topic
 has nothing left to say about anybody, and the next grouping pass removes it -
 with the draft a person may have asked a model to write for it, the one text a
 topic keeps of its own.
+
+A miss need not come from retrieval. When a model reads an answer and finds the
+agent said it did not know, or a reader's thumbs-down comment says what was
+missing, the answer is recorded as a row here of that `signal`, holding the
+person's question as its query, and is grouped like any other miss.
+`knowledge_gap_classifications` remembers every answer read that way for each
+knowledge base, whatever the verdict, so none is paid for twice; it holds no
+text.
 """
 
 import uuid
@@ -38,6 +46,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -46,8 +55,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
+class GapSignal(StrEnum):
+    """What says a question went unanswered."""
+
+    RETRIEVAL = "retrieval"
+    """The search found nothing close enough; a miss only below the threshold."""
+    ANSWER = "answer"
+    """The agent's answer said it did not know."""
+    RATING = "rating"
+    """A reader rated the answer down, saying what was missing."""
+
+
 class KnowledgeSearch(Base):
-    """One knowledge search made by an agent during a run."""
+    """One knowledge search made by an agent during a run, or an answer read as a miss."""
 
     __tablename__ = "knowledge_searches"
 
@@ -87,6 +107,18 @@ class KnowledgeSearch(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
     top_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    signal: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=GapSignal.RETRIEVAL.value,
+        server_default=GapSignal.RETRIEVAL.value,
+    )
+    # The answer a classified miss was read from; none for a search.
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -96,6 +128,16 @@ class KnowledgeSearch(Base):
             "ix_knowledge_searches_knowledge_base_ids",
             "knowledge_base_ids",
             postgresql_using="gin",
+        ),
+        Index(
+            "uq_knowledge_searches_message_id",
+            "message_id",
+            "knowledge_base_ids",
+            unique=True,
+            postgresql_where=text("message_id IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "signal IN ('retrieval', 'answer', 'rating')", name="ck_knowledge_search_signal"
         ),
     )
 
@@ -199,3 +241,44 @@ class KnowledgeGapMember(Base):
 
     def __repr__(self) -> str:
         return f"<KnowledgeGapMember(topic={self.topic_id}, search={self.search_id})>"
+
+
+class KnowledgeGapClassification(Base):
+    """One answer a model read for one knowledge base's gaps, and what it decided."""
+
+    __tablename__ = "knowledge_gap_classifications"
+
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # A `GapSignal` other than retrieval, or `none` for an answer that missed nothing.
+    signal: Mapped[str] = mapped_column(String(16), nullable=False)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    classified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("signal IN ('answer', 'rating', 'none')", name="ck_classification_signal"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeGapClassification(message={self.message_id}, signal={self.signal})>"

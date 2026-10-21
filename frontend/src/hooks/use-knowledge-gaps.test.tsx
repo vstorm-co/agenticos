@@ -8,6 +8,7 @@ import {
   useDraftKnowledgeGap,
   useKnowledgeGap,
   useKnowledgeGaps,
+  useClassifyKnowledgeGaps,
   useRegroupKnowledgeGaps,
   useSetKnowledgeGapStatus,
 } from "./use-knowledge-gaps";
@@ -41,6 +42,7 @@ describe("useKnowledgeGaps", () => {
       total: 7,
       ungrouped: 3,
       can_regroup: true,
+      unchecked: 8,
     });
     const { result } = renderHook(() => useKnowledgeGaps({ kind: "organization" }), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -49,6 +51,7 @@ describe("useKnowledgeGaps", () => {
     expect(result.current.total).toBe(7);
     expect(result.current.ungrouped).toBe(3);
     expect(result.current.canRegroup).toBe(true);
+    expect(result.current.unchecked).toBe(8);
   });
 
   it("asks one knowledge base, or one agent, for the status and page given", async () => {
@@ -75,6 +78,7 @@ describe("useKnowledgeGaps", () => {
     expect(result.current.total).toBe(0);
     expect(result.current.ungrouped).toBe(0);
     expect(result.current.canRegroup).toBe(false);
+    expect(result.current.unchecked).toBe(0);
   });
 });
 
@@ -141,6 +145,22 @@ describe("the topic mutations", () => {
     );
 
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("nope"));
+    await expect(result.current.mutateAsync()).rejects.toThrow();
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+});
+
+describe("useClassifyKnowledgeGaps", () => {
+  it("starts a check of a knowledge base's answers, and shows a refusal as the server says it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useClassifyKnowledgeGaps("kb1"), { wrapper });
+    await result.current.mutateAsync();
+    expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/collections/kb1/classify");
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Checking answers. New topics appear when it finishes. Its runs are in Activity, with evals included.",
+    );
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("AI assistance is off"));
     await expect(result.current.mutateAsync()).rejects.toThrow();
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });

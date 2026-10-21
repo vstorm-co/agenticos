@@ -18,6 +18,7 @@ import {
   useEveryDataset,
   useRecentEvalRuns,
   useRescoreRun,
+  useRunsADataset,
   useSendToReview,
 } from "./use-eval-runs";
 
@@ -310,6 +311,23 @@ describe("useEveryDataset", () => {
     expect(apiClient.get).toHaveBeenLastCalledWith("/datasets", {
       params: { sort: "name", skip: "100", limit: "100" },
     });
+  });
+});
+
+describe("useRunsADataset", () => {
+  it("asks for one runnable dataset and answers from the total", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ items: [{ id: "d1" }], total: 3 });
+    const { result } = renderHook(() => useRunsADataset(), { wrapper });
+
+    await waitFor(() => expect(result.current).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets?runnable=true&limit=1");
+  });
+
+  it("answers no, and asks nothing, while it is not needed", () => {
+    const { result } = renderHook(() => useRunsADataset({ enabled: false }), { wrapper });
+
+    expect(result.current).toBe(false);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 

@@ -25,7 +25,7 @@ other system agents' migrations do - so the narrower constraint holds and
 nothing anybody edited is deleted; upgrading again seeds a fresh improver.
 
 Revision ID: 0152_authoring_proposals
-Revises: 0151_eval_suites
+Revises: 0153_knowledge_gap_signals
 Create Date: 2026-10-21
 """
 
@@ -37,12 +37,12 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0152_authoring_proposals"
-down_revision: str | None = "0151_eval_suites"
+down_revision: str | None = "0153_knowledge_gap_signals"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_KINDS = "kind IN ('agent', 'judge', 'drafter', 'generator', 'improver')"
-_KINDS_BEFORE = "kind IN ('agent', 'judge', 'drafter', 'generator')"
+_KINDS = "kind IN ('agent', 'judge', 'drafter', 'generator', 'classifier', 'improver')"
+_KINDS_BEFORE = "kind IN ('agent', 'judge', 'drafter', 'generator', 'classifier')"
 
 
 def upgrade() -> None:

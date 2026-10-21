@@ -809,6 +809,8 @@
     "judgeKindHint": "Sie bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets.",
     "drafterKind": "{count, plural, =1 {Lücken-Entwerfer (1)} other {Lücken-Entwerfer (#)}}",
     "drafterKindHint": "Er entwirft den Inhalt, der einer Wissenslücke fehlt, wenn jemand um einen Entwurf bittet.",
+    "classifierKind": "{count, plural, =1 {Lücken-Klassifizierer (1)} other {Lücken-Klassifizierer (#)}}",
+    "classifierKindHint": "Er liest Antworten und Kommentare zu negativen Bewertungen auf Wissenslücken, wenn jemand um eine Prüfung bittet.",
     "generatorKind": "{count, plural, =1 {Fallgenerator (1)} other {Fallgeneratoren (#)}}",
     "generatorKindHint": "Er entwirft Testfälle für ein Dataset aus einem Agent, seiner Wissensbasis, echten Chats und Red Teaming; jeden Entwurf nimmt ein Mensch an oder verwirft ihn.",
     "defaultJudge": "Standard-Bewerter",
@@ -3960,6 +3962,10 @@
         "title": "Was sie nicht beantworten konnte",
         "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Fügen Sie das fehlende Dokument hinzu oder verwerfen Sie ein Thema, das keines braucht."
       },
+      "kb-gaps-check": {
+        "title": "Auch die Antworten prüfen",
+        "body": "Eine Suche kann etwas finden und der Agent es trotzdem nicht wissen. Bei eingeschalteter KI-Unterstützung liest ein Modell die letzten Antworten und Kommentare zu negativen Bewertungen auf Fragen, die diese Wissensbasis nicht beantworten konnte."
+      },
       "agent-gaps": {
         "title": "Wonach er gesucht hat",
         "body": "Die Fragen, zu denen dieser Agent eine Wissensbasis durchsucht und nichts gefunden hat. Jede führt zum Run, aus dem sie stammt."
@@ -7095,8 +7101,8 @@
     "tab": "Wissenslücken",
     "title": "Wissenslücken",
     "topicCount": "{count, plural, =0 {Keine Themen} =1 {1 Thema} other {# Themen}}",
-    "descriptionCollection": "Fragen, zu denen Agents diese Wissensbasis durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert.",
-    "descriptionAgent": "Fragen, zu denen dieser Agent seine Wissensbasen durchsucht und nichts Passendes gefunden hat, nach Themen gruppiert.",
+    "descriptionCollection": "Fragen, zu denen Agents diese Wissensbasis durchsucht und nichts Passendes gefunden oder ohne Wissen geantwortet haben, nach Themen gruppiert.",
+    "descriptionAgent": "Fragen, zu denen dieser Agent seine Wissensbasen durchsucht und nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Themen gruppiert.",
     "nothingAutomatic": "Nichts wird automatisch zu einer Wissensbasis hinzugefügt. Braucht ein Thema ein Dokument, fügt ein Mensch es hinzu.",
     "statusFilter": "Themen anzeigen",
     "statusOpen": "Offen",
@@ -7104,6 +7110,10 @@
     "moreActions": "Weitere Aktionen für dieses Thema",
     "regroup": "Jetzt gruppieren",
     "regroupStarted": "Gruppierung gestartet. Neue Themen erscheinen in ein bis zwei Minuten.",
+    "checkAnswers": "{count, plural, =1 {1 Antwort prüfen} other {# Antworten prüfen}}",
+    "checkAnswersHint": "Ein Modell liest die letzten Antworten und die Kommentare zu negativen Bewertungen auf Fragen, die diese Wissensbasis nicht beantworten konnte.",
+    "checkStarted": "Antworten werden geprüft. Neue Themen erscheinen, sobald es fertig ist. Die Runs stehen in der Aktivität, Evals eingeschlossen.",
+    "uncheckedAiOff": "{count, plural, =1 {1 aktuelle Antwort könnte} other {# aktuelle Antworten könnten}} bei eingeschalteter KI-Unterstützung ebenfalls auf Wissenslücken geprüft werden.",
     "ungrouped": "{count, plural, =1 {1 Frage wartet} other {# Fragen warten}} auf die Gruppierung. Sie läuft alle 15 Minuten.",
     "questionCount": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}}",
     "lastAsked": "Zuletzt {ago}",
@@ -7120,6 +7130,8 @@
     "questions": "Fragen",
     "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
     "searchedFor": "Gesucht nach: {query}",
+    "signalAnswer": "Der Agent sagte, er wisse es nicht",
+    "signalRating": "Ein Leser schrieb, dass Informationen fehlten",
     "noResults": "Keine Ergebnisse",
     "closestMatch": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}, nächster Treffer {similarity}",
     "openRun": "Run öffnen",
