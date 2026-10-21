@@ -92,7 +92,11 @@ class TestReading:
         session = _RecordingSession(_scalars([]))
 
         await skill_proposal_repo.get_pending_for_skill(
-            session, organization_id=uuid.uuid4(), skill_id=skill_id, name="refunds"
+            session,
+            organization_id=uuid.uuid4(),
+            skill_id=skill_id,
+            name="refunds",
+            agent_id=uuid.uuid4(),
         )
 
         assert skill_id in _filters(session).values()
@@ -102,11 +106,29 @@ class TestReading:
         session = _RecordingSession(_scalars([]))
 
         await skill_proposal_repo.get_pending_for_skill(
-            session, organization_id=uuid.uuid4(), skill_id=None, name="escalation"
+            session,
+            organization_id=uuid.uuid4(),
+            skill_id=None,
+            name="escalation",
+            agent_id=uuid.uuid4(),
         )
 
         assert "escalation" in _filters(session).values()
         assert "IS NULL" in str(session.statements[-1])
+
+    async def test_a_pending_edit_is_matched_only_for_the_agent_that_proposed_it(self):
+        agent_id = uuid.uuid4()
+        session = _RecordingSession(_scalars([]))
+
+        await skill_proposal_repo.get_pending_for_skill(
+            session,
+            organization_id=uuid.uuid4(),
+            skill_id=uuid.uuid4(),
+            name="refunds",
+            agent_id=agent_id,
+        )
+
+        assert agent_id in _filters(session).values()
 
     async def test_a_listing_is_newest_first_and_may_be_filtered(self):
         organization_id = uuid.uuid4()

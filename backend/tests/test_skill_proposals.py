@@ -19,14 +19,15 @@ a reviewer one decision, not three copies of it.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.skill_proposal import ProposalStatus
-from app.repositories import skill_proposal_repo
+from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.repositories import skill_proposal_repo, skill_repo
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SkillChange
 
@@ -45,6 +46,7 @@ def _proposal(**overrides: object) -> MagicMock:
         content="Ask for the receipt.",
         resources={},
         status=ProposalStatus.PENDING.value,
+        base_version=None,
     )
     row.name = "refunds"
     for key, value in overrides.items():
@@ -152,6 +154,50 @@ class TestApplying:
         service.skills.create.assert_awaited_once()
         service.skills.update.assert_not_called()
 
+    async def test_a_proposal_applies_while_the_skill_is_at_its_version(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(return_value=MagicMock(version=3))
+        monkeypatch.setattr(skill_repo, "lock", AsyncMock())
+
+        decided = await service.apply(_ctx(), proposal.id)
+
+        assert decided.status == ProposalStatus.APPLIED.value
+
+    async def test_a_proposal_for_an_older_version_refuses_to_overwrite(self, monkeypatch):
+        """A body reviewed against v3 must not silently replace the v4 somebody wrote."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(return_value=MagicMock(version=4))
+        monkeypatch.setattr(skill_repo, "lock", AsyncMock())
+
+        with pytest.raises(ConcurrentChangeError, match="changed since"):
+            await service.apply(_ctx(), proposal.id)
+
+        service.skills.update.assert_not_called()
+        assert proposal.status == ProposalStatus.PENDING.value
+
+    async def test_an_edit_committed_while_waiting_for_the_lock_is_seen(self, monkeypatch):
+        """The version is compared after the lock re-reads the row, not before."""
+        service = _service(monkeypatch)
+        proposal = _proposal(base_version=3)
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        skill = MagicMock(version=3)
+        service.skills.get = AsyncMock(return_value=skill)
+
+        async def edited_meanwhile(_db: object, _skill_id: object) -> MagicMock:
+            skill.version = 4
+            return skill
+
+        monkeypatch.setattr(skill_repo, "lock", edited_meanwhile)
+
+        with pytest.raises(ConcurrentChangeError, match="now v4"):
+            await service.apply(_ctx(), proposal.id)
+
+        service.skills.update.assert_not_called()
+
     async def test_the_resources_are_written_too(self, monkeypatch):
         """A skill whose script did not come with it is a skill that no longer
         works, and the agent's change was to the pair."""
@@ -251,3 +297,38 @@ class TestListing:
 
         assert await service.get(ctx, proposal.id) is proposal
         assert got.await_args.kwargs["organization_id"] == ctx.organization_id
+
+
+class TestReading:
+    def _proposal(self) -> SkillProposal:
+        return SkillProposal(
+            id=uuid.uuid4(),
+            name="refunds",
+            description="d",
+            content="c",
+            resources={},
+            status="pending",
+            evidence=[{"run_id": "run-1", "quote": "Thirty days"}],
+            evidence_dropped=0,
+            rationale="",
+            expected_effect="",
+            created_at=datetime.now(UTC),
+        )
+
+    @pytest.mark.security
+    async def test_a_reviewer_without_runs_view_gets_the_runs_but_not_the_words(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = self._proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(
+            skill_proposal_repo, "list_for_organization", AsyncMock(return_value=[proposal])
+        )
+        member = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
+        )
+
+        hidden = await service.read(member, proposal.id)
+        shown = await service.list_read(_ctx())
+
+        assert hidden.evidence == [{"run_id": "run-1", "quote": None}]
+        assert shown[0].evidence == [{"run_id": "run-1", "quote": "Thirty days"}]

@@ -39,7 +39,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -159,6 +159,11 @@ class EvalRun(Base):
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0)
     )
+    # Cases taken from the evidence of the proposal being checked are left out; listed
+    # so a smaller sample says why.
+    excluded_case_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
     # An earlier run the candidate is measured against when no baseline runs
     # beside it - an eval suite's last run of the same version, to see drift.
     baseline_run_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -244,6 +249,11 @@ class EvalRunArm(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("eval_run_arms.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # `{skill_id: {description, content}}` served instead of the stored bodies, so a
+    # skill change is measured with the agent unchanged.
+    skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
     )
 
     __table_args__ = (

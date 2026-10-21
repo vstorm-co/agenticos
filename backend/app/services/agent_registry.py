@@ -18,7 +18,7 @@ import contextlib
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -72,6 +73,7 @@ from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.authoring import BatchStatus
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
@@ -80,6 +82,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_trigger_repo,
+    authoring_repo,
     context_repo,
     credential_repo,
     external_agent_repo,
@@ -190,6 +193,8 @@ class PublishedCandidate:
     """A published version to run, whichever version an environment pins."""
 
     version_id: UUID
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
 @dataclass(frozen=True)
@@ -201,6 +206,8 @@ class UnpublishedCandidate:
     """
 
     spec: AgentSpec
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
 type Candidate = PublishedCandidate | UnpublishedCandidate
@@ -2159,6 +2166,13 @@ class AgentRegistryService:
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
+        # The authoring assistant's suggestions were for the draft just frozen:
+        # their decisions are final now, and Undo would edit a published version.
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
         from app.services.eval_suite import EvalSuiteService
 
         await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)

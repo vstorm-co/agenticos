@@ -161,6 +161,10 @@ class EvalRunArmRead(BaseSchema):
     model_label: str
     reused_from_arm_id: UUID | None
     spec_hash: str = Field(description="A fingerprint of the spec that answered")
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description="The skills this side served a proposed body for instead of the stored one",
+    )
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
     ungraded_cases: list[EvalUngradedCaseRead] = Field(
@@ -286,6 +290,14 @@ class EvalRunRead(BaseSchema):
             "This run's scores that count as neither passed nor failed because a "
             "scorer reached no verdict - the judge errored or was skipped - and no "
             "person decided: what grading again can settle"
+        ),
+    )
+    excluded_case_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Cases of the dataset version the run does not answer, because they were "
+            "taken from the conversations a proposal it checks was derived from - a "
+            "change is never measured on the data it was fitted to"
         ),
     )
     suite: EvalRunSuiteRead | None = Field(

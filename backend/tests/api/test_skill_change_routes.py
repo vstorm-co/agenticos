@@ -45,6 +45,11 @@ def _row(**overrides: Any) -> MagicMock:
     row.status = "pending"
     row.decided_by_user_id = None
     row.decided_at = None
+    row.base_version = None
+    row.rationale = ""
+    row.evidence = []
+    row.evidence_dropped = 0
+    row.expected_effect = ""
     row.created_at = datetime.now(UTC)
     row.updated_at = None
     for key, value in overrides.items():
@@ -55,8 +60,8 @@ def _row(**overrides: Any) -> MagicMock:
 @pytest.fixture
 def service() -> MagicMock:
     stub = MagicMock()
-    stub.list_proposals = AsyncMock(return_value=[_row()])
-    stub.get = AsyncMock(return_value=_row())
+    stub.list_read = AsyncMock(return_value=[_row()])
+    stub.read = AsyncMock(return_value=_row())
     stub.apply = AsyncMock(return_value=_row(status="applied"))
     stub.discard = AsyncMock(return_value=_row(status="discarded"))
     return stub
@@ -100,7 +105,7 @@ class TestListing:
         async with client() as opened:
             await opened.get(_url(""), params={"status": "pending"})
 
-        assert service.list_proposals.await_args.kwargs == {"status": "pending"}
+        assert service.list_read.await_args.kwargs == {"status": "pending"}
 
     async def test_one_change_can_be_read_on_its_own(self, client) -> None:
         async with client() as opened:
