@@ -42,10 +42,12 @@ const INHERIT = "inherit";
 type PairMode = "inherit" | "choose";
 
 /**
- * What a link to this agent's dictation setup ends in - the composer's crossed-out
- * microphone. The card scrolls into view on it and opens on its Dictation tab.
+ * What a link to this agent's dictation setup ends in - the composer's dictation
+ * hint. The card scrolls into view on it and opens on its Dictation tab.
  */
 export const AGENT_DICTATION_ANCHOR = "agent-voice-dictation";
+/** The card itself, opened on its Calls tab - where the composer's call button links. */
+export const AGENT_CALLS_ANCHOR = "agent-voice";
 
 type VoiceTab = "calls" | "dictation";
 
@@ -139,13 +141,16 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
       : null;
   // The card renders once the agent has loaded, in the browser, so the hash a
   // link arrived with is there to read.
-  const [tab, setTab] = useState<VoiceTab>(() =>
-    !conversation || window.location.hash === `#${AGENT_DICTATION_ANCHOR}` ? "dictation" : "calls",
-  );
+  const [tab, setTab] = useState<VoiceTab>(() => {
+    const hash = window.location.hash;
+    if (hash === `#${AGENT_CALLS_ANCHOR}`) return "calls";
+    if (hash === `#${AGENT_DICTATION_ANCHOR}`) return "dictation";
+    return conversation ? "calls" : "dictation";
+  });
 
   return (
-    // The anchor the composer's crossed-out microphone links to.
-    <Card id="agent-voice" data-tour="agent-voice" className="scroll-mt-20">
+    // The anchors the composer's call button and dictation hint link to.
+    <Card id={AGENT_CALLS_ANCHOR} data-tour="agent-voice" className="scroll-mt-20">
       <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
       <CardHeader>
         <CardTitle>{t("voiceTitle")}</CardTitle>

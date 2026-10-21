@@ -10,7 +10,13 @@ import de from "../../../messages/de.json";
 import en from "../../../messages/en.json";
 import pl from "../../../messages/pl.json";
 
-import { dictationHint, DictationStrip, movesOn, type DictationHintInput } from "./dictation-strip";
+import {
+  browserDictationHint,
+  dictationHint,
+  DictationStrip,
+  movesOn,
+  type DictationHintInput,
+} from "./dictation-strip";
 
 const motionState = vi.hoisted(() => ({ reduced: false }));
 
@@ -568,6 +574,28 @@ describe("dictationHint", () => {
     await userEvent.click(within(document.body).getByRole("button", { name: button }));
 
     expect(actions[action]).toHaveBeenCalledOnce();
+  });
+});
+
+describe("browserDictationHint", () => {
+  function Browser({ agentHref }: { agentHref: string | null }) {
+    const t = useTranslations("chat.dictation");
+    return <DictationStrip hint={browserDictationHint(agentHref, t)} />;
+  }
+
+  it("says the browser transcribes and links an agent editor to the agent's Dictation tab", () => {
+    render(<Browser agentHref="/agents/a1#agent-voice-dictation" />);
+    expect(panel().textContent).toContain("Dictation isn't turned on for this agent");
+    expect(screen.getByRole("link", { name: "Open in the Agent Builder" })).toHaveAttribute(
+      "href",
+      "/agents/a1#agent-voice-dictation",
+    );
+  });
+
+  it("only informs somebody who cannot edit the agent", () => {
+    render(<Browser agentHref={null} />);
+    expect(panel().textContent).toContain("your browser transcribes what you say");
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
 

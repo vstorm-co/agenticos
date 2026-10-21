@@ -1186,7 +1186,8 @@
       "show": "Pokaż pliki",
       "showWithCount": "Pokaż pliki ({count})",
       "storedSuffix": "zapisano {size}",
-      "title": "Pliki"
+      "title": "Pliki",
+      "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie."
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
@@ -1565,7 +1566,8 @@
       "threadTotalPartialDetail": "{input, number} na wejściu · {output, number} na wyjściu naliczone w tej rozmowie - wartość minimalna: któryś model nie miał ceny",
       "unmeasured": "w użyciu - ten host nie podał liczby",
       "workspace": "Workspace",
-      "workspaceUsed": "Wykorzystany workspace"
+      "workspaceUsed": "Wykorzystany workspace",
+      "empty": "Kontekst, koszt i budżety pojawią się tutaj po pierwszej odpowiedzi agenta."
     },
     "view": "Podgląd",
     "viewMeans": "View pozwala tylko czytać tę konwersację.",
@@ -1767,15 +1769,16 @@
         "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
         "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Dyktowanie nie jest skonfigurowane.",
-        "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza."
+        "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza.",
+        "browserOff": "<strong>Dyktowanie nie jest włączone dla tego agenta,</strong> więc to, co mówisz, przepisuje przeglądarka. Włącz je, aby korzystać z dostawcy speech-to-text."
       },
       "pill": "Dyktowanie",
       "listening": "Słucham",
-      "done": "Zakończ dyktowanie"
+      "done": "Zakończ dyktowanie",
+      "openBuilder": "Otwórz w Agent Builderze"
     },
     "voice": {
       "start": "Rozpocznij rozmowę głosową",
-      "canSetUp": "Możesz to ustawić na karcie Głos agenta.",
       "unavailable": {
         "notOffered": {
           "title": "Model głosowy tego agenta nie jest już oferowany",
@@ -1788,6 +1791,10 @@
         "unchecked": {
           "title": "Nie udało się sprawdzić, czy ten agent może odebrać rozmowę",
           "body": "Odśwież stronę, aby spróbować ponownie."
+        },
+        "noVoice": {
+          "title": "Rozmowy nie są włączone dla tego agenta",
+          "body": "Wybierz model głosowy na jego karcie Głos i opublikuj agenta, a będzie odbierać rozmowy."
         }
       },
       "approval": {
@@ -1913,7 +1920,9 @@
           "newCall": "Zacznij nową rozmowę"
         },
         "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
-      }
+      },
+      "openBuilder": "Otwórz w Agent Builderze",
+      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
     }
   },
   "common": {

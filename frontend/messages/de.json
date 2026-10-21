@@ -1186,7 +1186,8 @@
       "show": "Die Dateien anzeigen",
       "showWithCount": "Die Dateien anzeigen ({count})",
       "storedSuffix": "{size} gespeichert",
-      "title": "Dateien"
+      "title": "Dateien",
+      "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt."
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",
@@ -1565,7 +1566,8 @@
       "threadTotalPartialDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet - eine Untergrenze: Für ein Modell darin gab es keinen Preis",
       "unmeasured": "in Nutzung - dieser Host hat keine Zahl gemeldet",
       "workspace": "Workspace",
-      "workspaceUsed": "Workspace belegt"
+      "workspaceUsed": "Workspace belegt",
+      "empty": "Kontext, Kosten und Budgets erscheinen hier nach der ersten Antwort des Agents."
     },
     "view": "Ansehen",
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
@@ -1767,15 +1769,16 @@
         "rateLimitedBody": "Zu viele Diktate in einer Minute.",
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Diktieren ist nicht eingerichtet.",
-        "notSetUpBody": "Der Speech-to-Text-Provider dieses Agents hat keinen nutzbaren Schlüssel mehr."
+        "notSetUpBody": "Der Speech-to-Text-Provider dieses Agents hat keinen nutzbaren Schlüssel mehr.",
+        "browserOff": "<strong>Diktieren ist für diesen Agent nicht aktiviert,</strong> deshalb transkribiert Ihr Browser, was Sie sagen. Aktivieren Sie es, um einen Speech-to-Text-Anbieter zu nutzen."
       },
       "pill": "Diktieren",
       "listening": "Hört zu",
-      "done": "Diktieren beenden"
+      "done": "Diktieren beenden",
+      "openBuilder": "Im Agent Builder öffnen"
     },
     "voice": {
       "start": "Sprachanruf starten",
-      "canSetUp": "Sie können das auf der Karte „Stimme“ des Agents einrichten.",
       "unavailable": {
         "notOffered": {
           "title": "Das Sprachmodell dieses Agents wird nicht mehr angeboten",
@@ -1788,6 +1791,10 @@
         "unchecked": {
           "title": "Es konnte nicht geprüft werden, ob dieser Agent einen Anruf annehmen kann",
           "body": "Laden Sie die Seite neu, um es erneut zu versuchen."
+        },
+        "noVoice": {
+          "title": "Anrufe sind für diesen Agent nicht aktiviert",
+          "body": "Wählen Sie auf seiner Karte „Stimme“ ein Sprachmodell und veröffentlichen Sie ihn, dann nimmt er Anrufe an."
         }
       },
       "approval": {
@@ -1913,7 +1920,9 @@
           "newCall": "Neuen Anruf starten"
         },
         "mediaFailed": "<strong>Die Audioverbindung kam nicht zustande,</strong> daher wurde der Anruf beendet. Möglicherweise blockiert Ihr Netzwerk sie. Alles bis dahin Gesagte ist oben gespeichert."
-      }
+      },
+      "openBuilder": "Im Agent Builder öffnen",
+      "askEditor": "Bitten Sie jemanden, der diesen Agent bearbeiten darf, ihn einzurichten."
     }
   },
   "common": {

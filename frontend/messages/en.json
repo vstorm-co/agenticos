@@ -1186,7 +1186,8 @@
       "show": "Show the files",
       "showWithCount": "Show the files ({count})",
       "storedSuffix": "{size} stored",
-      "title": "Files"
+      "title": "Files",
+      "beforeStart": "Files you attach and files the agent writes appear here once the conversation starts."
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",
@@ -1565,7 +1566,8 @@
       "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation - a floor: some model in it had no price",
       "unmeasured": "in use - this host did not report a number",
       "workspace": "Workspace",
-      "workspaceUsed": "Workspace used"
+      "workspaceUsed": "Workspace used",
+      "empty": "Context, cost and budgets show up here after the agent's first reply."
     },
     "view": "View",
     "viewMeans": "View lets them read this conversation and nothing else.",
@@ -1767,15 +1769,16 @@
         "rateLimitedBody": "Too many dictations in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Dictation isn't set up.",
-        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more.",
+        "browserOff": "<strong>Dictation isn't turned on for this agent,</strong> so your browser transcribes what you say. Turn it on to use a speech-to-text provider."
       },
       "pill": "Dictation",
       "listening": "Listening",
-      "done": "Done dictating"
+      "done": "Done dictating",
+      "openBuilder": "Open in the Agent Builder"
     },
     "voice": {
       "start": "Start a voice call",
-      "canSetUp": "You can set this up on the agent's Voice card.",
       "unavailable": {
         "notOffered": {
           "title": "This agent's voice model is no longer offered",
@@ -1788,6 +1791,10 @@
         "unchecked": {
           "title": "Could not check whether this agent can take a call",
           "body": "Reload the page to try again."
+        },
+        "noVoice": {
+          "title": "Calls aren't turned on for this agent",
+          "body": "Choose a voice model on its Voice card, then publish, and it can take calls."
         }
       },
       "approval": {
@@ -1913,7 +1920,9 @@
           "newCall": "Start a new call"
         },
         "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
-      }
+      },
+      "openBuilder": "Open in the Agent Builder",
+      "askEditor": "Ask someone who can edit this agent to set it up."
     }
   },
   "common": {

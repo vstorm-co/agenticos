@@ -2,12 +2,14 @@
 
 import { Phone, PhoneOff } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useId, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
-const REASON_KEYS: Record<Exclude<VoiceUnavailable, "no_voice">, string> = {
+const REASON_KEYS: Record<VoiceUnavailable, string> = {
+  no_voice: "noVoice",
   not_offered: "notOffered",
   no_key: "noKey",
 };
@@ -20,35 +22,51 @@ interface VoiceCallButtonProps {
   failed: boolean;
   disabled?: boolean;
   onStart: () => void;
-  /** Whether this person may set calls up - for the organization or this agent. */
-  canSetUp: boolean;
+  /** The agent's Voice card in the Builder, for whoever may edit it; null for everyone else. */
+  setUpHref: string | null;
 }
+
+/** How long the reason stays open after the pointer leaves, so it can reach the link. */
+const CLOSE_DELAY_MS = 200;
 
 /**
  * The composer's call button (#54). Offered when a call would start; otherwise
  * crossed out and still focusable, saying why - the dictation rule, so a person
  * is never left guessing why this agent takes no call. Absent while the agent's
- * readiness loads, so it does not flash, and for an agent with no voice set up:
- * most agents take no calls, and a crossed-out phone beside every one of them
- * read as something broken. Calls are set up on the agent's Voice card.
+ * readiness loads, so it does not flash. An agent with no voice set up shows
+ * it too: every agent can be called once it has a voice, and the reason says
+ * where that is set - the agent's Voice card in the Builder.
  *
  * Hover or keyboard focus opens the reason in a popover; a press toggles it,
- * because a touch screen has no hover.
+ * because a touch screen has no hover. The pointer may cross into the popover
+ * to follow its link.
  */
 export function VoiceCallButton({
   readiness,
   failed,
   disabled,
   onStart,
-  canSetUp,
+  setUpHref,
 }: VoiceCallButtonProps) {
   const t = useTranslations("chat.voice");
   const [open, setOpen] = useState(false);
   // A press focuses the button too; that focus is not a keyboard arriving.
   const pressed = useRef(false);
   const describedBy = useId();
+  const closing = useRef<number | null>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const link = useRef<HTMLAnchorElement>(null);
+  const keepOpen = () => {
+    if (closing.current !== null) window.clearTimeout(closing.current);
+    closing.current = null;
+  };
+  const closeSoon = () => {
+    keepOpen();
+    closing.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
+  };
+  useEffect(() => keepOpen, []);
 
-  if (!failed && (readiness === null || readiness.unavailable === "no_voice")) return null;
+  if (!failed && readiness === null) return null;
   if (readiness?.available) {
     return (
       <Button
@@ -68,7 +86,8 @@ export function VoiceCallButton({
   }
 
   const reason = readiness?.unavailable;
-  const key = failed || !reason || reason === "no_voice" ? "unchecked" : REASON_KEYS[reason];
+  const key = failed || !reason ? "unchecked" : REASON_KEYS[reason];
+  const setUp = !failed && reason ? setUpHref : null;
   const title = t(`unavailable.${key}.title`);
   const body = t(`unavailable.${key}.body`);
 
@@ -85,10 +104,12 @@ export function VoiceCallButton({
           data-tour="chat-voice-call"
           className={`${BUTTON} cursor-not-allowed`}
           onPointerEnter={(event) => {
-            if (event.pointerType === "mouse") setOpen(true);
+            if (event.pointerType !== "mouse") return;
+            keepOpen();
+            setOpen(true);
           }}
           onPointerLeave={(event) => {
-            if (event.pointerType === "mouse") setOpen(false);
+            if (event.pointerType === "mouse") closeSoon();
           }}
           onPointerDown={() => {
             pressed.current = true;
@@ -97,25 +118,46 @@ export function VoiceCallButton({
             if (!pressed.current) setOpen(true);
             pressed.current = false;
           }}
-          onBlur={() => setOpen(false)}
-          onClick={() => setOpen((was) => !was)}
+          onBlur={(event) => {
+            if (!content.current?.contains(event.relatedTarget)) setOpen(false);
+          }}
+          // A press opens it and hands focus to the link, so a keyboard reaches it too.
+          onClick={() => {
+            setOpen(true);
+            window.requestAnimationFrame(() => link.current?.focus());
+          }}
         >
           <PhoneOff className="text-muted-foreground h-4 w-4" />
           <span id={describedBy} className="sr-only">
-            {title} {body} {canSetUp ? t("canSetUp") : null}
+            {title} {body}
           </span>
         </Button>
       </PopoverAnchor>
       <PopoverContent
+        ref={content}
         side="top"
         align="end"
         className="w-[268px] text-[13px]"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onPointerEnter={keepOpen}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "mouse") closeSoon();
+        }}
       >
         <p className="font-semibold">{title}</p>
         <p className="text-muted-foreground mt-0.5">{body}</p>
-        {canSetUp && <p className="text-muted-foreground mt-2">{t("canSetUp")}</p>}
+        {setUp !== null ? (
+          <Link
+            ref={link}
+            href={setUp}
+            className="text-foreground mt-2 inline-block font-medium underline underline-offset-[3px]"
+          >
+            {t("openBuilder")}
+          </Link>
+        ) : (
+          !failed && reason && <p className="text-muted-foreground mt-2">{t("askEditor")}</p>
+        )}
       </PopoverContent>
     </Popover>
   );

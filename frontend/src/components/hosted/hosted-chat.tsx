@@ -923,7 +923,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                       failed={false}
                       disabled={closed !== null || answering}
                       onStart={() => startCall(callTransport)}
-                      canSetUp={false}
+                      setUpHref={null}
                     />
                   )}
                   {server && (

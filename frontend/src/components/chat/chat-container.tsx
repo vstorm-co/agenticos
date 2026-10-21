@@ -84,9 +84,9 @@ import { qk } from "@/lib/query-keys";
 import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
-import { dictationHint, DictationStrip } from "./dictation-strip";
+import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
-import { AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
+import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FloatingPill } from "@/components/voice/floating-pill";
 import { MessageItem } from "./message-item";
@@ -927,6 +927,10 @@ function ChatUI({
     selectedAgentId !== null && can(Perm.agentsEdit)
       ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_DICTATION_ANCHOR}`
       : null;
+  const agentCallsHref =
+    selectedAgentId !== null && can(Perm.agentsEdit)
+      ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_CALLS_ANCHOR}`
+      : null;
   const hasAgent = selectedAgentId !== null;
   const dictationStrip =
     engine === "server"
@@ -1000,7 +1004,13 @@ function ChatUI({
     onShowApproval: showVoiceApproval,
     active: onCall,
   });
-  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
+  // Browser recognition works for every agent; while it listens for one whose
+  // Dictation switch is off, the strip says so and where to turn it on.
+  const browserStrip =
+    stopBrowserDictation !== null && status?.requested === false
+      ? browserDictationHint(agentVoiceHref, tDictation)
+      : null;
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip ?? browserStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -1502,7 +1512,7 @@ function ChatUI({
                                     failed={readinessFailed}
                                     disabled={isProcessing || isArchived}
                                     onStart={startCall}
-                                    canSetUp={voiceSettingsHref !== null || agentVoiceHref !== null}
+                                    setUpHref={agentCallsHref}
                                   />
                                 </span>
                               )}

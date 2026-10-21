@@ -397,6 +397,16 @@ describe("the agent's Voice card", () => {
       expect(screen.getByLabelText("Language")).toBeInTheDocument();
     });
 
+    it("open on Calls for the call button's link", () => {
+      window.history.replaceState({}, "", "/agents/a1#agent-voice");
+      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
+      expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      window.history.replaceState({}, "", "/");
+    });
+
     it("give way to the Dictation tab for a link to the dictation setup", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
       render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);

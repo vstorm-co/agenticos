@@ -369,6 +369,32 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
 }
 
 /**
+ * What the strip says while the browser transcribes for an agent whose Dictation
+ * switch is off: it works, but not the way the agent could, and where to change
+ * that - the agent's Voice card, for whoever may edit it.
+ */
+export function browserDictationHint(agentHref: string | null, t: Translate): StripHint {
+  return {
+    key: "browserOff",
+    tone: "hint",
+    icon: Info,
+    message: (
+      <>
+        {t.rich("hint.browserOff", { strong })}
+        {agentHref !== null && (
+          <>
+            {" "}
+            <Link href={agentHref} className={SETUP_LINK}>
+              {t("openBuilder")}
+            </Link>
+          </>
+        )}
+      </>
+    ),
+  };
+}
+
+/**
  * The strip under the composer: attached to the box, sharing its border, and
  * sliding out from behind it.
  *

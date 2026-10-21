@@ -585,6 +585,25 @@ describe("the chat container - server dictation", () => {
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
+  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
+    readiness.current = { ...readiness.current, engine: "browser", requested: false };
+    class FakeRecognition {
+      start = vi.fn();
+      stop = vi.fn();
+    }
+    vi.stubGlobal("SpeechRecognition", FakeRecognition);
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
+
+    expect(
+      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
+    ).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it("cancels a recording when the agent leaves the server engine mid-sentence", async () => {
     dictation.phase = "recording";
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
