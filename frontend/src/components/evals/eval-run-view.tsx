@@ -139,10 +139,16 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           {t("excludedEvidence", { count: run.excluded_case_ids?.length ?? 0 })}
         </p>
       )}
-      {candidate?.source === "explicit" && (
-        <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`} className="text-sm underline">
-          {t("backToSuggestions")}
+      {(candidate?.skill_ids?.length ?? 0) > 0 ? (
+        <Link href={ROUTES.SKILLS} className="text-sm underline">
+          {t("backToSkillChange")}
         </Link>
+      ) : (
+        candidate?.source === "explicit" && (
+          <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`} className="text-sm underline">
+            {t("backToSuggestions")}
+          </Link>
+        )
       )}
       <div className="flex flex-wrap gap-2">
         {candidates.length > 1 && (

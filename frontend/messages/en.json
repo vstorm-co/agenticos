@@ -8403,7 +8403,8 @@
       "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
-    "backToSuggestions": "Back to the suggestions"
+    "backToSuggestions": "Back to the suggestions",
+    "backToSkillChange": "Back to the skill change"
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -8590,6 +8591,7 @@
     "check": {
       "title": "Check with evals",
       "body": "Runs a dataset against the draft as it would be with every waiting suggestion, beside the published version. Cases taken from the conversations behind the suggestions are left out. Nothing is accepted by checking.",
+      "skillBody": "Runs a dataset on an agent that uses the skill, with its published version on both sides and only the skill's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
       "agent": "Agent that uses the skill",
       "agentPlaceholder": "Pick an agent",
       "dataset": "Dataset",

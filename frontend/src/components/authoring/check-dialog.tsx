@@ -103,7 +103,9 @@ export function CheckDialog({
       <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
-          <DialogDescription>{t("body")}</DialogDescription>
+          <DialogDescription>
+            {proposalId === undefined ? t("body") : t("skillBody")}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {agentId === null && (

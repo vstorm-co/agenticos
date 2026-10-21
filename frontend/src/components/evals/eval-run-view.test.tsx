@@ -279,6 +279,19 @@ describe("EvalRunView", () => {
     );
   });
 
+  it("leads a skill change's check back to Skills, where the change waits", () => {
+    state.run = {
+      ...(state.run as object),
+      run: evalRun({ arms: [arm({ source: "version", skill_ids: ["skill-1"] })] }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("link", { name: "Back to the skill change" })).toHaveAttribute(
+      "href",
+      "/skills",
+    );
+    expect(screen.queryByRole("link", { name: "Back to the suggestions" })).toBeNull();
+  });
+
   it("says when the verdict could not be read, and reads it again", async () => {
     const refetch = vi.fn();
     state.refetchComparison = refetch;

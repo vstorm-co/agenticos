@@ -8286,7 +8286,8 @@
       "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
     },
     "excludedEvidence": "{count, plural, =1 {1 Case wurde} other {# Cases wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
-    "backToSuggestions": "Zurück zu den Vorschlägen"
+    "backToSuggestions": "Zurück zu den Vorschlägen",
+    "backToSkillChange": "Zurück zur Skill-Änderung"
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -8473,6 +8474,7 @@
     "check": {
       "title": "Mit Evals prüfen",
       "body": "Führt ein Dataset gegen den Draft aus, wie er mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version. Cases aus den Gesprächen, aus denen die Vorschläge stammen, werden weggelassen. Durch die Prüfung wird nichts angenommen.",
+      "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
       "agent": "Agent, der den Skill nutzt",
       "agentPlaceholder": "Agent wählen",
       "dataset": "Dataset",

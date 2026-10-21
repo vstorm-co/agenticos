@@ -38,6 +38,7 @@ describe("CheckDialog", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Start the check" })).toBeDisabled();
+    expect(screen.getByText(/against the draft as it would be/)).toBeInTheDocument();
     await pick("Dataset", "Refund cases");
     expect(await screen.findByText("estimate 0.20")).toBeInTheDocument();
     expect(estimate).toHaveBeenCalledWith({ dataset_id: "ds-1" });
@@ -57,6 +58,9 @@ describe("CheckDialog", () => {
         onOpenChange={vi.fn()}
       />,
     );
+    // Both sides run the agent's published version; only the skill's body differs.
+    expect(screen.getByText(/only the skill's body different/)).toBeInTheDocument();
+    expect(screen.queryByText(/against the draft/)).toBeNull();
     await pick("Agent that uses the skill", "Clerk");
     await pick("Dataset", "Refund cases");
     expect(await screen.findByRole("alert")).toHaveTextContent("Clerk does not use refunds");

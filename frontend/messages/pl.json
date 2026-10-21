@@ -7646,7 +7646,8 @@
       "body": "Czytanie eval runów wymaga uprawnienia do podglądu runów oraz dostępu do agenta i datasetu. Poproś administratora organizacji."
     },
     "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
-    "backToSuggestions": "Wróć do sugestii"
+    "backToSuggestions": "Wróć do sugestii",
+    "backToSkillChange": "Wróć do zmiany skilla"
   },
   "steps": {
     "skills-gallery": {
@@ -8366,6 +8367,7 @@
     "check": {
       "title": "Sprawdź evalami",
       "body": "Uruchamia dataset na drafcie z naniesionymi wszystkimi oczekującymi sugestiami, obok opublikowanej wersji. Case'y z rozmów, z których wzięły się sugestie, są pomijane. Sprawdzenie niczego nie przyjmuje.",
+      "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
       "agent": "Agent, który używa tego skilla",
       "agentPlaceholder": "Wybierz agenta",
       "dataset": "Dataset",
