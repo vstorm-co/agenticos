@@ -109,6 +109,8 @@ describe("DesktopBridge", () => {
     env.shell = null;
     mount().unmount();
     env.shell = { ...MAC_MAIN, window: "blobby" };
+    mount().unmount();
+    env.shell = { ...MAC_MAIN, platform: "ios" };
     mount();
     expect(env.setBadge).not.toHaveBeenCalled();
     expect(window.__agenticosNavigate).toBeUndefined();

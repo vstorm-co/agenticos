@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useDesktopState } from "@/hooks/use-desktop";
 import { useShell } from "@/hooks/use-shell";
 import type { DesktopState } from "@/lib/desktop/commands";
+import { isDesktopShell } from "@/lib/desktop/shell";
 
 const DESKTOP_DOCS = "https://vstorm-co.github.io/agenticos/desktop/";
 
@@ -22,7 +23,7 @@ export function DesktopOnly({ children }: { children: (state: DesktopState) => R
   const shell = useShell();
   const { data, error } = useDesktopState();
 
-  if (!shell) {
+  if (!isDesktopShell(shell)) {
     return (
       <div className="border-border bg-card flex flex-col items-start gap-2 rounded-xl border px-5 py-6">
         <AppWindow className="text-muted-foreground size-5" aria-hidden />

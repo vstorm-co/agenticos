@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The desktop app opens on the console, not on the sign-in form.** It
+  opened the server's root, which sends everybody to the form, so a person
+  with a perfectly good session was asked to sign in on every launch.
+
 ### Added
 
 - **The desktop app looks and behaves like an application** (#2305). On macOS
@@ -48,6 +54,12 @@ Two things are versioned separately from this file and worth knowing about:
   signs the AgenticOS app in as you. It works once, for a minute, and the
   phone's session is opened only when it scans, under the phone's own name.
   `POST /api/v1/auth/pairing-codes` and `/pairing-codes/redeem`.
+- **The AgenticOS phone app** (#2097), first part: an iOS and Android app
+  (`mobile/`, Tauri 2) that signs in by scanning the console's QR or by typing
+  the address, keeps the console's session across restarts, and locks behind
+  Face ID, Touch ID or the fingerprint after five minutes away. The console
+  lays itself out under the phone's status bar. Push, Live Activities and
+  widgets follow.
 - **Quick ask** (`⌥Space`, rebindable): a floating panel to ask any agent from
   anywhere, with the answer streamed under the question and ⌘↩ to carry the
   conversation into the console.

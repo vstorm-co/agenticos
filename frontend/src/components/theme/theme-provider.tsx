@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { LOOK_ATTRIBUTE, THEME_STORAGE_KEY, type Look } from "@/lib/appearance";
 import { setAppearance } from "@/lib/desktop/commands";
-import { readShellInfo, reportShellFailure } from "@/lib/desktop/shell";
+import { isDesktopShell, readShellInfo, reportShellFailure } from "@/lib/desktop/shell";
 import { prefersReducedMotion } from "@/lib/motion";
 import { useThemeStore, getResolvedTheme } from "@/stores/theme-store";
 
@@ -73,7 +73,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // the chosen mode, and builds itself that way on the next launch - so the
   // console window tells it. Blobby and quick ask follow; they do not lead.
   useEffect(() => {
-    if (readShellInfo()?.window !== "main") return;
+    const shell = readShellInfo();
+    if (!isDesktopShell(shell) || shell.window !== "main") return;
     setAppearance({ look, mode: theme }).catch((error: unknown) =>
       reportShellFailure("could not dress the window in the chosen appearance", error),
     );

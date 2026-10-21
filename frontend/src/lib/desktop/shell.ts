@@ -11,7 +11,7 @@
  * module answers rather than crashes on.
  */
 
-export type ShellPlatform = "macos" | "windows" | "linux";
+export type ShellPlatform = "macos" | "windows" | "linux" | "ios" | "android";
 
 /** Which of the shell's windows this page is drawn in. */
 export type ShellWindow = "main" | "blobby" | "quick-ask";
@@ -24,7 +24,17 @@ export interface ShellInfo {
   vibrancy: boolean;
 }
 
-const PLATFORMS: readonly ShellPlatform[] = ["macos", "windows", "linux"];
+const PLATFORMS: readonly ShellPlatform[] = ["macos", "windows", "linux", "ios", "android"];
+const DESKTOPS: readonly ShellPlatform[] = ["macos", "windows", "linux"];
+
+/**
+ * Whether the shell is the desktop app, with its menu bar, blobby and global
+ * shortcuts - rather than the phone app, which has none of them and is granted
+ * none of the desktop's commands.
+ */
+export function isDesktopShell(info: ShellInfo | null): info is ShellInfo {
+  return info !== null && DESKTOPS.includes(info.platform);
+}
 const WINDOWS: readonly ShellWindow[] = ["main", "blobby", "quick-ask"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

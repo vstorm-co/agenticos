@@ -297,3 +297,23 @@
 :root[data-vibrancy] .quick-ask-panel {
   background: color-mix(in oklab, var(--color-popover) 45%, transparent);
 }
+
+/* --- The console inside the phone app (#2097) -----------------------------
+   The webview runs edge to edge, under the status bar. iOS reports its height
+   as the safe area; Android's webview reports nothing for it, so the app keeps
+   room of its own. Taps answer without the grey flash a browser draws. */
+:root[data-shell="ios"] {
+  --shell-inset-top: env(safe-area-inset-top);
+}
+
+:root[data-shell="android"] {
+  --shell-inset-top: 28px;
+}
+
+:root:is([data-shell="ios"], [data-shell="android"]) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root:is([data-shell="ios"], [data-shell="android"]) body {
+  padding-top: var(--shell-inset-top);
+}

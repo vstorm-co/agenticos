@@ -18,7 +18,7 @@ import {
   newNotifications,
   notificationPath,
 } from "@/lib/desktop/notices";
-import { reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
+import { isDesktopShell, reportShellFailure, SHELL_EVENTS } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { listNotifications } from "@/lib/notifications-api";
 import { Perm } from "@/types/permissions";
@@ -44,7 +44,7 @@ const APPROVALS_PATH = "/runs?tab=approvals";
  */
 export function DesktopBridge() {
   const shell = useShell();
-  return shell?.window === "main" ? <Bridge /> : null;
+  return isDesktopShell(shell) && shell.window === "main" ? <Bridge /> : null;
 }
 
 function Bridge() {

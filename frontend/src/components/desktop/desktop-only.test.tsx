@@ -24,8 +24,8 @@ describe("DesktopOnly", () => {
     expect(screen.getByText("counting")).toBeInTheDocument();
   });
 
-  it("says where these settings live in a browser, rather than an empty card", () => {
-    env.shell = null;
+  it("says where these settings live in a browser or on a phone, rather than an empty card", () => {
+    env.shell = { ...MAC_MAIN, platform: "android" };
     render(<DesktopOnly>{() => <p>settings</p>}</DesktopOnly>);
     expect(
       screen.getByText("These settings belong to the AgenticOS desktop app."),

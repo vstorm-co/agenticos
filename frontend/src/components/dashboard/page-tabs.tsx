@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useActiveRoute } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ export interface PageTab {
   icon?: LucideIcon;
   /** Match only the exact path (use for index/overview tabs). */
   exact?: boolean;
-  /** A tab for the desktop app's own settings, left out of the row in a browser. */
+  /** A tab for the desktop app's own settings, left out of the row in a browser and on a phone. */
   shellOnly?: boolean;
 }
 
@@ -44,7 +45,7 @@ export function PageTabs({
   className?: string;
 }) {
   const shell = useShell();
-  const tabs = shell ? allTabs : allTabs.filter((tab) => !tab.shellOnly);
+  const tabs = isDesktopShell(shell) ? allTabs : allTabs.filter((tab) => !tab.shellOnly);
   const isActive = useActiveRoute();
   const t = useTranslations("nav");
   const strip = useRef<HTMLElement>(null);

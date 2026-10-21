@@ -66,4 +66,22 @@ describe("PageTabs", () => {
     expect(screen.getByRole("link", { name: "Blobby" })).toBeInTheDocument();
     delete window.__AGENTICOS_SHELL__;
   });
+
+  it("leaves the desktop app's tabs out of the phone app, which has no blobby to configure", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "android",
+      version: "0.1.0",
+      window: "main",
+      vibrancy: false,
+    };
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageTabs
+          tabs={[...TABS, { labelKey: "blobby", href: "/settings/blobby", shellOnly: true }]}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.queryByRole("link", { name: "Blobby" })).toBeNull();
+    delete window.__AGENTICOS_SHELL__;
+  });
 });
