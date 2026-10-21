@@ -895,7 +895,8 @@ the "who is holding a copy of that CSV" question the per-workspace page cannot
 answer.
 
 **Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
-An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
+An image is a picture, a PDF is the browser's own PDF view, audio and video play in
+the browser's own player, markdown offers *Preview*
 and *Source* — both are the file, and a `#` that silently became large type is how
 somebody fails to notice their agent is writing markdown into something nothing reads
 as markdown — and anything else is its text. Download is always there, including for
@@ -910,9 +911,11 @@ conversation route is reached by fetching the conversation, so somebody a chat w
 *shared with* keeps access — and one module deciding what may be displayed, so the
 answer cannot differ by surface.
 
-Almost everything is served as an attachment. **Raster images and PDFs** are served
-for display: a raster because it cannot execute, a PDF because the browser renders it
-in its own viewer, which never gets the page's DOM.
+Almost everything is served as an attachment. **Raster images, PDFs, audio and video**
+(MP3, WAV, Ogg, Opus, M4A, MP4, WebM) are served for display: a raster because it
+cannot execute, a PDF because the browser renders it in its own viewer, which never
+gets the page's DOM, and audio and video because the browser hands them to its media
+pipeline, which plays them and runs nothing in the page.
 
 !!! danger "SVG and HTML are downloadable and never displayable"
 

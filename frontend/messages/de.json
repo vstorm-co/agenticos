@@ -840,7 +840,9 @@
     "speechVoiceIdPlaceholder": "Stimmen-ID",
     "speechAccountVoiceDetail": "{provider}-Stimmen gehören zu Ihrem Konto. Fügen Sie die ID einer Stimme aus Ihrer Stimmenbibliothek ein.",
     "speechProvidersLoading": "Lese, was jeder Provider anbietet…",
-    "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet."
+    "speechProvidersUnavailable": "Die Liste der Provider konnte nicht gelesen werden. Das Modell oben wird trotzdem verwendet.",
+    "speechFormat": "Dateiformat",
+    "speechFormatDetail": "Die Formate, die dieser Provider liefert. mp3 ist kleiner, wav unkomprimiert."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

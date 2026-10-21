@@ -27,18 +27,24 @@ agent can build with it next. So the clip goes through
 `app/agents/capabilities/_generated.py`, the same helper `generate_image` uses -
 stored per organization and served from `GET /api/v1/generated/{filename}`, and
 written under `output/` when a workspace is open. The provider and model are a
-binding's choice from a catalog, and the key is one vault secret whose purpose is
-the chosen provider.
+binding's choice from a catalog, and the key is one vault secret; the Builder
+offers the keys whose purpose is the chosen provider. Publish does not yet refuse a
+key stored for another provider - that is #2258, for every media capability.
 
 ## Cost
 
 Speech is sold per character, so a clip's price is known before it is made. The
 tool asks the budget with that price (`can_afford_ambient_call(estimate)`) and
 refuses a clip that would carry the run past a cap, rather than only refusing the
-call after a cap is reached. What was spoken is then booked with
-`record_ambient_cost`. A long text fails partway at most once per piece, and the
-pieces spoken before it are booked too - the provider billed them even though the
-half-clip is discarded. `max_characters` bounds what one call can cost at all.
+call after a cap is reached. What was spoken is booked with `record_ambient_cost`
+piece by piece, as `synthesize` reports each one spoken: a long text that fails, or
+a run cancelled partway through it, leaves nothing the provider billed unbooked,
+even though the half-clip is discarded. `max_characters` bounds what one call can
+cost at all. The check reserves nothing, so the tool runs one call at a time
+(`sequential`): two clips priced together could each fit and together pass a cap.
+
+`instructions` - a direction on how to speak - is capped at 1,000 characters and is
+not priced. It goes to the provider with every piece of a long text.
 
 Token-billed models (OpenAI's `gpt-4o-mini-tts`, Gemini) are priced in the
 catalog per character of typical speech. That is an estimate of what the provider
@@ -64,7 +70,7 @@ Whose mistake decides the shape (`capabilities/_failures.py`):
 |---|---|
 | Empty text, text over `max_characters`, text the provider refuses | `steer` - the model can fix its call |
 | Provider rate limiting or unavailable | `steer` - transient, worth one more try |
-| Key refused, voice or model unknown, model dropped from the catalog | Returned - only the author or the operator can fix it |
+| Key refused, voice or model unknown | Returned - only the author or the operator can fix it |
 | Budget spent | Returned - a refusal, never a retry |
 
 The provider's own error text is logged where it is received and never reaches

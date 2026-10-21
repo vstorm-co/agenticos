@@ -58,11 +58,15 @@ class _FakeSynthesis:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
         self.error: SpeechProviderError | None = None
+        self.spoken_before_error = 0
 
     async def __call__(self, provider: Any, **kwargs: Any) -> Speech:
         self.calls.append({"provider": provider.provider, **kwargs})
         if self.error is not None:
+            if self.spoken_before_error:
+                kwargs["on_spoken"](self.spoken_before_error)
             raise self.error
+        kwargs["on_spoken"](len(kwargs["text"]))
         return Speech(
             data=MP3,
             audio_format=kwargs["audio_format"],
@@ -151,6 +155,7 @@ class TestConfiguration:
                 {"provider": "elevenlabs", "model": "eleven_v4", "voice": "  "},
                 "belong to your account",
             ),
+            ({"provider": "elevenlabs", "model": "eleven_v4", "voice": ".."}, "is not a voice id"),
             ({"provider": "openai", "model": "tts-1", "voice": "marin"}, "has no voice"),
             (
                 {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},
@@ -162,6 +167,7 @@ class TestConfiguration:
             "provider that cannot speak",
             "no voice",
             "blank voice",
+            "dots for a voice id",
             "voice the model lacks",
             "format",
         ],
@@ -309,6 +315,12 @@ class TestRefusingBeforeSpending:
             await _speak(_toolset(), _ctx(uuid4()), "   ")
         assert synthesis.calls == []
 
+    async def test_a_direction_longer_than_a_direction_is_refused(self, synthesis):
+        """It goes to the provider with every piece and is not priced."""
+        with pytest.raises(ModelRetry, match="at most 1000 characters"):
+            await _speak(_toolset(), _ctx(uuid4()), instructions="x" * 1001)
+        assert synthesis.calls == []
+
     async def test_text_over_the_limit_names_the_limit(self, synthesis):
         with pytest.raises(ModelRetry, match="at most 100 in one call"):
             await _speak(_toolset(), _ctx(uuid4()), "x" * 101)
@@ -386,7 +398,7 @@ class TestAFailedCall:
     async def test_refused_text_is_steered_back_to_the_model(self, synthesis):
         synthesis.error = SpeechProviderError(SpeechFailure.REJECTED, provider="openai", status=400)
 
-        with pytest.raises(ModelRetry, match="Rephrase or shorten"):
+        with pytest.raises(ModelRetry, match="Rephrase or shorten the text"):
             await _speak(_toolset(), _ctx(uuid4()))
 
     @pytest.mark.parametrize("failure", [SpeechFailure.RATE_LIMITED, SpeechFailure.UNAVAILABLE])
@@ -398,9 +410,10 @@ class TestAFailedCall:
 
     async def test_pieces_spoken_before_a_failure_are_booked(self, synthesis):
         """The half-clip is discarded; the provider's charge for it is not."""
-        error = SpeechProviderError(SpeechFailure.UNAVAILABLE, provider="openai", status=500)
-        error.spoken_characters = 40
-        synthesis.error = error
+        synthesis.error = SpeechProviderError(
+            SpeechFailure.UNAVAILABLE, provider="openai", status=500
+        )
+        synthesis.spoken_before_error = 40
         ledger = SpendLedger()
         with metered_by(ledger), pytest.raises(ModelRetry):
             await _speak(_toolset(), _ctx(uuid4()), "y" * 80)

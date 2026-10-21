@@ -274,6 +274,37 @@ describe("reading a generated image back", () => {
     await expect(response.text()).resolves.toBe("\x89PNG");
   });
 
+  it("passes a player's byte range through, both ways", async () => {
+    // WebKit - Safari, and the desktop app - plays an MP4 only from ranged answers.
+    serve("0123", {
+      status: 206,
+      headers: { "content-type": "video/mp4", "content-range": "bytes 0-3/10" },
+    });
+    const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
+      headers: { cookie: "access_token=at", range: "bytes=0-3" },
+    });
+
+    const response = await readGeneratedImage(ranged, params);
+
+    const sent = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect((sent.headers as Record<string, string>).Range).toBe("bytes=0-3");
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 0-3/10");
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+  });
+
+  it("asks for the whole file when the browser asked for no range", async () => {
+    serve("bytes", { headers: { "content-type": "image/png" } });
+
+    await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png"),
+      params,
+    );
+
+    const sent = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect((sent.headers as Record<string, string>).Range).toBeUndefined();
+  });
+
   it("forwards the download flag and falls back to a generic type", async () => {
     serve("bytes", { headers: { "content-type": "" } });
 

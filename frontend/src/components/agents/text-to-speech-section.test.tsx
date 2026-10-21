@@ -166,6 +166,48 @@ describe("choosing what speaks", () => {
     );
   });
 
+  it("drops a voice the newly chosen model does not speak in", async () => {
+    // `tts-1` speaks in nine of OpenAI's voices, and `marin` is not one of them;
+    // keeping it would leave the select showing Alloy while publish refused marin.
+    const onChange = mount({ provider: "openai", model: "gpt-4o-mini-tts", voice: "marin" });
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(await screen.findByRole("option", { name: /TTS-1/ }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ config: { provider: "openai", model: "tts-1" } }),
+    );
+  });
+
+  it("offers only the formats the provider returns, and stores the one chosen", async () => {
+    const onChange = mount();
+
+    expect(screen.getByLabelText("File format")).toHaveTextContent("mp3");
+    await userEvent.click(screen.getByLabelText("File format"));
+    await userEvent.click(await screen.findByRole("option", { name: "wav" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ output_format: "wav" }) }),
+    );
+  });
+
+  it("shows a stored format, and the provider's first for one it does not return", () => {
+    mount({ provider: "openai", model: "gpt-4o-mini-tts", output_format: "wav" });
+    expect(screen.getByLabelText("File format")).toHaveTextContent("wav");
+  });
+
+  it("locks the format where the provider returns only one", () => {
+    providers.mockReturnValue({
+      providers: [{ ...OPENAI, formats: ["wav"] }],
+      isLoading: false,
+      isError: false,
+    });
+    mount({ provider: "openai", model: "gpt-4o-mini-tts", output_format: "mp3" });
+
+    expect(screen.getByLabelText("File format")).toHaveTextContent("wav");
+    expect(screen.getByLabelText("File format")).toBeDisabled();
+  });
+
   it("keeps the voice when only the model changes", async () => {
     const onChange = mount({ provider: "openai", model: "gpt-4o-mini-tts", voice: "alloy" });
 

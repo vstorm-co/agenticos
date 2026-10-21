@@ -37,6 +37,10 @@ from app.services.text_to_speech_models import by_provider, price_per_character
 
 MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 
+MAX_INSTRUCTIONS = 1000
+"""The longest direction on how to speak. It goes to the provider with every piece
+of a long text and is not priced, so it is kept to a direction rather than a text."""
+
 
 class GeneratedSpeech(BaseModel):
     """What `generate_speech` returns - a reference to the clip, not the bytes.
@@ -122,6 +126,12 @@ def build_speech_toolset(
                 f"`text` is {len(spoken)} characters and this agent speaks at most "
                 f"{max_characters} in one call. Split it into several calls.",
             )
+        if instructions is not None and len(instructions) > MAX_INSTRUCTIONS:
+            return steer(
+                ctx,
+                f"`instructions` is a direction on how to speak, at most {MAX_INSTRUCTIONS} "
+                "characters. Shorten it.",
+            )
 
         entry = by_provider(provider)
         chosen = entry.model(model) if entry is not None else None
@@ -151,10 +161,14 @@ def build_speech_toolset(
                 audio_format=audio_format,
                 api_key=api_key,
                 instructions=instructions,
+                # Booked piece by piece, as each is billed, so a failure or a
+                # cancelled run partway through a long text leaves nothing spoken
+                # unbooked.
+                on_spoken=lambda characters: record_ambient_cost(
+                    ledger_name, _cost(price, characters)
+                ),
             )
         except SpeechProviderError as exc:
-            if exc.spoken_characters:
-                record_ambient_cost(ledger_name, _cost(price, exc.spoken_characters))
             match exc.failure:
                 case SpeechFailure.CREDENTIALS:
                     return (
@@ -169,13 +183,12 @@ def build_speech_toolset(
                 case SpeechFailure.REJECTED:
                     return steer(
                         ctx,
-                        "The speech provider refused this text. Rephrase or shorten it, or "
-                        "answer without audio.",
+                        "The speech provider refused this request - the text, the voice or a "
+                        "setting. Rephrase or shorten the text, or answer without audio.",
                     )
                 case _:
                     return steer(ctx, f"{exc.message} Try once more, or answer without audio.")
 
-        record_ambient_cost(ledger_name, _cost(price, speech.characters))
         stored = await store_generated(ctx, speech.data, filename=f"speech.{speech.audio_format}")
         return GeneratedSpeech(
             filename=stored.filename,
@@ -187,5 +200,7 @@ def build_speech_toolset(
         ).model_dump_json()
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
-    toolset.add_function(generate_speech, takes_ctx=True)
+    # One clip at a time: the budget is asked with a clip's price and reserves
+    # nothing, so two clips priced at once could each fit and together pass a cap.
+    toolset.add_function(generate_speech, takes_ctx=True, sequential=True)
     return toolset

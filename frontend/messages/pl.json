@@ -840,7 +840,9 @@
     "speechVoiceIdPlaceholder": "Id głosu",
     "speechAccountVoiceDetail": "Głosy {provider} należą do Twojego konta. Wklej id jednego z nich ze swojej biblioteki głosów.",
     "speechProvidersLoading": "Sprawdzam, co oferuje każdy provider…",
-    "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty."
+    "speechProvidersUnavailable": "Nie udało się odczytać listy providerów. Model powyżej nadal zostanie użyty.",
+    "speechFormat": "Format pliku",
+    "speechFormatDetail": "Formaty, które zwraca ten provider. mp3 jest mniejszy, wav nieskompresowany."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

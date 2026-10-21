@@ -55,10 +55,3 @@ class SpeechProviderError(ExternalServiceError):
             details={"provider": provider, "failure": failure.value, "status": status},
         )
         self.failure = failure
-        self.spoken_characters = 0
-        """Characters spoken before this failed - billed by the provider all the same.
-
-        Set by :func:`~app.services.text_to_speech.synthesize` when a long text
-        fails partway, so the caller can book what the earlier pieces cost: the
-        clip is discarded, the provider's charge for it is not.
-        """
