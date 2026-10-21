@@ -1,5 +1,5 @@
 ---
-source_sha: "76d458c1aefd"
+source_sha: "32a594631074"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1201,10 +1201,12 @@ najdłuższego klipu modelu.
 bardziej: klip to najdroższe pojedyncze wywołanie, jakie robi agent.
 
 **Błędy trafiają do tego, kto może je naprawić.** Pusty prompt, długość albo
-kształt, których model nie robi, obraz, którego nie da się odczytać, i prompt
-odrzucony przez politykę treści providera wracają do modelu, podobnie provider,
-który ogranicza ruch albo nie działa. Odrzucony klucz, wyczerpany budget i
-zadanie po limicie czasu są zwracane jako wynik.
+proporcje, których model nie robi, i obraz, którego nie da się odczytać, wracają
+do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
+działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
+treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
+ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu jest
+księgowane według szacunku, bo provider może je jeszcze dokończyć i rozliczyć.
 
 ## Coding agent { #coding-agent }
 

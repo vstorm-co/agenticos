@@ -1,5 +1,5 @@
 ---
-source_sha: "76d458c1aefd"
+source_sha: "32a594631074"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1270,11 +1270,14 @@ Clip dort zur längsten Länge des Modells bepreist und gebucht.
 stärker: Ein Clip ist der teuerste einzelne Aufruf, den ein Agent macht.
 
 **Fehler gehen an den, der sie beheben kann.** Ein leerer Prompt, eine Länge oder
-Form, die das Modell nicht erzeugt, ein Bild, das nicht gelesen werden kann, und
-ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, gehen an das
-Modell zurück, ebenso ein Provider, der drosselt oder ausgefallen ist. Ein
-abgelehnter Schlüssel, ein ausgeschöpftes Budget und ein Job über dem Zeitlimit
-werden als Ergebnis beantwortet.
+ein Seitenverhältnis, die das Modell nicht macht, und ein Bild, das sich nicht
+lesen lässt, gehen mit einem Hinweis an das Modell zurück, ebenso ein Provider,
+der drosselt oder ausgefallen ist. Ein abgelehnter Schlüssel, ein aufgebrauchtes
+Budget, ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, und ein
+Job über dem Zeitlimit werden als Ergebnis beantwortet: ein Wiederholungshinweis
+bei einer Ablehnung würde zu ihrer Umgehung einladen. Ein Job über dem Zeitlimit
+wird mit seiner Schätzung gebucht, weil der Provider ihn noch beenden und
+abrechnen kann.
 
 ## Coding Agent { #coding-agent }
 

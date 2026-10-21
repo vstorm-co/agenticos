@@ -1,5 +1,5 @@
 ---
-source_sha: "76d458c1aefd"
+source_sha: "32a594631074"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1218,10 +1218,13 @@ se registra con la duración máxima del modelo.
 imágenes, y más: un clip es la llamada individual más cara que hace un agente.
 
 **Los fallos van a quien puede arreglarlos.** Un prompt vacío, una duración o
-forma que el modelo no hace, una imagen que no se puede leer y un prompt que
-rechazó la política de contenido del provider vuelven al modelo, igual que un
-provider que limita el tráfico o no responde. Una clave rechazada, un budget
-agotado y un trabajo que supera el límite de tiempo se responden como resultado.
+proporción que el modelo no hace y una imagen que no se puede leer vuelven al
+modelo con una indicación, igual que un provider que limita o está caído. Una
+clave rechazada, un presupuesto agotado, un prompt que la política de contenido
+del provider rechazó y un trabajo que pasa el límite de tiempo se responden como
+resultado: una indicación de reintento ante un rechazo invitaría a sortearlo. Un
+trabajo que pasa el límite de tiempo se contabiliza con su estimación, porque el
+provider aún puede terminarlo y cobrarlo.
 
 ## Coding agent { #coding-agent }
 

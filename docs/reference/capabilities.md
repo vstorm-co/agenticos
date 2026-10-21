@@ -1140,10 +1140,12 @@ reports none, so a clip there is priced and booked at the model's longest.
 clip is the most expensive single call an agent makes.
 
 **Failures go to whoever can fix them.** An empty prompt, a length or shape the
-model does not make, an image that cannot be read and a prompt the provider's
-content policy refused are steered back to the model, as is a provider that is
-rate limiting or down. A refused key, a spent budget and a job past the time limit
-are answered as the result.
+model does not make and an image that cannot be read are steered back to the
+model, as is a provider that is rate limiting or down. A refused key, a spent
+budget, a prompt the provider's content policy refused and a job past the time
+limit are answered as the result: a retry prompt on a refusal would invite a way
+around it. A job past the time limit is booked at its estimate, since the
+provider may still finish and bill it.
 
 ## Coding agent { #coding-agent }
 
