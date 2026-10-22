@@ -466,8 +466,6 @@ async def messages_held(
     db: AsyncSession, version_id: UUID, message_ids: Sequence[UUID], *, organization_id: UUID
 ) -> set[UUID]:
     """Which of these agent answers a version already holds a case made from."""
-    if not message_ids:
-        return set()
     result = await db.execute(
         select(DatasetCase.source_message_id)
         .join(DatasetVersion, _held(version_id))
