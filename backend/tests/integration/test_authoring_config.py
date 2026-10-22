@@ -119,7 +119,7 @@ async def test_a_widened_binding_says_which_newly_reached_tools_write(db):
     service = ConfigurationService(db)
     path = f"mcp_servers/{connection.id}/allowed_tools"
 
-    widened, narrowed = await service.stage(
+    (widened, narrowed), _ = await service.stage(
         ctx,
         agent_id=uuid.uuid4(),
         spec=spec,
@@ -127,7 +127,7 @@ async def test_a_widened_binding_says_which_newly_reached_tools_write(db):
         pack=EvidencePack(),
         origin=HunkOrigin.IMPROVE,
     )
-    personal = await service.stage(
+    personal, refused = await service.stage(
         ctx,
         agent_id=uuid.uuid4(),
         spec=spec,
@@ -140,6 +140,7 @@ async def test_a_widened_binding_says_which_newly_reached_tools_write(db):
     assert narrowed["effect"] is None
     # A personal account's server is somebody's own, and lists nothing to read here.
     assert [(hunk["new_value"], hunk["effect"]) for hunk in personal] == [(["search"], None)]
+    assert refused == []
 
 
 async def test_a_model_change_says_when_it_cannot_be_priced(db):

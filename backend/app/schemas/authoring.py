@@ -7,6 +7,7 @@ a change somewhere it was not meant to go.
 
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
@@ -19,6 +20,39 @@ MAX_QUOTE_CHARS = 600
 
 MAX_EVIDENCE_ITEMS = 12
 """How many evidence items one change keeps."""
+
+MAX_REJECTED = 20
+"""How many of the changes the improver proposed and nothing recorded a report lists."""
+
+
+class Rejection(StrEnum):
+    """Why a change the improver proposed was not recorded - one wording everywhere.
+
+    The report, the worker's log and the console all name a refusal by these values.
+    """
+
+    UNANCHORED = "unanchored"
+    """The passage it replaces, or follows, is not in the instructions."""
+    AMBIGUOUS_ANCHOR = "ambiguous_anchor"
+    """The passage occurs more than once, so where it goes cannot be told."""
+    NO_CHANGE = "no_change"
+    """It changes nothing."""
+    UNKNOWN_TOOL = "unknown_tool"
+    """It names a tool the agent does not have."""
+    INVALID_TOOL_CHANGE = "invalid_tool_change"
+    """A tool name or description a binding may not take."""
+    # What `authoring_fields.stage` refuses, by the names it gives.
+    NOT_A_TARGET = "not_a_target"
+    OPERATION = "operation"
+    LOOSENS_APPROVAL = "loosens_approval"
+    WEAKENS_PROTECTION = "weakens_protection"
+    UNKNOWN_CAPABILITY = "unknown_capability"
+    INVALID_CONFIG = "invalid_config"
+    DOES_NOT_APPLY = "does_not_apply"
+    NOT_GRANTABLE = "not_grantable"
+    """It adds something the person who asked may not grant."""
+    DISMISSED_BEFORE = "dismissed_before"
+    """Somebody dismissed the same change in the batch it replaces."""
 
 
 class EvidenceQuote(BaseModel):

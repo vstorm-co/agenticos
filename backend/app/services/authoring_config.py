@@ -13,7 +13,6 @@ tokens priced on both models. A handful of runs is a rough estimate and says so.
 """
 
 import json
-import logging
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
@@ -28,15 +27,13 @@ from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, Perm
 from app.db.models.authoring import HunkKind, HunkOrigin, SpecProposalHunk
 from app.repositories import agent_run_repo, context_repo, credential_repo, mcp_connection_repo
-from app.schemas.authoring import FieldChange
+from app.schemas.authoring import FieldChange, Rejection
 from app.services import authoring_fields
 from app.services.access import CONTEXT, MCP_CONNECTION, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_evidence import EvidencePack
 from app.services.context import ContextService
 from app.services.knowledge_base import KnowledgeBaseService
-
-logger = logging.getLogger(__name__)
 
 COST_SAMPLE = 20
 """How many recent runs a model change is priced on."""
@@ -264,24 +261,25 @@ class ConfigurationService:
         changes: Sequence[FieldChange],
         pack: EvidencePack,
         origin: HunkOrigin,
-    ) -> list[dict[str, Any]]:
-        """The hunks for the field changes that may be staged, as the caller.
+    ) -> tuple[list[dict[str, Any]], list[tuple[FieldChange, Rejection]]]:
+        """The hunks for the field changes that may be staged as the caller, and the rest.
 
         A change that does not stage - not a target, does not apply, loosens
         approval - or that adds something the caller may not grant is left out,
-        and only counted.
+        with why.
         """
         hunks: list[dict[str, Any]] = []
+        refused: list[tuple[FieldChange, Rejection]] = []
         for change in changes:
             staged = authoring_fields.stage(spec, change.path, change.op, change.value)
             if isinstance(staged, str):
-                logger.info("authoring_field_refused", extra={"reason": staged})
+                refused.append((change, Rejection(staged)))
                 continue
             base, new = staged
             applied = authoring_fields.apply(spec, change.path, change.op, base, new)
             assert applied is not None, "stage() applied it already"
             if await self.registry.reference_problems(ctx, applied, path=change.path, op=change.op):
-                logger.info("authoring_field_not_grantable", extra={"path": change.path})
+                refused.append((change, Rejection.NOT_GRANTABLE))
                 continue
             kept, dropped = pack.verify(change.evidence)
             hunks.append(
@@ -299,7 +297,7 @@ class ConfigurationService:
                     "evidence_dropped": dropped,
                 }
             )
-        return hunks
+        return hunks, refused
 
     async def _effect(
         self, ctx: AuthContext, agent_id: UUID, path: str, op: str, base: Any, new: Any

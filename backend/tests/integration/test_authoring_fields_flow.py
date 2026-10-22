@@ -118,6 +118,19 @@ async def test_what_may_be_staged_is_staged_and_the_rest_is_only_counted(db):
 
     assert request.report is not None
     assert (request.report["proposed"], request.report["recorded"]) == (7, 4)
+    assert request.report["dropped"] == {
+        "not_grantable": 1,
+        "not_a_target": 1,
+        "loosens_approval": 1,
+    }
+    assert {
+        (item["kind"], item["reason"], item["change"]["path"])
+        for item in request.report["rejected"]
+    } == {
+        ("spec_field", "not_grantable", "collection_ids"),
+        ("spec_field", "not_a_target", "budget/monthly_usd"),
+        ("spec_field", "loosens_approval", "capabilities/charts/approval"),
+    }
     assert "# Its configuration" in model.prompts[-1]
     assert shared.name in model.prompts[-1] and private.name in model.prompts[-1]
     batch = (await AuthoringService(db).for_agent(ctx, agent.id)).batch
@@ -331,3 +344,30 @@ async def test_a_stored_change_to_a_configuration_not_opted_in_is_never_accepted
     await db.flush()
     with pytest.raises(BadRequestError, match="may not propose"):
         await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
+
+
+async def test_a_dismissed_field_change_is_not_proposed_again_and_says_so(db):
+    ctx, agent, run = await _setup(db)
+    run_id = str(run.id)
+    proposing = [_change(run_id, "model_settings/temperature", "set", 0.2)]
+    await _improve(db, ctx, agent, _improver(db, run_id, proposing))
+    service = AuthoringService(db)
+    first = (await service.for_agent(ctx, agent.id)).batch
+    assert first is not None
+    await service.decide(ctx, agent.id, first.hunks[0].id, HunkDecision(action="dismiss"))
+
+    request = await _improve(db, ctx, agent, _improver(db, run_id, proposing))
+
+    assert request.report is not None
+    assert request.report["rejected"] == [
+        {
+            "kind": "spec_field",
+            "reason": "dismissed_before",
+            "change": {
+                "path": "model_settings/temperature",
+                "op": "set",
+                "value": 0.2,
+                "rationale": "The evidence asks for it",
+            },
+        }
+    ]
