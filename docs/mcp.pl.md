@@ -1,5 +1,5 @@
 ---
-source_sha: "3ec185106de2"
+source_sha: "48dc500a62e5"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -496,8 +496,10 @@ wyląduje nowa zgoda.
 
 ## Co dzieje się w turze { #what-happens-on-a-turn }
 
-Każdy serwer jest odpytywany krótkim obiegiem `tools/list` — 3 sekundy — zanim
-tura się zacznie, a odpytania biegną równolegle. Serwer, który odpowiedział na
+Każdy serwer jest odpytywany krótką wymianą `tools/list`, zanim tura się zacznie,
+a odpytania biegną równolegle. Serwer ma 3 sekundy na przyjęcie połączenia i 10
+sekund na całą wymianę, bo serwer, który sprawdza token każdego żądania u swojego
+dostawcy tożsamości, bywa wolny, choć działa. Serwer, który odpowiedział na
 odpytanie w ciągu ostatnich dwóch minut, z tym samym poświadczeniem, nie jest
 odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w międzyczasie
 przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go

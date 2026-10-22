@@ -32,6 +32,8 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
+import httpx2
+
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
 # inside the first chat turn each process served, before the model was asked.
@@ -47,10 +49,22 @@ from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
 
-# How long a server gets to answer a connect or a probe. A constant rather than
-# a setting: the right value is a property of the protocol round-trip, not of a
-# deployment, and no installation ever tuned it.
+# How long a server gets to accept a connection, and an OAuth request to answer.
+# A constant rather than a setting: the right value is a property of the
+# protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+
+HANDSHAKE_TIMEOUT_SECS = 10.0
+"""How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
+
+Apart from the connect timeout because a server can be slow per request without
+being down. One that checks every request's token at its identity provider - an
+OAuth proxy in front of GitHub or Microsoft Entra - spends about a second on
+each, and a probe is three or four requests, so a single 3s budget left it out
+of every turn although it answered every request. A host that does not accept
+the connection still fails within :data:`CONNECT_TIMEOUT_SECS`; one that accepts
+and then hangs holds a turn for this long.
+"""
 
 ANSWERED_FOR = 120.0
 """How long, in seconds, a server that answered its probe is taken to be up without another.
@@ -219,13 +233,17 @@ async def _mcp_transport(
     if infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
-        async with sse_client(url, headers=headers or None) as (read, write):
+        async with sse_client(url, headers=headers or None, timeout=CONNECT_TIMEOUT_SECS) as (
+            read,
+            write,
+        ):
             yield read, write
     else:
         from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
+        timeout = httpx2.Timeout(HANDSHAKE_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
         async with (
-            create_mcp_http_client(headers=headers or None) as http_client,
+            create_mcp_http_client(headers=headers or None, timeout=timeout) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
@@ -249,7 +267,7 @@ async def probe_mcp_server(
     from mcp import ClientSession
 
     try:
-        async with asyncio.timeout(timeout or CONNECT_TIMEOUT_SECS):
+        async with asyncio.timeout(timeout or HANDSHAKE_TIMEOUT_SECS):
             async with (
                 _mcp_transport(url, headers) as (read, write),
                 ClientSession(read, write) as session,
@@ -290,8 +308,10 @@ def probe_error_message(exc: BaseException) -> str:
     """
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, httpx2.ConnectTimeout):
         return f"Connection timed out after {CONNECT_TIMEOUT_SECS:g}s"
+    if isinstance(exc, TimeoutError):
+        return f"The server timed out after {HANDSHAKE_TIMEOUT_SECS:g}s"
     return str(exc) or exc.__class__.__name__
 
 
@@ -337,7 +357,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=None if spec.in_process else spec.headers or None,
         http_client=_in_process_client(spec.headers) if spec.in_process else None,
         id=f"mcp:{spec.name}",
-        init_timeout=CONNECT_TIMEOUT_SECS,
+        init_timeout=HANDSHAKE_TIMEOUT_SECS,
         tool_error_behavior="failed",
         include_instructions=spec.include_instructions,
     )
@@ -581,8 +601,6 @@ def _in_process_client(headers: dict[str, str]) -> Any:
     imports the agent layer, so the agent layer reaching for it at import time
     would be a cycle.
     """
-    import httpx2
-
     app = importlib.import_module("app.main").app
     return httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app=app),

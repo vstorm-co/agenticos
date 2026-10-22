@@ -2110,7 +2110,7 @@ class UnavailableUnreachableServer:
     model, which then answers as though the agent never had the service ("no data
     available") instead of saying the service is down. A slow server is the usual
     case, not a dead one: a bridge whose `tools/list` takes longer than
-    :data:`~app.agents.mcp.CONNECT_TIMEOUT_SECS` is left out of one turn and
+    :data:`~app.agents.mcp.HANDSHAKE_TIMEOUT_SECS` is left out of one turn and
     attached on the next, and the person asking should hear that a retry may help.
 
     `held_by` names another binding that answered under the same tool prefix:

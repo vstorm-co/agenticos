@@ -474,8 +474,10 @@ bearer token keeps working until the new consent lands.
 
 ## What happens on a turn
 
-Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
-turn starts, and the probes run concurrently. A server that answered its probe in
+Each server is probed with a short `tools/list` handshake before the turn starts,
+and the probes run concurrently. A server gets 3 seconds to accept the connection
+and 10 seconds for the whole handshake, because one that checks every request's
+token at its identity provider is slow without being down. A server that answered its probe in
 the last two minutes, with the same credential, is not probed again: a
 conversation's next turn attaches it straight away. If it has gone down in the
 meantime, that turn goes on without its tools and the next one probes it again.

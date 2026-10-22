@@ -1,5 +1,5 @@
 ---
-source_sha: "3ec185106de2"
+source_sha: "48dc500a62e5"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -511,8 +511,11 @@ bearer token sigue funcionando hasta que llega el nuevo consentimiento.
 
 ## Qué pasa en un turno { #what-happens-on-a-turn }
 
-Cada servidor se sondea con una ida y vuelta corta de `tools/list` — 3 segundos —
-antes de que empiece el turno, y los sondeos corren a la vez. Un servidor que
+Cada servidor se sondea con un intercambio corto de `tools/list` antes de que
+empiece el turno, y los sondeos corren a la vez. Un servidor tiene 3 segundos para
+aceptar la conexión y 10 segundos para todo el intercambio, porque uno que
+comprueba el token de cada petición en su proveedor de identidad es lento sin
+estar caído. Un servidor que
 respondió a su sondeo en los últimos dos minutos, con la misma credencial, no se
 vuelve a sondear: el siguiente turno de la conversación lo conecta directamente. Si
 ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo sondea

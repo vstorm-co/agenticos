@@ -1,5 +1,5 @@
 ---
-source_sha: "3ec185106de2"
+source_sha: "48dc500a62e5"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -519,8 +519,11 @@ weiter, bis die neue Einwilligung eintrifft.
 
 ## Was bei einem Zug passiert { #what-happens-on-a-turn }
 
-Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Roundtrip
-geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig. Ein Server, der in den
+Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Handshake
+geprüft, und die Prüfungen laufen nebenläufig. Ein Server hat 3 Sekunden, um die
+Verbindung anzunehmen, und 10 Sekunden für den ganzen Handshake, denn einer, der
+das Token jeder Anfrage bei seinem Identitätsanbieter prüft, ist langsam, ohne
+ausgefallen zu sein. Ein Server, der in den
 letzten zwei Minuten mit derselben Anmeldung auf seine Prüfung geantwortet hat, wird
 nicht erneut geprüft: Der nächste Zug einer Unterhaltung bindet ihn sofort ein. Ist
 er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der nächste

@@ -33,6 +33,18 @@ Two things are versioned separately from this file and worth knowing about:
   one. Taking a host off the list stops its OAuth connections from renewing
   their tokens. Carries the scoping from #2356 by @henfircreo.
 
+### Fixed
+
+- **A slow MCP server is no longer left out of every turn.** The probe before
+  a turn gave the whole session - `initialize`, `initialized` and
+  `tools/list` - 3 seconds. A server that checks each request's token at its
+  identity provider, such as an OAuth proxy in front of GitHub or Microsoft
+  Entra, spends about a second per request, so it timed out on every turn and
+  every connection check although it answered each request. A server now gets
+  3 seconds to accept the connection and 10 seconds for the whole handshake,
+  and a run waits as long for `initialize`. A host that is down still fails
+  within 3 seconds.
+
 ## [1.13.0] - 2026-10-22
 
 ### Added
