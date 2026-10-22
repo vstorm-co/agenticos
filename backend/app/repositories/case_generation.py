@@ -77,12 +77,16 @@ async def finish_generation(
     error: str | None = None,
     run_id: UUID | None = None,
     proposed_count: int = 0,
+    unreadable_count: int = 0,
+    rejected_count: int = 0,
 ) -> CaseGeneration:
     generation.status = status
     generation.finished_at = finished_at
     generation.error = error
     generation.run_id = run_id
     generation.proposed_count = proposed_count
+    generation.unreadable_count = unreadable_count
+    generation.rejected_count = rejected_count
     await db.flush()
     await db.refresh(generation)
     return generation

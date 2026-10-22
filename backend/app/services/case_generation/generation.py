@@ -73,6 +73,8 @@ async def _finish(
     error: str | None = None,
     run_id: UUID | None = None,
     proposed: int = 0,
+    unreadable: int = 0,
+    rejected: int = 0,
 ) -> None:
     generation = await case_generation_repo.get_generation(
         db, generation_id, organization_id=ctx.organization_id
@@ -88,6 +90,8 @@ async def _finish(
         error=error[:_ERROR_LIMIT] if error else None,
         run_id=run_id,
         proposed_count=proposed,
+        unreadable_count=unreadable,
+        rejected_count=rejected,
     )
 
 
@@ -103,7 +107,8 @@ async def generate(
     """Run the generator once and record what it drafted. Never raises.
 
     The drafts that keep their source's rule become proposals, redacted like any
-    case on its way in; the rest are counted in the log and nowhere else. A
+    case on its way in; the rest are counted on the generation - the cases that
+    could not be read apart from the ones that broke a rule - and why in the log. A
     refusal of this platform's own leaves the session as it is, so what the
     runner wrote on the run - why its answer could not be read - is kept. Any
     other failure rolls the session back before recording itself: the generation
@@ -209,6 +214,7 @@ async def _record(
             "generation_id": str(generation_id),
             "kept": len(proposals),
             "dropped": dropped,
+            "unreadable": result.output.unreadable,
         },
     )
     if not proposals:
@@ -219,6 +225,8 @@ async def _record(
             status=GenerationStatus.FAILED,
             error=NOTHING_KEPT,
             run_id=result.run.id,
+            unreadable=result.output.unreadable,
+            rejected=dropped,
         )
         return
     await case_generation_repo.add_proposals(db, proposals)
@@ -229,4 +237,6 @@ async def _record(
         status=GenerationStatus.READY,
         run_id=result.run.id,
         proposed=len(proposals),
+        unreadable=result.output.unreadable,
+        rejected=dropped,
     )

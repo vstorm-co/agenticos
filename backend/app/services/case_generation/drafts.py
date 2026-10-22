@@ -12,18 +12,28 @@ The checks and tags each origin carries are added here rather than asked of
 the model, so they hold whatever the model wrote.
 """
 
+import logging
 from collections import Counter
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
+    ValidationError,
+    model_validator,
+)
 
 from app.db.models.case_generation import CaseOrigin
 from app.schemas.dataset import CaseCheck, DatasetCaseContent, ExpectedToolCall
 from app.services.case_generation.sources import Material, Question
 from app.services.dataset import GeneratedCase
 from app.services.scorers import repeats
+
+logger = logging.getLogger(__name__)
 
 RedTeamCategory = Literal["out_of_scope", "prompt_injection", "personal_data", "policy_bypass"]
 
@@ -79,7 +89,51 @@ class DraftedCase(BaseModel):
 class DraftedCases(BaseModel):
     """The generator's whole answer."""
 
+    # The docstring above is the schema's description, sent to the generator.
+    # Read case by case: a case not in the shape asked for is left out and
+    # counted, so one malformed case does not cost the readable ones; an answer
+    # with cases and none of them readable is unreadable as a whole.
     cases: list[DraftedCase]
+    _unreadable: int = PrivateAttr(default=0)
+
+    @property
+    def unreadable(self) -> int:
+        """How many of the generator's cases could not be read."""
+        return self._unreadable
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _read_each_case(
+        cls, data: object, handler: ModelWrapValidatorHandler[DraftedCases]
+    ) -> DraftedCases:
+        if not isinstance(data, dict):
+            return handler(data)
+        raw = data.get("cases")
+        if not isinstance(raw, list) or not raw:
+            return handler(data)
+        readable: list[object] = []
+        for index, case in enumerate(raw):
+            try:
+                DraftedCase.model_validate(case)
+            except ValidationError as exc:
+                # Where and why only: the case itself may repeat what the generator was shown.
+                logger.info(
+                    "case_generation_unreadable_case",
+                    extra={
+                        "case": index,
+                        "problems": [
+                            f"{'.'.join(str(step) for step in error['loc'])}: {error['msg']}"
+                            for error in exc.errors(include_url=False, include_input=False)[:5]
+                        ],
+                    },
+                )
+                continue
+            readable.append(case)
+        if not readable:
+            raise ValueError(f"none of the {len(raw)} cases is in the shape asked for")
+        drafted = handler({**data, "cases": readable})
+        drafted._unreadable = len(raw) - len(readable)
+        return drafted
 
 
 @dataclass(frozen=True)

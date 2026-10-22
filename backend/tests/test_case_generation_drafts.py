@@ -1,7 +1,11 @@
 """The rules a drafted case must keep, the prompt that asks for it, and what it costs."""
 
+import json
 import uuid
 from decimal import Decimal
+
+import pytest
+from pydantic import TypeAdapter, ValidationError
 
 from app.db.models.case_generation import CaseOrigin
 from app.services.case_generation import estimate
@@ -23,6 +27,7 @@ from app.services.case_generation.sources import (
     Tool,
     spread,
 )
+from app.services.system_agent_runner import output_contract, parse_output
 
 _ALL = dict.fromkeys(CaseOrigin, 50)
 
@@ -324,3 +329,48 @@ def test_the_estimate_counts_the_prompt_and_every_case() -> None:
         estimate.estimate_cost("x", 1, model_name="no-such-model-anywhere", provider="nobody")
         is None
     )
+
+
+def test_the_estimate_on_a_cheap_paid_model_is_above_zero() -> None:
+    cost = estimate.estimate_cost(
+        "x" * 8_000, 20, model_name="openai/gpt-4.1-nano", provider="openrouter"
+    )
+    assert cost is not None
+    assert Decimal("0") < cost < Decimal("0.01")
+
+
+_READABLE = {"origin": "agent", "input": "Can I cancel order 12?", "reference_answer": "Yes."}
+_MALFORMED = {"origin": "agent", "input": "Where is it?", "expected_tools": "lookup_order"}
+
+
+def test_a_malformed_case_is_left_out_and_the_readable_ones_kept() -> None:
+    answer = json.dumps({"cases": [_READABLE, _MALFORMED, _READABLE, {"origin": "nope"}]})
+
+    drafted = parse_output(answer, DraftedCases)
+
+    assert [case.input for case in drafted.cases] == [_READABLE["input"]] * 2
+    assert drafted.unreadable == 2
+    kept, dropped = keep(drafted, _material(), quotas=_ALL)
+    assert (len(kept), dropped) == (2, 0)
+
+
+def test_an_answer_whose_every_case_is_malformed_cannot_be_read() -> None:
+    with pytest.raises(ValidationError, match="none of the 2 cases"):
+        parse_output(json.dumps({"cases": [_MALFORMED, _MALFORMED]}), DraftedCases)
+    with pytest.raises(ValidationError):
+        parse_output(json.dumps({"cases": "two"}), DraftedCases)
+
+
+def test_an_answer_with_no_cases_reads_as_nothing_drafted() -> None:
+    drafted = parse_output('{"cases": []}', DraftedCases)
+
+    assert (drafted.cases, drafted.unreadable) == ([], 0)
+    assert _drafts(_READABLE).unreadable == 0
+
+
+def test_the_shape_asked_of_the_generator_is_unchanged_by_reading_case_by_case() -> None:
+    schema = TypeAdapter(DraftedCases).json_schema()
+
+    assert set(schema["properties"]) == {"cases"}
+    assert schema["properties"]["cases"]["items"] == {"$ref": "#/$defs/DraftedCase"}
+    assert "unreadable" not in output_contract(DraftedCases)
