@@ -143,6 +143,15 @@ Two things are versioned separately from this file and worth knowing about:
   `@claude-code-like` agent as it is - an agent's handle never changes - and
   rerunning bootstrap there installs AgenticOS beside it.
 
+### Fixed
+
+- **The image packages describe themselves on GHCR (#2299).** The pages for
+  `agenticos-backend`, `agenticos-frontend` and `agenticos-browser` said "No
+  description provided": GHCR reads a multi-architecture package's description
+  from the manifest list, and the labels sat only on the per-architecture
+  images. The publish job now annotates each list with what the image is and a
+  link to the docs. The pages update on the next publish; earlier tags keep
+  their lists as they were.
 
 ## [1.12.2] - 2026-10-22
 
