@@ -139,6 +139,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Android app shows the AgenticOS icon**, not Tauri's default: the
+  generated launcher icons had never been copied into the Android project.
+- **The desktop app opens on the console, not on the sign-in form.** It
+  opened the server's root, which sends everybody to the form, so a person
+  with a perfectly good session was asked to sign in on every launch.
+
+## [1.12.2] - 2026-10-22
+
+### Fixed
+
 - **A dead job's ending is settled once (#2334).** When a job died for good,
   the worker that saw it settled its ending - marking a document failed, closing
   a sync log - right after committing the death, and a rescuer pass running in
@@ -146,11 +156,6 @@ Two things are versioned separately from this file and worth knowing about:
   now runs under a lock on the job's row: a second caller skips it, one arriving
   later finds it settled, and a settler that fails still leaves the end owed for
   the next pass.
-- **The Android app shows the AgenticOS icon**, not Tauri's default: the
-  generated launcher icons had never been copied into the Android project.
-- **The desktop app opens on the console, not on the sign-in form.** It
-  opened the server's root, which sends everybody to the form, so a person
-  with a perfectly good session was asked to sign in on every launch.
 
 ## [1.12.1] - 2026-10-22
 
