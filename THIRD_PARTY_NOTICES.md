@@ -24,7 +24,7 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 123 | 241 |
-| Apache-2.0 | 72 | 24 |
+| Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 34 | 4 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
@@ -36,6 +36,7 @@ names no author is in the evidence column below.
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND BSD-2-Clause | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
+| Apache-2.0 OR BSD-2-Clause | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
 | Artistic-1.0-Perl OR GPL-2.0-or-later | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
@@ -218,7 +219,7 @@ names no author is in the evidence column below.
 | opentelemetry-semantic-conventions | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-util-http | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
 | orjson | 3.12.0 | MPL-2.0 AND (Apache-2.0 OR MIT) | https://github.com/ijl/orjson | License-Expression; review accepted |
-| packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging | License-Expression |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
 | pathspec | 1.1.1 | MPL-2.0 | https://github.com/cpburnz/python-pathspec | classifier; review accepted |
 | pendulum | 3.2.0 | MIT | https://github.com/sdispater/pendulum | License field |
