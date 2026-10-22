@@ -108,6 +108,12 @@ def test_an_invalid_comparison_says_nothing_even_about_regressions() -> None:
     assert judge(result) is ImprovementVerdict.INCONCLUSIVE
 
 
+def test_a_failed_suite_decides_even_when_the_sides_cannot_be_compared() -> None:
+    """A suite's pass-rate floor is absolute, so it fails without a valid comparison."""
+    result = replace(_BETTER, comparable=False, suite=SuiteOutcome.FAILED)
+    assert judge(result) is ImprovementVerdict.REGRESSION
+
+
 def test_a_confirmed_regression_outweighs_the_fixes() -> None:
     assert judge(replace(_BETTER, regressions_confirmed=1)) is ImprovementVerdict.REGRESSION
 
@@ -347,13 +353,20 @@ def test_a_change_under_the_session_makes_it_stale() -> None:
 
 
 @pytest.mark.parametrize("stage", [None, *ImprovementStage])
-def test_a_step_stalls_only_after_its_timeout_and_the_margin(
+def test_a_running_step_stalls_only_after_its_timeout_and_the_margin(
     stage: ImprovementStage | None,
 ) -> None:
     now = datetime.now(UTC)
     limit = (QUEUED_TIMEOUT if stage is None else STEP_TIMEOUT[stage]) + STALL_MARGIN
-    assert not stalled(stage, last_progress=now - limit, now=now)
-    assert stalled(stage, last_progress=now - limit - timedelta(seconds=1), now=now)
+    assert not stalled(stage, waiting=False, last_progress=now - limit, now=now)
+    assert stalled(stage, waiting=False, last_progress=now - limit - timedelta(seconds=1), now=now)
+
+
+@pytest.mark.parametrize("stage", [None, ImprovementStage.PROPOSING, ImprovementStage.EVALUATING])
+def test_a_step_waiting_in_a_queue_never_stalls(stage: ImprovementStage | None) -> None:
+    """A check queued behind long evals for a day is still alive, and must not be paid for twice."""
+    now = datetime.now(UTC)
+    assert not stalled(stage, waiting=True, last_progress=now - timedelta(days=2), now=now)
 
 
 @pytest.mark.parametrize("stage", [None, ImprovementStage.EVALUATING])

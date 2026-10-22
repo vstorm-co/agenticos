@@ -38,10 +38,10 @@ STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
     ImprovementStage.EVALUATING: timedelta(hours=12),
     ImprovementStage.JUDGING: timedelta(minutes=2),
 }
-"""How long a step may go without progress: the job timeout of whatever does it."""
+"""How long a step may run without progress: the job timeout of whatever runs it."""
 
 QUEUED_TIMEOUT = timedelta(minutes=2)
-"""How long a queued session may wait for its first step: the step job's own timeout."""
+"""How long a queued session's first step may run: the step job's own timeout."""
 
 _MOVES: dict[ImprovementStatus, frozenset[ImprovementStatus]] = {
     ImprovementStatus.QUEUED: frozenset(
@@ -244,13 +244,17 @@ class CheckResult:
 def judge(result: CheckResult) -> ImprovementVerdict:
     """The verdict on a candidate. Anything not measured is inconclusive, never better.
 
-    A confirmed regression or a failed suite decides before anything unmeasured
-    does: what is known to break stays broken however many other cases went
-    ungraded. Only an invalid comparison outranks it, since its flips mean nothing.
+    What is known to break decides before anything unmeasured does, however
+    many other cases went ungraded. A failed suite decides even when the two
+    sides could not be compared, since its threshold can be absolute; a
+    confirmed regression only when they could, since otherwise its flips mean
+    nothing.
     """
+    if result.suite is SuiteOutcome.FAILED:
+        return ImprovementVerdict.REGRESSION
     if not result.comparable:
         return ImprovementVerdict.INCONCLUSIVE
-    if result.regressions_confirmed or result.suite is SuiteOutcome.FAILED:
+    if result.regressions_confirmed:
         return ImprovementVerdict.REGRESSION
     if (
         result.incomplete
@@ -292,13 +296,22 @@ def after_judging(
     return _stop(ImprovementStage.JUDGING, _STOPS[verdict])
 
 
-def stalled(stage: ImprovementStage | None, *, last_progress: datetime, now: datetime) -> bool:
-    """Whether a step went longer without progress than whatever runs it is allowed to.
+def stalled(
+    stage: ImprovementStage | None, *, waiting: bool, last_progress: datetime, now: datetime
+) -> bool:
+    """Whether a step ran longer without progress than whatever runs it is allowed to.
 
     `stage` is `None` for a queued session that has not taken a step yet.
-    `last_progress` is the later of the step's start and its child's last
-    heartbeat, so a long eval that keeps beating is never stalled.
+    `waiting` is true while whatever runs the step - the step job, the authoring
+    request or the eval run - has not been picked up yet, a retry waiting out its
+    backoff included. A queue wait is never a stall, however long the pool is
+    busy: a child that dies there is settled by the platform's reapers, and the
+    step then ends the session on its own. `last_progress` is the later of when
+    it started running and its last heartbeat, so a long eval that keeps beating
+    is never stalled either.
     """
+    if waiting:
+        return False
     timeout = QUEUED_TIMEOUT if stage is None else STEP_TIMEOUT[stage]
     return now - last_progress > timeout + STALL_MARGIN
 

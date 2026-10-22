@@ -36,6 +36,8 @@ _STATUSES = (
     "'queued', 'running', 'ready', 'stopped', 'failed', 'cancelled', 'stale', "
     "'accepted', 'published', 'rejected'"
 )
+_ACTIVE = "'queued', 'running'"
+_OPEN = "'queued', 'running', 'ready', 'accepted'"
 _STAGES = "'analyzing', 'proposing', 'filtering', 'evaluating', 'judging'"
 _STOP_REASONS = (
     "'no_data', 'no_proposal', 'budget', 'inconclusive', 'regression', 'no_change', "
@@ -139,13 +141,13 @@ def upgrade() -> None:
         "improvement_runs",
         ["agent_id"],
         unique=True,
-        postgresql_where=sa.text("status IN ('queued', 'running')"),
+        postgresql_where=sa.text(f"status IN ({_ACTIVE})"),
     )
     op.create_index(
         "ix_improvement_runs_open",
         "improvement_runs",
         ["status"],
-        postgresql_where=sa.text("status IN ('queued', 'running', 'ready', 'accepted')"),
+        postgresql_where=sa.text(f"status IN ({_OPEN})"),
     )
 
     op.create_table(
