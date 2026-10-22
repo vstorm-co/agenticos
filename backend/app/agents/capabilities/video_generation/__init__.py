@@ -1,5 +1,7 @@
 """Video generation capability - make a short video from a description."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 from app.agents.capabilities._config_refusal import refused_at
@@ -22,6 +24,11 @@ from app.services.video_models import (
 __all__ = ["VideoGeneration", "VideoGenerationConfig"]
 
 USUAL_SECONDS = 5
+
+AlibabaRegion = Literal[
+    "ap-southeast-1", "us-east-1", "eu-central-1", "ap-northeast-1", "cn-beijing", "cn-hongkong"
+]
+"""The regions Alibaba's Model Studio serves Wan from, by its own ids."""
 """A clip's length when nothing says otherwise: long enough to show something
 happen, short enough to be cheap on every model here."""
 
@@ -99,6 +106,23 @@ class VideoGenerationConfig(BaseModel):
             "Whether clips carry sound unless the agent asks otherwise, where the model makes "
             "it optional; left empty, the provider's default."
         ),
+    )
+    alibaba_workspace: str | None = Field(
+        title="Alibaba workspace",
+        default=None,
+        # One DNS label: it becomes the first label of an `aliyuncs.com` host, so
+        # anything else could point the key at a host nobody chose.
+        pattern=r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+        description=(
+            "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called "
+            "through. Left empty, the shared DashScope endpoint, which Alibaba keeps "
+            "for existing integrations."
+        ),
+    )
+    alibaba_region: AlibabaRegion = Field(
+        title="Alibaba region",
+        default="ap-southeast-1",
+        description="Alibaba only: the region the workspace is in.",
     )
     timeout_seconds: int = Field(
         title="Time limit",
@@ -184,6 +208,16 @@ class VideoGenerationConfig(BaseModel):
             raise ValueError(f"{self.provider}/{self.model} is no longer offered for video")
         return model
 
+    def endpoint(self) -> str | None:
+        """The API base a workspace binding is called at, or `None` for the catalog's.
+
+        Only Alibaba has one: Model Studio serves Wan from a host named after the
+        workspace and its region (#2350).
+        """
+        if self.provider != "alibaba" or self.alibaba_workspace is None:
+            return None
+        return f"https://{self.alibaba_workspace}.{self.alibaba_region}.maas.aliyuncs.com/api/v1"
+
     def resolved_resolution(self) -> str:
         """The usual resolution: the one chosen, or the model's first."""
         return self.resolution or self.chosen_model().resolutions[0]
@@ -245,5 +279,6 @@ def _build(ctx: CapabilityBuildContext) -> VideoGeneration:
         audio=config.audio,
         audio_optional=model.audio == "optional",
         timeout_seconds=config.timeout_seconds,
+        base_url=config.endpoint(),
         api_key=api_key,
     )

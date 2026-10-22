@@ -1,5 +1,5 @@
 ---
-source_sha: "d4c56f79341c"
+source_sha: "2048c082178a"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -199,7 +199,12 @@ Schlüssel lässt den Agent keine Anrufe annehmen, bis ein anderer gewählt ist.
 
 **Capabilities.** Eine Capability erklärt, dass sie Zugangsdaten einer
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API
-Key"; die `secret_id` eines Bindings sagt, welchen. Siehe
+Key"; die `secret_id` eines Bindings sagt, welchen. Wo das Binding den Dienst
+nennt, für den der Key ist - den gewählten Provider oder den einen Dienst der
+Capability, etwa mem0 -, lehnt das Veröffentlichen einen Key ab, der für einen
+anderen Dienst gespeichert ist, weil er bei jedem Aufruf an den falschen Provider
+ginge. Ein `custom`-Key, und das ist jeder vor den Zwecken gespeicherte Key, wird
+angenommen. Siehe
 [den Capability-Katalog](reference/capabilities.md#what-a-binding-may-change).
 
 **MCP-Verbindungen.** Bearer-Token und OAuth-Nutzlasten, versiegelt an die

@@ -56,6 +56,16 @@ there would be resolved away and send the key to another endpoint."""
 
 
 @dataclass(frozen=True)
+class SpokenPiece:
+    """One piece of a text whose audio is in hand."""
+
+    characters: int
+    seconds: float | None
+    """How long its audio runs, where that is known from the bytes - raw PCM; an
+    MP3's frames are not read here."""
+
+
+@dataclass(frozen=True)
 class Speech:
     """A clip, and what it took to make it."""
 
@@ -140,7 +150,7 @@ async def synthesize(
     audio_format: str,
     api_key: str,
     instructions: str | None = None,
-    on_spoken: Callable[[int], None] | None = None,
+    on_spoken: Callable[[SpokenPiece], None] | None = None,
 ) -> Speech:
     """Speak `text` with one provider's model and voice, as one clip.
 
@@ -153,8 +163,9 @@ async def synthesize(
         audio_format: `mp3` or `wav`; one the entry lists.
         api_key: The binding's key, sent in a header and nowhere else.
         instructions: A direction on how to speak, for models that read one.
-        on_spoken: Told the characters of each piece as soon as its audio is
-            in hand - so a caller books the cost of a long text as it goes, and
+        on_spoken: Told each piece - its characters, and its audio's length
+            where that is known - as soon as its audio is in hand, so a caller
+            books the cost of a long text as it goes, and
             a failure or a cancelled run partway through still books every
             piece that came back. A piece in flight when the run is cancelled,
             or answered with something that is not audio, is not booked.
@@ -193,9 +204,11 @@ async def synthesize(
                     encoding="mp3" if audio_format == "mp3" else "pcm",
                     instructions=instructions if chosen.takes_instructions else None,
                 )
-                audio.append(await speak(client, call))
+                spoken = await speak(client, call)
+                audio.append(spoken)
                 if on_spoken is not None:
-                    on_spoken(len(piece))
+                    seconds = len(spoken) / (SAMPLE_RATE * 2) if call.encoding == "pcm" else None
+                    on_spoken(SpokenPiece(characters=len(piece), seconds=seconds))
     except httpx.HTTPError:
         logger.warning("Speech request to %s failed in transit", provider.provider, exc_info=True)
         raise SpeechProviderError(SpeechFailure.UNAVAILABLE, provider=provider.provider) from None

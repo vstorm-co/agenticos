@@ -31,6 +31,9 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
     audio: bool | None
     audio_optional: bool
     timeout_seconds: int
+    base_url: str | None = None
+    """Where this binding's provider is called, where it is not the catalog's."""
+
     # Unsealed from the vault by the factory. `repr=False` because a dataclass
     # repr ends up in log lines and traceback frames, and a provider key in
     # either is a key to rotate. `None` only on the preview and test paths that
@@ -55,6 +58,7 @@ class VideoGeneration(AbstractCapability[AgentDepsT]):
                     audio=self.audio,
                     audio_optional=self.audio_optional,
                     timeout_seconds=self.timeout_seconds,
+                    base_url=self.base_url,
                 ),
                 api_key=self.api_key,
             )

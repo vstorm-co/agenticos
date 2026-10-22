@@ -7701,6 +7701,14 @@
         "title": "Dźwięk",
         "description": "Czy klipy mają dźwięk, jeśli agent nie poprosi inaczej, tam gdzie model robi go opcjonalnym; puste oznacza domyślne ustawienie providera."
       },
+      "alibaba_workspace": {
+        "title": "Workspace Alibaby",
+        "description": "Tylko Alibaba: id workspace'u Model Studio, przez który wywoływany jest Wan 3.0. Puste - wspólny endpoint DashScope, który Alibaba utrzymuje dla istniejących integracji."
+      },
+      "alibaba_region": {
+        "title": "Region Alibaby",
+        "description": "Tylko Alibaba: region, w którym jest workspace."
+      },
       "timeout_seconds": {
         "title": "Limit czasu",
         "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, i księgowane według szacunku."

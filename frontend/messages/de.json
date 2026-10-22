@@ -7799,6 +7799,14 @@
         "title": "Ton",
         "description": "Ob Clips Ton haben, sofern der Agent nichts anderes verlangt, wo das Modell ihn optional macht; leer bedeutet die Voreinstellung des Providers."
       },
+      "alibaba_workspace": {
+        "title": "Alibaba-Workspace",
+        "description": "Nur Alibaba: die Workspace-ID in Model Studio, über die Wan 3.0 aufgerufen wird. Leer bleibt es beim gemeinsamen DashScope-Endpunkt, den Alibaba für bestehende Integrationen weiterführt."
+      },
+      "alibaba_region": {
+        "title": "Alibaba-Region",
+        "description": "Nur Alibaba: die Region, in der der Workspace liegt."
+      },
       "timeout_seconds": {
         "title": "Zeitlimit",
         "description": "Wie lange auf einen Clip gewartet wird, in Sekunden. Ein bis dahin nicht fertiger Job wird abgebrochen, wo der Provider es erlaubt, und mit seiner Schätzung gebucht."

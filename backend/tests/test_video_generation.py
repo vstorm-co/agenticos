@@ -468,6 +468,25 @@ class TestXai:
 class TestAlibaba:
     SUBMIT = "/api/v1/services/aigc/video-generation/video-synthesis"
 
+    async def test_a_workspace_binding_is_called_at_its_own_host(self):
+        routes = {
+            ("POST", self.SUBMIT): _json({"output": {"task_id": "t1"}}),
+            ("GET", "/api/v1/tasks/t1"): _json(
+                {"output": {"task_status": "SUCCEEDED", "video_url": "https://oss.example/v.mp4"}}
+            ),
+            ("GET", "/v.mp4"): _bytes(),
+        }
+        with _answering(routes) as seen:
+            await _make(
+                "alibaba",
+                "wan3.0-video",
+                base_url="https://ws-1a2b.us-east-1.maas.aliyuncs.com/api/v1",
+            )
+
+        assert [request.url.host for request in seen[:2]] == [
+            "ws-1a2b.us-east-1.maas.aliyuncs.com"
+        ] * 2
+
     async def test_asks_asynchronously_with_an_upper_case_resolution(self):
         routes = {
             ("POST", self.SUBMIT): _json({"output": {"task_id": "t1", "task_status": "PENDING"}}),

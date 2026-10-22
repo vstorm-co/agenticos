@@ -20,7 +20,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.main import app
 from app.services import text_to_speech_models
-from app.services.text_to_speech_models import SpeechPrice, price_per_character
+from app.services.text_to_speech_models import SpeechPrice, piece_cost, price_per_character
 
 
 def _provider(provider_id: str) -> text_to_speech_models.TextToSpeechProvider:
@@ -157,6 +157,60 @@ class TestPrices:
         )
 
         assert price_per_character(model, on=date(2026, 10, 20)) is None
+        assert piece_cost(model, on=date(2026, 10, 20), characters=10, seconds=1.0) is None
+
+
+class TestPieceCost:
+    """What a spoken piece is booked at, after its audio came back (#2351)."""
+
+    def test_a_token_billed_piece_is_booked_from_its_audio(self):
+        """Gemini bills text tokens in and 25 audio tokens a second out."""
+        flash = _provider("google").model("gemini-3.8-flash-tts")
+        assert flash is not None
+
+        cost = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=10.0)
+
+        # 100 text tokens at $0.50/M and 250 audio tokens at $9.00/M.
+        assert cost == (100 * Decimal("0.50") + 250 * Decimal("9.00")) / 1_000_000
+
+    def test_a_slow_delivery_of_the_same_text_costs_more(self):
+        flash = _provider("google").model("gemini-3.8-flash-tts")
+        assert flash is not None
+
+        brisk = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=5.0)
+        slow = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=20.0)
+
+        assert brisk is not None and slow is not None and slow > 3 * brisk
+
+    def test_the_rates_follow_the_scheduled_price(self):
+        flash = _provider("google").model("gemini-3.8-flash-tts")
+        assert flash is not None
+
+        before = piece_cost(flash, on=date(2026, 12, 31), characters=0, seconds=10.0)
+        after = piece_cost(flash, on=date(2027, 1, 1), characters=0, seconds=10.0)
+
+        assert before is not None and after == 2 * before
+
+    @pytest.mark.parametrize(
+        ("provider", "model", "seconds"),
+        [("openai", "tts-1", 3.0), ("google", "gemini-3.8-flash-tts", None)],
+        ids=["character-billed", "length-unknown"],
+    )
+    def test_otherwise_a_piece_is_booked_by_its_characters(self, provider, model, seconds):
+        chosen = _provider(provider).model(model)
+        assert chosen is not None
+
+        cost = piece_cost(chosen, on=date(2026, 10, 20), characters=300, seconds=seconds)
+
+        assert cost == price_per_character(chosen, on=date(2026, 10, 20)) * 300
+
+    def test_a_price_states_all_three_token_rates_or_none(self):
+        with pytest.raises(ValueError, match="all three token rates"):
+            SpeechPrice(
+                since=date(2026, 1, 1),
+                usd_per_million_characters=Decimal("1"),
+                usd_per_million_audio_tokens=Decimal("9"),
+            )
 
 
 @pytest.mark.parametrize("provider", ["openai", "elevenlabs", "google"])

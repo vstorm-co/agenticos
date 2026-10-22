@@ -1,5 +1,5 @@
 ---
-source_sha: "9389f115faa2"
+source_sha: "e46be0dd54a7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1234,8 +1234,11 @@ Gemini), und entfallen bei den übrigen.
 verkauft, also hält der Katalog einen datierten Preis pro Million Zeichen, und die
 Kosten sind vor dem Aufruf bekannt. Ein Run, den der Clip über eine Grenze tragen
 würde, wird abgelehnt; danach werden die Kosten gebucht, und bei einem Fehler
-mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle haben
-einen Preis pro Zeichen typischer Sprache. Ein datierter Preis gilt ab seinem Tag
+mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle werden
+zu einem Preis pro Zeichen typischer Sprache geprüft. Gemini, das sein Audio als
+rohes PCM liefert, wird danach aus dem Audio gebucht, das jedes Stück zurückgab -
+Text-Tokens hinein und 25 Audio-Tokens pro Sekunde heraus -, sodass eine langsame
+Sprechweise kostet, was der Provider dafür abrechnet. Ein datierter Preis gilt ab seinem Tag
 - so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
 
 **Gebucht beim Sprechen, ein Clip nach dem anderen.** Jedes Stück eines langen
@@ -1280,6 +1283,8 @@ gemacht haben.
 | `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet |
 | `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt |
 | `audio` | Voreinstellung des Providers | Die Voreinstellung, an oder aus; der Agent darf pro Clip beides verlangen. Abgelehnt, wo der Ton des Modells feststeht |
+| `alibaba_workspace` | keiner: der gemeinsame DashScope-Endpunkt | Nur Alibaba: die Workspace-ID in Model Studio, ein Host-Label; Wan wird dann unter `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` aufgerufen |
+| `alibaba_region` | `ap-southeast-1` | Nur Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **Was jedes Modell erzeugen kann, sind Daten.** Der Katalog nennt für jedes

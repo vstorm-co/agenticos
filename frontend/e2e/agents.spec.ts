@@ -503,11 +503,15 @@ test.describe("Agents", () => {
     // account - the picker is absent until the condition is met. An
     // *unconditional* one (image generation always needs a provider key) asks
     // from the moment the capability is on.
+    // A condition already met by what the panel shows - a media capability's
+    // provider, preselected from its catalog - offers the picker at once.
     const condition = needy.requires_secret.required_when;
-    if (condition !== null) {
-      await expect(group.getByLabel("Secret")).toHaveCount(0);
+    if (condition !== null && (await group.getByLabel("Secret").count()) === 0) {
       await group.getByLabel(fieldLabel(condition.field)).click();
-      await page.getByRole("option", { name: condition.equals[0]!, exact: true }).click();
+      // An option is named for people: Web search lists `tavily` as is, image
+      // generation lists the provider `openai` as "OpenAI".
+      const value = condition.equals[0]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await page.getByRole("option", { name: new RegExp(`^${value}$`, "i") }).click();
     }
 
     const picker = group.getByLabel("Secret");

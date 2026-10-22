@@ -21,14 +21,18 @@ than one that is absent.
 to the account - its shared defaults expire on 2026-12-31 - so its list is empty,
 which means a binding names one of its own voices by id.
 
-**Prices are per character, dated.** Every provider here bills either characters
-or audio tokens; a token-billed model is listed at its price per million
-characters of typical speech, which is what can be known before the call is
-made and is what the budget is checked against. A price carries the day it took
-effect, because Gemini's double on 2027-01-01 and a budget that kept the old one
-would let a run spend twice what its cap says.
+**Prices are per character, dated - and per token where that is the bill.** Every
+provider here bills either characters or audio tokens. Every model is listed at
+its price per million characters of typical speech, which is what can be known
+before the call is made and is what the budget is checked against. A model billed
+by the audio it returns also lists its token rates, and each piece is booked from
+the length of the audio that came back: a direction to speak slowly makes the
+same text cost more, and a character price cannot see that (#2351). A price
+carries the day it took effect, because Gemini's double on 2027-01-01 and a budget
+that kept the old one would let a run spend twice what its cap says.
 """
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -46,6 +50,23 @@ class SpeechPrice:
 
     since: date
     usd_per_million_characters: Decimal
+    """The estimate a call is checked against, and the bill where nothing else is."""
+
+    usd_per_million_input_tokens: Decimal | None = None
+    usd_per_million_audio_tokens: Decimal | None = None
+    audio_tokens_per_second: int | None = None
+    """Set together, for a model billed by text tokens in and audio tokens out."""
+
+    def __post_init__(self) -> None:
+        token_rates = (
+            self.usd_per_million_input_tokens,
+            self.usd_per_million_audio_tokens,
+            self.audio_tokens_per_second,
+        )
+        if any(rate is None for rate in token_rates) and any(
+            rate is not None for rate in token_rates
+        ):
+            raise ValueError("A token-billed price states all three token rates or none")
 
 
 @dataclass(frozen=True)
@@ -172,14 +193,51 @@ def default_choice() -> tuple[str, str]:
     return first.provider, first.models[0].id
 
 
-def price_per_character(model: SpeechModel, *, on: date) -> Decimal | None:
-    """What one character costs on a day, or None where no price had started.
+CHARACTERS_PER_TEXT_TOKEN = 4
+"""Roughly, for the text half of a token-billed piece. The provider reports no count,
+and the text side is a fraction of the bill - at Gemini's rates a second of audio
+costs what about 450 characters of text in do."""
 
-    The latest price whose day has come, so a scheduled change takes effect on its
-    date without a release. `None` books the call as unpriced rather than free.
-    """
+
+def _price_on(model: SpeechModel, on: date) -> SpeechPrice | None:
+    """The latest price whose day has come, so a scheduled change takes effect on its
+    date without a release."""
     current = [price for price in model.prices if price.since <= on]
     if not current:
         return None
-    latest = max(current, key=lambda price: price.since)
-    return latest.usd_per_million_characters / 1_000_000
+    return max(current, key=lambda price: price.since)
+
+
+def price_per_character(model: SpeechModel, *, on: date) -> Decimal | None:
+    """What one character costs on a day, or None where no price had started.
+
+    `None` books the call as unpriced rather than free.
+    """
+    price = _price_on(model, on)
+    return None if price is None else price.usd_per_million_characters / 1_000_000
+
+
+def piece_cost(
+    model: SpeechModel, *, on: date, characters: int, seconds: float | None
+) -> Decimal | None:
+    """What one spoken piece cost, or None where no price had started.
+
+    From the audio that came back where the model is billed by it and its length is
+    known; from the characters otherwise.
+    """
+    price = _price_on(model, on)
+    if price is None:
+        return None
+    if (
+        seconds is None
+        or price.usd_per_million_input_tokens is None
+        or price.usd_per_million_audio_tokens is None
+        or price.audio_tokens_per_second is None
+    ):
+        return price.usd_per_million_characters * characters / 1_000_000
+    text_tokens = math.ceil(characters / CHARACTERS_PER_TEXT_TOKEN)
+    audio_tokens = Decimal(str(seconds)) * price.audio_tokens_per_second
+    return (
+        text_tokens * price.usd_per_million_input_tokens
+        + audio_tokens * price.usd_per_million_audio_tokens
+    ) / 1_000_000
