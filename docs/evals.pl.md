@@ -396,12 +396,12 @@ porównywane.
 ## Suity { #suites }
 
 **Suita** to eval run, o którego uruchomieniu nikt nie musi pamiętać. Wskazuje
-agenta, dataset, środowisko, którego wersję sprawdza, i próg, który musi
-spełnić każdy wynik, a potem działa sama. Karta **Suity** stoi pod runami na
-zakładce Evale agenta: dataset każdej suity, kiedy się uruchamia, jej próg i
-jak ostatnio wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
-przeszedł, przypadki, które się zepsuły, i link do eval runa za nim; strona
-tego runa podaje suitę, która go uruchomiła.
+agenta, dataset, środowisko, którego wersję sprawdza, i próg, który musi spełnić
+każdy wynik, a potem działa sama. Karta **Suity** stoi pod runami na zakładce
+Evale agenta: dataset każdej suity, kiedy się uruchamia, jej próg i jak ostatnio
+wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
+przeszedł, przypadki, które się zepsuły, i link do eval runa za nim; strona tego
+runa podaje suitę, która go uruchomiła.
 
 ### Kiedy suita się uruchamia { #when-a-suite-runs }
 

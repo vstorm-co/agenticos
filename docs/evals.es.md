@@ -393,13 +393,13 @@ el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 
 ## Suites { #suites }
 
-Una **suite** es un eval run que nadie tiene que acordarse de iniciar. Nombra
-el agent, el dataset, el entorno cuya versión comprueba y un umbral que debe
+Una **suite** es un eval run que nadie tiene que acordarse de iniciar. Nombra el
+agent, el dataset, el entorno cuya versión comprueba y un umbral que debe
 cumplir cada resultado, y se ejecuta sola. La tarjeta **Suites** está debajo de
 los runs en la pestaña Evals de un agent: el dataset de cada suite, cuándo se
-ejecuta, su umbral y cómo le fue la última vez. Al abrir una se listan todos sus resultados, por qué no
-pasaron, los casos que se rompieron y un enlace al eval run detrás; la página
-de ese run nombra la suite que lo inició.
+ejecuta, su umbral y cómo le fue la última vez. Al abrir una se listan todos sus
+resultados, por qué no pasaron, los casos que se rompieron y un enlace al eval
+run detrás; la página de ese run nombra la suite que lo inició.
 
 ### Cuándo se ejecuta una suite { #when-a-suite-runs }
 

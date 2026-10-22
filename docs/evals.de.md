@@ -419,9 +419,10 @@ Eine **Suite** ist ein Eval-Run, an dessen Start niemand denken muss. Sie nennt
 den Agent, das Dataset, die Umgebung, deren Version sie prüft, und eine
 Schwelle, die jedes Ergebnis erfüllen muss, und läuft dann selbstständig. Die
 Karte **Suites** steht im Evals-Tab eines Agents unter den Runs: das Dataset
-jeder Suite, wann sie läuft, ihre Schwelle und wie sie zuletzt abschnitt. Geöffnet listet eine Suite jedes
-Ergebnis, warum es nicht bestand, die gebrochenen Fälle und einen Link zum
-Eval-Run dahinter; die Seite dieses Runs nennt die Suite, die ihn gestartet hat.
+jeder Suite, wann sie läuft, ihre Schwelle und wie sie zuletzt abschnitt.
+Geöffnet listet eine Suite jedes Ergebnis, warum es nicht bestand, die
+gebrochenen Fälle und einen Link zum Eval-Run dahinter; die Seite dieses Runs
+nennt die Suite, die ihn gestartet hat.
 
 ### Wann eine Suite läuft { #when-a-suite-runs }
 
