@@ -183,9 +183,8 @@ class EvalRun(Base):
     # of its scores after `outcome_at`, and read afresh then.
     outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # A check of authoring suggestions made on an eval suite: the suite and its
-    # threshold as they stood when it started (`EvalSuiteCheck`). It is not one of
-    # the suite's runs, so no suite result points at it.
+    # For a check of suggestions run on an eval suite, the suite and its threshold as
+    # they stood when it started (`EvalSuiteCheck`); no suite result points at it.
     suite_check: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
