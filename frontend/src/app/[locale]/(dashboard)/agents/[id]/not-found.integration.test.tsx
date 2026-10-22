@@ -136,6 +136,8 @@ vi.mock("next/navigation", () => ({
   permanentRedirect: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The Voice card reads the organization list; this spec is about the agent's own read.
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
