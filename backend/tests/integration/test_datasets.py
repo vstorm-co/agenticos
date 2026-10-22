@@ -11,6 +11,8 @@ The claims a mocked session cannot make:
   whatever their role allows elsewhere, and a grant widens that for one dataset.
 """
 
+import asyncio
+import contextlib
 import csv
 import io
 import uuid
@@ -20,6 +22,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.exceptions import ValidationError as InvalidCaseError
@@ -1407,6 +1410,52 @@ async def test_the_shared_predicate_admits_what_is_visible_and_not_the_callers_o
     }
     assert admitted == expected
     assert (rows[6].id in admitted) is granting
+
+
+async def test_two_datasets_edited_at_once_cannot_together_pass_the_ceiling(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each edit locks its own dataset, which does not stop an edit of another one
+    reading the same count: one takes the organization's lock before counting, so
+    the second counts what the first committed."""
+    monkeypatch.setattr(dataset_service.settings, "DATASET_MAX_VERSION_ROWS_PER_ORG", 1)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    case = DatasetCaseCreate(input="q", reference_answer="a")
+    async with factory() as setup:
+        ctx = await _owner(setup)
+        first = await DatasetService(setup).create(ctx, DatasetCreate(name="first"))
+        second = await DatasetService(setup).create(ctx, DatasetCreate(name="second"))
+        await setup.commit()
+
+    holding = factory()
+    racing: asyncio.Task[object] | None = None
+    try:
+        await DatasetService(holding).add_case(ctx, first.id, case)
+
+        async def add_to_the_other() -> object:
+            async with factory() as session:
+                added = await DatasetService(session).add_case(ctx, second.id, case)
+                await session.commit()
+                return added
+
+        racing = asyncio.create_task(add_to_the_other())
+        await asyncio.sleep(0.4)
+        await holding.commit()
+
+        with pytest.raises(BadRequestError):
+            await racing
+        racing = None
+    finally:
+        if racing is not None:
+            racing.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await racing
+        await holding.close()
+
+    async with factory() as session:
+        assert (
+            await dataset_repo.stored_revisions(session, organization_id=ctx.organization_id) == 1
+        )
 
 
 async def test_an_organization_past_its_stored_case_revisions_is_refused(

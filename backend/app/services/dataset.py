@@ -37,6 +37,7 @@ from app.core.exceptions import (
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
@@ -644,10 +645,16 @@ class DatasetService:
         number = dataset.latest_version + 1
         _refuse_past_ceiling(before, len(added))
         new_revisions = [*added, *([replaced[1]] if replaced is not None else [])]
-        _refuse_past_storage(
-            await dataset_repo.stored_revisions(self.db, organization_id=ctx.organization_id),
-            len(new_revisions),
-        )
+        if new_revisions:
+            # Held to the commit, before counting: the dataset's own lock does not
+            # stop an edit of another dataset reading the same count.
+            await hold_subject(
+                self.db, LockScope.DATASET_REVISIONS_PER_ORGANIZATION, ctx.organization_id
+            )
+            _refuse_past_storage(
+                await dataset_repo.stored_revisions(self.db, organization_id=ctx.organization_id),
+                len(new_revisions),
+            )
         next_position = (
             await dataset_repo.last_position(
                 self.db, previous.id, organization_id=ctx.organization_id

@@ -77,6 +77,10 @@ class LockScope(IntEnum):
     #: One knowledge base's check of its answers: two at once would pay twice for
     #: the same answers. Session-scoped, since a check spans many runs.
     KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 14
+    #: How many case revisions one organization's datasets store. Each edit
+    #: locks its own dataset only, so two edits of two datasets would both read
+    #: the count under the ceiling and together go past it.
+    DATASET_REVISIONS_PER_ORGANIZATION = 15
 
 
 def _key(subject: UUID) -> int:
