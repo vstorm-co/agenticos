@@ -22,7 +22,8 @@ key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
 webhooks, except that a host on the deployment's `MCP_ALLOWED_HOSTS` skips the
-private-address check, and only on a connection's own address), the
+private-address check on a connection's own address, and the OAuth flow of such
+a connection may reach the listed hosts), the
 connectivity test that discovers a server's tools, and building per-turn agent
 toolsets - either from the user's own enabled connections (the general
 assistant) or from the organization-scoped ones a published agent's spec names.
@@ -127,7 +128,7 @@ def _now_epoch() -> float:
     return datetime.now(UTC).timestamp()
 
 
-async def _checked_url(url: str, *, honour_allowlist: bool = False) -> str:
+async def _checked_url(url: str) -> str:
     """SSRF-check a submitted URL, refusing it as a 400 rather than a crash.
 
     `validate_mcp_url` raises `SSRFBlockedError`, which subclasses `ValueError`
@@ -152,17 +153,17 @@ async def _checked_url(url: str, *, honour_allowlist: bool = False) -> str:
     goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
     refusal that is not a `UrlRefusedError`.
 
-    Only the four callers that save a connection's own address pass
-    `honour_allowlist`. `probe_sign_in` and `_oauth_start` keep the strict
-    default: `mcp_oauth.discover` never honours the list, so a listed URL would
-    only be refused there instead, hop by hop.
+    Every caller passes a connection's own address - the four that save it,
+    `probe_sign_in` and `_oauth_start` - so `MCP_ALLOWED_HOSTS` is honoured
+    for all of them. The OAuth discovery after the last two reaches a listed
+    host exactly when the connection's own host is one (`mcp_oauth.discover`).
 
     Raises:
         BadRequestError: If the URL is malformed or points inside the
             deployment's network.
     """
     try:
-        return await validate_mcp_url(url, honour_allowlist=honour_allowlist)
+        return await validate_mcp_url(url, honour_allowlist=True)
     except UrlRefusedError as exc:
         # Ours to quote, in the log as much as in the body - see the docstring.
         logger.warning("MCP server URL refused: %s", exc)
@@ -234,6 +235,7 @@ async def _complete_mcp_flow(
         code_verifier=payload.code_verifier,
         redirect_uri=payload.redirect_uri,
         resource=payload.resource,
+        server_url=payload.server_url,
     )
     payload = _apply_token(payload, token)
     return payload, (payload.scope.split() if payload.scope else None)
@@ -444,6 +446,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
             refresh_token=payload.refresh_token.get_secret_value(),
             resource=payload.resource,
             scope=payload.scope,
+            server_url=payload.server_url,
         )
     except OAuthError as exc:
         logger.warning("OAuth token refresh failed for %r: %s", connection.name, exc)
@@ -674,7 +677,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await _checked_url(data.url, honour_allowlist=True)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
             raise AlreadyExistsError(
@@ -737,7 +740,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await _checked_url(update_data["url"], honour_allowlist=True)
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_by_name(
@@ -1716,7 +1719,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await _checked_url(data.url, honour_allowlist=True)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=data.name
         )
@@ -1790,7 +1793,7 @@ class McpConnectionService:
             edited_fields.add("allowed_tools")
 
         if "url" in update_data:
-            update_data["url"] = await _checked_url(update_data["url"], honour_allowlist=True)
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "label" in update_data:
             update_data["label"] = _stored_label(update_data["label"])

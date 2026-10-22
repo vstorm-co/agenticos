@@ -1,5 +1,5 @@
 ---
-source_sha: "7d3991430b9c"
+source_sha: "3ec185106de2"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,17 +62,27 @@ konfigurieren wäre.
     exotische.
 
     Ein Betreiber kann einer Connection erlauben, einen Server im eigenen Netz
-    des Deployments zu erreichen, etwa einen Compose-Dienst. Dazu listet er
-    dessen Host in [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Ein
-    gelisteter Host überspringt nur die Adressprüfung. Die URL braucht weiterhin
-    `http` oder `https`, und die OAuth-Anmeldung bei ihm wird weiterhin
-    abgelehnt.
+    des Deployments zu erreichen, etwa einen Compose-Dienst oder einen Server
+    in einem VPN oder Tailnet. Dazu listet er dessen Host in
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Ein gelisteter
+    Host überspringt nur die Adressprüfung. Die URL braucht weiterhin `http`
+    oder `https`.
+
+    Bei einem gelisteten Server kann man sich auch per OAuth anmelden. Ein
+    solcher Server führt die Anmeldung oft selbst, also dürfen seine Discovery,
+    die Client-Registrierung und die Token-Anfragen die gelisteten Hosts
+    erreichen, und keine andere private Adresse. Jede Anfrage bleibt an die
+    geprüfte Adresse gepinnt, und ein gelisteter Name, der mit einer Loopback-,
+    Link-Local- oder Cloud-Metadaten-Adresse antwortet, wird abgelehnt. Die
+    Anmeldung bei einem öffentlichen Server erreicht nie einen gelisteten Host,
+    auch wenn seine Metadaten ihn nennen.
 
     Jedes Konto des Deployments erreicht dann jeden Port dieses Hosts. Listen
     Sie also nur einen Server, der ein Token prüft, und niemals `localhost` oder
-    einen Dienst dieses Stacks wie `app`, `db` oder `redis`. Die Liste wird nur
-    beim Speichern einer Connection gelesen: Einen Host zu entfernen, trennt
-    keine gespeicherte Connection.
+    einen Dienst dieses Stacks wie `app`, `db` oder `redis`. Die Liste wird beim
+    Speichern einer Connection und bei jeder Anmeldung und Token-Erneuerung
+    gelesen. Einen Host zu entfernen, trennt keine gespeicherte Connection, aber
+    eine OAuth-Connection zu ihm erneuert ihr Token nicht mehr.
 
 ### Persönlich oder organisationsweit { #personal-or-organization-wide }
 
@@ -404,7 +414,9 @@ Zwei Ränder bleiben, beide schmal und beide gewollt:
 - Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
   aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
   heißt also, der Betreiber zu sein. Ein Host auf `MCP_ALLOWED_HOSTS`
-  überspringt die Adressprüfung.
+  überspringt die Adressprüfung, und die OAuth-Anfragen einer Connection, deren
+  eigener Host gelistet ist, dürfen die gelisteten Hosts erreichen, gepinnt wie
+  jeder andere Schritt.
 
 Nichts, was ein *Modell* wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs

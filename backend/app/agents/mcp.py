@@ -29,6 +29,7 @@ from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
@@ -108,6 +109,26 @@ def _allowed_hosts() -> frozenset[str]:
     return frozenset(host for host in hosts if host)
 
 
+def trusted_hosts_for(server_url: str) -> frozenset[str]:
+    """The listed hosts the OAuth flow for the connection at *server_url* may reach.
+
+    All of `MCP_ALLOWED_HOSTS` when the connection's own host is on it, and none
+    otherwise. Its discovery documents name the addresses the flow fetches, so
+    the decision is made from the URL the connection was saved with, never from
+    an address a server named. That keeps a public server from aiming its token
+    endpoint at a listed host. A flow that began at a listed host may reach the
+    others: a member could already save a connection to any of them, so they
+    open nothing new. A URL `urlparse` cannot read trusts nothing; the guard
+    that checks it next writes the refusal.
+    """
+    try:
+        host = urlparse(server_url).hostname
+    except ValueError:
+        return frozenset()
+    listed = _allowed_hosts()
+    return listed if host in listed else frozenset()
+
+
 async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
@@ -123,9 +144,11 @@ async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     Args:
         url: The URL to check; http or https.
         honour_allowlist: Pass `True` only for a connection's own address, as
-            `mcp_connection._checked_url` saves it. A host on
+            `mcp_connection._checked_url` checks it, or for the consent URL of
+            an OAuth flow that began at a listed host. A host on
             `MCP_ALLOWED_HOSTS` then skips the address check and is not
-            resolved. A URL a remote server chose keeps the strict default.
+            resolved. Any other URL a remote server chose keeps the strict
+            default.
 
     Returns:
         The URL, unchanged.

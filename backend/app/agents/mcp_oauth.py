@@ -23,6 +23,11 @@ Every URL reached from here - discovery candidates, the token endpoint, and
 each redirect hop - is SSRF-checked *and connected to at the address that
 check approved* (see :func:`_client`), because discovery means the remote
 server, not the user, picks most of the addresses we call.
+
+A flow for a connection whose own host is on `MCP_ALLOWED_HOSTS` may reach the
+listed hosts too, and only those (:func:`app.agents.mcp.trusted_hosts_for`):
+a server on the deployment's network often signs people in itself, so its
+metadata, registration and token endpoints sit on that same host.
 """
 
 import logging
@@ -52,7 +57,7 @@ from mcp.shared.auth import (
 )
 from pydantic import AnyUrl, BaseModel, ValidationError
 
-from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
+from app.agents.mcp import CONNECT_TIMEOUT_SECS, trusted_hosts_for, validate_mcp_url
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import UrlRefusedError
@@ -149,7 +154,11 @@ def _validation_detail(exc: ValueError) -> str:
     )
 
 
-def _client(transport: httpx2.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
+def _client(
+    transport: httpx2.AsyncBaseTransport | None = None,
+    *,
+    trusted_hosts: frozenset[str] = frozenset(),
+) -> PinnedAsyncClient:
     """The only client this flow talks through.
 
     `PinnedAsyncClient` checks each request's URL and then dials the address
@@ -159,9 +168,14 @@ def _client(transport: httpx2.AsyncBaseTransport | None = None) -> PinnedAsyncCl
     it again, so a hostile server can answer public to the check and private to
     the request between them (#860).
 
+    `trusted_hosts` is :func:`app.agents.mcp.trusted_hosts_for` of the
+    connection's own URL, and of no URL a server named.
+
     `transport` is for a test that needs to see what would go on the wire.
     """
-    return PinnedAsyncClient(timeout=_HTTP_TIMEOUT, transport=transport)
+    return PinnedAsyncClient(
+        timeout=_HTTP_TIMEOUT, transport=transport, trusted_hosts=trusted_hosts
+    )
 
 
 async def _send(client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
@@ -248,6 +262,8 @@ class DiscoveredServer:
     resource: str
     scope: str | None
     metadata: OAuthMetadata
+    trusted_hosts: frozenset[str] = frozenset()
+    """The listed hosts this flow may reach - see :func:`app.agents.mcp.trusted_hosts_for`."""
 
 
 def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata:
@@ -274,7 +290,8 @@ async def discover(server_url: str) -> DiscoveredServer:
     404: the `WWW-Authenticate` hint is the first of three, and the well-known
     URIs after it are derived from the URL an operator typed (#889).
     """
-    async with _client() as client:
+    trusted = trusted_hosts_for(server_url)
+    async with _client(trusted_hosts=trusted) as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
         www_auth_url: str | None = None
         www_auth_scope: str | None = None
@@ -346,8 +363,9 @@ async def discover(server_url: str) -> DiscoveredServer:
         # The consent URL is handed to the user's browser rather than fetched
         # here, so it never passes through the pinned client - and cannot: the
         # browser resolves it itself. A point-in-time check is all there is.
+        # The list is honoured exactly when the hops above honoured it.
         try:
-            await validate_mcp_url(str(asm.authorization_endpoint))
+            await validate_mcp_url(str(asm.authorization_endpoint), honour_allowlist=bool(trusted))
         except UrlRefusedError as exc:
             logger.warning(
                 "Blocked MCP OAuth authorization endpoint %s: %s", asm.authorization_endpoint, exc
@@ -372,6 +390,7 @@ async def discover(server_url: str) -> DiscoveredServer:
             resource=resource_url_from_server_url(server_url),
             scope=scope,
             metadata=asm,
+            trusted_hosts=trusted,
         )
 
 
@@ -388,7 +407,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         )
     except httpx2.InvalidURL as exc:
         raise _unusable_url(exc, "a registration endpoint") from exc
-    async with _client() as client:
+    async with _client(trusted_hosts=server.trusted_hosts) as client:
         try:
             info = await handle_registration_response(await _send(client, request))
         except httpx2.HTTPError as exc:
@@ -453,8 +472,13 @@ async def exchange_code(
     code_verifier: str,
     redirect_uri: str,
     resource: str,
+    server_url: str,
 ) -> OAuthToken:
-    """Exchange an authorization code for tokens (called from the callback)."""
+    """Exchange an authorization code for tokens (called from the callback).
+
+    `server_url` is the connection's own address, which decides the listed
+    hosts the request may reach; the token endpoint is the server's choice.
+    """
     data = {
         "grant_type": "authorization_code",
         "code": code,
@@ -465,7 +489,7 @@ async def exchange_code(
     }
     if client_secret:
         data["client_secret"] = client_secret
-    return await _token_request(token_endpoint, data)
+    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
 
 
 async def refresh_tokens(
@@ -476,8 +500,13 @@ async def refresh_tokens(
     refresh_token: str,
     resource: str,
     scope: str | None,
+    server_url: str,
 ) -> OAuthToken:
-    """Refresh an expired access token using the stored refresh token."""
+    """Refresh an expired access token using the stored refresh token.
+
+    `server_url` as in :func:`exchange_code`. Read at every refresh, so a host
+    taken off the list stops being reached here too.
+    """
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -488,11 +517,13 @@ async def refresh_tokens(
         data["client_secret"] = client_secret
     if scope:
         data["scope"] = scope
-    return await _token_request(token_endpoint, data)
+    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
 
 
-async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToken:
-    async with _client() as client:
+async def _token_request(
+    token_endpoint: str, data: dict[str, str], *, trusted_hosts: frozenset[str] = frozenset()
+) -> OAuthToken:
+    async with _client(trusted_hosts=trusted_hosts) as client:
         try:
             request = client.build_request(
                 "POST",

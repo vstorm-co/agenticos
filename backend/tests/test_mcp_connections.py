@@ -2013,6 +2013,8 @@ class TestOAuthTokens:
         headers = await _resolve_auth_headers(AsyncMock(), conn)
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_awaited_once()
+        # The stored address, never the stored token endpoint, scopes the refresh.
+        assert refresh_mock.call_args.kwargs["server_url"] == payload.server_url
         # The refresh token is only ever spent while holding the row lock.
         lock_mock.assert_awaited_once()
         # The refreshed token was persisted back (re-encrypted).
@@ -2350,14 +2352,17 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_a_url_checked_without_asking_ignores_the_list(self, monkeypatch):
-        """Only a connection's own address, when it is saved, is exempt. A
-        caller that does not ask - the OAuth entry points today, the next
-        caller tomorrow - fails closed."""
+    async def test_every_check_of_a_connections_own_url_honours_the_list(self, monkeypatch):
+        """Saving it, probing it for sign-in and starting its OAuth flow all
+        check the URL a person typed, so a listed host passes each of them.
+        What a server names afterwards is `mcp_oauth`'s to scope."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.5"])
+        url = "http://10.0.0.5:8000/mcp"
+
+        assert await mcp_connection_service._checked_url(url) == url
 
         with pytest.raises(BadRequestError):
-            await mcp_connection_service._checked_url("http://10.0.0.5:8000/mcp")
+            await mcp_connection_service._checked_url("http://10.0.0.6:8000/mcp")
 
     @pytest.mark.anyio
     async def test_create_accepts_a_host_the_operator_listed(self, service, repo, monkeypatch):
@@ -3589,11 +3594,14 @@ class TestMcpConnectionService:
         repo.get_by_oauth_state = AsyncMock(return_value=pending)
         repo.update.return_value = pending
         token = OAuthToken(access_token="AT", refresh_token="RT", expires_in=3600)
-        monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
+        exchange = AsyncMock(return_value=token)
+        monkeypatch.setattr(mcp_oauth, "exchange_code", exchange)
 
         monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-xyz", code="the-code")
 
+        # The flow's own address decides which listed hosts the exchange may reach.
+        assert exchange.call_args.kwargs["server_url"] == "https://moved/mcp"
         update_data = repo.update.call_args_list[0].kwargs["update_data"]
         assert update_data["oauth_state"] is None  # no longer pending
         assert update_data["oauth_pending_payload"] is None
@@ -4981,7 +4989,9 @@ class TestAUrlNoRequestCanBeBuiltFor:
     def _serving(monkeypatch, handler) -> None:
         """Point every client `discover` opens at *handler* instead of a network."""
         real = mcp_oauth._client
-        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx2.MockTransport(handler)))
+        monkeypatch.setattr(
+            mcp_oauth, "_client", lambda **kw: real(httpx2.MockTransport(handler), **kw)
+        )
 
     @classmethod
     def _hinting_at_the_bad_port(cls, request: httpx2.Request) -> httpx2.Response:
@@ -5799,7 +5809,9 @@ class TestDiscoveredScopes:
             return httpx2.Response(404, json={})
 
         real = mcp_oauth._client
-        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx2.MockTransport(handler)))
+        monkeypatch.setattr(
+            mcp_oauth, "_client", lambda **kw: real(httpx2.MockTransport(handler), **kw)
+        )
 
     @pytest.mark.anyio
     async def test_the_servers_own_scope_wins_over_the_issuers_and_keeps_refresh(self, monkeypatch):

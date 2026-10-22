@@ -1,5 +1,5 @@
 ---
-source_sha: "7d3991430b9c"
+source_sha: "3ec185106de2"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -60,16 +60,27 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     pegar una URL de `localhost` es el caso ordinario, no el exótico.
 
     Un operador puede dejar que una conexión alcance un servidor de la propia
-    red del despliegue, como un servicio de compose. Para ello, lista su host en
+    red del despliegue, como un servicio de compose o un servidor en una VPN o
+    una tailnet. Para ello, lista su host en
     [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Un host de la
     lista solo se salta la comprobación de dirección. La URL sigue necesitando
-    `http` o `https`, y el inicio de sesión OAuth en él se sigue rechazando.
+    `http` o `https`.
+
+    También se puede iniciar sesión con OAuth en un servidor de la lista. Un
+    servidor así suele llevar su propio inicio de sesión, así que su
+    descubrimiento, el registro del cliente y las peticiones de token pueden
+    alcanzar los hosts de la lista, y ninguna otra dirección privada. Cada
+    petición sigue fijada a la dirección que se comprobó, y un nombre de la
+    lista que responda con una dirección de loopback, link-local o de metadatos
+    de la nube se rechaza. El inicio de sesión de un servidor público nunca
+    alcanza un host de la lista, aunque sus metadatos lo nombren.
 
     Toda cuenta del despliegue puede entonces alcanzar cualquier puerto de ese
     host. Así que lista solo un servidor que compruebe un token, y nunca
     `localhost` ni un servicio de este stack, como `app`, `db` o `redis`. La
-    lista solo se lee al guardar una conexión: quitar un host no desconecta una
-    conexión guardada.
+    lista se lee al guardar una conexión y en cada inicio de sesión y
+    renovación de token. Quitar un host no desconecta una conexión guardada,
+    pero una conexión OAuth a él deja de renovar su token.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
@@ -399,7 +410,9 @@ Quedan dos bordes, ambos estrechos y ambos deliberados:
 - La **URL propia de la conexión** se comprueba al guardar y se resuelve otra vez
   cuando un agent se ejecuta — la escribe un operador, así que volver a apuntarla
   significa ser el operador. Un host de `MCP_ALLOWED_HOSTS` se salta la
-  comprobación de dirección.
+  comprobación de dirección, y las peticiones OAuth de una conexión cuyo propio
+  host está en la lista pueden alcanzar los hosts de la lista, fijadas como
+  cualquier otro paso.
 
 Nada que elija un *modelo* llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.

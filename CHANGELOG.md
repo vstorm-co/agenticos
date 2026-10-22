@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **People can sign in with OAuth to an MCP server on `MCP_ALLOWED_HOSTS`.**
+  A server on the deployment's network, a VPN or a tailnet often runs its own
+  sign-in, so its metadata, client registration and token endpoints sit on the
+  same private host. Saving such a connection worked since 1.13.0, but every
+  OAuth step after it was refused, so the sign-in probe, Connect and token
+  refresh all failed. Now the OAuth requests of a connection whose own host is
+  listed may reach the listed hosts, still resolved and pinned, and a listed
+  name that answers a loopback, link-local or metadata address is refused. A
+  public server's sign-in reaches no listed host, even when its metadata names
+  one. Taking a host off the list stops its OAuth connections from renewing
+  their tokens. Carries the scoping from #2356 by @henfircreo.
+
 ## [1.13.0] - 2026-10-22
 
 ### Added

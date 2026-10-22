@@ -439,6 +439,57 @@ class TestResolvePinnedUrl:
             resolve_pinned_url("ftp://93.184.216.34/x")
 
 
+class TestResolvePinnedUrlForATrustedHost:
+    """The exemption the MCP OAuth flow passes for a listed host: still resolved
+    and pinned, a private answer allowed, what the list may never name refused."""
+
+    _TRUSTED = frozenset({"mcp.internal"})
+
+    @staticmethod
+    def _answering(*ips: str):
+        return patch(
+            "app.core.sanitize.socket.getaddrinfo",
+            return_value=[(10 if ":" in ip else 2, 1, 6, "", (ip, 443)) for ip in ips],
+        )
+
+    @pytest.mark.parametrize("ip", ["10.0.0.9", "172.20.0.4", "192.168.1.23", "100.72.29.28"])
+    def test_a_private_or_cgnat_answer_is_pinned(self, ip: str):
+        with self._answering(ip):
+            pinned = resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+        assert pinned == PinnedAddress(hostname="mcp.internal", port=443, ips=(ip,))
+
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "127.0.0.1",
+            "::1",
+            "169.254.169.254",
+            "100.100.100.200",
+            "fd00:ec2::254",
+            "::ffff:169.254.169.254",
+            "0.0.0.0",
+            "224.0.0.1",
+        ],
+    )
+    def test_an_answer_the_list_could_never_name_is_refused(self, ip: str):
+        with self._answering("10.0.0.9", ip), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+    def test_an_ip_literal_is_trusted_as_written(self):
+        assert resolve_pinned_url(
+            "http://10.0.0.5:8000/token", trusted_hosts=frozenset({"10.0.0.5"})
+        ).ips == ("10.0.0.5",)
+
+    def test_a_host_outside_the_set_keeps_the_full_check(self):
+        with self._answering("10.0.0.9"), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://other.internal/token", trusted_hosts=self._TRUSTED)
+
+    def test_the_form_checks_still_run(self):
+        with pytest.raises(SSRFBlockedError, match="credentials"):
+            resolve_pinned_url("https://u:p@mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+
 class TestSSRFBlockedError:
     """The dedicated exception type preserves backward compatibility."""
 
