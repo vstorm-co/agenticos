@@ -60,6 +60,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
 from typing import Any
@@ -78,9 +79,9 @@ from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file_repo, conversation_repo, embed_visitor_repo
 from app.schemas.agent_embed import EmbedVariable, PageConfig, WidgetConfig
 from app.services.access import publisher_context
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentIteration, AgentRunnerService
 from app.services.conversation import ConversationService
-from app.services.embed_generated_media import MEDIA_TOOLS, signed_media_result
+from app.services.embed_generated_media import signed_media_result
 from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
@@ -421,9 +422,10 @@ class EmbedSession:
         self._supplied: dict[str, Any] = {}
         # Set once a send has timed out, and never cleared: see `_emit`.
         self._stalled = False
-        # The media tools this socket has seen called, by call id, so their
-        # results can carry a link this visitor can open - see `_emit`.
-        self._media_calls: dict[str, str] = {}
+        # The generated files the turn now streaming has stored, by leaf name:
+        # the run's own `generated_files`, so a result naming one can carry a link
+        # this visitor can open - see `_linked`. Replaced as each turn starts.
+        self._stored: AbstractSet[str] = frozenset()
 
     async def greet(self) -> None:
         """Tell the client it is connected, and hand a returning visitor their thread.
@@ -609,6 +611,13 @@ class EmbedSession:
         # stream only what its operator agreed to show (`_emit`). The visitor's
         # own words, not the assembled prompt, for the frame that echoes one.
         frames = RunFrames(emit=self._emit, prompt=text)
+
+        async def drive(agent_run: AgentIteration[Any, Any]) -> None:
+            # The run's own set, not a copy: a tool adds to it as it stores a file,
+            # which is before the result naming that file is streamed.
+            self._stored = agent_run.ctx.deps.user_deps.generated_files
+            await frames.drive(agent_run)
+
         answer, run = await AgentRunnerService(db).execute(
             ctx,
             self.embed.agent_id,
@@ -627,7 +636,7 @@ class EmbedSession:
             conversation_id=self.conversation_id,
             message_history=await self._history(db),
             attachments=await self._files(db, attached),
-            stream=frames.drive,
+            stream=drive,
             # So a conversation long enough to compact says so. Without it this
             # surface simply stopped for the length of a summary with nothing
             # said - the failure `CompactionSink` was written for, on a socket
@@ -728,21 +737,21 @@ class EmbedSession:
         return governing is None or governing in self.shows
 
     def _linked(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """A media tool's result, with a link to its file this visitor can open (#2309).
+        """A tool result, with a link this visitor can open to a file it names (#2309).
 
         The console's address for a generated file needs a session, and a visitor
         has none. Signed here, as the frame leaves, rather than where the result is
         recorded: the transcript keeps what the tool returned, so no link is stored,
-        and only the socket that streamed the call is handed one. Keyed by the call
-        id the `tool_call` frame announced, so a result that merely *looks* like a
-        media payload - from a web page, an MCP server - is passed on untouched.
+        and only the socket that streamed the run is handed one. Only a file the
+        run's own tools stored is signed (`_stored`), so a result that merely
+        *names* one - from a web page, an MCP server, a tool renamed to look like
+        a media tool - is passed on untouched.
         """
-        tool_name = self._media_calls.pop(str(payload.get("tool_call_id")), None)
         content = payload.get("content")
-        if tool_name is None or not isinstance(content, str):
+        if not isinstance(content, str):
             return payload
         signed = signed_media_result(
-            self.embed.public_key, tool_name, content, now=datetime.now(UTC)
+            self.embed.public_key, content, stored=self._stored, now=datetime.now(UTC)
         )
         return {**payload, "content": signed}
 
@@ -769,14 +778,10 @@ class EmbedSession:
             names = source_names(payload.get("content"))
             if names:
                 await self._emit("sources", {"names": names})
-        if kind == "tool_call" and payload.get("tool_name") in MEDIA_TOOLS:
-            self._media_calls[str(payload.get("tool_call_id"))] = str(payload["tool_name"])
-        if kind == "tool_result":
-            # Before the filter, so a call whose result this page does not show is
-            # forgotten rather than held for the life of the socket.
-            payload = self._linked(payload)
         if self._stalled or kind not in self.shows:
             return
+        if kind == "tool_result":
+            payload = self._linked(payload)
         if kind == "part_start" and not self._announces(payload.get("part_type")):
             return
         if kind == "tool_call" and "tool_result" not in self.shows:

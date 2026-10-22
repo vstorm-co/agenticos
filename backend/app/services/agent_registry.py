@@ -34,6 +34,7 @@ from app.agents.capabilities import (
     all_capabilities,
 )
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities._generated import MEDIA_TOOL_NAMES
 from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import (
     WebBrowserConfig,
@@ -395,6 +396,19 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
         problems.append(
             f"Capability '{binding.id}' renames a tool to {', '.join(taken)}, which the "
             "framework provides itself - two tools of that name abort the turn"
+        )
+
+    # A media tool's name is read as that tool's everywhere a step is shown, so
+    # another tool may not take it. Its own tool keeping it is no rename at all.
+    impostors = sorted(
+        override.name
+        for tool_id, override in binding.tool_overrides.items()
+        if override.name in MEDIA_TOOL_NAMES and override.name != tool_id
+    )
+    if impostors:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(impostors)}, the name "
+            "of the tool that stores generated media - only that tool may carry it"
         )
 
     return problems

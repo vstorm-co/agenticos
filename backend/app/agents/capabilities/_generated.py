@@ -35,6 +35,17 @@ snapshot a channel diffs to decide what to post back (#1039).
 """
 
 
+MEDIA_TOOL_NAMES = frozenset({"generate_image", "generate_speech", "generate_video"})
+"""The tools that store a generated file, each the one tool by its name.
+
+Reserved at publish: no other tool may be renamed onto one of these, so a step
+called `generate_image` is the image tool in the transcript, the console's tool
+catalog and the frames a page streams. What a hosted page's link is minted for
+does not lean on it - that is the run's `generated_files`, because an MCP tool's
+name is the server's to choose and is never seen at publish.
+"""
+
+
 @dataclass(frozen=True)
 class StoredMedia:
     """Where a generated file was kept.

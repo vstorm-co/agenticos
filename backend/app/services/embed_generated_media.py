@@ -6,16 +6,19 @@ hosted page has no session, so the card the page drew for an image, a clip of
 speech or a video asked that route and got a 401 for a file the provider had
 already been paid for (#2309).
 
-**A link is minted for one file, on one embed, for a while - and only by the
-socket that streamed the result naming it.** `EmbedSession._emit` hands every
-`tool_result` of a `generate_image`, `generate_speech` or `generate_video` call
-to :func:`signed_media_result`, which adds a `token` to the payload: an HMAC,
-under the deployment's existing `SECRET_KEY`, of the embed's public key, the
-file's leaf name and an expiry. The serving route checks the signature before it
-reads anything, so:
+**A link is minted for one file, on one embed, for a while - and only for a file
+the run streaming to that socket stored itself.** `EmbedSession._emit` hands
+every `tool_result` to :func:`signed_media_result` with the run's
+`AgentDeps.generated_files` - the leaf names `store_generated` recorded as this
+run's own tools wrote them - and a payload naming a file is signed only when the
+file is in that set. Which tool's result it is does not decide it: an MCP tool or
+a renamed one can be *called* `generate_image` and return any filename it likes,
+and a name is not provenance. The link itself is an HMAC, under the deployment's
+existing `SECRET_KEY`, of the embed's public key, the file's leaf name and an
+expiry. The serving route checks the signature before it reads anything, so:
 
-- another conversation's file is a different leaf name, and no token minted in
-  this one signs it;
+- another conversation's file is a different leaf name this run never stored,
+  and no token minted in this one signs it;
 - another organization's file is out of reach twice over - the token names this
   embed's key, and the bytes are read from the directory of the organization
   *that embed* belongs to, never from anything in the request;
@@ -35,10 +38,24 @@ import hashlib
 import hmac
 import json
 import re
+from collections.abc import Callable
+from collections.abc import Set as AbstractSet
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.image_generation._toolset import (
+    GeneratedImage,
+    parse_generated_image,
+)
+from app.agents.capabilities.text_to_speech._toolset import (
+    GeneratedSpeech,
+    parse_generated_speech,
+)
+from app.agents.capabilities.video_generation._toolset import (
+    GeneratedVideo,
+    parse_generated_video,
+)
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.repositories import agent_embed as agent_embed_repo
@@ -53,21 +70,26 @@ player that stops working - and short enough that a link copied out of the page
 stops being one the same day.
 """
 
-MEDIA_TOOLS: dict[str, str] = {
-    "generate_image": "generated_image",
-    "generate_speech": "generated_speech",
-    "generate_video": "generated_video",
-}
-"""The tools whose result names a file they stored, and the `kind` each returns.
+_MEDIA_PAYLOADS: tuple[
+    Callable[[str], GeneratedImage | GeneratedSpeech | GeneratedVideo | None], ...
+] = (
+    parse_generated_image,
+    parse_generated_speech,
+    parse_generated_video,
+)
+"""What a result naming a generated file looks like: each tool's own parser.
 
-Keyed by the tool, not by the payload: any tool can return text that looks like
-`{"kind": "generated_image", "filename": ...}` - an MCP server, a page fetched
-from the web - and a link minted from that would open whatever file it named.
-These three write the name themselves, from what the store handed back.
+Read by the tools' parsers rather than a copy of their `kind` strings here, so a
+media payload that changes shape changes what is signed with it.
 """
 
 _TOKEN = re.compile(r"([0-9]{1,12})\.([0-9a-f]{64})")
-"""An expiry in Unix seconds, and a SHA-256 HMAC in hex."""
+"""An expiry in Unix seconds, and a SHA-256 HMAC in hex.
+
+A bare HMAC rather than one of `app.core.security`'s typed JWTs because it rides
+in a URL a player requests over and over: a JWT's header and claims would treble
+its length and carry nothing the signed message here does not already pin.
+"""
 
 
 def _signature(public_key: str, filename: str, expires: int) -> str:
@@ -98,35 +120,48 @@ def token_opens(public_key: str, filename: str, token: str | None, *, now: datet
 
 
 def media_path(public_key: str, filename: str, token: str) -> str:
-    """The API path a visitor's browser fetches one generated file from."""
+    """The API path one generated file is fetched from with a link token.
+
+    Written into the payload as `url` for a client that drives a page's socket
+    itself and fetches from this deployment directly. The hosted page does not use
+    it: it builds its own same-origin address from `token`, through the frontend's
+    proxy.
+    """
     return f"/api/v1/embed/{public_key}/generated/{filename}?token={token}"
 
 
-def signed_media_result(public_key: str, tool_name: str, content: str, *, now: datetime) -> str:
-    """A media tool's result as a visitor receives it: with a link that works for them.
+def signed_media_result(
+    public_key: str, content: str, *, stored: AbstractSet[str], now: datetime
+) -> str:
+    """A tool result as a visitor receives it: with a link to a file it names, if it may.
 
-    Anything that is not one of :data:`MEDIA_TOOLS` returning its own payload with
-    a stored file comes back unchanged - an error string, a result with no
-    filename (a run with nothing to scope storage to), or another tool entirely.
+    Signed only when `content` is a media tool's payload (see `_MEDIA_PAYLOADS`)
+    and the file it names is in `stored` - the leaf names the run's own tools
+    stored. Anything else comes back unchanged: an error string, a payload with no
+    filename (a run with nothing to scope storage to), another tool's text, and a
+    media-shaped payload naming a file this run did not make, whatever the tool
+    that returned it is called.
 
-    `url` is replaced rather than left beside the token: the console's address is
-    one this visitor cannot open, and a socket integration reading the payload
-    should be handed the address it can.
+    Every key the payload carries is kept. `url` is replaced rather than left
+    beside the token: the console's address is one this visitor cannot open.
     """
-    kind = MEDIA_TOOLS.get(tool_name)
-    if kind is None:
+    if not stored:
         return content
-    try:
-        payload = json.loads(content)
-    except ValueError:
-        return content
-    if not isinstance(payload, dict) or payload.get("kind") != kind:
-        return content
-    filename = payload.get("filename")
-    if not isinstance(filename, str) or not filename:
+    filename = _named_file(content)
+    if filename is None or filename not in stored:
         return content
     token = media_token(public_key, filename, now=now)
+    payload = json.loads(content)
     return json.dumps({**payload, "url": media_path(public_key, filename, token), "token": token})
+
+
+def _named_file(content: str) -> str | None:
+    """The stored file a media tool's payload names, or `None` if it is not one."""
+    for parse in _MEDIA_PAYLOADS:
+        parsed = parse(content)
+        if parsed is not None:
+            return parsed.filename
+    return None
 
 
 class EmbedGeneratedMediaService:

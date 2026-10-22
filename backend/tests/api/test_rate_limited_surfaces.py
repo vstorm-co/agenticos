@@ -12,7 +12,7 @@ decision, and a blanket middleware quietly metering the dashboard would be a
 different one.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -231,6 +231,46 @@ class TestTheWidgetsAdmission:
         assert client_mock.count_in_window.await_args.args[0] == (
             "ratelimit:hosted_logo:key:some-key"
         )
+
+    async def test_a_generated_media_link_is_counted_per_link(self, mock_redis: MagicMock):
+        """The visitor's player fetches through the hosted page's proxy, so the
+        address here is the frontend's: the bucket is the signed link, by its
+        digest, and a link fetched past it is refused before any read (#2395)."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=rate_limit.EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+        token = f"1761200000.{'ab' * 32}"
+
+        with patch(
+            "app.services.embed_generated_media.EmbedGeneratedMediaService.load", AsyncMock()
+        ) as load:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    f"/api/v1/embed/some-key/generated/abc_video.mp4?token={token}"
+                )
+
+        assert response.status_code == 429
+        assert response.headers["Retry-After"] == "60"
+        key = client_mock.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:embed_generated_media:token:")
+        assert token not in key
+        load.assert_not_awaited()
+
+    async def test_a_generated_media_request_with_no_link_is_not_counted(
+        self, mock_redis: MagicMock
+    ):
+        """Refused before any query or read, so it has nothing to spend."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=999)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/embed/some-key/generated/abc_video.mp4")
+
+        assert response.status_code == 404
+        client_mock.count_in_window.assert_not_awaited()
 
     async def test_the_widget_script_is_gated_too(self, mock_redis: MagicMock):
         """ "Static script" is what it looks like from outside. From in here it is

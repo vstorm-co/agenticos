@@ -626,9 +626,9 @@ session.
 
 **A generated image, clip of speech or video plays on the page too** (#2309).
 The console reads one through `/api/v1/generated/{filename}`, which needs a
-session, and a visitor has none. So as the socket sends the result of a
-`generate_image`, `generate_speech` or `generate_video` call, it adds a `token`,
-and the page reads the file through `/api/embed/<key>/generated/<file>?token=…`,
+session, and a visitor has none. So as the socket sends a `generate_image`,
+`generate_speech` or `generate_video` result naming a file that this run's own
+tools stored, it adds a `token`, and the page reads the file through `/api/embed/<key>/generated/<file>?token=…`,
 which streams it and passes byte ranges through for a player.
 
 The token is an HMAC, under the deployment's `SECRET_KEY`, of the page's key, that
@@ -638,6 +638,10 @@ expired or missing token gets the same 404 as a missing file. It is added as the
 frame leaves, so the transcript stores none, and the card is that step's result —
 it shows only where *What each step returned* is on. A socket integration finds
 the same address in the payload's `url`, as an API path.
+
+A result that names a file this run did not store gets no token, whatever the
+tool that returned it is called. One link may be fetched 120 times a minute, room
+for a player's byte ranges, and a link past that is answered 429.
 
 **A widget and a raw socket carry no switches and get these defaults**, read off
 `PageConfig` rather than repeated — a second copy of "off by default" is a copy

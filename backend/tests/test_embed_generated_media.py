@@ -11,12 +11,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai import FunctionToolCallEvent, FunctionToolResultEvent
 from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 
+from app.agents.mcp import fitted_tool_name, tool_prefix
 from app.services.embed_generated_media import (
     LINK_TTL,
     media_path,
@@ -77,52 +78,82 @@ class TestALinkOpensOneFileOnOneEmbedForAWhile:
         assert not token_opens(KEY, "abc_image.png", token, now=NOW)
 
 
+STORED = frozenset({"abc123_image.png"})
+"""What the run's own tools stored: the one file a result may be signed for."""
+
+
 class TestWhichResultsAreSigned:
     @pytest.mark.parametrize(
-        ("tool", "kind", "name"),
+        ("name", "fields"),
         [
-            ("generate_image", "generated_image", "abc_image.png"),
-            ("generate_speech", "generated_speech", "abc_speech.mp3"),
-            ("generate_video", "generated_video", "abc_video.mp4"),
+            (
+                "abc_image.png",
+                {"kind": "generated_image", "media_type": "image/png", "prompt": "x"},
+            ),
+            (
+                "abc_speech.mp3",
+                {
+                    "kind": "generated_speech",
+                    "media_type": "audio/mpeg",
+                    "voice": "alloy",
+                    "characters": 5,
+                },
+            ),
+            ("abc_video.mp4", {"kind": "generated_video", "prompt": "x"}),
         ],
+        ids=["image", "speech", "video"],
     )
-    def test_a_media_tools_own_payload_carries_a_link(
-        self, tool: str, kind: str, name: str
+    def test_a_media_payload_naming_a_file_the_run_stored_carries_a_link(
+        self, name: str, fields: dict[str, Any]
     ) -> None:
-        content = json.dumps({"kind": kind, "filename": name, "url": f"/api/v1/generated/{name}"})
+        content = json.dumps({**fields, "filename": name, "url": f"/api/v1/generated/{name}"})
 
-        signed = json.loads(signed_media_result(KEY, tool, content, now=NOW))
+        signed = json.loads(signed_media_result(KEY, content, stored={name}, now=NOW))
 
         assert token_opens(KEY, name, signed["token"], now=NOW)
         assert signed["url"] == media_path(KEY, name, signed["token"])
-        assert signed["kind"] == kind
+        assert signed["kind"] == fields["kind"]
 
     def test_the_rest_of_the_payload_is_kept(self) -> None:
-        signed = json.loads(signed_media_result(KEY, "generate_image", _image(), now=NOW))
+        content = _image(provider_note="kept though no parser knows it")
+
+        signed = json.loads(signed_media_result(KEY, content, stored=STORED, now=NOW))
 
         assert signed["prompt"] == "a lighthouse"
         assert signed["media_type"] == "image/png"
+        assert signed["provider_note"] == "kept though no parser knows it"
 
     @pytest.mark.parametrize(
-        ("tool", "content"),
+        ("content", "stored"),
         [
-            # Another tool returning text shaped like a media payload - a page the
-            # agent fetched, an MCP server - names a file it did not make.
-            ("fetch_url", _image()),
-            ("generate_image", "Image generation failed: the provider refused"),
-            ("generate_image", "[1, 2]"),
-            ("generate_image", _image(kind="generated_video")),
+            # A payload naming a file this run never stored - whichever tool
+            # returned it, and whatever that tool is called (#2395).
+            (_image(filename="deadbeef0123_image.png"), STORED),
+            (_image(), frozenset()),
+            ("Image generation failed: the provider refused", STORED),
+            ("[1, 2]", STORED),
+            (_image(kind="generated_document"), STORED),
             # Generated but not stored: a run with no organization to scope it to.
-            ("generate_image", _image(filename=None)),
-            ("generate_image", _image(filename="")),
+            (_image(filename=None), STORED),
+            (_image(filename=""), STORED),
         ],
-        ids=["other tool", "error text", "not an object", "wrong kind", "unstored", "empty name"],
+        ids=[
+            "unstored file",
+            "nothing stored",
+            "error text",
+            "not an object",
+            "not a media kind",
+            "no filename",
+            "empty name",
+        ],
     )
-    def test_anything_else_passes_through_untouched(self, tool: str, content: str) -> None:
-        assert signed_media_result(KEY, tool, content, now=NOW) == content
+    def test_anything_else_passes_through_untouched(
+        self, content: str, stored: frozenset[str]
+    ) -> None:
+        assert signed_media_result(KEY, content, stored=stored, now=NOW) == content
 
 
-def _session(*, show_results: bool = True) -> EmbedSession:
+def _session(*, show_results: bool = True, stored: frozenset[str] = STORED) -> EmbedSession:
     @asynccontextmanager
     async def sessions() -> AsyncIterator[MagicMock]:
         yield MagicMock()
@@ -136,19 +167,22 @@ def _session(*, show_results: bool = True) -> EmbedSession:
     )
     websocket = MagicMock()
     websocket.send_json = AsyncMock()
-    return EmbedSession(sessions=sessions, embed=embed, visitor=None, websocket=websocket)
+    session = EmbedSession(sessions=sessions, embed=embed, visitor=None, websocket=websocket)
+    session._stored = stored
+    return session
 
 
-async def _run_tool(session: EmbedSession, tool: str, content: str, *, call_id: str = "c1") -> None:
-    async def events() -> AsyncIterator[Any]:
-        yield FunctionToolCallEvent(
-            part=ToolCallPart(tool_name=tool, args={"prompt": "x"}, tool_call_id=call_id)
-        )
-        yield FunctionToolResultEvent(
-            ToolReturnPart(tool_name=tool, content=content, tool_call_id=call_id)
-        )
+async def _events(tool: str, content: str, *, call_id: str = "c1") -> AsyncIterator[Any]:
+    yield FunctionToolCallEvent(
+        part=ToolCallPart(tool_name=tool, args={"prompt": "x"}, tool_call_id=call_id)
+    )
+    yield FunctionToolResultEvent(
+        ToolReturnPart(tool_name=tool, content=content, tool_call_id=call_id)
+    )
 
-    await RunFrames(emit=session._emit).tools(events())
+
+async def _run_tool(session: EmbedSession, tool: str, content: str) -> None:
+    await RunFrames(emit=session._emit).tools(_events(tool, content))
 
 
 def _results(session: EmbedSession) -> list[str]:
@@ -175,37 +209,74 @@ class TestTheVisitorsSocketHandsOutTheLink:
         session = _session()
         frames = RunFrames(emit=session._emit)
 
-        async def events() -> AsyncIterator[Any]:
-            yield FunctionToolCallEvent(
-                part=ToolCallPart(tool_name="generate_image", args={}, tool_call_id="c1")
-            )
-            yield FunctionToolResultEvent(
-                ToolReturnPart(tool_name="generate_image", content=_image(), tool_call_id="c1")
-            )
-
-        await frames.tools(events())
+        await frames.tools(_events("generate_image", _image()))
 
         assert "token" not in frames.tool_calls[0]["result"]
 
-    async def test_a_result_shaped_like_media_from_another_tool_gets_no_link(self) -> None:
+    @pytest.mark.parametrize(
+        "tool",
+        # An MCP connection named `Generate` serving a tool `image`, and a rename:
+        # both are a tool *called* generate_image that is not the image tool.
+        [fitted_tool_name(f"{tool_prefix('Generate')}_image"), "generate_image", "fetch_url"],
+    )
+    async def test_a_tool_naming_a_file_this_run_did_not_store_gets_no_link(
+        self, tool: str
+    ) -> None:
+        """The run's stored set is the authority, not the tool's name (#2395)."""
         session = _session()
+        foreign = _image(filename="deadbeef0123_image.png")
 
-        await _run_tool(session, "fetch_url", _image())
+        await _run_tool(session, tool, foreign)
 
-        assert _results(session) == [_image()]
+        assert _results(session) == [foreign]
 
-    async def test_a_page_that_hides_results_sends_none_and_forgets_the_call(self) -> None:
+    async def test_a_page_that_hides_results_signs_nothing(self) -> None:
         session = _session(show_results=False)
 
         await _run_tool(session, "generate_image", _image())
 
         assert _results(session) == []
-        assert session._media_calls == {}
 
     async def test_a_result_that_is_not_text_is_passed_on(self) -> None:
         session = _session()
-        await session._emit("tool_call", {"tool_call_id": "c1", "tool_name": "generate_image"})
 
         await session._emit("tool_result", {"tool_call_id": "c1", "content": None})
 
         assert _results(session) == [None]
+
+    async def test_a_turn_signs_against_the_set_its_own_run_stores_into(self) -> None:
+        """`_stored` is the run's own `generated_files`, read off the run as it
+        starts streaming - so a file a tool stores mid-turn is signable by the
+        time its result is streamed, and a file from no tool of this run is not."""
+        session = _session(stored=frozenset())
+        session.conversation_id = uuid.uuid4()
+        generated_files: set[str] = set()
+        agent_run = MagicMock()
+        agent_run.ctx.deps.user_deps.generated_files = generated_files
+
+        async def drive(frames: RunFrames, _agent_run: Any) -> None:
+            generated_files.add("abc123_image.png")
+            await frames.tools(_events("generate_image", _image()))
+            await frames.tools(
+                _events("generate_image", _image(filename="deadbeef0123_image.png"), call_id="c2")
+            )
+
+        async def execute(*_args: Any, stream: Any, **_kwargs: Any) -> tuple[str, MagicMock]:
+            await stream(agent_run)
+            return "done", MagicMock()
+
+        runner = MagicMock()
+        runner.return_value.execute = execute
+        with (
+            patch.object(EmbedSession, "_context", AsyncMock(return_value=MagicMock())),
+            patch.object(EmbedSession, "_history", AsyncMock(return_value=[])),
+            patch.object(EmbedSession, "_files", AsyncMock(return_value=[])),
+            patch("app.services.embed_session.AgentRunnerService", runner),
+            patch.object(RunFrames, "drive", drive),
+        ):
+            await session._turn(MagicMock(), "draw a lighthouse")
+
+        signed, foreign = (json.loads(sent) for sent in _results(session))
+        assert token_opens(KEY, "abc123_image.png", signed["token"], now=datetime.now(UTC))
+        assert "token" not in foreign
+        assert session._stored is generated_files

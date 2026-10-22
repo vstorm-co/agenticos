@@ -22,6 +22,7 @@ import pytest
 from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
+from app.agents.capabilities import get as get_capability
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import (
     SPEC_VERSION,
@@ -44,7 +45,7 @@ from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
-from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.agent_registry import AgentRegistryService, _tool_override_problems, slugify
 
 REGISTRY_PATH = "app.services.agent_registry"
 
@@ -2467,6 +2468,38 @@ class TestToolOverrideValidation:
         )
 
         await self._service().validate_spec(_ctx(), spec)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("capability", "tool", "name"),
+        [
+            ("web_fetch", "web_fetch", "generate_image"),
+            ("skills", "read_skill_resource", "generate_image"),
+            ("skills", "read_skill_resource", "generate_speech"),
+            ("image_generation", "generate_image", "generate_video"),
+        ],
+    )
+    async def test_a_rename_onto_a_media_tools_name_is_refused(
+        self, capability: str, tool: str, name: str
+    ):
+        """A step called `generate_image` is read as the image tool everywhere it
+        is shown, so only the tool that stores generated media may carry it."""
+        problems = await self._refuse(
+            _spec(
+                model_profile_id=uuid.uuid4(),
+                capabilities=[{"id": capability, "tool_overrides": {tool: {"name": name}}}],
+            )
+        )
+
+        assert any(f"to {name}, the name of the tool" in problem for problem in problems)
+
+    def test_a_media_tool_keeping_its_own_name_is_no_rename(self):
+        binding = CapabilityBindingSpec(
+            id="image_generation",
+            tool_overrides={"generate_image": {"name": "generate_image", "description": "Draw."}},
+        )
+
+        assert _tool_override_problems(binding, get_capability("image_generation")) == []
 
 
 class TestPublish:

@@ -1,5 +1,5 @@
 ---
-source_sha: "ea0064ef1e2b"
+source_sha: "b6c1c6e97b87"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -687,8 +687,9 @@ sie zu lesen braucht eine Session.
 **Ein generiertes Bild, gesprochene Sprache oder ein Video spielt auch auf der
 Seite** (#2309). Die Konsole liest eines über `/api/v1/generated/{filename}`, und
 das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket dem
-Ergebnis eines Aufrufs von `generate_image`, `generate_speech` oder
-`generate_video` beim Senden ein `token` hinzu, und die Seite liest die Datei über
+Ergebnis von `generate_image`, `generate_speech` oder `generate_video`, das eine
+von den eigenen Tools dieses Runs gespeicherte Datei nennt, beim Senden ein
+`token` hinzu, und die Seite liest die Datei über
 `/api/embed/<key>/generated/<file>?token=…`, das sie streamt und Byte-Bereiche für
 einen Player durchreicht.
 
@@ -701,6 +702,11 @@ hinausgeht, also speichert das Transkript keines, und die Karte ist das Ergebnis
 dieses Schritts — sie erscheint nur, wo *Was jeder Schritt zurückgegeben hat* an
 ist. Eine Socket-Integration findet dieselbe Adresse im `url` des Payloads, als
 API-Pfad.
+
+Ein Ergebnis, das eine Datei nennt, die dieser Run nicht gespeichert hat,
+bekommt kein Token, wie auch immer das Tool heißt, das es zurückgab. Ein Link darf
+120-mal pro Minute abgerufen werden, genug für die Byte-Bereiche eines Players;
+darüber hinaus wird mit 429 geantwortet.
 
 **Ein Widget und ein rohes Socket tragen keine Schalter und bekommen diese
 Standardwerte**, abgelesen von `PageConfig` statt wiederholt — eine zweite Kopie

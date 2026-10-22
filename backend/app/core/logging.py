@@ -163,6 +163,15 @@ def setup_logging() -> None:
     them runs the API's startup; being idempotent is what makes calling it from
     every entrypoint safe.
 
+    **uvicorn's own loggers are covered as well.** Its `LOGGING_CONFIG` gives
+    `uvicorn.access` and `uvicorn.error` handlers of their own and stops them
+    propagating, so no record of theirs reaches the root's handlers - and the
+    access log writes every request line, query string included, which is where a
+    signed link's `?token=` sits. The filter goes on those loggers *and* on their
+    handlers: on the logger, because both log their records on themselves, so it
+    holds whatever handler is configured after this runs; on the handlers, for a
+    record a child logger propagates to them.
+
     Idempotent: safe to call from each entrypoint, and a second call covers a
     handler added since the first.
     """
@@ -170,6 +179,19 @@ def setup_logging() -> None:
     handlers: list[logging.Handler] = list(root.handlers)
     if logging.lastResort is not None:
         handlers.append(logging.lastResort)
+    for name in _SERVER_LOGGERS:
+        server_logger = logging.getLogger(name)
+        _add_redaction(server_logger)
+        handlers.extend(server_logger.handlers)
     for handler in handlers:
-        if not any(isinstance(f, PiiRedactionFilter) for f in handler.filters):
-            handler.addFilter(PiiRedactionFilter())
+        _add_redaction(handler)
+
+
+_SERVER_LOGGERS = ("uvicorn.access", "uvicorn.error")
+"""The loggers the ASGI server writes through, each with handlers of its own."""
+
+
+def _add_redaction(filterer: logging.Filterer) -> None:
+    """Put one redaction filter on a logger or a handler, unless it has one."""
+    if not any(isinstance(f, PiiRedactionFilter) for f in filterer.filters):
+        filterer.addFilter(PiiRedactionFilter())

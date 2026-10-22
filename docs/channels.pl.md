@@ -1,5 +1,5 @@
 ---
-source_sha: "ea0064ef1e2b"
+source_sha: "b6c1c6e97b87"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -643,8 +643,9 @@ wymaga sesji.
 
 **Wygenerowany obraz, nagranie mowy lub wideo działa także na stronie** (#2309).
 Konsola czyta je przez `/api/v1/generated/{filename}`, co wymaga sesji, a
-odwiedzający jej nie ma. Dlatego socket, wysyłając wynik wywołania
-`generate_image`, `generate_speech` lub `generate_video`, dodaje do niego `token`,
+odwiedzający jej nie ma. Dlatego socket, wysyłając wynik `generate_image`,
+`generate_speech` lub `generate_video` wskazujący plik zapisany przez narzędzia
+tego samego uruchomienia, dodaje do niego `token`,
 a strona czyta plik przez `/api/embed/<key>/generated/<file>?token=…`, który
 przesyła go strumieniowo i przepuszcza zakresy bajtów dla odtwarzacza.
 
@@ -655,6 +656,10 @@ brakujący token dostaje to samo 404 co brakujący plik. Jest dodawany, gdy ramk
 wychodzi, więc transkrypt go nie przechowuje, a karta jest wynikiem tego kroku —
 widać ją tylko tam, gdzie włączone jest *Co zwrócił każdy krok*. Integracja przez
 socket znajduje ten sam adres w polu `url` payloadu, jako ścieżkę API.
+
+Wynik wskazujący plik, którego to uruchomienie nie zapisało, nie dostaje tokena,
+niezależnie od nazwy narzędzia, które go zwróciło. Jeden link można pobrać 120 razy
+na minutę, co wystarcza na zakresy bajtów odtwarzacza; ponad to dostaje 429.
 
 **Widget i surowy socket nie niosą żadnych przełączników i dostają te domyślne
 wartości**, odczytywane z `PageConfig`, a nie powtarzane — druga kopia

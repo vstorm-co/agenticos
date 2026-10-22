@@ -75,6 +75,15 @@ export async function GET(
       headers: { "Content-Range": response.headers.get("content-range") ?? "" },
     });
   }
+  if (response.status === 429) {
+    // The link's own allowance, spent: said as itself, so a player backs off
+    // rather than reading a broken gateway.
+    const retryAfter = response.headers.get("retry-after");
+    return new NextResponse(null, {
+      status: 429,
+      headers: retryAfter === null ? {} : { "Retry-After": retryAfter },
+    });
+  }
   if (!response.ok) {
     return new NextResponse(null, { status: response.status === 404 ? 404 : 502 });
   }

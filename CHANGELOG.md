@@ -66,6 +66,10 @@ Two things are versioned separately from this file and worth knowing about:
   clip answers a player's byte-range requests, which Safari and the desktop
   app need to play video. This is groundwork for speech and video generation,
   which store their clips the same way as generated images (#2259).
+- **A tool can no longer be renamed onto `generate_image`, `generate_speech` or
+  `generate_video`.** Publishing refuses a rename that gives another tool the
+  name of the tool that stores generated media; an agent that has one is
+  refused at its next publish until the rename is changed.
 
 ### Fixed
 
@@ -78,12 +82,17 @@ Two things are versioned separately from this file and worth knowing about:
 - **Generated images, speech and video load on a hosted page.** A visitor
   has no session, so the card for a file an agent generated asked an
   authenticated route and showed a broken image or player. The page's socket
-  now adds a short-lived link to each such result, signed with the
-  deployment's existing secret for that one file on that page, and the page
-  reads the file through `/api/v1/embed/{public_key}/generated/{filename}`,
-  byte ranges included. A link opens no other file, conversation or
-  organization, and a bad or expired one gets the same 404 as a missing file
-  (#2309).
+  now adds a short-lived link to each result naming a file that run's own
+  tools stored, signed with the deployment's existing secret for that one file
+  on that page, and the page reads the file through
+  `/api/v1/embed/{public_key}/generated/{filename}`, byte ranges included. A
+  link opens no other file, conversation or organization, a bad or expired one
+  gets the same 404 as a missing file, and one link is fetched at most 120
+  times a minute (#2309).
+- **uvicorn's access and error logs are redacted.** The filter that scrubs
+  credentials from the application's logs now also covers the server's own
+  loggers, so a signed `?token=` in a request line is no longer written in
+  clear.
 
 ## [1.13.0] - 2026-10-22
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ea0064ef1e2b"
+source_sha: "b6c1c6e97b87"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -651,9 +651,10 @@ sesión.
 
 **Una imagen, un audio de voz o un vídeo generados también se reproducen en la
 página** (#2309). La consola los lee a través de `/api/v1/generated/{filename}`,
-que necesita una sesión, y un visitante no la tiene. Por eso, al enviar el
-resultado de una llamada a `generate_image`, `generate_speech` o `generate_video`,
-el socket le añade un `token`, y la página lee el archivo a través de
+que necesita una sesión, y un visitante no la tiene. Por eso, al enviar un
+resultado de `generate_image`, `generate_speech` o `generate_video` que nombra un
+archivo guardado por las propias herramientas de esa ejecución, el socket le añade
+un `token`, y la página lee el archivo a través de
 `/api/embed/<key>/generated/<file>?token=…`, que lo transmite en streaming y deja
 pasar los rangos de bytes para un reproductor.
 
@@ -665,6 +666,11 @@ existe. Se añade cuando sale el frame, así que la transcripción no guarda nin
 y la tarjeta es el resultado de ese paso: solo aparece donde *Qué devolvió cada
 paso* está activado. Una integración por socket encuentra la misma dirección en el
 `url` del payload, como ruta de la API.
+
+Un resultado que nombra un archivo que esta
+ejecución no guardó no recibe token, se llame como se llame la herramienta que lo
+devolvió. Un enlace puede pedirse 120 veces por minuto, margen para los rangos de
+bytes de un reproductor; por encima de eso recibe un 429.
 
 **Un widget y un socket en crudo no llevan interruptores y reciben estos valores
 por defecto**, leídos de `PageConfig` en vez de repetidos — una segunda copia de

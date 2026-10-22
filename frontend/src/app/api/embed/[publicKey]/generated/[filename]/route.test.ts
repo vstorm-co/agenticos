@@ -145,6 +145,25 @@ describe("a generated file on a hosted page", () => {
     await expect(response.text()).resolves.toBe("");
   });
 
+  it("passes on the link's spent allowance as a 429 with its interval", async () => {
+    serve("{}", { status: 429, headers: { "retry-after": "60" } });
+
+    const response = await media();
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    await expect(response.text()).resolves.toBe("");
+  });
+
+  it("keeps a 429 well formed when the backend named no interval", async () => {
+    serve(null, { status: 429 });
+
+    const response = await media();
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBeNull();
+  });
+
   it("calls any other failure a bad gateway", async () => {
     serve("boom", { status: 500 });
 

@@ -1222,6 +1222,22 @@ async def limit_artifact_content(token: str) -> None:
     )
 
 
+async def limit_embed_generated_media(
+    token: Annotated[str | None, Query(max_length=128)] = None,
+) -> None:
+    """Refuse a signed link to a generated file fetched too often. Per link, before any read.
+
+    A request with no token is not counted: it is refused before any query or
+    read, so it has nothing to spend.
+    """
+    if token is None:
+        return
+    _refuse_if_over(
+        await rate_limit.embed_generated_media_allowed(token),
+        "Too many requests. Try again shortly.",
+    )
+
+
 async def limit_map_tiles(request: Request) -> None:
     """Refuse an address fetching map tiles through the deployment too fast."""
     _refuse_if_over(

@@ -6,25 +6,28 @@ that embed - see `app.services.embed_generated_media` for what a link is and wha
 it opens. It sits beside the embed's other public routes under
 `/embed/{public_key}`, in a module of its own.
 
-No rate limit, unlike its neighbours, and on purpose: a player fetches a clip in
-ranges, several per play, and a bucket counted per address would count the
-frontend server's container for every hosted page at once - the trap
-`rate_limit.hosted_admission_allowed` records. A request without a valid
-signature is refused before any query or read, so the route offers nothing to
-spend.
+Rate-limited per link, not per address (`limit_embed_generated_media`): the
+request arrives through the hosted page's proxy, so its address is the frontend
+server's, and a bucket counted per address would hold every hosted page at once -
+the trap `rate_limit.hosted_admission_allowed` records. The allowance is sized
+for a player fetching a clip in ranges, several per play.
 """
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Depends, Header, Query
 
-from app.api.deps import EmbedGeneratedMediaSvc
+from app.api.deps import EmbedGeneratedMediaSvc, limit_embed_generated_media
 from app.api.routes.v1._workspace_bytes import file_response
 
 router = APIRouter()
 
 
-@router.get("/{public_key}/generated/{filename}", response_model=None)
+@router.get(
+    "/{public_key}/generated/{filename}",
+    response_model=None,
+    dependencies=[Depends(limit_embed_generated_media)],
+)
 async def get_embed_generated_media(
     public_key: str,
     filename: str,
@@ -46,6 +49,8 @@ async def get_embed_generated_media(
             minted for another file or another embed, it has expired, it is
             malformed or absent - or the embed is paused, or the file is gone. One
             answer for all of them, the same one a missing file gets.
+        RateLimitError: If this link has been fetched past its allowance this
+            minute.
     """
     data = await service.load(public_key, filename, token)
     return file_response(
