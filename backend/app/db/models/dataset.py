@@ -11,8 +11,9 @@ questions and their results compare. That is two tables rather than one:
 
 - `dataset_cases` holds case *revisions*. A row's content is never updated;
   editing a case writes a new row with the same `case_id`, so the version that
-  held the old one still reads it. The links to where a case came from are the
-  one thing cleared later - when that conversation or its author is deleted.
+  held the old one still reads it. The links to where a case came from are
+  cleared later, when that conversation or its author is deleted; and erasing
+  the person a case was taken from replaces its text in every revision.
 - `dataset_versions` is one row per change, numbered from 1 within a dataset.
 
 Which revisions a version holds is kept on the revisions themselves. A revision
@@ -274,6 +275,9 @@ class DatasetCase(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     added_in: Mapped[int] = mapped_column(Integer, nullable=False)
     removed_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Set when erasing the person the case was taken from replaced its text in
+    # place - the one change made to a revision's content after insert.
+    anonymised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
