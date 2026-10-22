@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "ff3ef9b718af"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -73,7 +73,8 @@ nadal obejmuje wszystkie przypadki.
 
 Gdy są już powtórki, run wysyła do [kolejki przeglądu](datasets.md#review)
 datasetu to, za czym może się opowiedzieć - każdą potwierdzoną regresję i każdą
-odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek - i
+odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek i
+agenta - i
 podaje, ile ich jest (`routed_to_review`). Pominięty sędzia nie wysyła nic: jego
 odpowiedzi czekają na stronie runu na **Grade again**. Gdy wysyłka zostanie
 odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`). **Send failed to review** wysyła
@@ -82,9 +83,10 @@ dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
 poprawiony.
 
 W obu przypadkach odpowiedź zajmuje miejsce starszej odpowiedzi tego samego
-przypadku, która jeszcze czeka, a ta opuszcza kolejkę bez decyzji - run podaje,
-ile ich było, jako `routed_replacing` - a odpowiedź starsza od czekającej nie
-jest wysyłana.
+przypadku i agenta, która jeszcze czeka, a ta opuszcza kolejkę bez decyzji - run
+podaje, ile ich było, jako `routed_replacing` - a odpowiedź starsza od
+czekającej nie jest wysyłana. Odpowiedź innego agenta na ten przypadek czeka
+obok.
 
 Własna zakładka **Evals** datasetu wymienia każdego mierzonego na nim agenta,
 każdego ze swoim trendem i runami, a **Run evals** w jego nagłówku otwiera

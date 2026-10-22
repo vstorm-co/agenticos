@@ -77,6 +77,7 @@ class ScoredAnswer:
         cost_usd: What the run cost, when known.
         latency_ms: How long it took, when it ended.
         run_id: The recorded run, when there is one.
+        agent_id: The agent that answered, when it is known.
     """
 
     text: str
@@ -84,6 +85,7 @@ class ScoredAnswer:
     cost_usd: Decimal | None = None
     latency_ms: int | None = None
     run_id: UUID | None = None
+    agent_id: UUID | None = None
 
 
 @dataclass(frozen=True)

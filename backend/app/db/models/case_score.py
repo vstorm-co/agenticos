@@ -15,7 +15,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -63,6 +73,9 @@ class CaseScore(Base):
         index=True,
     )
     run: Mapped[AgentRun | None] = relationship(lazy="selectin")
+    # The agent that answered, kept apart from the run, which may be deleted: the
+    # review queue holds one score per case for each agent.
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # The eval run that scored the answer; null for a score asked for by hand.
     eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -103,6 +116,15 @@ class CaseScore(Base):
         ),
         Index("ix_case_scores_dataset_created", "dataset_id", "created_at"),
         Index("ix_case_scores_org_review", "organization_id", "review_state"),
+        Index(
+            "uq_case_scores_pending_review",
+            "dataset_id",
+            "case_id",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("review_state = 'pending'"),
+            postgresql_nulls_not_distinct=True,
+        ),
     )
 
     def __repr__(self) -> str:

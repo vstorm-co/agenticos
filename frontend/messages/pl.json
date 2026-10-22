@@ -7288,7 +7288,7 @@
       },
       "reviewCard": {
         "title": "Przegląd przez człowieka",
-        "description": "Które odpowiedzi ocenione ręcznie, z Activity, czekają na decyzję człowieka. Run ewaluacji wysyła swoje sam: potwierdzone regresje i odpowiedzi, przy których jego sędzia zawiódł, po jednej na przypadek."
+        "description": "Które odpowiedzi ocenione ręcznie, z Activity, czekają na decyzję człowieka. Run ewaluacji wysyła swoje sam: potwierdzone regresje i odpowiedzi, przy których jego sędzia zawiódł, po jednej na przypadek dla każdego agenta."
       },
       "suggestReference": "{count, plural, one {# przypadek ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} few {# przypadki mają odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} many {# przypadków ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} other {# przypadku ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.}}",
       "suggestReferenceAction": "Porównuj z wzorcem",
@@ -8442,7 +8442,7 @@
     "review": {
       "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
       "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{replaced, plural, =0 {} one {, zastępując # starszy, który czekał} few {, zastępując # starsze, które czekały} many {, zastępując # starszych, które czekały} other {, zastępując # starszego, który czekał}}{already, plural, =0 {} other {; # nie wysłano: już czekały, mają decyzję albo są starsze od czekającego}}.",
-      "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, przy których ocenie sędzia zawiódł.{replaced, plural, =0 {} one { Zastąpiło to # starszą odpowiedź, która jeszcze czekała na tym samym case'ie.} few { Zastąpiło to # starsze odpowiedzi, które jeszcze czekały na tych samych case'ach.} many { Zastąpiło to # starszych odpowiedzi, które jeszcze czekały na tych samych case'ach.} other { Zastąpiło to # starszej odpowiedzi, która jeszcze czekała na tych samych case'ach.}}",
+      "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, przy których ocenie sędzia zawiódł.{replaced, plural, =0 {} one { Zastąpiło to # starszą odpowiedź tego samego agenta, która jeszcze czekała na tym samym case'ie.} few { Zastąpiło to # starsze odpowiedzi tych samych agentów, które jeszcze czekały na tych samych case'ach.} many { Zastąpiło to # starszych odpowiedzi tych samych agentów, które jeszcze czekały na tych samych case'ach.} other { Zastąpiło to # starszej odpowiedzi tych samych agentów, która jeszcze czekała na tych samych case'ach.}}",
       "routingFailed": "Ten run nie zdołał sam wysłać odpowiedzi do review, więc wyślij oblane ręcznie. Powód: {reason}",
       "sendOther": "{count, plural, one {Wyślij pozostały oblany case} few {Wyślij pozostałe # oblane case'y} many {Wyślij pozostałe # oblanych case'ów} other {Wyślij pozostałe # oblanego case'a}}"
     },
