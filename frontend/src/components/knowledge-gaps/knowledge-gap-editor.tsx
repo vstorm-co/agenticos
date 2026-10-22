@@ -90,7 +90,7 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
           size="sm"
           disabled={busy || !written || blanks.length > 0 || (flags.length > 0 && !confirmed)}
           onClick={() =>
-            add.mutate({ topicId: topic.id, title, content, confirmIdentifying: confirmed })
+            add.mutate({ topicId: topic.id, title, content, confirmed: confirmed ? flags : [] })
           }
         >
           <BookPlus className="h-3.5 w-3.5" aria-hidden />

@@ -4484,7 +4484,7 @@
       },
       "kb-gaps": {
         "title": "What it could not answer",
-        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Add the missing document, or dismiss a topic that needs none."
+        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Open a topic to write the missing content, or finish a model's draft, and add it to this knowledge base - or dismiss a topic that needs none."
       },
       "kb-gaps-check": {
         "title": "Check the answers too",

@@ -231,13 +231,13 @@ describe("a topic's content", () => {
       topicId: "t1",
       title: "Parking",
       content: "Level -1.",
-      confirmIdentifying: true,
+      confirmed: [{ kind: "shared", value: "7781", count: 1 }],
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/t1/document", {
       title: "Parking",
       content: "Level -1.",
-      confirm_identifying: true,
+      confirmed: [{ kind: "shared", value: "7781", count: 1 }],
     });
     expect(toastSuccess).toHaveBeenCalledWith(
       "Added to Handbook. The document is being processed.",
@@ -247,7 +247,7 @@ describe("a topic's content", () => {
   it("leaves content that may identify somebody to the editor, and toasts any other refusal", async () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(identifying());
     const { result } = renderHook(() => useAddKnowledgeGapContent(), { wrapper });
-    const content = { topicId: "t1", title: "Parking", content: "x", confirmIdentifying: false };
+    const content = { topicId: "t1", title: "Parking", content: "x", confirmed: [] };
     result.current.mutate(content);
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(isIdentifyingContent(result.current.error)).toBe(true);

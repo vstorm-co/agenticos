@@ -86,7 +86,7 @@ describe("KnowledgeGapEditor", () => {
       topicId: "t1",
       title: "Parking",
       content: "Visitors park on level -1.",
-      confirmIdentifying: false,
+      confirmed: [],
     });
     expect(state.reset).toHaveBeenCalled();
   });
@@ -129,7 +129,7 @@ describe("KnowledgeGapEditor", () => {
     await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", ADD));
 
-    expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ confirmIdentifying: true }));
+    expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ confirmed: draft.flags }));
   });
 
   it("shows what the server flagged when adding was refused, until the text changes", () => {

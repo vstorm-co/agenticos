@@ -4253,7 +4253,7 @@
       },
       "kb-gaps": {
         "title": "Na co nie znalazła odpowiedzi",
-        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Dodaj brakujący dokument albo odrzuć temat, który go nie wymaga."
+        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Otwórz temat, żeby napisać brakującą treść albo dokończyć szkic modelu, i dodaj ją do tej bazy wiedzy - albo odrzuć temat, który jej nie wymaga."
       },
       "kb-gaps-check": {
         "title": "Sprawdź też odpowiedzi",

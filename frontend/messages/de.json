@@ -4366,7 +4366,7 @@
       },
       "kb-gaps": {
         "title": "Was sie nicht beantworten konnte",
-        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Fügen Sie das fehlende Dokument hinzu oder verwerfen Sie ein Thema, das keines braucht."
+        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Öffnen Sie ein Thema, um den fehlenden Inhalt zu schreiben oder den Entwurf eines Modells fertigzustellen, und fügen Sie ihn dieser Wissensdatenbank hinzu - oder verwerfen Sie ein Thema, das keinen braucht."
       },
       "kb-gaps-check": {
         "title": "Auch die Antworten prüfen",

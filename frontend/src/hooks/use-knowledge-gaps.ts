@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
   KnowledgeGapCasesAdded,
+  KnowledgeGapFlag,
   KnowledgeGapStatus,
   KnowledgeGapTopicDetail,
   KnowledgeGapTopicList,
@@ -199,8 +200,10 @@ export function isIdentifyingContent(error: unknown): error is ApiError {
 /**
  * Add a topic's content to its knowledge base as a document; the topic is then covered.
  *
- * A refusal for content that may identify somebody is the caller's to show -
- * with what was flagged and a way to confirm - so it is not toasted here.
+ * `confirmed` is every flag the caller was shown and confirmed; one that appeared
+ * since is refused. A refusal for content that may identify somebody is the
+ * caller's to show - with what was flagged and a way to confirm - so it is not
+ * toasted here.
  */
 export function useAddKnowledgeGapContent() {
   const t = useTranslations("knowledgeGaps");
@@ -209,13 +212,9 @@ export function useAddKnowledgeGapContent() {
   return useMutation({
     mutationFn: ({
       topicId,
-      confirmIdentifying,
       ...content
-    }: KnowledgeGapContent & { topicId: string; confirmIdentifying: boolean }) =>
-      apiClient.post<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}/document`, {
-        ...content,
-        confirm_identifying: confirmIdentifying,
-      }),
+    }: KnowledgeGapContent & { topicId: string; confirmed: KnowledgeGapFlag[] }) =>
+      apiClient.post<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}/document`, content),
     onSuccess: async (topic) => {
       queryClient.setQueryData(qk.knowledgeGaps.detail(topic.id), topic);
       await Promise.all([
