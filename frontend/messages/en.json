@@ -6849,12 +6849,6 @@
     "back": "Back",
     "continue": "Continue",
     "creating": "Creating…",
-    "presetsLabel": "Quick presets",
-    "presetEvery15m": "Every 15 min",
-    "presetHourly": "Hourly",
-    "presetEvery6h": "Every 6h",
-    "presetDaily9": "Daily 09:00",
-    "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
     "templateScratchHelpEvent": "Write your own message.",
@@ -6868,7 +6862,17 @@
       "skip": "The schedule waits for its next time. A slow agent runs as often as it can finish.",
       "queue": "Runs once the previous run ends, however many times were missed.",
       "allow": "Starts on time alongside the run still going. Both runs are paid for."
-    }
+    },
+    "howOften": "How often",
+    "choiceEvery15m": "Every 15 min",
+    "choiceHourly": "Hourly",
+    "choiceEvery6h": "Every 6 hours",
+    "choiceDaily": "Daily",
+    "choiceWeekdays": "Weekdays",
+    "choiceWeekly": "Weekly",
+    "choiceCustom": "Custom",
+    "moreOptions": "More options",
+    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved."
   },
   "portals": {
     "title": "Portals",

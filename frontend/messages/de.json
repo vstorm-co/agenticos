@@ -6732,12 +6732,6 @@
     "back": "Zurück",
     "continue": "Weiter",
     "creating": "Wird erstellt …",
-    "presetsLabel": "Schnellvorgaben",
-    "presetEvery15m": "Alle 15 Min.",
-    "presetHourly": "Stündlich",
-    "presetEvery6h": "Alle 6 Std.",
-    "presetDaily9": "Täglich 09:00",
-    "presetWeekdays9": "Werktags 09:00",
     "stepConfigure": "Konfigurieren",
     "stepMessage": "Nachricht",
     "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht.",
@@ -6751,7 +6745,17 @@
       "skip": "Der Zeitplan wartet auf den nächsten Termin. Ein langsamer Agent läuft so oft, wie er fertig wird.",
       "queue": "Startet einmal, sobald der vorige Lauf endet, egal wie viele Termine verpasst wurden.",
       "allow": "Startet pünktlich neben dem laufenden Lauf. Beide Läufe werden bezahlt."
-    }
+    },
+    "howOften": "Wie oft",
+    "choiceEvery15m": "Alle 15 Min.",
+    "choiceHourly": "Stündlich",
+    "choiceEvery6h": "Alle 6 Stunden",
+    "choiceDaily": "Täglich",
+    "choiceWeekdays": "Werktags",
+    "choiceWeekly": "Wöchentlich",
+    "choiceCustom": "Eigener",
+    "moreOptions": "Weitere Optionen",
+    "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern."
   },
   "portals": {
     "title": "Portale",

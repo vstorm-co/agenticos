@@ -6622,12 +6622,6 @@
     "back": "Wstecz",
     "continue": "Dalej",
     "creating": "Tworzenie…",
-    "presetsLabel": "Szybkie ustawienia",
-    "presetEvery15m": "Co 15 min",
-    "presetHourly": "Co godzinę",
-    "presetEvery6h": "Co 6 h",
-    "presetDaily9": "Codziennie 09:00",
-    "presetWeekdays9": "Dni robocze 09:00",
     "stepConfigure": "Konfiguracja",
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
@@ -6643,7 +6637,17 @@
       "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
       "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
       "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
-    }
+    },
+    "howOften": "Jak często",
+    "choiceEvery15m": "Co 15 min",
+    "choiceHourly": "Co godzinę",
+    "choiceEvery6h": "Co 6 godzin",
+    "choiceDaily": "Codziennie",
+    "choiceWeekdays": "W dni robocze",
+    "choiceWeekly": "Co tydzień",
+    "choiceCustom": "Własny",
+    "moreOptions": "Więcej opcji",
+    "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania."
   },
   "portals": {
     "title": "Portale",

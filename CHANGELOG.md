@@ -161,6 +161,11 @@ Two things are versioned separately from this file and worth knowing about:
   where it cannot take one; type something and Send comes back. Dictation stays
   where it was. The Architect's window and the Builder's test panel offer it
   too - the test panel's call runs the published version, and says so.
+- **A routine's schedule asks how often first.** The new-routine dialog is a
+  form's width with its steps as dots, and its schedule step opens on one row -
+  every 15 minutes, hourly, every 6 hours, daily, weekdays, weekly or custom -
+  with only what that choice needs under it, a sentence saying what it means,
+  and what happens when a run is still going under **More options**.
 - **Connect a service from the chat.** When a request needs one of your
   services you have not connected, the agent offers it as a card with the
   service's logo and **Connect**, which goes straight to its sign-in and back to

@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e1133cdecc"
+source_sha: "728555c3f960"
 title: "Einen Wochenbericht planen"
 description: "Geben Sie einem Agent eine in sich geschlossene Berichtsaufgabe, führen Sie sie bei Bedarf aus, veröffentlichen Sie das Ergebnis als App und legen Sie einen wöchentlichen Zeitplan fest."
 ---
@@ -44,7 +44,7 @@ Report totals by category in a fictional demo currency and draw a bar chart.
 Label the report synthetic and name any row you could not use.
 ```
 
-Wählen Sie für den Rhythmus **At a set time**, dann **Days of the week**, haken Sie **Mon** an und setzen Sie **Time (UTC)** auf 09:00. Der entsprechende Cron-Ausdruck ist `0 9 * * 1`. Der Scheduler arbeitet in UTC, rechnen Sie also von Ihrer Ortszeit um. Speichern Sie und prüfen Sie dann die nächste Auslösezeit, die der Zeitplan anzeigt.
+Wählen Sie für den Rhythmus unter **How often** die Option **Weekly**, haken Sie **Mon** an und setzen Sie **Time (UTC)** auf 09:00. Der entsprechende Cron-Ausdruck ist `0 9 * * 1`. Der Scheduler arbeitet in UTC, rechnen Sie also von Ihrer Ortszeit um. Speichern Sie und prüfen Sie dann die nächste Auslösezeit, die der Zeitplan anzeigt.
 
 Der Zeitplan läuft als das Mitglied, das ihn erstellt hat, mit dessen Zugriff, und seine Runs werden wie alle anderen dem Budget des Agents belastet. [Konzepte](../concepts.md#trigger) erklärt, warum.
 
