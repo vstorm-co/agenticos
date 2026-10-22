@@ -34,13 +34,19 @@ from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRA
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import GapSignal, KnowledgeGapTopic, KnowledgeSearch, TopicStatus
 from app.db.models.rag_document import RAGDocument
-from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo, member_repo
+from app.repositories import (
+    agent_repo,
+    knowledge_base_repo,
+    knowledge_gap_repo,
+    member_repo,
+    personal_data_repo,
+)
 from app.repositories.knowledge_gap import CandidateRow, DraftingRow, TopicRow, Verdict
 from app.schemas.knowledge_gap import (
     MAX_DRAFT_SOURCES,
@@ -573,6 +579,8 @@ class KnowledgeGapService:
             AiAssistanceDisabledError: The organization switched AI assistance off.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
+            BadRequestError: Somebody whose question the draft read was erased
+                while it was being written.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
             SystemAgentRunError: The run ended without an answer, as a budget
                 refusal does; it is recorded.
@@ -591,6 +599,9 @@ class KnowledgeGapService:
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
         kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        askers = await personal_data_repo.askers_of(
+            self.db, {row.search.run_id for row in material}
+        )
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
@@ -604,6 +615,14 @@ class KnowledgeGapService:
             prompt=_drafting_prompt(kb.name, material, documents),
             output_type=KnowledgeGapDraft,
         )
+        if askers - await personal_data_repo.present_among(self.db, askers):
+            raise BadRequestError(
+                message=(
+                    "Somebody whose question this draft was written from was erased while it "
+                    "was drafted, so it was not kept. Draft the topic again."
+                ),
+                details={"topic_id": topic.id},
+            )
         cited_documents, unknown_documents = _cited(result.output.documents, documents)
         cited_questions, unknown_questions = _cited(
             result.output.questions, [row.search for row in material]

@@ -64,6 +64,24 @@ async def lock(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def lock_revision(
+    db: AsyncSession, revision_id: UUID, *, organization_id: UUID
+) -> DatasetCase | None:
+    """One case revision locked until the transaction ends, read afresh.
+
+    Anonymising a revision updates its row, so a writer holding this lock sees
+    an erasure that committed first, and one that starts later waits for the
+    writer and then clears what it wrote.
+    """
+    result = await db.execute(
+        select(DatasetCase)
+        .where(DatasetCase.id == revision_id, DatasetCase.organization_id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_visible(
     db: AsyncSession,
     *,

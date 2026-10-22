@@ -2384,6 +2384,24 @@ async def test_an_anonymised_case_its_curator_rewrote_is_asked_again(db) -> None
     assert started.cases == 2
 
 
+async def test_an_answer_to_a_case_anonymised_meanwhile_is_not_kept(db) -> None:
+    """An erasure that commits while a case is being answered leaves no answer behind."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    async def erase(call: int) -> None:
+        await _anonymise(db, dataset, 1)
+
+    await _run_to_end(db, Model(db, before=erase), started.id, ctx)
+
+    [attempt] = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    assert attempt.status == "failed"
+    assert (attempt.answer, attempt.calls, attempt.case_score_id) == (None, [], None)
+    assert "anonymised" in (attempt.error or "")
+
+
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
     """A skill change is measured with the agent held still: the candidate serves the
     proposed body, the baseline the stored one."""

@@ -72,6 +72,9 @@ logger = logging.getLogger(__name__)
 
 #: How long a drainer waits when the organization has no free slot.
 _FULL_BACKOFF_SECONDS = 2.0
+_ANONYMISED_MEANWHILE = (
+    "The case was anonymised while it was being answered, so its answer was not kept."
+)
 
 
 type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
@@ -361,6 +364,10 @@ class EvalRunWorker:
                 await self._fail(
                     db, attempt, agent_run.error or f"The run ended {agent_run.status}", agent_run
                 )
+                return False
+            held = await dataset_repo.lock_revision(db, revision.id, organization_id=org)
+            if held is None or held.anonymised_at is not None:
+                await self._fail(db, attempt, _ANONYMISED_MEANWHILE, agent_run)
                 return False
             intercepted = await intercepted_tool_call_repo.list_for_run(
                 db, run_id=agent_run.id, organization_id=org

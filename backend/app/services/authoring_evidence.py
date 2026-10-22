@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.db.models.conversation import Message
-from app.repositories import agent_repo, authoring_repo, conversation_repo
+from app.repositories import agent_repo, authoring_repo, conversation_repo, personal_data_repo
 from app.repositories.authoring import EvidenceRun
 from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
 
@@ -65,6 +65,8 @@ class PackedRun:
         answer: What the agent answered.
         calls: The tools it called, with clipped arguments.
         error: Why it failed, when it did.
+        people: Whose words it holds - who asked, and who commented - so a
+            quote of somebody being erased is not written down.
     """
 
     run_id: UUID
@@ -76,6 +78,7 @@ class PackedRun:
     answer: str
     calls: list[str]
     error: str | None
+    people: frozenset[UUID] = frozenset()
 
     def render(self) -> str:
         """The run as the prompt shows it."""
@@ -233,6 +236,18 @@ class EvidenceService:
     def _since(window_days: int) -> datetime:
         return datetime.now(UTC) - timedelta(days=window_days)
 
+    async def forget_erased(self, pack: EvidencePack) -> EvidencePack:
+        """The pack without the runs of anybody being erased, or erased since it was read.
+
+        Called after the last model step, before anything quoting the pack is
+        written: what is held then is held until the request's commit, so an
+        erasure either comes after it and removes what it wrote, or came first
+        and its people's runs are no longer quotable.
+        """
+        people = {person for run in pack.runs for person in run.people}
+        present = await personal_data_repo.present_among(self.db, people)
+        return EvidencePack(runs=[run for run in pack.runs if run.people <= present])
+
     async def _pack(self, rows: Sequence[EvidenceRun]) -> EvidencePack:
         packed: list[PackedRun] = []
         for row in rows:
@@ -253,6 +268,17 @@ class EvidenceService:
                     answer=_clip(answered, _TURN_CHARS),
                     calls=_calls(messages),
                     error=None if row.run.error is None else _clip(row.run.error, _TURN_CHARS),
+                    people=frozenset(
+                        [
+                            *row.commenters,
+                            *(
+                                [row.run.user_id]
+                                if row.run.user_id is not None
+                                and not row.run.initiated_by_publisher_fallback
+                                else []
+                            ),
+                        ]
+                    ),
                 )
             )
         return EvidencePack(runs=packed)
