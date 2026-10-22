@@ -64,7 +64,11 @@ export function VersionCompareWidget({
             <tbody>
               {(
                 [
-                  [t("metric.runs"), previous.runs.toLocaleString(), current.runs.toLocaleString()],
+                  [
+                    t("metric.runs"),
+                    previous.runs.toLocaleString(locale),
+                    current.runs.toLocaleString(locale),
+                  ],
                   [
                     t("metric.completed"),
                     percent(previous.completed_runs, previous.runs),

@@ -304,7 +304,11 @@ export function FocusedRun({
             {run.output_tokens.toLocaleString(locale)}
           </Fact>
           <Fact label={t("cost")}>
-            ${Number(run.cost_usd).toFixed(4)}
+            $
+            {Number(run.cost_usd).toLocaleString(locale, {
+              minimumFractionDigits: 4,
+              maximumFractionDigits: 4,
+            })}
             {run.cost_is_partial && (
               <span className="text-muted-foreground" title={t("modelRunHadNo")}>
                 {" +"}
