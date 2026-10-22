@@ -15,6 +15,7 @@
  */
 
 import { CONSOLE_WORKER } from "@/lib/console-worker";
+import { getFileUrl } from "@/lib/file-url";
 import { readShellInfo } from "@/lib/desktop/shell";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOfflineStore, type OutboxCount } from "@/stores/offline-store";
@@ -32,6 +33,15 @@ import { SealedStore, wipeSealedStore } from "./sealed-store";
 export const RECENT_CONVERSATIONS = 20;
 /** How long a copy stays readable. The outbox is the person's own words and does not expire. */
 export const KEEP_FOR_MS = 7 * 24 * 60 * 60 * 1000;
+/** A conversation's files kept to open offline: its newest this many, each up to the size below. */
+export const KEPT_FILES_PER_CONVERSATION = 20;
+export const MAX_KEPT_FILE_BYTES = 5 * 1024 * 1024;
+
+/** An attachment kept to open offline: its type, and its bytes as base64. */
+export interface KeptFile {
+  type: string;
+  data: string;
+}
 
 export interface OfflineRecords {
   /** What the person may do, so the console offline draws what it draws online. */
@@ -44,6 +54,9 @@ export interface OfflineRecords {
   [messages: `messages:${string}`]: ConversationMessagesResponse;
   /** A conversation's outbox; `outbox:new` is a new chat's, before it has an id. */
   [outbox: `outbox:${string}`]: QueuedMessage[];
+  /** The ids of the files kept for a conversation, deleted with it. */
+  [attachments: `attachments:${string}`]: string[];
+  [file: `file:${string}`]: KeptFile;
 }
 
 type RecordName = keyof OfflineRecords & string;
@@ -106,13 +119,17 @@ async function keep<K extends RecordName>(
   asked: Ticket,
   name: K,
   value: OfflineRecords[K],
-  then?: (store: SealedStore<OfflineRecords>) => Promise<void>,
+  then?: (
+    store: SealedStore<OfflineRecords>,
+    value: OfflineRecords[K],
+    stillCurrent: () => boolean,
+  ) => Promise<void>,
 ): Promise<void> {
   try {
     const store = await storeFor(asked.owner);
     if (!current(asked)) return;
     await store.put(name, value);
-    await then?.(store);
+    await then?.(store, value, () => current(asked));
   } catch (error) {
     // i18n-exempt: a developer's log label, never shown
     report(`keep ${name}`, error);
@@ -127,7 +144,11 @@ async function keep<K extends RecordName>(
 export async function readThrough<K extends RecordName>(
   name: K,
   fetch: () => Promise<OfflineRecords[K]>,
-  then?: (store: SealedStore<OfflineRecords>) => Promise<void>,
+  then?: (
+    store: SealedStore<OfflineRecords>,
+    value: OfflineRecords[K],
+    stillCurrent: () => boolean,
+  ) => Promise<void>,
 ): Promise<OfflineRecords[K]> {
   const asked = ticket();
   try {
@@ -159,14 +180,73 @@ export function readConversation(
   id: string,
   fetch: () => Promise<ConversationMessagesResponse>,
 ): Promise<ConversationMessagesResponse> {
-  return readThrough(`messages:${id}`, fetch, async (store) => {
+  return readThrough(`messages:${id}`, fetch, async (store, thread, stillCurrent) => {
     const recent = (await store.get("recent"))?.value ?? [];
     const next = [id, ...recent.filter((kept) => kept !== id)];
     for (const dropped of next.slice(RECENT_CONVERSATIONS)) {
       await store.delete(`messages:${dropped}`);
+      for (const file of (await store.get(`attachments:${dropped}`))?.value ?? []) {
+        await store.delete(`file:${file}`);
+      }
+      await store.delete(`attachments:${dropped}`);
     }
     await store.put("recent", next.slice(0, RECENT_CONVERSATIONS));
+    await keepAttachments(store, id, thread, stillCurrent);
   });
+}
+
+async function base64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  // In slices: spreading megabytes into one call overflows the stack.
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/**
+ * The thread's newest files, so they open offline too (#2097) - fetched the
+ * first time the thread is read with them and never again. One that is too
+ * large or will not load is left to the network.
+ */
+async function keepAttachments(
+  store: SealedStore<OfflineRecords>,
+  conversationId: string,
+  thread: ConversationMessagesResponse,
+  stillCurrent: () => boolean,
+): Promise<void> {
+  const wanted = [
+    ...new Set(thread.items.flatMap((message) => (message.files ?? []).map((file) => file.id))),
+  ].slice(-KEPT_FILES_PER_CONVERSATION);
+  const kept = new Set((await store.get(`attachments:${conversationId}`))?.value ?? []);
+  for (const id of wanted) {
+    if (kept.has(id)) continue;
+    const response = await globalThis.fetch(getFileUrl(id), { credentials: "include" });
+    if (!response.ok) continue;
+    const blob = await response.blob();
+    if (blob.size > MAX_KEPT_FILE_BYTES) continue;
+    // A fetch takes a while; the tenant may have been left in the meantime.
+    if (!stillCurrent()) return;
+    await store.put(`file:${id}`, { type: blob.type, data: await base64(blob) });
+    kept.add(id);
+    await store.put(`attachments:${conversationId}`, [...kept]);
+  }
+}
+
+/** A recent conversation's file, as kept on the device; null when it was not. */
+export async function keptFile(id: string): Promise<Blob | null> {
+  const asked = ticket();
+  if (!asked) return null;
+  try {
+    const kept = await (await storeFor(asked.owner)).get(`file:${id}`, KEEP_FOR_MS);
+    if (!kept || !current(asked)) return null;
+    const bytes = Uint8Array.from(atob(kept.value.data), (char) => char.charCodeAt(0));
+    return new Blob([bytes], { type: kept.value.type });
+  } catch (error) {
+    report("read file", error);
+    return null;
+  }
 }
 
 const outboxName = (conversationId: string | null) => `outbox:${conversationId ?? "new"}` as const;

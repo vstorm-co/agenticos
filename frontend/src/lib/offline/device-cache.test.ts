@@ -9,7 +9,9 @@ import {
   isNetworkFailure,
   keepConsoleCode,
   keepOutbox,
+  keptFile,
   keptOutbox,
+  MAX_KEPT_FILE_BYTES,
   offlineAvailable,
   readConversation,
   readThrough,
@@ -56,6 +58,12 @@ describe("offlineAvailable", () => {
   it("is on in the apps and off in a browser tab", () => {
     expect(offlineAvailable()).toBe(true);
     delete window.__AGENTICOS_SHELL__;
+    expect(offlineAvailable()).toBe(false);
+  });
+
+  it("is off where the browser has no IndexedDB or no WebCrypto", () => {
+    vi.stubGlobal("indexedDB", undefined);
+    Reflect.deleteProperty(window, "indexedDB");
     expect(offlineAvailable()).toBe(false);
   });
 
@@ -212,6 +220,109 @@ describe("readConversation", () => {
   });
 });
 
+describe("a recent conversation's files", () => {
+  const withFiles = (...ids: string[]): ConversationMessagesResponse => ({
+    items: [
+      {
+        id: "m-1",
+        role: "user",
+        content: "see attached",
+        files: ids.map((id) => ({
+          id,
+          filename: `${id}.png`,
+          mime_type: "image/png",
+          file_type: "image",
+        })),
+      } as ConversationMessagesResponse["items"][0],
+    ],
+    total: 1,
+    cost: null,
+  });
+  const file = (status = 200, size = 3) => ({
+    ok: status === 200,
+    status,
+    blob: async () => new Blob(["x".repeat(size)], { type: "image/png" }),
+  });
+
+  it("are kept the first time the thread is read with them, and open offline", async () => {
+    const fetchFile = vi.fn(async () => file());
+    vi.stubGlobal("fetch", fetchFile);
+
+    await readConversation("c-1", () => Promise.resolve(withFiles("f-1", "f-2")));
+    await vi.waitFor(async () => expect(await keptFile("f-2")).not.toBeNull());
+    const kept = (await keptFile("f-1"))!;
+    expect(kept.type).toBe("image/png");
+    expect(await kept.text()).toBe("xxx");
+    expect(fetchFile).toHaveBeenCalledWith("/api/files/f-1", { credentials: "include" });
+
+    fetchFile.mockClear();
+    await readConversation("c-1", () => Promise.resolve(withFiles("f-1", "f-2")));
+    // Long enough for the background keeping to have run, had it fetched anything.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchFile).not.toHaveBeenCalled();
+  });
+
+  it("leaves one too large, or one that will not load, to the network", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("big")
+          ? file(200, MAX_KEPT_FILE_BYTES + 1)
+          : url.endsWith("gone")
+            ? file(404)
+            : file(),
+      ),
+    );
+
+    await readConversation("c-1", () => Promise.resolve(withFiles("big", "gone", "ok")));
+    await vi.waitFor(async () => expect(await keptFile("ok")).not.toBeNull());
+    expect(await keptFile("big")).toBeNull();
+    expect(await keptFile("gone")).toBeNull();
+  });
+
+  it("go with their conversation when it is no longer a recent one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => file()),
+    );
+    await readConversation("c-0", () => Promise.resolve(withFiles("f-0")));
+    await vi.waitFor(async () => expect(await keptFile("f-0")).not.toBeNull());
+    for (let n = 1; n <= RECENT_CONVERSATIONS; n++) {
+      await readConversation(`c-${n}`, () => Promise.resolve(thread(`text ${n}`)));
+      await vi.waitFor(async () => expect(await readConversation(`c-${n}`, offline)).toBeTruthy());
+    }
+
+    expect(await keptFile("f-0")).toBeNull();
+  });
+
+  it("are not kept for a tenant left while they were loading", async () => {
+    let answer!: (value: ReturnType<typeof file>) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise((resolve) => (answer = resolve))),
+    );
+    await readConversation("c-1", () => Promise.resolve(withFiles("f-1")));
+    await vi.waitFor(() => expect(answer).toBeDefined());
+    wipeDeviceCache();
+    answer(file());
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await keptFile("f-1")).toBeNull();
+  });
+
+  it("are nothing in a browser tab, and nothing when the copy cannot be read", async () => {
+    delete window.__AGENTICOS_SHELL__;
+    expect(await keptFile("f-1")).toBeNull();
+
+    window.__AGENTICOS_SHELL__ = PHONE;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    storageRefused();
+    wipeDeviceCache();
+    expect(await keptFile("f-1")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("offline", "read file", expect.any(Error));
+  });
+});
+
 describe("the outbox", () => {
   it("keeps a conversation's messages, counts every outbox, and forgets an emptied one", async () => {
     await keepOutbox("c-1", [{ id: "q-1", content: "first" }]);
@@ -241,6 +352,19 @@ describe("the outbox", () => {
     await write;
 
     expect(await keptOutbox("c-1")).toEqual([]);
+  });
+
+  it("is read for nobody once somebody else has signed in", async () => {
+    await keepOutbox("c-1", [{ id: "q-1", content: "first" }]);
+    useOfflineStore.getState().setOutbox([]);
+
+    const read = keptOutbox("c-1");
+    const counted = refreshOutboxCounts();
+    signIn("u-2");
+
+    expect(await read).toEqual([]);
+    await counted;
+    expect(useOfflineStore.getState().outbox).toEqual([]);
   });
 
   it("is wiped with the rest of the tenant's copy", async () => {
@@ -305,6 +429,16 @@ describe("keepConsoleCode", () => {
 });
 
 describe("wipeDeviceCache", () => {
+  it("has nothing to delete in a browser tab", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    delete window.__AGENTICOS_SHELL__;
+    storageRefused();
+    wipeDeviceCache();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("says where the browser refused to delete the copy", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     storageRefused();

@@ -131,7 +131,9 @@ Two things are versioned separately from this file and worth knowing about:
   saved, and stays signed in. A message written offline waits above the
   composer marked "Waiting for the network", survives closing the app, and
   sends when the connection returns; one the server refuses comes back marked
-  "Not sent" with the reason, to send again or remove. The service worker now
+  "Not sent" with the reason, to send again or remove. The newest 20 files of
+  each kept conversation, up to 5 MB each, are kept too, so a photo in a thread
+  shows and an attachment opens without a network. The service worker now
   also keeps the console's code, so the Android app and an installed PWA open
   without a network (the iOS and macOS web views do not run it).
 - **Notifications while the Android app is closed** (#2097), through ntfy
