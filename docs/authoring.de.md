@@ -1,5 +1,5 @@
 ---
-source_sha: "2f8125b4e417"
+source_sha: "5a4ca9197c1c"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -18,9 +18,9 @@ Er tut drei Dinge:
 
 - Einen Agent **verbessern**: Änderungen aus seinen negativ bewerteten und
   fehlgeschlagenen Runs vorschlagen.
-- Ihre eigenen Änderungen **prüfen**: den Draft mit der veröffentlichten Version
-  anhand derselben Belege vergleichen und sagen, was die Änderungen verbessern,
-  riskieren und entfernt haben.
+- Ihre eigenen Änderungen **prüfen**: den Draft mit der Version, auf der er
+  beruht - der zuletzt veröffentlichten -, anhand derselben Belege vergleichen und
+  sagen, was die Änderungen verbessern, riskieren und entfernt haben.
 - **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
   den Runs vorschlagen, die sie gelesen haben.
 
@@ -104,21 +104,34 @@ wurde, findet trotzdem den Text des Drafts.
 
 ### Mit Evals prüfen { #check-with-evals }
 
-**Mit Evals prüfen** führt ein [Dataset](datasets.md) gegen den Draft aus, wie er
-mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version im
-selben [Eval Run](evals.md#a-baseline-in-the-same-run). Durch die Prüfung wird
-nichts angenommen, und der Draft ändert sich nicht. Solange ein wartender
-Vorschlag nicht mehr zum Draft passt oder mit einem anderen kollidiert, wird die
-Prüfung abgelehnt, bis er angenommen oder verworfen ist: Der Run misst genau das,
-was wartet.
+**Mit Evals prüfen** führt ein [Dataset](datasets.md) gegen die Basis des Drafts
+aus - die zuletzt veröffentlichte Version - mit allen wartenden Vorschlägen
+angewendet, neben dieser Version im selben
+[Eval Run](evals.md#a-baseline-in-the-same-run). Ein Wächter kann die Produktion
+auf einer älteren Version halten; die Prüfung misst nie gegen sie, sodass das,
+was die neueste Version geändert hat, auf beiden Seiten steht und nie einem
+Vorschlag angelastet wird. Hat sich der Draft von seiner Basis entfernt - durch
+eigene Änderungen oder früher angenommene Vorschläge -, ist der Draft selbst die
+Baseline, frisch ausgeführt statt aus einem früheren Run übernommen, sodass die
+Vorschläge der einzige Unterschied sind; die Schätzung berechnet auch diese Seite
+mit ein. Die Seiten heißen, was sie sind, im Dialog und am Run: "v2 + 1
+Vorschlag" gegen "v2" oder "Draft + 2 Vorschläge" gegen "Draft". Durch die
+Prüfung wird nichts angenommen, und der Draft ändert sich nicht. Solange ein
+wartender Vorschlag nicht mehr zum Draft passt oder mit einem anderen
+kollidiert, wird die Prüfung abgelehnt, bis er angenommen oder verworfen ist:
+Der Run misst genau das, was wartet.
 
 Statt eines Datasets kann die Prüfung eine der [Suites](evals.md#suites) des
-Agents ausführen: ihr Dataset, in ihrer Umgebung. Der Run vergleicht den Draft wie
-jede Prüfung mit der veröffentlichten Version und sagt, sobald er abgeschlossen
-ist, auch, wie die Suite geurteilt hätte: bestanden, nicht bestanden oder ohne
-Ergebnis, und warum, nach dem Schwellenwert, den die Suite beim Start der Prüfung
-hatte. Das steht am Run und neben der Prüfung in der Leiste, so formuliert wie die
-eigenen Ergebnisse der Suite.
+Agents ausführen: ihr Dataset, in ihrer Umgebung. Der Run vergleicht die beiden
+Seiten wie jede Prüfung und sagt, sobald er abgeschlossen ist, auch, wie die
+Suite geurteilt hätte: bestanden, nicht bestanden oder ohne Ergebnis, und warum,
+nach dem Schwellenwert, den die Suite beim Start der Prüfung hatte. Das steht am
+Run und neben der Prüfung in der Leiste, so formuliert wie die eigenen Ergebnisse
+der Suite.
+
+Die Leiste fasst jede abgeschlossene Prüfung in einem Satz zusammen, der auf
+ihren Run verlinkt - "audit-smoke würde nicht bestehen: macht „Do you ship to
+Canada?“ kaputt" oder was sie auf dem Dataset kaputt gemacht und behoben hat.
 
 Die Prüfung ist keiner der Runs der Suite: Sie steht in keinem Verlauf,
 benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
@@ -129,6 +142,13 @@ Die Fälle aus den Gesprächen, aus denen die Vorschläge abgeleitet wurden, wer
 weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten
 gemessen, an die sie angepasst wurde. Ein Dataset, das nur aus solchen Fällen
 besteht, wird abgelehnt.
+
+Eine Prüfung zählt als Test des Drafts, sobald der Draft genau das ist, was sie
+geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
+sodass der Veröffentlichungsdialog ihr Urteil meldet; nach einer weiteren
+Änderung sagt er, dass dieser Test veraltet ist. Eine Prüfung schickt von sich aus
+nichts in die [Review-Warteschlange](datasets.md#review) eines Datasets, da
+nichts angenommen wurde; ihre Run-Seite sagt das neben **Send failed to review**.
 
 Jeder Vorschlag nennt die Wirkung, die er erwartet. Die Leiste zeigt sie neben
 den Eval Runs, die die Vorschläge geprüft haben, sodass Sie die Vorhersage mit

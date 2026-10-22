@@ -1,5 +1,5 @@
 ---
-source_sha: "2f8125b4e417"
+source_sha: "5a4ca9197c1c"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -18,8 +18,9 @@ Robi trzy rzeczy:
 
 - **Ulepsza** agenta: sugeruje zmiany na podstawie jego negatywnie ocenionych i
   nieudanych runów.
-- **Sprawdza** Twoje zmiany: porównuje draft z opublikowaną wersją na tych samych
-  dowodach i mówi, co zmiany poprawiają, czym ryzykują i co usunęły.
+- **Sprawdza** Twoje zmiany: porównuje draft z wersją, na której się opiera -
+  najnowszą opublikowaną - na tych samych dowodach i mówi, co zmiany poprawiają,
+  czym ryzykują i co usunęły.
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
 
@@ -99,19 +100,31 @@ draftu.
 
 ### Sprawdź evalami { #check-with-evals }
 
-**Sprawdź evalami** uruchamia [dataset](datasets.md) na drafcie takim, jaki byłby
-po przyjęciu wszystkich oczekujących sugestii, obok opublikowanej wersji w tym
-samym [eval runie](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
-przyjmuje i nie zmienia draftu. Dopóki któraś oczekująca sugestia nie pasuje
-już do draftu albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
-nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
+**Sprawdź evalami** uruchamia [dataset](datasets.md) na bazie draftu - najnowszej
+opublikowanej wersji - z naniesionymi wszystkimi oczekującymi sugestiami, obok tej
+wersji w tym samym [eval runie](evals.md#a-baseline-in-the-same-run). Strażnik
+może trzymać produkcję na starszej wersji; sprawdzenie nigdy nie mierzy względem
+niej, więc to, co zmieniła najnowsza wersja, jest po obu stronach i nigdy nie
+jest przypisywane sugestii. Gdy draft odszedł od swojej bazy - Twoimi własnymi
+zmianami albo wcześniej przyjętymi sugestiami - baseline'em jest sam draft,
+uruchomiony na nowo, a nie wzięty z wcześniejszego runu, więc sugestie są jedyną
+różnicą; wycena kosztu obejmuje też tę stronę. Strony są nazwane tym, czym są, w
+dialogu i na runie: "v2 + 1 sugestia" wobec "v2" albo "Draft + 2 sugestie" wobec
+"Draft". Sprawdzenie niczego nie przyjmuje i nie zmienia draftu. Dopóki któraś
+oczekująca sugestia nie pasuje już do draftu albo koliduje z inną, sprawdzenia
+nie da się uruchomić, dopóki nie zostanie przyjęta lub odrzucona: run mierzy
+dokładnie to, co czeka.
 
 Zamiast datasetu sprawdzenie może uruchomić jedną z [suit](evals.md#suites)
-agenta: jej dataset, w jej środowisku. Run porównuje draft z opublikowaną
-wersją tak jak każde sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go
-suita: zaliczona, niezaliczona albo bez rozstrzygnięcia, i dlaczego, według
-progu, jaki suita miała w chwili startu sprawdzenia. Widać to na runie i przy
-sprawdzeniu w pasku, w tym samym brzmieniu co wyniki suity.
+agenta: jej dataset, w jej środowisku. Run porównuje obie strony tak jak każde
+sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go suita: zaliczona,
+niezaliczona albo bez rozstrzygnięcia, i dlaczego, według progu, jaki suita
+miała w chwili startu sprawdzenia. Widać to na runie i przy sprawdzeniu w pasku,
+w tym samym brzmieniu co wyniki suity.
+
+Pasek opisuje każde zakończone sprawdzenie jednym zdaniem z linkiem do jego
+runu - "audit-smoke: nie przeszłoby - psuje „Do you ship to Canada?”" albo to,
+co zepsuło i naprawiło na datasecie.
 
 Sprawdzenie nie jest runem suity: nie trafia do żadnej historii suity, nikogo
 nie powiadamia, a Przyjmij kieruje się werdyktem samego runu. Zmiana skilla albo
@@ -120,6 +133,13 @@ pliku kontekstu sprawdzana na suicie agenta, na którym działa, dostaje to samo
 Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją
 dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
+
+Sprawdzenie liczy się jako test draftu, gdy draft jest dokładnie tym, co
+sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym nie zmienione -
+więc dialog publikacji podaje jego werdykt; po kolejnej zmianie mówi, że ten
+test jest nieaktualny. Sprawdzenie samo z siebie nie wysyła niczego do
+[kolejki przeglądu](datasets.md#review) datasetu, bo nic nie zostało przyjęte;
+strona jego runu mówi o tym obok **Send failed to review**.
 
 Każda sugestia podaje oczekiwany efekt. Pasek pokazuje go obok eval runów, które
 sprawdzały sugestie, więc możesz porównać przewidywanie z tym, co wykazały runy.
