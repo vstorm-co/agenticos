@@ -1,5 +1,5 @@
 ---
-source_sha: "0e46a522e862"
+source_sha: "7ee2682460dc"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -257,8 +257,11 @@ una de estas pantallas usa la misma palabra.
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
 
-Un borrador sigue sin ser nunca la versión publicada: el par de la tabla anterior
-conserva su distinción, sea cual sea la palabra que tome el borrador.
+Un borrador sigue sin ser nunca la versión publicada: el par published / draft de
+[Terminología que tiene que ser exacta](#terminology-that-has-to-be-exact)
+conserva su distinción, sea cual sea la palabra que tome el borrador. La consola
+no tiene catálogo en español, así que la columna española es el vocabulario de las
+páginas en español.
 
 ## Los cuatro archivos que renderiza GitHub, no este sitio { #the-four-files-github-renders-not-this-site }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0e46a522e862"
+source_sha: "7ee2682460dc"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -257,8 +257,11 @@ cytuje jeden z tych ekranów, używa tego samego słowa.
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
 
-Wersja robocza nadal nigdy nie jest wersją opublikowaną: para z tabeli powyżej
+Wersja robocza nadal nigdy nie jest wersją opublikowaną: para published / draft z
+sekcji [Terminologia, która musi być dokładna](#terminology-that-has-to-be-exact)
 zachowuje swoje rozróżnienie, jakiegokolwiek słowa użyje się dla wersji roboczej.
+Konsola nie ma katalogu hiszpańskiego, więc kolumna hiszpańska to słownictwo
+hiszpańskich stron.
 
 ## Cztery pliki, które renderuje GitHub, a nie ten serwis { #the-four-files-github-renders-not-this-site }
 

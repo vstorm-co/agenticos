@@ -246,8 +246,10 @@ uses the same word.
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
 
-A draft is still never the published version: the pair in the table above keeps
-its distinction, whatever word the draft takes.
+A draft is still never the published version: the published / draft pair under
+[Terminology that has to be exact](#terminology-that-has-to-be-exact) keeps its
+distinction, whatever word the draft takes. The console has no Spanish catalog,
+so the Spanish column is the vocabulary of the Spanish pages.
 
 ## The four files GitHub renders, not this site
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0e46a522e862"
+source_sha: "7ee2682460dc"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -263,8 +263,11 @@ verwendet dasselbe Wort.
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
 
-Ein Entwurf ist weiterhin nie die veröffentlichte Version: Das Paar in der Tabelle
-oben behält seine Unterscheidung, welches Wort der Entwurf auch trägt.
+Ein Entwurf ist weiterhin nie die veröffentlichte Version: Das Paar published /
+draft unter [Terminologie, die exakt sein muss](#terminology-that-has-to-be-exact)
+behält seine Unterscheidung, welches Wort der Entwurf auch trägt. Die Konsole hat
+keinen spanischen Katalog, die spanische Spalte ist also das Vokabular der
+spanischen Seiten.
 
 ## Die vier Dateien, die GitHub rendert, nicht diese Site { #the-four-files-github-renders-not-this-site }
 
