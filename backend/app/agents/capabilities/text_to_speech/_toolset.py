@@ -39,7 +39,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import store_generated
+from app.agents.capabilities._generated import quota_refusal, store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
 from app.agents.deps import AgentDeps
 from app.services.text_to_speech import (
@@ -185,6 +185,8 @@ def build_speech_toolset(
                 "Not spoken: this agent's speech model is no longer offered. Its author "
                 "needs to choose another in the agent's settings."
             )
+        if (refused := await quota_refusal(ctx, verdict="Not spoken")) is not None:
+            return refused
         price = price_per_character(chosen, on=datetime.now(UTC).date())
         estimate = _cost(price, len(spoken))
         if not await can_afford_ambient_call(estimate or Decimal(0)):

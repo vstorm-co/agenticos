@@ -235,6 +235,7 @@ APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -266,6 +267,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        SWEEP_GENERATED_MEDIA,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

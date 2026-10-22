@@ -29,6 +29,7 @@ from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
+from app.db.models.generated_media import GeneratedMedia
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
@@ -68,11 +69,13 @@ async def organizations_with_retention(
 async def stored_paths_for_expiring_conversations(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
 ) -> list[str]:
-    """The chat files belonging to conversations about to be purged.
+    """The chat files and generated media belonging to conversations about to be purged.
 
     Read before the delete, because the rows cascade with the conversation and the
     bytes do not: a purge that removed the row and left the upload on disk would
-    be a retention policy whose files outlive the policy.
+    be a retention policy whose files outlive the policy. Generated media's rows
+    do not cascade (`SET NULL`), but its bytes belong to the thread just the same
+    (#2310).
     """
     expiring = (
         select(Conversation.id)
@@ -85,6 +88,12 @@ async def stored_paths_for_expiring_conversations(
         select(ChatFile.storage_path)
         .join(Message, Message.id == ChatFile.message_id)
         .where(Message.conversation_id.in_(expiring), ChatFile.storage_path.is_not(None))
+        .union_all(
+            select(GeneratedMedia.storage_path).where(
+                GeneratedMedia.organization_id == organization_id,
+                GeneratedMedia.conversation_id.in_(expiring),
+            )
+        )
     )
     return [path for (path,) in rows.all() if path]
 

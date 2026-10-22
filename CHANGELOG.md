@@ -75,6 +75,18 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
+- **Generated media is streamed, and what is kept is bounded.** Reading a
+  generated image, clip or video loaded the whole file into the API and again
+  into the console's server, a player's range request included, so a member
+  who knew a long clip's name could make every request hold all of it. Both
+  now stream, reading only the range asked for - from disk, or by a ranged
+  `GetObject` on S3. Each generated file is now recorded in a new
+  `generated_media` table, deleted with the conversation it was made in, after
+  `GENERATED_MEDIA_RETENTION_DAYS` (90) by a daily `sweep-generated-media`
+  job, and with its organization, and counted against
+  `GENERATED_MEDIA_QUOTA_MB` (5120) per organization, which a generation tool
+  checks before spending anything. Files generated before this release have
+  no record: they are still served but are neither counted nor swept (#2310).
 
 ## [1.13.0] - 2026-10-22
 

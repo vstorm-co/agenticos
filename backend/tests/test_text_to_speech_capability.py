@@ -46,7 +46,7 @@ from app.services.text_to_speech import SpeechFailure, SpeechProviderError
 from app.services.text_to_speech.synthesis import Speech
 from tests.workspaces import SandboxUnreachable, document_workspace
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("generated_media_ledger")]
 
 MP3 = b"ID3-speech"
 
@@ -546,6 +546,22 @@ class TestAnyAccountVoice:
 
 @pytest.mark.security
 class TestRefusingBeforeSpending:
+    async def test_an_organization_past_its_quota_is_told_so_before_anything_is_spoken(
+        self, synthesis, generated_media_ledger, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Refused before the paid call, not after: a clip made and then refused
+        storage would be money spent on nothing (#2310)."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        generated_media_ledger.append(
+            {"organization_id": organization_id, "size_bytes": 1024 * 1024}
+        )
+
+        answer = await _speak(_toolset(), _ctx(organization_id))
+
+        assert answer.startswith("Not spoken: this organization has used its storage")
+        assert synthesis.calls == []
+
     async def test_without_a_key(self, synthesis):
         with pytest.raises(ModelRetry, match="no API key"):
             await _speak(_toolset(api_key=None), _ctx(uuid4()))

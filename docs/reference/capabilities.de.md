@@ -1,5 +1,5 @@
 ---
-source_sha: "9389f115faa2"
+source_sha: "149ad4fb30fe"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1171,8 +1171,11 @@ seine Summe als unvollständig (`cost_is_partial`), statt die Ausgaben zu verber
 **Wohin das Bild geht.** Jedes erzeugte Bild wird **pro Organisation** gespeichert
 und über [`GET /api/v1/generated/{filename}`](../architecture.md) zurückgeliefert,
 begrenzt auf die eigene Organisation der aufrufenden Person — eine weitere Grenze
-als bei einem Chat-Upload, das einem Nutzer gehört, denn es gibt keine
-Aufzeichnung darüber, wer ein Bild erzeugt hat. Wenn der Agent zusätzlich einen
+als bei einem Chat-Upload, das einem Nutzer gehört. Es wird bei der Conversation
+erfasst, in der es entstand, und mit ihr gelöscht, gegen das Kontingent der
+Organisation für erzeugte Medien gezählt und nach der Aufbewahrungsfrist gelöscht
+([Konfiguration](../configuration.md#generated-media)). Über dem Kontingent
+antwortet das Tool das, bevor es etwas ausgibt. Wenn der Agent zusätzlich einen
 Workspace hat (die `sandbox`-Capability), wird dasselbe Bild dort unter `/output`
 abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, eine
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt

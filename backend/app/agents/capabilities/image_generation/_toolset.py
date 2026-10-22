@@ -35,7 +35,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import store_generated
+from app.agents.capabilities._generated import quota_refusal, store_generated
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
 
@@ -132,6 +132,8 @@ def build_image_toolset(
             # the preview and test paths that build without a key: the run
             # survives, and nothing is spent or stored.
             return steer(ctx, "Image generation has no API key configured.")
+        if (refused := await quota_refusal(ctx, verdict="Not made")) is not None:
+            return refused
 
         model = _build_image_model(model_id, api_key)
         agent: PydanticAgent[None, BinaryImage] = PydanticAgent(

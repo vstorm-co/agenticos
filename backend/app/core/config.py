@@ -750,6 +750,13 @@ class Settings(BaseSettings):
     # AWS-managed `aws/s3`, so a deployment that asked for a client-held key and
     # named none would encrypt under a key nobody chose and be told nothing.
     FILE_STORAGE_S3_KMS_KEY_ID: str | None = None
+    # Images, speech and video agents generate (#2310). A generated video can be
+    # hundreds of megabytes, so what an organization keeps is bounded twice: by
+    # bytes, checked before each paid generation call, and by age, enforced by the
+    # daily `sweep-generated-media` job. Deleting a conversation removes what was
+    # generated in it either way. 0 turns either bound off.
+    GENERATED_MEDIA_QUOTA_MB: int = Field(default=5120, ge=0)
+    GENERATED_MEDIA_RETENTION_DAYS: int = Field(default=90, ge=0)
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
     S3_RAG_SECRET_KEY: str = ""

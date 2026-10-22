@@ -66,15 +66,21 @@ class _Client:
         self.puts: list[dict[str, Any]] = []
         self.deleted: list[str] = []
         self.bodies: list[_Body] = []
+        self.ranges: list[str | None] = []
 
     def put_object(self, **kwargs: Any) -> None:
         self.puts.append(kwargs)
         self.objects[kwargs["Key"]] = kwargs["Body"]
 
-    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+    def get_object(self, *, Bucket: str, Key: str, Range: str | None = None) -> dict[str, Any]:
         if Key not in self.objects:
             raise _client_error("NoSuchKey")
-        body = _Body(self.objects[Key])
+        data = self.objects[Key]
+        self.ranges.append(Range)
+        if Range is not None:
+            first, last = Range.removeprefix("bytes=").split("-")
+            data = data[int(first) : int(last) + 1]
+        body = _Body(data)
         self.bodies.append(body)
         return {"Body": body}
 
@@ -82,9 +88,10 @@ class _Client:
         self.deleted.append(Key)
         self.objects.pop(Key, None)
 
-    def head_object(self, *, Bucket: str, Key: str) -> None:
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         if Key not in self.objects:
             raise _client_error("404")
+        return {"ContentLength": len(self.objects[Key])}
 
     def get_paginator(self, name: str) -> _Paginator:
         assert name == "list_objects_v2"
@@ -377,6 +384,87 @@ class TestServingAnObjectDoesNotHoldItWhole:
         stored = await storage.save("u", "a.bin", b"bytes")
 
         assert [c async for c in await storage.open_stream(stored)] == [b"bytes"]
+
+
+class TestARangedReadReadsOnlyTheRange:
+    """A player asks a 300 MB clip for a megabyte at a time (#2310).
+
+    Sliced out of the whole file, every such request held the whole clip; these
+    read the span asked for and nothing before or after it.
+    """
+
+    async def test_the_store_is_asked_for_the_range_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.services.file_storage.STREAM_CHUNK_BYTES", 2)
+        client = _Client(objects={"g/v.mp4": b"0123456789"})
+        storage = S3FileStorage(client, "files")
+
+        chunks = [c async for c in await storage.open_range("g/v.mp4", 3, 6)]
+
+        assert chunks == [b"34", b"56"]
+        assert client.ranges == ["bytes=3-6"]
+        assert client.bodies[0].closed
+
+    async def test_an_object_is_measured_without_being_read(self) -> None:
+        client = _Client(objects={"g/v.mp4": b"0123456789"})
+
+        assert await S3FileStorage(client, "files").size("g/v.mp4") == 10
+        assert client.bodies == []
+
+    async def test_a_missing_object_is_missing_whichever_way_it_is_asked(self) -> None:
+        storage = S3FileStorage(_Client(), "files")
+
+        with pytest.raises(FileNotFoundError):
+            await storage.size("g/gone.mp4")
+        with pytest.raises(FileNotFoundError):
+            await storage.open_range("g/gone.mp4", 0, 1)
+
+    async def test_a_store_that_refuses_the_head_is_not_reported_as_missing(self) -> None:
+        """An `AccessDenied` is a fact about the store, and the caller must see it."""
+        from botocore.exceptions import ClientError
+
+        class _Refusing(_Client):
+            def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+                raise _client_error("AccessDenied")
+
+        with pytest.raises(ClientError):
+            await S3FileStorage(_Refusing(), "files").size("g/v.mp4")
+
+    async def test_a_local_file_is_read_from_the_offset_in_bounded_chunks(
+        self, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.services.file_storage.STREAM_CHUNK_BYTES", 3)
+        storage = LocalFileStorage(base_dir=tmp_path)
+        stored = await storage.save("g", "v.mp4", b"0123456789")
+
+        assert await storage.size(stored) == 10
+        assert [c async for c in await storage.open_range(stored, 2, 8)] == [
+            b"234",
+            b"567",
+            b"8",
+        ]
+
+    async def test_a_local_file_shorter_than_the_range_ends_where_it_ends(
+        self, tmp_path: Any
+    ) -> None:
+        """Truncated under a reader, the stream stops rather than spinning."""
+        storage = LocalFileStorage(base_dir=tmp_path)
+        stored = await storage.save("g", "v.mp4", b"0123")
+
+        assert [c async for c in await storage.open_range(stored, 2, 99)] == [b"23"]
+
+    async def test_a_missing_local_file_is_missing_before_anything_is_read(
+        self, tmp_path: Any
+    ) -> None:
+        storage = LocalFileStorage(base_dir=tmp_path)
+
+        with pytest.raises(FileNotFoundError):
+            await storage.size("g/gone.mp4")
+        with pytest.raises(FileNotFoundError):
+            await storage.open_range("g/gone.mp4", 0, 1)
+        with pytest.raises(ValueError):
+            await storage.size("../outside.mp4")
 
 
 class TestChoosingTheBackend:

@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.secret_kinds import ApiKeySecret
 from tests.workspaces import ShellFailing, document_workspace
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("generated_media_ledger")]
 
 _IMAGE = BinaryImage(data=b"\x89PNG-bytes", media_type="image/png")
 
@@ -136,6 +136,59 @@ async def test_generating_an_image_stores_it_meters_it_and_returns_a_reference()
     assert image.url == f"/api/v1/generated/{image.filename}"
     # The subagent's spend reached the run's ledger - the invisible-spend guard.
     assert [(entry.model_name, entry.input_tokens) for entry in ledger.entries] == [("gpt-5.4", 7)]
+
+
+async def test_a_generated_image_is_recorded_with_the_conversation_it_was_made_in(
+    generated_media_ledger: list[dict[str, object]],
+):
+    """The record is what deletes the image with its thread, and counts it (#2310)."""
+    organization_id, conversation_id = uuid4(), uuid4()
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+    ctx = _ctx(organization_id)
+    ctx.deps.conversation_id = conversation_id
+
+    image = parse_generated_image(await _generate(toolset, ctx))
+
+    assert image is not None
+    [row] = generated_media_ledger
+    assert row == {
+        "organization_id": organization_id,
+        "conversation_id": conversation_id,
+        "filename": image.filename,
+        "storage_path": f"generated_{organization_id}/{image.filename}",
+        "size_bytes": len(_IMAGE.data),
+    }
+
+
+async def test_an_organization_past_its_quota_is_told_so_before_anything_is_drawn(
+    generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+):
+    organization_id = uuid4()
+    monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+    generated_media_ledger.append({"organization_id": organization_id, "size_bytes": 1024 * 1024})
+    _FakeAgent.raise_exc = AssertionError("the image model must not be called")
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    answer = await _generate(toolset, _ctx(organization_id))
+
+    assert answer.startswith("Not made: this organization has used its storage")
+
+
+async def test_a_quota_of_zero_never_refuses(
+    generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+):
+    organization_id = uuid4()
+    monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 0)
+    generated_media_ledger.append({"organization_id": organization_id, "size_bytes": 10**12})
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    assert parse_generated_image(await _generate(toolset, _ctx(organization_id))) is not None
 
 
 async def test_a_generated_image_is_also_written_into_an_open_workspace():

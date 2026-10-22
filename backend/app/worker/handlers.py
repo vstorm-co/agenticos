@@ -47,6 +47,7 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        generated_media_tasks,
         invitation_tasks,
         mcp_tasks,
         notification_tasks,
@@ -87,6 +88,10 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(
+                jobs.SWEEP_GENERATED_MEDIA,
+                _each_tick(generated_media_tasks.sweep_generated_media),
+            ),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]

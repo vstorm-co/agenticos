@@ -46,7 +46,11 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR, store_generated
+from app.agents.capabilities._generated import (
+    WORKSPACE_OUTPUT_DIR,
+    quota_refusal,
+    store_generated,
+)
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
 from app.agents.deps import AgentDeps
 from app.core.exceptions import NotFoundError
@@ -270,6 +274,8 @@ def build_video_toolset(
                 return steer(ctx, read)
             frame = read
 
+        if (refused := await quota_refusal(ctx, verdict="Not made")) is not None:
+            return refused
         price = price_per_second(model, sharpness, on=datetime.now(UTC).date())
         priced_seconds = duration if duration is not None else model.max_seconds
         estimate = None if price is None else price * priced_seconds

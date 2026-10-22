@@ -56,7 +56,7 @@ from app.services.generated_media import save_generated_media
 from app.services.video_generation import Clip, VideoFailure, VideoProviderError
 from tests.workspaces import ShellFailing, document_workspace
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("generated_media_ledger")]
 
 MP4 = b"\x00\x00\x00\x20ftypisom"
 
@@ -477,6 +477,37 @@ class TestMaking:
         video = parse_generated_video(result)
         assert video is not None and video.workspace_path is not None
         assert document.read_bytes(video.workspace_path) == MP4
+
+    async def test_an_organization_past_its_quota_is_told_so_before_anything_is_made(
+        self, generation, generated_media_ledger, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A clip can be hundreds of megabytes and is billed by the second, so the
+        quota is asked before the provider is (#2310)."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        generated_media_ledger.append(
+            {"organization_id": organization_id, "size_bytes": 2 * 1024 * 1024}
+        )
+
+        answer = await _make(_toolset(), _ctx(organization_id))
+
+        assert answer.startswith("Not made: this organization has used its storage")
+        assert generation.calls == []
+
+    async def test_a_stored_clip_is_recorded_against_its_organization(
+        self, generation, generated_media_ledger
+    ):
+        organization_id = uuid4()
+
+        video = parse_generated_video(await _make(_toolset(), _ctx(organization_id)))
+
+        assert video is not None
+        [row] = generated_media_ledger
+        assert (row["organization_id"], row["filename"], row["size_bytes"]) == (
+            organization_id,
+            video.filename,
+            len(MP4),
+        )
 
     async def test_without_an_organization_the_clip_is_made_but_not_stored(self, generation):
         video = parse_generated_video(await _make(_toolset(), _ctx(None)))

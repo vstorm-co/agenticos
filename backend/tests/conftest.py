@@ -175,6 +175,42 @@ def sole_source_run() -> Generator[None]:
 
 
 @pytest.fixture
+def generated_media_ledger(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    """Record generated media in a list rather than a database; the list is returned.
+
+    Every file an agent's tool stores is recorded in `generated_media` through a
+    session of its own (#2310), and the quota is summed from those rows. The
+    unit tests of the tools are about what a tool does with a file, so they are
+    handed this; the rows themselves are proved against a real database in
+    `tests/integration/test_generated_media.py`.
+    """
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+
+    from app.services import generated_media
+
+    rows: list[dict[str, object]] = []
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    async def create(_db: object, **row: object) -> SimpleNamespace:
+        rows.append(row)
+        return SimpleNamespace(**row)
+
+    async def bytes_used(_db: object, *, organization_id: object) -> int:
+        return sum(
+            int(str(row["size_bytes"])) for row in rows if row["organization_id"] == organization_id
+        )
+
+    monkeypatch.setattr(generated_media, "get_db_context", session)
+    monkeypatch.setattr(generated_media.generated_media_repo, "create", create)
+    monkeypatch.setattr(generated_media.generated_media_repo, "bytes_used", bytes_used)
+    return rows
+
+
+@pytest.fixture
 def mock_redis() -> MagicMock:
     """Create a mock Redis client for testing."""
     mock = MagicMock(spec=RedisClient)

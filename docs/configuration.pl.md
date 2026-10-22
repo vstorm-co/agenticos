@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddf346e4182"
+source_sha: "42077a1e3d41"
 ---
 
 # Konfiguracja { #configuration }
@@ -711,6 +711,23 @@ Bucket, do którego zapisuje wdrożenie, potrzebuje `s3:PutObject`, `s3:GetObjec
 `s3:DeleteObject` i `s3:ListBucket`, a przy trybie `sse-kms` dodatkowo
 `kms:Encrypt`, `kms:Decrypt` i `kms:GenerateDataKey` na kluczu. Lokalne MinIO
 uruchamia `make docker-minio` na `:9000` z `minioadmin` / `minioadmin`.
+
+### Wygenerowane media { #generated-media }
+
+Obrazy, mowa i wideo generowane przez agentów są trzymane w tym samym magazynie,
+pod `generated_<org>/`, a każde jest zapisane przy swojej organizacji i
+konwersacji, w której powstało. To, co organizacja przechowuje, jest ograniczone
+podwójnie. Zobacz [Ochronę danych](data-protection.md#generated-media), żeby
+sprawdzić, co i kiedy jest usuwane.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Ile wygenerowanych mediów może trzymać jedna organizacja, w MiB. Sprawdzane przed każdym płatnym wywołaniem generowania: po jego przekroczeniu narzędzie odpowiada, że organizacja wykorzystała swój magazyn, i niczego nie wydaje. Wywołanie wpuszczone tuż pod limitem może skończyć się jednym plikiem ponad. `0` to brak limitu |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Wiek, w którym codzienne zadanie `sweep-generated-media` usuwa wygenerowany plik i jego zapis, bez względu na to, czy jego konwersacja wciąż istnieje. `0` trzyma je, aż ich konwersacja albo organizacja zostanie usunięta |
+
+Plik jest serwowany strumieniowo, tylko w zakresie bajtów, o który prosi
+odtwarzacz - z dysku albo przez `GetObject` z zakresem - więc długi klip nigdy nie
+jest trzymany w całości ani w API, ani na serwerze konsoli.
 
 ### Synchronizacja S3/MinIO { #s3minio-sync }
 

@@ -933,8 +933,11 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/generated_media.py",
+    "app/repositories/generated_media.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    "app/worker/tasks/generated_media_tasks.py",
     # What this deployment calls itself, who may register, and whether it is open
     # at all. The identity half is cosmetic; the other two are refusals - a sign-up
     # policy applied on the only unauthenticated paths that mint an account, and a
@@ -1437,8 +1440,11 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/generated_media.py",
+    "app/repositories/generated_media.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    "app/worker/tasks/generated_media_tasks.py",
     # What this deployment calls itself, who may register, and whether it is open
     # at all. The identity half is cosmetic; the other two are refusals - a sign-up
     # policy applied on the only unauthenticated paths that mint an account, and a

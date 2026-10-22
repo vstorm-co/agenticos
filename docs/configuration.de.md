@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddf346e4182"
+source_sha: "42077a1e3d41"
 ---
 
 # Konfiguration { #configuration }
@@ -748,6 +748,23 @@ Ein Bucket, in den das Deployment schreibt, braucht `s3:PutObject`,
 zusätzlich `kms:Encrypt`, `kms:Decrypt` und `kms:GenerateDataKey` auf dem
 Schlüssel. Ein lokales MinIO startet `make docker-minio` auf `:9000` mit
 `minioadmin` / `minioadmin`.
+
+### Erzeugte Medien { #generated-media }
+
+Bilder, Sprache und Videos, die Agenten erzeugen, liegen im selben Speicher unter
+`generated_<org>/`, und jedes wird bei seiner Organisation und der Conversation
+erfasst, in der es entstand. Was eine Organisation behält, ist doppelt begrenzt.
+Was wann gelöscht wird, steht unter
+[Datenschutz](data-protection.md#generated-media).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Wie viel erzeugte Medien eine Organisation behalten darf, in MiB. Geprüft vor jedem bezahlten Erzeugungsaufruf: darüber antwortet das Tool, dass die Organisation ihren Speicher aufgebraucht hat, und gibt nichts aus. Ein knapp darunter zugelassener Aufruf kann mit einer Datei darüber enden. `0` ist kein Kontingent |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Alter, ab dem der tägliche Job `sweep-generated-media` eine erzeugte Datei und ihren Eintrag löscht, ob ihre Conversation noch existiert oder nicht. `0` behält sie, bis ihre Conversation oder Organisation gelöscht wird |
+
+Eine Datei wird gestreamt ausgeliefert, nur im Bytebereich, den ein Player
+anfragt - von der Platte oder per `GetObject` mit Bereich -, sodass ein langer
+Clip weder in der API noch im Server der Konsole je ganz gehalten wird.
 
 ### S3/MinIO-Sync { #s3minio-sync }
 

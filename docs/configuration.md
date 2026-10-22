@@ -701,6 +701,22 @@ A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
 For a local MinIO, `make docker-minio` starts one on `:9000` with
 `minioadmin` / `minioadmin`.
 
+### Generated media
+
+Images, speech and video agents generate are kept in the same store, under
+`generated_<org>/`, and each is recorded against its organization and the
+conversation it was made in. What an organization keeps is bounded twice. See
+[Data protection](data-protection.md#generated-media) for what is deleted when.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Generated media one organization may keep, in MiB. Checked before each paid generation call: past it, the tool answers that the organization has used its storage and spends nothing. A call admitted just under it may finish one file over. `0` is no quota |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Age at which the daily `sweep-generated-media` job deletes a generated file and its record, whether or not its conversation is still there. `0` keeps them until their conversation or organization is deleted |
+
+A file is served by streaming only the byte range a player asks for, from disk
+or by a ranged `GetObject`, so a long clip is never held whole in the API or the
+console's server.
+
 ### S3/MinIO sync
 
 | Variable | Default | Description |

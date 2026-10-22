@@ -1046,7 +1046,10 @@ rather than hiding the spend.
 **Where the image goes.** Every generated image is stored **per organization** and
 served back by [`GET /api/v1/generated/{filename}`](../architecture.md), scoped to
 the caller's own organization — a wider boundary than a chat upload, which is owned
-by one user, because there is no record of who produced an image. When the agent
+by one user. It is recorded against the conversation it was made in and deleted with
+it, counted against the organization's generated-media quota, and deleted after the
+retention period ([configuration](../configuration.md#generated-media)). Past the
+quota, the tool answers so before spending anything. When the agent
 also has a workspace (the `sandbox` capability), the same image is written into it
 under `/output`, so a later `execute` step can build with it — assemble a PDF, a
 slide, a page. An agent without a workspace still generates and shows images; it

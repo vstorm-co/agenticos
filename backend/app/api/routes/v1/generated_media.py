@@ -6,6 +6,10 @@ filename only ever resolves within the caller's own tenant and another
 organization's leaf name is a 404. Which types may be *displayed* rather than
 downloaded is `_workspace_bytes.INLINE_TYPES`, shared with the workspace routes so
 the answer cannot differ by surface.
+
+Streamed, never loaded (#2310): a clip can be hundreds of megabytes and this route
+has no rate limit of its own, so a ranged request reads only its range from the
+store rather than the whole file once per request.
 """
 
 from uuid import UUID
@@ -13,8 +17,9 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Response
 
 from app.api.deps import Auth
-from app.api.routes.v1._workspace_bytes import file_response
-from app.services.generated_media import load_generated_media
+from app.api.routes.v1._workspace_bytes import streamed_file_response
+from app.core.exceptions import NotFoundError
+from app.services.generated_media import open_generated_media
 
 router = APIRouter()
 
@@ -39,7 +44,18 @@ async def get_generated_media(
             learn what another organization has generated.
     """
     organization_id: UUID = ctx.organization_id
-    data = await load_generated_media(organization_id, filename)
-    return file_response(
-        data, path=filename, download=download, byte_range=range_header, serves_ranges=True
-    )
+    stored = await open_generated_media(organization_id, filename)
+    try:
+        return await streamed_file_response(
+            stored.storage_path,
+            size=stored.size,
+            path=filename,
+            download=download,
+            byte_range=range_header,
+        )
+    except FileNotFoundError as exc:
+        # Gone between being measured and being opened - a retention sweep, a
+        # deleted conversation. Nothing has gone out yet, so it is still a 404.
+        raise NotFoundError(
+            message="Generated file not found", details={"filename": filename}
+        ) from exc

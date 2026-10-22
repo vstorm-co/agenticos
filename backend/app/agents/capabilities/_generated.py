@@ -8,6 +8,11 @@ the sandbox capability - the same bytes are written into it under `output/`, so 
 later step can build with what was just made. An agent without a workspace still
 generates; it has nowhere to build with the result, which is the honest
 difference between the two.
+
+What is kept is bounded (#2310): each file is recorded against its organization
+and its conversation, and :func:`quota_refusal` is asked before a tool spends
+anything, so a tenant past its generated-media quota is told so rather than
+billed for a file it could not keep.
 """
 
 import logging
@@ -18,7 +23,11 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.deps import AgentDeps
-from app.services.generated_media import generated_media_url, save_generated_media
+from app.services.generated_media import (
+    generated_media_quota_reached,
+    generated_media_url,
+    keep_generated_media,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +58,27 @@ class StoredMedia:
     workspace_path: str | None
 
 
+async def quota_refusal(ctx: RunContext[AgentDeps], *, verdict: str) -> str | None:
+    """The tool's answer when its organization has used its generated-media quota.
+
+    A returned answer rather than a retry or an exception: nothing the model
+    can rephrase changes it, and the run goes on - the model tells the person
+    rather than the turn ending on an error.
+
+    Args:
+        ctx: The tool call's context, for the organization.
+        verdict: How the tool says it did nothing - "Not made", "Not spoken".
+    """
+    organization_id = ctx.deps.organization_id
+    if organization_id is None or not await generated_media_quota_reached(organization_id):
+        return None
+    return (
+        f"{verdict}: this organization has used its storage for generated media. Tell the "
+        "user; deleting conversations with generated files frees it, or an administrator "
+        "can raise the limit."
+    )
+
+
 async def store_generated(ctx: RunContext[AgentDeps], data: bytes, *, filename: str) -> StoredMedia:
     """Keep one generated file, and write it into the workspace if one is open.
 
@@ -61,7 +91,9 @@ async def store_generated(ctx: RunContext[AgentDeps], data: bytes, *, filename: 
     stored: str | None = None
     url: str | None = None
     if organization_id is not None:
-        stored = await save_generated_media(organization_id, data, filename=filename)
+        stored = await keep_generated_media(
+            organization_id, data, filename=filename, conversation_id=ctx.deps.conversation_id
+        )
         url = generated_media_url(stored)
         ctx.deps.generated_files.add(stored)
 

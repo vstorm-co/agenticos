@@ -1,8 +1,8 @@
-"""Where media an agent generated is kept, and how it is read back.
+"""Where media an agent generated is kept, how it is read back, and how long it stays.
 
-Images today; speech and video use the same store (#2259, #2260). The kind of
-file is carried by its extension and nothing else - the serving route types it
-from the suffix, through the same allowlist the workspace routes use.
+Images, speech and video (#2259, #2260) use the same store. The kind of file is
+carried by its extension and nothing else - the serving route types it from the
+suffix, through the same allowlist the workspace routes use.
 
 Agent-generated media is **organization-scoped**, and that is the whole of its
 tenancy: the bytes live under a per-organization directory in the same file
@@ -15,23 +15,40 @@ not own and is a 404.
 
 That is a wider scope than a chat upload, which is owned by one user
 (`file_upload.py`). It is deliberate and it is the trade the prefix design makes:
-there is no row recording which run or which person produced a file, so the
-boundary that *can* be enforced without one is the tenant. Tightening it to a
-person or a conversation is what a database-backed record would buy, and is the
-shape [#55](https://github.com/vstorm-co/agenticos/issues/55) can grow into on
-top of this - the directory convention and the serving route are the parts it
-would inherit unchanged.
+the boundary that can be enforced on every read without a lookup is the tenant.
 
-The underlying `LocalFileStorage.save`/`load` do their IO on the event loop
-(#25); this module adds no new blocking of its own beyond awaiting that API, and
-inherits the fix when it lands.
+**What is kept, and for how long** (#2310). Each file an agent stores is recorded
+in `generated_media` - its organization, the conversation it was made in where
+the run had one, and its size. That record is what bounds it:
+
+- a per-organization byte quota (`GENERATED_MEDIA_QUOTA_MB`), checked before each
+  paid generation call, so a tenant past it is told so before anything is spent;
+- deletion with the conversation it was generated in;
+- deletion after `GENERATED_MEDIA_RETENTION_DAYS`, by the daily
+  `sweep-generated-media` job, whether or not the conversation is still there;
+- deletion with the organization, by prefix.
+
+The record is bookkeeping, not the read path. A file written before the table
+existed has no row: it is still served, is not counted, and goes with its
+organization.
 """
 
+import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.db.session import get_db_context
+from app.repositories import generated_media_repo
 from app.services.file_storage import get_file_storage
+
+logger = logging.getLogger(__name__)
 
 OWNER_PREFIX = "generated"
 """First path segment of every generated file, per organization.
@@ -44,14 +61,47 @@ root with the per-user chat directories (`<user_id>/`), which cannot collide: a
 user id is a bare UUID and this is always prefixed.
 """
 
+SWEEP_BATCH = 500
+"""Rows the retention sweep reads at a time."""
 
-def _owner(organization_id: UUID) -> str:
-    """The storage owner segment for one organization's generated media."""
+SWEEP_MAX_BATCHES = 40
+"""Batches per sweep. A backlog - a deployment turning retention on over a year
+of clips - is worked off over several daily runs rather than in one long one."""
+
+
+def organization_directory(organization_id: UUID) -> str:
+    """The storage prefix holding one organization's generated media."""
     return f"{OWNER_PREFIX}_{organization_id}"
 
 
+def _storage_path(organization_id: UUID, filename: str) -> str:
+    """The storage path of one leaf name, inside the caller's own directory.
+
+    Raises:
+        NotFoundError: For anything but a single leaf name. The serving route's
+            path parameter already cannot carry a separator, but a caller
+            reaching this directly must not be able to climb into another
+            organization's directory with `../`, which resolves inside the shared
+            storage root rather than escaping it.
+    """
+    if "/" in filename or "\\" in filename or filename in {"", ".", ".."}:
+        raise NotFoundError(message="Generated file not found", details={"filename": filename})
+    return f"{organization_directory(organization_id)}/{filename}"
+
+
+@dataclass(frozen=True)
+class StoredGeneratedMedia:
+    """One generated file found in the caller's organization, not yet read."""
+
+    storage_path: str
+    size: int
+
+
 async def save_generated_media(organization_id: UUID, data: bytes, *, filename: str) -> str:
-    """Store one generated file and return the leaf name it is served under.
+    """Store one generated file's bytes and return the leaf name it is served under.
+
+    Only the bytes: :func:`keep_generated_media` is what an agent's tools call,
+    and it also records the file so it is counted and expires.
 
     The leaf is unique (the store stamps a UUID prefix), so it is all a caller
     needs to read the file back: :func:`load_generated_media` rebuilds the
@@ -66,12 +116,67 @@ async def save_generated_media(organization_id: UUID, data: bytes, *, filename: 
             format of `data`.
     """
     storage = get_file_storage()
-    storage_path = await storage.save(_owner(organization_id), filename, data)
+    storage_path = await storage.save(organization_directory(organization_id), filename, data)
     return PurePosixPath(storage_path).name
 
 
+async def keep_generated_media(
+    organization_id: UUID, data: bytes, *, filename: str, conversation_id: UUID | None
+) -> str:
+    """Store one generated file and record it; returns the leaf it is served under.
+
+    Recorded in a session of its own: this runs inside a tool call, which holds
+    none. A record that cannot be written removes the bytes again before the
+    error goes on - a file with no row is counted by nothing and swept by
+    nothing, which is the state #2310 exists to end.
+
+    Args:
+        organization_id: The organization the file belongs to.
+        data: The file's bytes.
+        filename: A name such as `image.png`; its extension types the file.
+        conversation_id: The thread the run answers in, when it has one. The file
+            is deleted with that thread.
+    """
+    leaf = await save_generated_media(organization_id, data, filename=filename)
+    storage_path = _storage_path(organization_id, leaf)
+    try:
+        async with get_db_context() as db:
+            await generated_media_repo.create(
+                db,
+                organization_id=organization_id,
+                conversation_id=conversation_id,
+                filename=leaf,
+                storage_path=storage_path,
+                size_bytes=len(data),
+            )
+    except Exception:
+        await get_file_storage().delete(storage_path)
+        raise
+    return leaf
+
+
+async def generated_media_quota_reached(organization_id: UUID) -> bool:
+    """Whether this organization has used its generated-media quota.
+
+    Asked before a paid generation call rather than at the save, so a tenant at
+    its limit is refused before anything is spent - a clip refused after it was
+    made would be money paid for nothing. The cost is that a call admitted just
+    under the limit may finish over it by one file; the next one is refused.
+    """
+    quota_mb = settings.GENERATED_MEDIA_QUOTA_MB
+    if quota_mb == 0:
+        return False
+    async with get_db_context() as db:
+        used = await generated_media_repo.bytes_used(db, organization_id=organization_id)
+    return used >= quota_mb * 1024 * 1024
+
+
 async def load_generated_media(organization_id: UUID, filename: str) -> bytes:
-    """Read one generated file back, scoped to the caller's organization.
+    """Read one generated file back whole, scoped to the caller's organization.
+
+    For a caller that needs the bytes in hand - an image handed to a video model
+    as its first frame. A route serving a file to a browser uses
+    :func:`open_generated_media` and streams it instead.
 
     Args:
         organization_id: The organization reading - the directory is built from
@@ -82,15 +187,9 @@ async def load_generated_media(organization_id: UUID, filename: str) -> bytes:
     Raises:
         NotFoundError: If no such file exists for this organization.
     """
-    if "/" in filename or "\\" in filename or filename in {"", ".", ".."}:
-        # A single leaf name only. The serving route's path parameter already
-        # cannot carry a separator, but a caller reaching this directly must not
-        # be able to climb into another organization's directory with `../`,
-        # which resolves inside the shared storage root rather than escaping it.
-        raise NotFoundError(message="Generated file not found", details={"filename": filename})
-    storage = get_file_storage()
+    storage_path = _storage_path(organization_id, filename)
     try:
-        return await storage.load(f"{_owner(organization_id)}/{filename}")
+        return await get_file_storage().load(storage_path)
     except (FileNotFoundError, ValueError) as exc:
         raise NotFoundError(
             message="Generated file not found",
@@ -98,6 +197,93 @@ async def load_generated_media(organization_id: UUID, filename: str) -> bytes:
         ) from exc
 
 
+async def open_generated_media(organization_id: UUID, filename: str) -> StoredGeneratedMedia:
+    """Find one generated file in the caller's organization, without reading it.
+
+    Its storage path and size, which is what a ranged answer is decided from:
+    the bytes are then read a span at a time with `BaseFileStorage.open_range`,
+    so serving a range of a large clip holds the range rather than the clip.
+
+    Args:
+        organization_id: The organization reading, as for :func:`load_generated_media`.
+        filename: The leaf name returned by :func:`save_generated_media`.
+
+    Raises:
+        NotFoundError: If no such file exists for this organization.
+    """
+    storage_path = _storage_path(organization_id, filename)
+    try:
+        size = await get_file_storage().size(storage_path)
+    except (FileNotFoundError, ValueError) as exc:
+        raise NotFoundError(
+            message="Generated file not found",
+            details={"filename": filename},
+        ) from exc
+    return StoredGeneratedMedia(storage_path=storage_path, size=size)
+
+
 def generated_media_url(filename: str) -> str:
     """The API path the interface fetches a stored generated file from."""
     return f"/api/v1/generated/{filename}"
+
+
+class GeneratedMediaService:
+    """What happens to recorded generated media when its owner or its time goes."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def forget_conversations(
+        self, organization_id: UUID, conversation_ids: Sequence[UUID]
+    ) -> list[str]:
+        """Drop the records of what these threads generated; answer their paths.
+
+        The caller unlinks the paths once its transaction commits, beside the
+        threads' attachments: an unlink before the commit is undone by a
+        rollback as a file already gone (#1293).
+        """
+        paths = await generated_media_repo.paths_in_conversations(
+            self.db, organization_id=organization_id, conversation_ids=conversation_ids
+        )
+        await generated_media_repo.delete_in_conversations(
+            self.db, organization_id=organization_id, conversation_ids=conversation_ids
+        )
+        return paths
+
+    async def sweep_expired(self, *, now: datetime | None = None) -> int:
+        """Delete every generated file older than the retention period; answer how many.
+
+        The bytes before the row, and the row only once its bytes are gone: the
+        other order leaves a file nothing can find. A file the store would not
+        delete keeps its row, is logged, and is retried by the next sweep - and
+        it ends this one, because the next batch would read the same rows again.
+
+        Args:
+            now: The moment the period is measured back from; a test freezes it.
+        """
+        days = settings.GENERATED_MEDIA_RETENTION_DAYS
+        if days == 0:
+            return 0
+        cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
+        storage = get_file_storage()
+        removed = 0
+        for _ in range(SWEEP_MAX_BATCHES):
+            batch = await generated_media_repo.expired(self.db, cutoff=cutoff, limit=SWEEP_BATCH)
+            gone: list[UUID] = []
+            for row in batch:
+                try:
+                    await storage.delete(row.storage_path)
+                except Exception:
+                    logger.exception(
+                        "generated_media_not_unlinked",
+                        extra={
+                            "organization_id": str(row.organization_id),
+                            "media_id": str(row.id),
+                        },
+                    )
+                    continue
+                gone.append(row.id)
+            removed += await generated_media_repo.delete_by_ids(self.db, ids=gone)
+            if len(batch) < SWEEP_BATCH or len(gone) < len(batch):
+                break
+        return removed

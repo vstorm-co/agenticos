@@ -718,6 +718,16 @@ class OrganizationService:
             delete_prefix_best_effort(organization_prefix_for(org.id)),
             name="org_purge_media",
         )
+        # And the images, speech and video its agents generated (#2310). Their
+        # rows cascade with the organization; the bytes sit under one prefix,
+        # which also takes the files written before they were recorded.
+        from app.services.generated_media import organization_directory
+
+        spawn(
+            self.db,
+            delete_prefix_best_effort(organization_directory(org.id)),
+            name="org_purge_generated_media",
+        )
 
     async def upload_avatar(
         self,
