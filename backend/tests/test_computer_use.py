@@ -859,11 +859,18 @@ class TestRegistration:
         assert provider["x-visible-when"] == {"field": "desktop", "equals": ["cloud"]}
         assert provider["anyOf"][0] == {"enum": ["e2b"], "type": "string"}
         assert provider["x-enum-when"]["choices"]["local"] == []
+        template = properties["e2b_template"]
+        assert (template["enum"], "const" in template) == (["desktop"], False)
+        assert template["x-enum-labels"] == {"desktop": "Desktop (Ubuntu with XFCE)"}
         for field in ("e2b_template", "e2b_timeout_seconds"):
             assert properties[field]["x-visible-when"] == {
                 "field": "cloud_provider",
                 "equals": ["e2b"],
             }
+
+    def test_a_template_that_cannot_run_a_desktop_is_refused(self):
+        with pytest.raises(ValidationError, match="e2b_template"):
+            ComputerUseConfig(desktop="cloud", cloud_provider="e2b", e2b_template="base")
 
     def test_a_cloud_desktop_needs_a_provider(self):
         with pytest.raises(ValidationError, match="needs a cloud_provider"):

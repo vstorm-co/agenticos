@@ -1,5 +1,5 @@
 ---
-source_sha: "be539c53471b"
+source_sha: "60b358705ace"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -907,7 +907,7 @@ nach dem Leerlauf-Timeout von E2B selbst ab.
 | `desktop` | `local` | `local`, `cloud` |
 | `daemon_url` | leer, bei `local` beim Veröffentlichen verweigert | ein erlaubter Host |
 | `cloud_provider` | leer, bei `cloud` verweigert | `e2b` |
-| `e2b_template` | `desktop` | 1–100 Zeichen |
+| `e2b_template` | `desktop` | `desktop`: eine Vorlage braucht X, XFCE und xdotool |
 | `e2b_timeout_seconds` | 900 | 60–86400; der Hobby-Plan von E2B begrenzt auf 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |

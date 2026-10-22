@@ -7423,7 +7423,7 @@
       },
       "e2b_template": {
         "title": "E2B-Vorlage",
-        "description": "Die zu startende E2B-Vorlage."
+        "description": "Die E2B-Vorlage, aus der der Desktop startet."
       },
       "e2b_timeout_seconds": {
         "title": "E2B-Leerlaufzeit (Sekunden)",

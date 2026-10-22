@@ -7540,7 +7540,7 @@
       },
       "e2b_template": {
         "title": "E2B template",
-        "description": "The E2B template to start."
+        "description": "The E2B template the desktop starts from."
       },
       "e2b_timeout_seconds": {
         "title": "E2B idle timeout (seconds)",

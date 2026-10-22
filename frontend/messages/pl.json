@@ -7324,7 +7324,7 @@
       },
       "e2b_template": {
         "title": "Szablon E2B",
-        "description": "Szablon E2B do uruchomienia."
+        "description": "Szablon E2B, z którego startuje pulpit."
       },
       "e2b_timeout_seconds": {
         "title": "Czas bezczynności E2B (sekundy)",

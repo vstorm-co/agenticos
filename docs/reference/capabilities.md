@@ -812,7 +812,7 @@ expires on E2B's own idle timeout.
 | `desktop` | `local` | `local`, `cloud` |
 | `daemon_url` | empty, refused at publish for `local` | an allowed host |
 | `cloud_provider` | empty, refused for `cloud` | `e2b` |
-| `e2b_template` | `desktop` | 1–100 characters |
+| `e2b_template` | `desktop` | `desktop`: a template must have X, XFCE and xdotool |
 | `e2b_timeout_seconds` | 900 | 60–86400; E2B's Hobby plan caps it at 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, not above `max_actions` |

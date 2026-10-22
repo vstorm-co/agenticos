@@ -1,6 +1,6 @@
 """Computer use - an agent operating a desktop through screenshots, mouse and keyboard."""
 
-from typing import Literal
+from typing import Literal, get_args
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -35,6 +35,30 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
 
 
 _ON_E2B: dict[str, JsonValue] = {"x-visible-when": {"field": "cloud_provider", "equals": ["e2b"]}}
+
+E2BTemplate = Literal["desktop"]
+"""The E2B templates a computer use desktop starts from.
+
+Only a template with Xvfb, XFCE and xdotool installed can be driven, because
+that is what `_desktop_start` runs. A team's own template built on E2B's
+`desktop` one belongs here when it is added.
+"""
+
+_E2B_TEMPLATE_NAMES: dict[str, JsonValue] = {"desktop": "Desktop (Ubuntu with XFCE)"}
+
+
+def _e2b_template_form(schema: dict[str, JsonValue]) -> None:
+    """Offer the templates as choices, for an E2B desktop only.
+
+    Rewritten from `const` for the same reason as the provider: while one
+    template is listed, Pydantic writes the field as a value with nothing to
+    choose, and the Builder hides it.
+    """
+    schema.pop("const", None)
+    schema["enum"] = list(get_args(E2BTemplate))
+    schema["x-enum-labels"] = _E2B_TEMPLATE_NAMES
+    schema["x-advanced"] = True
+    schema.update(_ON_E2B)
 
 
 def _cloud_provider_form(schema: dict[str, JsonValue]) -> None:
@@ -77,13 +101,11 @@ class ComputerUseConfig(BaseModel):
         description="Who runs the cloud desktop.",
         json_schema_extra=_cloud_provider_form,
     )
-    e2b_template: str = Field(
+    e2b_template: E2BTemplate = Field(
         default="desktop",
         title="E2B template",
-        min_length=1,
-        max_length=100,
-        description="The E2B template to start.",
-        json_schema_extra={"x-advanced": True, **_ON_E2B},
+        description="The E2B template the desktop starts from.",
+        json_schema_extra=_e2b_template_form,
     )
     e2b_timeout_seconds: int = Field(
         default=900,

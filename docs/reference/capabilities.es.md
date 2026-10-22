@@ -1,5 +1,5 @@
 ---
-source_sha: "be539c53471b"
+source_sha: "60b358705ace"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -866,7 +866,7 @@ propio E2B.
 | `desktop` | `local` | `local`, `cloud` |
 | `daemon_url` | vacío, rechazado al publicar con `local` | un host permitido |
 | `cloud_provider` | vacío, rechazado con `cloud` | `e2b` |
-| `e2b_template` | `desktop` | 1–100 caracteres |
+| `e2b_template` | `desktop` | `desktop`: una plantilla necesita X, XFCE y xdotool |
 | `e2b_timeout_seconds` | 900 | 60–86400; el plan Hobby de E2B lo limita a 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |

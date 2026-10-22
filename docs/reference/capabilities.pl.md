@@ -1,5 +1,5 @@
 ---
-source_sha: "be539c53471b"
+source_sha: "60b358705ace"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -856,7 +856,7 @@ bezczynności ustawionym w samym E2B.
 | `desktop` | `local` | `local`, `cloud` |
 | `daemon_url` | puste, odrzucane przy publikacji dla `local` | dozwolony host |
 | `cloud_provider` | puste, odrzucane dla `cloud` | `e2b` |
-| `e2b_template` | `desktop` | 1–100 znaków |
+| `e2b_template` | `desktop` | `desktop`: szablon musi mieć X, XFCE i xdotool |
 | `e2b_timeout_seconds` | 900 | 60–86400; plan Hobby w E2B ogranicza do 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
