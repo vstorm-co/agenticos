@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-10-22
+
 ### Fixed
 
 - **The image packages describe themselves on GHCR (#2299).** The pages for
