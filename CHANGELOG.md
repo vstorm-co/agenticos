@@ -75,6 +75,13 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
+- **The image packages describe themselves on GHCR (#2299).** The pages for
+  `agenticos-backend`, `agenticos-frontend` and `agenticos-browser` said "No
+  description provided": GHCR reads a multi-architecture package's description
+  from the manifest list, and the labels sat only on the per-architecture
+  images. The publish job now annotates each list with what the image is and a
+  link to the docs. The pages update on the next publish; earlier tags keep
+  their lists as they were.
 
 ## [1.12.2] - 2026-10-22
 
