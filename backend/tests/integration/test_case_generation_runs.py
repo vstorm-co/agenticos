@@ -27,6 +27,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -508,6 +509,24 @@ async def test_an_answer_with_no_readable_case_fails_as_unreadable(db, monkeypat
     )
     assert run.error is not None and "none of the 2 cases" in run.error
     assert await db.scalar(select(func.count(CaseProposal.id))) == 0
+
+
+@pytest.mark.parametrize("column", ["unreadable_count", "rejected_count"])
+async def test_a_generation_cannot_leave_out_fewer_than_no_cases(db, column) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    db.add(
+        CaseGeneration(
+            organization_id=owner.organization_id,
+            dataset_id=dataset.id,
+            agent_id=agent.id,
+            sources=["agent"],
+            requested_count=1,
+            **{column: -1},
+        )
+    )
+
+    with pytest.raises(IntegrityError, match="ck_case_generation_counts"):
+        await db.flush()
 
 
 async def test_a_source_deleted_while_the_generator_ran_fails_the_generation(

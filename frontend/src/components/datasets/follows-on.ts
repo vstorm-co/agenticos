@@ -5,19 +5,25 @@ export interface AskedBefore {
   earlier: boolean;
 }
 
-// Openers that lean on an earlier turn, in the languages the console speaks.
-const OPENERS =
-  /^(and|but|also|so|then|what about|how about|it|its|it's|that|this|those|these|they|them|a co|a jak|i|oraz|to|ten|und|aber|was ist mit|das|es)([\s,.?!]|$)/;
-const SHORT = 3;
+// Only openers that cannot start a question of its own: a pronoun or "I" can.
+const OPENERS = /^(and|what about|how about|a co|a jak|und|was ist mit)([\s,.?!]|$)/;
 
 /**
- * Whether a question probably needs the turns before it to make sense.
- *
- * A guess that only picks the default between keeping the conversation and
- * not: a short question, or one opening on "and", "what about" or a pronoun,
- * usually continues one ("And to Toronto?"), while a full question stands on its own.
+ * Whether a question plainly continues the conversation before it ("And to
+ * Toronto?"), which only picks the default between keeping that conversation
+ * and not. Anything else is offered alone: copying turns nobody chose is the
+ * costlier mistake.
  */
 export function followsOn(question: string): boolean {
-  const said = question.trim().toLowerCase();
-  return said.split(/\s+/).filter(Boolean).length <= SHORT || OPENERS.test(said);
+  return OPENERS.test(question.trim().toLowerCase());
+}
+
+/** Whether to ask about the conversation at all: not when nothing came before the question. */
+export function asksAboutHistory(asked: AskedBefore | undefined): boolean {
+  return asked === undefined || asked.earlier;
+}
+
+/** The conversation is kept by default only for a question known to continue it. */
+export function keepsHistoryFirst(asked: AskedBefore | undefined): boolean {
+  return asked !== undefined && asked.earlier && followsOn(asked.question);
 }

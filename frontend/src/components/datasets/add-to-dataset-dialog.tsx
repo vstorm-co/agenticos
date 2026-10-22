@@ -13,12 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  FormField,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
 import { useAddToDataset } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -27,7 +21,8 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { Perm } from "@/types/permissions";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
-import { followsOn, type AskedBefore } from "./follows-on";
+import { asksAboutHistory, keepsHistoryFirst, type AskedBefore } from "./follows-on";
+import { HistoryChoice } from "./history-choice";
 import { useDatasetTarget } from "./use-dataset-target";
 
 interface AddToDatasetDialogProps {
@@ -77,10 +72,7 @@ export function AddToDatasetDialog({
     useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
-  const [withHistory, setWithHistory] = useState(
-    asked !== undefined && asked.earlier && followsOn(asked.question),
-  );
-  const asksHistory = asked === undefined || asked.earlier;
+  const [withHistory, setWithHistory] = useState(keepsHistoryFirst(asked));
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
   const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
@@ -130,21 +122,12 @@ export function AddToDatasetDialog({
           idPrefix="add-to-dataset"
           create={making ? { name: newName, onChange: setNewName } : undefined}
         />
-        {asksHistory && (
-          <FormField htmlFor="add-to-dataset-history" label={t("historyChoice")}>
-            <Select
-              value={withHistory ? "with" : "alone"}
-              onValueChange={(next) => setWithHistory(next === "with")}
-            >
-              <SelectTrigger id="add-to-dataset-history">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="alone">{t("historyAlone")}</SelectItem>
-                <SelectItem value="with">{t("historyWith")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
+        {asksAboutHistory(asked) && (
+          <HistoryChoice
+            idPrefix="add-to-dataset"
+            withHistory={withHistory}
+            onChange={setWithHistory}
+          />
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

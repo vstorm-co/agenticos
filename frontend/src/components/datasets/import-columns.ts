@@ -39,5 +39,5 @@ function cell(value: string): string {
 /** A CSV with every column and one example case, which imports as it is. */
 export function importTemplate(): Blob {
   const rows = [IMPORT_COLUMNS.join(","), IMPORT_COLUMNS.map((c) => cell(EXAMPLE[c])).join(",")];
-  return new Blob([`${rows.join("\r\n")}\r\n`], { type: "text/csv" });
+  return new Blob([`${rows.join("\n")}\n`], { type: "text/csv" });
 }

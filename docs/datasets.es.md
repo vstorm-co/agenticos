@@ -1,5 +1,5 @@
 ---
-source_sha: "6840121845c6"
+source_sha: "fbfbb2992d3e"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -171,14 +171,14 @@ Hay dos caminos y los dos crean el mismo caso:
 
 En ambos casos, el caso se crea a partir de ese turno:
 
-- la pregunta se convierte en la entrada, y los turnos anteriores en la
-  conversación antes de la entrada, salvo que elijas **Only this question**. El
-  diálogo lo pregunta cuando hay una conversación antes de la pregunta, y la
-  ofrece primero para una pregunta que suena a continuación de ella: una
-  pregunta corta, o una que empieza por "y", "¿y qué hay de" o un pronombre.
-  Una pregunta que se sostiene sola se ofrece sin ella, para que un chat que
-  empezó con otro tema no venga detrás (`with_history: false` en
-  `POST /datasets/{id}/cases/from-message`);
+- la pregunta se convierte en la entrada, y los turnos anteriores solo vienen
+  con ella si eliges **With the conversation**. Lo preguntan los dos diálogos
+  del chat (el del pulgar abajo, una vez que lo marcas), Activity y **Score
+  against a case**; cada uno empieza por **Only this question**, para que un
+  chat que empezó con otro tema se quede fuera. En el chat, una pregunta que
+  continúa claramente la anterior, porque empieza por "and" o "what about",
+  empieza en cambio por la conversación, y a una pregunta sin nada antes no se
+  le pregunta (`with_history` en `POST /datasets/{id}/cases/from-message`);
 - la respuesta es la respuesta entera del agent a la pregunta (cada paso que
   escribió antes de la siguiente pregunta), y su texto se convierte en el
   contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar

@@ -161,13 +161,14 @@ There are two ways in, and both make the same case:
 
 Either way, the case is created from the turn:
 
-- the question becomes the input, and the turns before it become the
-  conversation before the input - unless you choose **Only this question**.
-  The dialog asks when there is a conversation before the question, and offers
-  it first for a question that reads as continuing one: a short question, or
-  one opening on "and", "what about" or a pronoun. A question that stands on
-  its own is offered alone, so a chat that began on another topic does not come
-  with it (`with_history: false` on `POST /datasets/{id}/cases/from-message`);
+- the question becomes the input, and the turns before it come too only when
+  you choose **With the conversation**. Both chat dialogs ask - the thumbs-down
+  one once you tick it - and so do Activity and **Score against a case**; each
+  starts from **Only this question**, so a chat that began on another topic
+  stays out. In the chat, a question that plainly continues the one before,
+  opening on "and" or "what about", starts from the conversation instead, and
+  a question with nothing before it is not asked about (`with_history` on
+  `POST /datasets/{id}/cases/from-message`);
 - the agent's whole reply to the question - every step it wrote before the next
   question - is the answer, and its text becomes the counter-example. If nobody
   rated it down, it is offered as the reference answer instead, and you can

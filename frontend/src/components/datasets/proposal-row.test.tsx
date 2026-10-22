@@ -161,6 +161,15 @@ describe("GenerationStatus", () => {
       "/runs?run=r1",
     );
 
+    rerender(
+      <GenerationStatus
+        generation={{ ...GENERATION, status: "failed", error: "Nothing kept", rejected_count: 3 }}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /^Nothing kept\s*3 cases did not keep to what the generator was shown and were left out\.$/,
+    );
+
     rerender(<GenerationStatus generation={{ ...GENERATION, status: "failed" }} />);
     expect(screen.getByRole("alert")).toHaveTextContent("The generation failed.");
     expect(screen.queryByRole("link")).toBeNull();

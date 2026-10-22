@@ -1,16 +1,28 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IMPORT_COLUMNS, importTemplate } from "./import-columns";
 
-describe("importTemplate", () => {
-  it("writes every column the importer reads, and one case under them", async () => {
-    const [header, example, ...rest] = (await importTemplate().text()).split("\r\n");
+const here = resolve(__dirname);
+const read = (path: string) => readFileSync(resolve(here, path), "utf-8");
 
-    expect(header).toBe(IMPORT_COLUMNS.join(","));
-    expect(IMPORT_COLUMNS[0]).toBe("input");
-    expect(example).toContain("How long does a refund take?");
-    expect(example).toContain('"refunds,billing"');
-    expect(example).toContain('"[{""type"": ""contains""');
-    expect(rest).toEqual([""]);
+describe("importTemplate", () => {
+  it("is the fixture the backend imports, quoting a cell with a comma or a quote", async () => {
+    const template = await importTemplate().text();
+
+    expect(template).toBe(read("import-template.fixture.csv"));
+    expect(template.split("\n")[0]).toBe(IMPORT_COLUMNS.join(","));
+    expect(template).toContain('"refunds,billing"');
+    expect(template).toContain('"[{""type"": ""contains""');
+  });
+
+  it("names the importer's columns in its order", () => {
+    const importer = read("../../../../backend/app/services/dataset_files.py");
+    const columns = /^COLUMNS = \(([^)]*)\)/m.exec(importer)?.[1] ?? "";
+
+    expect([...columns.matchAll(/"([^"]+)"/g)].map((match) => match[1])).toEqual([
+      ...IMPORT_COLUMNS,
+    ]);
   });
 });

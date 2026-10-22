@@ -308,6 +308,7 @@ describe("useAddToDataset", () => {
       datasetId: "d1",
       messageId: "m1",
       answerAs: "counter_example",
+      withHistory: true,
     });
     expect(apiClient.post).toHaveBeenCalledWith("/datasets/d1/cases/from-message", {
       message_id: "m1",

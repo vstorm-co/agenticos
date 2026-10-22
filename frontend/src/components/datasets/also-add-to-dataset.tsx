@@ -10,6 +10,8 @@ import { useAddToDataset } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DatasetTargetFields } from "./dataset-target-fields";
+import { asksAboutHistory, keepsHistoryFirst, type AskedBefore } from "./follows-on";
+import { HistoryChoice } from "./history-choice";
 import { useCanAddToDataset, useDatasetTarget } from "./use-dataset-target";
 
 export interface AlsoAddToDatasetHandle {
@@ -23,6 +25,8 @@ export interface AlsoAddToDatasetHandle {
 interface AlsoAddToDatasetProps {
   messageId: string;
   ref: Ref<AlsoAddToDatasetHandle>;
+  /** The question the answer replied to, when the chat can see it. */
+  asked?: AskedBefore;
 }
 
 /**
@@ -32,12 +36,13 @@ interface AlsoAddToDatasetProps {
  * it is wrong. The rating is saved first, so its comment is there to become the
  * case's note. Not rendered for somebody with no dataset to add to.
  */
-export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
+export function AlsoAddToDataset({ messageId, ref, asked }: AlsoAddToDatasetProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const allowed = useCanAddToDataset();
   const [wanted, setWanted] = useState(false);
+  const [withHistory, setWithHistory] = useState(keepsHistoryFirst(asked));
   const { editable, isLoading, search, target, choose, remember } = useDatasetTarget({
     enabled: allowed && wanted,
   });
@@ -49,7 +54,12 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
       async addIfChosen() {
         if (!wanted || target === undefined) return;
         try {
-          await add.mutateAsync({ datasetId: target.id, messageId, answerAs: "counter_example" });
+          await add.mutateAsync({
+            datasetId: target.id,
+            messageId,
+            answerAs: "counter_example",
+            withHistory,
+          });
           remember(target);
           toast.success(t("addedTo", { name: target.name }), {
             action: {
@@ -62,7 +72,7 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
         }
       },
     }),
-    [wanted, target, add, messageId, remember, router, t, tErrors],
+    [wanted, target, add, messageId, withHistory, remember, router, t, tErrors],
   );
 
   if (!allowed) return null;
@@ -82,6 +92,9 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
           search={search}
           idPrefix="rate-down"
         />
+      )}
+      {wanted && asksAboutHistory(asked) && (
+        <HistoryChoice idPrefix="rate-down" withHistory={withHistory} onChange={setWithHistory} />
       )}
     </div>
   );

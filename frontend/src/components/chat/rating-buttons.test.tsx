@@ -473,6 +473,7 @@ describe("adding a rated-down answer to a dataset", () => {
         datasetId: "d2",
         messageId: "m-1",
         answerAs: "counter_example",
+        withHistory: false,
       }),
     );
     expect(order).toEqual(["rate", "add"]);
@@ -482,6 +483,23 @@ describe("adding a rated-down answer to a dataset", () => {
     act(() => toastAction(1).onClick());
     expect(push).toHaveBeenCalledWith("/datasets/d2?tab=cases");
     await waitFor(() => expect(screen.queryByText("whatWentWrong")).toBeNull());
+  });
+
+  it("copies the conversation into a rated-down case only when asked to", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    const history = screen.getByRole("combobox", { name: "historyChoice" });
+    expect(history).toHaveTextContent("historyAlone");
+    await userEvent.click(history);
+    await userEvent.click(screen.getByRole("option", { name: "historyWith" }));
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: true })),
+    );
   });
 
   it("keeps the rating when the add is refused, and says which half failed", async () => {

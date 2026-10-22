@@ -1,5 +1,5 @@
 ---
-source_sha: "6840121845c6"
+source_sha: "fbfbb2992d3e"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -181,13 +181,14 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
 
 In beiden Fällen entsteht der Fall aus diesem Zug:
 
-- die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
-  Eingabe - es sei denn, Sie wählen **Nur diese Frage**. Der Dialog fragt
-  danach, wenn der Frage ein Gespräch vorausgeht, und bietet das Gespräch
-  zuerst an, wenn die Frage wie seine Fortsetzung klingt: eine kurze Frage oder
-  eine, die mit „und“, „was ist mit“ oder einem Pronomen beginnt. Eine Frage,
-  die für sich steht, wird allein angeboten, damit ein Chat, der mit einem
-  anderen Thema begann, nicht mitkommt (`with_history: false` auf
+- die Frage wird zur Eingabe, und die Züge davor kommen nur mit, wenn Sie
+  **Mit dem Gespräch** wählen. Beide Dialoge im Chat fragen danach - der nach
+  dem Daumen nach unten, sobald Sie ihn ankreuzen -, ebenso Activity und
+  **Score against a case**; jeder beginnt mit **Nur diese Frage**, damit ein
+  Chat, der mit einem anderen Thema begann, draußen bleibt. Im Chat beginnt
+  eine Frage, die die vorige erkennbar fortsetzt, weil sie mit „und“ oder „was
+  ist mit“ anfängt, stattdessen mit dem Gespräch, und nach einer Frage ohne
+  etwas davor wird nicht gefragt (`with_history` auf
   `POST /datasets/{id}/cases/from-message`);
 - die ganze Antwort des Agents auf die Frage - jeder Schritt, den er vor der
   nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.

@@ -39,7 +39,6 @@ interface RatingButtonsProps {
   asked?: AskedBefore;
 }
 
-// Long enough to read the thanks and reach for Add to dataset; sonner's default is 4 s.
 const ADD_TOAST_MS = 10_000;
 
 export function RatingButtons({
@@ -218,7 +217,7 @@ export function RatingButtons({
             maxLength={2000}
             autoFocus
           />
-          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} />
+          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} asked={asked} />
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs">{comment.length} / 2000</span>
             <div className="flex gap-2">

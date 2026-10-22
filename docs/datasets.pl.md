@@ -1,5 +1,5 @@
 ---
-source_sha: "6840121845c6"
+source_sha: "fbfbb2992d3e"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -168,12 +168,13 @@ Są dwie drogi i obie tworzą taki sam przypadek:
 
 W obu przypadkach przypadek powstaje z tej tury:
 
-- pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem, chyba
-  że wybierzesz **Tylko to pytanie**. Okno pyta o to, gdy przed pytaniem jest
-  rozmowa, i najpierw proponuje rozmowę przy pytaniu, które brzmi jak jej
-  ciąg dalszy: krótkim albo zaczynającym się od „a”, „a co z” albo zaimka.
-  Pytanie, które stoi samo, jest proponowane bez niej, więc czat, który zaczął
-  się od innego tematu, nie przychodzi razem z nim (`with_history: false` w
+- pytanie staje się wejściem, a tury przed nim trafiają razem z nim tylko
+  wtedy, gdy wybierzesz **Razem z rozmową**. Pytają o to oba okna w czacie -
+  to po łapce w dół, gdy je zaznaczysz - a także Activity i **Score against a
+  case**; każde zaczyna od **Tylko to pytanie**, więc czat, który zaczął się od
+  innego tematu, zostaje poza przypadkiem. W czacie pytanie, które wyraźnie
+  ciągnie poprzednie, zaczynając się od „a co z” albo „a jak”, zaczyna od rozmowy,
+  a o pytanie bez niczego przed nim okno nie pyta (`with_history` w
   `POST /datasets/{id}/cases/from-message`);
 - odpowiedzią jest cała odpowiedź agenta na pytanie - każdy krok, który napisał
   przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt

@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { followsOn } from "./follows-on";
+import { asksAboutHistory, followsOn, keepsHistoryFirst } from "./follows-on";
 
 describe("followsOn", () => {
   it.each([
     "And how much to Toronto?",
     "What about Canada?",
-    "it's broken again, what now?",
+    "how about next week?",
     "A co z wysyłką do Kanady?",
     "Und wie lange dauert das?",
-    "Toronto?",
-    "  why not  ",
+    "Was ist mit Österreich?",
   ])("reads %o as continuing the conversation", (question) => {
     expect(followsOn(question)).toBe(true);
   });
@@ -18,9 +17,26 @@ describe("followsOn", () => {
   it.each([
     "How long do refunds take for a card payment?",
     "Do you offer gift wrapping on orders?",
-    "Items bought in the sale, can they be returned?",
     "Andorra is on my list, do you ship there?",
-  ])("reads %o as a question of its own", (question) => {
+    "I need an invoice for order 12",
+    "I bought shoes last week, can I return them?",
+    "To whom should I send the receipt?",
+    "Das ist kaputt, was nun?",
+    "It arrived broken, what now?",
+    "Do you ship?",
+    "Refund policy?",
+  ])("offers %o on its own", (question) => {
     expect(followsOn(question)).toBe(false);
+  });
+});
+
+describe("the history choice", () => {
+  it("is asked unless nothing came before the question, and keeps the conversation only when it plainly continues", () => {
+    expect(asksAboutHistory(undefined)).toBe(true);
+    expect(asksAboutHistory({ question: "And boots?", earlier: false })).toBe(false);
+    expect(keepsHistoryFirst(undefined)).toBe(false);
+    expect(keepsHistoryFirst({ question: "And boots?", earlier: true })).toBe(true);
+    expect(keepsHistoryFirst({ question: "And boots?", earlier: false })).toBe(false);
+    expect(keepsHistoryFirst({ question: "Can I return boots?", earlier: true })).toBe(false);
   });
 });
