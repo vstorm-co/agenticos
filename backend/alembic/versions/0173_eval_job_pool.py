@@ -2,8 +2,11 @@
 
 An eval run holds its worker slot for the whole run, hours over a large
 dataset, so in the agent pool ten of them left every API run and trigger fire
-waiting. They get a pool of their own. A downgrade puts any eval job back in the
-agent pool, where the worker before this revision looks for it.
+waiting. They get a pool of their own, and the eval jobs already written move to
+it: a worker claims - and retries - a job in the pool stored on its row, so a
+queued or dead `run-eval` left in `agent` would hold an agent slot once it ran.
+A downgrade puts every eval job back in the agent pool, where the worker before
+this revision looks for it.
 
 Revision ID: 0173_eval_job_pool
 Revises: 0172_eval_run_suite_check
@@ -29,6 +32,7 @@ def _pools(values: str) -> None:
 
 def upgrade() -> None:
     _pools("'agent', 'eval', 'ingest', 'system'")
+    op.execute("UPDATE background_jobs SET pool = 'eval' WHERE kind = 'run-eval'")
 
 
 def downgrade() -> None:
