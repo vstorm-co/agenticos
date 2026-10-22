@@ -99,6 +99,21 @@ describe("PullToRefresh", () => {
     expect(refetch).not.toHaveBeenCalled();
   });
 
+  it("shows nothing for a tap or a sideways swipe", () => {
+    const refetch = vi.spyOn(client, "refetchQueries");
+    const target = page();
+
+    fireEvent.touchStart(target, { touches: [{ clientX: 0, clientY: 0 }] });
+    fireEvent.touchMove(target, { touches: [{ clientX: 3, clientY: 4 }] });
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    fireEvent.touchMove(target, { touches: [{ clientX: 120, clientY: 20 }] });
+    fireEvent.touchMove(target, { touches: [{ clientX: 120, clientY: 300 }] });
+    expect(screen.queryByTestId("pull-to-refresh")).toBeNull();
+    fireEvent.touchEnd(target, { touches: [] });
+
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
   it("is on for the console installed to a touch screen", () => {
     delete window.__AGENTICOS_SHELL__;
     vi.stubGlobal("matchMedia", (query: string) => ({

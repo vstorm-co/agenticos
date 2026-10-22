@@ -67,6 +67,14 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
       // covers - the run drawer renders a second table over the list's.
       role="dialog"
       aria-modal="true"
+      // A side panel runs the screen's full height: in the phone app that is
+      // under the status bar and over the gesture bar, so it keeps clear of
+      // both. Inline, so a caller's own padding (`p-0`) cannot take it away.
+      style={
+        side === "bottom"
+          ? undefined
+          : { paddingTop: "var(--shell-inset-top, 0px)", paddingBottom: "var(--safe-bottom)" }
+      }
       className={cn(
         "panel-strong fixed z-50 flex flex-col",
         "animate-in duration-300",

@@ -14,6 +14,8 @@ export const PULL_THRESHOLD = 64;
 const PULL_MAX = 96;
 /** A finger moves twice as far as the page follows it: the pull resists. */
 const DAMPING = 0.5;
+/** How far a finger moves before it counts as a pull: less is a tap, sideways is a swipe. */
+const SLOP = 8;
 
 /** Whether nothing between the touch and the page's scroller is scrolled down. */
 function atTop(target: EventTarget | null, scroller: HTMLElement): boolean {
@@ -50,20 +52,30 @@ export function PullToRefresh() {
   useEffect(() => {
     const scroller = document.getElementById("main");
     if (!enabled || !scroller) return;
-    let startY: number | null = null;
+    let start: { x: number; y: number } | null = null;
+    let pulling = false;
     let past = false;
 
     const onStart = (event: TouchEvent) => {
       if (event.touches.length !== 1 || !atTop(event.target, scroller)) return;
-      startY = event.touches[0]!.clientY;
+      start = { x: event.touches[0]!.clientX, y: event.touches[0]!.clientY };
+      pulling = false;
       past = false;
     };
     const onMove = (event: TouchEvent) => {
-      if (startY === null) return;
-      const distance = Math.min(
-        Math.max(0, (event.touches[0]!.clientY - startY) * DAMPING),
-        PULL_MAX,
-      );
+      if (start === null) return;
+      const dx = event.touches[0]!.clientX - start.x;
+      const dy = event.touches[0]!.clientY - start.y;
+      if (!pulling) {
+        if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+        // A swipe sideways - deciding an approval - or up is not a pull.
+        if (dy <= Math.abs(dx)) {
+          start = null;
+          return;
+        }
+        pulling = true;
+      }
+      const distance = Math.min(Math.max(0, dy * DAMPING), PULL_MAX);
       setPull(distance);
       const beyond = distance >= PULL_THRESHOLD;
       if (beyond !== past) {
@@ -72,8 +84,8 @@ export function PullToRefresh() {
       }
     };
     const onEnd = () => {
-      if (startY === null) return;
-      startY = null;
+      if (start === null) return;
+      start = null;
       setPull(0);
       if (!past) return;
       past = false;

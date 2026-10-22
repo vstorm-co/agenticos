@@ -49,7 +49,8 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
         {mounted && (
           <kbd
             aria-hidden
-            className="bg-background text-muted-foreground ring-border absolute -top-0.5 -right-1 rounded px-0.5 font-sans text-[9px] leading-3 ring-1"
+            // No keyboard shortcut to show on a touch screen.
+            className="bg-background text-muted-foreground ring-border touch:hidden absolute -top-0.5 -right-1 rounded px-0.5 font-sans text-[9px] leading-3 ring-1"
           >
             {mac ? "⌘K" : t("searchShortcut")}
           </kbd>
