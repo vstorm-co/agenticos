@@ -40,11 +40,15 @@ STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
 }
 """How long a step may go without progress: the job timeout of whatever does it."""
 
+QUEUED_TIMEOUT = timedelta(minutes=2)
+"""How long a queued session may wait for its first step: the step job's own timeout."""
+
 _MOVES: dict[ImprovementStatus, frozenset[ImprovementStatus]] = {
     ImprovementStatus.QUEUED: frozenset(
         {
             ImprovementStatus.RUNNING,
             ImprovementStatus.STOPPED,
+            ImprovementStatus.FAILED,
             ImprovementStatus.STALE,
             ImprovementStatus.CANCELLED,
         }
@@ -84,11 +88,11 @@ def _step(stage: ImprovementStage) -> Transition:
     return Transition(ImprovementStatus.RUNNING, stage)
 
 
-def _stop(stage: ImprovementStage, reason: StopReason) -> Transition:
+def _stop(stage: ImprovementStage | None, reason: StopReason) -> Transition:
     return Transition(ImprovementStatus.STOPPED, stage, reason)
 
 
-def _fail(stage: ImprovementStage, reason: StopReason) -> Transition:
+def _fail(stage: ImprovementStage | None, reason: StopReason) -> Transition:
     return Transition(ImprovementStatus.FAILED, stage, reason)
 
 
@@ -99,13 +103,17 @@ class Pins:
     draft_hash: str
     base_version_id: UUID | None
     scoring_hash: str
+    dataset_id: UUID | None
+    suite_id: UUID | None
 
 
 def stale(pinned: Pins, current: Pins, *, archived: bool) -> bool:
     """Whether what the session is measured against changed since it started.
 
-    A changed draft, a newer version under it, different grading or an archived
-    agent each mean the check would compare with a base that no longer exists.
+    A changed draft, a newer version under it, different grading, an archived
+    agent, or a pinned dataset or suite that no longer exists - `current` names
+    it as `None` - each mean the check would compare with something other than
+    what the session promised.
     """
     return archived or pinned != current
 
@@ -132,7 +140,12 @@ class Standing:
 
 
 def checked(
-    stage: ImprovementStage, *, standing: Standing, pinned: Pins, current: Pins, archived: bool
+    stage: ImprovementStage | None,
+    *,
+    standing: Standing,
+    pinned: Pins,
+    current: Pins,
+    archived: bool,
 ) -> Transition | None:
     """The stop a session takes before any step, or `None` to carry on.
 
@@ -199,6 +212,8 @@ def after_evaluating(status: EvalRunStatus) -> Transition | None:
 
 
 class SuiteOutcome(StrEnum):
+    """The named suite's verdict on a round's check."""
+
     PASSED = "passed"
     FAILED = "failed"
     INCONCLUSIVE = "inconclusive"
@@ -227,18 +242,24 @@ class CheckResult:
 
 
 def judge(result: CheckResult) -> ImprovementVerdict:
-    """The verdict on a candidate. Anything not measured is inconclusive, never better."""
+    """The verdict on a candidate. Anything not measured is inconclusive, never better.
+
+    A confirmed regression or a failed suite decides before anything unmeasured
+    does: what is known to break stays broken however many other cases went
+    ungraded. Only an invalid comparison outranks it, since its flips mean nothing.
+    """
+    if not result.comparable:
+        return ImprovementVerdict.INCONCLUSIVE
+    if result.regressions_confirmed or result.suite is SuiteOutcome.FAILED:
+        return ImprovementVerdict.REGRESSION
     if (
-        not result.comparable
-        or result.incomplete
+        result.incomplete
         or result.ungraded
         or result.candidate_pass_rate is None
         or result.baseline_pass_rate is None
         or result.suite is SuiteOutcome.INCONCLUSIVE
     ):
         return ImprovementVerdict.INCONCLUSIVE
-    if result.regressions_confirmed or result.suite is SuiteOutcome.FAILED:
-        return ImprovementVerdict.REGRESSION
     if result.fixed_confirmed and result.candidate_pass_rate >= result.baseline_pass_rate:
         return ImprovementVerdict.BETTER
     return ImprovementVerdict.NO_CHANGE
@@ -251,19 +272,37 @@ _STOPS = {
 }
 
 
-def after_judging(verdict: ImprovementVerdict, *, reruns_used: int) -> Transition:
-    """Hand a better candidate to a person; check an inconclusive one once more."""
+def after_judging(
+    verdict: ImprovementVerdict,
+    *,
+    reruns_used: int,
+    spent: Decimal,
+    rerun_estimate: Decimal,
+    budget: Decimal,
+) -> Transition:
+    """Hand a better candidate to a person; check an inconclusive one once more.
+
+    The second check is a paid step like the first, so it starts only when its
+    full estimate fits what is left of the budget.
+    """
     if verdict is ImprovementVerdict.BETTER:
         return Transition(ImprovementStatus.READY, ImprovementStage.JUDGING)
     if verdict is ImprovementVerdict.INCONCLUSIVE and reruns_used < INCONCLUSIVE_RERUNS:
-        return _step(ImprovementStage.EVALUATING)
+        return before_evaluating(spent=spent, step_estimate=rerun_estimate, budget=budget)
     return _stop(ImprovementStage.JUDGING, _STOPS[verdict])
 
 
-def stalled(stage: ImprovementStage, *, last_progress: datetime, now: datetime) -> bool:
+def stalled(stage: ImprovementStage | None, *, last_progress: datetime, now: datetime) -> bool:
     """Whether a step went longer without progress than whatever runs it is allowed to.
 
+    `stage` is `None` for a queued session that has not taken a step yet.
     `last_progress` is the later of the step's start and its child's last
     heartbeat, so a long eval that keeps beating is never stalled.
     """
-    return now - last_progress > STEP_TIMEOUT[stage] + STALL_MARGIN
+    timeout = QUEUED_TIMEOUT if stage is None else STEP_TIMEOUT[stage]
+    return now - last_progress > timeout + STALL_MARGIN
+
+
+def stall(stage: ImprovementStage | None) -> Transition:
+    """Where a stalled session goes: failed, on the step it stalled at."""
+    return _fail(stage, StopReason.STALLED)

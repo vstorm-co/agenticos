@@ -11,6 +11,8 @@ import pytest
 from app.db.models.authoring import AuthoringStatus
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.improvement import (
+    ACTIVE_STATUSES,
+    WAITING_STATUSES,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -19,6 +21,7 @@ from app.db.models.improvement import (
 from app.services.improvement_states import (
     INCONCLUSIVE_RERUNS,
     MIN_GRADABLE_CASES,
+    QUEUED_TIMEOUT,
     STALL_MARGIN,
     STEP_TIMEOUT,
     CheckResult,
@@ -36,6 +39,7 @@ from app.services.improvement_states import (
     checked,
     judge,
     stale,
+    stall,
     stalled,
 )
 
@@ -48,7 +52,14 @@ _BETTER = CheckResult(
     candidate_pass_rate=0.8,
     baseline_pass_rate=0.6,
 )
-_PINS = Pins(draft_hash="a" * 64, base_version_id=uuid.uuid4(), scoring_hash="s" * 64)
+_PINS = Pins(
+    draft_hash="a" * 64,
+    base_version_id=uuid.uuid4(),
+    scoring_hash="s" * 64,
+    dataset_id=uuid.uuid4(),
+    suite_id=uuid.uuid4(),
+)
+_BUDGET = {"spent": Decimal("0.01"), "rerun_estimate": Decimal("0.01"), "budget": Decimal("0.04")}
 _ALLOWED = Standing(
     member=True, edits_agent=True, views_runs=True, runs_dataset=True, ai_assistance=True
 )
@@ -79,8 +90,21 @@ def test_a_check_that_did_not_measure_everything_is_inconclusive(result: CheckRe
     assert judge(result) is ImprovementVerdict.INCONCLUSIVE
 
 
-def test_an_unmeasured_check_is_inconclusive_even_when_something_regressed() -> None:
-    result = replace(_BETTER, ungraded=2, regressions_confirmed=1)
+@pytest.mark.parametrize(
+    "result",
+    [
+        replace(_BETTER, ungraded=2, regressions_confirmed=1),
+        replace(_BETTER, incomplete=1, suite=SuiteOutcome.FAILED),
+    ],
+    ids=["confirmed-regression", "failed-suite"],
+)
+def test_what_is_known_to_break_outweighs_what_went_unmeasured(result: CheckResult) -> None:
+    """A known break is never rerun as inconclusive: zero tolerance for confirmed regressions."""
+    assert judge(result) is ImprovementVerdict.REGRESSION
+
+
+def test_an_invalid_comparison_says_nothing_even_about_regressions() -> None:
+    result = replace(_BETTER, comparable=False, regressions_confirmed=2)
     assert judge(result) is ImprovementVerdict.INCONCLUSIVE
 
 
@@ -111,17 +135,33 @@ def test_no_confirmed_fix_or_a_lower_pass_rate_is_no_change(result: CheckResult)
 
 
 def test_a_better_candidate_waits_for_a_person() -> None:
-    move = after_judging(ImprovementVerdict.BETTER, reruns_used=0)
+    move = after_judging(ImprovementVerdict.BETTER, reruns_used=0, **_BUDGET)
     assert move == Transition(ImprovementStatus.READY, ImprovementStage.JUDGING)
 
 
 def test_an_inconclusive_check_is_run_once_more() -> None:
-    move = after_judging(ImprovementVerdict.INCONCLUSIVE, reruns_used=0)
+    move = after_judging(ImprovementVerdict.INCONCLUSIVE, reruns_used=0, **_BUDGET)
     assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
 
 
+def test_an_inconclusive_check_is_not_rerun_past_the_budget() -> None:
+    """D12: the rerun is a paid step, held to the budget before it starts like the first check."""
+    move = after_judging(
+        ImprovementVerdict.INCONCLUSIVE,
+        reruns_used=0,
+        spent=Decimal("0.03"),
+        rerun_estimate=Decimal("0.02"),
+        budget=Decimal("0.04"),
+    )
+    assert move == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.EVALUATING, StopReason.BUDGET
+    )
+
+
 def test_a_second_inconclusive_check_stops_the_session() -> None:
-    move = after_judging(ImprovementVerdict.INCONCLUSIVE, reruns_used=INCONCLUSIVE_RERUNS)
+    move = after_judging(
+        ImprovementVerdict.INCONCLUSIVE, reruns_used=INCONCLUSIVE_RERUNS, **_BUDGET
+    )
     assert move == Transition(
         ImprovementStatus.STOPPED, ImprovementStage.JUDGING, StopReason.INCONCLUSIVE
     )
@@ -137,7 +177,7 @@ def test_a_second_inconclusive_check_stops_the_session() -> None:
 def test_a_candidate_that_is_not_better_stops_with_its_verdict(
     verdict: ImprovementVerdict, reason: StopReason
 ) -> None:
-    move = after_judging(verdict, reruns_used=0)
+    move = after_judging(verdict, reruns_used=0, **_BUDGET)
     assert move == Transition(ImprovementStatus.STOPPED, ImprovementStage.JUDGING, reason)
 
 
@@ -251,8 +291,10 @@ def test_nothing_changed_is_not_stale() -> None:
         replace(_PINS, draft_hash="b" * 64),
         replace(_PINS, base_version_id=uuid.uuid4()),
         replace(_PINS, scoring_hash="t" * 64),
+        replace(_PINS, dataset_id=None),
+        replace(_PINS, suite_id=None),
     ],
-    ids=["draft-edited", "published", "grading-changed"],
+    ids=["draft-edited", "published", "grading-changed", "dataset-deleted", "suite-deleted"],
 )
 def test_a_changed_base_or_grading_is_stale(current: Pins) -> None:
     assert stale(_PINS, current, archived=False)
@@ -304,12 +346,21 @@ def test_a_change_under_the_session_makes_it_stale() -> None:
     assert move == Transition(ImprovementStatus.STALE, ImprovementStage.FILTERING, StopReason.STALE)
 
 
-@pytest.mark.parametrize("stage", list(ImprovementStage))
-def test_a_step_stalls_only_after_its_timeout_and_the_margin(stage: ImprovementStage) -> None:
+@pytest.mark.parametrize("stage", [None, *ImprovementStage])
+def test_a_step_stalls_only_after_its_timeout_and_the_margin(
+    stage: ImprovementStage | None,
+) -> None:
     now = datetime.now(UTC)
-    limit = STEP_TIMEOUT[stage] + STALL_MARGIN
+    limit = (QUEUED_TIMEOUT if stage is None else STEP_TIMEOUT[stage]) + STALL_MARGIN
     assert not stalled(stage, last_progress=now - limit, now=now)
     assert stalled(stage, last_progress=now - limit - timedelta(seconds=1), now=now)
+
+
+@pytest.mark.parametrize("stage", [None, ImprovementStage.EVALUATING])
+def test_a_stalled_session_fails_where_it_stalled(stage: ImprovementStage | None) -> None:
+    """A queued session whose step job died fails too, and frees the agent for a new one."""
+    assert stall(stage) == Transition(ImprovementStatus.FAILED, stage, StopReason.STALLED)
+    assert can_move(ImprovementStatus.QUEUED, ImprovementStatus.FAILED)
 
 
 def test_every_step_has_a_timeout() -> None:
@@ -317,12 +368,36 @@ def test_every_step_has_a_timeout() -> None:
 
 
 @pytest.mark.parametrize("status", [s for s in ImprovementStatus if s.terminal])
-def test_a_finished_session_never_moves_again_except_accepted_to_published(
-    status: ImprovementStatus,
-) -> None:
-    allowed = {to for to in ImprovementStatus if can_move(status, to)}
-    expected = {ImprovementStatus.PUBLISHED} if status is ImprovementStatus.ACCEPTED else set()
-    assert allowed == expected
+def test_a_finished_session_never_moves_again(status: ImprovementStatus) -> None:
+    assert not {to for to in ImprovementStatus if can_move(status, to)}
+
+
+def test_an_accepted_session_waits_only_to_be_published() -> None:
+    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.ACCEPTED, to)}
+    assert allowed == {ImprovementStatus.PUBLISHED}
+
+
+def test_a_queued_session_starts_or_ends() -> None:
+    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.QUEUED, to)}
+    assert allowed == {
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.STOPPED,
+        ImprovementStatus.FAILED,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
+    }
+
+
+def test_a_running_session_moves_on_or_ends_but_never_decides_for_a_person() -> None:
+    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.RUNNING, to)}
+    assert allowed == {
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.READY,
+        ImprovementStatus.STOPPED,
+        ImprovementStatus.FAILED,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
+    }
 
 
 def test_only_a_person_moves_a_ready_session() -> None:
@@ -340,10 +415,8 @@ def test_only_a_running_session_reaches_ready() -> None:
     assert reaching == {ImprovementStatus.RUNNING}
 
 
-def test_active_and_terminal_statuses_split_around_ready() -> None:
-    assert {s for s in ImprovementStatus if s.active} == {
-        ImprovementStatus.QUEUED,
-        ImprovementStatus.RUNNING,
-    }
-    assert not ImprovementStatus.READY.active
-    assert not ImprovementStatus.READY.terminal
+def test_statuses_split_into_active_waiting_and_finished() -> None:
+    assert ACTIVE_STATUSES == (ImprovementStatus.QUEUED, ImprovementStatus.RUNNING)
+    assert WAITING_STATUSES == (ImprovementStatus.READY, ImprovementStatus.ACCEPTED)
+    for status in ImprovementStatus:
+        assert [status.active, status.waiting, status.terminal].count(True) == 1
