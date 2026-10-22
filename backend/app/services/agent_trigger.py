@@ -287,8 +287,8 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     )
 
 
-_WHAT_IT_DOES = ("prompt", "environment_id", "event_config")
-"""The edits that change what a fire does, and so end its acting as the creator."""
+_WHAT_IT_DOES = ("prompt", "environment_id", "event_config", "teams_conversation_id")
+"""The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -971,7 +971,9 @@ class AgentTriggerService:
         Turning it on is the creator's alone. And it does not survive anybody else
         changing what the trigger does: otherwise a member who may edit the trigger
         could write a prompt that reads the creator's mailbox and wait for the next
-        fire. A pause, a rename or a new cadence changes no such thing, so it stays.
+        fire - or point the answer at a Teams channel they read, which hands them
+        what the creator's own connections returned. A pause, a rename or a new
+        cadence changes no such thing, so it stays.
         """
         themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
         if changes.get("runs_as_creator") is True and not themselves:

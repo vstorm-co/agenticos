@@ -331,7 +331,8 @@ class TriggerUpdate(BaseSchema):
         default=None,
         description=(
             "Turn acting as the creator on or off. Only the creator may turn it on; "
-            "anyone else's change to the prompt, environment or filter turns it off"
+            "anyone else's change to the prompt, environment, filter or Teams "
+            "destination turns it off"
         ),
     )
     # An event trigger's filter. Re-validated against its source's typed model in

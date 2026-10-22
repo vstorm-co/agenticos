@@ -3565,6 +3565,20 @@ class TestRunningAsTheCreator:
         assert changes["runs_as_creator"] is False
 
     @pytest.mark.security
+    @pytest.mark.parametrize("destination", [uuid.uuid4(), None])
+    async def test_somebody_else_moving_where_the_answer_goes_turns_it_off(self, destination):
+        """The creator's connections answered for the creator's audience; a channel
+        somebody else picks is theirs to read (Codex on #2324)."""
+        with patch.object(AgentTriggerService, "_teams_target", new=AsyncMock()):
+            changes = await self._update(
+                _trigger(runs_as_creator=True),
+                TriggerUpdate(teams_conversation_id=destination),
+                as_creator=False,
+            )
+
+        assert changes["runs_as_creator"] is False
+
+    @pytest.mark.security
     async def test_somebody_else_refiltering_an_event_turns_it_off(self):
         trigger = _event_trigger(runs_as_creator=True)
 

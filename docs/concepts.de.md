@@ -1,5 +1,5 @@
 ---
-source_sha: "641ead5d93ef"
+source_sha: "ea4e850dac4a"
 ---
 
 # Begriffe { #concepts }
@@ -209,9 +209,10 @@ nicht kann — zu diesen Bedingungen:
   niemand geprüft hat, und eine daraus geschriebene Notiz würde jeder spätere Chat
   als die eigene des Erstellers lesen.
 - **Frühere Gespräche bleiben verschlossen**, so oder so.
-- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung
-  oder den Filter eines Triggers ändert, den er nicht angelegt hat, schaltet es
-  aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
+- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung,
+  den Filter oder den Teams-Kanal eines Triggers ändert, den er nicht angelegt
+  hat, schaltet es aus, sodass niemand umschreibt, was als Sie läuft, oder die
+  Antwort woandershin schickt. Ein Administrator, der per
   Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
   nicht einschalten.
 - **Ebenso eine neue Version, die du nicht selbst veröffentlicht hast.** Eine

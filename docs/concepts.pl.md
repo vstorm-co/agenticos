@@ -1,5 +1,5 @@
 ---
-source_sha: "641ead5d93ef"
+source_sha: "ea4e850dac4a"
 ---
 
 # Koncepcje { #concepts }
@@ -194,9 +194,9 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
   notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
   własna notatka twórcy.
 - **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
-- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
-  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
-  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska, filtra albo
+  kanału Teams triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt
+  nie przepisze tego, co działa jako ty, ani nie wyśle odpowiedzi gdzie indziej. Administrator działający jako ty przez impersonację
   ani skrypt z twoim kluczem API nie mogą go włączyć.
 - **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
   albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim

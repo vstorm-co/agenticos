@@ -6598,7 +6598,7 @@
     "runAsCreator": "Läuft als die Person, die ihn angelegt hat",
     "runAsMeScheduleHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen - Ihr Postfach, Ihren Kalender - wie Ihr eigener Chat. Er kann Notizen für Sie speichern; Ihre früheren Unterhaltungen durchsucht er nie.",
     "runAsMeEventHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen wie Ihr eigener Chat. Er liest Ihre Notizen, speichert aber keine, weil der Inhalt eines Ereignisses von außen kommt; Ihre früheren Unterhaltungen durchsucht er nie.",
-    "runAsCreatorOthersHint": "Jeder Lauf nutzt das Gedächtnis und die eigenen Verbindungen dieser Person. Nur sie kann das einschalten, und eine Änderung der Nachricht, der Umgebung oder des Filters schaltet es aus.",
+    "runAsCreatorOthersHint": "Jeder Lauf nutzt das Gedächtnis und die eigenen Verbindungen dieser Person. Nur sie kann das einschalten, und eine Änderung der Nachricht, der Umgebung, des Filters oder des Teams-Kanals schaltet es aus.",
     "actsAsCreator": "Als Ersteller",
     "personalReachHint": "Dieser Agent nutzt Gedächtnis, Gesprächssuche oder eine persönliche Verbindung. Ein Zeitplan oder Ereignis erreicht Gedächtnis und persönliche Verbindungen nur, wenn er als die Person läuft, die ihn angelegt hat, und ihre Unterhaltungen nie.",
     "cadence": {

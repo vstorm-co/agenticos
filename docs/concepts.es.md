@@ -1,5 +1,5 @@
 ---
-source_sha: "641ead5d93ef"
+source_sha: "ea4e850dac4a"
 ---
 
 # Conceptos { #concepts }
@@ -197,9 +197,9 @@ condiciones:
   evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
   escrita a partir de él la leería cada chat posterior como propia del creador.
 - **Las conversaciones anteriores siguen cerradas** en ambos casos.
-- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
-  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
-  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno, el
+  filtro o el canal de Teams de un trigger que no creaste lo desactiva, así que
+  nadie reescribe lo que se ejecuta como tú ni envía su respuesta a otro sitio. Un administrador que actúa como tú mediante suplantación, o
   un script con tu clave de API, no puede activarlo.
 - **También una versión nueva que no publicaste tú.** Una publicación, una
   promoción o una reversión de cualquier otra persona lo desactiva, y también una
