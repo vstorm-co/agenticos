@@ -678,12 +678,16 @@ class Settings(BaseSettings):
 
     # The background workers (`python -m app.worker`, #2219). Each process serves
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
-    # container runs two workers, one with `agent,system` and one with `ingest`.
-    WORKER_POOLS: str = "agent,ingest,system"
+    # container runs two workers, one with `agent,eval,system` and one with `ingest`.
+    WORKER_POOLS: str = "agent,eval,ingest,system"
     # Agent runs at once per worker process. They wait on models rather than
     # compute, so this is bounded by the database pool and the providers' rate
     # limits more than by CPU.
     WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Eval runs at once per worker process. Each holds its slot for the whole run,
+    # hours over a large dataset, while its cases are bounded separately by
+    # `EVAL_RUN_CONCURRENCY` and `EVAL_ORG_CONCURRENCY`.
+    WORKER_EVAL_CONCURRENCY: int = Field(default=4, ge=1)
     # Sweeps, cleanups and reports at once per worker process.
     WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
     # Child processes of the ingest pool: one parse each at a time. Each holds an

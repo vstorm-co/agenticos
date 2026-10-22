@@ -62,6 +62,10 @@ def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
             executors[pool] = InProcessExecutor(
                 handlers, concurrency=settings.WORKER_AGENT_CONCURRENCY
             )
+        elif pool is Pool.EVAL:
+            executors[pool] = InProcessExecutor(
+                handlers, concurrency=settings.WORKER_EVAL_CONCURRENCY
+            )
         else:
             executors[pool] = InProcessExecutor(
                 handlers, concurrency=settings.WORKER_SYSTEM_CONCURRENCY
