@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CalendarClock, Package, UserRound, X } from "lucide-react";
+import { Bot, CalendarClock, ExternalLink, Package, Radar, UserRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ const ICONS: Record<SuggestionKind, typeof Bot> = {
   agent: Bot,
   profile: UserRound,
   role_pack: Package,
+  finding: Radar,
 };
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -31,7 +32,8 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
  *
  * Made in the background; here the person only decides. A routine opens the
  * routine dialog filled in, an agent is a question to the Architect, a profile
- * update and a role pack are saved by the server. "Not now" declines it for good.
+ * update and a role pack are saved by the server. A watch's finding opens where
+ * it lives and is marked done. "Not now" declines it for good.
  */
 export function SuggestionCards({ agentId }: { agentId: string | null }) {
   const t = useTranslations("chat.suggestions");
@@ -96,9 +98,23 @@ export function SuggestionCards({ agentId }: { agentId: string | null }) {
                   <span className="text-muted-foreground block text-xs">{suggestion.detail}</span>
                 )}
               </p>
-              <Button type="button" size="sm" onClick={() => take(suggestion)}>
-                {t(`take.${suggestion.kind}`)}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {suggestion.kind === "finding" && text(suggestion.payload.url) && (
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      href={text(suggestion.payload.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                      {t("open")}
+                    </a>
+                  </Button>
+                )}
+                <Button type="button" size="sm" onClick={() => take(suggestion)}>
+                  {t(`take.${suggestion.kind}`)}
+                </Button>
+              </div>
             </div>
             <button
               type="button"

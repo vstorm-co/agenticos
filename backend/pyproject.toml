@@ -1017,6 +1017,11 @@ include = [
     "app/repositories/suggestion.py",
     "app/api/routes/v1/me_suggestions.py",
     "app/worker/tasks/proactive_tasks.py",
+    # Watches over a person's own connections, and the presets they start from.
+    "app/services/watches.py",
+    "app/services/watch_presets.py",
+    "app/repositories/watch.py",
+    "app/api/routes/v1/me_watches.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1521,6 +1526,11 @@ include = [
     "app/repositories/suggestion.py",
     "app/api/routes/v1/me_suggestions.py",
     "app/worker/tasks/proactive_tasks.py",
+    # Watches over a person's own connections, and the presets they start from.
+    "app/services/watches.py",
+    "app/services/watch_presets.py",
+    "app/repositories/watch.py",
+    "app/api/routes/v1/me_watches.py",
 ]
 branch = true
 omit = [

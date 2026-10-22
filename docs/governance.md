@@ -488,6 +488,23 @@ the organization's **proactive limit** - $1 by default, set on the same card
 (`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
 only calls the model when there is something to read.
 
+**Watches** point the same work at a person's own connections, switched on
+separately on the same card (`proactive_watches_enabled`), on the same model and
+inside the same limit. A person picks one of their own MCP connections under
+**Settings → Assistant** or from the account's menu on the MCP servers page, and
+says what to look for - a ready-made watch for that server or their own words -
+and how often, never more often than the organization allows
+(`proactive_watch_min_minutes`, an hour by default). The organization can also
+narrow which catalog servers may be watched (`proactive_watch_servers`).
+
+Each look is one run from the **proactive** surface, offered only the tools the
+server marks read-only (`readOnlyHint`), so a watch never changes anything in the
+account. What it finds is the person's alone: a suggestion of kind `finding`,
+keyed on the item's own id so it is reported once, with a link to open it. A
+finding on a watch set to say urgent things at once, which the model also judged
+urgent, is sent straight away as a notification; the rest waits for the person.
+Unlike a routine, a watch says nothing when nothing is new.
+
 The same card holds the **welcome message**, off by default and gated on
 `org:settings`: a new member's direct message from the organization's Slack,
 Teams and Mattermost bots, in the organization's own words when it wrote some

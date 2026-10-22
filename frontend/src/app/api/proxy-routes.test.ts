@@ -85,6 +85,7 @@ import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
 import * as userLocale from "./users/me/locale/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
+import * as myWatches from "./me/watches/[[...path]]/route";
 import * as voice from "./voice/[[...path]]/route";
 
 /**
@@ -178,6 +179,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/dashboard-layout/presets", dashboardPresets],
   ["me/dashboard-layout/presets/[presetId]", dashboardPreset],
   ["me/suggestions", mySuggestions],
+  ["me/watches", myWatches],
 ];
 
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;

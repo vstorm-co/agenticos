@@ -320,6 +320,46 @@ class TestTheExport:
             ("Routine mine", "dismissed")
         ]
 
+    async def test_it_carries_what_they_asked_to_have_watched(self, db):
+        """#2301: a watch is their own words about their own account."""
+        from app.db.models.mcp_connection import McpConnection
+        from app.repositories import watch_repo
+
+        user = await _person(db, "export-watches@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        connection = McpConnection(
+            scope="user",
+            user_id=user_id,
+            name="github",
+            catalog_key="github",
+            url="https://mcp.example.com/mcp",
+            secret_key_version=1,
+        )
+        db.add(connection)
+        await db.flush()
+        await watch_repo.create(
+            db,
+            organization_id=organization.id,
+            user_id=user_id,
+            connection_id=connection.id,
+            preset_key="github-reviews",
+            title="Reviews",
+            instructions="Waiting on my review.",
+            urgent=True,
+            interval_minutes=60,
+            next_run_at=datetime.now(UTC),
+        )
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        (row,) = export.watches
+        assert (row["title"], row["instructions"], row["urgent"]) == (
+            "Reviews",
+            "Waiting on my review.",
+            True,
+        )
+
     async def test_more_text_than_one_document_can_carry_is_refused(self, db, monkeypatch):
         """The document is assembled and serialized whole, so without a ceiling
         the caller decides how much memory a worker spends. A refusal, because a

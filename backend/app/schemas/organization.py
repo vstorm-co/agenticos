@@ -10,6 +10,7 @@ from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
+from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -110,6 +111,28 @@ class OrganizationUpdate(BaseSchema):
             "profile states none."
         ),
     )
+    proactive_watches_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether people may have the platform watch their own MCP connections and "
+            "report what is new. Runs on the proactive model and limit. Needs "
+            "'budgets:manage'."
+        ),
+    )
+    proactive_watch_servers: list[str] | None = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "The catalog servers a watch may read, by key. Send null for every one; "
+            "omit to leave it alone."
+        ),
+    )
+    proactive_watch_min_minutes: int | None = Field(
+        default=None,
+        ge=MIN_WATCH_MINUTES,
+        le=10080,
+        description="The most often any watch here may run, in minutes.",
+    )
     welcome_dm_enabled: bool | None = Field(
         default=None,
         description=(
@@ -197,6 +220,11 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     proactive_days: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5])
     proactive_hour: int = 5
     proactive_timing: ProactiveTiming = "fixed"
+    proactive_watches_enabled: bool = False
+    proactive_watch_servers: list[str] | None = Field(
+        default=None, description="The catalog servers a watch may read; null for every one."
+    )
+    proactive_watch_min_minutes: int = 60
     welcome_dm_enabled: bool = False
     welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(

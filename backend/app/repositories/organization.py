@@ -247,6 +247,23 @@ async def set_proactivity(
     return org
 
 
+async def set_watch_policy(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    servers: list[str] | None,
+    min_minutes: int,
+) -> Organization:
+    """Write whether people here may watch their connections, which, and how often at most."""
+    org.proactive_watches_enabled = enabled
+    org.proactive_watch_servers = servers
+    org.proactive_watch_min_minutes = min_minutes
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def stop_proactivity_on(
     db: AsyncSession, *, organization_id: UUID, model_profile_id: UUID
 ) -> None:
@@ -257,7 +274,7 @@ async def stop_proactivity_on(
             Organization.id == organization_id,
             Organization.proactive_model_profile_id == model_profile_id,
         )
-        .values(proactive_enabled=False)
+        .values(proactive_enabled=False, proactive_watches_enabled=False)
     )
 
 

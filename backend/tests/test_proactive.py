@@ -64,10 +64,12 @@ def _organization(
     cap: str | None = None,
     *,
     enabled: bool = True,
+    watches: bool = False,
     model: uuid.UUID | None = MODEL,
 ) -> MagicMock:
     return MagicMock(
         proactive_enabled=enabled,
+        proactive_watches_enabled=watches,
         proactive_model_profile_id=model,
         proactive_limit_usd=Decimal(limit),
         monthly_budget_usd=None if cap is None else Decimal(cap),
@@ -127,7 +129,31 @@ class TestTheLimits:
             ),
         ):
             # Room is the organization's chosen model; anything else is nothing.
-            assert await ProactiveThinker(MagicMock()).allowance(_ctx()) == (
+            assert await ProactiveThinker(MagicMock()).allowance(_ctx(), "nightly") == (
+                MODEL if allowed else None
+            )
+
+    @pytest.mark.parametrize(
+        ("organization", "feature", "allowed"),
+        [
+            (_organization(enabled=True, watches=False), "watches", False),
+            (_organization(enabled=False, watches=True), "watches", True),
+            (_organization(enabled=False, watches=True), "nightly", False),
+        ],
+        ids=["watches-off", "watches-on-nightly-off", "nightly-off"],
+    )
+    async def test_each_feature_answers_to_its_own_switch(self, organization, feature, allowed):
+        """The watches and the nightly look share a model and a limit, not a switch."""
+        with (
+            patch(
+                f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.proactive_spend_since",
+                new=AsyncMock(return_value=Decimal(0)),
+            ),
+        ):
+            assert await ProactiveThinker(MagicMock()).allowance(_ctx(), feature) == (
                 MODEL if allowed else None
             )
 
@@ -136,7 +162,7 @@ class TestTheLimits:
         with patch(
             f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=_organization())
         ):
-            assert await ProactiveThinker(MagicMock()).allowance(ctx) is None
+            assert await ProactiveThinker(MagicMock()).allowance(ctx, "nightly") is None
 
 
 class TestThinking:
@@ -180,7 +206,11 @@ class TestThinking:
             finish as finish_run,
         ):
             answer = await ProactiveThinker(MagicMock()).think(
-                _ctx(), output_type=NightlyReading, instructions="Read.", prompt="{}"
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
             )
 
         assert isinstance(answer, NightlyReading)
@@ -194,6 +224,30 @@ class TestThinking:
         assert finished["cost_usd"] == Decimal(0)
         assert finished["cost_is_partial"] is True
 
+    async def test_a_watch_reads_through_the_tools_it_is_given_before_answering(self):
+        from pydantic_ai.toolsets import FunctionToolset
+
+        read: list[str] = []
+
+        def list_pull_requests() -> str:
+            """The pull requests waiting on a review."""
+            read.append("listed")
+            return "#12 waiting since Monday"
+
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with get_slug, limits, version, profiles, create, finish:
+            answer = await ProactiveThinker(MagicMock()).think(
+                _ctx(),
+                feature="watches",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                toolsets=[FunctionToolset([list_pull_requests])],
+            )
+
+        assert isinstance(answer, NightlyReading)
+        assert read == ["listed"]
+
     async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             raise ModelHTTPError(status_code=500, model_name="claude")
@@ -201,7 +255,11 @@ class TestThinking:
         get_slug, limits, version, profiles, create, finish = self._patches(FunctionModel(broken))
         with get_slug, limits, version, profiles, create, finish as finish_run:
             answer = await ProactiveThinker(MagicMock()).think(
-                _ctx(), output_type=NightlyReading, instructions="Read.", prompt="{}"
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
             )
 
         assert answer is None
@@ -215,7 +273,11 @@ class TestThinking:
         with get_slug, limits, version, profiles, create as create_run, finish:
             assert (
                 await ProactiveThinker(MagicMock()).think(
-                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                    _ctx(),
+                    feature="nightly",
+                    output_type=NightlyReading,
+                    instructions="",
+                    prompt="",
                 )
                 is None
             )
@@ -228,7 +290,11 @@ class TestThinking:
         with get_slug, limits, version, profiles, create as create_run, finish:
             assert (
                 await ProactiveThinker(MagicMock()).think(
-                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                    _ctx(),
+                    feature="nightly",
+                    output_type=NightlyReading,
+                    instructions="",
+                    prompt="",
                 )
                 is None
             )
@@ -237,7 +303,11 @@ class TestThinking:
         with patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)):
             assert (
                 await ProactiveThinker(MagicMock()).think(
-                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                    _ctx(),
+                    feature="nightly",
+                    output_type=NightlyReading,
+                    instructions="",
+                    prompt="",
                 )
                 is None
             )
@@ -248,7 +318,11 @@ class TestThinking:
         ):
             assert (
                 await ProactiveThinker(MagicMock()).think(
-                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                    _ctx(),
+                    feature="nightly",
+                    output_type=NightlyReading,
+                    instructions="",
+                    prompt="",
                 )
                 is None
             )
@@ -787,4 +861,10 @@ class TestTheWelcome:
 
 
 def test_suggestion_kinds_match_what_the_look_proposes():
-    assert {kind.value for kind in SuggestionKind} == {"routine", "agent", "profile", "role_pack"}
+    assert {kind.value for kind in SuggestionKind} == {
+        "routine",
+        "agent",
+        "profile",
+        "role_pack",
+        "finding",
+    }

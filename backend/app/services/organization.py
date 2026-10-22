@@ -33,7 +33,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.services import skill_library, speech_to_text
+from app.services import mcp_catalog, skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
@@ -55,6 +55,9 @@ _PROACTIVE_FIELDS = frozenset(
         "proactive_days",
         "proactive_hour",
         "proactive_timing",
+        "proactive_watches_enabled",
+        "proactive_watch_servers",
+        "proactive_watch_min_minutes",
     }
 )
 _WELCOME_FIELDS = frozenset({"welcome_dm_enabled", "welcome_dm_text"})
@@ -532,6 +535,11 @@ class OrganizationService:
         enabled = (
             org.proactive_enabled if data.proactive_enabled is None else data.proactive_enabled
         )
+        watches = (
+            org.proactive_watches_enabled
+            if data.proactive_watches_enabled is None
+            else data.proactive_watches_enabled
+        )
         profile_id = (
             data.proactive_model_profile_id
             if "proactive_model_profile_id" in named
@@ -546,12 +554,22 @@ class OrganizationService:
             raise refused_field(
                 "proactive_model_profile_id", "That model is not one of this organization's"
             )
-        if enabled and profile_id is None:
+        if (enabled or watches) and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",
                 "Choose the model the proactive work runs on before turning it on",
             )
-        return await organization_repo.set_proactivity(
+        servers = org.proactive_watch_servers
+        if "proactive_watch_servers" in named:
+            servers = data.proactive_watch_servers
+            unknown = sorted(set(servers or ()) - set(mcp_catalog.BY_KEY))
+            if unknown:
+                raise refused_field(
+                    "proactive_watch_servers",
+                    f"Not in the server catalog: {', '.join(unknown)}",
+                )
+            servers = None if servers is None else sorted(set(servers))
+        org = await organization_repo.set_proactivity(
             self.db,
             org,
             enabled=enabled,
@@ -559,6 +577,17 @@ class OrganizationService:
             days=org.proactive_days if data.proactive_days is None else data.proactive_days,
             hour=org.proactive_hour if data.proactive_hour is None else data.proactive_hour,
             timing=org.proactive_timing if data.proactive_timing is None else data.proactive_timing,
+        )
+        return await organization_repo.set_watch_policy(
+            self.db,
+            org,
+            enabled=watches,
+            servers=servers,
+            min_minutes=(
+                org.proactive_watch_min_minutes
+                if data.proactive_watch_min_minutes is None
+                else data.proactive_watch_min_minutes
+            ),
         )
 
     async def _apply_speech_settings(

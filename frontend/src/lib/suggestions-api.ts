@@ -7,7 +7,7 @@
 
 import { apiClient } from "./api-client";
 
-export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack";
+export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack" | "finding";
 export type SuggestionStatus = "open" | "accepted" | "dismissed";
 
 export interface Suggestion {
@@ -18,9 +18,14 @@ export interface Suggestion {
   detail: string | null;
   /**
    * What accepting it needs: `prompt` and `cron` for a routine, `request` for an
-   * agent, the profile fields for a profile, `pack` for a role pack.
+   * agent, the profile fields for a profile, `pack` for a role pack. A finding
+   * carries `server` (a catalog key or null), `account` and `url`, each maybe null.
    */
   payload: Record<string, unknown>;
+  /** The watch a finding came from. */
+  watch_id?: string | null;
+  /** A finding sent at once rather than kept for the briefing. */
+  urgent?: boolean;
   created_at: string;
 }
 

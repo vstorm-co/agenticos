@@ -16,6 +16,21 @@ vi.mock("@/components/agents/add-to-agent", () => ({
     <p>{`add ${resource.kind} ${resource.id}`}</p>
   ),
 }));
+const org = vi.hoisted(() => ({ watches: true }));
+vi.mock("@/hooks", () => ({
+  useOrganizations: () => ({ activeOrg: { proactive_watches_enabled: org.watches } }),
+}));
+vi.mock("@/components/assistant/watch-dialog", () => ({
+  WatchDialog: ({
+    connectionId,
+    onOpenChange,
+  }: {
+    connectionId: string;
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <button type="button" onClick={() => onOpenChange(false)}>{`watch ${connectionId}`}</button>
+  ),
+}));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: ({ resourceType, resourceId }: { resourceType: string; resourceId: string }) => (
     <p>{`sharing ${resourceType} ${resourceId}`}</p>
@@ -73,6 +88,30 @@ function open(organizations: McpConnectionRecord[], canManageOrganization = true
 async function menuOf(name: string) {
   await userEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
 }
+
+describe("watching one's own account (#2301)", () => {
+  it("offers a watch on a connected personal account where the organization allows it", async () => {
+    org.watches = true;
+    open([connection({ id: "c1" })]);
+
+    await menuOf("ledger");
+    expect(screen.queryByRole("menuitem", { name: "Watch for me…" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    await menuOf("mine");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Watch for me…" }));
+    // Beside the open dialog, which hides the rest of the page from the accessibility tree.
+    fireEvent.click(screen.getByText("watch p1"));
+    expect(screen.queryByText("watch p1")).toBeNull();
+  });
+
+  it("offers nothing where the organization has watches off", async () => {
+    org.watches = false;
+    open([]);
+    await menuOf("mine");
+    expect(screen.queryByRole("menuitem", { name: "Watch for me…" })).toBeNull();
+    org.watches = true;
+  });
+});
 
 describe("who an organization server is for (#2072)", () => {
   it("marks one limited to groups, and only the organization's", async () => {

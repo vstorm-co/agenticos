@@ -74,6 +74,22 @@ beforeEach(() => {
 });
 
 describe("SuggestionCards", () => {
+  it("opens a finding where it lives and marks it done", async () => {
+    state.suggestions = [
+      suggestion("finding", { server: "github", account: null, url: "https://github.com/o/r/1" }),
+      { ...suggestion("finding", { server: null, account: null, url: null }), id: "s-bare" },
+    ];
+    render(<SuggestionCards agentId={null} />);
+
+    const links = screen.getAllByRole("link", { name: "Open" });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "https://github.com/o/r/1");
+    expect(links[0]).toHaveAttribute("target", "_blank");
+    await userEvent.click(screen.getAllByRole("button", { name: "Done" })[0]!);
+    await waitFor(() => expect(state.accept).toHaveBeenCalledWith("s-finding"));
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
   it("draws nothing when nothing was proposed", () => {
     const { container } = render(<SuggestionCards agentId="a-1" />);
     expect(container).toBeEmptyDOMElement();

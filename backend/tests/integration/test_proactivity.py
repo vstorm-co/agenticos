@@ -450,8 +450,147 @@ class TestDeletingTheModelItRunsOn:
         await db.refresh(org)
         assert org.proactive_enabled is True
 
+        await organization_repo.set_watch_policy(
+            db, org, enabled=True, servers=["github"], min_minutes=30
+        )
         await organization_repo.stop_proactivity_on(
             db, organization_id=org.id, model_profile_id=model
         )
         await db.refresh(org)
         assert org.proactive_enabled is False
+        assert org.proactive_watches_enabled is False
+        assert (org.proactive_watch_servers, org.proactive_watch_min_minutes) == (["github"], 30)
+
+
+async def _own_connection(db, person: User, *, name: str = "github"):
+    from app.db.models.mcp_connection import McpConnection
+
+    connection = McpConnection(
+        id=uuid.uuid4(),
+        scope="user",
+        user_id=person.id,
+        name=f"{name}-{uuid.uuid4().hex[:6]}",
+        catalog_key=name,
+        url="https://mcp.example.com/mcp",
+        secret_key_version=1,
+    )
+    db.add(connection)
+    await db.flush()
+    return connection
+
+
+async def _watch(db, org: Organization, person: User, connection, **fields):
+    from app.repositories import watch_repo
+
+    return await watch_repo.create(
+        db,
+        organization_id=org.id,
+        user_id=person.id,
+        connection_id=connection.id,
+        preset_key=fields.get("preset_key"),
+        title=fields.get("title", "Reviews"),
+        instructions="Pull requests waiting on my review.",
+        urgent=fields.get("urgent", False),
+        interval_minutes=fields.get("interval_minutes", 60),
+        next_run_at=fields.get("next_run_at", _NOW),
+    )
+
+
+class TestWatches:
+    async def test_a_persons_own_watches_and_nobody_elses(self, db) -> None:
+        from app.repositories import watch_repo
+
+        person = await _person(db)
+        colleague = await _person(db)
+        org = await _organization(db, person)
+        await _join(db, org, colleague)
+        mine = await _own_connection(db, person)
+        theirs = await _own_connection(db, colleague)
+        first = await _watch(db, org, person, mine, title="First")
+        second = await _watch(db, org, person, mine, title="Second")
+        other = await _watch(db, org, colleague, theirs)
+
+        listed = await watch_repo.list_own(db, organization_id=org.id, user_id=person.id)
+        assert {watch.id for watch in listed} == {first.id, second.id}
+        assert first.exclusions == [] and first.is_active is True
+        assert (
+            await watch_repo.get_own(db, other.id, organization_id=org.id, user_id=person.id)
+            is None
+        )
+        assert (await watch_repo.get_by_id(db, other.id)) is other
+        assert "Watch(" in repr(first)
+
+    async def test_due_watches_are_claimed_moved_and_written_down(self, db) -> None:
+        from app.repositories import watch_repo
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        connection = await _own_connection(db, person)
+        due = await _watch(db, org, person, connection, next_run_at=_NOW - timedelta(minutes=1))
+        later = await _watch(db, org, person, connection, next_run_at=_NOW + timedelta(hours=1))
+        paused = await _watch(db, org, person, connection, next_run_at=_NOW - timedelta(hours=1))
+        await watch_repo.update_fields(db, watch=paused, changes={"is_active": False})
+
+        claimed = await watch_repo.claim_due(db, now=_NOW, limit=50)
+        assert due.id in {watch.id for watch in claimed}
+        assert {later.id, paused.id}.isdisjoint({watch.id for watch in claimed})
+
+        await watch_repo.schedule(db, watch_id=due.id, next_run_at=_NOW + timedelta(hours=2))
+        await watch_repo.mark_ran(db, watch=due, at=_NOW)
+        await db.refresh(due)
+        assert due.next_run_at == _NOW + timedelta(hours=2)
+        assert due.last_run_at == _NOW
+
+    async def test_a_cadence_under_fifteen_minutes_is_refused_by_the_database(self, db) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        connection = await _own_connection(db, person)
+        with pytest.raises(IntegrityError):
+            async with db.begin_nested():
+                await _watch(db, org, person, connection, interval_minutes=5)
+
+    async def test_findings_are_kept_per_watch_and_go_with_it_and_with_the_connection(
+        self, db
+    ) -> None:
+        from app.repositories import watch_repo
+
+        person = await _person(db)
+        org = await _organization(db, person)
+        connection = await _own_connection(db, person)
+        watch = await _watch(db, org, person, connection)
+        for n in range(3):
+            await suggestion_repo.propose(
+                db,
+                organization_id=org.id,
+                user_id=person.id,
+                kind="finding",
+                title=f"Review #{n}",
+                detail=None,
+                payload={"server": "github", "account": None, "url": None},
+                dedupe_key=f"finding:{n}",
+                watch_id=watch.id,
+                urgent=n == 2,
+            )
+
+        # One transaction stamps all three alike, so only how many is asserted.
+        titles = await suggestion_repo.titles_for_watch(db, watch_id=watch.id, limit=2)
+        assert len(titles) == 2 and set(titles) <= {"Review #0", "Review #1", "Review #2"}
+        (urgent,) = [
+            item
+            for item in await suggestion_repo.list_open(
+                db, organization_id=org.id, user_id=person.id
+            )
+            if item.urgent
+        ]
+        assert urgent.watch_id == watch.id
+
+        await watch_repo.delete(db, watch)
+        assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=person.id) == []
+
+        survivor = await _watch(db, org, person, connection)
+        await db.delete(connection)
+        await db.flush()
+        db.expunge(survivor)
+        assert await watch_repo.get_by_id(db, survivor.id) is None

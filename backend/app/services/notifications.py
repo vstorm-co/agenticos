@@ -508,6 +508,31 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def finding(
+        self, *, organization_id: UUID, user_id: UUID, finding_id: UUID, title: str
+    ) -> None:
+        """A watch found something its person asked to hear about at once (#2301).
+
+        One row per finding - the finding's own id is the occurrence - so a
+        second look that finds it again, already recorded, sends nothing. The
+        rest of what a watch finds waits for the morning briefing.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/dashboard", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=str(finding_id),
+            summary=title,
+            context_url=path,
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
     async def run_failed(self, run: AgentRun, *, agent: Agent, error: str | None) -> None:
         """The mirror of `run_completed`, for the run that did not finish
         cleanly - same audience, same surface exclusion, same publisher-

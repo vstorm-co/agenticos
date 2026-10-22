@@ -125,6 +125,16 @@ class Organization(Base, TimestampMixin):
     proactive_timing: Mapped[ProactiveTiming] = mapped_column(
         String(16), nullable=False, default="fixed", server_default=text("'fixed'")
     )
+    # Whether people may point the look at their own connections (`Watch`), which
+    # catalog servers they may (null for every one), and how often a watch may be
+    # read at most. It runs on the same model and limit as the nightly look.
+    proactive_watches_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    proactive_watch_servers: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    proactive_watch_min_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=60, server_default=text("60")
+    )
     # A new member's direct message in the organization's chat apps, and the
     # words it says - null for the built-in greeting in their language.
     welcome_dm_enabled: Mapped[bool] = mapped_column(
@@ -204,6 +214,9 @@ class Organization(Base, TimestampMixin):
         ),
         CheckConstraint("proactive_limit_usd >= 0", name="ck_organization_proactive_limit"),
         CheckConstraint("proactive_hour BETWEEN 0 AND 23", name="ck_organization_proactive_hour"),
+        CheckConstraint(
+            "proactive_watch_min_minutes >= 15", name="ck_organization_watch_min_minutes"
+        ),
         CheckConstraint(
             "proactive_timing IN ('fixed', 'before_work')",
             name="ck_organization_proactive_timing",

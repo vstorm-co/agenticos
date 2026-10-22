@@ -1994,8 +1994,10 @@
         "routine": "Einrichten",
         "agent": "Mit dem Architect bauen",
         "profile": "Im Profil speichern",
-        "role_pack": "Diese Routinen hinzufügen"
-      }
+        "role_pack": "Diese Routinen hinzufügen",
+        "finding": "Erledigt"
+      },
+      "open": "Öffnen"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
     "turnLostAskAgain": "Erneut fragen"
@@ -3655,7 +3657,8 @@
     "cardYours": "{count, plural, =1 {Ihr Konto} other {Ihre # Konten}}",
     "cardOrganizations": "{count, plural, =1 {Das Konto der Organisation} other {# Konten der Organisation}}",
     "cardYoursAndOrganizations": "Ihres und das der Organisation",
-    "accountActions": "Mehr für {name}"
+    "accountActions": "Mehr für {name}",
+    "watchForMe": "Für mich beobachten…"
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",
@@ -5565,7 +5568,9 @@
       "prefSuggestion": "Vorschläge für Sie",
       "prefSuggestionTrigger": "AgenticOS hat etwas bemerkt, das sich einzurichten lohnt - eine Anfrage, die Sie wiederholen, ein Paket für Ihre Rolle, Ihr Profil. Höchstens einmal am Tag, an Sie.",
       "prefCapabilityRequested": "Eine Capability angefragt",
-      "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability."
+      "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
+      "prefFinding": "Dringende Funde",
+      "prefFindingTrigger": "Eine Beobachtung einer Ihrer Verbindungen hat etwas gefunden, das Sie sofort erfahren wollten."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -6371,7 +6376,16 @@
       "welcomeText": "Nachricht",
       "welcomeTextHint": "Leer lassen für die eingebaute Begrüßung in der Sprache der Person. '{organization}', '{bot}' und '{url}' werden ausgefüllt.",
       "welcomeTextPlaceholder": "Willkommen bei '{organization}'! Fragen Sie mich hier alles.",
-      "welcomeSaved": "Willkommensnachricht gespeichert"
+      "welcomeSaved": "Willkommensnachricht gespeichert",
+      "watches": "Verbindungen der Mitglieder beobachten",
+      "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
+      "watchMinutes": "Höchstens",
+      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "watchServers": "Server, die beobachtet werden dürfen",
+      "watchServersAll": "Alle Server",
+      "watchServersSome": "Nur diese",
+      "watchServersSearch": "Server suchen",
+      "watchServersPicked": "{count, plural, =0 {Noch keiner gewählt} =1 {1 gewählt} other {# gewählt}}"
     }
   },
   "theme": {
@@ -8322,5 +8336,142 @@
     "reduce": "Reduziert",
     "full": "Voll",
     "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus."
+  },
+  "watches": {
+    "title": "Ihre Verbindungen beobachten",
+    "description": "Der Assistent prüft Ihre eigenen verbundenen Konten nach Zeitplan und sagt Ihnen, was neu ist. Er liest nur, und was er findet, sehen nur Sie.",
+    "orgOff": "Ihre Organisation hat Beobachtungen nicht eingeschaltet. Ein Admin kann das auf der Seite der Organisation unter Proactivity tun.",
+    "noConnections": "Verbinden Sie zuerst eines Ihrer eigenen Konten auf der Seite der MCP-Server - GitHub, Linear, Ihr Postfach.",
+    "add": "Etwas beobachten",
+    "resumed": "Wird wieder beobachtet",
+    "paused": "Pausiert",
+    "removed": "Beobachtung beendet",
+    "rowDetail": "{connection} · {cadence}",
+    "urgentBadge": "Dringendes sofort",
+    "stopped": {
+      "watches_off": "In der Organisation aus",
+      "server_not_allowed": "Server nicht erlaubt",
+      "connection_disabled": "Verbindung aus"
+    },
+    "activeLabel": "{title} beobachten",
+    "editLabel": "{title} bearbeiten",
+    "removeLabel": "{title} nicht mehr beobachten",
+    "newTitle": "Etwas beobachten",
+    "editTitle": "Beobachtung bearbeiten",
+    "dialogDescription": "Wonach in einem Ihrer Konten gesucht wird und wie oft. Es wird nur gelesen; was gefunden wird, ist nur für Sie.",
+    "connection": "Konto",
+    "connectionPlaceholder": "Eine Ihrer Verbindungen wählen",
+    "preset": "Wonach suchen",
+    "custom": "Etwas anderes",
+    "name": "Name",
+    "instructions": "Suchen nach",
+    "instructionsHint": "In einfachen Worten. Sagen Sie, wann etwas dringend ist.",
+    "instructionsPlaceholder": "Zum Beispiel: Nachrichten von Kunden, die auf meine Antwort warten",
+    "howOften": "Wie oft",
+    "urgent": "Sofort melden, wenn es dringend ist",
+    "urgentHint": "Sonst wartet, was gefunden wird, auf Ihr Morgen-Briefing.",
+    "exclusions": "Auslassen",
+    "exclusionsHint": "Eine Zeile pro Eintrag: was nicht mehr gemeldet werden soll.",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "create": "Beobachtung starten",
+    "saved": "Beobachtung gespeichert",
+    "created": "Wird beobachtet - der erste Blick folgt innerhalb einer Minute",
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Jede Minute} other {Alle # Minuten}}",
+      "everyHours": "{count, plural, =1 {Jede Stunde} other {Alle # Stunden}}",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich"
+    },
+    "presets": {
+      "mail-needs-reply": {
+        "title": "Mails, die auf meine Antwort warten",
+        "instructions": "Ungelesene Mails von Menschen, die mich etwas fragen oder auf mich warten. Newsletter, Benachrichtigungen und Belege auslassen."
+      },
+      "mail-invoices": {
+        "title": "Rechnungen und überfällige Zahlungen",
+        "instructions": "Rechnungen, Zahlungserinnerungen und alles, was eine fällige Zahlung nennt. Dringend, wenn das Fälligkeitsdatum schon vorbei ist."
+      },
+      "mail-newsletters": {
+        "title": "Newsletter, die ich nie öffne",
+        "instructions": "Newsletter und Werbeabsender, von denen ständig etwas kommt und die ich nie öffne - zum Abbestellen. Absender und Anzahl der letzten Mails nennen."
+      },
+      "github-reviews": {
+        "title": "Pull Requests, die auf mein Review warten",
+        "instructions": "Pull Requests, bei denen mein Review angefragt ist und noch fehlt. Sagen, wie lange jeder schon wartet."
+      },
+      "github-failing-checks": {
+        "title": "Fehlgeschlagene Checks in meinen Pull Requests",
+        "instructions": "Meine offenen Pull Requests, deren Checks fehlschlagen."
+      },
+      "github-mentions": {
+        "title": "Erwähnungen ohne meine Antwort",
+        "instructions": "Issues und Pull Requests, in denen ich erwähnt oder gefragt wurde und noch nicht geantwortet habe."
+      },
+      "gitlab-reviews": {
+        "title": "Merge Requests, die auf mich warten",
+        "instructions": "Merge Requests, die auf mein Review oder meine Freigabe warten. Sagen, wie lange jeder schon wartet."
+      },
+      "gitlab-pipelines": {
+        "title": "Fehlgeschlagene Pipelines",
+        "instructions": "Fehlgeschlagene Pipelines in meinen offenen Merge Requests oder auf dem Hauptbranch meiner Projekte."
+      },
+      "linear-assigned": {
+        "title": "Mir zugewiesene Issues",
+        "instructions": "Issues, die mir neu zugewiesen wurden oder die jemand anders seit dem letzten Blick geändert hat."
+      },
+      "linear-overdue": {
+        "title": "Meine überfälligen oder blockierten Issues",
+        "instructions": "Meine Issues, die überfällig oder als blockiert markiert sind."
+      },
+      "jira-assigned": {
+        "title": "Mir zugewiesene Jira-Issues",
+        "instructions": "Jira-Issues, die mir neu zugewiesen wurden oder die jemand kommentiert hat."
+      },
+      "jira-overdue": {
+        "title": "Meine überfälligen Jira-Issues",
+        "instructions": "Meine Jira-Issues, die überfällig oder blockiert sind."
+      },
+      "slack-unanswered": {
+        "title": "Slack-Nachrichten, die auf mich warten",
+        "instructions": "Direktnachrichten und Erwähnungen, auf die noch niemand - ich eingeschlossen - geantwortet hat."
+      },
+      "teams-unanswered": {
+        "title": "Teams-Nachrichten, die auf mich warten",
+        "instructions": "Chats und Kanalnachrichten, in denen ich erwähnt wurde und noch nicht geantwortet habe."
+      },
+      "notion-mentions": {
+        "title": "Notion-Erwähnungen und Kommentare",
+        "instructions": "Seiten und Kommentare, in denen ich erwähnt wurde oder eine Frage auf mich wartet."
+      },
+      "sentry-new-issues": {
+        "title": "Neue Fehler in meinen Projekten",
+        "instructions": "Neue Fehler und Regressionen in meinen Projekten. Dringend, wenn viele Nutzer betroffen sind."
+      },
+      "pagerduty-incidents": {
+        "title": "Incidents, die auf mich warten",
+        "instructions": "Offene Incidents, die mir oder meiner Eskalationsrichtlinie zugewiesen und noch nicht bestätigt sind."
+      },
+      "hubspot-stale-deals": {
+        "title": "Deals, die einschlafen",
+        "instructions": "Meine offenen Deals ohne Aktivität seit einer Woche oder mit Abschluss in dieser Woche."
+      },
+      "intercom-waiting": {
+        "title": "Unterhaltungen, die auf meine Antwort warten",
+        "instructions": "Mir zugewiesene Unterhaltungen, die auf eine Antwort warten."
+      },
+      "asana-overdue": {
+        "title": "Heute fällige oder überfällige Aufgaben",
+        "instructions": "Meine Aufgaben, die heute fällig oder überfällig sind."
+      },
+      "todoist-overdue": {
+        "title": "Heute fällige oder überfällige Aufgaben",
+        "instructions": "Meine Aufgaben, die heute fällig oder überfällig sind."
+      },
+      "clickup-overdue": {
+        "title": "Heute fällige oder überfällige Aufgaben",
+        "instructions": "Meine Aufgaben, die heute fällig oder überfällig sind."
+      }
+    }
   }
 }

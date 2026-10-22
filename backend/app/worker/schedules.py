@@ -84,6 +84,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A run whose process died stops beating; a chat says "Working" over it
     # until this ends it, so it is looked for every minute (#2301).
     Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _MINUTE),
+    # Queue a look for each watch that has come due (#2301). Each watch keeps its
+    # own cadence, the most often fifteen minutes; this only finds whose turn it is.
+    Schedule("watch-sweep", jobs.WATCH_SWEEP, _MINUTE),
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),

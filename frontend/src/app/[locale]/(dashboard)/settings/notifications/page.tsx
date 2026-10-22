@@ -13,6 +13,7 @@ import {
   Mail,
   Megaphone,
   PieChart,
+  Radar,
   ServerCrash,
   ServerCog,
   Share2,
@@ -167,6 +168,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "suggestion",
     words: "prefSuggestion",
     icon: Lightbulb,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "finding",
+    words: "prefFinding",
+    icon: Radar,
     channels: ["in_app", "email"],
   },
   {

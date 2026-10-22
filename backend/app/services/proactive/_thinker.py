@@ -19,13 +19,16 @@ gets what a run gets where it matters:
 """
 
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 import httpx
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +51,11 @@ STARTER_SLUG = "agenticos"
 
 # One request, and a second for the structured output's retry: there are no tools.
 _LIMITS = UsageLimits(request_limit=2)
+# A watch reads through a connection's tools first: a few lookups, then the answer.
+_WITH_TOOLS = UsageLimits(request_limit=8)
+
+ProactiveFeature = Literal["nightly", "watches"]
+"""Which of the organization's switches the work answers to; both share the model and limit."""
 
 
 class ProactiveThinker:
@@ -59,16 +67,20 @@ class ProactiveThinker:
         agent = await agent_repo.get_by_slug(self.db, STARTER_SLUG, organization_id=organization_id)
         return agent if agent is not None and agent.current_version_id is not None else None
 
-    async def allowance(self, ctx: AuthContext) -> UUID | None:
+    async def allowance(self, ctx: AuthContext, feature: ProactiveFeature) -> UUID | None:
         """The model this person's background work may run on now, or `None` when it may not.
 
-        `None` where the organization has proactivity off or no model for it,
+        `None` where the organization has `feature` off or no model for it,
         and where this month's spending is at either limit.
         """
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if (
             organization is None
-            or not organization.proactive_enabled
+            or not (
+                organization.proactive_watches_enabled
+                if feature == "watches"
+                else organization.proactive_enabled
+            )
             or organization.proactive_model_profile_id is None
             or organization.proactive_limit_usd <= 0
             or ctx.user_id is None
@@ -92,21 +104,26 @@ class ProactiveThinker:
         self,
         ctx: AuthContext,
         *,
+        feature: ProactiveFeature,
         output_type: type[OutputT],
         instructions: str,
         prompt: str,
+        toolsets: Sequence[AbstractToolset[object]] = (),
     ) -> OutputT | None:
         """Ask the starter agent's model one structured question, as a run of its own.
 
+        `toolsets` are what it may read before answering - a watch's connection,
+        narrowed to the tools that only read.
+
         Returns `None` - having spent nothing - without a starter agent or past a
         limit, and `None` with the failure on the run row when the model could
-        not answer. Background work has no one to raise to; the next night is the
+        not answer. Background work has no one to raise to; the next look is the
         retry.
         """
         agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
-        profile_id = await self.allowance(ctx)
+        profile_id = await self.allowance(ctx, feature)
         if profile_id is None:
             return None
         version = await agent_repo.get_version(
@@ -137,8 +154,11 @@ class ProactiveThinker:
         )
         try:
             result = await Agent(
-                request.build(), output_type=output_type, instructions=instructions
-            ).run(prompt, usage_limits=_LIMITS)
+                request.build(),
+                output_type=output_type,
+                instructions=instructions,
+                toolsets=toolsets,
+            ).run(prompt, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
         except (AgentRunError, httpx.HTTPError) as exc:
             logger.exception("proactive_run_failed", extra={"run_id": str(run.id)})
             await agent_run_repo.finish_run(

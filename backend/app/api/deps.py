@@ -1619,6 +1619,14 @@ def get_suggestion_service(db: DBSession) -> SuggestionService:
 
 
 SuggestionSvc = Annotated[SuggestionService, Depends(get_suggestion_service)]
+from app.services.watches import WatchService
+
+
+def get_watch_service(db: DBSession) -> WatchService:
+    return WatchService(db)
+
+
+WatchSvc = Annotated[WatchService, Depends(get_watch_service)]
 from app.services.organization_secret import OrganizationSecretService
 
 

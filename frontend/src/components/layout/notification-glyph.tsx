@@ -11,6 +11,7 @@ import {
   PauseCircle,
   Plug,
   PlugZap,
+  Radar,
   Settings2,
   Share2,
   ShieldCheck,
@@ -54,6 +55,8 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   capability_requested: { icon: Sparkles, tone: HELD },
   // What the night's look at your week proposes (#2301).
   suggestion: { icon: Lightbulb, tone: NEUTRAL },
+  // Something a watch over your connections was asked to say at once (#2301).
+  finding: { icon: Radar, tone: HELD },
 };
 
 /** A kind this console has not met yet: a bell, rather than nothing. */

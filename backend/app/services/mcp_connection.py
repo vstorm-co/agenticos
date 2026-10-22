@@ -2443,6 +2443,28 @@ async def _own_specs(
     return accounts or "unauthorized"
 
 
+async def watched_connection_spec(
+    db: AsyncSession, connection: McpConnection
+) -> McpServerSpec | None:
+    """One of a person's own connections as a server a watch reads (#2301), or `None`.
+
+    `None` where its credential no longer works. Everything it offers is
+    listed; the watch keeps only the tools the server marks read-only, so the
+    approval policy here never comes into play.
+    """
+    headers = await _resolve_auth_headers(db, connection)
+    if headers is None:
+        return None
+    return McpServerSpec(
+        name=connection.catalog_key or connection.name,
+        url=connection.url,
+        headers=headers,
+        allowed_tools=connection.allowed_tools,
+        include_instructions=connection.include_instructions,
+        account=_account_name(connection),
+    )
+
+
 def _account_name(account: McpConnection) -> str:
     """What a person calls one of their accounts: its label, else its name."""
     return account.label or account.name

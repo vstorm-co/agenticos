@@ -114,6 +114,12 @@ class ThinkForPerson(Payload):
     user_id: UUID
 
 
+class LookThroughWatch(Payload):
+    """One person's watch over one of their connections, due for a look (#2301)."""
+
+    watch_id: UUID
+
+
 class InstallRolePack(Payload):
     """The routines of a role pack, to create for the person who accepted it (#2301)."""
 
@@ -243,6 +249,16 @@ THINK_FOR_PERSON = Task(
     timeout=timedelta(minutes=10),
     priority=Priority.BULK,
 )
+# One attempt, like the nightly look: a model call on the person's limit, and the
+# watch's next look is the retry.
+LOOK_THROUGH_WATCH = Task(
+    kind="look-through-watch",
+    payload_type=LookThroughWatch,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
 # Three: creating a routine is idempotent per pack (a routine already made from
 # the same template is not made twice), and the person clicked and is waiting.
 INSTALL_ROLE_PACK = Task(
@@ -289,6 +305,7 @@ SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
+WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -305,6 +322,7 @@ TASKS: dict[str, TaskKind] = {
         FIRE_TRIGGER,
         RUN_AGENT,
         THINK_FOR_PERSON,
+        LOOK_THROUGH_WATCH,
         INSTALL_ROLE_PACK,
         WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
@@ -324,6 +342,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
         PROACTIVE_SWEEP,
+        WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

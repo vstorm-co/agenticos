@@ -8,7 +8,7 @@ from pydantic import Field
 
 from app.schemas.base import BaseSchema
 
-SuggestionKindName = Literal["routine", "agent", "profile", "role_pack"]
+SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding"]
 SuggestionStatusName = Literal["open", "accepted", "dismissed"]
 
 
@@ -24,8 +24,14 @@ class SuggestionRead(BaseSchema):
         default_factory=dict,
         description=(
             "What accepting it does: `prompt` and `cadence` for a routine, `request` for an "
-            "agent, the profile fields for a profile, `pack` for a role pack."
+            "agent, the profile fields for a profile, `pack` for a role pack. A finding "
+            "carries `server` (its catalog key, or null), `account` and `url`, any of "
+            "them null; accepting one only records it as dealt with."
         ),
+    )
+    watch_id: UUID | None = Field(default=None, description="The watch a finding came from.")
+    urgent: bool = Field(
+        default=False, description="A finding sent at once rather than kept for the briefing."
     )
     created_at: datetime
 

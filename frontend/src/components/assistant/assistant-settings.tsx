@@ -11,6 +11,7 @@ import { Button, Label, Switch } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { useAssistant } from "@/hooks/use-assistant";
 import { YourSuggestions } from "./your-suggestions";
+import { YourWatches } from "./your-watches";
 import { readPreferences, resetSilenced, setBubblesOff } from "@/lib/assistant-bubbles";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
@@ -48,6 +49,7 @@ export function AssistantSettings() {
       {/* Not the Architect's: the platform's own look at the person's week, and
           theirs to switch off whoever runs the assistant (#2301). */}
       <YourSuggestions />
+      <YourWatches />
       {assistant.can_configure && assistant.agent_id && (
         <WhereTheRestLives agentId={assistant.agent_id} />
       )}

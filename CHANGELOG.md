@@ -145,6 +145,19 @@ Two things are versioned separately from this file and worth knowing about:
   Offered to whoever may write skills.
   A chat link with `?agent=<slug>` opens the chat on that agent.
 
+- **Watches over your own connections (#2301).** A person can have the platform
+  keep an eye on one of their own MCP connections - pull requests waiting on
+  their review, an overdue invoice, mentions nobody answered - with a ready-made
+  watch for 15 catalog servers or their own words, on a cadence they choose.
+  Each look offers the model only the tools the server marks read-only, and what
+  is new arrives as a finding (a suggestion of kind `finding`) reported once,
+  with a link to open it; one the person asked to hear about at once and the
+  model judged urgent is also sent as a notification. Set up under **Settings →
+  Assistant** or from an account's menu on the MCP servers page
+  (`/me/watches`). Off until the organization turns watches on, on the
+  **Proactivity** card, which also sets the most-often and which servers may be
+  watched; they run on the proactive model and limit. Migration `0167_watches`.
+
 ### Changed
 
 - **Proactivity is an organization's choice, off until it turns it on.** The

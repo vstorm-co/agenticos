@@ -85,6 +85,7 @@ from app.services.mcp_connection import (
     _apply_token,
     _resolve_auth_headers,
     connection_scope,
+    watched_connection_spec,
 )
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import exceptions as portals_exceptions
@@ -1817,6 +1818,28 @@ class TestConnectingOneMidRun:
         )
 
         assert outcome == "unreachable"
+
+
+class TestAWatchedConnection:
+    """#2301: one of a person's own connections, as the server a watch reads."""
+
+    @pytest.mark.anyio
+    async def test_it_carries_the_persons_credential_and_their_narrowing(self):
+        conn = _connection(catalog_key="github", label="Work", allowed_tools=["list_prs"])
+        conn.auth_token = _seal_into(conn, "secret-token")
+
+        spec = await watched_connection_spec(AsyncMock(), conn)
+
+        assert spec is not None
+        assert spec.name == "github" and spec.account == "Work"
+        assert spec.headers == {"Authorization": "Bearer secret-token"}
+        assert spec.allowed_tools == ["list_prs"]
+
+    @pytest.mark.anyio
+    async def test_a_custom_server_goes_by_its_name_and_a_dead_credential_by_nothing(self):
+        assert (await watched_connection_spec(AsyncMock(), _connection())).name == "github"
+        dead = _connection(auth_token="enc:not-valid-ciphertext")
+        assert await watched_connection_spec(AsyncMock(), dead) is None
 
 
 class TestAuthHeaders:

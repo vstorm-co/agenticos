@@ -207,6 +207,7 @@ class NightlyLook:
         ctx = AuthContext(user_id=user_id, organization_id=organization_id, role=member.role)
         reading = await self.thinker.think(
             ctx,
+            feature="nightly",
             output_type=NightlyReading,
             instructions=_INSTRUCTIONS,
             prompt=json.dumps(material, ensure_ascii=False, default=str),

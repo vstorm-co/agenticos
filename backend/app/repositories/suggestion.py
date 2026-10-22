@@ -22,6 +22,8 @@ async def propose(
     detail: str | None,
     payload: dict[str, Any],
     dedupe_key: str,
+    watch_id: UUID | None = None,
+    urgent: bool = False,
 ) -> Suggestion | None:
     """Record a proposal unless this person was already offered the same one.
 
@@ -42,6 +44,8 @@ async def propose(
             payload=payload,
             dedupe_key=dedupe_key,
             status=SuggestionStatus.OPEN.value,
+            watch_id=watch_id,
+            urgent=urgent,
         )
         .on_conflict_do_nothing(constraint="uq_suggestion_person_key")
         .returning(Suggestion.id)
@@ -119,3 +123,14 @@ async def decide(
     await db.flush()
     await db.refresh(suggestion)
     return suggestion
+
+
+async def titles_for_watch(db: AsyncSession, *, watch_id: UUID, limit: int) -> list[str]:
+    """What a watch reported lately, newest first - so its next look does not say it again."""
+    result = await db.execute(
+        select(Suggestion.title)
+        .where(Suggestion.watch_id == watch_id)
+        .order_by(Suggestion.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())

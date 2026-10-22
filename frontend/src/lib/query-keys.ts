@@ -471,6 +471,10 @@ export const qk = {
     list: () => ["slash-commands", "list"] as const,
   },
   // What the platform proposed to the signed-in person overnight (#2301).
+  watches: {
+    mine: () => ["watches"] as const,
+    presets: () => ["watches", "presets"] as const,
+  },
   suggestions: {
     mine: () => ["suggestions"] as const,
     // Under `mine`'s prefix, so an answer anywhere refreshes the history too.

@@ -8,7 +8,13 @@ import logging
 
 from app.db.session import get_db_context
 from app.services.proactive import ProactiveService
-from app.worker.jobs import InstallRolePack, ThinkForPerson, Tick, WelcomeMember
+from app.worker.jobs import (
+    InstallRolePack,
+    LookThroughWatch,
+    ThinkForPerson,
+    Tick,
+    WelcomeMember,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,17 @@ async def proactive_sweep(tick: Tick) -> int:
 async def think_for_person(payload: ThinkForPerson) -> int:
     async with get_db_context() as db:
         return await ProactiveService(db).think_for(payload.organization_id, payload.user_id)
+
+
+async def watch_sweep(tick: Tick) -> int:
+    """Queue a look for each watch whose time has come. Returns how many were queued."""
+    async with get_db_context() as db:
+        return await ProactiveService(db).sweep_watches(now=tick.scheduled_for)
+
+
+async def look_through_watch(payload: LookThroughWatch) -> int:
+    async with get_db_context() as db:
+        return await ProactiveService(db).look_through(payload.watch_id)
 
 
 async def install_role_pack(payload: InstallRolePack) -> int:

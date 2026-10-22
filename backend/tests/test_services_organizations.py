@@ -500,6 +500,9 @@ class TestOrganizationService:
             "proactive_timing": "fixed",
             "welcome_dm_enabled": False,
             "welcome_dm_text": None,
+            "proactive_watches_enabled": False,
+            "proactive_watch_servers": None,
+            "proactive_watch_min_minutes": 60,
         }
         values.update(overrides)
         return MagicMock(**values)
@@ -521,10 +524,77 @@ class TestOrganizationService:
                 "app.services.organization.organization_repo.set_welcome_dm",
                 new=AsyncMock(return_value=org),
             ) as welcome,
+            patch(
+                "app.services.organization.organization_repo.set_watch_policy",
+                new=AsyncMock(return_value=org),
+            ) as watch_policy,
             patch("app.services.organization.organization_repo.update", new=AsyncMock()),
         ):
             await service.update(uuid.uuid4(), data, requester_id=uuid.uuid4())
+        self.watch_policy = watch_policy
         return proactivity, welcome
+
+    @pytest.mark.anyio
+    async def test_watches_are_not_turned_on_without_a_model_either(self, service, mock_db):
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                service, self._stored(), OrganizationUpdate(proactive_watches_enabled=True)
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+
+    @pytest.mark.anyio
+    async def test_watches_on_with_the_servers_allowed_once_each_and_the_look_untouched(
+        self, service, mock_db
+    ):
+        org = self._stored(proactive_model_profile_id=uuid.uuid4())
+        proactivity, _ = await self._update(
+            service,
+            org,
+            OrganizationUpdate(
+                proactive_watches_enabled=True,
+                proactive_watch_servers=["linear", "github", "linear"],
+                proactive_watch_min_minutes=30,
+            ),
+        )
+
+        assert proactivity.await_args.kwargs["enabled"] is False
+        assert self.watch_policy.await_args.kwargs == {
+            "enabled": True,
+            "servers": ["github", "linear"],
+            "min_minutes": 30,
+        }
+
+    @pytest.mark.anyio
+    async def test_a_server_outside_the_catalog_is_refused_by_name(self, service, mock_db):
+        org = self._stored(proactive_model_profile_id=uuid.uuid4())
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                service, org, OrganizationUpdate(proactive_watch_servers=["github", "myspace"])
+            )
+
+        (problem,) = refused.value.details["fields"]
+        assert problem["field"] == "proactive_watch_servers"
+        assert "myspace" in problem["message"]
+
+    @pytest.mark.anyio
+    async def test_null_allows_every_server_and_leaving_it_out_keeps_the_list(
+        self, service, mock_db
+    ):
+        org = self._stored(
+            proactive_watches_enabled=True,
+            proactive_model_profile_id=uuid.uuid4(),
+            proactive_watch_servers=["github"],
+        )
+        await self._update(service, org, OrganizationUpdate(proactive_watch_servers=None))
+        assert self.watch_policy.await_args.kwargs["servers"] is None
+
+        await self._update(service, org, OrganizationUpdate(proactive_watch_min_minutes=120))
+        assert self.watch_policy.await_args.kwargs == {
+            "enabled": True,
+            "servers": ["github"],
+            "min_minutes": 120,
+        }
 
     @pytest.mark.anyio
     async def test_proactivity_is_not_turned_on_without_a_model_to_run_it_on(

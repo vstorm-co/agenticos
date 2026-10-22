@@ -1,5 +1,5 @@
 ---
-source_sha: "499218d7abd4"
+source_sha: "e07147daa46e"
 ---
 
 # Protección de datos { #data-protection }
@@ -94,6 +94,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Teams, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
 | `suggestions` | Lo que el [trabajo por iniciativa propia](governance.md#proactive-work) propuso a una persona, y si lo aceptó | La persona, un título y una línea de detalle sacados de sus peticiones recientes, el prompt de rutina o el perfil que fijaría, y una clave que impide volver a proponer algo descartado | Propuestas sobre las que decide la persona |
+| `watches` | Lo que una persona pidió al [trabajo por iniciativa propia](governance.md#proactive-work) vigilar en sus propias conexiones | La persona, cuál de sus conexiones, qué buscar y qué omitir con sus propias palabras, cada cuánto y cuándo revisó por última vez | Vigilancias que configura la persona |
 | `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) y cada transcripción: dictado, un mensaje de voz de un canal, la API, el dictado de un visitante en una página alojada o un widget | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó; en una transcripción también el proveedor y el modelo, el id de la clave del vault con la que se envió, por dónde llegó, el agent y el bot de canal para los que fue y la duración de la grabación. La fila de un mensaje de voz de un canal nombra a la persona con la que está vinculada la cuenta del remitente, y a nadie si el remitente no está vinculado. La fila de un visitante no nombra a nadie - ni al visitante, que no tiene cuenta, ni a quien publicó la página. Borrar a la persona, el agent, el bot o la clave quita el vínculo y conserva la fila - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credenciales y hacia dónde apuntan | Solo el cifrado sellado, con una pista; el provider, el modelo y la `base_url` en claro | Llegar a los providers. Consulta [Secretos](secrets.md) |

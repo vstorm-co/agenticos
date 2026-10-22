@@ -17,9 +17,11 @@ from app.schemas.user import WorkingHours
 from app.services.background_jobs import enqueue
 from app.worker.jobs import (
     INSTALL_ROLE_PACK,
+    LOOK_THROUGH_WATCH,
     THINK_FOR_PERSON,
     WELCOME_MEMBER,
     InstallRolePack,
+    LookThroughWatch,
     ThinkForPerson,
     WelcomeMember,
 )
@@ -102,6 +104,26 @@ class ProactiveService:
         from app.services.proactive._nightly import NightlyLook
 
         return await NightlyLook(self.db).look(organization_id, user_id)
+
+    async def sweep_watches(self, *, now: datetime) -> int:
+        """Queue a look for every watch whose time has come. Returns how many were queued."""
+        from app.services.proactive._watch import WatchLook
+
+        due = await WatchLook(self.db).due(now=now)
+        for watch in due:
+            await enqueue(
+                self.db,
+                LOOK_THROUGH_WATCH,
+                LookThroughWatch(watch_id=watch.id),
+                organization_id=watch.organization_id,
+            )
+        return len(due)
+
+    async def look_through(self, watch_id: UUID) -> int:
+        """One look through one watch's connection. Returns how many findings are new."""
+        from app.services.proactive._watch import WatchLook
+
+        return await WatchLook(self.db).look(watch_id)
 
     async def queue_role_pack(self, organization_id: UUID, user_id: UUID, pack_id: str) -> None:
         """Install a role pack the person accepted, in the background."""

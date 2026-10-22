@@ -1927,6 +1927,39 @@ class TestCapabilityRequested:
         assert written.calls == []
 
 
+class TestAnUrgentFinding:
+    """#2301: what a watch was asked to say at once, one row per finding."""
+
+    @pytest.mark.anyio
+    async def test_one_row_per_finding_with_its_title(self, written):
+        person, finding = uuid.uuid4(), uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+            await NotificationService(MagicMock()).finding(
+                organization_id=uuid.uuid4(),
+                user_id=person,
+                finding_id=finding,
+                title="Invoice from OVH is overdue",
+            )
+
+        (call,) = written.calls
+        assert call["event_type"] is NotificationEventType.FINDING
+        assert call["occurrence_id"] == str(finding)
+        assert call["summary"] == "Invoice from OVH is overdue"
+        assert "/dashboard" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_somebody_who_left_hears_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).finding(
+                organization_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                finding_id=uuid.uuid4(),
+                title="x",
+            )
+
+        assert written.calls == []
+
+
 class TestSuggestionsReady:
     """#2301: the night's proposals announced once, however many there are."""
 

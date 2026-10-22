@@ -36,6 +36,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.watch import Watch
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
@@ -249,6 +250,12 @@ async def suggestions_for(db: AsyncSession, user_id: UUID) -> list[Suggestion]:
     not made twice - held about them either way.
     """
     result = await db.execute(select(Suggestion).where(Suggestion.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def watches_of(db: AsyncSession, user_id: UUID) -> list[Watch]:
+    """What they asked the platform to watch in their connections, in their own words (#2301)."""
+    result = await db.execute(select(Watch).where(Watch.user_id == user_id))
     return list(result.scalars().all())
 
 

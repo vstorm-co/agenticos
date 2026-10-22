@@ -42,6 +42,9 @@ export interface ProactivityChanges {
   proactive_days?: number[];
   proactive_hour?: number;
   proactive_timing?: ProactiveTiming;
+  proactive_watches_enabled?: boolean;
+  proactive_watch_servers?: string[] | null;
+  proactive_watch_min_minutes?: number;
 }
 
 /** What the welcome-message settings send. */
@@ -87,6 +90,12 @@ export interface Organization {
   proactive_hour?: number;
   /** `before_work`: an hour before a person's working hours, else at `proactive_hour`. */
   proactive_timing?: ProactiveTiming;
+  /** Whether people may have their own connections watched (#2301). Off by default. */
+  proactive_watches_enabled?: boolean;
+  /** The catalog servers a watch may read, by key; `null` for every one. */
+  proactive_watch_servers?: string[] | null;
+  /** The most often any watch here may run, in minutes. */
+  proactive_watch_min_minutes?: number;
   /** Whether a new member gets a direct message from the chat-app bots. Off by default. */
   welcome_dm_enabled?: boolean;
   /** What that message says, or `null` for the built-in greeting. */

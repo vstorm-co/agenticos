@@ -23,8 +23,10 @@ import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
 import type { Organization, ProactiveTiming } from "@/types";
 import { Perm } from "@/types/permissions";
+import { WatchServerPicker } from "./watch-server-picker";
 
 /** The fields the server names in a refusal, so a message lands under its input. */
 const MODEL_FIELD = "proactive_model_profile_id";
@@ -44,6 +46,9 @@ interface Proactivity {
   days: number[];
   hour: number;
   timing: ProactiveTiming;
+  watches: boolean;
+  watchServers: string[] | null;
+  watchMinutes: number;
 }
 
 /** What the organization has saved, as the form edits it; "1.000000" reads as "1". */
@@ -55,6 +60,9 @@ function stored(org: Organization): Proactivity {
     days: org.proactive_days ?? [1, 2, 3, 4, 5],
     hour: org.proactive_hour ?? 5,
     timing: org.proactive_timing ?? "fixed",
+    watches: org.proactive_watches_enabled ?? false,
+    watchServers: org.proactive_watch_servers ?? null,
+    watchMinutes: org.proactive_watch_min_minutes ?? 60,
   };
 }
 
@@ -62,10 +70,11 @@ function stored(org: Organization): Proactivity {
  * What the platform does for people on its own initiative (#2301), and whether
  * it does it at all: off until an organization turns it on.
  *
- * Two settings with two owners. The nightly look spends money nobody asked for
- * in the moment, so it is `budgets:manage`'s, with the model it runs on chosen
- * rather than defaulted, the limit per person, and when it runs. The welcome
- * message in the chat apps spends nothing and is the organization's settings.
+ * Two settings with two owners. The nightly look and the watches over people's
+ * connections spend money nobody asked for in the moment, so they are
+ * `budgets:manage`'s, on one model chosen rather than defaulted and one limit per
+ * person. The welcome message in the chat apps spends nothing and is the
+ * organization's settings.
  */
 export function OrgProactivity({ org }: { org: Organization }) {
   const t = useTranslations("teams.proactive");
@@ -108,7 +117,7 @@ function NightlyForm({ org }: { org: Organization }) {
       setErrors({ [LIMIT_FIELD]: t("invalid") });
       return;
     }
-    if (form.enabled && form.modelId === null) {
+    if ((form.enabled || form.watches) && form.modelId === null) {
       setErrors({ [MODEL_FIELD]: t("modelRequired") });
       return;
     }
@@ -121,8 +130,11 @@ function NightlyForm({ org }: { org: Organization }) {
         proactive_days: form.days,
         proactive_hour: form.hour,
         proactive_timing: form.timing,
+        proactive_watches_enabled: form.watches,
+        proactive_watch_servers: form.watchServers,
+        proactive_watch_min_minutes: form.watchMinutes,
       });
-      toast.success(form.enabled ? t("saved") : t("off"));
+      toast.success(form.enabled || form.watches ? t("saved") : t("off"));
     } catch (failure) {
       const problem = submitFailure(failure, { fields: [MODEL_FIELD, LIMIT_FIELD] }, tErrors);
       setErrors(problem.fields);
@@ -146,7 +158,19 @@ function NightlyForm({ org }: { org: Organization }) {
           onCheckedChange={(enabled) => edit({ enabled })}
         />
       </div>
-      {form.enabled && (
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="org-proactive-watches">{t("watches")}</Label>
+          <p className="text-muted-foreground text-xs leading-relaxed">{t("watchesHint")}</p>
+        </div>
+        <Switch
+          id="org-proactive-watches"
+          checked={form.watches}
+          disabled={saving}
+          onCheckedChange={(watches) => edit({ watches })}
+        />
+      </div>
+      {(form.enabled || form.watches) && (
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label={t("model")}
@@ -186,6 +210,10 @@ function NightlyForm({ org }: { org: Organization }) {
               onChange={(event) => edit({ limit: event.target.value })}
             />
           </FormField>
+        </div>
+      )}
+      {form.enabled && (
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormField label={t("days")} htmlFor="org-proactive-days" className="sm:col-span-2">
             <div
               id="org-proactive-days"
@@ -260,11 +288,72 @@ function NightlyForm({ org }: { org: Organization }) {
           </FormField>
         </div>
       )}
+      {form.watches && (
+        <WatchPolicy
+          minutes={form.watchMinutes}
+          servers={form.watchServers}
+          disabled={saving}
+          onChange={edit}
+        />
+      )}
       {changed && (
         <Button onClick={save} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t("save")}
         </Button>
       )}
+    </div>
+  );
+}
+
+/** How often a watch may run at most here, and which servers it may read. */
+function WatchPolicy({
+  minutes,
+  servers,
+  disabled,
+  onChange,
+}: {
+  minutes: number;
+  servers: string[] | null;
+  disabled: boolean;
+  onChange: (next: Partial<Proactivity>) => void;
+}) {
+  const t = useTranslations("teams.proactive");
+  const tCadence = useTranslations("watches.cadence");
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <FormField
+        label={t("watchMinutes")}
+        htmlFor="org-watch-minutes"
+        description={t("watchMinutesHint")}
+      >
+        <Select
+          value={String(minutes)}
+          onValueChange={(value) => onChange({ watchMinutes: Number(value) })}
+          disabled={disabled}
+        >
+          <SelectTrigger id="org-watch-minutes">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {WATCH_INTERVALS.map((each) => (
+              <SelectItem key={each} value={String(each)}>
+                {cadenceLabel(each, tCadence)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+      <div className="space-y-2 sm:col-span-2">
+        <p id="org-watch-servers" className="text-sm font-medium">
+          {t("watchServers")}
+        </p>
+        <WatchServerPicker
+          labelledBy="org-watch-servers"
+          value={servers}
+          disabled={disabled}
+          onChange={(watchServers) => onChange({ watchServers })}
+        />
+      </div>
     </div>
   );
 }

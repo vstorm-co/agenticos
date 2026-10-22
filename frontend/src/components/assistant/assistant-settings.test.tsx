@@ -26,6 +26,9 @@ vi.mock("@/stores", () => ({
     pick({ activeOrgId: state.orgId }),
 }));
 // The person's suggestions are tested on their own; here only that they are offered.
+vi.mock("./your-watches", () => ({
+  YourWatches: () => <section aria-label="Watching your connections" />,
+}));
 vi.mock("./your-suggestions", () => ({
   YourSuggestions: () => <section aria-label="Suggestions for you" />,
 }));

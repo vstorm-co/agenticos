@@ -15,7 +15,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,6 +41,8 @@ class SuggestionKind(enum.StrEnum):
     """Save what the agent learned to the person's profile; `payload` has the fields."""
     ROLE_PACK = "role_pack"
     """Install the templates for the person's role; `payload` names the pack."""
+    FINDING = "finding"
+    """Something a `Watch` noticed in one of their connections; `payload` says where."""
 
 
 class SuggestionStatus(enum.StrEnum):
@@ -50,7 +60,8 @@ class Suggestion(Base, TimestampMixin):
             "organization_id", "user_id", "dedupe_key", name="uq_suggestion_person_key"
         ),
         CheckConstraint(
-            "kind IN ('routine', 'agent', 'profile', 'role_pack')", name="ck_suggestion_kind"
+            "kind IN ('routine', 'agent', 'profile', 'role_pack', 'finding')",
+            name="ck_suggestion_kind",
         ),
         CheckConstraint("status IN ('open', 'accepted', 'dismissed')", name="ck_suggestion_status"),
     )
@@ -75,6 +86,14 @@ class Suggestion(Base, TimestampMixin):
         String(16), nullable=False, default=SuggestionStatus.OPEN.value
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A finding's watch; deleting the watch takes what it found with it.
+    watch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("watches.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # A finding sent at once rather than kept for the morning briefing.
+    urgent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     def __repr__(self) -> str:
         return f"<Suggestion(kind={self.kind}, status={self.status}, user={self.user_id})>"

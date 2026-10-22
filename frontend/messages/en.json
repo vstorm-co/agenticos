@@ -1994,8 +1994,10 @@
         "routine": "Set it up",
         "agent": "Build it with the Architect",
         "profile": "Save to my profile",
-        "role_pack": "Add these routines"
-      }
+        "role_pack": "Add these routines",
+        "finding": "Done"
+      },
+      "open": "Open"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
     "turnLostAskAgain": "Ask again"
@@ -3773,7 +3775,8 @@
     "cardYours": "{count, plural, =1 {Your account} other {Your # accounts}}",
     "cardOrganizations": "{count, plural, =1 {The organization's account} other {The organization's # accounts}}",
     "cardYoursAndOrganizations": "Yours and the organization's",
-    "accountActions": "More for {name}"
+    "accountActions": "More for {name}",
+    "watchForMe": "Watch for me…"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -5683,7 +5686,9 @@
       "prefSuggestion": "Suggestions for you",
       "prefSuggestionTrigger": "AgenticOS noticed something worth setting up - a request you keep repeating, a role pack, your profile. At most once a day, to you.",
       "prefCapabilityRequested": "A capability asked for",
-      "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability."
+      "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
+      "prefFinding": "Urgent findings",
+      "prefFindingTrigger": "A watch over one of your connections found something you asked to hear about at once."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6488,7 +6493,16 @@
       "welcomeText": "Message",
       "welcomeTextHint": "Leave it empty for the built-in greeting in each person's language. '{organization}', '{bot}' and '{url}' are filled in.",
       "welcomeTextPlaceholder": "Welcome to '{organization}'! Ask me anything right here.",
-      "welcomeSaved": "Welcome message saved"
+      "welcomeSaved": "Welcome message saved",
+      "watches": "Watch people's connections",
+      "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
+      "watchMinutes": "Most often",
+      "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "watchServers": "Servers that may be watched",
+      "watchServersAll": "Every server",
+      "watchServersSome": "Only these",
+      "watchServersSearch": "Search servers",
+      "watchServersPicked": "{count, plural, =0 {None picked yet} =1 {1 picked} other {# picked}}"
     }
   },
   "theme": {
@@ -8439,5 +8453,142 @@
     "reduce": "Reduce",
     "full": "Full",
     "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
+  },
+  "watches": {
+    "title": "Watching your connections",
+    "description": "The assistant checks your own connected accounts on a schedule and tells you what is new. It only reads, and only you see what it finds.",
+    "orgOff": "Your organization has not turned watches on. An admin can do it on the organization's page, under Proactivity.",
+    "noConnections": "Connect one of your own accounts on the MCP servers page first - GitHub, Linear, your mailbox.",
+    "add": "Watch something",
+    "resumed": "Watching again",
+    "paused": "Paused",
+    "removed": "Stopped watching",
+    "rowDetail": "{connection} · {cadence}",
+    "urgentBadge": "Urgent at once",
+    "stopped": {
+      "watches_off": "Off for the organization",
+      "server_not_allowed": "Server not allowed",
+      "connection_disabled": "Connection off"
+    },
+    "activeLabel": "Watch {title}",
+    "editLabel": "Edit {title}",
+    "removeLabel": "Stop watching {title}",
+    "newTitle": "Watch something",
+    "editTitle": "Edit watch",
+    "dialogDescription": "What to look for in one of your accounts, and how often. It only reads; what it finds is for you alone.",
+    "connection": "Account",
+    "connectionPlaceholder": "Choose one of your connections",
+    "preset": "What to look for",
+    "custom": "Something else",
+    "name": "Name",
+    "instructions": "Look for",
+    "instructionsHint": "In plain words. Say when something counts as urgent.",
+    "instructionsPlaceholder": "For example: messages from customers waiting on my reply",
+    "howOften": "How often",
+    "urgent": "Tell me at once when it is urgent",
+    "urgentHint": "Otherwise what it finds waits for your morning briefing.",
+    "exclusions": "Leave out",
+    "exclusionsHint": "One line each: what you do not want reported again.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Start watching",
+    "saved": "Watch saved",
+    "created": "Watching - the first look is within a minute",
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Every minute} other {Every # minutes}}",
+      "everyHours": "{count, plural, =1 {Every hour} other {Every # hours}}",
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "presets": {
+      "mail-needs-reply": {
+        "title": "Mail waiting on my reply",
+        "instructions": "Unread mail written by a person that asks me something or waits on me. Leave out newsletters, notifications and receipts."
+      },
+      "mail-invoices": {
+        "title": "Invoices and overdue payments",
+        "instructions": "Invoices, payment reminders and anything that says a payment is due. Urgent when it is already past its due date."
+      },
+      "mail-newsletters": {
+        "title": "Newsletters I never open",
+        "instructions": "Newsletters and promotional senders I keep receiving and never open - worth unsubscribing from. Name the sender and how many arrived lately."
+      },
+      "github-reviews": {
+        "title": "Pull requests waiting on my review",
+        "instructions": "Pull requests where my review is requested and I have not reviewed yet. Say how long each has waited."
+      },
+      "github-failing-checks": {
+        "title": "Failing checks on my pull requests",
+        "instructions": "My own open pull requests whose checks are failing."
+      },
+      "github-mentions": {
+        "title": "Mentions I have not answered",
+        "instructions": "Issues and pull requests where I was mentioned or asked a question that I have not answered."
+      },
+      "gitlab-reviews": {
+        "title": "Merge requests waiting on me",
+        "instructions": "Merge requests waiting on my review or approval. Say how long each has waited."
+      },
+      "gitlab-pipelines": {
+        "title": "Failed pipelines",
+        "instructions": "Failed pipelines on my own open merge requests or on the default branch of projects I work in."
+      },
+      "linear-assigned": {
+        "title": "Issues assigned to me",
+        "instructions": "Issues newly assigned to me, or assigned to me and changed by somebody else since I last looked."
+      },
+      "linear-overdue": {
+        "title": "My overdue or blocked issues",
+        "instructions": "My issues that are past their due date or marked blocked."
+      },
+      "jira-assigned": {
+        "title": "Jira issues assigned to me",
+        "instructions": "Jira issues newly assigned to me, or assigned to me and commented on by somebody else."
+      },
+      "jira-overdue": {
+        "title": "My overdue Jira issues",
+        "instructions": "My Jira issues past their due date, or blocked."
+      },
+      "slack-unanswered": {
+        "title": "Slack messages waiting on me",
+        "instructions": "Direct messages and mentions of me that nobody - me included - has answered yet."
+      },
+      "teams-unanswered": {
+        "title": "Teams messages waiting on me",
+        "instructions": "Chats and channel messages mentioning me that I have not answered yet."
+      },
+      "notion-mentions": {
+        "title": "Notion mentions and comments",
+        "instructions": "Pages and comments where I was mentioned or a question waits on me."
+      },
+      "sentry-new-issues": {
+        "title": "New errors in my projects",
+        "instructions": "New errors and regressions in my projects. Urgent when one is affecting many users."
+      },
+      "pagerduty-incidents": {
+        "title": "Incidents waiting on me",
+        "instructions": "Open incidents assigned to me or my escalation policy, not yet acknowledged."
+      },
+      "hubspot-stale-deals": {
+        "title": "Deals going quiet",
+        "instructions": "My open deals with no activity for a week, or closing this week."
+      },
+      "intercom-waiting": {
+        "title": "Conversations waiting on my reply",
+        "instructions": "Conversations assigned to me that are waiting on a reply."
+      },
+      "asana-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      },
+      "todoist-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      },
+      "clickup-overdue": {
+        "title": "Tasks due today or overdue",
+        "instructions": "My tasks that are due today or overdue."
+      }
+    }
   }
 }

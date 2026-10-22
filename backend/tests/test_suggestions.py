@@ -41,6 +41,7 @@ def _suggestion(kind: str, payload: dict, *, status: str = "open") -> Suggestion
         payload=payload,
         dedupe_key=f"{kind}:x",
         status=status,
+        urgent=False,
         created_at=datetime.now(UTC),
     )
 

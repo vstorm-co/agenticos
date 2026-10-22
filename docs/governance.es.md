@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ef6e925387"
+source_sha: "ca8a0c59346e"
 ---
 
 # Governance { #governance }
@@ -524,6 +524,25 @@ limita el **límite de trabajo por iniciativa propia** de la organización - 1 $
 defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a la
 que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
 algo que leer.
+
+Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
+persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`), con
+el mismo modelo y dentro del mismo límite. Una persona elige una de sus propias
+conexiones MCP en **Ajustes → Asistente** o desde el menú de la cuenta en la
+página de servidores MCP, y dice qué buscar - una vigilancia hecha para ese
+servidor o sus propias palabras - y cada cuánto, nunca más a menudo de lo que
+permite la organización (`proactive_watch_min_minutes`, cada hora por defecto).
+La organización también puede limitar qué servidores del catálogo se pueden
+vigilar (`proactive_watch_servers`).
+
+Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
+las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así
+que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de la
+persona: una sugerencia de tipo `finding`, con la clave del id propio del
+elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
+una vigilancia configurada para avisar lo urgente al momento, que el modelo
+también juzgó urgente, se envía enseguida como notificación; el resto espera a la
+persona. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
 
 La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
 sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y

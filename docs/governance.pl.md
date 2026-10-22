@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ef6e925387"
+source_sha: "ca8a0c59346e"
 ---
 
 # Governance { #governance }
@@ -524,6 +524,24 @@ Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogran
 **limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej
 samej karcie (`proactive_limit_usd`). Osoba, u której nic nowego się nie
 wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czytać.
+
+**Obserwacje** kierują tę samą pracę na własne połączenia osoby. Włącza się je
+osobno na tej samej karcie (`proactive_watches_enabled`), działają na tym samym
+modelu i w tym samym limicie. Osoba wybiera jedno ze swoich połączeń MCP w
+**Ustawienia → Asystent** albo z menu konta na stronie serwerów MCP i mówi, czego
+szukać - gotowa obserwacja dla tego serwera albo jej własne słowa - i jak często,
+nigdy częściej, niż pozwala organizacja (`proactive_watch_min_minutes`, domyślnie
+co godzinę). Organizacja może też zawęzić, które serwery z katalogu wolno
+obserwować (`proactive_watch_servers`).
+
+Każdy przegląd to jeden run z powierzchni **proactive**, który dostaje tylko
+narzędzia oznaczone przez serwer jako tylko do odczytu (`readOnlyHint`), więc
+obserwacja niczego na koncie nie zmienia. To, co znajdzie, należy tylko do tej
+osoby: sugestia rodzaju `finding`, z kluczem z identyfikatora samej rzeczy, więc
+każda jest zgłaszana raz, z linkiem, żeby ją otworzyć. Znalezisko z obserwacji
+ustawionej na pilne od razu, które model też uznał za pilne, idzie od razu jako
+powiadomienie; reszta czeka na osobę. W odróżnieniu od rutyny obserwacja milczy,
+gdy nie ma nic nowego.
 
 Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i
 wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów

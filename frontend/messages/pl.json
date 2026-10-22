@@ -1994,8 +1994,10 @@
         "routine": "Ustaw",
         "agent": "Zbuduj z Architektem",
         "profile": "Zapisz w profilu",
-        "role_pack": "Dodaj te rutyny"
-      }
+        "role_pack": "Dodaj te rutyny",
+        "finding": "Załatwione"
+      },
+      "open": "Otwórz"
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie"
@@ -3543,7 +3545,8 @@
     "cardYours": "{count, plural, =1 {Twoje konto} few {Twoje # konta} many {Twoich # kont} other {Twoich # kont}}",
     "cardOrganizations": "{count, plural, =1 {Konto organizacji} few {# konta organizacji} many {# kont organizacji} other {# kont organizacji}}",
     "cardYoursAndOrganizations": "Twoje i organizacji",
-    "accountActions": "Więcej dla {name}"
+    "accountActions": "Więcej dla {name}",
+    "watchForMe": "Obserwuj dla mnie…"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",
@@ -5454,7 +5457,9 @@
       "prefSuggestion": "Propozycje dla ciebie",
       "prefSuggestionTrigger": "AgenticOS zauważył coś, co warto ustawić - prośbę, którą powtarzasz, pakiet dla twojej roli, twój profil. Najwyżej raz dziennie, do ciebie.",
       "prefCapabilityRequested": "Prośba o capability",
-      "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability."
+      "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability.",
+      "prefFinding": "Pilne znaleziska",
+      "prefFindingTrigger": "Obserwacja jednego z twoich połączeń znalazła coś, o czym chcesz wiedzieć od razu."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -6259,7 +6264,16 @@
       "welcomeText": "Treść",
       "welcomeTextHint": "Zostaw puste, by wysłać wbudowane powitanie w języku danej osoby. '{organization}', '{bot}' i '{url}' zostaną uzupełnione.",
       "welcomeTextPlaceholder": "Witaj w '{organization}'! Pytaj mnie o cokolwiek tutaj.",
-      "welcomeSaved": "Wiadomość powitalna zapisana"
+      "welcomeSaved": "Wiadomość powitalna zapisana",
+      "watches": "Obserwowanie połączeń ludzi",
+      "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
+      "watchMinutes": "Najczęściej",
+      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
+      "watchServers": "Serwery, które można obserwować",
+      "watchServersAll": "Wszystkie serwery",
+      "watchServersSome": "Tylko te",
+      "watchServersSearch": "Szukaj serwerów",
+      "watchServersPicked": "{count, plural, =0 {Jeszcze nic nie wybrano} =1 {Wybrano 1} few {Wybrano #} many {Wybrano #} other {Wybrano #}}"
     }
   },
   "theme": {
@@ -8224,5 +8238,142 @@
     "reduce": "Ograniczone",
     "full": "Pełne",
     "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
+  },
+  "watches": {
+    "title": "Obserwowanie twoich połączeń",
+    "description": "Asystent sprawdza twoje podłączone konta według harmonogramu i mówi, co nowego. Tylko czyta, a to, co znajdzie, widzisz tylko ty.",
+    "orgOff": "Twoja organizacja nie włączyła obserwacji. Administrator może to zrobić na stronie organizacji, w sekcji Proactivity.",
+    "noConnections": "Najpierw podłącz jedno ze swoich kont na stronie serwerów MCP - GitHub, Linear, skrzynkę pocztową.",
+    "add": "Obserwuj coś",
+    "resumed": "Znów obserwuję",
+    "paused": "Wstrzymano",
+    "removed": "Przestałem obserwować",
+    "rowDetail": "{connection} · {cadence}",
+    "urgentBadge": "Pilne od razu",
+    "stopped": {
+      "watches_off": "Wyłączone w organizacji",
+      "server_not_allowed": "Serwer niedozwolony",
+      "connection_disabled": "Połączenie wyłączone"
+    },
+    "activeLabel": "Obserwuj: {title}",
+    "editLabel": "Edytuj: {title}",
+    "removeLabel": "Przestań obserwować: {title}",
+    "newTitle": "Obserwuj coś",
+    "editTitle": "Edytuj obserwację",
+    "dialogDescription": "Czego szukać na jednym z twoich kont i jak często. Tylko czyta; to, co znajdzie, jest tylko dla ciebie.",
+    "connection": "Konto",
+    "connectionPlaceholder": "Wybierz jedno ze swoich połączeń",
+    "preset": "Czego szukać",
+    "custom": "Coś innego",
+    "name": "Nazwa",
+    "instructions": "Szukaj",
+    "instructionsHint": "Zwykłymi słowami. Napisz, kiedy coś jest pilne.",
+    "instructionsPlaceholder": "Na przykład: wiadomości od klientów, które czekają na moją odpowiedź",
+    "howOften": "Jak często",
+    "urgent": "Daj znać od razu, gdy coś jest pilne",
+    "urgentHint": "W przeciwnym razie to, co znajdzie, czeka na twój poranny briefing.",
+    "exclusions": "Pomijaj",
+    "exclusionsHint": "Po jednym w linii: czego nie chcesz więcej widzieć.",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "create": "Zacznij obserwować",
+    "saved": "Obserwacja zapisana",
+    "created": "Obserwuję - pierwszy przegląd w ciągu minuty",
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
+      "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",
+      "daily": "Codziennie",
+      "weekly": "Co tydzień"
+    },
+    "presets": {
+      "mail-needs-reply": {
+        "title": "Maile czekające na moją odpowiedź",
+        "instructions": "Nieprzeczytane maile od ludzi, w których ktoś o coś pyta albo na mnie czeka. Pomiń newslettery, powiadomienia i potwierdzenia."
+      },
+      "mail-invoices": {
+        "title": "Faktury i zaległe płatności",
+        "instructions": "Faktury, przypomnienia o płatności i wszystko, co mówi o terminie zapłaty. Pilne, jeśli termin już minął."
+      },
+      "mail-newsletters": {
+        "title": "Newslettery, których nie otwieram",
+        "instructions": "Newslettery i nadawcy promocji, od których ciągle coś przychodzi, a ja tego nie otwieram - do wypisania. Podaj nadawcę i ile ostatnio przyszło."
+      },
+      "github-reviews": {
+        "title": "Pull requesty czekające na moje review",
+        "instructions": "Pull requesty, w których poproszono mnie o review, a jeszcze go nie zrobiłem. Podaj, ile każdy czeka."
+      },
+      "github-failing-checks": {
+        "title": "Padające testy w moich pull requestach",
+        "instructions": "Moje otwarte pull requesty, w których padają testy lub checki."
+      },
+      "github-mentions": {
+        "title": "Wzmianki bez mojej odpowiedzi",
+        "instructions": "Issues i pull requesty, w których ktoś mnie oznaczył albo zadał pytanie, a ja nie odpowiedziałem."
+      },
+      "gitlab-reviews": {
+        "title": "Merge requesty czekające na mnie",
+        "instructions": "Merge requesty czekające na moje review albo zatwierdzenie. Podaj, ile każdy czeka."
+      },
+      "gitlab-pipelines": {
+        "title": "Nieudane pipeline'y",
+        "instructions": "Nieudane pipeline'y w moich otwartych merge requestach albo na głównej gałęzi projektów, w których pracuję."
+      },
+      "linear-assigned": {
+        "title": "Zadania przypisane do mnie",
+        "instructions": "Zadania świeżo przypisane do mnie albo moje zadania zmienione przez kogoś innego od ostatniego razu."
+      },
+      "linear-overdue": {
+        "title": "Moje zaległe lub zablokowane zadania",
+        "instructions": "Moje zadania po terminie albo oznaczone jako zablokowane."
+      },
+      "jira-assigned": {
+        "title": "Zgłoszenia Jira przypisane do mnie",
+        "instructions": "Zgłoszenia w Jira świeżo przypisane do mnie albo moje, które ktoś skomentował."
+      },
+      "jira-overdue": {
+        "title": "Moje zaległe zgłoszenia Jira",
+        "instructions": "Moje zgłoszenia w Jira po terminie albo zablokowane."
+      },
+      "slack-unanswered": {
+        "title": "Wiadomości na Slacku czekające na mnie",
+        "instructions": "Wiadomości prywatne i wzmianki o mnie, na które nikt, łącznie ze mną, jeszcze nie odpowiedział."
+      },
+      "teams-unanswered": {
+        "title": "Wiadomości w Teams czekające na mnie",
+        "instructions": "Czaty i wiadomości na kanałach, w których mnie oznaczono, a ja nie odpowiedziałem."
+      },
+      "notion-mentions": {
+        "title": "Wzmianki i komentarze w Notion",
+        "instructions": "Strony i komentarze, w których mnie oznaczono albo czeka na mnie pytanie."
+      },
+      "sentry-new-issues": {
+        "title": "Nowe błędy w moich projektach",
+        "instructions": "Nowe błędy i regresje w moich projektach. Pilne, jeśli dotykają wielu użytkowników."
+      },
+      "pagerduty-incidents": {
+        "title": "Incydenty czekające na mnie",
+        "instructions": "Otwarte incydenty przypisane do mnie albo mojej ścieżki eskalacji, jeszcze niepotwierdzone."
+      },
+      "hubspot-stale-deals": {
+        "title": "Szanse sprzedaży, które ucichły",
+        "instructions": "Moje otwarte szanse bez żadnej aktywności od tygodnia albo zamykające się w tym tygodniu."
+      },
+      "intercom-waiting": {
+        "title": "Rozmowy czekające na moją odpowiedź",
+        "instructions": "Rozmowy przypisane do mnie, które czekają na odpowiedź."
+      },
+      "asana-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      },
+      "todoist-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      },
+      "clickup-overdue": {
+        "title": "Zadania na dziś i zaległe",
+        "instructions": "Moje zadania z terminem na dziś albo po terminie."
+      }
+    }
   }
 }

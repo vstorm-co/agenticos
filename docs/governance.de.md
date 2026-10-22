@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ef6e925387"
+source_sha: "ca8a0c59346e"
 ---
 
 # Governance { #governance }
@@ -566,6 +566,26 @@ Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
 auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
 nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
 etwas zu lesen gibt.
+
+**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
+Person. Sie werden auf derselben Karte getrennt eingeschaltet
+(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
+Eine Person wählt unter **Einstellungen → Assistent** oder im Menü des Kontos auf
+der Seite der MCP-Server eine ihrer eigenen MCP-Verbindungen und sagt, wonach
+gesucht wird - eine fertige Beobachtung für diesen Server oder ihre eigenen Worte
+- und wie oft, nie häufiger, als die Organisation erlaubt
+(`proactive_watch_min_minutes`, standardmäßig stündlich). Die Organisation kann
+auch einschränken, welche Server aus dem Katalog beobachtet werden dürfen
+(`proactive_watch_servers`).
+
+Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
+werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
+Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
+ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
+sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
+Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
+dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf die
+Person. Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
 
 Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
 an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
