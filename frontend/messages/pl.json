@@ -9290,7 +9290,7 @@
       "working": "Czytam runy…",
       "improve": "Ulepsz",
       "verify": "Sprawdź moje zmiany",
-      "check": "Sprawdź evalami",
+      "check": "Sprawdź ewaluacją",
       "dismissAll": "Odrzuć wszystkie",
       "empty": "Asystent czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach i opisach narzędzi. Nic się nie zmienia, dopóki tego nie zaakceptujesz, i nic nie trafia do użytkowników, dopóki nie opublikujesz.",
       "verifyReport": "Co asystent sądzi o Twoich zmianach"
@@ -9300,10 +9300,10 @@
       "instructions": "Instrukcje",
       "fromVerify": "Ze sprawdzenia Twoich zmian",
       "status": {
-        "accepted": "Przyjęta do draftu",
+        "accepted": "Przyjęta do wersji roboczej",
         "dismissed": "Odrzucona"
       },
-      "stale": "Nie pasuje już do draftu",
+      "stale": "Nie pasuje już do wersji roboczej",
       "editLabel": "Twoje brzmienie sugestii",
       "saveAndAccept": "Zapisz i przyjmij",
       "cancel": "Anuluj",
@@ -9343,10 +9343,10 @@
       "cost": "Run kosztuje teraz około ${before}, a na proponowanym modelu ${after}; wycena z {runs, plural, one {# ostatniego runu} few {# ostatnich runów} many {# ostatnich runów} other {# ostatnich runów}}.",
       "unpriced": "Nie da się wycenić runu dla jednego z tych modeli.",
       "rough": "Szacunek przybliżony, z {runs, plural, =0 {zera runów} one {# runu} few {# runów} many {# runów} other {# runów}}.",
-      "writes": "Sięga po narzędzia, które coś zmieniają: {tools}. Eval je wstrzymuje, więc sprawdzenie nie zmierzy ich skutków.",
+      "writes": "Sięga po narzędzia, które coś zmieniają: {tools}. Ewaluacja je wstrzymuje, więc sprawdzenie nie zmierzy ich skutków.",
       "expects": "Oczekiwany efekt: {effect}",
       "blocked": {
-        "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź evalami na tych sugestiach.",
+        "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź ewaluacją na tych sugestiach.",
         "inconclusive": "Ostatnie sprawdzenie tego modelu niczego nie rozstrzygnęło. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
         "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę."
       }
@@ -9362,7 +9362,7 @@
         "published": "Decyzje o tych sugestiach trafiły do wersji, która jest już opublikowana."
       },
       "expected": "Oczekiwany efekt:",
-      "checks": "Sprawdzone evalami:",
+      "checks": "Sprawdzone ewaluacją:",
       "checkRun": "run {index}"
     },
     "verify": {
@@ -9377,26 +9377,26 @@
     "improve": {
       "improve": {
         "title": "Ulepsz tego agenta",
-        "body": "Asystent czyta oceniane i nieudane runy z ostatnich 30 dni - nigdy runy evali - i sugeruje zmiany. O każdej decydujesz Ty."
+        "body": "Asystent czyta oceniane i nieudane runy z ostatnich 30 dni - nigdy runy ewaluacji - i sugeruje zmiany. O każdej decydujesz Ty."
       },
       "verify": {
         "title": "Sprawdź swoje zmiany",
-        "body": "Asystent porównuje Twój draft z opublikowaną wersją na tych samych dowodach: co zmiany poprawiają, czym ryzykują i co usuwają."
+        "body": "Asystent porównuje Twoją wersję roboczą z opublikowaną wersją na tych samych dowodach: co zmiany poprawiają, czym ryzykują i co usuwają."
       },
       "quote": "Przeczyta {runs, plural, one {1 run} few {# runy} other {# runów}}, w tym {ratedDown} ocenionych negatywnie, w {calls, plural, one {1 wywołaniu} other {# wywołaniach}}, za około {cost}.",
       "reason": {
         "no_evidence": "Na razie nie ma z czego się uczyć: żaden run z ostatnich 30 dni nie został oceniony ani się nie udał.",
-        "no_draft_change": "Draft jest taki sam jak opublikowana wersja, więc nie ma czego sprawdzać."
+        "no_draft_change": "Wersja robocza jest taka sama jak opublikowana wersja, więc nie ma czego sprawdzać."
       },
       "overBudget": "To więcej, niż zostało w miesięcznym budgecie asystenta albo organizacji.",
       "cancel": "Anuluj",
       "start": "Uruchom"
     },
     "check": {
-      "title": "Sprawdź evalami",
-      "body": "Uruchamia dataset na drafcie z naniesionymi wszystkimi oczekującymi sugestiami, obok opublikowanej wersji. Case'y z rozmów, z których wzięły się sugestie, są pomijane. Sprawdzenie niczego nie przyjmuje.",
-      "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
-      "contextBody": "Uruchamia dataset na agencie, który używa pliku: po obu stronach jego opublikowana wersja, różni się tylko treść pliku. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
+      "title": "Sprawdź ewaluacją",
+      "body": "Uruchamia dataset na wersji roboczej z naniesionymi wszystkimi oczekującymi sugestiami, obok opublikowanej wersji. Przypadki z rozmów, z których wzięły się sugestie, są pomijane. Sprawdzenie niczego nie przyjmuje.",
+      "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Przypadki z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
+      "contextBody": "Uruchamia dataset na agencie, który używa pliku: po obu stronach jego opublikowana wersja, różni się tylko treść pliku. Przypadki z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
       "agent": "Agent, który używa tego skilla",
       "contextAgent": "Agent, który używa tego pliku",
       "agentPlaceholder": "Wybierz agenta",
@@ -9416,13 +9416,13 @@
       "improve": "Ulepsz z asystentem",
       "working": "Czytam runy…",
       "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
-      "check": "Sprawdź evalami"
+      "check": "Sprawdź ewaluacją"
     },
     "context": {
       "improve": "Ulepsz z asystentem",
       "working": "Czytam runy…",
-      "aiOff": "Asystent AI jest wyłączony w tej organizacji",
-      "check": "Sprawdź evalami",
+      "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
+      "check": "Sprawdź ewaluacją",
       "saveFirst": "Najpierw zapisz zmiany: asystent czyta plik w zapisanej wersji."
     },
     "contextChanges": {
@@ -9445,10 +9445,10 @@
       "discarded": "Odrzucono zmianę w {name}"
     },
     "describe": {
-      "label": "Albo opisz go, a {name} przygotuje draft razem z Tobą",
+      "label": "Albo opisz go, a {name} przygotuje wersję roboczą razem z Tobą",
       "placeholder": "Agent wsparcia, który odpowiada na pytania o zwroty na podstawie naszej polityki i przekazuje zdenerwowanych klientów człowiekowi.",
       "send": "Opisz go Architektowi",
-      "prompt": "Przygotuj dla mnie draft agenta: {description}"
+      "prompt": "Przygotuj dla mnie wersję roboczą agenta: {description}"
     },
     "rejected": {
       "title": "{count, plural, =1 {1 proponowana zmiana nie została zapisana} few {# proponowane zmiany nie zostały zapisane} many {# proponowanych zmian nie zostało zapisanych} other {# proponowanej zmiany nie zapisano}}",
@@ -9474,7 +9474,7 @@
         "weakens_protection": "Osłabiłaby zabezpieczenie",
         "unknown_capability": "Nie ma takiej capability",
         "invalid_config": "Jej ustawienia są niepoprawne",
-        "does_not_apply": "Nie pasuje do draftu",
+        "does_not_apply": "Nie pasuje do wersji roboczej",
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
         "dismissed_before": "Ktoś już ją wcześniej odrzucił",
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",

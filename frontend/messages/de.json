@@ -7661,7 +7661,7 @@
     "share": "Teilen",
     "delete": "Löschen",
     "shareTitle": "{name} teilen",
-    "shareBody": "Wer dieses Dataset sieht und wer seine Cases ändern darf.",
+    "shareBody": "Wer dieses Dataset sieht und wer seine Fälle ändern darf.",
     "noneShared": "Noch wurde nichts mit Ihnen geteilt",
     "noneSharedBody": "Bitten Sie den Besitzer eines Datasets, es mit Ihnen zu teilen. Ihre Rolle liest Datasets, legt aber keine an.",
     "role": {
@@ -9248,7 +9248,7 @@
         "create": "Suite anlegen"
       }
     },
-    "excludedEvidence": "{count, plural, =1 {1 Case wurde} other {# Cases wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
+    "excludedEvidence": "{count, plural, =1 {1 Fall wurde} other {# Fälle wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",
     "backToSkillChange": "Zurück zur Skill-Änderung",
     "backToContextChange": "Zurück zur Änderung der Kontextdatei"
@@ -9400,10 +9400,10 @@
       "instructions": "Anweisungen",
       "fromVerify": "Aus der Prüfung Ihrer Änderungen",
       "status": {
-        "accepted": "In den Draft übernommen",
+        "accepted": "In den Entwurf übernommen",
         "dismissed": "Verworfen"
       },
-      "stale": "Passt nicht mehr zum Draft",
+      "stale": "Passt nicht mehr zum Entwurf",
       "editLabel": "Ihre Fassung des Vorschlags",
       "saveAndAccept": "Speichern und annehmen",
       "cancel": "Abbrechen",
@@ -9481,12 +9481,12 @@
       },
       "verify": {
         "title": "Ihre Änderungen prüfen",
-        "body": "Der Assistent vergleicht Ihren Draft mit der veröffentlichten Version anhand derselben Belege: was die Änderungen verbessern, riskieren oder entfernen."
+        "body": "Der Assistent vergleicht Ihren Entwurf mit der veröffentlichten Version anhand derselben Belege: was die Änderungen verbessern, riskieren oder entfernen."
       },
       "quote": "Er liest {runs, plural, =1 {1 Run} other {# Runs}}, davon {ratedDown} negativ bewertet, in {calls, plural, =1 {1 Aufruf} other {# Aufrufen}}, für etwa {cost}.",
       "reason": {
         "no_evidence": "Noch nichts, woraus sich lernen lässt: kein Run der letzten 30 Tage wurde bewertet oder ist fehlgeschlagen.",
-        "no_draft_change": "Der Draft entspricht der veröffentlichten Version, es gibt also nichts zu prüfen."
+        "no_draft_change": "Der Entwurf entspricht der veröffentlichten Version, es gibt also nichts zu prüfen."
       },
       "overBudget": "Das ist mehr, als im Monatsbudget des Assistenten oder der Organisation übrig ist.",
       "cancel": "Abbrechen",
@@ -9494,9 +9494,9 @@
     },
     "check": {
       "title": "Mit Evals prüfen",
-      "body": "Führt ein Dataset gegen den Draft aus, wie er mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version. Cases aus den Gesprächen, aus denen die Vorschläge stammen, werden weggelassen. Durch die Prüfung wird nichts angenommen.",
-      "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
-      "contextBody": "Führt ein Dataset auf einem Agent aus, der die Datei nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt der Datei unterscheidet sich. Cases aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
+      "body": "Führt ein Dataset gegen den Entwurf aus, wie er mit allen wartenden Vorschlägen wäre, neben der veröffentlichten Version. Fälle aus den Gesprächen, aus denen die Vorschläge stammen, werden weggelassen. Durch die Prüfung wird nichts angenommen.",
+      "skillBody": "Führt ein Dataset auf einem Agent aus, der den Skill nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt des Skills unterscheidet sich. Fälle aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
+      "contextBody": "Führt ein Dataset auf einem Agent aus, der die Datei nutzt: auf beiden Seiten seine veröffentlichte Version, nur der Inhalt der Datei unterscheidet sich. Fälle aus den Gesprächen, aus denen die Änderung stammt, werden weggelassen. Durch die Prüfung wird nichts angewendet.",
       "agent": "Agent, der den Skill nutzt",
       "contextAgent": "Agent, der die Datei nutzt",
       "agentPlaceholder": "Agent wählen",
@@ -9574,7 +9574,7 @@
         "weakens_protection": "Sie würde eine Schutzmaßnahme schwächen",
         "unknown_capability": "Keine solche Capability",
         "invalid_config": "Ihre Einstellungen sind ungültig",
-        "does_not_apply": "Sie passt nicht zum Draft",
+        "does_not_apply": "Sie passt nicht zum Entwurf",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
         "dismissed_before": "Jemand hat sie schon verworfen",
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",

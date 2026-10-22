@@ -13,12 +13,10 @@ import pl from "./pl.json";
  * own nouns - agent, dataset, run, skill - stay English and are not matched.
  */
 
-/**
- * The namespaces an eval screen reads. The authoring assistant's copy is left out
- * while its card is being rewritten elsewhere.
- */
+/** The namespaces an eval screen reads, the authoring assistant's card among them. */
 const SCOPE = [
   "evals.",
+  "authoring.",
   "datasets.",
   "promotionGate.",
   "pages.runs.",
@@ -60,6 +58,7 @@ const MIXED: Record<"pl" | "de", Mixed[]> = {
     { pattern: /asystent(a|em|owi)? AI/i, use: "wsparcie AI" },
   ],
   de: [
+    { pattern: /\bcases?\b/i, use: "Fall" },
     { pattern: /\bdrafts?\b/i, use: "Entwurf" },
     { pattern: /\benvironments?\b/i, use: "Umgebung" },
     { pattern: /\bjudges?\b/i, use: "Bewerter" },
