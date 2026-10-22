@@ -359,6 +359,8 @@ def test_an_answer_whose_every_case_is_malformed_cannot_be_read() -> None:
         parse_output(json.dumps({"cases": [_MALFORMED, _MALFORMED]}), DraftedCases)
     with pytest.raises(ValidationError):
         parse_output(json.dumps({"cases": "two"}), DraftedCases)
+    with pytest.raises(ValidationError):
+        parse_output(json.dumps([_READABLE]), DraftedCases)
 
 
 def test_an_answer_with_no_cases_reads_as_nothing_drafted() -> None:
