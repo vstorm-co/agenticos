@@ -1,5 +1,5 @@
 ---
-source_sha: "1e994baf2ec5"
+source_sha: "ea0064ef1e2b"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -683,6 +683,24 @@ Eines liest sich notwendigerweise anders: ein Aufruf, der von einem MCP-Server
 kam, heißt im Dashboard *Linear · Create issue* und hier mit einem vermenschlichten
 Namen, denn die Zuordnung ist die Liste der Verbindungen der Organisation, und
 sie zu lesen braucht eine Session.
+
+**Ein generiertes Bild, gesprochene Sprache oder ein Video spielt auch auf der
+Seite** (#2309). Die Konsole liest eines über `/api/v1/generated/{filename}`, und
+das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket dem
+Ergebnis eines Aufrufs von `generate_image`, `generate_speech` oder
+`generate_video` beim Senden ein `token` hinzu, und die Seite liest die Datei über
+`/api/embed/<key>/generated/<file>?token=…`, das sie streamt und Byte-Bereiche für
+einen Player durchreicht.
+
+Das Token ist ein HMAC, unter dem `SECRET_KEY` des Deployments, über den Schlüssel
+der Seite, genau diese eine Datei und ein Ablaufdatum sechs Stunden voraus. Es
+öffnet nichts anderes: keine Datei einer anderen Unterhaltung, keine einer anderen
+Organisation, keinen anderen Namen. Ein falsches, abgelaufenes oder fehlendes Token
+bekommt dasselbe 404 wie eine fehlende Datei. Es wird hinzugefügt, wenn der Frame
+hinausgeht, also speichert das Transkript keines, und die Karte ist das Ergebnis
+dieses Schritts — sie erscheint nur, wo *Was jeder Schritt zurückgegeben hat* an
+ist. Eine Socket-Integration findet dieselbe Adresse im `url` des Payloads, als
+API-Pfad.
 
 **Ein Widget und ein rohes Socket tragen keine Schalter und bekommen diese
 Standardwerte**, abgelesen von `PageConfig` statt wiederholt — eine zweite Kopie

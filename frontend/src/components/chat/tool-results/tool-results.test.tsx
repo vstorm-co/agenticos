@@ -942,6 +942,23 @@ describe("the generated video", () => {
     });
   });
 
+  it("addresses every kind through the page's link on a hosted page (#2309)", () => {
+    const hosted = { kind: "hosted", publicKey: "pk_abc" } as const;
+    const token = `1792689903.${"c".repeat(64)}`;
+    const signed = (kind: string, filename: string) =>
+      JSON.stringify({ kind, filename, token, prompt: "x", voice: "marin" });
+
+    expect(parseGeneratedVideo(signed("generated_video", "a_video.mp4"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_video.mp4?token=${token}`,
+    );
+    expect(parseGeneratedSpeech(signed("generated_speech", "a_speech.mp3"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_speech.mp3?token=${token}`,
+    );
+    expect(parseGeneratedImage(signed("generated_image", "a_image.png"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_image.png?token=${token}`,
+    );
+  });
+
   it("has no URL when the clip was made but not stored", () => {
     expect(
       parseGeneratedVideo(JSON.stringify({ kind: "generated_video", filename: null })),

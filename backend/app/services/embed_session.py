@@ -61,6 +61,7 @@ import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -79,6 +80,7 @@ from app.schemas.agent_embed import EmbedVariable, PageConfig, WidgetConfig
 from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService
 from app.services.conversation import ConversationService
+from app.services.embed_generated_media import MEDIA_TOOLS, signed_media_result
 from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
@@ -419,6 +421,9 @@ class EmbedSession:
         self._supplied: dict[str, Any] = {}
         # Set once a send has timed out, and never cleared: see `_emit`.
         self._stalled = False
+        # The media tools this socket has seen called, by call id, so their
+        # results can carry a link this visitor can open - see `_emit`.
+        self._media_calls: dict[str, str] = {}
 
     async def greet(self) -> None:
         """Tell the client it is connected, and hand a returning visitor their thread.
@@ -722,6 +727,25 @@ class EmbedSession:
         governing = _PART_GOVERNED_BY.get(str(part_type))
         return governing is None or governing in self.shows
 
+    def _linked(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """A media tool's result, with a link to its file this visitor can open (#2309).
+
+        The console's address for a generated file needs a session, and a visitor
+        has none. Signed here, as the frame leaves, rather than where the result is
+        recorded: the transcript keeps what the tool returned, so no link is stored,
+        and only the socket that streamed the call is handed one. Keyed by the call
+        id the `tool_call` frame announced, so a result that merely *looks* like a
+        media payload - from a web page, an MCP server - is passed on untouched.
+        """
+        tool_name = self._media_calls.pop(str(payload.get("tool_call_id")), None)
+        content = payload.get("content")
+        if tool_name is None or not isinstance(content, str):
+            return payload
+        signed = signed_media_result(
+            self.embed.public_key, tool_name, content, now=datetime.now(UTC)
+        )
+        return {**payload, "content": signed}
+
     async def _emit(self, kind: str, payload: dict[str, Any]) -> None:
         """One frame out, in the envelope every socket on this platform uses.
 
@@ -745,6 +769,12 @@ class EmbedSession:
             names = source_names(payload.get("content"))
             if names:
                 await self._emit("sources", {"names": names})
+        if kind == "tool_call" and payload.get("tool_name") in MEDIA_TOOLS:
+            self._media_calls[str(payload.get("tool_call_id"))] = str(payload["tool_name"])
+        if kind == "tool_result":
+            # Before the filter, so a call whose result this page does not show is
+            # forgotten rather than held for the life of the socket.
+            payload = self._linked(payload)
         if self._stalled or kind not in self.shows:
             return
         if kind == "part_start" and not self._announces(payload.get("part_type")):

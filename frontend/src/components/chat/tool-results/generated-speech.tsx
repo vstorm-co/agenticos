@@ -2,28 +2,31 @@
 import { AudioLines } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { generatedMediaUrl, SESSION_SURFACE, type MediaSurface } from "@/lib/generated-media";
+
 export interface GeneratedSpeechPayload {
   /** The voice that spoke, shown under the player. */
   voice: string;
   /**
-   * Where the browser fetches the clip, through the same-origin proxy that
-   * forwards the session - `/api/generated/{filename}`. Null when the clip was
-   * made but not stored (a run with no organization to scope it to), in which
-   * case there is nothing to play.
+   * Where the browser fetches the clip, on the surface it is shown on - see
+   * `generatedMediaUrl`. Null when the clip was made but not stored (a run with no
+   * organization to scope it to), in which case there is nothing to play.
    */
   url: string | null;
 }
 
 /** Parse a structured `generate_speech` result, or null if it isn't one
  *  (an error string / other tool → caller falls back to the default renderer). */
-export function parseGeneratedSpeech(result: string): GeneratedSpeechPayload | null {
+export function parseGeneratedSpeech(
+  result: string,
+  surface: MediaSurface = SESSION_SURFACE,
+): GeneratedSpeechPayload | null {
   try {
     const p = JSON.parse(result);
     if (p && typeof p === "object" && p.kind === "generated_speech") {
-      const filename = typeof p.filename === "string" ? p.filename : null;
       return {
         voice: String(p.voice ?? ""),
-        url: filename === null ? null : `/api/generated/${filename}`,
+        url: generatedMediaUrl(p, surface),
       };
     }
   } catch {

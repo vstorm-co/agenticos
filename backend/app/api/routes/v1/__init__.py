@@ -52,6 +52,7 @@ from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import embed as embed_widget
+from app.api.routes.v1 import embed_generated_media
 from app.api.routes.v1 import members, organizations
 from app.api.routes.v1 import groups, directory_mappings, directory_auth
 from app.api.routes.v1.invitations import (
@@ -106,6 +107,7 @@ v1_router.include_router(agent_triggers.org_router, tags=["agents:triggers"])
 v1_router.include_router(trigger_webhooks.router, prefix="/webhooks", tags=["triggers:webhooks"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
+v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])

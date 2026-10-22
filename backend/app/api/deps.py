@@ -725,6 +725,18 @@ def get_agent_embed_service(db: DBSession) -> AgentEmbedService:
 
 EmbedSvc = Annotated[AgentEmbedService, Depends(get_agent_embed_service)]
 
+from app.services.embed_generated_media import EmbedGeneratedMediaService
+
+
+def get_embed_generated_media_service(db: DBSession) -> EmbedGeneratedMediaService:
+    """Create EmbedGeneratedMediaService instance with database session."""
+    return EmbedGeneratedMediaService(db)
+
+
+EmbedGeneratedMediaSvc = Annotated[
+    EmbedGeneratedMediaService, Depends(get_embed_generated_media_service)
+]
+
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
 

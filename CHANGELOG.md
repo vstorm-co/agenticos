@@ -75,6 +75,15 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
+- **Generated images, speech and video load on a hosted page.** A visitor
+  has no session, so the card for a file an agent generated asked an
+  authenticated route and showed a broken image or player. The page's socket
+  now adds a short-lived link to each such result, signed with the
+  deployment's existing secret for that one file on that page, and the page
+  reads the file through `/api/v1/embed/{public_key}/generated/{filename}`,
+  byte ranges included. A link opens no other file, conversation or
+  organization, and a bad or expired one gets the same 404 as a missing file
+  (#2309).
 
 ## [1.13.0] - 2026-10-22
 

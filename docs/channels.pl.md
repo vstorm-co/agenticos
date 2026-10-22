@@ -1,5 +1,5 @@
 ---
-source_sha: "1e994baf2ec5"
+source_sha: "ea0064ef1e2b"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -640,6 +640,21 @@ Jedna rzecz z konieczności czyta się inaczej: wywołanie, które przyszło z s
 MCP, nazywa się w dashboardzie *Linear · Create issue*, a tutaj nosi nazwę
 uczłowieczoną, bo mapowanie to lista połączeń organizacji, a jej odczytanie
 wymaga sesji.
+
+**Wygenerowany obraz, nagranie mowy lub wideo działa także na stronie** (#2309).
+Konsola czyta je przez `/api/v1/generated/{filename}`, co wymaga sesji, a
+odwiedzający jej nie ma. Dlatego socket, wysyłając wynik wywołania
+`generate_image`, `generate_speech` lub `generate_video`, dodaje do niego `token`,
+a strona czyta plik przez `/api/embed/<key>/generated/<file>?token=…`, który
+przesyła go strumieniowo i przepuszcza zakresy bajtów dla odtwarzacza.
+
+Token to HMAC, pod `SECRET_KEY` wdrożenia, klucza strony, tego jednego pliku i
+terminu ważności sześć godzin naprzód. Nie otwiera niczego innego: ani pliku z
+innej rozmowy, ani z innej organizacji, ani żadnej innej nazwy. Zły, wygasły lub
+brakujący token dostaje to samo 404 co brakujący plik. Jest dodawany, gdy ramka
+wychodzi, więc transkrypt go nie przechowuje, a karta jest wynikiem tego kroku —
+widać ją tylko tam, gdzie włączone jest *Co zwrócił każdy krok*. Integracja przez
+socket znajduje ten sam adres w polu `url` payloadu, jako ścieżkę API.
 
 **Widget i surowy socket nie niosą żadnych przełączników i dostają te domyślne
 wartości**, odczytywane z `PageConfig`, a nie powtarzane — druga kopia

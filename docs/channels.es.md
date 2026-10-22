@@ -1,5 +1,5 @@
 ---
-source_sha: "1e994baf2ec5"
+source_sha: "ea0064ef1e2b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -648,6 +648,23 @@ Una cosa se lee distinto por necesidad: una llamada que vino de un servidor MCP 
 llama *Linear · Create issue* en el dashboard y aquí lleva un nombre humanizado,
 porque el mapeo es la lista de conexiones de la organización y leerla requiere una
 sesión.
+
+**Una imagen, un audio de voz o un vídeo generados también se reproducen en la
+página** (#2309). La consola los lee a través de `/api/v1/generated/{filename}`,
+que necesita una sesión, y un visitante no la tiene. Por eso, al enviar el
+resultado de una llamada a `generate_image`, `generate_speech` o `generate_video`,
+el socket le añade un `token`, y la página lee el archivo a través de
+`/api/embed/<key>/generated/<file>?token=…`, que lo transmite en streaming y deja
+pasar los rangos de bytes para un reproductor.
+
+El token es un HMAC, bajo la `SECRET_KEY` del despliegue, de la clave de la
+página, ese único archivo y una caducidad a seis horas vista. No abre nada más: ni
+el archivo de otra conversación, ni el de otra organización, ni ningún otro nombre.
+Un token incorrecto, caducado o ausente recibe el mismo 404 que un archivo que no
+existe. Se añade cuando sale el frame, así que la transcripción no guarda ninguno,
+y la tarjeta es el resultado de ese paso: solo aparece donde *Qué devolvió cada
+paso* está activado. Una integración por socket encuentra la misma dirección en el
+`url` del payload, como ruta de la API.
 
 **Un widget y un socket en crudo no llevan interruptores y reciben estos valores
 por defecto**, leídos de `PageConfig` en vez de repetidos — una segunda copia de

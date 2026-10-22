@@ -2,28 +2,31 @@
 import { Clapperboard } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { generatedMediaUrl, SESSION_SURFACE, type MediaSurface } from "@/lib/generated-media";
+
 export interface GeneratedVideoPayload {
   /** What the clip shows, as the agent described it - the caption. */
   prompt: string;
   /**
-   * Where the browser fetches the clip, through the same-origin proxy that
-   * forwards the session - `/api/generated/{filename}`. Null when the clip was
-   * made but not stored (a run with no organization to scope it to), in which
-   * case there is nothing to play.
+   * Where the browser fetches the clip, on the surface it is shown on - see
+   * `generatedMediaUrl`. Null when the clip was made but not stored (a run with no
+   * organization to scope it to), in which case there is nothing to play.
    */
   url: string | null;
 }
 
 /** Parse a structured `generate_video` result, or null if it isn't one
  *  (an error string / other tool → caller falls back to the default renderer). */
-export function parseGeneratedVideo(result: string): GeneratedVideoPayload | null {
+export function parseGeneratedVideo(
+  result: string,
+  surface: MediaSurface = SESSION_SURFACE,
+): GeneratedVideoPayload | null {
   try {
     const p = JSON.parse(result);
     if (p && typeof p === "object" && p.kind === "generated_video") {
-      const filename = typeof p.filename === "string" ? p.filename : null;
       return {
         prompt: String(p.prompt ?? ""),
-        url: filename === null ? null : `/api/generated/${filename}`,
+        url: generatedMediaUrl(p, surface),
       };
     }
   } catch {

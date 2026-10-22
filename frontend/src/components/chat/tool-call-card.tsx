@@ -5,6 +5,7 @@ import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
+import { useMediaSurface } from "@/lib/generated-media";
 import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
@@ -151,25 +152,26 @@ export function ToolCallCard({
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
+  const mediaSurface = useMediaSurface();
   const generatedImage =
     renderer === "generated-image" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
-      ? parseGeneratedImage(toolCall.result)
+      ? parseGeneratedImage(toolCall.result, mediaSurface)
       : null;
 
   const generatedSpeech =
     renderer === "generated-speech" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
-      ? parseGeneratedSpeech(toolCall.result)
+      ? parseGeneratedSpeech(toolCall.result, mediaSurface)
       : null;
 
   const generatedVideo =
     renderer === "generated-video" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
-      ? parseGeneratedVideo(toolCall.result)
+      ? parseGeneratedVideo(toolCall.result, mediaSurface)
       : null;
 
   const publishedArtifact =
