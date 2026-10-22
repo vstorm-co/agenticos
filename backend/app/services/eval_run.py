@@ -72,6 +72,7 @@ from app.db.models.eval_suite import EvalSuiteTrigger
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    authoring_repo,
     dataset_repo,
     eval_run_repo,
     eval_suite_repo,
@@ -104,6 +105,7 @@ from app.schemas.eval_run import (
 )
 from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
 from app.schemas.scoring import CaseScoreRead, DatasetScoring
+from app.services import authoring_hunks
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
     AgentRegistryService,
@@ -1062,25 +1064,43 @@ class EvalRunService:
         """One run, and - for a run of the draft - whether the draft changed since.
 
         A check of suggestions made on an eval suite also says what that suite
-        would have said of it.
+        would have said of it. A check of an agent's suggestions tested the draft
+        they would make: the draft changed since once neither the draft nor the
+        draft with the suggestions still waiting is what it checked.
         """
         run = await self._readable(ctx, run_id)
         read = (await self._reads(ctx, [run]))[0]
         if run.suite_check is not None:
             read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
+        checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
         tested = next(
             (
                 arm
                 for arm in read.arms
-                if arm.role == ArmRole.CANDIDATE and arm.source == ArmSource.DRAFT
+                if arm.role == ArmRole.CANDIDATE
+                and (
+                    arm.source == ArmSource.DRAFT or (arm.source == ArmSource.EXPLICIT and checked)
+                )
             ),
             None,
         )
         if tested is None:
             return read
         agent = await self.registry.get(ctx, run.agent_id)
-        current = spec_hash(AgentSpec.model_validate(agent.draft_spec))
-        return read.model_copy(update={"draft_changed": current != tested.spec_hash})
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        changed = spec_hash(draft) != tested.spec_hash
+        if changed and tested.source == ArmSource.EXPLICIT:
+            changed = spec_hash(await self._with_waiting(ctx, agent, draft)) != tested.spec_hash
+        return read.model_copy(update={"draft_changed": changed})
+
+    async def _with_waiting(self, ctx: AuthContext, agent: Agent, draft: AgentSpec) -> AgentSpec:
+        """The draft with every suggestion still waiting on it made - what a check measures."""
+        org = ctx.organization_id
+        batch = await authoring_repo.get_open_batch(self.db, organization_id=org, agent_id=agent.id)
+        if batch is None:
+            return draft
+        hunks = await authoring_repo.list_hunks(self.db, organization_id=org, batch_id=batch.id)
+        return authoring_hunks.projection(draft, hunks)[0]
 
     async def _suite_check(
         self, ctx: AuthContext, run: EvalRun, read: EvalRunRead

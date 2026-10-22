@@ -15,7 +15,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -23,9 +23,11 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
+from app.db.models.authoring import BatchStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRunCase
+from app.repositories import authoring_repo
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import ProposalCheckRecord
@@ -192,6 +194,8 @@ async def test_a_check_is_the_drafts_test_once_the_draft_is_what_it_checked(db):
     started = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
 
     assert (await evals.list_for_agent(ctx, agent.id, draft="current")).items == []
+    # Waiting on the draft, the suggestions are still what the check measured.
+    assert (await evals.get(ctx, started.id)).draft_changed is False
     batch = (await service.for_agent(ctx, agent.id)).batch
     assert batch is not None
     for hunk in batch.hunks:
@@ -199,6 +203,7 @@ async def test_a_check_is_the_drafts_test_once_the_draft_is_what_it_checked(db):
     tested = await evals.list_for_agent(ctx, agent.id, draft="current")
     assert [run.id for run in tested.items] == [started.id]
     assert (await evals.list_for_agent(ctx, agent.id, draft="earlier")).items == []
+    assert (await evals.get(ctx, started.id)).draft_changed is False
 
     await db.refresh(agent)
     agent.draft_spec = {**agent.draft_spec, "description": "Edited after the check"}
@@ -206,6 +211,76 @@ async def test_a_check_is_the_drafts_test_once_the_draft_is_what_it_checked(db):
     assert (await evals.list_for_agent(ctx, agent.id, draft="current")).items == []
     earlier = await evals.list_for_agent(ctx, agent.id, draft="earlier")
     assert [run.id for run in earlier.items] == [started.id]
+    assert (await evals.get(ctx, started.id)).draft_changed is True
+
+
+async def test_a_check_measured_on_the_draft_is_never_the_drafts_test(db):
+    """Its baseline is the draft, so it says nothing of the draft against what is
+    published: a hand edit that broke a case would read as no change at Publish."""
+    ctx, agent, _ = await _setup(db)
+    agent.draft_spec = {**agent.draft_spec, "instructions": INSTRUCTIONS + CANADA}
+    await db.flush()
+    await _improve(db, ctx, agent, Improver(db))
+    dataset = await _shop_dataset(db, ctx)
+    service = AuthoringService(db)
+    evals = EvalRunService(db)
+    await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
+    batch = (await service.for_agent(ctx, agent.id)).batch
+    assert batch is not None
+    for hunk in batch.hunks:
+        await service.decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
+
+    assert (await evals.list_for_agent(ctx, agent.id, draft="current")).items == []
+    await db.refresh(agent)
+    agent.draft_spec = {**agent.draft_spec, "description": "Edited after the check"}
+    await db.flush()
+    assert (await evals.list_for_agent(ctx, agent.id, draft="earlier")).items == []
+
+
+async def test_a_check_whose_suggestions_were_all_dismissed_tested_no_draft(db):
+    ctx, agent, _ = await _setup(db)
+    await _improve(db, ctx, agent, Improver(db))
+    dataset = await _shop_dataset(db, ctx)
+    service = AuthoringService(db)
+    started = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
+    batch = (await service.for_agent(ctx, agent.id)).batch
+    assert batch is not None
+    for hunk in batch.hunks:
+        await service.decide(ctx, agent.id, hunk.id, HunkDecision(action="dismiss"))
+    await db.refresh(agent)
+    agent.draft_spec = {**agent.draft_spec, "description": "Edited by hand"}
+    await db.flush()
+
+    evals = EvalRunService(db)
+    assert (await evals.list_for_agent(ctx, agent.id, draft="earlier")).items == []
+    assert (await evals.get(ctx, started.id)).draft_changed is True
+    # Once the suggestions are closed, the draft alone is what moved.
+    open_batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert open_batch is not None
+    await authoring_repo.close_batch(db, batch=open_batch, status=BatchStatus.SUPERSEDED)
+    assert (await evals.get(ctx, started.id)).draft_changed is True
+
+
+async def test_an_agent_never_published_is_checked_against_its_draft(db):
+    ctx, agent, _ = await _setup(db)
+    await _improve(db, ctx, agent, Improver(db))
+    await db.execute(delete(AgentVersion).where(AgentVersion.agent_id == agent.id))
+    agent.current_version_id = None
+    agent.status = "draft"
+    await db.flush()
+    dataset = await _shop_dataset(db, ctx)
+
+    started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
+
+    assert started.proposal_check == ProposalCheckRecord(
+        kind="agent", base_version=None, on_draft=True, suggestions=2
+    )
+    assert [(arm.role, arm.source) for arm in started.arms] == [
+        ("candidate", "explicit"),
+        ("baseline", "draft"),
+    ]
 
 
 @pytest.mark.security

@@ -450,7 +450,6 @@ class AuthoringRun:
 
     async def _verify(self) -> None:
         agent = await self._target_agent()
-        # The draft's base is the latest published version, whatever production runs.
         version = (
             None
             if agent is None
