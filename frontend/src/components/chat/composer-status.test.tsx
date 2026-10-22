@@ -1,11 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ComposerStatus } from "./composer-status";
-
-vi.mock("@/components/onboarding/restart-tour-button", () => ({
-  RestartTourButton: () => <button type="button">page help</button>,
-}));
 
 describe("ComposerStatus", () => {
   it("draws nothing for a live connection, and still reads it aloud", () => {
@@ -20,17 +16,18 @@ describe("ComposerStatus", () => {
 
   it("draws the word when the connection is gone", () => {
     // A composer that cannot send otherwise looks the same as one that can.
-    render(<ComposerStatus isConnected={false} />);
+    render(<ComposerStatus isConnected={false} compact />);
 
     const status = screen.getByRole("status");
     expect(status.className).not.toContain("sr-only");
-    expect(screen.getByText("Offline").className).toContain("text-destructive");
+    expect(status).toHaveTextContent("Offline");
+    expect(status.className).toContain("text-destructive");
   });
 
-  it("carries the page help and no disclaimer (#2301)", () => {
-    render(<ComposerStatus isConnected />);
+  it("carries no disclaimer and no page help (#2301)", () => {
+    render(<ComposerStatus isConnected={false} />);
 
-    expect(screen.getByRole("button", { name: "page help" })).toBeVisible();
     expect(screen.queryByText(/AI can make mistakes/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

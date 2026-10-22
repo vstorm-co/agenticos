@@ -298,7 +298,8 @@ It drops numbered pins in order, joins them with a dashed line, offers Pause and
 Replay, and lays the stops out as cards under the map; clicking a pin or a card
 jumps to it. Your instructions say whether this deployment has map tiles: with
 them it is a real map with its credit under it, without them an outline of the
-stops - say so if the person expects streets. Pass `labels` in the person's
+stops. Without tiles, say so in your answer - not as a note inside the drawing -
+with the reason your instructions give. Pass `labels` in the person's
 language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
 and the photo's `credit` and `creditUrl` - show the author and the licence for
 every photo you did not make. Two to twelve stops read best.
