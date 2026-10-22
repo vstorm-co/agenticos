@@ -38,8 +38,9 @@ export function ComposerStatus({
         "text-muted-foreground/80 flex items-center justify-center gap-1.5 px-1 leading-none",
         compact ? "mt-1 h-4 text-[10px]" : "mt-1 h-5 text-[11px]",
         // A phone's chat ends at the composer, as a messenger's does: the line
-        // under it is there only to say the connection is gone.
-        isConnected && "max-md:hidden",
+        // under it shows only to say the connection is gone. Folded rather
+        // than hidden, so a screen reader still hears the connection's state.
+        isConnected && "max-md:mt-0 max-md:h-0",
       )}
     >
       <span role="status" className={isConnected ? "sr-only" : "contents"}>
