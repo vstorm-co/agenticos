@@ -8,7 +8,7 @@ description: "Compare Dify and AgenticOS, two self-hosted AI agent platforms: li
 
 Both products self-host and both do document retrieval, so the difference is elsewhere. Dify is a visual canvas for LLM apps and workflows, with multi-workspace tenancy, SSO and audit logs in its Enterprise edition. AgenticOS is Apache-2.0 and multi-tenant in the open-source product, with budgets, approvals, directory sign-in and a tamper-evident audit log included.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
 
 ## At a glance
 
@@ -17,13 +17,13 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | How you build | A visual canvas of workflow, chatflow and agent nodes | Instructions, a model profile, capabilities, collections and a budget, published as a version |
 | Licence | Dify Open Source License: Apache 2.0 with added conditions | Apache-2.0; see [bundled component licences](../licenses.md) |
 | Tenancy | One workspace; several workspaces are Enterprise | Many organizations in one deployment |
-| Roles | Four built-in roles; custom roles are Enterprise | Six roles, 27 permissions and per-resource grants for people and groups |
+| Roles | Four built-in roles; custom roles are Enterprise | Six roles, 33 permissions and per-resource grants for people and groups |
 | Sign-in | Email; SSO is Enterprise | Email, Google, OIDC SSO, LDAP and Kerberos, with directory group mappings |
 | Audit | Enterprise | Tamper-evident audit log with CSV and JSONL export |
 | Spend control | Provider billing, or Cloud message credits | A monthly budget per agent and per organization, checked before each model request |
-| Human approval | A Human Input node in a workflow | Approval per capability and per tool for capability tools; the run parks until someone decides. MCP tools are not gated per tool |
+| Human approval | A Human Input node in a workflow | Approval per capability and per tool, and an approval policy per MCP connection (none, writes or all); the run parks until someone decides |
 | Surfaces | Web app, embed, API, MCP server; Slack through a plugin | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Kubernetes | Community Helm charts; official high availability is Enterprise | Docker Compose on one host |
+| Kubernetes | Community Helm charts; official high availability is Enterprise | Docker Compose on one host; an external Postgres and more API hosts and workers are [documented](../scaling.md), with no Kubernetes manifests |
 
 ## Where AgenticOS goes further
 
@@ -52,7 +52,7 @@ AgenticOS checks each agent's [monthly budget](../governance.md#budgets) and the
 
 ### Approval on the tool, not only in the flow
 
-Dify's Human Input node pauses a workflow and sends a form, and the request closes after the first response. In AgenticOS an [approval](../governance.md#approvals) is set per capability and can be overridden per tool. It covers capability tools; an MCP tool is gated only when a web-chat conversation asks about everything. The run parks, the people you choose are [alerted](../governance.md#alerts), and a second decision on a decided approval is refused.
+Dify's Human Input node pauses a workflow and sends a form, and the request closes after the first response. In AgenticOS an [approval](../governance.md#approvals) is set per capability and can be overridden per tool. An MCP connection has its own [policy](../mcp.md#which-calls-wait-for-a-person): none, writes or all. The run parks, the people you choose are [alerted](../governance.md#alerts), and a second decision on a decided approval is refused.
 
 ### A change a business team can make
 

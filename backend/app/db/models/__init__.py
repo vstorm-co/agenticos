@@ -81,6 +81,7 @@ from app.db.models.artifact import (
     ArtifactMediaType,
     ArtifactVersion,
 )
+from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.db.models.visual import Visual
 
 __all__ = [
@@ -183,4 +184,6 @@ __all__ = [
     "DeliveryStatus",
     "NotificationChannelPreference",
     "Announcement",
+    "VoiceCall",
+    "VoiceEndReason",
 ]

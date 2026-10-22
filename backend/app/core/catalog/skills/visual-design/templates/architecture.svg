@@ -1,18 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 120 960 360" role="img" aria-labelledby="title desc">
   <title id="title">Request path</title>
   <desc id="desc">A browser calls the console, the console calls the API, the API runs the agent, which calls the model; the database and the queue sit beside the API.</desc>
   <style>
-    :root { --bg: #ffffff; --ink: #18181b; --muted: #71717a; --line: #d4d4d8; --box: #f4f4f5; --accent: #2563eb; --accent-soft: #dbeafe; }
+    :root { --ink: #18181b; --muted: #71717a; --line: #d4d4d8; --box: #f4f4f5; --focus: #18181b; --on-focus: #fafafa; }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #18181b; --ink: #fafafa; --muted: #a1a1aa; --line: #3f3f46; --box: #27272a; --accent: #60a5fa; --accent-soft: #1e3a5f; }
+      :root { --ink: #fafafa; --muted: #a1a1aa; --line: #3f3f46; --box: #27272a; --focus: #fafafa; --on-focus: #18181b; }
     }
-    .bg { fill: var(--bg) }
-    .title { fill: var(--ink); font: 700 26px system-ui, -apple-system, "Segoe UI", sans-serif }
-    .subtitle { fill: var(--muted); font: 400 15px system-ui, -apple-system, "Segoe UI", sans-serif }
     .zone { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 6 }
-    .zone-label { fill: var(--muted); font: 600 12px system-ui, sans-serif; letter-spacing: .04em }
-    .box { fill: var(--box); stroke: var(--line); stroke-width: 1.5 }
-    .box-focus { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2 }
+    .zone-label { fill: var(--muted); font: 500 13px system-ui, sans-serif }
+    .box { fill: var(--box) }
+    .box-focus { fill: var(--focus) }
+    .label.on-focus, .note.on-focus { fill: var(--on-focus) }
     .label { fill: var(--ink); font: 600 15px system-ui, sans-serif; text-anchor: middle }
     .note { fill: var(--muted); font: 400 13px system-ui, sans-serif; text-anchor: middle }
     .wire { fill: none; stroke: var(--muted); stroke-width: 1.75 }
@@ -25,12 +23,8 @@
     </marker>
   </defs>
 
-  <rect class="bg" width="960" height="540"/>
-  <text class="title" x="48" y="64">Request path</text>
-  <text class="subtitle" x="48" y="92">What happens between a question and its answer</text>
-
   <rect class="zone" x="296" y="136" width="616" height="352" rx="16"/>
-  <text class="zone-label" x="316" y="160">DEPLOYMENT</text>
+  <text class="zone-label" x="316" y="160">Deployment</text>
 
   <rect class="box" x="48" y="240" width="176" height="80" rx="12"/>
   <text class="label" x="136" y="276">Browser</text>
@@ -41,8 +35,8 @@
   <text class="note" x="408" y="298">Next.js</text>
 
   <rect class="box-focus" x="560" y="240" width="160" height="80" rx="12"/>
-  <text class="label" x="640" y="276">API</text>
-  <text class="note" x="640" y="298">FastAPI</text>
+  <text class="label on-focus" x="640" y="276">API</text>
+  <text class="note on-focus" x="640" y="298">FastAPI</text>
 
   <rect class="box" x="752" y="240" width="136" height="80" rx="12"/>
   <text class="label" x="820" y="276">Agent run</text>

@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
 
@@ -595,13 +597,49 @@ class Settings(BaseSettings):
     # what one integration can do to the deployment; a run or an ML call is
     # additionally counted against its own, smaller limit.
     RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Voice previews per person per minute (#54): the Builder's ▶ beside a voice.
+    # Each uncached one is a short paid session on the organization's realtime
+    # provider, outside every model budget.
+    RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE: int = 6
+    # Dictations a visitor may send from a hosted page or a widget, per minute
+    # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
+    # by the token's subject. Each one is a paid call to the organization's
+    # speech-to-text provider, outside every model budget.
+    RATE_LIMIT_EMBED_DICTATION_PER_MINUTE: int = 6
+    # Dictations one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked or public link costs: this many
+    # recordings a minute, each at most the organization's longest dictation.
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
+    # Voice calls one address may start on a hosted page or a widget, per minute
+    # (#54). Each is a paid realtime session, so it is counted before the key is
+    # looked up, the way dictation is.
+    RATE_LIMIT_EMBED_VOICE_PER_MINUTE: int = 3
+    # Voice calls one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked link costs: this many calls a minute,
+    # each at most the organization's longest call, within its monthly minutes.
+    RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE: int = 6
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
     # image: behind a proxy every visitor arrives as the proxy and shares one
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
+    # Map tiles one address may fetch through this deployment in a minute (#2302).
+    # A map is a few dozen tiles and panning adds more; the bound is what keeps
+    # the deployment from being anybody's free proxy to its tile server.
+    RATE_LIMIT_MAP_TILES_PER_MINUTE: int = 600
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
+    # Concurrent voice calls one person may hold (#54). One by default: a second
+    # tab's call is almost always a mistake, and each is billed.
+    VOICE_MAX_CALLS_PER_USER: int = 1
+    # Concurrent voice calls one hosted page or widget may hold, from everybody
+    # together (#54). Visitors have no account to count against, so this is what
+    # stops a leaked link from spending the organization's monthly minutes - and
+    # with them every member's calls - in parallel.
+    VOICE_MAX_CALLS_PER_EMBED: int = 3
 
     # The background workers (`python -m app.worker`, #2219). Each process serves
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
@@ -768,6 +806,25 @@ class Settings(BaseSettings):
     # request it makes is answered by the deployment or refused. Empty sends a
     # drawing's title instead of its picture.
     VISUAL_RENDER_CDP_URL: str = ""
+
+    # The tile server a drawing's map is drawn on (#2302): a preset -
+    # `openstreetmap`, `usgs-topo` - or a https URL template with {z}, {x} and
+    # {y}, which then needs VISUAL_MAP_TILES_ATTRIBUTION. Every visual and
+    # published page may then load images from that server's tile path, and
+    # nothing else remote. Empty draws a map as a plain outline. See
+    # `app/core/map_tiles.py`.
+    VISUAL_MAP_TILES: str = ""
+    VISUAL_MAP_TILES_ATTRIBUTION: str = ""
+
+    def map_tiles(self) -> MapTiles | None:
+        """The tile server a drawing's map uses, or `None` when the deployment names none."""
+        return resolve_map_tiles(self.VISUAL_MAP_TILES, self.VISUAL_MAP_TILES_ATTRIBUTION)
+
+    @model_validator(mode="after")
+    def validate_map_tiles(self) -> Settings:
+        """A tile setting that cannot be served is refused at startup, not at the first map."""
+        self.map_tiles()
+        return self
 
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses

@@ -1,11 +1,22 @@
 "use client";
 
-import { BookOpen, FileSearch, Mail, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  Calculator,
+  FileSearch,
+  Mail,
+  MapPinned,
+  Plane,
+  Sparkles,
+  Table2,
+} from "lucide-react";
 
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
+import { useMentionables } from "@/hooks/use-mentionables";
+import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
 
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
@@ -16,6 +27,18 @@ const PROMPTS = [
   { icon: BookOpen, id: "concept" },
   { icon: Mail, id: "email" },
   { icon: Sparkles, id: "brainstorm" },
+] as const;
+
+/**
+ * The openers for an agent that can draw (#2302): one per kind of answer it can
+ * give beyond text - explain, compare, make a tool, follow a trip - so the first
+ * thing a person sees is what the agent can do. Words under `empty.visual<Id>*`.
+ */
+const VISUAL_PROMPTS = [
+  { icon: Plane, id: "visualExplain" },
+  { icon: Table2, id: "visualCompare" },
+  { icon: Calculator, id: "visualTool" },
+  { icon: MapPinned, id: "visualMap" },
 ] as const;
 
 interface ChatEmptyStateProps {
@@ -33,6 +56,9 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const { agents } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
   const description = agent?.description?.trim();
+  // The list the composer reads for `@`, so it is usually in hand already.
+  const { items } = useMentionables(agent ? agent.id : null);
+  const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
 
   return (
     <ChatWelcome
@@ -60,7 +86,7 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
           t("lead")
         )
       }
-      suggestions={PROMPTS.map((p) => ({
+      suggestions={(draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
         key: p.id,
         icon: p.icon,
         title: t(`${p.id}Title`),

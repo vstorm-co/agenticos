@@ -35,6 +35,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
 from app.agents.capabilities.budget import BudgetExceeded
+from app.api.embed_cors import embed_cors_headers
 from app.core.exceptions import AppException, ValidationError
 from app.core.field_errors import request_field_problems
 from app.core.middleware import security_headers_for_error
@@ -165,6 +166,9 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
         retry_after = (exc.details or {}).get("retry_after_seconds")
         if isinstance(retry_after, int):
             headers["Retry-After"] = str(retry_after)
+    # A widget on somebody else's site has to be able to read why it was refused
+    # - see `app.api.embed_cors`. Empty on every other request.
+    headers.update(embed_cors_headers(request))
 
     return _envelope(
         status_code=exc.status_code,
@@ -318,12 +322,13 @@ async def http_exception_handler(
     if _is_websocket(request):
         return None
 
+    headers = {**(exc.headers or {}), **embed_cors_headers(request)}
     return _envelope(
         status_code=status_code,
         code=_http_error_code(status_code),
         message=detail if isinstance(detail, str) and detail else phrase,
         details=None if isinstance(detail, str) or detail is None else {"detail": detail},
-        headers=dict(exc.headers) if exc.headers else None,
+        headers=headers or None,
     )
 
 

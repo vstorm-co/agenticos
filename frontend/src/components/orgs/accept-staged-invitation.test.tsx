@@ -1,5 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render as renderBare, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useOrgStore } from "@/stores/org-store";
 
 import { AcceptStagedInvitation } from "./accept-staged-invitation";
 
@@ -15,7 +19,13 @@ vi.mock("@/lib/invitation-staging", () => ({
   acceptStagedInvitation: (flow: string | null) => acceptStaged(flow),
 }));
 
+/** The card refetches the organization list after an accept, so it needs a client. */
+function render(ui: ReactElement) {
+  return renderBare(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
+}
+
 afterEach(() => {
+  useOrgStore.setState({ activeOrgId: null });
   vi.clearAllMocks();
   vi.useRealTimers();
   searchParams.value = new URLSearchParams();
@@ -27,7 +37,7 @@ describe("closing a staged invitation after sign-in", () => {
     // what says which of them this tab is closing.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     searchParams.value = new URLSearchParams({ flow: "0123456789abcdef0123456789abcdef" });
-    acceptStaged.mockResolvedValue(undefined);
+    acceptStaged.mockResolvedValue("org-acme");
 
     render(<AcceptStagedInvitation />);
     screen.getByRole("button", { name: /accept/i }).click();
@@ -36,6 +46,7 @@ describe("closing a staged invitation after sign-in", () => {
       expect(acceptStaged).toHaveBeenCalledWith("0123456789abcdef0123456789abcdef"),
     );
     await screen.findByText(/joined/i);
+    expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
 
     vi.advanceTimersByTime(2000);
     expect(push).toHaveBeenCalledWith("/orgs");

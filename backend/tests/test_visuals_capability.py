@@ -23,6 +23,7 @@ from pydantic_ai.workspaces import WorkspaceError
 from app.agents.capabilities import _registry as registry
 from app.agents.capabilities.artifacts._toolset import ArtifactEdit
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, Visuals, web_reach
+from app.agents.capabilities.visuals._capability import maps_line
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import (
     DELEGATED,
@@ -35,6 +36,7 @@ from app.agents.capabilities.visuals._toolset import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.visual_reports import MAX_ERRORS, VisualReport, VisualReports
+from app.core.config import settings
 from app.repositories.conversation import ToolCallArgs
 from app.services.visual import MAX_IMAGES, VisualSummary
 
@@ -830,7 +832,21 @@ class TestWebReach:
 
     async def test_a_run_outside_a_conversation_is_told_of_no_earlier_visuals(self) -> None:
         instructions = Visuals().get_instructions()
-        assert await instructions(_ctx(_deps(run_id=None))) == ""
+        assert await instructions(_ctx(_deps(run_id=None))) == maps_line()
+
+    def test_without_map_tiles_the_model_is_told_a_map_is_an_outline(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "")
+        assert "no map tiles" in maps_line()
+
+    def test_with_map_tiles_the_model_is_told_whose_and_warned_off_inventing_routes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "usgs-topo")
+        line = maps_line()
+        assert "USGS The National Map tiles" in line
+        assert "never present the line between stops as directions" in line
 
     async def test_earlier_visuals_are_named_once_per_run(self) -> None:
         earlier = [
@@ -852,6 +868,7 @@ class TestWebReach:
             first = await capability.get_instructions()(ctx)
             second = await capability.get_instructions()(ctx)
 
+        assert first.startswith(maps_line())
         assert "- `a` - Flow (svg)" in first
         assert "- `b` - Flow (svg, a revision of `a`)" in first
         assert second == first
@@ -862,7 +879,7 @@ class TestWebReach:
             "app.agents.capabilities.visuals._capability.visuals.conversation_of_run",
             new=AsyncMock(return_value=None),
         ):
-            assert await Visuals().get_instructions()(_ctx()) == ""
+            assert await Visuals().get_instructions()(_ctx()) == maps_line()
 
 
 class TestReports:

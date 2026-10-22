@@ -1,5 +1,5 @@
 ---
-source_sha: "4eeacc219cad"
+source_sha: "f89434252ef2"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -342,6 +342,15 @@ sie verstanden waren:
   `pull_request` bekommt ein schreibgeschütztes Token, wenn Dependabot ihn
   ausgelöst hat, ganz gleich was sein `permissions`-Block sagt, also kann er das
   Ergebnis nicht zurückpushen.
+
+**Dependabot kann das Backend nicht lesen, solange es Python 3.15 verlangt.**
+Sein uv-Job bricht an der Zeile `requires-python` ab, öffnet also keine Pull
+Requests für das Backend - den Lock bewegt `make deps-upgrade` von Hand -, und
+seine Alerts würden weiter die zuvor gesperrten Versionen abgleichen. Deshalb
+übermittelt `.github/workflows/dependency-graph.yml` den Graphen selbst: Bei
+jedem Push auf `main`, der `backend/uv.lock` ändert, listet
+`scripts/dependency_snapshot.py` jede gesperrte Version, und Alerts öffnen und
+schließen sich an diesen.
 
 ## Reviews { #reviews }
 

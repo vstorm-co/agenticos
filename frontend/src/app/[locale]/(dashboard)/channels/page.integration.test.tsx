@@ -48,32 +48,72 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     step_display: "timeline",
     rate_answers: true,
     connection: null,
+    transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
+    speech_to_text_secret_id: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
   };
 }
 
+/** The vault as the key field reads it: one organization-wide OpenAI key, one private. */
+const SECRETS = [
+  {
+    id: "team-openai",
+    name: "Team OpenAI",
+    kind: "api_key",
+    hint: "abcd",
+    purpose: "openai",
+    visibility: "org",
+  },
+  {
+    id: "mine-openai",
+    name: "My OpenAI",
+    kind: "api_key",
+    hint: "wxyz",
+    purpose: "openai",
+    visibility: "private",
+  },
+];
+
 function serve(bots: ChannelBot[]) {
-  // By URL: the dialogs now also fetch the speech-to-text catalog, and a single
-  // resolved value would answer that with a list of bots.
+  // By URL: the dialogs now also fetch the speech-to-text catalog and the
+  // vault, and a single resolved value would answer those with a list of bots.
   vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-    path.startsWith("/providers/speech-to-text-models")
-      ? {
-          items: [
-            {
-              provider: "openai",
-              name: "OpenAI",
-              models: [
-                { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+    path === "/secrets"
+      ? { items: SECRETS, total: SECRETS.length }
+      : path === "/secrets/kinds"
+        ? { items: [] }
+        : path.startsWith("/providers/speech-to-text-models")
+          ? {
+              items: [
+                {
+                  provider: "openai",
+                  name: "OpenAI",
+                  models: [
+                    { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+                  ],
+                },
               ],
-            },
-          ],
-          total: 1,
-        }
-      : { items: bots, total: bots.length },
+              total: 1,
+            }
+          : path.startsWith("/channels/bots/")
+            ? // The edit form reads its one bot for what "inherit" resolves to.
+              {
+                ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
+                inherited_speech_to_text: {
+                  provider: "openai",
+                  model: "whisper-1",
+                  language: null,
+                  pair_source: "agent",
+                  language_source: null,
+                  agent_name: "Support",
+                  has_key: true,
+                },
+              }
+            : { items: bots, total: bots.length },
   );
 }
 
@@ -248,6 +288,51 @@ describe("the channels page", () => {
         rate_answers: true,
       }),
     );
+  });
+
+  it("registers a bot that does not listen, or one with a pair of its own", async () => {
+    // Inherit is the server's default and sends nothing; the other two say so.
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(bot());
+    await mount();
+
+    for (const [choice, sent] of [
+      ["Off", { transcribe_voice_notes: false }],
+      [
+        "Choose",
+        {
+          speech_to_text_provider: "openai",
+          speech_to_text_model: "whisper-1",
+          // The one organization-wide key, picked by itself and sent explicitly.
+          speech_to_text_secret_id: "team-openai",
+        },
+      ],
+    ] as const) {
+      await userEvent.click(
+        (await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!,
+      );
+      await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
+      await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
+      await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
+      // Transcription waits under More options, beside the answer style.
+      await userEvent.click(screen.getByRole("button", { name: "More options" }));
+      await userEvent.click(screen.getByRole("radio", { name: choice }));
+      await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenLastCalledWith("/channels/bots", {
+          platform: "mattermost",
+          name: "Acme Support",
+          token: "a-long-enough-token",
+          api_base_url: "https://mattermost.acme.com",
+          ack_reaction: null,
+          stream_answers: true,
+          step_display: "timeline",
+          rate_answers: true,
+          ...sent,
+        }),
+      );
+    }
   });
 
   it("will not register a Mattermost bot without its server", async () => {
@@ -447,39 +532,98 @@ describe("the channels page", () => {
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
-    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
-    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Choose" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${jarvis.id}`, {
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
+        speech_to_text_secret_id: "team-openai",
       }),
     );
   });
 
-  it("clears both halves when transcription is turned off", async () => {
+  it("shows a refused key under the key field", async () => {
+    const jarvis = bot({ platform: "telegram", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    const { ApiError } = await import("@/lib/api-error");
+    vi.mocked(apiClient.patch).mockRejectedValue(
+      new ApiError(400, "That key is for groq", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "That key is for groq",
+          details: {
+            fields: [{ field: "speech_to_text_secret_id", message: "That key is for groq" }],
+          },
+        },
+      }),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Choose" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("That key is for groq")).toBeVisible();
+  });
+
+  it("says what inheriting resolves to, from the bot's own read", async () => {
+    serve([bot({ platform: "telegram", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(await screen.findByText("OpenAI · whisper-1, from agent Support")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/channels/bots/b1");
+  });
+
+  it("returns a bot with its own pair to inherit by clearing the pair", async () => {
+    // A null pair inherits now; it used to be how a bot was switched off.
     const listening = bot({
       platform: "telegram",
       name: "Jarvis",
       api_base_url: null,
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "team-openai",
     });
     serve([listening]);
     vi.mocked(apiClient.patch).mockResolvedValue(listening);
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
-    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
-    await userEvent.click(await screen.findByRole("option", { name: "Do not transcribe" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Inherit" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
         speech_to_text_provider: null,
         speech_to_text_model: null,
+      }),
+    );
+  });
+
+  it("turns transcription off with the switch, which clears the pair", async () => {
+    const listening = bot({
+      platform: "telegram",
+      name: "Jarvis",
+      api_base_url: null,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "team-openai",
+    });
+    serve([listening]);
+    vi.mocked(apiClient.patch).mockResolvedValue(listening);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Off" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
+        transcribe_voice_notes: false,
       }),
     );
   });

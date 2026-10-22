@@ -846,12 +846,47 @@ class TestThePlatformScript:
 
     @pytest.mark.security
     def test_it_asks_the_parent_and_never_opens_anything_itself(self) -> None:
-        script = artifacts.PLATFORM_SCRIPT
+        script = artifacts.platform_script()
         assert "agenticos:open-link" in script
         assert "parent.postMessage" in script
         assert "location.assign" not in script
         assert "window.open = function" in script
         assert 'url.protocol === "http:" || url.protocol === "https:"' in script
+
+    @pytest.mark.security
+    def test_a_follow_up_is_only_ever_asked_for_and_only_where_the_host_takes_one(self) -> None:
+        """#2302: the page posts a request; nothing in it sends a message itself."""
+        script = artifacts.platform_script()
+        assert 'post({ type: "agenticos:follow-up", text: message })' in script
+        assert 'post({ type: "agenticos:hello" })' in script
+        # Off until the parent - and only the parent - says it takes follow-ups.
+        assert "var host = { followUp: false };" in script
+        assert "event.source !== parent" in script
+        assert f"message.length > {artifacts.FOLLOW_UP_MAX_CHARS}" in script
+        assert "if (!host.followUp" in script
+
+    def test_a_deployment_without_tiles_tells_a_page_there_is_no_map(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "")
+        assert "var MAP = null;" in artifacts.platform_script()
+
+    @pytest.mark.security
+    def test_a_page_is_told_the_deployment_s_tile_path_never_the_server_or_its_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            artifacts.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png?key=secret"
+        )
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES_ATTRIBUTION", "</script> & co")
+        script = artifacts.platform_script()
+        assert f'"url": "{artifacts.tile_source()}{{z}}/{{x}}/{{y}}"' in script
+        assert "t.example" not in script
+        assert "secret" not in script
+        assert '"maxZoom": 18' in script
+        # Written into a script element: an attribution cannot close it.
+        assert "<\\/script> & co" in script
+        assert script.count("</script>") == 1
 
 
 class TestAgentFilter:

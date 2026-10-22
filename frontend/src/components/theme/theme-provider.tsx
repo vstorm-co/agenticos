@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { prefersReducedMotion } from "@/lib/motion";
 import { useThemeStore, getResolvedTheme } from "@/stores/theme-store";
 
 interface ThemeProviderProps {
@@ -23,19 +24,24 @@ function applyTheme(resolved: "light" | "dark") {
  * Four cases go without the sweep, each for its own reason: the first paint
  * (there is no previous theme on the root to sweep away from - animating it
  * would wipe the page against itself on every load), a browser without the
- * View Transitions API, a reader who asked for reduced motion, and a tab that is
- * not on screen - the system turning dark at dusk, or another tab changing the
- * theme, while this one is in the background. There the browser skips the
- * transition and rejects its `ready`, which surfaced as an unhandled error.
+ * View Transitions API, a reader who asked for reduced motion - at the operating
+ * system or in their Motion preference - and a tab that is not on screen - the
+ * system turning dark at dusk, or another tab changing the theme, while this one
+ * is in the background. There the browser skips the transition and rejects its
+ * `ready`, which surfaced as an unhandled error.
  */
 function applyThemeAnimated(resolved: "light" | "dark") {
   const root = document.documentElement;
   if (root.classList.contains(resolved)) return;
 
   const firstPaint = !root.classList.contains("light") && !root.classList.contains("dark");
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const hidden = document.visibilityState !== "visible";
-  if (firstPaint || reducedMotion || hidden || document.startViewTransition === undefined) {
+  if (
+    firstPaint ||
+    prefersReducedMotion() ||
+    hidden ||
+    document.startViewTransition === undefined
+  ) {
     applyTheme(resolved);
     return;
   }

@@ -2,6 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { prefersReducedMotion } from "@/lib/motion";
+
 /** How long a frame waits before painting more text: ~30 fps, enough to read as flow. */
 const FRAME_MS = 32;
 /**
@@ -10,12 +12,6 @@ const FRAME_MS = 32;
  * fraction of a second behind the stream whatever its speed, and eases into the end.
  */
 const CATCH_UP = 0.1;
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
-}
 
 /**
  * How much text a bubble may open on and still flow in from nothing. A fast model

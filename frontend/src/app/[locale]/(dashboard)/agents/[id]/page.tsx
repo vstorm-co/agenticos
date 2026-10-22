@@ -69,6 +69,7 @@ import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
+import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
@@ -1403,6 +1404,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 />
               </CardContent>
             </Card>
+
+            <VoiceCard
+              value={spec.speech_to_text}
+              onChange={(speech_to_text) => update({ speech_to_text })}
+              conversation={{
+                agentId: id,
+                value: spec.voice,
+                onChange: (voice) => update({ voice }),
+                hasGuardrails: spec.capabilities.some(
+                  (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                ),
+              }}
+              disabled={!canEdit}
+            />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same role-level `canEdit` every other

@@ -267,3 +267,32 @@ describe("the composer's editor", () => {
     }).not.toThrow();
   });
 });
+
+describe("the editor's selection", () => {
+  it("reads the selection inside it, and falls back to where it was left otherwise", () => {
+    const handle = createRef<ComposerEditorHandle>();
+    render(<Harness initial="hello world" handle={handle} />);
+    const text = box().firstChild!;
+    const select = (node: Node, from: number, to: number) => {
+      const range = document.createRange();
+      range.setStart(node, from);
+      range.setEnd(node, to);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
+
+    select(text, 0, 5);
+    expect(handle.current!.selection()).toEqual({ from: 0, to: 5 });
+
+    // Leaving the box - for the `+` menu, say - keeps where the selection was.
+    fireEvent.blur(box());
+    const outside = screen.getByRole("button", { name: "outside" }).firstChild!;
+    select(outside, 0, 3);
+    expect(handle.current!.selection()).toEqual({ from: 0, to: 5 });
+
+    // Nothing selected anywhere: still the place it was left.
+    window.getSelection()!.removeAllRanges();
+    expect(handle.current!.selection()).toEqual({ from: 0, to: 5 });
+  });
+});

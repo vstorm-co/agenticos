@@ -289,8 +289,10 @@ async def test_cancellation_tears_the_subprocess_down(
         convert_to_pdf(tmp_path / "slow.doc", tmp_path, timeout_seconds=60)
     )
     pids = tmp_path / "pids.txt"
+    # Until it holds the pid, not until it exists: `write_text` creates the file
+    # before it writes, and a loaded runner can read it in between.
     for _ in range(500):
-        if pids.exists():
+        if pids.exists() and pids.read_text():
             break
         await asyncio.sleep(0.02)
     task.cancel()

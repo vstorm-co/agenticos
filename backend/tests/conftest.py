@@ -138,6 +138,20 @@ def _forget_mcp_answers() -> Generator[None]:
     _answered.clear()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rate_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give every test its own per-process rate floor.
+
+    `consume_floored` counts in a process global whenever no limiter is
+    configured, which is every unit test. Calls made under one test's caller
+    address would otherwise fill the window another test on the same worker
+    opens, and refuse it with a 4029 it never earned.
+    """
+    from app.services import rate_limit
+
+    monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+
 @pytest.fixture
 def sole_source_run() -> Generator[None]:
     """Grant `_run_source_sync` its per-source lock without a database.

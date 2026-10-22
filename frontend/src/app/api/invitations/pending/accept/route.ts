@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal, forwardedFor } from "@/lib/server-api";
 import { INVITATION_FLOW_PARAM, isInvitationFlow, stageCookieName } from "@/lib/invitation-links";
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!handle) return bffRefusal("INVITATION_NOT_FOUND", 404);
 
   try {
-    await backendFetch("/api/v1/invitations/staged/accept", {
+    const accepted = await backendFetch("/api/v1/invitations/staged/accept", {
       method: "POST",
       headers: {
         ...forwardedFor(request),
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         "X-Invitation-Handle": handle,
       },
     });
-    const response = new NextResponse(null, { status: 204 });
+    const response = bffJson(accepted);
     response.cookies.delete(cookieName);
     return response;
   } catch (error) {

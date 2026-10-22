@@ -1,5 +1,5 @@
 ---
-source_sha: "64760597cdc5"
+source_sha: "94cd032fa02a"
 ---
 
 # Architektur { #architecture }
@@ -136,8 +136,8 @@ Eine Route fordert `DBSession` an (`app/api/deps.py`), was `get_db_session`
 auflöst (`app/db/session.py`). Alles unterhalb der Route teilt sich diese eine
 Session: Services nehmen sie in ihrem Konstruktor, Repositories als erstes
 Argument, und keines von beiden ruft je `commit()` auf — mit einer bewussten
-Ausnahme, dem Pfad eines Agent-Runs, [unten](#the-run-paths-two-commits)
-beschrieben. `flush()` sendet die Statements, sodass die Zeile eine Id hat und die
+Ausnahme, dem Pfad eines Agent-Runs und dem Sprachanruf, der einer ist,
+[unten](#the-run-paths-two-commits) beschrieben. `flush()` sendet die Statements, sodass die Zeile eine Id hat und die
 Constraints geprüft sind; der Commit passiert einmal, auf dem Weg hinaus.
 
 **Auf dem Weg hinaus heißt: bevor die Antwort geschrieben wird.** Der Alias
@@ -236,6 +236,30 @@ den niemand geradesteht.
 
 Beide Grenzen sind gegen eine echte Datenbank in
 `tests/integration/test_run_commit_boundary.py` nachgewiesen.
+
+**Ein Sprachanruf ist ein Run und behält dieselben zwei Commits** ([#54][54]).
+Ein Anruf hält sein Socket bis zu fünfzig Minuten, also committet er dort, wo
+der Run-Pfad committet, und schreibt alles dazwischen über eigene Sessions:
+
+- `VoiceCallStarter.start` committet einmal, sobald jede Ablehnung passiert ist,
+  mit der Zeile in `voice_calls` und ihrem Run, beide geschrieben, bevor der
+  Provider aufgerufen wird. Freigabezeilen, der Heartbeat und der Voice-Sweep
+  brauchen diese Zeilen aus anderen Sessions lesbar; eine Ablehnung vor diesem
+  Punkt rollt alles zurück, sodass ein abgelehnter Anruf nichts in Activity
+  hinterlässt.
+- Jede gespeicherte Runde, jeder 15-Sekunden-Heartbeat und jedes Schreiben einer
+  Freigabe öffnet eine eigene `get_db_context()`-Session und committet dort, nie
+  auf der gemeinsamen Session des Runs - eine Runde ist dauerhaft, sobald sie
+  gesagt ist, und ein Absturz verliert höchstens die laufende Runde.
+- Der Abbau von `VoiceCallSession`, ein abgeschirmtes `finally`, hält das Ende
+  in der Zeile des Anrufs fest, legt dann den Anruf beim Provider auf, schließt
+  den Run ab und committet erneut - der abschließende Commit, auf jedem Weg
+  hinaus. Das Ende kommt zuerst, damit eine Wiederverbindung, die darauf wartet,
+  nicht auch noch das Auflegen abwartet.
+
+`tests/test_voice_starter.py::test_a_started_call_is_committed_with_its_row_and_a_voice_run`
+und `tests/test_voice_session.py::test_every_exit_path_hangs_up_the_provider_call`
+halten die beiden Enden fest.
 
 ### Der eine andere frühe Commit { #the-one-other-early-commit }
 
@@ -339,6 +363,7 @@ Job schon. Siehe [Einen Hintergrund-Task hinzufügen](howto/add-background-task.
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
+[54]: https://github.com/vstorm-co/agenticos/issues/54
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
@@ -421,7 +446,7 @@ Transaktion der Anfrage selbst:
   auf Org-Sichtbarkeit, sodass das Null, das das Cascade schreibt, zulässig ist und
   der Schlüssel für die Organisation erreichbar bleibt, statt gestrandet zu sein.
 - **Die Organisationen eines Erstellers.** `organizations.created_by_user_id` ist
-  `RESTRICT`, und jede Registrierung erzeugt eine persönliche Org, ein blankes
+  `RESTRICT`, und eine Registrierung erzeugt standardmäßig eine persönliche Org, ein blankes
   `DELETE users` hat für ein echtes Konto also nie funktioniert. Die persönliche Org
   wird mit ihrem Besitzer entfernt; eine geteilte wird an einen anderen Besitzer
   übergeben, oder die Löschung wird abgelehnt, wenn es niemanden gibt, dem sie zu

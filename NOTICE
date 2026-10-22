@@ -14,8 +14,9 @@ frontend/src/lib/brand-glyphs.generated.ts contains SVG path data for the brand
 marks the console draws, fetched by frontend/scripts/gen-brand-icons.ts from:
 
   Simple Icons      https://simpleicons.org            CC0 1.0 Universal
-  Font Awesome Free https://fontawesome.com/license    icons under CC BY 4.0
   @lobehub/icons    https://icons.lobehub.com          MIT
+  SVG Logos         https://github.com/gilbarbara/logos CC0 1.0 Universal
+  theSVG            https://github.com/glincker/thesvg MIT
 
 The marks themselves are the trademarks of their respective owners and are used
 to identify those products. Their inclusion implies no affiliation with or
@@ -44,10 +45,18 @@ packages:
                    elkjs under EPL-2.0 and DOMPurify under Apache-2.0
                    Copyright (c) 2014 - 2022 Knut Sveidqvist
   idiomorph 0.8.0  https://github.com/bigskysoftware/idiomorph   0BSD
+  Leaflet 1.9.4    https://leafletjs.com        BSD-2-Clause
+                   Copyright (c) 2010-2023, Volodymyr Agafonkin
+                   Copyright (c) 2010-2011, CloudMade
 
 Copied rather than installed because a published page has no network and loads
 them from the deployment itself. The README beside them carries every licence
 text in full.
+
+The map kit beside them (agenticos-map-1.js) adapts the pin-drop timing of
+createTripAnimator, and the visual-design skill borrows guidance, from Open
+Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI), MIT,
+Copyright (c) Atai Barkai. The notice is kept in the file's header.
 
 --------------------------------------------------------------------------------
 

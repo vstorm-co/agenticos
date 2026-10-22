@@ -68,6 +68,10 @@ export interface RawMessage {
   input_tokens?: number | null;
   output_tokens?: number | null;
   cost_usd?: string | null;
+  /** A spoken turn's id within its voice call; null for a typed turn. */
+  turn_id?: string | null;
+  /** Whether the caller talked over this spoken answer. */
+  interrupted?: boolean;
 }
 
 /**
@@ -205,6 +209,8 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    turnId: msg.turn_id ?? undefined,
+    interrupted: msg.interrupted === true || undefined,
     runDurationMs: msg.run_duration_ms ?? undefined,
     usage: storedUsage(msg) ?? undefined,
     toolCalls,

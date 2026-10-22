@@ -1377,3 +1377,75 @@ describe("starting a new chat", () => {
     expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-other");
   });
 });
+
+describe("reading an open conversation again (#54)", () => {
+  it("replaces its messages in place, with nothing cleared and no loading flag", async () => {
+    const result = await hook();
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      id: "m-live",
+      role: "user",
+      content: "still on screen",
+      timestamp: new Date("2026-07-31T12:00:00Z"),
+    });
+    serve({
+      messages: [
+        { id: "m-1", role: "user", content: "hi" },
+        { id: "m-2", role: "assistant", content: "hello" },
+      ],
+    });
+    const loading = vi.fn();
+    const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
+
+    await act(async () => {
+      await result.current.rereadConversation("c-1");
+    });
+    stop();
+
+    expect(useConversationStore.getState().currentMessages).toHaveLength(2);
+    expect(loading).not.toHaveBeenCalledWith(true);
+    // The chat's own copy is the container's to replace; nothing here emptied it.
+    expect(useChatStore.getState().messages).toHaveLength(1);
+  });
+
+  it("drops an answer for a conversation no longer open, or an older re-read", async () => {
+    const result = await hook();
+    useConversationStore.getState().setCurrentConversationId("c-2");
+    await act(async () => {
+      await result.current.rereadConversation("c-1");
+    });
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const pending: ((value: unknown) => void)[] = [];
+    vi.mocked(apiClient.get).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+        }),
+    );
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = result.current.rereadConversation("c-1");
+      second = result.current.rereadConversation("c-1");
+    });
+    await act(async () => {
+      pending[1]?.({ items: [{ id: "new" }, { id: "newer" }], total: 2 });
+      await second;
+      pending[0]?.({ items: [{ id: "old" }], total: 1 });
+      await first;
+    });
+    expect(useConversationStore.getState().currentMessages).toHaveLength(2);
+  });
+
+  it("keeps what is shown when the read fails", async () => {
+    const result = await hook();
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      await result.current.rereadConversation("c-1");
+    });
+    expect(useConversationStore.getState().error).toBeNull();
+  });
+});

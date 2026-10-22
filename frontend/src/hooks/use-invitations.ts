@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
   Invitation,
+  InvitationAccepted,
   InvitationCreated,
   NewInviteLink,
   InvitationList,
@@ -99,10 +100,11 @@ export function useInvitations(orgId: string) {
   // organization!" to people who had joined nothing. The error is rethrown so
   // that screen's error branch is reachable at all.
   const acceptInvitation = useCallback(
-    async (token: string) => {
+    async (token: string): Promise<string> => {
       try {
-        await apiClient.post(`/invitations/${token}`);
+        const accepted = await apiClient.post<InvitationAccepted>(`/invitations/${token}`);
         toast.success(tInvite("acceptSuccess"));
+        return accepted.organization_id;
       } catch (error) {
         toast.error(tInvite("failedTitle"));
         throw error;

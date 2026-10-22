@@ -50,6 +50,7 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
 def _service() -> MagicMock:
     service = MagicMock()
     service.list_runs = AsyncMock(return_value=([], 0))
+    service.voice_chains = AsyncMock(return_value={})
     return service
 
 
@@ -211,6 +212,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
@@ -269,6 +271,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
         )
         prev_id, next_id = uuid4(), uuid4()

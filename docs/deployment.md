@@ -263,6 +263,46 @@ know the rule exists and reads the refusal as the product being broken. That is
 also why the allowed domains are published: they are not a secret, and the
 deployment is on the company's own host.
 
+## Where a new account starts
+
+Two settings beside the sign-up mode decide it, both under **New accounts** on
+`/admin/settings`, and both apply to accounts created afterwards — an existing
+personal organization stays (#2156).
+
+| Setting | Default | Effect |
+|---|---|---|
+| `personal_organizations` | on | Each new account gets an organization of its own, with itself as Owner. |
+| `default_organization_id` | none | Each new account joins this organization, as `default_organization_role`. |
+| `default_organization_role` | `member` | Any role but `owner`; a setting that made every newcomer an owner would hand all of them the company's keys. |
+
+A deployment open to independent people keeps the defaults. A deployment for one
+company turns personal organizations off and names the company organization, so
+a colleague starts where the company's agents and knowledge are, and nobody runs
+agents under a budget, approval policy and audit trail of their own beside the
+company's. A personal organization cannot be the default, and deleting the default
+organization clears the setting.
+
+**An invitation to the default organization wins.** An invitation names its own
+role, and accepting one into an organization the person already belongs to is
+refused — so a newcomer registering with an invitation to the default organization,
+or with one pending for their address, does not join it at sign-up. They join when
+they accept, with the invitation's role.
+
+**Only the deployment's own rule joins somebody to it.** An account admitted by
+the sign-up mode itself — an open deployment, an address at an allowed domain —
+joins the default organization. One admitted only by another organization's
+invitation or directory mapping does not: that organization's managers vouched for
+the person to their own organization, and joining the default one would let them
+add people to an organization they cannot manage.
+
+**The default organization is also where a session lands.** A request with a
+session token and no `X-Organization-Id` acts in the default organization when the
+person belongs to it, then in their personal one, then in their only one. A person
+with a choice and no header gets a `400` naming the header instead of a guess —
+see [the organization header](api.md#the-organization-header). The console selects
+the same organization when nothing else is selected, and accepting an invitation
+switches the console to the organization joined.
+
 ## Finding one tenant among all of them
 
 `GET /admin/organizations` is the only surface that answers *what tenants exist*,
@@ -277,7 +317,7 @@ deployment admin can fix and therefore one they have to be shown.
 | `search` | Name, slug, or the owner's address. The term is text, not a pattern — `100%` finds the tenant called that rather than all of them |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Anything else is a 422 |
 | `sort_dir` | `asc` / `desc`, defaulting to newest first |
-| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up, so on most deployments they are most of the list |
+| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up unless the deployment turned that off, so on most deployments they are most of the list |
 | `skip`, `limit` | One server page, up to 100 |
 
 **All of it happens in SQL, before `OFFSET`/`LIMIT`**, and `total` counts what was
@@ -474,6 +514,29 @@ Zero is refused by the schema: an account that may own no organizations is an
 account that cannot be created, since sign-up gives every one of them a personal
 organization.
 
+## What a dictation may be uploaded as
+
+`dictation_compressed_audio`, **off by default**, decides the format of every
+[dictation](ml-services.md#dictation-in-chat) on the deployment - the `/chat`
+composer, hosted pages and widgets, in every organization. Off, the server
+accepts one format: WAV holding 16 kHz mono 16-bit PCM, which every browser
+records. Its length is its size, 32,000 bytes a second, so the server counts the
+samples and the longest dictation bounds what one recording costs exactly.
+
+On, WebM, Ogg and MP4 are accepted as well, and uploads are about an eighth
+of the size. Their length is read from the file's own header, which a file built by
+hand can understate: one dictation can then carry up to about forty times the
+longest dictation within the size cap. On a [public page or widget](channels.md#what-it-costs-and-what-bounds-it)
+anyone holding the link can send one, billed to the organization's provider
+account and outside every budget.
+
+So the switch on `/admin/settings` asks first. Turning it on opens a dialog
+naming those risks and enables its confirm button only once a box saying they
+were read is ticked; turning it off asks nothing. Either way it is saved with
+the rest of the form and audited like any other field. Browsers follow it the
+next time a page asks: the format they record in is the one the server
+advertises, never a list kept in the client.
+
 ## The row
 
 One row for the whole installation, guarded by the database rather than by a
@@ -560,9 +623,14 @@ the same way. The settings are in
   null column means *the built-in* rather than *empty*.
 - `signup_mode` is applied in **one place** and gates both paths that mint an
   account. An invitation overrides a domain list; nothing overrides `closed`.
+- A new account gets a **personal organization unless that is turned off**, and
+  joins the **default organization** when one is set; a session naming no
+  organization lands there too.
 - An app admin **cannot lock themselves out** through the console.
 - **Impersonation is a session**: started from the console with no token on the
   clipboard, named in a banner, ended by the administrator, by the person signing
   out everywhere, or by the hour. Whether the person is told is
   `notify_impersonated_users`, off by default.
+- Dictation is **raw PCM unless `dictation_compressed_audio` is on**, which an
+  administrator turns on only after a dialog naming what it costs.
 - Every refusal from this deployment looks the same, whichever layer produced it.

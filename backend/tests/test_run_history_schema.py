@@ -31,6 +31,8 @@ def _row(**overrides: object) -> AgentRun:
         "cache_write_tokens": 0,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
+        # Set explicitly: a column default is applied on flush, and this row never is.
+        "modality": "text",
         "is_test": False,
     }
     return AgentRun(**{**defaults, **overrides})

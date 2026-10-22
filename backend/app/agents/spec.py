@@ -662,6 +662,125 @@ class ObservabilitySpec(BaseModel):
     )
 
 
+class SpeechToTextSpec(BaseModel):
+    """Which engine turns speech into text for this agent, where it differs.
+
+    An override on the organization's speech-to-text settings, read wherever a
+    recording reaches this agent: dictation in the `/chat` composer, and voice
+    notes sent to a channel bot whose own pair is left to inherit. Unset fields
+    inherit - the pair from the organization, the language from the
+    organization and then the engine's own detection - so an agent can pin
+    `language: pl` and keep the organization's provider.
+
+    **The provider and model are a pair, both or neither.** A provider with no
+    model has nothing to call and a model with no provider has nowhere to go.
+    The rule is enforced at publish rather than here, together with the
+    catalog and language checks: the Builder autosaves a draft on every
+    change, and a validator on this model would refuse the draft between
+    picking a provider and picking its model.
+
+    **The key travels with the pair.** `secret_id` names the vault key the
+    pair is sent with - an `api_key` whose purpose is the provider, which the
+    publisher must be able to view, since binding a key lends it to everyone
+    who can run the agent. A pair without a key is refused at publish; a key
+    without a pair would be a key for nothing. An agent that overrides only the
+    language names neither, and keeps the organization's pair *and* its key.
+    The spec carries the id, never the key, so it stays safe to export.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description="A provider from the speech-to-text catalog, e.g. `openai`",
+    )
+    model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="One of that provider's transcription models",
+    )
+    language: str | None = Field(
+        default=None,
+        max_length=8,
+        description=(
+            "An ISO-639-1 code to pin recordings to, e.g. `pl`. Null inherits the "
+            "organization's language, and then the engine detects it."
+        ),
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with: an API key whose purpose is the "
+            "provider. Set with the pair, and only with it."
+        ),
+    )
+    dictation: bool = Field(
+        default=False,
+        description=(
+            "Send dictation in the `/chat` composer to the provider this block resolves to. "
+            "Off - and on while no pair or key resolves - the browser's own speech "
+            "recognition transcribes it, which costs nothing"
+        ),
+    )
+
+
+class VoiceSpec(BaseModel):
+    """How this agent holds a spoken conversation (#54).
+
+    A pick from the realtime catalog and the vault key it is held with - the
+    same A+ shape as speech to text. For Azure, `deployment` is the deployment
+    name (free text) and `base_model` the catalog model it runs, which decides
+    the voices and the price; the endpoint and API version come from the
+    `azure_openai` secret.
+
+    **Every rule that spans fields is checked at publish, not here**, for the
+    reason `SpeechToTextSpec` gives: the Builder autosaves a draft between
+    picking a provider and picking its model.
+
+    Capabilities a realtime session cannot carry do not block publishing; a
+    call hands them to the agent's text model (`app/agents/hand_off.py`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str | None = Field(
+        default=None, max_length=32, description="A provider from the realtime catalog"
+    )
+    model: str | None = Field(
+        default=None, max_length=255, description="A realtime model of that provider"
+    )
+    deployment: str | None = Field(
+        default=None, max_length=255, description="Azure only: the deployment name calls go to"
+    )
+    base_model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Azure only: the catalog model the deployment runs",
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description="The vault key calls are held with: its purpose is the provider, and its kind the provider's",
+    )
+    voice: str | None = Field(
+        default=None, max_length=64, description="One of the model's voices; null is its default"
+    )
+    language: str | None = Field(
+        default=None,
+        max_length=8,
+        description="An ISO-639-1 code the agent speaks; null follows the caller",
+    )
+    max_call_seconds: int | None = Field(
+        default=None,
+        ge=60,
+        le=3000,
+        description="The longest call, 60-3000 s; null is 600 s (10 minutes)",
+    )
+    voice_note: str | None = Field(
+        default=None, max_length=1000, description="Extra spoken-style guidance appended in calls"
+    )
+
+
 class ModelSettingsSpec(BaseModel):
     """How this agent asks its model to behave.
 
@@ -1383,6 +1502,19 @@ class AgentSpec(BaseModel):
         description="Send this agent's traces to a Logfire project of its own",
     )
 
+    speech_to_text: SpeechToTextSpec | None = Field(
+        default=None,
+        description=(
+            "Transcribe this agent's dictation and channel voice notes on another "
+            "engine or language than the organization's. Null inherits all of it"
+        ),
+    )
+
+    voice: VoiceSpec | None = Field(
+        default=None,
+        description="Hold voice conversations: the realtime model, its key, the voice and limits. Null: no calls",
+    )
+
     @property
     def trace_content(self) -> TraceContent:
         """How much of a run this agent's spans may carry.
@@ -1521,6 +1653,31 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
+
+    @field_validator("speech_to_text")
+    @classmethod
+    def _an_empty_override_is_no_override(
+        cls, value: SpeechToTextSpec | None
+    ) -> SpeechToTextSpec | None:
+        """A block with every field at its default says nothing, so it is stored as absent.
+
+        The Builder's Voice card writes every field explicitly and sends the
+        block back with nulls when somebody returns everything to "inherit".
+        Collapsing it here keeps one spelling for "inherits everything", so a
+        draft that went there and back compares equal to the version it started
+        from rather than showing as an unpublished change.
+        """
+        if value is None or value.model_dump(exclude_defaults=True):
+            return value
+        return None
+
+    @field_validator("voice")
+    @classmethod
+    def _an_empty_voice_block_is_no_voice(cls, value: VoiceSpec | None) -> VoiceSpec | None:
+        """One spelling for "no voice section", for the reason `speech_to_text` has one."""
+        if value is None or value.model_dump(exclude_none=True):
+            return value
+        return None
 
     @field_validator("external_agents")
     @classmethod

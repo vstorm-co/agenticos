@@ -1,5 +1,5 @@
 ---
-source_sha: "67523cafdf32"
+source_sha: "c10b3f38d92b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -145,10 +145,15 @@ organización; nombrar otra responde `400` con
 **Un token de sesión toma el inquilino de `X-Organization-Id`.** Quien pertenece
 a tres organizaciones es un principal distinto en cada una, con otro rol y otros
 permisos concedidos, así que envía la cabecera en cada petición. Si falta, la
-petición vuelve a la **organización personal** del llamante: un script que la
-olvide actúa allí, con los agents, permisos y budget de esa organización, y no
-recibe ningún error. Envía la equivocada y obtendrás un rechazo idéntico al de un
-recurso inexistente, a propósito, para que los ids no se puedan sondear.
+petición vuelve a la **organización por defecto** del despliegue si el llamante
+pertenece a ella, luego a su **organización personal**, luego a la única que
+tenga: un script que olvide la cabecera actúa allí, con los agents, permisos y
+budget de esa organización, y no recibe ningún error. Quien pertenece a varias y
+no tiene ninguna de ellas recibe un `400` con
+`details.header = "X-Organization-Id"` en vez de una suposición
+([dónde empieza una cuenta nueva](deployment.md#where-a-new-account-starts)).
+Envía la equivocada y obtendrás un rechazo idéntico al de un recurso inexistente,
+a propósito, para que los ids no se puedan sondear.
 
 ## Ejecutar un agent { #running-an-agent }
 
@@ -391,6 +396,107 @@ por cada escritura correcta a través de la API pública en esa organización �
 (`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
 que quien llama puede leer.
 
+## Llamadas de voz { #voice-calls }
+
+Una [llamada de voz](voice.md) tiene un socket propio, porque una llamada no es
+un bucle de turnos: **`/api/v1/ws/voice`** para un miembro, y
+**`/api/v1/embed/{public_key}/voice/ws`** para un visitante en un widget o una
+página alojada ([admisión](channels.md#the-call-socket)). Los dos hablan los
+mismos frames, definidos en `backend/app/schemas/voice.py`.
+
+El socket de la consola se autentica igual que `/ws/agent`: el token como una
+entrada `access_token.<JWT>` de `Sec-WebSocket-Protocol` (o la cookie del mismo
+origen), nunca en la query string, y la organización como `?organization_id=`.
+Se cierra con `4001` sin una sesión válida y con `4003` cuando quien llama no es
+miembro o se autentica con una clave API de la organización: una llamada es una
+persona ante el micrófono, como un turno de chat es una persona ante el teclado.
+
+El socket del embed se cierra con `4029` al pasar un rate limit y con
+`4003` ante cualquier rechazo relativo al embed. Cada latido vuelve a comprobar
+la sesión, así que una llamada no sobrevive a un cierre de sesión.
+
+**El cliente envía** frames JSON, y a través del relay también audio binario:
+
+| Frame | Campos | Cuándo |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
+| `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
+| `mute` | `muted` | El relay: el micrófono silenciado |
+| `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
+| `end` | - | Colgar |
+| *binario* | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
+
+**El servidor envía:**
+
+| Frame | Campos | Significa |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
+| `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
+| `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
+| `tool` | `name`, `status` (`running` o `done`) | Una herramienta que está ejecutando el agent |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir |
+| `approval_unavailable` | `tool`, `args` | Una llamada a herramienta que quien llama no puede aprobar por voz |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` o `expired`) | Cómo terminó una aprobación |
+| `notice` | `kind`, `message` (opcional) | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza |
+| `limit` | `seconds_left` | El tiempo de la llamada casi se ha agotado |
+| `clear_playback` | - | El relay: descartar el audio del agent en cola |
+| `ended` | `reason`, `message` | La llamada ha terminado |
+| *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
+
+**A un visitante de un widget o de una página alojada se le dice menos.** Su
+`ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
+llamada más larga del agent o lo que queda de una llamada que se reanuda. Los
+frames de herramientas siguen los interruptores
+`show_tool_steps` y `show_tool_results` del embed, como los de una respuesta
+escrita. Sin pasos de herramientas no se envía ningún frame `tool` y
+`tool_running` llega como `thinking`. Sin resultados de herramientas,
+`approval_unavailable` llega con `args` vacíos. El `turn_saved` de un
+visitante lleva solo el `id`, `role`, `content`, `interrupted` y `turn_id` del
+mensaje, sean cuales sean los interruptores: nunca los ids de su run, de su
+agent o de su versión, ni su coste ni sus llamadas a herramientas.
+
+**Una reconexión demuestra que la llamada es suya.** Un `start` con `resume_of`
+debe llevar también el `resume_token` del `ready` de esa conexión. Sin él, o
+con uno incorrecto, la reconexión se rechaza como `resume_refused` y la llamada
+que nombra no se toca. El servidor guarda solo un hash del token. Una llamada
+que ya consta de 20 conexiones no se reanuda más: su siguiente reconexión
+también se rechaza como `resume_refused`.
+
+Un socket que no envía `start` en 10 segundos recibe `ended` con `no_start`.
+Una llamada que no va a empezar responde con `ended` y un `reason` estable:
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` o `line_busy`,
+con un `message` que se puede mostrar. `busy` solo llega después de que una
+llamada que la misma persona acaba de colgar haya tenido hasta cuatro segundos
+para terminar. Un inicio que falla por cualquier otro motivo responde con `ended` y
+`error`.
+
+Un visitante rechazado como `not_configured`, `not_priced` o `budget`, o cuya
+llamada termina como `budget`, recibe en su lugar `unavailable` con el mensaje "Calls are not available right
+now.": el código y el mensaje completo son cosa del operador del agent. Una llamada a una conversación archivada se rechaza como
+`forbidden`, igual que un mensaje escrito en ella.
+
+Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,
+`disconnected`, `revoked`, `guardrail`, `shutdown` o `error`; con `time_limit`
+cuando alcanzó la llamada más larga del agent. La llamada de un visitante termina con
+`revoked` cuando su embed se pausa, se le desactivan las llamadas o se apunta a
+otro agent. Ningún frame lleva nunca una credencial del provider.
+
+La acompañan cinco rutas HTTP:
+
+| Ruta | Control | Responde |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas |
+
+Una aprobación que pertenece a una llamada en curso se decide en la llamada:
+`POST /api/v1/approvals/{id}` la rechaza con `400`.
+
 ## Errores { #errors }
 
 Un único sobre, en todas partes:
@@ -509,8 +615,8 @@ solo avanza.
 - Una clave lleva la autoridad de su emisor **limitada a sus permisos y al rol
   actual del emisor**, se muestra una vez y solo funciona en la API pública.
 - **Una clave actúa en su propia organización; una sesión lee
-  `X-Organization-Id`** y sin ella vuelve a la organización personal. La
-  equivocada parece un recurso inexistente.
+  `X-Organization-Id`** y sin ella vuelve a la organización por defecto, la
+  personal o la única. La equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
 - Un script consigue su propia clave **sin navegador** — iniciar sesión, emitir,

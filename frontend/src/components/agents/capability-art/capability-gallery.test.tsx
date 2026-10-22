@@ -21,6 +21,7 @@ const CHARTS: CapabilityCatalogEntry = {
   contracts: [],
   config_schema: null,
   requires_secret: null,
+  voice: "live",
 };
 
 const SANDBOX: CapabilityCatalogEntry = {

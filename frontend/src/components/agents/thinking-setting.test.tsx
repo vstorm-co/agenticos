@@ -12,6 +12,7 @@ const THINKING: CapabilityCatalogEntry = {
   category: "model",
   description: "How hard the model thinks before answering.",
   side_effecting: false,
+  voice: "live",
   scopes: [],
   tools: [],
   contracts: [],

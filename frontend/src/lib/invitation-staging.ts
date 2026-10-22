@@ -11,6 +11,7 @@
 
 import { apiClient } from "@/lib/api-client";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
+import type { InvitationAccepted } from "@/types";
 
 /**
  * Exchange an invitation token for the server-set handle cookie.
@@ -39,9 +40,10 @@ export async function stageInvitation(token: string): Promise<string | null> {
  * A landing reached with no flow still asks, and is refused as a miss: there is no
  * cookie to redeem, and the card reports it the same way it reports a lapsed one.
  */
-export async function acceptStagedInvitation(flow: string | null): Promise<void> {
+export async function acceptStagedInvitation(flow: string | null): Promise<string> {
   const path = flow
     ? `/invitations/pending/accept?${INVITATION_FLOW_PARAM}=${encodeURIComponent(flow)}`
     : "/invitations/pending/accept";
-  await apiClient.post(path);
+  const accepted = await apiClient.post<InvitationAccepted>(path);
+  return accepted.organization_id;
 }

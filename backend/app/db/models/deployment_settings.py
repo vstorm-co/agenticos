@@ -22,7 +22,7 @@ serves whichever one a query happened to order first.
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import text
@@ -105,6 +105,35 @@ class DeploymentSettings(Base, TimestampMixin):
     )
     """`open`, `invite_only` or `closed`. See `app/services/signup_policy.py`."""
 
+    personal_organizations: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    """Whether a new account gets an organization of its own (#2156).
+
+    On by default, which is what a deployment open to independent people wants.
+    A deployment for one company turns it off, so a colleague does not start in
+    a tenant of their own - with its own keys, budget and audit trail - beside
+    the company's. Applies to accounts created afterwards; an existing personal
+    organization stays.
+    """
+
+    default_organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The organization every new account joins, or null for none (#2156).
+
+    It is also where a session with no organization named lands, ahead of a
+    personal one, and what the console selects when nothing else is. Deleting
+    the organization clears it rather than leaving a setting pointing nowhere.
+    """
+
+    default_organization_role: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="member", server_default=text("'member'")
+    )
+    """The role a new account joins `default_organization_id` with. Never `owner`."""
+
     allowed_email_domains: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
@@ -131,6 +160,21 @@ class DeploymentSettings(Base, TimestampMixin):
     upgrade sends nobody mail they were not sending before; on, every
     impersonation emails its target once, when it starts. The audit trail records
     the impersonation either way.
+    """
+
+    dictation_compressed_audio: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM (#1797).
+
+    Off, a dictation is 16 kHz mono 16-bit PCM WAV and nothing else, so its
+    length *is* its byte count and the longest dictation bounds what a
+    recording can cost exactly. On, the compressed formats `MediaRecorder`
+    makes are accepted too, with their length read from the file's own header -
+    which a file built by hand can understate, so the byte cap is then the only
+    bound, and low-bitrate audio fits about forty times the longest dictation
+    into it. A deployment's decision, because a hosted page or a widget lets a
+    stranger send the file, in every organization at once.
     """
 
     retention_defaults: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)

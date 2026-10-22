@@ -1,5 +1,5 @@
 ---
-source_sha: "1a100cff937c"
+source_sha: "b46700ad236c"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -11,7 +11,7 @@ Claude Team i Claude Enterprise dają każdemu pracownikowi asystenta od Anthrop
 
 To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez Anthropic API albo Amazon Bedrock, więc subskrypcja Claude i wdrożenie AgenticOS często działają obok siebie.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
 
 ## W skrócie { #at-a-glance }
 
@@ -23,11 +23,11 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Modele | Tylko Claude | 28 providerów, w tym Claude, oraz modele lokalne |
 | Co budujesz | Projects, skille i pluginy dla osób, które czatują | Opublikowanych agentów, każdy jako wersjonowany spec |
 | Kto korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
-| Powierzchnie | Web, desktop, mobile, Chrome, dodatki do Office, Slack w becie | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Kontrola wydatków | Limity wydatków organizacji, grupy i użytkownika | Budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
-| Zatwierdzenia | Działający użytkownik albo tryb automatyczny | Run czeka, aż zdecyduje osoba z `approvals:decide` |
+| Powierzchnie | Web, desktop, mobile, Chrome, Microsoft 365, Slack przez Claude Tag w becie | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Kontrola wydatków | Limity wydatków organizacji i użytkownika | Budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
+| Zatwierdzenia | Działający użytkownik albo tryb automatyczny, jeśli organizacja na niego pozwala | Run czeka, aż zdecyduje osoba z `approvals:decide` |
 | Log audytowy | Enterprise; 180 dni zdarzeń w CSV | Każdy plan; wykrywa manipulacje, eksport do CSV albo JSONL |
-| Ceny | Team $20 za stanowisko miesięcznie przy rozliczeniu rocznym, $25 przy miesięcznym; Enterprise $20 za stanowisko miesięcznie plus użycie według stawek API, od 20 stanowisk | Użycie modeli według stawek twojego providera plus infrastruktura |
+| Ceny | Team, od 2 do 150 stanowisk: stanowisko Standard za $20 miesięcznie przy rozliczeniu rocznym ($25 przy miesięcznym), stanowisko Premium za $100 ($125); Enterprise $20 za stanowisko miesięcznie plus użycie według stawek API, od 20 stanowisk | Użycie modeli według stawek twojego providera plus infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -41,15 +41,15 @@ Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [28 pr
 
 ### Zatwierdzenie przez kogoś innego niż zlecający { #approval-by-someone-other-than-the-requester }
 
-W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie, które autor agenta objął bramką, [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
+W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie, jeśli organizacja na to pozwala. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie, które autor agenta objął bramką, [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
 
 ### Koszt per agent, a nie per stanowisko { #cost-per-agent-not-per-seat }
 
-Claude ogranicza wydatki per organizacja, grupa i użytkownik. Nie ma budżetu per agent, bo aplikacje nie mają obiektu agenta. AgenticOS daje każdemu agentowi [miesięczny budżet](../governance.md#budgets) sprawdzany [przed każdym żądaniem do modelu](../governance.md#enforcement-is-before-the-request). Widzisz, [ile wydał każdy agent](../governance.md#what-the-cost-screen-shows), i płacisz providerowi bezpośrednio, bez opłaty za stanowisko.
+Claude ogranicza wydatki per organizacja i per użytkownik. Nie ma budżetu per agent, bo aplikacje nie mają obiektu agenta. AgenticOS daje każdemu agentowi [miesięczny budżet](../governance.md#budgets) sprawdzany [przed każdym żądaniem do modelu](../governance.md#enforcement-is-before-the-request). Widzisz, [ile wydał każdy agent](../governance.md#what-the-cost-screen-shows), i płacisz providerowi bezpośrednio, bez opłaty za stanowisko.
 
 ### Kontrole enterprise bez planu Enterprise { #enterprise-controls-without-an-enterprise-tier }
 
-W Claude logi audytowe, role niestandardowe, SCIM, niestandardowa retencja i Compliance API są dostępne tylko w Enterprise, przy minimum 20 stanowiskach. AgenticOS ma większość z nich w każdym wdrożeniu: [log audytowy wykrywający manipulacje](../governance.md#audit), sześć wbudowanych [ról z grantami per zasób](../permissions.md#layer-3-visibility-and-grants), [mapowanie grup z katalogu](../directory.md#directory-group-mappings) i [retencję per klasa danych](../governance.md#retention). Ról niestandardowych i SCIM jeszcze nie ma; zobacz [braki](comparison.md#what-agenticos-does-not-do-yet).
+W Claude logi audytowe, kontrola dostępu oparta na rolach, SCIM, niestandardowa retencja i Compliance API są dostępne tylko w Enterprise, przy minimum 20 stanowiskach. AgenticOS ma większość z nich w każdym wdrożeniu: [log audytowy wykrywający manipulacje](../governance.md#audit), sześć wbudowanych [ról z grantami per zasób](../permissions.md#layer-3-visibility-and-grants), [mapowanie grup z katalogu](../directory.md#directory-group-mappings) i [retencję per klasa danych](../governance.md#retention). Ról niestandardowych i SCIM jeszcze nie ma; zobacz [braki](comparison.md#what-agenticos-does-not-do-yet).
 
 ### Wiedza, którą możesz dostroić { #knowledge-you-can-tune }
 
@@ -58,13 +58,13 @@ Claude Projects automatycznie przechodzą na wyszukiwanie, gdy wiedza projektu r
 ## Kiedy sam Claude wystarczy { #when-claude-alone-is-enough }
 
 - Chcesz mocnego asystenta dla każdego pracownika, bez niczego do utrzymywania.
-- Cowork, Claude Code, dodatki do Office i Chrome w ramach jednego stanowiska pokrywają twoje potrzeby.
+- Cowork, Claude Code, Microsoft 365 i Chrome w ramach jednego stanowiska pokrywają twoje potrzeby.
 - Potrzebujesz certyfikatów Anthropic, kluczy zarządzanych przez klienta albo integracji partnerskich z Compliance API.
 - Potrzebujesz SAML albo SCIM już dziś. AgenticOS oferuje OIDC, LDAP i Kerberos, ale jeszcze nie SAML ani SCIM.
 
 ## Używaj obu razem { #use-them-together }
 
-Zostaw Claude do codziennej pracy pracowników. Używaj AgenticOS dla agentów, którzy potrzebują właściciela, budżetu, kroku zatwierdzenia albo publicznej powierzchni. Dodaj profil modelu Anthropic i opublikuj agenta: widget supportu, bota na Telegramie, wewnętrznego agenta polityk. Każdy z nich działa na modelach Claude pod twoim własnym nadzorem.
+Zostaw Claude do codziennej pracy pracowników. Używaj AgenticOS dla agentów, którzy potrzebują właściciela, budżetu, kroku zatwierdzenia albo publicznej powierzchni. Dodaj profil modelu Anthropic i opublikuj agenta: widget supportu, bota na Telegramie, wewnętrznego agenta polityk. Każdy z nich działa na modelach Claude pod twoim własnym nadzorem. [Coding agent](../reference/capabilities.md#coding-agent) przekazuje pracę programistyczną Claude Code w sandboksie, a ponieważ [AgenticOS jest serwerem MCP](../mcp.md#agenticos-as-an-mcp-server), Claude Code i Claude Desktop mogą wyświetlać i uruchamiać twoich agentów.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
 
@@ -96,9 +96,9 @@ Tak. Agent odpowiada przez widget na stronie internetowej, link do hostowanej st
 
 - [Cennik Claude](https://claude.com/pricing): ceny stanowisk Team i Enterprise oraz lista funkcji Enterprise.
 - [What is the Enterprise plan](https://support.claude.com/en/articles/9797531-what-is-the-enterprise-plan): użycie rozliczane według stawek API, minimalna liczba stanowisk.
-- [What is the Team plan](https://support.claude.com/en/articles/9266767-what-is-the-team-plan): stanowiska, SSO i limity wydatków.
+- [What is the Team plan](https://support.claude.com/en/articles/9266767-what-is-the-team-plan): stanowiska Standard i Premium, od 2 do 150 członków, SSO i limity wydatków.
 - [Logi audytowe](https://support.claude.com/en/articles/9970975-access-audit-logs): tylko Enterprise, eksport z 180 dni.
 - [Dostęp do modeli](https://support.claude.com/en/articles/15694740-manage-model-access-for-your-organization): tylko modele Claude.
 - [Cowork w planach Team i Enterprise](https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans): zatwierdzenia i kontrole administracyjne.
 - [RAG dla Projects](https://support.claude.com/en/articles/11473015-retrieval-augmented-generation-rag-for-projects): automatyczne wyszukiwanie w projekcie.
-- [Introducing Claude Tag](https://www.anthropic.com/news/introducing-claude-tag): Slack w becie.
+- [Introducing Claude Tag](https://www.anthropic.com/news/introducing-claude-tag): Slack w becie dla Team i Enterprise.

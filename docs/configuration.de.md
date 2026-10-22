@@ -1,5 +1,5 @@
 ---
-source_sha: "c10fd9c1aa83"
+source_sha: "176ad0f8319b"
 ---
 
 # Konfiguration { #configuration }
@@ -781,6 +781,18 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
+
+**Kartenkacheln holt das Deployment, nicht der Browser des Lesers.** Eine Seite
+fragt `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; die API prüft die Zahlen, holt
+die Kachel vom Server, behält die letzten 2.048 im Speicher und antwortet, sodass
+ein Schlüssel in der Vorlage den Server nie verlässt. Die Route braucht keine
+Session - jede Seite lädt sie - und ist deshalb je Adresse begrenzt
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Beachten Sie die Bedingungen des Anbieters:
+die öffentlichen Kacheln von OpenStreetMap sind für leichte Nutzung, und ein viel
+genutztes Deployment sollte einen eigenen Server betreiben oder einen Anbieter
+bezahlen. *Admin → System* zeigt, ob der Server antwortet.
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
@@ -1194,6 +1206,29 @@ Profiles dürfen ohne jedes Flag auf lokale Endpunkte wie Ollama zeigen
 `run_python` sind Capability-Konfiguration je Agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` wurden entfernt).
 
+## Sprachanrufe { #voice-calls }
+
+[Sprachanrufe](voice.md) werden in jedem Agent eingeschaltet und durch seinen
+längsten Anruf und die Budgets begrenzt. Zwei Obergrenzen gehören dem
+Deployment:
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Anrufe, die eine Person gleichzeitig führen darf. Der Anruf eines zweiten Tabs ist fast immer ein Versehen, und jeder wird abgerechnet; ein zweiter Start wird als `busy` abgelehnt |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Anrufe, die ein Widget oder eine Hosted Page gleichzeitig führen darf, von allen Besuchenden zusammen; der nächste wird als `line_busy` abgelehnt. Besuchende haben kein Konto, auf das gezählt werden könnte, also ist das, was einen geleakten Link davon abhält, das Budget der Organisation parallel zu verbrauchen |
+
+Beide zählen Anrufe, deren Heartbeat frisch ist, sodass ein Anruf, dessen
+Prozess gestorben ist, innerhalb von 45 Sekunden nicht mehr zählt. Das Starten
+von Anrufen auf einem Embed ist außerdem rate-limitiert
+(`RATE_LIMIT_EMBED_VOICE_*`, [unten](#rate-limiting)). Das eigene
+`rate_limit_per_minute` eines Embeds, im Builder gesetzt, zählt die
+**Nachrichten** einer besuchenden Person, keine Anrufstarts, und begrenzt Anrufe
+deshalb nicht.
+
+Der Rest ist im Code festgelegt statt konfiguriert: Ein Anruf ist nie länger als
+50 Minuten, Heartbeats laufen alle 15 Sekunden, und der Voice-Sweep läuft jede
+Minute, als Zeitplan `reap-voice-calls` des Workers.
+
 ## CORS { #cors }
 
 | Variable | Standard | Beschreibung |
@@ -1210,8 +1245,8 @@ Prüfung für die Produktion: `CORS_ORIGINS` darf bei `ENVIRONMENT=production` k
 
 Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
-Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page und den
-Upload einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
+Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page sowie den
+Upload, das Diktat und den Sprachanruf einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
 Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
 sollte, ist eine eigene Entscheidung und nicht diese.
 
@@ -1221,8 +1256,15 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Jede Route in `auth.py` — Login, Registrierung, Refresh, die Anfrage- und Verifikationsrouten für Reset und Magic Link. Gezählt **je IP und, wo der Body eine trägt, je übermittelter Adresse**. Siehe unten |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kartenkacheln, die eine Adresse über den [Kachelpfad](artifacts.md#visuals) des Deployments holen darf, **je Adresse**. Eine Karte sind einige Dutzend Kacheln, Verschieben bringt mehr; die Grenze verhindert, dass das Deployment jedermanns kostenloser Proxy zum Kachelserver wird |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Eine Stimme anhören](voice.md#turn-it-on) im Builder, pro Person. Jede Vorschau außerhalb des Caches ist eine kurze kostenpflichtige Sitzung beim Realtime-Provider des Agents, außerhalb aller Modellbudgets; eine einmal gehörte Stimme bleibt eine Woche im Cache |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation. Erst verbraucht, wenn ein Besucher zugelassen ist |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Die Adresse wird gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen, erst verbraucht, wenn ein Besucher zugelassen ist. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag
