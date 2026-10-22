@@ -132,7 +132,8 @@ fitted to. A dataset made only of such cases is refused.
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
 dialog reports its verdict; after a further edit it says that test is out of
-date. A check sends nothing to a dataset's [review queue](datasets.md#review) by
+date. A check measured against the draft itself never counts: it says nothing
+of the draft against the published version it would replace. A check sends nothing to a dataset's [review queue](datasets.md#review) by
 itself, since nothing was accepted; its run page says so beside **Send failed to
 review**.
 

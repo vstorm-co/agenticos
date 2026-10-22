@@ -1,5 +1,5 @@
 ---
-source_sha: "bbf0b2e3120a"
+source_sha: "afa92704438f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -290,8 +290,9 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 ahora - el mismo spec, sea cual sea el orden en que se guardaron sus claves, con
 una comprobación de sugerencias aceptadas después entre ellos -, que es lo que lee
 el diálogo de publicación. `?draft=earlier` conserva los runs que probaron otro
-borrador desde que se publicó la última versión: la prueba de la que el borrador
-se ha alejado.
+borrador desde que se publicó la última versión - una comprobación solo cuando se
+aceptó alguna de sus sugerencias: la prueba de la que el borrador se ha alejado.
+Una comprobación medida contra el propio borrador no cuenta en ninguno de los dos.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
 

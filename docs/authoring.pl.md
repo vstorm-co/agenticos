@@ -1,5 +1,5 @@
 ---
-source_sha: "5a4ca9197c1c"
+source_sha: "0bce8e124ea1"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -137,7 +137,9 @@ dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
 Sprawdzenie liczy się jako test draftu, gdy draft jest dokładnie tym, co
 sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym nie zmienione -
 więc dialog publikacji podaje jego werdykt; po kolejnej zmianie mówi, że ten
-test jest nieaktualny. Sprawdzenie samo z siebie nie wysyła niczego do
+test jest nieaktualny. Sprawdzenie mierzone względem samego draftu nigdy się nie
+liczy: nie mówi nic o drafcie względem opublikowanej wersji, którą by zastąpił.
+Sprawdzenie samo z siebie nie wysyła niczego do
 [kolejki przeglądu](datasets.md#review) datasetu, bo nic nie zostało przyjęte;
 strona jego runu mówi o tym obok **Send failed to review**.
 

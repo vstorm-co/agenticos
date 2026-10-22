@@ -271,8 +271,9 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 `?draft=current` keeps the runs that tested the draft as it stands now - the
 same spec, whatever order its keys were stored in, a check of suggestions since
 accepted among them - which is what the publish dialog reads. `?draft=earlier`
-keeps the runs that tested another draft since the latest version was published:
-the test the draft has moved away from.
+keeps the runs that tested another draft since the latest version was published -
+a check only once one of its suggestions was accepted: the test the draft has
+moved away from. A check measured against the draft itself counts in neither.
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 

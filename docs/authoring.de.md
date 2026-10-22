@@ -1,5 +1,5 @@
 ---
-source_sha: "5a4ca9197c1c"
+source_sha: "0bce8e124ea1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -146,7 +146,9 @@ besteht, wird abgelehnt.
 Eine Prüfung zählt als Test des Drafts, sobald der Draft genau das ist, was sie
 geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
 sodass der Veröffentlichungsdialog ihr Urteil meldet; nach einer weiteren
-Änderung sagt er, dass dieser Test veraltet ist. Eine Prüfung schickt von sich aus
+Änderung sagt er, dass dieser Test veraltet ist. Eine Prüfung, die am Draft
+selbst gemessen wurde, zählt nie: Sie sagt nichts über den Draft gegenüber der
+veröffentlichten Version, die er ersetzen würde. Eine Prüfung schickt von sich aus
 nichts in die [Review-Warteschlange](datasets.md#review) eines Datasets, da
 nichts angenommen wurde; ihre Run-Seite sagt das neben **Send failed to review**.
 

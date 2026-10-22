@@ -1,5 +1,5 @@
 ---
-source_sha: "bbf0b2e3120a"
+source_sha: "afa92704438f"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -309,8 +309,9 @@ getestet haben - denselben Spec, gleich in welcher Reihenfolge seine Schlüssel
 gespeichert wurden, darunter eine Prüfung von Vorschlägen, die inzwischen
 angenommen sind -, und genau das liest der Veröffentlichungsdialog.
 `?draft=earlier` behält die Runs, die seit der Veröffentlichung der neuesten
-Version einen anderen Draft getestet haben: den Test, von dem sich der Draft
-entfernt hat.
+Version einen anderen Draft getestet haben - eine Prüfung erst, wenn einer ihrer
+Vorschläge angenommen wurde: den Test, von dem sich der Draft entfernt hat. Eine
+Prüfung, die am Draft selbst gemessen wurde, zählt in keinem von beiden.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "bbf0b2e3120a"
+source_sha: "afa92704438f"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -290,7 +290,9 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze, a wśród
 nich sprawdzenie sugestii, które potem przyjęto - i to właśnie czyta dialog
 publikacji. `?draft=earlier` zostawia runy, które testowały inny draft od
-opublikowania najnowszej wersji: test, od którego draft już odszedł.
+opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto którąś
+z jego sugestii: test, od którego draft już odszedł. Sprawdzenie mierzone
+względem samego draftu nie liczy się w żadnym z nich.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 

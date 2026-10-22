@@ -1,5 +1,5 @@
 ---
-source_sha: "5a4ca9197c1c"
+source_sha: "0bce8e124ea1"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -140,7 +140,9 @@ que se ajustó. Un dataset hecho solo de esos casos se rechaza.
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
 cambiado -, así que el diálogo de publicación informa de su veredicto; tras otro
-cambio, dice que esa prueba está desactualizada. Una comprobación no envía nada
+cambio, dice que esa prueba está desactualizada. Una comprobación medida contra
+el propio draft nunca cuenta: no dice nada del draft frente a la versión
+publicada que sustituiría. Una comprobación no envía nada
 por sí sola a la [cola de revisión](datasets.md#review) de un dataset, ya que no
 se aceptó nada; la página de su run lo dice junto a **Send failed to review**.
 
