@@ -107,6 +107,18 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **The apps work without a network** (#2097). The desktop and phone apps,
+  and AgenticOS added to a home screen, keep the conversation list, the 20
+  conversations opened last and the approvals queue on the device for seven
+  days, sealed with a key no script can read out and deleted on sign-out or a
+  switch of organization; a plain browser tab keeps nothing. Without a network
+  (or a server) the console shows that copy under a banner saying when it was
+  saved, and stays signed in. A message written offline waits above the
+  composer marked "Waiting for the network", survives closing the app, and
+  sends when the connection returns; one the server refuses comes back marked
+  "Not sent" with the reason, to send again or remove. The service worker now
+  also keeps the console's code, so the Android app and an installed PWA open
+  without a network (the iOS and macOS web views do not run it).
 - **Notifications while the Android app is closed** (#2097), through ntfy
   rather than Google's servers: Settings → Notifications in the app turns them
   on with the ntfy app on the phone (against ntfy.sh or a company's own ntfy

@@ -5,10 +5,9 @@
  */
 
 import { apiClient } from "@/lib/api-client";
+import { CONSOLE_WORKER as WORKER } from "@/lib/console-worker";
 
 export type PushState = "unsupported" | "blocked" | "off" | "on";
-
-const WORKER = "/sw.js";
 
 function supported(): boolean {
   return (

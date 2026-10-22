@@ -1,5 +1,6 @@
 "use client";
 
+import { wipeDeviceCache } from "@/lib/offline/device-cache";
 import { useAgentSelectionStore } from "./agent-selection-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
 import { useChatStore } from "./chat-store";
@@ -52,6 +53,9 @@ export function resetTenantState(): void {
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();
+  // And the copy on the disk: the apps keep the tenant's recent conversations
+  // and outbox sealed on the device, for one tenant at a time (#2097).
+  wipeDeviceCache();
 }
 
 /**

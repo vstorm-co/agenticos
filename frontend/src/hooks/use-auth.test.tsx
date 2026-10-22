@@ -16,6 +16,13 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// Whether this console keeps a copy on the device - the apps do, a tab does not.
+const device = vi.hoisted(() => ({ keepsCopy: false }));
+vi.mock("@/lib/offline/device-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/offline/device-cache")>()),
+  offlineAvailable: () => device.keepsCopy,
+}));
+
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
@@ -154,6 +161,49 @@ describe("checking the session on load", () => {
 
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+});
+
+describe("checking the session without a network (#2097)", () => {
+  afterEach(() => {
+    device.keepsCopy = false;
+  });
+
+  it("keeps the app signed in as it was, and checks again when the network returns", async () => {
+    device.keepsCopy = true;
+    useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: true });
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().user?.id).toBe("u-1");
+
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Token expired"));
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+  });
+
+  it("signs a browser tab out as before, since it keeps nothing to read", async () => {
+    useAuthStore.setState({ user: user(), isAuthenticated: true });
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+  });
+
+  it("does not sign in nobody: with no account kept, a failed check is a signed-out one", async () => {
+    device.keepsCopy = true;
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });
 

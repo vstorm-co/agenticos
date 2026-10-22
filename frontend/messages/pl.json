@@ -1939,7 +1939,10 @@
       },
       "openBuilder": "Otwórz w Agent Builderze",
       "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
-    }
+    },
+    "queuedWaitingForNetwork": "Czeka na sieć",
+    "queuedNotSent": "Nie wysłano: {reason}",
+    "queuedRetry": "Wyślij ponownie"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -3250,7 +3253,13 @@
     "primary": "Główne",
     "quickActions": "Szybkie akcje",
     "retryInvitation": "Spróbuj ponownie",
-    "searchJump": "Szukaj lub przejdź do…"
+    "searchJump": "Szukaj lub przejdź do…",
+    "offline": {
+      "noNetwork": "Brak sieci. Napisane wiadomości wyślą się, gdy sieć wróci.",
+      "savedCopy": "Brak sieci. Widzisz kopię zapisaną na tym urządzeniu o {time}.",
+      "outboxWaiting": "{count, plural, =1 {1 wiadomość czeka na wysłanie} few {# wiadomości czekają na wysłanie} other {# wiadomości czeka na wysłanie}}",
+      "unreachable": "Brak połączenia z serwerem. Widzisz kopię zapisaną na tym urządzeniu o {time}."
+    }
   },
   "legal": {
     "acceptAll": "Zaakceptuj wszystkie",

@@ -13,6 +13,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
@@ -50,6 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             where the column is a slide-over that needs opening. */}
           <MobileHeader />
           <ImpersonationBanner />
+          <OfflineBanner />
           {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}

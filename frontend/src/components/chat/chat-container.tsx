@@ -72,6 +72,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
+import { useOnline } from "@/hooks/use-online";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
@@ -269,6 +270,16 @@ export function ChatContainer({
     fetchConversations();
   }, [fetchConversations]);
 
+  // The network back: what is on screen may be the copy kept on the device
+  // (#2097), so the open conversation is read again from the server, in place.
+  const online = useOnline();
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    const returned = online && !wasOnline.current;
+    wasOnline.current = online;
+    if (returned && currentConversationId) void rereadConversation(currentConversationId);
+  }, [online, currentConversationId, rereadConversation]);
+
   // A voice call's turns are saved by the server as it goes (#54), so the
   // transcript is read again, in place, as each lands; a call that started a
   // conversation opens it. Whether this page has a call open is kept apart from
@@ -367,6 +378,7 @@ export function ChatContainer({
     clearMessages,
     queuedMessages,
     cancelQueued,
+    retryQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,
@@ -499,7 +511,8 @@ export function ChatContainer({
       clearMessages();
       // Drop any pending queue when switching threads - those messages were
       // typed in the previous conversation's context, sending them into a
-      // different conversation would surprise the user.
+      // different conversation would surprise the user. The apps keep it on
+      // the device for that conversation, which brings it back (`useChat`).
       clearQueued();
     }
 
@@ -688,6 +701,7 @@ export function ChatContainer({
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
+      onRetryQueued={retryQueued}
       onSendQueuedNow={sendQueuedNow}
       onMoveQueued={moveQueued}
       transcriptRef={transcriptRef}
@@ -792,6 +806,8 @@ interface ChatUIProps {
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
+  /** Sends a message the server refused again, in its place in the queue. */
+  onRetryQueued?: (id: string) => void;
   /** Sends one queued message into the running task instead of after it. */
   onSendQueuedNow?: (id: string) => void;
   /** Moves one queued message to another place in the order they are sent. */
@@ -853,6 +869,7 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
+  onRetryQueued,
   onSendQueuedNow,
   onMoveQueued,
   steers = [],
@@ -1313,6 +1330,8 @@ function ChatUI({
                 messages={queuedMessages ?? []}
                 steers={steers}
                 onCancel={onCancelQueued}
+                onRetry={onRetryQueued}
+                waitingForNetwork={!isConnected}
                 onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
                 onMove={onMoveQueued}
               />

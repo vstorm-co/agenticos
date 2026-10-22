@@ -17,6 +17,7 @@ export { useAddToAgentStore } from "./add-to-agent-store";
 export { useComposerIntentStore } from "./composer-intent-store";
 export { useWorkingStore } from "./working-store";
 export { useLiveFeedStore } from "./live-feed-store";
+export { useOfflineStore } from "./offline-store";
 export { resetSessionState, resetTenantState } from "./session-reset";
 export { ChatScope } from "./chat-scope";
 export { useInChatScope } from "./chat-scope-context";

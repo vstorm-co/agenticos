@@ -6,6 +6,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { ApiError, apiClient } from "@/lib/api-client";
+import { readThrough } from "@/lib/offline/device-cache";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -352,7 +353,13 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
   const skip = options?.skip ?? 0;
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(skip),
-    queryFn: () => apiClient.get<ApprovalList>("/approvals", { params: { skip: String(skip) } }),
+    queryFn: () => {
+      const ask = () =>
+        apiClient.get<ApprovalList>("/approvals", { params: { skip: String(skip) } });
+      // The first page is what the apps keep to read offline (#2097).
+      return skip === 0 ? readThrough("approvals", ask) : ask();
+    },
+    networkMode: "offlineFirst",
     refetchInterval: 30_000,
     enabled: options?.enabled ?? true,
     // The previous page stays on screen while the next loads. Not only to avoid

@@ -12,6 +12,7 @@ import type { DirectoryLoginRequest, User, LoginRequest, RegisterRequest } from 
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
+import { isNetworkFailure, offlineAvailable } from "@/lib/offline/device-cache";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -188,6 +189,20 @@ export function useReauthenticate(): () => Promise<void> {
   }, [queryClient, setUser]);
 }
 
+/**
+ * Whether a session check that never reached the server leaves the person signed
+ * in as they were.
+ *
+ * In the apps it does: they keep the recent conversations on the device to read
+ * without a network (#2097), and a phone opened on a train is not a sign-out.
+ * The account is the one the store kept; the check runs again when the network
+ * returns, and a refusal then signs out as it always has. A browser tab keeps
+ * no copy, so it is sent to sign in as before.
+ */
+function stayOffline(error: unknown): boolean {
+  return isNetworkFailure(error) && offlineAvailable() && useAuthStore.getState().user !== null;
+}
+
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
@@ -196,7 +211,14 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
     let answer: SessionAnswer | null;
     try {
       answer = await readSession();
-    } catch {
+    } catch (error) {
+      if (epoch !== identityEpoch) return;
+      if (stayOffline(error)) {
+        useAuthStore.getState().setLoading(false);
+        authCheckPromise = null;
+        window.addEventListener("online", () => void runAuthCheck(setUser), { once: true });
+        return;
+      }
       answer = null;
     }
     if (epoch !== identityEpoch) return;

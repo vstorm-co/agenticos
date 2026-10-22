@@ -1939,7 +1939,10 @@
       },
       "openBuilder": "Im Agent Builder öffnen",
       "askEditor": "Bitten Sie jemanden, der diesen Agent bearbeiten darf, ihn einzurichten."
-    }
+    },
+    "queuedWaitingForNetwork": "Wartet auf das Netz",
+    "queuedNotSent": "Nicht gesendet: {reason}",
+    "queuedRetry": "Erneut senden"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -3249,7 +3252,13 @@
     "primary": "Primär",
     "quickActions": "Schnellaktionen",
     "retryInvitation": "Erneut versuchen",
-    "searchJump": "Suchen oder springen zu …"
+    "searchJump": "Suchen oder springen zu …",
+    "offline": {
+      "noNetwork": "Keine Verbindung. Geschriebene Nachrichten werden gesendet, sobald das Netz zurück ist.",
+      "savedCopy": "Keine Verbindung. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie.",
+      "outboxWaiting": "{count, plural, =1 {1 Nachricht wartet auf den Versand} other {# Nachrichten warten auf den Versand}}",
+      "unreachable": "Der Server ist nicht erreichbar. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie."
+    }
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",

@@ -1939,7 +1939,10 @@
       },
       "openBuilder": "Open in the Agent Builder",
       "askEditor": "Ask someone who can edit this agent to set it up."
-    }
+    },
+    "queuedWaitingForNetwork": "Waiting for the network",
+    "queuedNotSent": "Not sent: {reason}",
+    "queuedRetry": "Send again"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3249,7 +3252,13 @@
     "primary": "Primary",
     "quickActions": "Quick actions",
     "retryInvitation": "Try again",
-    "searchJump": "Search or jump to…"
+    "searchJump": "Search or jump to…",
+    "offline": {
+      "noNetwork": "You're offline. Messages you write will send when the network is back.",
+      "savedCopy": "You're offline. Showing what was saved on this device at {time}.",
+      "outboxWaiting": "{count, plural, =1 {1 message waiting to send} other {# messages waiting to send}}",
+      "unreachable": "Can't reach the server. Showing what was saved on this device at {time}."
+    }
   },
   "legal": {
     "acceptAll": "Accept all",
