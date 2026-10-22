@@ -90,6 +90,7 @@ from app.schemas.authoring import (
     ProposalCheck,
 )
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
+from app.schemas.eval_threshold import EvalSuiteCheck
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
@@ -952,6 +953,15 @@ class AuthoringService:
             paired_baseline=True,
         )
 
+    async def _suite(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> EvalSuiteCheck | None:
+        """The suite a check runs on, as it stands now - none for a check on a dataset."""
+        if body.suite_id is None:
+            return None
+        suite = await EvalSuiteService(self.db).get(ctx, agent_id, body.suite_id)
+        return EvalSuiteCheck(suite_id=suite.id, name=suite.name, threshold=suite.threshold)
+
     async def estimate_check(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
@@ -1056,6 +1066,7 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
+            suite=await self._suite(ctx, agent.id, body),
         )
 
     async def _context_check(
@@ -1147,6 +1158,7 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
+            suite=await self._suite(ctx, agent.id, body),
         )
 
     async def check(self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck) -> EvalRunRead:
@@ -1164,6 +1176,7 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
+            suite=await self._suite(ctx, agent.id, body),
         )
         await authoring_repo.update_batch(
             self.db,

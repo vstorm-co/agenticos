@@ -46,9 +46,10 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import DatasetCase
-from app.db.models.eval_run import EvalRunArm
-from app.db.models.eval_suite import EvalSuite
+from app.db.models.eval_run import EvalRun, EvalRunArm
+from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.message_rating import MessageRating
+from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
@@ -61,6 +62,8 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.authoring import AuthoringService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
+from app.services.eval_run import EvalRunService
+from app.services.eval_run_worker import EvalRunWorker
 from app.services.model_profile import ModelProfileService
 from app.services.system_agent_runner import SystemAgentRunner
 
@@ -686,6 +689,91 @@ class TestCheck:
         with pytest.raises(NotFoundError, match="Eval suite not found"):
             await service.check(ctx, agent.id, ProposalCheck(suite_id=foreign.id))
 
+    async def test_a_check_on_a_suite_is_held_to_its_threshold_and_is_none_of_its_runs(self, db):
+        """What the suite would have said, by the threshold it had when the check
+        started - and nothing the suite keeps: no result, no history, no notice."""
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        datasets = DatasetService(db)
+        dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+        for index in range(2):
+            await datasets.add_case(
+                ctx,
+                dataset.id,
+                DatasetCaseCreate(
+                    input=f"Q{index}", checks=[{"type": "contains", "value": "30 days"}]
+                ),
+            )
+        suite = await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                owner_user_id=ctx.user_id,
+                name="nightly",
+                min_pass_rate=Decimal("0.9"),
+            ),
+        )
+        service = AuthoringService(db)
+        evals = EvalRunService(db)
+
+        started = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        waiting = await evals.get(ctx, started.id)
+        suite.name, suite.min_pass_rate = "renamed", Decimal("0")
+        await db.flush()
+        await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
+        judged = await evals.get(ctx, started.id)
+        await eval_suite_repo.delete_suite(db, suite=suite)
+        gone = await evals.get(ctx, started.id)
+        by_dataset = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
+
+        assert waiting.suite_check is not None
+        assert (waiting.suite_check.name, waiting.suite_check.status) == ("nightly", None)
+        assert judged.suite_check is not None
+        assert (judged.suite_check.name, judged.suite_check.status) == ("nightly", "failed")
+        assert [(r.code, r.value, r.limit) for r in judged.suite_check.reasons] == [
+            ("pass_rate_below", 0.0, 0.9)
+        ]
+        assert judged.suite_check.suite_exists and gone.suite_check is not None
+        assert not gone.suite_check.suite_exists
+        assert (await evals.get(ctx, by_dataset.id)).suite_check is None
+        assert (await db.execute(select(func.count()).select_from(EvalSuiteResult))).scalar() == 0
+        assert (await db.execute(select(func.count()).select_from(Notification))).scalar() == 0
+
+    @pytest.mark.security
+    async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        datasets = DatasetService(db)
+        dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+        await datasets.add_case(
+            ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}]),
+        )
+        suite = await eval_suite_repo.create(
+            db,
+            organization_id=ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=agent.id, dataset_id=dataset.id, owner_user_id=ctx.user_id, name="n"
+            ),
+        )
+        started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        stranger, other_agent, _ = await _setup(db)
+        await _improve(db, stranger, other_agent, Improver(db))
+        runs_before = (await db.execute(select(func.count()).select_from(EvalRun))).scalar()
+
+        with pytest.raises(NotFoundError, match="Eval suite not found"):
+            await AuthoringService(db).check(
+                stranger, other_agent.id, ProposalCheck(suite_id=suite.id)
+            )
+        with pytest.raises(NotFoundError, match="Eval run not found"):
+            await EvalRunService(db).get(stranger, started.id)
+        assert (await db.execute(select(func.count()).select_from(EvalRun))).scalar() == (
+            runs_before
+        )
+
     async def test_nothing_waiting_has_nothing_to_check(self, db):
         ctx, agent, _ = await _setup(db)
 
@@ -1168,6 +1256,32 @@ async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     assert estimate.reason == "no_draft_change" and estimate.calls == 0
 
 
+async def _finish_eval(db: AsyncSession, ctx: AuthContext, run_id: uuid.UUID, *, answer: str):
+    """Carry an eval run to its end, as the worker would, every case answered alike."""
+
+    async def execute(runner: Any, caller: AuthContext, agent_id: Any, prompt: str, **kw: Any):
+        run = AgentRun(
+            organization_id=caller.organization_id,
+            agent_id=agent_id,
+            user_id=caller.user_id,
+            surface=kw["surface"].value,
+            status="completed",
+            cost_usd=Decimal("0.01"),
+            started_at=datetime.now(UTC),
+        )
+        db.add(run)
+        await db.flush()
+        return answer, run
+
+    with (
+        patch.object(AgentRunnerService, "execute", new=execute),
+        patch("app.services.eval_run_worker.settings.EVAL_RUN_CONCURRENCY", 1),
+    ):
+        await EvalRunWorker(
+            run_id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+
+
 class TestSkillCheck:
     async def _proposal(self, db: AsyncSession) -> tuple[AuthoringContext, Skill, SkillProposal]:
         ctx, agent, run = await _setup(db)
@@ -1245,6 +1359,29 @@ class TestSkillCheck:
         }
         await db.refresh(skill)
         assert skill.content == "Refunds take 90 days."
+
+    async def test_a_skill_change_checked_on_a_suite_keeps_the_suite_it_ran_on(self, db):
+        setup, skill, proposal = await self._proposal(db)
+        suite = await eval_suite_repo.create(
+            db,
+            organization_id=setup.ctx.organization_id,
+            suite=EvalSuite(
+                agent_id=setup.agent.id,
+                dataset_id=setup.dataset_id,
+                owner_user_id=setup.ctx.user_id,
+                name="weekly",
+            ),
+        )
+
+        started = await AuthoringService(db).check_skill(
+            setup.ctx,
+            skill.id,
+            ProposalCheck(suite_id=suite.id, agent_id=setup.agent.id, proposal_id=proposal.id),
+        )
+
+        read = await EvalRunService(db).get(setup.ctx, started.id)
+        assert read.suite_check is not None
+        assert (read.suite_check.suite_id, read.suite_check.name) == (suite.id, "weekly")
 
     async def test_a_check_needs_a_waiting_change_and_an_agent_that_uses_the_skill(self, db):
         setup, skill, proposal = await self._proposal(db)

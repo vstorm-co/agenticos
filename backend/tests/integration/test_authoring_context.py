@@ -35,8 +35,9 @@ from app.db.models.authoring import AuthoringRequest
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.eval_run import EvalRunArm
+from app.db.models.eval_suite import EvalSuite
 from app.db.models.organization import OrganizationMember
-from app.repositories import authoring_repo
+from app.repositories import authoring_repo, eval_suite_repo
 from app.schemas.authoring import AuthoringStart, ProposalCheck
 from app.schemas.context import ContextFileUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
@@ -45,6 +46,7 @@ from app.services.authoring_worker import AuthoringWorker
 from app.services.context import ContextService
 from app.services.context_proposal import ContextProposalService
 from app.services.dataset import DatasetService
+from app.services.eval_run import EvalRunService
 from tests.integration.test_authoring import (
     COMMENT,
     Improver,
@@ -267,6 +269,34 @@ async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):
     ):
         with pytest.raises(reason):
             await service.check_context(ctx, file.id, check)
+
+
+async def test_a_context_change_checked_on_a_suite_keeps_the_suite_it_ran_on(db):
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="returns-cases"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    suite = await eval_suite_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        suite=EvalSuite(
+            agent_id=agent.id, dataset_id=dataset.id, owner_user_id=ctx.user_id, name="returns"
+        ),
+    )
+
+    started = await AuthoringService(db).check_context(
+        ctx, file.id, ProposalCheck(suite_id=suite.id, agent_id=agent.id, proposal_id=proposal.id)
+    )
+
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert read.suite_check is not None
+    assert (read.suite_check.suite_id, read.suite_check.name) == (suite.id, "returns")
 
 
 async def test_what_refuses_an_improve_on_a_context_file(db):

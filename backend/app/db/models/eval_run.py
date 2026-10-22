@@ -183,6 +183,12 @@ class EvalRun(Base):
     # of its scores after `outcome_at`, and read afresh then.
     outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A check of authoring suggestions made on an eval suite: the suite and its
+    # threshold as they stood when it started (`EvalSuiteCheck`). It is not one of
+    # the suite's runs, so no suite result points at it.
+    suite_check: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # How many scores the run sent to review itself once its reruns were in.
     routed_to_review: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Older scores of those cases, still waiting, that the ones it sent replaced.
