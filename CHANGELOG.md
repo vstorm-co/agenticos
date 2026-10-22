@@ -42,8 +42,8 @@ Two things are versioned separately from this file and worth knowing about:
   Entra, spends about a second per request, so it timed out on every turn and
   every connection check although it answered each request. A server now gets
   3 seconds to accept the connection and 10 seconds for the whole handshake,
-  and a run waits as long for `initialize`. A host that is down still fails
-  within 3 seconds.
+  or the `--timeout` the catalog check is given. A host that is down still
+  fails within 3 seconds, and so does a run's own `initialize`.
 
 ## [1.13.0] - 2026-10-22
 

@@ -316,8 +316,9 @@ class _OAuthServers:
     "sent, and answered badly".
     """
 
-    def __init__(self, authorization_server: str) -> None:
+    def __init__(self, authorization_server: str, *, consent_at: str | None = None) -> None:
         self.authorization_server = authorization_server
+        self.consent_at = consent_at or f"{authorization_server}/authorize"
         self.seen: list[tuple[str, str]] = []
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
@@ -335,7 +336,7 @@ class _OAuthServers:
                 200,
                 json={
                     "issuer": issuer,
-                    "authorization_endpoint": f"{issuer}/authorize",
+                    "authorization_endpoint": self.consent_at,
                     "token_endpoint": f"{issuer}/token",
                     "registration_endpoint": f"{issuer}/register",
                     "response_types_supported": ["code"],
@@ -464,6 +465,44 @@ class TestOAuthFromAListedHost:
             await _exchange("http://mcp.internal:8000/token", server_url=self._SERVER)
 
         assert servers.seen == []
+
+    async def test_a_consent_page_at_a_listed_name_answering_loopback_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The consent URL is checked rather than fetched, but by the hops' own
+        policy: a listed name is resolved there too, so it cannot send somebody's
+        browser to an address the list may never name."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["mcp.internal", "login.internal"])
+
+        def resolve(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            answer = "127.0.0.1" if host == "login.internal" else _PRIVATE
+            return [(2, 1, 6, "", (answer, port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", resolve)
+        servers = _OAuthServers(
+            "http://mcp.internal:8000", consent_at="http://login.internal/authorize"
+        )
+        servers.serve(monkeypatch)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):
+            await mcp_oauth.discover(self._SERVER)
+
+    async def test_a_listed_name_outside_ascii_is_matched_as_it_is_sent(
+        self, monkeypatch: pytest.MonkeyPatch, asked: list[str]
+    ) -> None:
+        """httpx2 IDNA-encodes the host before the pinned client checks it, so
+        a listed `täst.internal` is asked for as `xn--tst-qla.internal`."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["täst.internal"])
+        server_url = "http://täst.internal:8000/mcp"
+        servers = _OAuthServers("http://täst.internal:8000")
+        servers.serve(monkeypatch)
+
+        server = await mcp_oauth.discover(server_url)
+        await _exchange(server.token_endpoint, server_url=server_url)
+
+        assert server.trusted_hosts == {"täst.internal", "xn--tst-qla.internal"}
+        assert "xn--tst-qla.internal" in asked
+        assert ("xn--tst-qla.internal:8000", "/token") in servers.seen
 
     async def test_a_host_taken_off_the_list_is_no_longer_refreshed_at(
         self, monkeypatch: pytest.MonkeyPatch

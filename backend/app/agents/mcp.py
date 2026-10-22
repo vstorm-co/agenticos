@@ -64,6 +64,11 @@ each, and a probe is three or four requests, so a single 3s budget left it out
 of every turn although it answered every request. A host that does not accept
 the connection still fails within :data:`CONNECT_TIMEOUT_SECS`; one that accepts
 and then hangs holds a turn for this long.
+
+A run's own `initialize` keeps :data:`CONNECT_TIMEOUT_SECS`. It is one request,
+which such a server answers within it, and a server that answered a probe in
+the last :data:`ANSWERED_FOR` seconds is entered without another - so one that
+went down in that window still fails a turn in seconds, not in this budget.
 """
 
 ANSWERED_FOR = 120.0
@@ -134,13 +139,34 @@ def trusted_hosts_for(server_url: str) -> frozenset[str]:
     others: a member could already save a connection to any of them, so they
     open nothing new. A URL `urlparse` cannot read trusts nothing; the guard
     that checks it next writes the refusal.
+
+    Each host is in the set twice when its spellings differ: as `urlparse`
+    reads a URL a server wrote, and as httpx2 sends it, a name IDNA-encoded.
+    The pinned client checks the URL httpx2 built, so a listed `täst.internal`
+    has to match `xn--tst-qla.internal` there.
     """
     try:
         host = urlparse(server_url).hostname
     except ValueError:
         return frozenset()
     listed = _allowed_hosts()
-    return listed if host in listed else frozenset()
+    spellings = listed | {_on_the_wire(entry) for entry in listed}
+    if host is None or _on_the_wire(host) not in spellings:
+        return frozenset()
+    return spellings
+
+
+def _on_the_wire(host: str) -> str:
+    """*host* as httpx2 puts it in a request: a name IDNA-encoded, an address as written.
+
+    httpx2's own encoder rather than the `idna` codec, which is IDNA 2003 and
+    spells `straße` differently. A host it cannot encode is kept as typed and
+    matches nothing it would send.
+    """
+    try:
+        return httpx2.URL(scheme="http", host=host).raw_host.decode("ascii")
+    except httpx2.InvalidURL:
+        return host
 
 
 async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
@@ -158,11 +184,9 @@ async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     Args:
         url: The URL to check; http or https.
         honour_allowlist: Pass `True` only for a connection's own address, as
-            `mcp_connection._checked_url` checks it, or for the consent URL of
-            an OAuth flow that began at a listed host. A host on
+            `mcp_connection._checked_url` checks it. A host on
             `MCP_ALLOWED_HOSTS` then skips the address check and is not
-            resolved. Any other URL a remote server chose keeps the strict
-            default.
+            resolved. A URL a remote server chose keeps the strict default.
 
     Returns:
         The URL, unchanged.
@@ -214,7 +238,7 @@ class McpServerSpec:
 
 @asynccontextmanager
 async def _mcp_transport(
-    url: str, headers: dict[str, str] | None
+    url: str, headers: dict[str, str] | None, *, timeout: float
 ) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
@@ -241,9 +265,9 @@ async def _mcp_transport(
     else:
         from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
-        timeout = httpx2.Timeout(HANDSHAKE_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
+        limits = httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS)
         async with (
-            create_mcp_http_client(headers=headers or None, timeout=timeout) as http_client,
+            create_mcp_http_client(headers=headers or None, timeout=limits) as http_client,
             streamable_http_client(url, http_client=http_client) as (read, write),
         ):
             yield read, write
@@ -266,10 +290,11 @@ async def probe_mcp_server(
     """
     from mcp import ClientSession
 
+    budget = timeout or HANDSHAKE_TIMEOUT_SECS
     try:
-        async with asyncio.timeout(timeout or HANDSHAKE_TIMEOUT_SECS):
+        async with asyncio.timeout(budget):
             async with (
-                _mcp_transport(url, headers) as (read, write),
+                _mcp_transport(url, headers, timeout=budget) as (read, write),
                 ClientSession(read, write) as session,
             ):
                 await session.initialize()
@@ -277,7 +302,7 @@ async def probe_mcp_server(
     except (Exception, BaseExceptionGroup) as exc:
         if _carries_base_exception(exc):
             raise
-        raise McpProbeError(probe_error_message(exc)) from exc
+        raise McpProbeError(probe_error_message(exc, timeout=budget)) from exc
     return [
         McpToolInfo(
             name=t.name,
@@ -299,7 +324,7 @@ def _carries_base_exception(exc: BaseException) -> bool:
     return not isinstance(exc, Exception)
 
 
-def probe_error_message(exc: BaseException) -> str:
+def probe_error_message(exc: BaseException, *, timeout: float | None = None) -> str:
     """Human-readable reason for a failed probe.
 
     The MCP client runs on anyio task groups, so failures surface as nested
@@ -311,7 +336,7 @@ def probe_error_message(exc: BaseException) -> str:
     if isinstance(exc, httpx2.ConnectTimeout):
         return f"Connection timed out after {CONNECT_TIMEOUT_SECS:g}s"
     if isinstance(exc, TimeoutError):
-        return f"The server timed out after {HANDSHAKE_TIMEOUT_SECS:g}s"
+        return f"The server timed out after {timeout or HANDSHAKE_TIMEOUT_SECS:g}s"
     return str(exc) or exc.__class__.__name__
 
 
@@ -357,7 +382,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=None if spec.in_process else spec.headers or None,
         http_client=_in_process_client(spec.headers) if spec.in_process else None,
         id=f"mcp:{spec.name}",
-        init_timeout=HANDSHAKE_TIMEOUT_SECS,
+        init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
         include_instructions=spec.include_instructions,
     )

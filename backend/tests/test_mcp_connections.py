@@ -35,7 +35,6 @@ from app.agents import mcp_oauth
 from app.agents.mcp import (
     ANSWERED_FOR,
     CONNECT_TIMEOUT_SECS,
-    HANDSHAKE_TIMEOUT_SECS,
     TOOL_NAME_LIMIT,
     AnsweredRecently,
     FittedNames,
@@ -248,7 +247,10 @@ class TestTransportSelection:
             return _acm(("sse-read", "sse-write"))
 
         monkeypatch.setattr(sse_mod, "sse_client", sse_client)
-        async with _mcp_transport("https://mcp.atlassian.com/v1/sse", {"h": "1"}) as (r, w):
+        async with _mcp_transport("https://mcp.atlassian.com/v1/sse", {"h": "1"}, timeout=10.0) as (
+            r,
+            w,
+        ):
             assert (r, w) == ("sse-read", "sse-write")
         assert calls == [
             ("sse", "https://mcp.atlassian.com/v1/sse", {"h": "1"}, CONNECT_TIMEOUT_SECS)
@@ -264,7 +266,7 @@ class TestTransportSelection:
             return _acm(("http-read", "http-write"))
 
         monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
-        async with _mcp_transport("https://example.com/mcp", None) as (r, w):
+        async with _mcp_transport("https://example.com/mcp", None, timeout=10.0) as (r, w):
             assert (r, w) == ("http-read", "http-write")
         assert [(kind, url) for kind, url, _ in calls] == [("http", "https://example.com/mcp")]
 
@@ -285,7 +287,9 @@ class TestTransportSelection:
             return _acm(("http-read", "http-write"))
 
         monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
-        async with _mcp_transport("https://example.com/mcp", {"Authorization": "Bearer sh"}):
+        async with _mcp_transport(
+            "https://example.com/mcp", {"Authorization": "Bearer sh"}, timeout=10.0
+        ):
             pass
 
         assert clients and clients[0].headers["authorization"] == "Bearer sh"
@@ -293,7 +297,7 @@ class TestTransportSelection:
     @pytest.mark.anyio
     async def test_the_client_fails_a_dead_host_fast_and_waits_for_a_slow_one(self, monkeypatch):
         """Connecting is bounded by the short timeout, each request by the
-        handshake's: a host that is down is still left out within seconds, and
+        probe's budget: a host that is down is still left out within seconds, and
         a server that answers every request slowly is still answered."""
         import mcp.client.streamable_http as http_mod
 
@@ -304,11 +308,11 @@ class TestTransportSelection:
             return _acm(("http-read", "http-write"))
 
         monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
-        async with _mcp_transport("https://example.com/mcp", None):
+        async with _mcp_transport("https://example.com/mcp", None, timeout=30.0):
             pass
 
         assert clients[0].timeout.connect == CONNECT_TIMEOUT_SECS
-        assert clients[0].timeout.read == HANDSHAKE_TIMEOUT_SECS
+        assert clients[0].timeout.read == 30.0
 
     @pytest.mark.anyio
     async def test_the_client_it_built_is_closed_with_the_transport(self, monkeypatch):
@@ -323,7 +327,7 @@ class TestTransportSelection:
             return _acm(("http-read", "http-write"))
 
         monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
-        async with _mcp_transport("https://example.com/mcp", None):
+        async with _mcp_transport("https://example.com/mcp", None, timeout=10.0):
             assert not clients[0].is_closed
 
         assert clients[0].is_closed
@@ -418,10 +422,10 @@ class TestMakeToolset:
 
         assert _make_toolset(spec).wrapped.wrapped.wrapped.include_instructions is include
 
-    def test_a_run_waits_for_initialize_as_long_as_a_probe_does(self, monkeypatch):
-        """The probe that let a server into the turn and the toolset that then
-        opens it share one budget, so a server the probe accepted is not dropped
-        mid-turn for being as slow as it was a moment earlier."""
+    def test_a_run_connects_on_the_short_timeout(self, monkeypatch):
+        """A server that answered a probe recently is entered with no probe, so
+        a run's own connect-and-initialize is what notices it went down - in
+        seconds, not in the probe's whole-session budget."""
         from pydantic_ai.mcp import MCPToolset
 
         made = MagicMock(wraps=MCPToolset)
@@ -429,7 +433,7 @@ class TestMakeToolset:
 
         _make_toolset(McpServerSpec(name="slow", url="https://example.com/mcp"))
 
-        assert made.call_args.kwargs["init_timeout"] == HANDSHAKE_TIMEOUT_SECS
+        assert made.call_args.kwargs["init_timeout"] == CONNECT_TIMEOUT_SECS
 
     def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
         """A retry spends the tool's single attempt, and the error after it ends
@@ -793,7 +797,7 @@ class TestProbeSuccess:
 
         monkeypatch.setattr(
             "app.agents.mcp._mcp_transport",
-            lambda url, headers: _acm((MagicMock(), MagicMock())),
+            lambda url, headers, **_: _acm((MagicMock(), MagicMock())),
         )
         monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
 
@@ -824,7 +828,8 @@ class TestProbeErrors:
         session.initialize = AsyncMock(side_effect=slowly)
         session.list_tools = AsyncMock(side_effect=slowly)
         monkeypatch.setattr(
-            "app.agents.mcp._mcp_transport", lambda url, headers: _acm((MagicMock(), MagicMock()))
+            "app.agents.mcp._mcp_transport",
+            lambda url, headers, **_: _acm((MagicMock(), MagicMock())),
         )
         monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
 
@@ -847,6 +852,26 @@ class TestProbeErrors:
         with pytest.raises(McpProbeError, match="timed out after"):
             await probe_mcp_server("https://example.com/mcp")
 
+    @pytest.mark.anyio
+    async def test_a_callers_budget_reaches_the_transport_and_the_refusal(self, monkeypatch):
+        """The catalog audit passes its own `--timeout`; a fixed read timeout
+        under it would fail a server the operator gave longer, and the refusal
+        would name a budget nobody set."""
+        budgets: list[float] = []
+
+        @contextlib.asynccontextmanager
+        async def hanging_transport(url, headers, *, timeout):
+            budgets.append(timeout)
+            await asyncio.sleep(1.0)
+            yield MagicMock(), MagicMock()  # pragma: no cover
+
+        monkeypatch.setattr("app.agents.mcp._mcp_transport", hanging_transport)
+
+        with pytest.raises(McpProbeError, match=r"timed out after 0\.05s"):
+            await probe_mcp_server("https://example.com/mcp", timeout=0.05)
+
+        assert budgets == [0.05]
+
     def test_a_connect_timeout_names_the_connect_budget(self):
         message = probe_error_message(httpx2.ConnectTimeout("no route"))
 
@@ -855,7 +880,7 @@ class TestProbeErrors:
     @pytest.mark.anyio
     async def test_exception_group_becomes_probe_error(self, monkeypatch):
         @contextlib.asynccontextmanager
-        async def failing_transport(url, headers):
+        async def failing_transport(url, headers, **_):
             raise BaseExceptionGroup("unhandled errors in a TaskGroup", [ConnectionError("boom")])
             yield  # pragma: no cover
 
@@ -869,7 +894,7 @@ class TestProbeErrors:
         import asyncio
 
         @contextlib.asynccontextmanager
-        async def cancelled_transport(url, headers):
+        async def cancelled_transport(url, headers, **_):
             raise BaseExceptionGroup("cancelled", [asyncio.CancelledError()])
             yield  # pragma: no cover
 

@@ -30,8 +30,10 @@ a server on the deployment's network often signs people in itself, so its
 metadata, registration and token endpoints sit on that same host.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
+from functools import partial
 
 import httpx2
 from mcp.client.auth import PKCEParameters
@@ -57,10 +59,10 @@ from mcp.shared.auth import (
 )
 from pydantic import AnyUrl, BaseModel, ValidationError
 
-from app.agents.mcp import CONNECT_TIMEOUT_SECS, trusted_hosts_for, validate_mcp_url
+from app.agents.mcp import CONNECT_TIMEOUT_SECS, trusted_hosts_for
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
+from app.core.sanitize import UrlRefusedError, resolve_pinned_url
 from app.core.secret_kinds import SealedStr
 
 logger = logging.getLogger(__name__)
@@ -362,10 +364,13 @@ async def discover(server_url: str) -> DiscoveredServer:
 
         # The consent URL is handed to the user's browser rather than fetched
         # here, so it never passes through the pinned client - and cannot: the
-        # browser resolves it itself. A point-in-time check is all there is.
-        # The list is honoured exactly when the hops above honoured it.
+        # browser resolves it itself. A point-in-time check is all there is, made
+        # by the hops' own policy: a listed host is resolved too, and refused if
+        # it answers loopback, link-local or metadata.
         try:
-            await validate_mcp_url(str(asm.authorization_endpoint), honour_allowlist=bool(trusted))
+            await asyncio.to_thread(
+                partial(resolve_pinned_url, str(asm.authorization_endpoint), trusted_hosts=trusted)
+            )
         except UrlRefusedError as exc:
             logger.warning(
                 "Blocked MCP OAuth authorization endpoint %s: %s", asm.authorization_endpoint, exc
