@@ -103,6 +103,8 @@ class VideoSettings:
     """Whether the model makes sound optional, so a call may ask for it on or off."""
 
     timeout_seconds: int
+    base_url: str | None = None
+    """The provider's API base for this binding, where it is not the catalog's."""
 
 
 class GeneratedVideo(BaseModel):
@@ -318,6 +320,7 @@ def build_video_toolset(
                     audio=sound,
                     first_frame=frame,
                     reached=stages.add,
+                    base_url=settings.base_url,
                 )
             except asyncio.CancelledError:
                 # The run went away - a person pressed stop, a call hung up - while

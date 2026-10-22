@@ -6,6 +6,18 @@ internals. Which providers, models and voices exist is not decided here - that i
 """
 
 from app.services.text_to_speech.exceptions import SpeechFailure, SpeechProviderError
-from app.services.text_to_speech.synthesis import ACCOUNT_VOICE_ID, Speech, synthesize
+from app.services.text_to_speech.synthesis import (
+    ACCOUNT_VOICE_ID,
+    Speech,
+    SpokenPiece,
+    synthesize,
+)
 
-__all__ = ["ACCOUNT_VOICE_ID", "Speech", "SpeechFailure", "SpeechProviderError", "synthesize"]
+__all__ = [
+    "ACCOUNT_VOICE_ID",
+    "Speech",
+    "SpeechFailure",
+    "SpeechProviderError",
+    "SpokenPiece",
+    "synthesize",
+]

@@ -43,14 +43,18 @@ Two things are versioned separately from this file and worth knowing about:
   booked at its estimate if the run stops, or the clip cannot be fetched, before
   it arrives. In a voice call a clip is handed to the agent's text model, since
   a call cannot wait minutes in silence.
-  BytePlus keys are a new purpose in the vault (#2260).
+  BytePlus keys are a new purpose in the vault (#2260). An Alibaba binding can
+  name its Model Studio workspace and region, which Wan 3.0 is called through
+  (#2350).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip plays in the
   conversation, exactly where a generated image would be shown. Its cost is
   checked against the budget before the call, from a dated per-character
-  price, and booked as each piece is spoken. ElevenLabs voices are named by
-  id, because they belong to the account (#2259).
+  price, and booked as each piece is spoken - Gemini's from the audio it
+  returned, at its token rates, so a slow delivery is billed as the provider
+  bills it (#2351). ElevenLabs voices are named by id, because they belong to
+  the account (#2259).
 - **A catalog of text-to-speech providers.** `GET
   /providers/text-to-speech-models` lists the providers that can speak a text
   aloud - OpenAI, ElevenLabs and Gemini - with each model's voices, formats and
@@ -105,6 +109,11 @@ Two things are versioned separately from this file and worth knowing about:
   player's range request included, so a member who knew a long clip's name
   could make every request hold all of it. Both now stream, reading only the
   range asked for - from disk, or by a ranged `GetObject` on S3 (#2310).
+- **A key for another provider is refused at publish.** Image generation's key
+  picker now offers only the chosen provider's keys, as speech and video do. Publish
+  refuses a capability key stored for a different service than the binding
+  names, which before was sent to the wrong provider at every call; a `custom`
+  key is still accepted (#2258).
 
 ## [1.13.0] - 2026-10-22
 

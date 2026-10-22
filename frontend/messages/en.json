@@ -7916,6 +7916,14 @@
         "title": "Sound",
         "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
       },
+      "alibaba_workspace": {
+        "title": "Alibaba workspace",
+        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
+      },
+      "alibaba_region": {
+        "title": "Alibaba region",
+        "description": "Alibaba only: the region the workspace is in."
+      },
       "timeout_seconds": {
         "title": "Time limit",
         "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."

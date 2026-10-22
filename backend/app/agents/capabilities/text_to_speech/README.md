@@ -62,9 +62,13 @@ cost at all. The check reserves nothing, so the tool runs one call at a time
 `instructions` - a direction on how to speak - is capped at 1,000 characters and is
 not priced. It goes to the provider with every piece of a long text.
 
-Token-billed models (OpenAI's `gpt-4o-mini-tts`, Gemini) are priced in the
-catalog per character of typical speech. That is an estimate of what the provider
-will bill, and it is the number that can be known before the call.
+Token-billed models (OpenAI's `gpt-4o-mini-tts`, Gemini) are checked at a price
+per character of typical speech, the number that can be known before the call.
+Gemini's catalog entry also lists its token rates, and since its audio comes back
+as raw PCM, each piece is then booked from the audio's length - text tokens in,
+25 audio tokens a second out - rather than its characters: a direction to speak
+slowly makes the same text cost more (#2351). OpenAI's MP3 carries no length this
+reads, so it stays booked by its characters.
 
 ## What it deliberately does not do
 

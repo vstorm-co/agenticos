@@ -42,7 +42,7 @@ from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.core.secret_kinds import ApiKeySecret
 from app.services import text_to_speech_models
-from app.services.text_to_speech import SpeechFailure, SpeechProviderError
+from app.services.text_to_speech import SpeechFailure, SpeechProviderError, SpokenPiece
 from app.services.text_to_speech.synthesis import Speech
 from tests.workspaces import SandboxUnreachable, document_workspace
 
@@ -58,14 +58,16 @@ class _FakeSynthesis:
         self.calls: list[dict[str, Any]] = []
         self.error: SpeechProviderError | None = None
         self.spoken_before_error = 0
+        # How long each piece's audio runs, where the client knows it (raw PCM).
+        self.seconds: float | None = None
 
     async def __call__(self, provider: Any, **kwargs: Any) -> Speech:
         self.calls.append({"provider": provider.provider, **kwargs})
         if self.error is not None:
             if self.spoken_before_error:
-                kwargs["on_spoken"](self.spoken_before_error)
+                kwargs["on_spoken"](SpokenPiece(self.spoken_before_error, self.seconds))
             raise self.error
-        kwargs["on_spoken"](len(kwargs["text"]))
+        kwargs["on_spoken"](SpokenPiece(len(kwargs["text"]), self.seconds))
         return Speech(
             data=MP3,
             audio_format=kwargs["audio_format"],
@@ -667,6 +669,7 @@ class TestRefusingBeforeSpending:
 
     async def test_an_unpriced_clip_is_spoken_and_booked_as_unpriced(self, synthesis, monkeypatch):
         monkeypatch.setattr(toolset_module, "price_per_character", lambda *_a, **_k: None)
+        monkeypatch.setattr(toolset_module, "piece_cost", lambda *_a, **_k: None)
         ledger = SpendLedger()
         with metered_by(ledger):
             await _speak(_toolset(), _ctx(uuid4()))
@@ -714,6 +717,31 @@ class TestAFailedCall:
 
         [entry] = ledger.entries
         assert entry.cost_usd == _price("openai", "gpt-4o-mini-tts") * 40
+
+    async def test_a_gemini_piece_is_booked_from_the_audio_it_returned(self, synthesis):
+        """A slow delivery makes the same text cost more, which a character price
+        cannot see (#2351)."""
+        synthesis.seconds = 12.0
+        ledger = SpendLedger()
+        toolset = _toolset(
+            provider="google",
+            model="gemini-3.8-flash-tts",
+            voice="Kore",
+            voices=(OfferedVoice("Kore"),),
+            audio_format="wav",
+        )
+        with metered_by(ledger):
+            await _speak(toolset, _ctx(uuid4()), "y" * 40)
+
+        flash = text_to_speech_models.by_provider("google")
+        assert flash is not None
+        chosen = flash.model("gemini-3.8-flash-tts")
+        assert chosen is not None
+        [entry] = ledger.entries
+        assert entry.cost_usd == text_to_speech_models.piece_cost(
+            chosen, on=datetime.now(UTC).date(), characters=40, seconds=12.0
+        )
+        assert entry.cost_usd != _price("google", "gemini-3.8-flash-tts") * 40
 
     async def test_a_failure_before_anything_was_spoken_books_nothing(self, synthesis):
         synthesis.error = SpeechProviderError(SpeechFailure.CREDENTIALS, provider="openai")

@@ -17,7 +17,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from app.services.text_to_speech import SpeechFailure, SpeechProviderError, synthesize
+from app.services.text_to_speech import SpeechFailure, SpeechProviderError, SpokenPiece, synthesize
 from app.services.text_to_speech import synthesis as module
 from app.services.text_to_speech.synthesis import split_text, wav
 from app.services.text_to_speech_models import TextToSpeechProvider, by_provider
@@ -421,7 +421,7 @@ class TestAFailedCall:
     async def test_each_piece_is_reported_as_soon_as_it_is_spoken(self):
         """The clip is discarded on a failure; what the first piece cost is not, and
         the caller has already been told of it."""
-        spoken: list[int] = []
+        spoken: list[SpokenPiece] = []
         answers = iter([httpx.Response(200, content=b"\x01\x00"), httpx.Response(500)])
         with _answering(lambda _: next(answers)), pytest.raises(SpeechProviderError):
             await synthesize(
@@ -435,7 +435,8 @@ class TestAFailedCall:
             )
 
         first_piece = split_text(("word " * 1000).strip(), 4096)[0]
-        assert spoken == [len(first_piece)]
+        # Two bytes of 16-bit PCM at 24 kHz: one sample, and its length is known.
+        assert spoken == [SpokenPiece(characters=len(first_piece), seconds=1 / 24_000)]
 
     async def test_a_timeout_is_unavailable(self):
         def time_out(request: httpx.Request) -> httpx.Response:

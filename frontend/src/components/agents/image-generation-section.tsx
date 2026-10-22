@@ -113,6 +113,11 @@ export function ImageGenerationSection({
       disabled={disabled}
       configProblems={configProblems}
       settingsExtra={controls}
+      // The provider shown before one is picked is the catalog's first, and the
+      // key is gated on it (#2258): without it the picker stayed hidden.
+      resolvedConfig={
+        resolved.current === undefined ? undefined : { provider: resolved.current.provider }
+      }
       // The controls above *are* this capability's configuration, the generated
       // fields included: drawing the form again would double every field.
       hideConfigForm

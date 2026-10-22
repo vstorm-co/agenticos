@@ -362,6 +362,60 @@ def test_the_builder_resolves_the_defaults_from_the_model(config, expected):
     assert built.api_key == "sk-video" and "sk-video" not in repr(built)
 
 
+@pytest.mark.parametrize(
+    ("config", "endpoint"),
+    [
+        (
+            {"provider": "alibaba", "model": "wan3.0-video", "alibaba_workspace": "ws-1a2b"},
+            "https://ws-1a2b.ap-southeast-1.maas.aliyuncs.com/api/v1",
+        ),
+        (
+            {
+                "provider": "alibaba",
+                "model": "wan3.0-video",
+                "alibaba_workspace": "ws-1a2b",
+                "alibaba_region": "eu-central-1",
+            },
+            "https://ws-1a2b.eu-central-1.maas.aliyuncs.com/api/v1",
+        ),
+        ({"provider": "alibaba", "model": "wan3.0-video"}, None),
+        ({"provider": "xai", "model": "grok-imagine-video-1.5", "alibaba_workspace": "ws"}, None),
+    ],
+    ids=["workspace", "workspace-in-a-region", "shared-endpoint", "not-alibaba"],
+)
+def test_an_alibaba_workspace_is_where_the_clip_is_asked_for(config, endpoint):
+    """Model Studio serves Wan from a host named after the workspace (#2350)."""
+    definition = get("video_generation")
+    binding = CapabilityBinding(capability_id="video_generation", config=config)
+    built = definition.builder(
+        CapabilityBuildContext(
+            binding=binding,
+            config=definition.validate_config(binding.config),
+            resources={},
+            secret=ApiKeySecret(api_key="sk-video"),
+        )
+    )
+
+    assert isinstance(built, VideoGeneration) and built.base_url == endpoint
+
+
+@pytest.mark.parametrize(
+    "workspace", ["evil.example.com/", "ws.attacker", "WS", "-ws", "ws-", "a" * 64, ""]
+)
+def test_a_workspace_is_one_host_label_and_nothing_else(workspace):
+    """It becomes the first label of an `aliyuncs.com` host, so anything more could
+    send the key to a host nobody chose."""
+    with pytest.raises(ValidationError, match="alibaba_workspace"):
+        VideoGenerationConfig(provider="alibaba", model="wan3.0-video", alibaba_workspace=workspace)
+
+
+async def test_the_workspace_reaches_the_provider_call(generation):
+    host = "https://ws-1a2b.us-east-1.maas.aliyuncs.com/api/v1"
+    await _make(_toolset(base_url=host), _ctx(uuid4()))
+
+    assert generation.calls[0]["base_url"] == host
+
+
 def test_without_a_config_or_key_it_builds_on_the_defaults():
     definition = get("video_generation")
     built = definition.builder(

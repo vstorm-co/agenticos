@@ -1108,7 +1108,10 @@ end; WAV is requested as 24 kHz PCM from every provider and wrapped in one heade
 catalog holds a dated price per million characters and the cost is known before
 the call. A run is refused a clip that would carry it past a cap, then the cost is
 booked; on a failure partway through, the pieces already spoken are booked too.
-Token-billed models are priced per character of typical speech. A dated price
+Token-billed models are checked at a price per character of typical speech. Gemini,
+which reports its audio as raw PCM, is then booked from the audio each piece
+returned - text tokens in and 25 audio tokens a second out - so a slow delivery
+costs what the provider bills for it. A dated price
 takes effect on its day, which is how Gemini's doubling on 2027-01-01 is recorded.
 
 **Booked as it is spoken, one clip at a time.** Each piece of a long text is
@@ -1150,6 +1153,8 @@ the run must have made the image itself.
 | `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
 | `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
 | `audio` | provider default | The default, on or off; the agent may ask for either per clip. Refused where the model's sound is fixed |
+| `alibaba_workspace` | none: the shared DashScope endpoint | Alibaba only: the Model Studio workspace id, one host label; Wan is then called at `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Alibaba only: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **What each model can make is data.** The catalog states each model's length
