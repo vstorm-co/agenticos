@@ -62,7 +62,7 @@ ANSWERS = {
     },
     RunFindings: {"findings"},
     Finding: {"observation", "evidence"},
-    VerifyFinding: {"verdict", "text", "evidence"},
+    VerifyFinding: {"verdict", "text", "edit", "evidence"},
 }
 
 NEVER_A_TARGET = (

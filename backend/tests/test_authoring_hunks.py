@@ -124,6 +124,12 @@ class TestCopiedLoosely:
             Rejection.AMBIGUOUS_ANCHOR
         )
 
+    def test_a_passage_is_mentioned_however_loosely_and_however_often(self):
+        assert hunks.mentions(self.TEXT, "a manager's approval - say so")
+        assert hunks.mentions(self.TEXT, "within 30 days")
+        assert not hunks.mentions(self.TEXT, "Refunds over $500 need a manager.")
+        assert not hunks.mentions(self.TEXT, "``")
+
     def test_a_paraphrase_is_still_unanchored(self):
         assert (
             hunks.anchor_change(self.TEXT, _change("Refunds over $500 need a manager.", "x"))

@@ -53,6 +53,10 @@ class Rejection(StrEnum):
     """It adds something the person who asked may not grant."""
     DISMISSED_BEFORE = "dismissed_before"
     """Somebody dismissed the same change in the batch it replaces."""
+    UNSUPPORTED = "unsupported"
+    """A finding that an edit is supported, left with no evidence that could be checked."""
+    EDIT_NOT_IN_DIFF = "edit_not_in_diff"
+    """The edit a finding names is not part of the edit it was shown."""
 
 
 class EvidenceQuote(BaseModel):
@@ -186,7 +190,21 @@ class VerifyFinding(BaseModel):
         )
     )
     text: str
-    evidence: list[EvidenceQuote] = Field(default_factory=list)
+    edit: str = Field(
+        default="",
+        description=(
+            "The line of the edit this finding is about, copied from the edit above - an "
+            "added or removed line of the instructions, or a line of the tool or configuration "
+            "edit. Empty when it is about no single line."
+        ),
+    )
+    evidence: list[EvidenceQuote] = Field(
+        default_factory=list,
+        description=(
+            "Quotes that show this very edit at work - a run where that line mattered. None "
+            "when no run shows it; a quote about something else does not support the edit."
+        ),
+    )
 
 
 class VerifyReport(BaseModel):
