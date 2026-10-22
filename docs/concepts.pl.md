@@ -1,5 +1,5 @@
 ---
-source_sha: "1fdf117b8615"
+source_sha: "cdfa3337e6c5"
 ---
 
 # Koncepcje { #concepts }
@@ -634,6 +634,13 @@ do niego każdego, kto może go edytować.
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
 uruchomiłaby run, a nie tylko w konsoli.
+
+Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
+jak run evala: narzędzie, które czyta, działa, a takie, które coś by zmieniło,
+jest wstrzymywane i zapisywane. Agent systemowy czyta tekst, którego nikt nie
+sprawdził - odpowiedź do oceny, dokument, rozmowę - więc podrzucona w nim
+instrukcja nie dosięgnie produkcyjnego połączenia przez narzędzie, które edytor
+dodał agentowi.
 
 Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
 najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu

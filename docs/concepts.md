@@ -611,6 +611,12 @@ Only the platform runs it. Chat, the API, an embed or a public page, a channel,
 a schedule and delegation from another agent all refuse it, in the service that
 would start the run rather than only in the console.
 
+Every run of a system agent is [isolated](environments.md#in-an-eval) as an
+eval's is: a tool that reads runs, and one that would change something is held
+and recorded instead. A system agent reads text nobody vetted - an answer to
+grade, a document, a conversation - so an instruction planted there cannot reach
+a production connection through a tool an editor added to the agent.
+
 When the organization already has a model profile, a system agent is published
 on the oldest one, or on the one picked when it was created. Without one, it is
 created as a draft. The seeded Eval judge, drafter and classifier are published

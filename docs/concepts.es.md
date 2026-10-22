@@ -1,5 +1,5 @@
 ---
-source_sha: "1fdf117b8615"
+source_sha: "cdfa3337e6c5"
 ---
 
 # Conceptos { #concepts }
@@ -640,6 +640,13 @@ con él para quien puede editarlo.
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el
 servicio que iniciaría el run y no solo en la consola.
+
+Cada run de un agent del sistema está [aislado](environments.md#in-an-eval)
+como el de un eval: una herramienta que lee se ejecuta, y una que cambiaría algo
+se retiene y se registra. Un agent del sistema lee texto que nadie revisó - una
+respuesta que calificar, un documento, una conversación -, así que una
+instrucción colocada ahí no llega a una conexión de producción a través de una
+herramienta que un editor añadió al agent.
 
 Cuando la organización ya tiene un perfil de modelo, un agent del sistema se
 publica sobre el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno,

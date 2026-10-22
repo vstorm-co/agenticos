@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from app.agents.isolation import RunIsolation
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -126,7 +127,11 @@ class TestRun:
 
         args, kwargs = execute.call_args
         assert args == (ctx, agent.id, f"Grade it\n\n{output_contract(Verdict)}")
+        isolation = kwargs.pop("isolation")
         assert kwargs == {"surface": RunSurface.EVAL, "model_profile_id": profile_id}
+        # Held like an eval's writes, and answered from no recording.
+        assert isinstance(isolation, RunIsolation)
+        assert (isolation.recording, isolation.intercepted) == (None, [])
 
     async def test_switched_off_nothing_runs(self, monkeypatch) -> None:
         runner, execute = _runner(monkeypatch, enabled=False)

@@ -6,6 +6,12 @@ agent runs - `AgentRunnerService.execute`, budget-checked before each model
 call, priced, recorded in Activity under the `eval` surface - and read the answer
 here, so none of them builds a second path to a model.
 
+Every run is isolated as an eval's is: its reads execute, and any tool that
+would change something is held and recorded instead. A system agent reads text
+nobody here vetted - a candidate's answer, a document, a conversation - and an
+instruction planted in it must not reach a production connection through a tool
+an editor added to the agent's spec.
+
 The runner answers in text, so the shape is asked for in the prompt: the JSON
 schema of the result type is appended to every call, and the answer is validated
 against it. In the prompt rather than the agent's instructions, because those are
@@ -22,6 +28,7 @@ from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.isolation import RunIsolation
 from app.agents.system_agents import system_agent
 from app.core.exceptions import (
     BadRequestError,
@@ -143,6 +150,7 @@ class SystemAgentRunner:
             f"{prompt}\n\n{output_contract(output_type)}",
             surface=RunSurface.EVAL,
             model_profile_id=model_profile_id,
+            isolation=RunIsolation(),
         )
         if run.status != RunStatus.COMPLETED.value:
             raise SystemAgentRunError(

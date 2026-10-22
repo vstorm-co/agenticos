@@ -1,5 +1,5 @@
 ---
-source_sha: "1fdf117b8615"
+source_sha: "cdfa3337e6c5"
 ---
 
 # Begriffe { #concepts }
@@ -672,6 +672,13 @@ Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
 lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
+
+Jeder Run eines System-Agents ist [isoliert](environments.md#in-an-eval) wie
+der eines Evals: Ein Tool, das liest, läuft, und eines, das etwas ändern würde,
+wird zurückgehalten und aufgezeichnet. Ein System-Agent liest Text, den niemand
+geprüft hat - eine zu bewertende Antwort, ein Dokument, ein Gespräch -, daher
+erreicht eine darin platzierte Anweisung keine Produktivverbindung über ein
+Tool, das jemand dem Agent hinzugefügt hat.
 
 Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
 ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
