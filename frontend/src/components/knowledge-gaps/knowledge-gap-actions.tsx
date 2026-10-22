@@ -18,8 +18,9 @@ import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
 import { GapToDatasetDialog } from "./gap-to-dataset-dialog";
 
 /**
- * A topic's rarer actions, behind "…": dismissing or reopening it, and turning
- * its questions into dataset cases.
+ * A topic's rarer actions, behind "…": dismissing or reopening it - a covered
+ * one too, which leaves its document in place - and turning its questions into
+ * dataset cases.
  *
  * Dismissing follows the topic's own `can_edit` - an edit grant on its knowledge
  * base reaches it as the role does. Adding to a dataset is offered to anybody
@@ -34,7 +35,7 @@ export function KnowledgeGapActions({ topic }: { topic: KnowledgeGapTopic }) {
   const mayAddCases = can(Perm.datasetsView);
   if (!topic.can_edit && !mayAddCases) return null;
 
-  const dismissed = topic.status === "dismissed";
+  const dismissed = topic.status !== "open";
   return (
     <>
       <DropdownMenu>

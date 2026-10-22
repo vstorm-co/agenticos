@@ -19,11 +19,17 @@ import { KnowledgeGapRow } from "./knowledge-gap-row";
 import { CheckAnswersAiOff } from "./knowledge-gaps-check";
 import { KnowledgeGapsToolbar } from "./knowledge-gaps-toolbar";
 
+const EMPTY = {
+  open: { title: "emptyOpen", body: "emptyOpenBody" },
+  covered: { title: "emptyCovered", body: "emptyCoveredBody" },
+  dismissed: { title: "emptyDismissed", body: "emptyDismissedBody" },
+} as const satisfies Record<KnowledgeGapStatus, { title: string; body: string }>;
+
 /**
  * What agents searched for and did not find, grouped into topics.
  *
- * Read-only towards the knowledge base: nothing here ingests anything, so a
- * topic that needs a document is closed by a person adding that document.
+ * Nothing is ingested on its own: a topic that needs a document is closed by a
+ * person adding its content from the topic, or a document of their own.
  */
 export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope }) {
   const t = useTranslations("knowledgeGaps");
@@ -81,8 +87,8 @@ export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope })
         ) : topics.length === 0 ? (
           <ListCardEmpty
             icon={SearchX}
-            title={status === "open" ? t("emptyOpen") : t("emptyDismissed")}
-            description={status === "open" ? t("emptyOpenBody") : t("emptyDismissedBody")}
+            title={t(EMPTY[status].title)}
+            description={t(EMPTY[status].body)}
           />
         ) : (
           <>

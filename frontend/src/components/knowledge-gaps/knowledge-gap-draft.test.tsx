@@ -26,6 +26,11 @@ vi.mock("./knowledge-gap-draft-card", () => ({
     <p>{`card ${draft.title}`}</p>
   ),
 }));
+vi.mock("./knowledge-gap-editor", () => ({
+  KnowledgeGapEditor: ({ topic }: { topic: { draft: { title: string } | null } }) => (
+    <p>{`editor ${topic.draft?.title ?? "empty"}`}</p>
+  ),
+}));
 
 const TOPIC: KnowledgeGapTopicDetail = {
   id: "t1",
@@ -34,10 +39,13 @@ const TOPIC: KnowledgeGapTopicDetail = {
   status: "open",
   label: "parental leave",
   question_count: 2,
+  asker_count: 1,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
   agents: [],
   dismissed_at: null,
+  covered_at: null,
+  covered_by: null,
   has_draft: false,
   can_edit: true,
   questions: [],
@@ -54,6 +62,9 @@ const DRAFTED: KnowledgeGapTopicDetail = {
     unverified: 0,
     drafted_at: "2026-10-12T10:00:00Z",
     run_id: null,
+    already_covered: false,
+    blanks: [],
+    flags: [],
   },
 };
 
@@ -89,7 +100,7 @@ describe("KnowledgeGapDraftPanel", () => {
     state.isPending = true;
     render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
     expect(screen.getByRole("button", { name: "Drafting…" })).toBeDisabled();
-    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+    expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
   });
 
   it("offers to draft again once a draft exists", () => {
@@ -108,7 +119,7 @@ describe("KnowledgeGapDraftPanel", () => {
       "href",
       "/orgs/o1/members",
     );
-    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+    expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
   });
 
   it("with AI assistance off, tells anybody else who can turn it on", () => {
@@ -122,7 +133,47 @@ describe("KnowledgeGapDraftPanel", () => {
   it("says nothing about the switch before the organization is known", () => {
     state.granted = [Perm.agentsRun];
     state.org = null;
-    const { container } = render(<KnowledgeGapDraftPanel topic={TOPIC} />);
+    const { container } = render(<KnowledgeGapDraftPanel topic={{ ...TOPIC, can_edit: false }} />);
     expect(container.querySelector("section")).toBeEmptyDOMElement();
+  });
+
+  it("gives somebody who may change the knowledge base an editor, empty before any draft", () => {
+    render(<KnowledgeGapDraftPanel topic={TOPIC} />);
+    expect(screen.getByText("editor empty")).toBeInTheDocument();
+  });
+
+  it("says which document covers a covered topic, and shows its content as written", () => {
+    render(
+      <KnowledgeGapDraftPanel
+        topic={{
+          ...DRAFTED,
+          status: "covered",
+          covered_at: "2026-10-12T11:00:00Z",
+          covered_by: { id: "d1", filename: "parental-leave.md", status: "processing" },
+        }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "parental-leave.md" })).toHaveAttribute(
+      "href",
+      "/rag/kb1?tab=documents",
+    );
+    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+    expect(screen.queryByText(/^editor/)).toBeNull();
+  });
+
+  it("names what answers a topic the drafter found covered already", () => {
+    const covered = {
+      ...DRAFTED.draft!,
+      already_covered: true,
+      sources: [
+        { kind: "context" as const, id: "c1", label: "refund-policy" },
+        { kind: "question" as const, id: "s1", label: "ebook refund" },
+      ],
+    };
+    const { rerender } = render(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, draft: covered }} />);
+    expect(screen.getByText(/answered already, by refund-policy\./)).toBeInTheDocument();
+
+    rerender(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, draft: { ...covered, sources: [] } }} />);
+    expect(screen.getByText(/found these questions answered already\. If so/)).toBeInTheDocument();
   });
 });

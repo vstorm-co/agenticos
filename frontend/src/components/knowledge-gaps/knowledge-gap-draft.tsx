@@ -1,25 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { BookCheck, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui";
+import { Alert, AlertDescription, Button } from "@/components/ui";
 import { useDraftKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
-import type { KnowledgeGapTopicDetail } from "@/types/knowledge-gaps";
+import type {
+  KnowledgeGapDocument,
+  KnowledgeGapDraft,
+  KnowledgeGapTopicDetail,
+} from "@/types/knowledge-gaps";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
+import { KnowledgeGapEditor } from "./knowledge-gap-editor";
 
 /**
- * The control that asks a model to draft a topic's missing content, and the draft.
+ * A topic's content: asking a model to draft it, writing or finishing it, and
+ * adding it to the knowledge base - or the document that covers it already.
  *
- * Off by default: while the organization has AI assistance switched off there is
- * no control, only why - with the way to the switch for somebody who may turn it
- * on. A draft replaces the topic's, so only somebody who may change its
- * knowledge base is offered one. A draft written earlier stays readable either way.
+ * Drafting is off while the organization has AI assistance switched off, with
+ * why and the way to the switch for somebody who may turn it on; writing and
+ * adding work either way. Both change the knowledge base's content, so only
+ * somebody who may change that base is offered them. Anybody else reads the
+ * draft as a draft.
  */
 export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDetail }) {
   const t = useTranslations("knowledgeGaps");
@@ -56,7 +63,59 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
           </Button>
         )
       )}
-      {topic.draft && <KnowledgeGapDraftCard draft={topic.draft} />}
+      {topic.covered_by && (
+        <CoveredBy knowledgeBaseId={topic.knowledge_base_id} document={topic.covered_by} />
+      )}
+      {topic.draft?.already_covered && <AlreadyCovered draft={topic.draft} />}
+      {topic.can_edit && topic.status !== "covered" ? (
+        <KnowledgeGapEditor key={topic.draft?.drafted_at ?? "new"} topic={topic} />
+      ) : (
+        topic.draft && <KnowledgeGapDraftCard draft={topic.draft} />
+      )}
     </section>
+  );
+}
+
+function CoveredBy({
+  knowledgeBaseId,
+  document,
+}: {
+  knowledgeBaseId: string;
+  document: KnowledgeGapDocument;
+}) {
+  const t = useTranslations("knowledgeGaps");
+  return (
+    <Alert variant="info">
+      <BookCheck className="h-4 w-4" aria-hidden />
+      <AlertDescription>
+        {t.rich("coveredBy", {
+          name: document.filename,
+          link: (chunks) => (
+            <Link
+              href={`${ROUTES.RAG_DETAIL(knowledgeBaseId)}?tab=documents`}
+              className="font-medium underline"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function AlreadyCovered({ draft }: { draft: KnowledgeGapDraft }) {
+  const t = useTranslations("knowledgeGaps");
+  const answering = draft.sources
+    .filter((source) => source.kind !== "question")
+    .map((source) => source.label);
+  return (
+    <Alert variant="info">
+      <AlertDescription>
+        {answering.length > 0
+          ? t("alreadyCoveredBy", { sources: answering.join(", ") })
+          : t("alreadyCovered")}
+      </AlertDescription>
+    </Alert>
   );
 }

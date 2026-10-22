@@ -28,10 +28,13 @@ const TOPIC: KnowledgeGapTopic = {
   status: "open",
   label: "parental leave",
   question_count: 2,
+  asker_count: 1,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
   agents: [],
   dismissed_at: null,
+  covered_at: null,
+  covered_by: null,
   has_draft: false,
   can_edit: false,
 };
@@ -65,8 +68,8 @@ describe("KnowledgeGapActions", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("reopens a dismissed one", async () => {
-    render(<KnowledgeGapActions topic={{ ...TOPIC, status: "dismissed", can_edit: true }} />);
+  it.each(["dismissed", "covered"] as const)("reopens a %s one", async (status) => {
+    render(<KnowledgeGapActions topic={{ ...TOPIC, status, can_edit: true }} />);
     await openMenu();
     await userEvent.click(screen.getByRole("menuitem", { name: "Reopen" }));
     expect(state.setStatus).toHaveBeenCalledWith({ topicId: "t1", status: "open" });

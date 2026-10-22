@@ -41,6 +41,9 @@ const DRAFT: KnowledgeGapDraft = {
   unverified: 2,
   drafted_at: "2026-10-12T10:00:00Z",
   run_id: "r9",
+  already_covered: false,
+  blanks: [],
+  flags: [],
 };
 
 describe("KnowledgeGapDraftCard", () => {
@@ -87,7 +90,7 @@ describe("KnowledgeGapDraftCard", () => {
     render(<KnowledgeGapDraftCard draft={DRAFT} />);
     expect(screen.getByText("Draft — verify before adding")).toBeInTheDocument();
     expect(screen.getByText("Parental leave")).toBeInTheDocument();
-    expect(screen.getByText(/Check every fact/)).toBeInTheDocument();
+    expect(screen.getByText(/checks every fact/)).toBeInTheDocument();
     expect(screen.getByText("benefits.pdf")).toBeInTheDocument();
     expect(screen.getByText("parental leave duration")).toBeInTheDocument();
     expect(

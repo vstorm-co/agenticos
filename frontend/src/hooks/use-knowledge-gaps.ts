@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { PAGE_SIZE } from "@/components/ui";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -73,13 +73,13 @@ export function useKnowledgeGap(topicId: string) {
   return { topic: data, isLoading, error, refetch };
 }
 
-/** Dismiss a topic as needing no document, or reopen it. */
+/** Dismiss a topic as needing no document, or reopen it - a covered one too. */
 export function useSetKnowledgeGapStatus() {
   const t = useTranslations("knowledgeGaps");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ topicId, status }: { topicId: string; status: KnowledgeGapStatus }) =>
+    mutationFn: ({ topicId, status }: { topicId: string; status: "open" | "dismissed" }) =>
       apiClient.post<KnowledgeGapTopicDetail>(
         `/knowledge-gaps/${topicId}/${status === "dismissed" ? "dismiss" : "reopen"}`,
       ),
@@ -165,5 +165,67 @@ export function useDraftKnowledgeGap() {
       toast.success(t("draftReady"));
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+}
+
+/** What a person writes, or keeps of a draft, as a topic's content. */
+export interface KnowledgeGapContent {
+  title: string;
+  content: string;
+}
+
+/** Keep a topic's content without adding it anywhere. */
+export function useSaveKnowledgeGapContent() {
+  const t = useTranslations("knowledgeGaps");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ topicId, ...content }: KnowledgeGapContent & { topicId: string }) =>
+      apiClient.put<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}/draft`, content),
+    onSuccess: async (topic) => {
+      queryClient.setQueryData(qk.knowledgeGaps.detail(topic.id), topic);
+      await queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() });
+      toast.success(t("contentSaved"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+}
+
+/** Whether adding was refused because the content may identify somebody, unconfirmed. */
+export function isIdentifyingContent(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "IDENTIFYING_CONTENT";
+}
+
+/**
+ * Add a topic's content to its knowledge base as a document; the topic is then covered.
+ *
+ * A refusal for content that may identify somebody is the caller's to show -
+ * with what was flagged and a way to confirm - so it is not toasted here.
+ */
+export function useAddKnowledgeGapContent() {
+  const t = useTranslations("knowledgeGaps");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      topicId,
+      confirmIdentifying,
+      ...content
+    }: KnowledgeGapContent & { topicId: string; confirmIdentifying: boolean }) =>
+      apiClient.post<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}/document`, {
+        ...content,
+        confirm_identifying: confirmIdentifying,
+      }),
+    onSuccess: async (topic) => {
+      queryClient.setQueryData(qk.knowledgeGaps.detail(topic.id), topic);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.kb.detail(topic.knowledge_base_id) }),
+      ]);
+      toast.success(t("contentAdded", { knowledgeBase: topic.knowledge_base_name }));
+    },
+    onError: (failure) => {
+      if (!isIdentifyingContent(failure)) toast.error(getErrorMessage(failure, tErrors));
+    },
   });
 }

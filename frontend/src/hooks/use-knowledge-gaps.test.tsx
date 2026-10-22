@@ -4,18 +4,22 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  isIdentifyingContent,
+  useAddKnowledgeGapContent,
   useAddKnowledgeGapToDataset,
   useDraftKnowledgeGap,
   useKnowledgeGap,
   useKnowledgeGaps,
   useClassifyKnowledgeGaps,
   useRegroupKnowledgeGaps,
+  useSaveKnowledgeGapContent,
   useSetKnowledgeGapStatus,
 } from "./use-knowledge-gaps";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
 }));
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -182,5 +186,76 @@ describe("useDraftKnowledgeGap", () => {
     result.current.mutate("t1");
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(toastError).toHaveBeenCalled();
+  });
+});
+
+function identifying(): ApiError {
+  return new ApiError(409, "This content may identify somebody.", {
+    error: {
+      code: "IDENTIFYING_CONTENT",
+      message: "This content may identify somebody.",
+      details: { flags: [{ kind: "shared", value: "7781", count: 1 }] },
+    },
+  });
+}
+
+describe("a topic's content", () => {
+  it("saves what a person wrote without adding it anywhere", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "t1" });
+    const { result } = renderHook(() => useSaveKnowledgeGapContent(), { wrapper });
+    result.current.mutate({ topicId: "t1", title: "Parking", content: "Level -1." });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.put).toHaveBeenCalledWith("/knowledge-gaps/t1/draft", {
+      title: "Parking",
+      content: "Level -1.",
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Content saved");
+  });
+
+  it("says why when saving is refused", async () => {
+    vi.mocked(apiClient.put).mockRejectedValue(new Error("Topic not found"));
+    const { result } = renderHook(() => useSaveKnowledgeGapContent(), { wrapper });
+    result.current.mutate({ topicId: "t1", title: "Parking", content: "Level -1." });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toastError).toHaveBeenCalled();
+  });
+
+  it("adds it to the knowledge base, confirmed or not, and names where it went", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      knowledge_base_id: "kb1",
+      knowledge_base_name: "Handbook",
+    });
+    const { result } = renderHook(() => useAddKnowledgeGapContent(), { wrapper });
+    result.current.mutate({
+      topicId: "t1",
+      title: "Parking",
+      content: "Level -1.",
+      confirmIdentifying: true,
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/t1/document", {
+      title: "Parking",
+      content: "Level -1.",
+      confirm_identifying: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Added to Handbook. The document is being processed.",
+    );
+  });
+
+  it("leaves content that may identify somebody to the editor, and toasts any other refusal", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(identifying());
+    const { result } = renderHook(() => useAddKnowledgeGapContent(), { wrapper });
+    const content = { topicId: "t1", title: "Parking", content: "x", confirmIdentifying: false };
+    result.current.mutate(content);
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(isIdentifyingContent(result.current.error)).toBe(true);
+    expect(toastError).not.toHaveBeenCalled();
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Fill in what is still to fill in"));
+    result.current.mutate(content);
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(isIdentifyingContent(new Error("x"))).toBe(false);
   });
 });

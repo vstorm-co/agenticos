@@ -24,10 +24,13 @@ const TOPIC = {
   status: "open",
   label: "How long is parental leave?",
   question_count: 2,
+  asker_count: 1,
   last_asked_at: "2026-10-12T09:00:00Z",
   examples: [],
   agents: [],
   dismissed_at: null,
+  covered_at: null,
+  covered_by: null,
   has_draft: false,
   questions: [
     {
@@ -65,7 +68,7 @@ describe("KnowledgeGapDialog", () => {
     expect(
       screen.getByRole("heading", { name: "How long is parental leave?" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Asked 2 times in Handbook")).toBeInTheDocument();
+    expect(screen.getByText("Asked 2 times by one person in Handbook")).toBeInTheDocument();
     expect(screen.getByText("actions for t1")).toBeInTheDocument();
     expect(screen.getByText("draft for t1")).toBeInTheDocument();
     expect(screen.getByText("How long can I take parental leave?")).toBeInTheDocument();
