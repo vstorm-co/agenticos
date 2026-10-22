@@ -1,12 +1,14 @@
 "use client";
 
 import { useImperativeHandle, useState, type Ref } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAddToDataset } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DatasetTargetFields } from "./dataset-target-fields";
 import { useCanAddToDataset, useDatasetTarget } from "./use-dataset-target";
 
@@ -33,6 +35,7 @@ interface AlsoAddToDatasetProps {
 export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
+  const router = useRouter();
   const allowed = useCanAddToDataset();
   const [wanted, setWanted] = useState(false);
   const { editable, isLoading, search, target, choose, remember } = useDatasetTarget({
@@ -48,13 +51,18 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
         try {
           await add.mutateAsync({ datasetId: target.id, messageId, answerAs: "counter_example" });
           remember(target);
-          toast.success(t("addedTo", { name: target.name }));
+          toast.success(t("addedTo", { name: target.name }), {
+            action: {
+              label: t("openDataset"),
+              onClick: () => router.push(`${ROUTES.DATASET_DETAIL(target.id)}?tab=cases`),
+            },
+          });
         } catch (error) {
           toast.error(t("addAfterRatingFailed", { reason: getErrorMessage(error, tErrors) }));
         }
       },
     }),
-    [wanted, target, add, messageId, remember, t, tErrors],
+    [wanted, target, add, messageId, remember, router, t, tErrors],
   );
 
   if (!allowed) return null;
@@ -64,6 +72,7 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
         <Checkbox checked={wanted} onCheckedChange={(next) => setWanted(next === true)} />
         {t("alsoAddToDataset")}
       </label>
+      <p className="text-muted-foreground text-xs">{t("alsoAddAsCounterExample")}</p>
       {wanted && (
         <DatasetTargetFields
           editable={editable}

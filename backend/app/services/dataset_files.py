@@ -34,6 +34,8 @@ from app.db.models.dataset import DatasetCase
 from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead, DatasetFileFormat
 from app.services.exporting import CSV_INJECTION_PREFIXES, csv_document, jsonl_document
 
+# Mirrored, in this order, by IMPORT_COLUMNS in the console's import dialog
+# (frontend/src/components/datasets/import-columns.ts).
 COLUMNS = (
     "input",
     "history",

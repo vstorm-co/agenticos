@@ -514,6 +514,29 @@ describe("Score against a case", () => {
     expect(screen.getByRole("dialog", { name: "Add to dataset" })).toHaveTextContent("m2");
   });
 
+  it("lists the cases closest to the run's question first, and drops the note once one is picked", async () => {
+    state.cases = {
+      d1: [
+        { case_id: "c7", input: "Do you ship to Canada?" },
+        { case_id: "c8", input: "Can I return shoes?" },
+        { case_id: "c9", input: "How long is the window for a refund?" },
+      ],
+    };
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+    await userEvent.click(screen.getByRole("combobox", { name: "Case" }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "How long is the window for a refund?",
+      "Do you ship to Canada?",
+      "Can I return shoes?",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "Can I return shoes?" }));
+
+    expect(screen.queryByText("No case of this dataset asks this run's question.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Score" })).toBeEnabled();
+  });
+
   it.each([[[]], [null]])(
     "offers nothing to add while the run's turns are unknown: %o",
     async (turns) => {

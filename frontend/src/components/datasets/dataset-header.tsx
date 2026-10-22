@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Download, MoreHorizontal, Pencil, Plus, Share2, Trash2, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import type { Dataset } from "@/types/datasets";
+import { ImportCasesDialog } from "./import-cases-dialog";
 import { useDatasetFiles } from "./use-dataset-files";
 
 interface DatasetHeaderProps {
@@ -53,6 +54,7 @@ export function DatasetHeader({
 }: DatasetHeaderProps) {
   const t = useTranslations("datasets");
   const picker = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   const { download, upload } = useDatasetFiles(dataset.id, version);
   const empty = dataset.case_count === 0;
 
@@ -76,14 +78,21 @@ export function DatasetHeader({
             </Button>
           )}
           {onImport !== undefined && (
-            <input
-              ref={picker}
-              type="file"
-              accept=".csv,.jsonl,.ndjson"
-              className="hidden"
-              aria-label={t("importFile")}
-              onChange={(event) => void upload(event.currentTarget, onImport)}
-            />
+            <>
+              <input
+                ref={picker}
+                type="file"
+                accept=".csv,.jsonl,.ndjson"
+                className="hidden"
+                aria-label={t("importFile")}
+                onChange={(event) => void upload(event.currentTarget, onImport)}
+              />
+              <ImportCasesDialog
+                open={importing}
+                onOpenChange={setImporting}
+                onChoose={() => picker.current?.click()}
+              />
+            </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -109,7 +118,7 @@ export function DatasetHeader({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {onImport !== undefined && (
-                <DropdownMenuItem onSelect={() => picker.current?.click()}>
+                <DropdownMenuItem onSelect={() => setImporting(true)}>
                   <Upload className="h-4 w-4" />
                   {t("import")}
                 </DropdownMenuItem>

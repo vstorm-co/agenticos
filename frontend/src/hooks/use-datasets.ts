@@ -284,16 +284,19 @@ export interface AddFromMessage {
   datasetId: string;
   messageId: string;
   answerAs: "counter_example" | "reference_answer";
+  /** Keep the turns before the question; absent keeps them, as the server does. */
+  withHistory?: boolean;
 }
 
 /** Turn an agent's answer into a case - from a conversation or from Activity. */
 export function useAddToDataset() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ datasetId, messageId, answerAs }: AddFromMessage) =>
+    mutationFn: ({ datasetId, messageId, answerAs, withHistory = true }: AddFromMessage) =>
       apiClient.post<DatasetCase>(`/datasets/${datasetId}/cases/from-message`, {
         message_id: messageId,
         answer_as: answerAs,
+        with_history: withHistory,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
   });

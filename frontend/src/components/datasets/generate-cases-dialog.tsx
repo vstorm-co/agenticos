@@ -99,7 +99,13 @@ export function GenerateCasesDialog({ datasetId, open, onOpenChange }: GenerateC
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1">
-          <FormField htmlFor="generate-agent" label={t("agent")} error={errors.agent_id} required>
+          <FormField
+            htmlFor="generate-agent"
+            label={t("agent")}
+            description={t("agentHint")}
+            error={errors.agent_id}
+            required
+          >
             <Select
               value={agentId}
               onValueChange={(next) => {

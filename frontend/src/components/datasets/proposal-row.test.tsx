@@ -38,6 +38,8 @@ const GENERATION = {
   proposed_count: 0,
   accepted_count: 0,
   dismissed_count: 0,
+  unreadable_count: 0,
+  rejected_count: 0,
   created_at: "2026-10-13T00:00:00Z",
   finished_at: null,
 };
@@ -60,6 +62,9 @@ describe("ProposalRow", () => {
       expect(screen.getByText(text)).toBeInTheDocument();
     }
     expect(screen.getByText("From handbook.md, page 3.")).toBeInTheDocument();
+    expect(screen.getByText("Returns are accepted within 30 days.")).toHaveTextContent(
+      "Answer: Returns are accepted within 30 days.",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Accept this proposed case" }));
     await userEvent.click(screen.getByRole("button", { name: "Edit proposed case" }));
@@ -86,8 +91,24 @@ describe("ProposalRow", () => {
     );
     expect(screen.getByText("Red team")).toBeInTheDocument();
     expect(screen.queryByText("Reference answer")).toBeNull();
+    expect(screen.queryByText(/^Answer:/)).toBeNull();
+    expect(screen.queryByText(/Counter-example/)).toBeNull();
     expect(screen.queryByText(/expected call/)).toBeNull();
     expect(screen.getByRole("button", { name: "Accept this proposed case" })).toBeDisabled();
+  });
+
+  it("previews a counter-example when the draft has no reference answer", () => {
+    render(
+      <ProposalRow
+        proposal={{ ...PROPOSAL, reference_answer: null, counter_example: "Ninety days." }}
+        disabled={false}
+        onAccept={vi.fn()}
+        onEdit={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Counter-example")).toBeInTheDocument();
+    expect(screen.getByText("Ninety days.")).toHaveTextContent("Counter-example: Ninety days.");
   });
 });
 
@@ -97,6 +118,25 @@ describe("GenerationStatus", () => {
     expect(container).toBeEmptyDOMElement();
     rerender(<GenerationStatus generation={{ ...GENERATION, status: "ready" }} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("says what a finished generation left out, and why", () => {
+    const { rerender } = render(
+      <GenerationStatus generation={{ ...GENERATION, status: "ready", unreadable_count: 2 }} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "2 cases could not be read and were left out.",
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("did not keep");
+
+    rerender(
+      <GenerationStatus
+        generation={{ ...GENERATION, status: "ready", unreadable_count: 1, rejected_count: 1 }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 case could not be read and was left out. 1 case did not keep to what the generator was shown and was left out.",
+    );
   });
 
   it("says a generation is running", () => {
@@ -146,6 +186,21 @@ describe("GenerationEstimate", () => {
     expect(screen.getByText("10 cases from 30 passages of its knowledge base")).toBeInTheDocument();
     expect(screen.getByText("10 red-team cases")).toBeInTheDocument();
     expect(screen.getByText(/1 knowledge base of this agent left out/)).toBeInTheDocument();
+  });
+
+  it("says a paid generation under a cent costs under a cent, not nothing", () => {
+    const estimate = {
+      count: 20,
+      sources: [{ source: "agent" as const, cases: 20, material: 3 }],
+      excluded_collections: 0,
+      estimated_cost_usd: "0.00355",
+    };
+    const { rerender } = render(<GenerationEstimate estimate={estimate} />);
+    expect(screen.getByText("20 cases, estimated under $0.01")).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00/)).toBeNull();
+
+    rerender(<GenerationEstimate estimate={{ ...estimate, estimated_cost_usd: "0" }} />);
+    expect(screen.getByText("20 cases, estimated $0.00")).toBeInTheDocument();
   });
 
   it("says when the cost cannot be estimated, and mentions no exclusion that did not happen", () => {

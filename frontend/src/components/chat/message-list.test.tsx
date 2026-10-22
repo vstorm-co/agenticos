@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
+import {
+  MessageList,
+  askedBefore,
+  continuesTurn,
+  endsTurn,
+  lastToolTurnIndex,
+  turnUsage,
+} from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -494,5 +501,25 @@ describe("where the transcript crosses into another day", () => {
       />,
     );
     expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual(["Yesterday"]);
+  });
+});
+
+describe("askedBefore", () => {
+  it("finds the question an answer replied to, and whether a conversation came before it", () => {
+    const messages = [
+      message({ id: "u1", role: "user", content: "Do you gift wrap?" }),
+      message({ id: "a1" }),
+      message({ id: "u2", role: "user", content: "How long do refunds take?" }),
+      message({ id: "a2" }),
+      message({ id: "a3" }),
+    ];
+
+    expect(askedBefore(messages, 1)).toEqual({ question: "Do you gift wrap?", earlier: false });
+    expect(askedBefore(messages, 4)).toEqual({
+      question: "How long do refunds take?",
+      earlier: true,
+    });
+    expect(askedBefore(messages, 2)).toBeUndefined();
+    expect(askedBefore([message()], 0)).toBeUndefined();
   });
 });

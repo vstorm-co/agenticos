@@ -15,13 +15,23 @@ interface ProposalRowProps {
 }
 
 /**
- * One drafted case: its question, what it was drafted from, and the decision.
+ * One drafted case: its question, the answer it expects, what it was drafted
+ * from, and the decision.
+ *
+ * The answer is shown in a few lines so Accept is not a decision made blind;
+ * the whole case is one click away in Edit.
  *
  * Edit opens the case in the editor and accepts what is saved there, so an
  * edited draft and an accepted one are one decision rather than two.
  */
 export function ProposalRow({ proposal, disabled, onAccept, onEdit, onDismiss }: ProposalRowProps) {
   const t = useTranslations("datasets");
+  const answer =
+    proposal.reference_answer !== null
+      ? { label: t("proposedAnswer"), text: proposal.reference_answer }
+      : proposal.counter_example !== null
+        ? { label: t("proposedCounterExample"), text: proposal.counter_example }
+        : null;
   return (
     <li className="flex flex-wrap items-start gap-3 border-b py-3 last:border-b-0">
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -30,6 +40,9 @@ export function ProposalRow({ proposal, disabled, onAccept, onEdit, onDismiss }:
           <Badge variant="secondary">{t(`origin.${proposal.origin}`)}</Badge>
           {proposal.reference_answer !== null && (
             <Badge variant="outline">{t("hasReference")}</Badge>
+          )}
+          {proposal.counter_example !== null && (
+            <Badge variant="outline">{t("hasCounterExample")}</Badge>
           )}
           {proposal.expected_tool_calls.length > 0 && (
             <Badge variant="outline">
@@ -42,6 +55,11 @@ export function ProposalRow({ proposal, disabled, onAccept, onEdit, onDismiss }:
             </Badge>
           ))}
         </span>
+        {answer !== null && (
+          <p className="text-muted-foreground line-clamp-3 text-xs whitespace-pre-line">
+            <span className="text-foreground font-medium">{answer.label}</span> {answer.text}
+          </p>
+        )}
         {proposal.note !== null && (
           <span className="text-muted-foreground block text-xs">{proposal.note}</span>
         )}

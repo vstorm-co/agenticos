@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Perm } from "@/types/permissions";
 import { AddToDatasetButton } from "./add-to-dataset-button";
+import { AddToDatasetDialog } from "./add-to-dataset-dialog";
 
 const state = vi.hoisted(() => ({
   granted: [] as string[],
@@ -110,18 +111,23 @@ describe("Add to dataset", () => {
         datasetId: "d1",
         messageId: "m1",
         answerAs: "counter_example",
+        withHistory: false,
       }),
     );
-    expect(toast.success).toHaveBeenCalledWith("Added to refunds");
+    const [message, options] = vi.mocked(toast.success).mock.calls[0]! as unknown as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect([message, options.action.label]).toEqual(["Added to refunds", "Open dataset"]);
+    options.action.onClick();
+    expect(state.push).toHaveBeenCalledWith("/datasets/d1?tab=cases");
   });
 
   it("keeps an answer nobody rated down as the reference, into the dataset chosen", async () => {
     state.add.mockResolvedValue({});
     render(<AddToDatasetButton messageId="m2" ratedDown={false} />);
     await open();
-    expect(
-      screen.getByText("The question and the conversation before it come with the answer."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("The question comes with the answer.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Keep the answer as" }));
@@ -135,6 +141,7 @@ describe("Add to dataset", () => {
         datasetId: "d3",
         messageId: "m2",
         answerAs: "reference_answer",
+        withHistory: false,
       }),
     );
   });
@@ -167,6 +174,7 @@ describe("Add to dataset", () => {
         datasetId: "d9",
         messageId: "m1",
         answerAs: "counter_example",
+        withHistory: false,
       }),
     );
     expect(state.create).toHaveBeenCalledWith({
@@ -203,5 +211,45 @@ describe("Add to dataset", () => {
     expect(options.action.label).toBe("Back to returns");
     options.action.onClick();
     expect(state.push).toHaveBeenCalledWith("/datasets/d3?tab=cases");
+  });
+
+  it("keeps the conversation before the question only when asked to", async () => {
+    state.add.mockResolvedValue({});
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    const history = screen.getByRole("combobox", { name: "The conversation before the question" });
+    expect(history).toHaveTextContent("Only this question");
+    await userEvent.click(history);
+    await userEvent.click(screen.getByRole("option", { name: "With the conversation" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() =>
+      expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: true })),
+    );
+  });
+
+  it("offers the conversation first for a question that leans on it, and not at all for none", () => {
+    const dialog = (question: string, earlier: boolean) => (
+      <AddToDatasetDialog
+        open
+        onOpenChange={vi.fn()}
+        messageId="m1"
+        answerAs="reference_answer"
+        askAnswerAs={false}
+        asked={{ question, earlier }}
+      />
+    );
+    const history = () =>
+      screen.queryByRole("combobox", { name: "The conversation before the question" });
+    const first = render(dialog("And how much to Toronto?", true));
+    expect(history()).toHaveTextContent("With the conversation");
+    first.unmount();
+
+    const second = render(dialog("How long do refunds take for a card payment?", true));
+    expect(history()).toHaveTextContent("Only this question");
+    second.unmount();
+
+    render(dialog("And how much to Toronto?", false));
+    expect(history()).toBeNull();
   });
 });

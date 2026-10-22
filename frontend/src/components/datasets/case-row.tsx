@@ -18,8 +18,12 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   return (
-    <li className="group flex items-start gap-3 border-b py-3 last:border-b-0">
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
+    <li className="group hover:bg-muted/50 -mx-2 flex items-start gap-3 rounded-md border-b px-2 py-3 transition-colors last:border-b-0">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="min-w-0 flex-1 cursor-pointer space-y-1.5 text-left"
+      >
         <span className="text-foreground line-clamp-2 block text-sm">{item.input}</span>
         <span className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{t(`source.${item.source}`)}</Badge>

@@ -12,6 +12,11 @@ vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const rateMessage =
   vi.fn<(body: { rating: RatingValue; comment: string | null }) => Promise<unknown>>();
@@ -456,6 +461,8 @@ describe("adding a rated-down answer to a dataset", () => {
     datasets.add.mockImplementation(async () => order.push("add"));
     mount();
     await userEvent.click(down());
+    // Said before anything is chosen: what a rated-down answer becomes.
+    expect(screen.getByText("alsoAddAsCounterExample")).toBeInTheDocument();
     await userEvent.click(alsoAdd());
     await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
@@ -470,7 +477,11 @@ describe("adding a rated-down answer to a dataset", () => {
       }),
     );
     expect(order).toEqual(["rate", "add"]);
-    expect(toast.success).toHaveBeenCalledWith("addedTo");
+    expect(toast.success).toHaveBeenCalledWith("addedTo", {
+      action: { label: "openDataset", onClick: expect.any(Function) },
+    });
+    act(() => toastAction(1).onClick());
+    expect(push).toHaveBeenCalledWith("/datasets/d2?tab=cases");
     await waitFor(() => expect(screen.queryByText("whatWentWrong")).toBeNull());
   });
 
@@ -511,6 +522,10 @@ describe("adding a rated-down answer to a dataset", () => {
     expect(vi.mocked(toast.success).mock.calls[0]![0]).toBe("thankYouFeedback");
     const action = toastAction(0);
     expect(action.label).toBe("addToDataset");
+    // Long enough to reach for the action, where sonner's default is gone in 4 s.
+    expect(vi.mocked(toast.success).mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ duration: 10_000 }),
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
 
     act(() => action.onClick());
@@ -522,6 +537,7 @@ describe("adding a rated-down answer to a dataset", () => {
         datasetId: "d1",
         messageId: "m-1",
         answerAs: "reference_answer",
+        withHistory: false,
       }),
     );
     await waitFor(() => expect(screen.queryByText("addAsReferenceBody")).toBeNull());

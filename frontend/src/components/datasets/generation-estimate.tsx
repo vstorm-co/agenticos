@@ -4,6 +4,9 @@ import { useTranslations } from "next-intl";
 
 import type { CaseGenerationEstimate } from "@/types/case-generation";
 
+// Dollars are shown to the cent, so a cheaper paid generation would read as free.
+const CENT = 0.01;
+
 /**
  * What a generation will ask for and roughly cost, shown before anything is spent.
  *
@@ -12,12 +15,15 @@ import type { CaseGenerationEstimate } from "@/types/case-generation";
  */
 export function GenerationEstimate({ estimate }: { estimate: CaseGenerationEstimate }) {
   const t = useTranslations("datasets");
+  const cost = estimate.estimated_cost_usd === null ? null : Number(estimate.estimated_cost_usd);
   return (
     <div className="bg-muted/50 space-y-2 rounded-md border p-3 text-sm" role="status">
       <p className="font-medium">
-        {estimate.estimated_cost_usd === null
+        {cost === null
           ? t("estimateUnpriced", { count: estimate.count })
-          : t("estimate", { count: estimate.count, cost: Number(estimate.estimated_cost_usd) })}
+          : cost > 0 && cost < CENT
+            ? t("estimateUnderCent", { count: estimate.count })
+            : t("estimate", { count: estimate.count, cost })}
       </p>
       <ul className="text-muted-foreground space-y-0.5 text-xs">
         {estimate.sources.map((plan) => (

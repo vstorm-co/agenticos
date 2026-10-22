@@ -13,6 +13,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui";
 import { useAddToDataset } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -21,6 +27,7 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { Perm } from "@/types/permissions";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
+import { followsOn, type AskedBefore } from "./follows-on";
 import { useDatasetTarget } from "./use-dataset-target";
 
 interface AddToDatasetDialogProps {
@@ -37,13 +44,21 @@ interface AddToDatasetDialogProps {
   askAnswerAs: boolean;
   /** Whether the answer was rated down, so the rating's comment comes with it. */
   ratedDown?: boolean;
+  /**
+   * The question, when the surface showing the answer knows it. It picks whether
+   * the conversation before it is kept by default; a question with nothing before
+   * it is not asked about. Unknown, the reader chooses and the question alone is
+   * offered first.
+   */
+  asked?: AskedBefore;
 }
 
 /**
  * Which dataset an answer goes into.
  *
- * The question, the turns before it and the rating's comment come with it on the
- * server; this asks only what the server cannot know.
+ * The question and the rating's comment come with it on the server; this asks
+ * only what the server cannot know - where to, and whether the turns before the
+ * question come too.
  */
 export function AddToDatasetDialog({
   open,
@@ -52,6 +67,7 @@ export function AddToDatasetDialog({
   answerAs: initial,
   askAnswerAs,
   ratedDown = false,
+  asked,
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -61,6 +77,10 @@ export function AddToDatasetDialog({
     useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
+  const [withHistory, setWithHistory] = useState(
+    asked !== undefined && asked.earlier && followsOn(asked.question),
+  );
+  const asksHistory = asked === undefined || asked.earlier;
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
   const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
@@ -69,17 +89,16 @@ export function AddToDatasetDialog({
       const into =
         target ??
         (await create.mutateAsync({ name: newName.trim(), description: null, visibility: "org" }));
-      await add.mutateAsync({ datasetId: into.id, messageId, answerAs });
+      await add.mutateAsync({ datasetId: into.id, messageId, answerAs, withHistory });
       remember(into);
-      const added = t("addedTo", { name: into.name });
-      if (returnTo === undefined) toast.success(added);
-      else
-        toast.success(added, {
-          action: {
-            label: t("backToDataset", { name: returnTo.name }),
-            onClick: () => router.push(`${ROUTES.DATASET_DETAIL(returnTo.id)}?tab=cases`),
-          },
-        });
+      const back = returnTo ?? into;
+      toast.success(t("addedTo", { name: into.name }), {
+        action: {
+          label:
+            returnTo === undefined ? t("openDataset") : t("backToDataset", { name: returnTo.name }),
+          onClick: () => router.push(`${ROUTES.DATASET_DETAIL(back.id)}?tab=cases`),
+        },
+      });
       onOpenChange(false);
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors));
@@ -111,6 +130,22 @@ export function AddToDatasetDialog({
           idPrefix="add-to-dataset"
           create={making ? { name: newName, onChange: setNewName } : undefined}
         />
+        {asksHistory && (
+          <FormField htmlFor="add-to-dataset-history" label={t("historyChoice")}>
+            <Select
+              value={withHistory ? "with" : "alone"}
+              onValueChange={(next) => setWithHistory(next === "with")}
+            >
+              <SelectTrigger id="add-to-dataset-history">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alone">{t("historyAlone")}</SelectItem>
+                <SelectItem value="with">{t("historyWith")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
