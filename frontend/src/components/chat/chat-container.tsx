@@ -51,7 +51,7 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { planProgress } from "@/lib/plan-state";
+import { dockedPlan } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -1105,7 +1105,7 @@ function ChatUI({
   // The agent's own checklist, folded out of the planning calls the transcript
   // already carries - nothing streams a plan frame. Memoized because the fold walks
   // every message and this component re-renders on every streaming delta.
-  const plan = useMemo(() => planProgress(messages), [messages]);
+  const plan = useMemo(() => dockedPlan(messages), [messages]);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   // Where the files button sits: among the composer's own controls, rather than
   // in a strip of its own down the conversation's right edge.
