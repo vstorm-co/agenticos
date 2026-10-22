@@ -395,3 +395,43 @@ async def test_a_person_s_export_carries_the_drafts_taken_from_them(db) -> None:
     assert row["counter_example"] == "Not that."
     assert {"history", "tags", "source_run_id", "source_message_id"} <= set(row)
     del owner
+
+
+@pytest.mark.security
+async def test_a_teammate_s_question_in_a_project_chat_is_not_in_its_starter_s_export(db) -> None:
+    """A project chat is continued by its members: the draft taken from a teammate's
+    turn is the teammate's data, and the starter may since have lost the project."""
+    owner, org, agent, dataset = await _setup(db)
+    project = await project_repo.create(
+        db,
+        organization_id=org.id,
+        owner_user_id=owner.user_id,
+        name="Refunds",
+        description="",
+        instructions="",
+        default_agent_id=None,
+        backend="state",
+        visibility="org",
+    )
+    starter, teammate = await world.user(db), await world.user(db)
+    run, chat, asked = await world.asked(
+        db, org, agent, starter, "Teammate's", minutes=1, author=teammate
+    )
+    chat.project_id, run.user_id = project.id, teammate.id
+    await db.flush()
+    await world.proposals(
+        db,
+        org,
+        dataset,
+        agent,
+        1,
+        source_conversation_id=chat.id,
+        source_message_id=asked.id,
+        source_run_id=run.id,
+    )
+
+    starters = await PersonalDataService(db).export(starter.id, actor_user_id=starter.id)
+    teammates = await PersonalDataService(db).export(teammate.id, actor_user_id=teammate.id)
+
+    assert starters.case_proposals == []
+    assert [row["source_message_id"] for row in teammates.case_proposals] == [asked.id]

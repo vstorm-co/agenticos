@@ -218,17 +218,24 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
 
 
 def _proposals_drafted_from(user_id: UUID) -> ColumnElement[bool]:
-    """A proposal drafted from this person: from a question they typed, a thread they
-    own or a run they started. A project's chat is continued by its members, so the
-    thread's owner alone does not say whose question it was."""
+    """A proposal drafted from this person: from a question they typed, a thread of
+    their own outside any project, or a run they started.
+
+    A project's chat is continued by its members, so its starter does not own the
+    turns in it: a proposal drafted from a teammate's question there is the
+    teammate's, and reaches the starter's export only through what they typed or
+    ran themselves - never after their access to the project is gone.
+    """
     return or_(
         CaseProposal.source_message_id.in_(
             select(Message.id).where(Message.author_user_id == user_id)
         ),
         CaseProposal.source_conversation_id.in_(
-            select(Conversation.id).where(Conversation.user_id == user_id)
+            select(Conversation.id).where(
+                Conversation.user_id == user_id, Conversation.project_id.is_(None)
+            )
         ),
-        CaseProposal.source_run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+        CaseProposal.source_run_id.in_(_runs_they_started(user_id)),
     )
 
 
