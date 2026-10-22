@@ -231,10 +231,10 @@ RUN_AGENT = Task(
 # paid for. A job that ends for good - withdrawn, timed out, its worker dead -
 # closes its run through the kind's settler, which frees the organization's eval
 # slots it held; `REAP_ABANDONED_EVALS` is the ceiling when that settler cannot
-# run. A pool of its own, because a
-# run holds its slot for as long as it lasts - waiting on the organization's eval
-# slots included - and in a shared pool enough of them would leave a person's API
-# run and every trigger fire with no slot at all.
+# run. A pool of its own, because a run holds its slot for as long as it lasts -
+# waiting on the organization's eval slots included - and in a shared pool enough
+# of them would leave a person's API run and every trigger fire with no slot at
+# all.
 RUN_EVAL = Task(
     kind="run-eval",
     payload_type=RunEval,
