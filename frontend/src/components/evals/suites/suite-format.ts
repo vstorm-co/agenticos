@@ -116,6 +116,8 @@ export function reasonText(reason: ThresholdReason, t: Translate, locale: string
       return t("reason.ungraded", { count: reason.value ?? 0 });
     case "incomplete":
       return t("reason.incomplete", { count: reason.value ?? 0 });
+    case "crashed":
+      return t("reason.crashed", { count: reason.value ?? 0 });
   }
 }
 

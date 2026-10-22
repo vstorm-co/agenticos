@@ -143,6 +143,13 @@ class ArmSummaryRead(BaseSchema):
         )
     )
     ungraded: int = Field(description="Undecided because nothing in the scoring grades them")
+    crashed: int = Field(
+        default=0,
+        description=(
+            "First answers the agent's run failed before giving - counted in `failed`, and "
+            "each one fails a suite"
+        ),
+    )
     pass_rate: float | None = Field(
         description=(
             "Passed over decided cases, each case settled by the majority of its "

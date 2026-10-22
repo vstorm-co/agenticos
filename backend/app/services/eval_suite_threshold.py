@@ -14,8 +14,11 @@ beyond the minimum pass rate, which never needed a baseline. Nor does a run with
 a case left undecided - nothing grades it, or the provider or a scorer failed on
 it - unless something failed outright: a confirmed regression, or a minimum the
 pass rate misses even were every undecided case to pass. Such a result is
-inconclusive, never passed, until every case has a verdict. A case the agent
-crashed on is not undecided: it failed, and counts against the pass rate.
+inconclusive, never passed, until every case has a verdict.
+
+A case the agent crashed on is not undecided: it failed, counts against the
+pass rate, and fails the result outright as a confirmed regression does - a
+crash needs no baseline and no minimum to be a defect.
 """
 
 from decimal import Decimal
@@ -55,6 +58,8 @@ def judge(
         )
         best = (summary.cases - summary.failed) / summary.cases
         (open_cases if best >= threshold.min_pass_rate else reasons).append(below)
+    if summary.crashed:
+        reasons.append(ThresholdReason(code="crashed", value=summary.crashed))
     if summary.incomplete:
         open_cases.append(ThresholdReason(code="incomplete", value=summary.incomplete))
     if summary.ungraded:

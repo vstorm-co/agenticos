@@ -175,9 +175,10 @@ class TestFailedAlike:
         firsts = [self._attempt(), self._attempt()]
         assert _failed_alike(firsts) == "The provider rejected the key"
 
-    def test_two_errors_or_one_answer_that_finished_name_nothing(self):
+    def test_two_errors_one_answer_that_finished_or_a_single_case_name_nothing(self):
         assert _failed_alike([self._attempt(), self._attempt(error="Step limit")]) is None
         assert _failed_alike([self._attempt(), self._attempt(CaseAttemptStatus.DONE)]) is None
+        assert _failed_alike([self._attempt()]) is None
         assert _failed_alike([]) is None
 
 

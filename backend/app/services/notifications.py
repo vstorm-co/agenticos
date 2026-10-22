@@ -1355,5 +1355,7 @@ def _reason_text(reason: ThresholdReason) -> str:
             return f"{int(value)} case(s) nothing grades"
         case "incomplete":
             return f"{int(value)} case(s) the provider or a scorer failed on"
+        case "crashed":
+            return f"the agent crashed on {int(value)} case(s)"
         case _:
             return "the comparison is invalid"

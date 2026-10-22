@@ -217,16 +217,58 @@ def test_a_case_the_provider_or_a_scorer_failed_on_keeps_the_result_from_passing
     assert [(r.code, r.value) for r in reasons] == [("incomplete", 1)]
 
 
+@pytest.mark.parametrize(("passed", "crashed"), [(0, 15), (1, 14)])
+def test_an_agent_that_crashed_fails_with_no_minimum_and_no_baseline(
+    passed: int, crashed: int
+) -> None:
+    """A first result with the threshold left empty still fails on a crash."""
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        _summary(
+            cases=15,
+            passed=passed,
+            failed=crashed,
+            crashed=crashed,
+            pass_rate=passed / 15,
+        ),
+        _comparison(baseline=False),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [(r.code, r.value) for r in reasons] == [("crashed", crashed)]
+
+
+def test_a_crash_on_both_sides_fails_though_nothing_flipped() -> None:
+    crashed = _summary(cases=10, passed=0, failed=10, crashed=10, pass_rate=0.0)
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        crashed,
+        _comparison(verdict="no_difference", candidate=crashed),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [r.code for r in reasons] == ["crashed"]
+
+
+def test_a_crash_fails_whatever_is_left_undecided() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        _summary(passed=7, failed=1, crashed=1, ungraded=2, pass_rate=7 / 8),
+        _comparison(),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [r.code for r in reasons] == ["crashed"]
+
+
 def test_an_agent_that_crashed_on_most_cases_fails() -> None:
     """Fourteen crashes are fourteen failures: the pass rate is one in fifteen."""
     status, reasons = judge(
         EvalSuiteThreshold(min_pass_rate=0.9),
-        _summary(cases=15, passed=1, failed=14, pass_rate=1 / 15),
+        _summary(cases=15, passed=1, failed=14, crashed=14, pass_rate=1 / 15),
         _comparison(),
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [(r.code, r.value, r.limit) for r in reasons] == [
-        ("pass_rate_below", pytest.approx(0.0667, abs=1e-4), 0.9)
+        ("pass_rate_below", pytest.approx(0.0667, abs=1e-4), 0.9),
+        ("crashed", 14, None),
     ]
 
 

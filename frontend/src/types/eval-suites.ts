@@ -19,7 +19,8 @@ export type ThresholdReasonCode =
   | "p95_rise"
   | "invalid_comparison"
   | "ungraded"
-  | "incomplete";
+  | "incomplete"
+  | "crashed";
 
 /** What a result must meet. Fractions: 0.8 is eighty per cent. */
 export interface EvalSuiteThreshold {

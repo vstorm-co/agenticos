@@ -320,6 +320,7 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         failed=summary.failed,
         incomplete=summary.incomplete,
         ungraded=summary.ungraded,
+        crashed=summary.crashed,
         pass_rate=summary.pass_rate,
         first_pass_rate=summary.first_pass_rate,
         cost_usd=summary.cost_usd,
@@ -345,6 +346,7 @@ def _attempt(
     return Attempt(
         outcome=attempt_outcome(attempt, score),
         ungraded=state is CaseState.UNGRADED,
+        crashed=state is CaseState.FAILED and attempt.status == CaseAttemptStatus.FAILED.value,
         cost_usd=attempt.cost_usd,
         tokens=tokens,
         latency_ms=attempt.latency_ms,
@@ -2114,9 +2116,9 @@ class _CaseAttempt:
 
 
 def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:
-    """The error every first answer failed with, when they all failed with one."""
+    """The error every first answer failed with, when two or more all failed with one."""
     errors = {a.error for a in firsts if a.status == CaseAttemptStatus.FAILED.value}
-    every = bool(firsts) and all(a.status == CaseAttemptStatus.FAILED.value for a in firsts)
+    every = len(firsts) > 1 and all(a.status == CaseAttemptStatus.FAILED.value for a in firsts)
     return errors.pop() if every and len(errors) == 1 else None
 
 

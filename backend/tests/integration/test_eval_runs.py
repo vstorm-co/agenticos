@@ -424,6 +424,9 @@ async def test_a_case_that_runs_out_of_budget_stops_the_run(db) -> None:
     read = await service.get(ctx, started.id)
     assert len(model.calls) == 3
     assert read.status == "budget_exceeded"
+    # Running out of budget is no fault of the agent's answer.
+    states = [case.attempts[0].state for case in (await service.cases(ctx, started.id)).items]
+    assert states[2] == "incomplete"
     # The cases left unanswered still count, so progress reads 3 of 5.
     assert (read.attempts_done, read.attempts_total) == (3, 5)
 
@@ -783,6 +786,7 @@ async def test_a_crash_of_the_agent_fails_its_case_and_one_of_the_provider_leave
     ]
     summary = read.arms[0].summary
     assert (summary.passed, summary.failed, summary.incomplete, summary.ungraded) == (1, 2, 2, 0)
+    assert summary.crashed == 2
     assert summary.pass_rate == pytest.approx(1 / 3)
     assert read.outcome is not None and read.outcome.candidate_undecided == 2
     assert read.arms[0].failed_alike is None

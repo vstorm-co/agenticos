@@ -947,6 +947,20 @@ describe("EvalRunView", () => {
     ).toBeInTheDocument();
   });
 
+  it("says the sides cannot be compared before it says a case was left undecided", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ arms: [arm({ summary: { ...SUMMARY, ungraded: 1 } })] }),
+    };
+    state.comparison = comparison({
+      verdict: "invalid",
+      invalid_reason: "The two sides were graded by a different judge, model or rubric.",
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Not comparable")).toBeInTheDocument();
+    expect(screen.queryByText("Inconclusive")).toBeNull();
+  });
+
   it("says a side whose every answer failed the same way could not run, not how it compares", () => {
     const error = "The model provider rejected the credentials (HTTP 401).";
     state.run = { ...state.run, run: evalRun({ arms: [arm({ failed_alike: error })] }) };

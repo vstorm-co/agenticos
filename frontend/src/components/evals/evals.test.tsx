@@ -99,6 +99,26 @@ describe("EvalRunVerdict", () => {
     rerender(<EvalRunVerdict runId="run-1" />);
     expect(screen.getByText("Breaks 4")).toBeInTheDocument();
   });
+
+  it("calls a run with a case left undecided inconclusive unless something broke", () => {
+    const run = worse();
+    const undecided = (verdict: "better" | "worse" | null) => ({
+      ...run,
+      outcome: { ...run.outcome!, verdict, regressions_confirmed: 0, candidate_undecided: 3 },
+    });
+    oneRun.run = undecided("better");
+    const { rerender } = render(<EvalRunVerdict runId="run-1" />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+    expect(screen.queryByText(/Fixes/)).toBeNull();
+
+    oneRun.run = undecided(null);
+    rerender(<EvalRunVerdict runId="run-1" />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+
+    oneRun.run = undecided("worse");
+    rerender(<EvalRunVerdict runId="run-1" />);
+    expect(screen.queryByText("Inconclusive")).toBeNull();
+  });
 });
 
 describe("EvalStatusBadge", () => {

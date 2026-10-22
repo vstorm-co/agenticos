@@ -21,6 +21,7 @@ ThresholdReasonCode = Literal[
     "invalid_comparison",
     "ungraded",
     "incomplete",
+    "crashed",
 ]
 
 

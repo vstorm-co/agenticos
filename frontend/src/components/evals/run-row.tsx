@@ -12,7 +12,10 @@ import { percent, usd } from "./format";
 import { sideName } from "./names";
 import { VERDICT_TONE } from "./verdict-headline";
 
-/** The verdict as a chip: "Breaks 2", "Worse overall · 4 broke", "First result", "Pending". */
+/**
+ * The verdict as a chip: "Breaks 2", "Worse overall · 4 broke", "First result",
+ * "Pending" - and "Inconclusive" while a case is undecided and nothing broke.
+ */
 export function VerdictChip({ run }: { run: EvalRun }) {
   const t = useTranslations("evals.chip");
   const { outcome } = run;
@@ -20,6 +23,14 @@ export function VerdictChip({ run }: { run: EvalRun }) {
     return run.status === "queued" || run.status === "running" ? (
       <Badge variant="outline">{t("pending")}</Badge>
     ) : null;
+  }
+  const broke =
+    outcome.verdict === "worse" ||
+    outcome.verdict === "mixed" ||
+    outcome.verdict === "invalid" ||
+    outcome.overall === "worse";
+  if (outcome.candidate_undecided > 0 && !broke) {
+    return <Badge variant="warning">{t("inconclusive")}</Badge>;
   }
   if (outcome.verdict === null) return <Badge variant="outline">{t("first")}</Badge>;
   const counts = { broke: outcome.regressions_confirmed, fixed: outcome.fixed_confirmed };

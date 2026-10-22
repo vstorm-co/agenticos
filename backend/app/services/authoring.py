@@ -159,6 +159,10 @@ _GATE_MESSAGES = {
         "The last check of this model broke cases it used to pass. Fix the suggestions "
         "or dismiss the change of model."
     ),
+    "crashed": (
+        "The agent crashed on cases in the last check of this model. Fix what failed, "
+        "then run the check again."
+    ),
 }
 
 
@@ -602,10 +606,10 @@ class AuthoringService:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
         It pays off only once a check of the batch - one that ran this very model
-        and that the reader can see - came out with every case decided, a verdict
-        and no confirmed regression. `check_first`
-        until there is one, `inconclusive` when it left a case undecided or reached
-        no verdict, `regression` when it broke cases.
+        and that the reader can see - came out with every case decided, no crash,
+        a verdict and no confirmed regression. `check_first` until there is one,
+        `crashed` when the agent crashed on a case, `inconclusive` when it left a
+        case undecided or reached no verdict, `regression` when it broke cases.
         """
         evals = EvalRunService(self.db)
         for run_id in reversed(batch.check_eval_run_ids):
@@ -622,6 +626,8 @@ class AuthoringService:
             ran = None if stored is None or stored.spec is None else stored.spec
             if ran is None or str(ran.get("model_profile_id")) != str(hunk.new_value):
                 continue
+            if candidate.summary.crashed:
+                return "crashed"
             undecided = candidate.summary.incomplete + candidate.summary.ungraded
             if undecided or run.outcome is None:
                 return "inconclusive"

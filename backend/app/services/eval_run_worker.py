@@ -138,8 +138,8 @@ def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
     )
     if rejected is not None:
         return (
-            f"The model provider rejected the credentials (HTTP {rejected}). Check the API "
-            "key behind the agent's model profile.",
+            f"The model provider rejected the credentials (HTTP {rejected}). Check the "
+            "provider API keys the agent's models use.",
             AttemptFault.AGENT,
         )
     return run_failure_summary(exc), AttemptFault.AGENT
@@ -420,11 +420,7 @@ class EvalRunWorker:
                     attempt,
                     agent_run.error or f"The run ended {agent_run.status}",
                     agent_run,
-                    fault=(
-                        AttemptFault.INFRASTRUCTURE
-                        if agent_run.status == RunStatus.CANCELLED.value
-                        else AttemptFault.AGENT
-                    ),
+                    fault=AttemptFault.AGENT,
                 )
                 return False
             intercepted = await intercepted_tool_call_repo.list_for_run(

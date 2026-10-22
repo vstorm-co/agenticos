@@ -18,6 +18,7 @@ export const SUMMARY: ArmSummary = {
   failed: 1,
   incomplete: 0,
   ungraded: 0,
+  crashed: 0,
   pass_rate: 0.75,
   first_pass_rate: 0.75,
   cost_usd: "0.040000",

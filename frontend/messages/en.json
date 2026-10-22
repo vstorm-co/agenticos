@@ -9126,7 +9126,7 @@
     "runCount": "{count, plural, =1 {1 run} other {# runs}}",
     "sideModel": "{name} · {model}",
     "headline": {
-      "first": "This is the first result of {candidate} on {dataset}: {rate} of the decided cases pass{undecided, plural, =0 {} other {, and # of {cases} cases are undecided}}. Later versions are compared with it.",
+      "first": "This is the first result of {candidate} on {dataset}: {rate} of the decided cases pass{undecided, plural, =0 {} one {, and # of {cases} cases is undecided} other {, and # of {cases} cases are undecided}}. Later versions are compared with it.",
       "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "no_difference": "No change held: {changes, plural, =0 {{candidate} does as well as {baseline} on {dataset}.} =1 {1 case changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.} other {# cases changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.}}",
@@ -9178,7 +9178,8 @@
       "no_difference": "No reproducible change",
       "invalid": "Not comparable",
       "mixed": "Mixed · {broke} broke, {fixed} fixed",
-      "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed"
+      "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed",
+      "inconclusive": "Inconclusive"
     },
     "row": {
       "against": "{candidate} vs {baseline}",
@@ -9295,7 +9296,8 @@
         "p95Rise": "p95 latency rose {value}, past the {limit} ceiling.",
         "invalid": "The two sides were graded differently, so they cannot be compared.",
         "ungraded": "{count, plural, =1 {1 case has nothing that grades it} other {# cases have nothing that grades them}}, so the suite cannot vouch for this result.",
-        "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result."
+        "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result.",
+        "crashed": "The agent crashed on {count, plural, =1 {1 case} other {# cases}}; a crash fails the suite."
       },
       "skip": {
         "budget": "It would cost more than the budget has left this month.",
@@ -9572,8 +9574,9 @@
       "expects": "Expected: {effect}",
       "blocked": {
         "check_first": "A change of model is accepted once it pays off. Run Check with evals on these suggestions first.",
-        "inconclusive": "The last check of this model decided nothing. Grade the open answers or run the check again.",
-        "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one."
+        "inconclusive": "The last check of this model left cases undecided. Grade the open answers or run the check again.",
+        "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one.",
+        "crashed": "The agent crashed on cases in the last check of this model. Fix what failed, then run the check again."
       }
     },
     "evidence": {

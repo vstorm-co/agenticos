@@ -174,6 +174,10 @@ class TestSummarize:
         assert (summary.passed, summary.incomplete, summary.ungraded) == (1, 1, 1)
         assert summary.pass_rate == 1.0
 
+    def test_a_crash_is_a_failure_and_counted_as_one(self):
+        summary = summarize([Attempt(True), Attempt(False, crashed=True), Attempt(False)])
+        assert (summary.failed, summary.crashed, summary.pass_rate) == (2, 1, 1 / 3)
+
     def test_a_tie_across_reruns_is_incomplete(self):
         summary = summarize([Attempt(True, reruns=(False,))])
         assert (summary.passed, summary.failed, summary.incomplete) == (0, 0, 1)

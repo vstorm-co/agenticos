@@ -9061,7 +9061,8 @@
       "no_difference": "Keine reproduzierbare Änderung",
       "invalid": "Nicht vergleichbar",
       "mixed": "Gemischt · {broke} kaputt, {fixed} behoben",
-      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} kaputt, {fixed} behoben"
+      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} kaputt, {fixed} behoben",
+      "inconclusive": "Nicht entschieden"
     },
     "row": {
       "against": "{candidate} vs. {baseline}",
@@ -9178,7 +9179,8 @@
         "p95Rise": "Die p95-Latenz stieg um {value}, über die Grenze von {limit}.",
         "invalid": "Beide Seiten wurden unterschiedlich bewertet und lassen sich nicht vergleichen.",
         "ungraded": "{count, plural, =1 {1 Fall hat nichts, das ihn bewertet} other {# Fälle haben nichts, das sie bewertet}}, daher kann die Suite für dieses Ergebnis nicht einstehen.",
-        "incomplete": "{count, plural, =1 {1 Fall ließ} other {# Fälle ließen}} sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert - daher kann die Suite für dieses Ergebnis nicht einstehen."
+        "incomplete": "{count, plural, =1 {1 Fall ließ} other {# Fälle ließen}} sich nicht entscheiden - der Provider oder ein Scorer ist daran gescheitert - daher kann die Suite für dieses Ergebnis nicht einstehen.",
+        "crashed": "Der Agent ist bei {count, plural, =1 {1 Fall} other {# Fällen}} abgestürzt; ein Absturz lässt die Suite durchfallen."
       },
       "skip": {
         "budget": "Er würde mehr kosten, als das Budget in diesem Monat noch hat.",
@@ -9455,8 +9457,9 @@
       "expects": "Erwartet: {effect}",
       "blocked": {
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
-        "inconclusive": "Die letzte Prüfung dieses Modells hat nichts entschieden. Bewerte die offenen Antworten oder prüfe erneut.",
-        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
+        "inconclusive": "Die letzte Prüfung dieses Modells hat Fälle offen gelassen. Bewerte die offenen Antworten oder prüfe erneut.",
+        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen.",
+        "crashed": "Der Agent ist in der letzten Prüfung dieses Modells bei Fällen abgestürzt. Behebe, was gescheitert ist, und prüfe erneut."
       }
     },
     "evidence": {

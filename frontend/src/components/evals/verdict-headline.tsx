@@ -61,7 +61,7 @@ export function VerdictBadge({
 }) {
   const t = useTranslations("evals.comparison");
   const { verdict, overall } = comparison;
-  const broke = verdict === "worse" || verdict === "mixed";
+  const broke = verdict === "worse" || verdict === "mixed" || verdict === "invalid";
   if (undecided > 0 && !broke) {
     return <Badge variant="warning">{t("verdict.inconclusive")}</Badge>;
   }

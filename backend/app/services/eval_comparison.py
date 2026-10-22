@@ -214,6 +214,8 @@ class Attempt:
     by_person: bool = False
     ungraded: bool = False
     """Undecided because nothing could grade it, rather than because something failed."""
+    crashed: bool = False
+    """The agent's run failed before it answered, rather than answering wrong."""
 
     @property
     def settled(self) -> Outcome:
@@ -232,6 +234,7 @@ class ArmSummary:
         incomplete: How many could not be decided because something failed on
             them, or their tries tied.
         ungraded: How many could not be decided because nothing grades them.
+        crashed: How many first answers the agent's run failed before giving.
         pass_rate: `passed` over the decided cases, or `None` with none decided.
         first_pass_rate: The same over first attempts alone, reruns aside.
         cost_usd: What the attempts cost together.
@@ -247,6 +250,7 @@ class ArmSummary:
     failed: int
     incomplete: int
     ungraded: int
+    crashed: int
     pass_rate: float | None
     first_pass_rate: float | None
     cost_usd: Decimal
@@ -292,6 +296,7 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
         failed=failed,
         incomplete=len(attempts) - decided - ungraded,
         ungraded=ungraded,
+        crashed=sum(1 for a in attempts if a.crashed),
         pass_rate=passed / decided if decided else None,
         first_pass_rate=first_passed / first_decided if first_decided else None,
         cost_usd=cost,

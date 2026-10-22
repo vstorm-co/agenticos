@@ -86,6 +86,8 @@ export interface ArmSummary {
   incomplete: number;
   /** Undecided because nothing in the scoring grades them. */
   ungraded: number;
+  /** First answers the agent's run failed before giving; each one fails a suite. */
+  crashed: number;
   /** Each case settled by the majority of its attempts - its first alone when it was not rerun. */
   pass_rate: number | null;
   /** The first attempts alone, reruns aside. */
