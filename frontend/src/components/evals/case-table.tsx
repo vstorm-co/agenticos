@@ -78,6 +78,8 @@ function dotState(attempt: EvalAttempt | undefined): DotState {
   if (attempt === undefined || attempt.status === "pending" || attempt.status === "running") {
     return "pending";
   }
+  // A run the agent crashed on failed the case; one the provider or a scorer failed on did not finish.
+  if (attempt.state === "failed") return "failed";
   if (attempt.status === "failed" || attempt.status === "skipped") return "incomplete";
   if (attempt.outcome === null) return "undecided";
   return attempt.outcome ? "passed" : "failed";
@@ -242,11 +244,16 @@ export function CaseTable({
                       <Badge variant="outline">{t("corrected")}</Badge>
                     )}
                     {flip && flip.flip !== "unchanged" && (
-                      <Badge variant={flip.flip === "regression" ? "destructive" : "secondary"}>
-                        {t(`flip.${flip.flip}`, {
-                          confirmed: String(flip.confirmed),
-                          side: flip.side,
-                        })}
+                      <Badge
+                        variant={flip.flip === "regression" ? "destructive" : "secondary"}
+                        title={flip.candidate_error ?? undefined}
+                      >
+                        {flip.flip === "regression" && flip.candidate_error !== null
+                          ? t("flip.crashed", { confirmed: String(flip.confirmed) })
+                          : t(`flip.${flip.flip}`, {
+                              confirmed: String(flip.confirmed),
+                              side: flip.side,
+                            })}
                       </Badge>
                     )}
                   </button>

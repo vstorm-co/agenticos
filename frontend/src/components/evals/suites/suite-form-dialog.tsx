@@ -23,6 +23,7 @@ import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
 import type { EvalSuite, EvalSuiteInput, EvalSuiteSchedule } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
+import { UngradedWarning } from "../estimate-summary";
 import { usd } from "../format";
 import { scheduleChoice, scheduleCron } from "./suite-format";
 import {
@@ -193,6 +194,7 @@ export function SuiteFormDialog({
               </p>
             )}
             <p className="text-muted-foreground text-xs">{t("runsAsYou")}</p>
+            <UngradedWarning count={priced.run.ungraded_cases} />
           </div>
         )}
         {failure && (

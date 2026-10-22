@@ -8953,7 +8953,8 @@
         "judge": "{name}",
         "judgeRubric": "{name} on {criteria}"
       },
-      "judgeSameModel": "The judge grades on {model}, the model being tested, and may favour answers like its own. Give the judge another model on its page."
+      "judgeSameModel": "The judge grades on {model}, the model being tested, and may favour answers like its own. Give the judge another model on its page.",
+      "ungraded": "{count, plural, =1 {1 case has nothing to grade it.} other {# cases have nothing to grade them.}} The result will be inconclusive."
     },
     "runFor": "Run for {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -9022,7 +9023,9 @@
         "worse": "Breaks cases",
         "no_difference": "No reproducible change",
         "invalid": "Not comparable",
-        "mixed": "Mixed"
+        "mixed": "Mixed",
+        "inconclusive": "Inconclusive",
+        "failedAlike": "Could not run"
       },
       "regressionsConfirmed": "Confirmed regressions",
       "regressionsUnconfirmed": "Unconfirmed regressions",
@@ -9078,7 +9081,8 @@
       "flip": {
         "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
         "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
-        "incomplete": "Not graded on {side}"
+        "incomplete": "Not graded on {side}",
+        "crashed": "{confirmed, select, true {Broke: the agent failed} other {Broke once: the agent failed}}"
       },
       "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} incomplete {did not finish} other {pending}}",
       "brokenFirst": "Showing the first {count} of the {total} cases that broke.",
@@ -9122,16 +9126,18 @@
     "runCount": "{count, plural, =1 {1 run} other {# runs}}",
     "sideModel": "{name} · {model}",
     "headline": {
-      "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",
+      "first": "This is the first result of {candidate} on {dataset}: {rate} of the decided cases pass{undecided, plural, =0 {} other {, and # of {cases} cases are undecided}}. Later versions are compared with it.",
       "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "no_difference": "No change held: {changes, plural, =0 {{candidate} does as well as {baseline} on {dataset}.} =1 {1 case changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.} other {# cases changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.}}",
       "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric.",
       "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",
-      "passRate": "Pass rate {from} → {to}, each case as most of its tries came out",
+      "passRate": "Pass rate {from} → {to}, each case as most of its tries came out{undecided, plural, =0 {} other { · # of {cases} cases undecided}}",
       "firstPassRate": "First answers alone: {from} → {to}",
-      "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change."
+      "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
+      "failedAlike": "Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: {error}",
+      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
@@ -9177,7 +9183,7 @@
     "row": {
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}",
+      "rate": "{model} {rate}{undecided, plural, =0 {} other { · # undecided}}",
       "firstRate": "First answers alone: {rate}"
     },
     "dataset": {
@@ -9278,7 +9284,8 @@
       "failing": {
         "regression": "Breaks reproducibly: {input}",
         "failed": "Failed: {input}",
-        "ungraded": "Not graded: {input}"
+        "ungraded": "Not graded: {input}",
+        "incomplete": "Could not be decided: {input}"
       },
       "reason": {
         "passRateBelow": "Pass rate {value} is below the {limit} minimum.",
@@ -9287,7 +9294,8 @@
         "costRise": "Cost per passed case rose {value}, past the {limit} ceiling.",
         "p95Rise": "p95 latency rose {value}, past the {limit} ceiling.",
         "invalid": "The two sides were graded differently, so they cannot be compared.",
-        "ungraded": "{count, plural, =1 {1 case} other {# cases}} could not be graded, so the suite cannot vouch for this result."
+        "ungraded": "{count, plural, =1 {1 case has nothing that grades it} other {# cases have nothing that grades them}}, so the suite cannot vouch for this result.",
+        "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result."
       },
       "skip": {
         "budget": "It would cost more than the budget has left this month.",

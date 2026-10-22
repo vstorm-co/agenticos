@@ -4,7 +4,7 @@ import Link from "next/link";
 import { GitCompare, ListFilter, RotateCcw, Square } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Button, Card, CardContent, Progress } from "@/components/ui";
+import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
@@ -15,7 +15,7 @@ import { sideName } from "./names";
 import { SendToReviewButton } from "./send-to-review-button";
 import { JudgeNotes } from "./judge-notes";
 import { UngradedNote } from "./ungraded-note";
-import { VerdictBadge, VerdictHeadline } from "./verdict-headline";
+import { undecidedOf, VerdictBadge, VerdictHeadline } from "./verdict-headline";
 
 /**
  * The top of a run's page: what was run, then - once both sides have finished -
@@ -62,6 +62,7 @@ export function VerdictHeader({
     : 0;
   const brokeOnce = comparison !== undefined && comparison.regressions_unconfirmed > 0;
   const baseline = comparison?.baseline ?? null;
+  const undecided = candidate ? undecidedOf(candidate) : 0;
   return (
     <Card data-tour="eval-verdict">
       <CardContent className="space-y-4 pt-6">
@@ -74,9 +75,17 @@ export function VerdictHeader({
                 candidate: candidate ? sideName(candidate, t) : "",
               })}
             </p>
-            {!live && candidate && comparison && (
+            {!live && candidate && comparison && candidate.failed_alike !== null && (
               <>
-                <VerdictBadge comparison={comparison} />
+                <Badge variant="destructive">{t("comparison.verdict.failedAlike")}</Badge>
+                <h1 className="text-lg font-semibold">
+                  {t("headline.failedAlike", { error: candidate.failed_alike })}
+                </h1>
+              </>
+            )}
+            {!live && candidate && comparison && candidate.failed_alike === null && (
+              <>
+                <VerdictBadge comparison={comparison} undecided={undecided} />
                 <h1 className="space-y-1 text-lg font-semibold">
                   <VerdictHeadline run={run} candidate={candidate} comparison={comparison} />
                 </h1>
@@ -187,8 +196,7 @@ export function VerdictHeader({
                   comparison &&
                   comparison.regressions_confirmed === 0 &&
                   comparison.overall !== "worse" &&
-                  candidate.summary.incomplete === 0 &&
-                  candidate.ungraded_cases.length === 0
+                  undecided === 0
                     ? "default"
                     : "outline"
                 }

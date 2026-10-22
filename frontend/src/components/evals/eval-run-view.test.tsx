@@ -633,6 +633,7 @@ describe("EvalRunView", () => {
           arm({
             source: "draft",
             version_number: null,
+            summary: { ...SUMMARY, incomplete: 2 },
             ungraded_cases: [
               { case_id: "c1", input: "$700 TV, can I return it?" },
               { case_id: "c2", input: "Is shipping free?" },
@@ -763,7 +764,7 @@ describe("EvalRunView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "This is the first result of v7 on refunds: 75% of cases pass. Later versions are compared with it.",
+        name: "This is the first result of v7 on refunds: 75% of the decided cases pass. Later versions are compared with it.",
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText("How the two compare")).toBeNull();
@@ -885,16 +886,94 @@ describe("EvalRunView", () => {
   it("tells an answer that never finished from one that was not decided", () => {
     state.cases = {
       cases: [
-        evalCase({ attempts: [attempt({ status: "failed", outcome: null })] }),
-        evalCase({ case_id: "case-2", attempts: [attempt({ outcome: null })] }),
+        evalCase({
+          attempts: [attempt({ status: "failed", outcome: null, state: "incomplete" })],
+        }),
+        evalCase({ case_id: "case-2", attempts: [attempt({ outcome: null, state: "ungraded" })] }),
+        evalCase({
+          case_id: "case-3",
+          attempts: [attempt({ status: "failed", outcome: false, state: "failed" })],
+        }),
       ],
-      total: 2,
+      total: 3,
       isLoading: false,
       error: null,
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: did not finish" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: undecided" })).toBeInTheDocument();
+    // A run the agent crashed on failed its case.
+    expect(screen.getByRole("img", { name: "v7 · gpt-4.1: failed" })).toBeInTheDocument();
+  });
+
+  it("never shows a pass rate without the cases left undecided, and calls it inconclusive", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        arms: [
+          arm({
+            summary: { ...SUMMARY, cases: 3, passed: 2, failed: 0, ungraded: 1, pass_rate: 1 },
+          }),
+          arm({ id: "arm-0", role: "baseline", version_number: 6 }),
+        ],
+      }),
+    };
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_confirmed: 0,
+      cases: [],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+    expect(screen.queryByText("No reproducible change")).toBeNull();
+    expect(screen.getByText(/· 1 of 3 cases undecided$/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Inconclusive until every case is decided: 1 has nothing that grades it."),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a confirmed break ahead of the cases left undecided", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ arms: [arm({ summary: { ...SUMMARY, incomplete: 1 } })] }),
+    };
+    state.comparison = comparison({ verdict: "worse", regressions_confirmed: 1, cases: [FLIP] });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Breaks cases")).toBeInTheDocument();
+    expect(screen.queryByText("Inconclusive")).toBeNull();
+    expect(
+      screen.getByText(
+        "Inconclusive until every case is decided: 1 could not be decided - the provider or a scorer failed on it, or its tries tied.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says a side whose every answer failed the same way could not run, not how it compares", () => {
+    const error = "The model provider rejected the credentials (HTTP 401).";
+    state.run = { ...state.run, run: evalRun({ arms: [arm({ failed_alike: error })] }) };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Could not run")).toBeInTheDocument();
+    expect(screen.getByRole("heading").textContent).toBe(
+      `Every case failed the same way, so this result says nothing about the agent's answers. Fix the setup and run it again: ${error}`,
+    );
+    expect(screen.queryByText("Breaks cases")).toBeNull();
+  });
+
+  it("names a break the agent crashed into, with its error on hover", () => {
+    state.cases = {
+      cases: [
+        evalCase({ attempts: [attempt({ status: "failed", outcome: false, state: "failed" })] }),
+      ],
+      total: 1,
+      isLoading: false,
+      error: null,
+    };
+    state.comparison = comparison({
+      cases: [{ ...FLIP, candidate_error: "The run did not finish (RuntimeError)." }],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const badge = screen.getByText("Broke: the agent failed");
+    expect(badge).toHaveAttribute("title", "The run did not finish (RuntimeError).");
   });
 
   it("filters the cases by outcome and tag, back to the first page", async () => {

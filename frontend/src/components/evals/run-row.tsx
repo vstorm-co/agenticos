@@ -73,6 +73,7 @@ export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: strin
               {t("row.rate", {
                 model: arm.model_label,
                 rate: percent(arm.summary.pass_rate, locale),
+                undecided: arm.summary.incomplete + arm.summary.ungraded,
               })}
             </span>
           ))}

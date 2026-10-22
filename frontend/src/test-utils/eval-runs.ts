@@ -17,6 +17,7 @@ export const SUMMARY: ArmSummary = {
   passed: 3,
   failed: 1,
   incomplete: 0,
+  ungraded: 0,
   pass_rate: 0.75,
   first_pass_rate: 0.75,
   cost_usd: "0.040000",
@@ -42,6 +43,7 @@ export function arm(overrides: Partial<EvalRunArm> = {}): EvalRunArm {
     by_tag: { refunds: SUMMARY },
     ungraded_cases: [],
     unsent_failed: 1,
+    failed_alike: null,
     ...overrides,
   };
 }
@@ -102,6 +104,7 @@ export function attempt(overrides: Partial<EvalAttempt> = {}): EvalAttempt {
     latency_ms: 500,
     error: null,
     outcome: true,
+    state: "passed",
     score: null,
     ...overrides,
   };
@@ -145,6 +148,7 @@ export const FLIP: CaseFlip = {
   baseline_reruns: [],
   candidate_reruns: [false, false],
   tags: ["refunds"],
+  candidate_error: null,
 };
 
 export const ESTIMATE: EvalRunEstimate = {
@@ -173,6 +177,7 @@ export const ESTIMATE: EvalRunEstimate = {
   agent_after_usd: "9.800000",
   org_after_usd: "99.700000",
   affordable: true,
+  ungraded_cases: 0,
 };
 
 export function comparison(overrides: Partial<EvalComparison> = {}): EvalComparison {

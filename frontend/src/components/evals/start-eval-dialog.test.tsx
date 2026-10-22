@@ -341,6 +341,14 @@ describe("StartEvalDialog", () => {
     expect(push).toHaveBeenCalledWith("/agents/agent-1/evals/run-1");
   });
 
+  it("warns before the run that a case nothing grades leaves the result inconclusive", () => {
+    hooks.estimate = mutation({ data: { ...ESTIMATE, ungraded_cases: 1 }, variables: COMPARE });
+    open();
+    expect(
+      screen.getByText("1 case has nothing to grade it. The result will be inconclusive."),
+    ).toBeInTheDocument();
+  });
+
   it("shows no price that was asked for other fields", () => {
     hooks.estimate = mutation({ data: ESTIMATE, variables: { ...COMPARE, reruns: 3 } });
     open();

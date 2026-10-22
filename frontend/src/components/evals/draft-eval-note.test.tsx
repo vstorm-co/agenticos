@@ -28,6 +28,7 @@ const OUTCOME: EvalOutcome = {
   overall: null,
   candidate_first_pass_rate: null,
   baseline_first_pass_rate: null,
+  candidate_undecided: 0,
 };
 
 beforeEach(() => {

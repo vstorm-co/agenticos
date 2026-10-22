@@ -42,13 +42,29 @@ function example(comparison: EvalComparison, flip: "regression" | "fixed") {
   };
 }
 
+/** The candidate's cases neither passed nor failed, whatever kept them undecided. */
+export function undecidedOf(arm: EvalRunArm): number {
+  return arm.summary.incomplete + arm.summary.ungraded;
+}
+
 /**
  * The verdict as a badge, toned by what the confirmed flips say, and beside it -
- * muted, a qualifier and never in its place - which way it moved overall.
+ * muted, a qualifier and never in its place - which way it moved overall. A
+ * case left undecided makes anything short of a confirmed break inconclusive.
  */
-export function VerdictBadge({ comparison }: { comparison: EvalComparison }) {
+export function VerdictBadge({
+  comparison,
+  undecided,
+}: {
+  comparison: EvalComparison;
+  undecided: number;
+}) {
   const t = useTranslations("evals.comparison");
   const { verdict, overall } = comparison;
+  const broke = verdict === "worse" || verdict === "mixed";
+  if (undecided > 0 && !broke) {
+    return <Badge variant="warning">{t("verdict.inconclusive")}</Badge>;
+  }
   if (verdict === null) return null;
   return (
     <span className="flex flex-wrap items-center gap-2">
@@ -78,9 +94,21 @@ export function VerdictHeadline({
   const locale = useLocale();
   const { baseline, verdict, overall } = comparison;
   const to = percent(comparison.candidate_summary.pass_rate, locale);
+  const { incomplete, ungraded, cases } = candidate.summary;
+  const counted = { undecided: incomplete + ungraded, cases };
   const values = { candidate: sideName(candidate, tSide), dataset: run.dataset_name };
+  const why = counted.undecided > 0 && (
+    <span className="text-muted-foreground block text-sm font-normal">
+      {t("undecidedWhy", { ungraded, incomplete, both: String(ungraded > 0 && incomplete > 0) })}
+    </span>
+  );
   if (baseline === null || verdict === null) {
-    return <span className="block">{t("first", { ...values, rate: to })}</span>;
+    return (
+      <>
+        <span className="block">{t("first", { ...values, ...counted, rate: to })}</span>
+        {why}
+      </>
+    );
   }
   const broke = comparison.regressions_confirmed;
   const fixed = comparison.fixed_confirmed;
@@ -118,9 +146,11 @@ export function VerdictHeadline({
           {t("passRate", {
             from: percent(comparison.baseline_summary?.pass_rate ?? null, locale),
             to,
+            ...counted,
           })}
         </span>
       )}
+      {why}
     </>
   );
 }

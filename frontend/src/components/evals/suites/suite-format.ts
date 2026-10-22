@@ -114,6 +114,8 @@ export function reasonText(reason: ThresholdReason, t: Translate, locale: string
       return t("reason.invalid");
     case "ungraded":
       return t("reason.ungraded", { count: reason.value ?? 0 });
+    case "incomplete":
+      return t("reason.incomplete", { count: reason.value ?? 0 });
   }
 }
 
