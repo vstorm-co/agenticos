@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "559f7f49a4d9"
 ---
 
 # Context-Dateien { #context-files }
@@ -98,6 +98,20 @@ Man kann auch bei der Datei anfangen: **Zu einem Agenten hinzufügen** auf ihrer
 Karte fügt sie dem Entwurf des Agenten hinzu, mit eingeschalteter
 Kontext-Capability, und die Karte sagt, welche Agents sie schon tragen. Eine
 Wissensdatenbank hat dieselbe Aktion auf ihrer eigenen Seite.
+
+## Änderungen, die der Assistent vorschlägt { #changes-the-assistant-proposes }
+
+**Mit dem Assistenten verbessern** im Editor einer Datei bittet den
+[Authoring-Assistenten](authoring.md#context-files) um einen besseren Inhalt,
+geschrieben aus den Runs der Agents, die die Datei lesen. Was er vorschlägt,
+wird nicht angewendet: Es wartet über der Liste auf der Context-Seite, mit
+Begründung, den Runs, auf denen es beruht, und den Agents, an die die Datei
+gebunden ist.
+
+Es anzuwenden ist dasselbe, wie die Datei von Hand zu bearbeiten - sofort
+wirksam für jeden gebundenen Agent -, deshalb lässt sich jede Änderung vorher mit
+Evals prüfen, an einem dieser Agents. Eine Datei, die jemand nach dem Vorschlag
+bearbeitet hat, lehnt die Änderung ab; die Bearbeitung wird nie überschrieben.
 
 ## Zugriff { #access }
 

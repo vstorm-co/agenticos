@@ -6,14 +6,16 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, Card, CardContent, Textarea } from "@/components/ui";
 import type { Hunk, HunkDecision } from "@/types/authoring";
 import { EvidenceList } from "./evidence-list";
+import { FieldDiff, editable, fieldLabel, parsed } from "./field-change";
 import { TextDiff } from "./text-diff";
 
 /**
  * One suggestion: what it changes, why, and the decision on it.
  *
  * Pending, it offers Accept, Edit and Dismiss - Edit accepts the person's own
- * wording instead. Decided, it offers Undo while that still fits the draft. A
- * suggestion whose passage was edited away says so and offers only Dismiss.
+ * wording or value instead. Decided, it offers Undo while that still fits the
+ * draft. A suggestion whose passage was edited away says so and offers only
+ * Dismiss; a change of model that has not paid off yet says why it waits.
  */
 export function SuggestionCard({
   hunk,
@@ -27,16 +29,30 @@ export function SuggestionCard({
   onDecide: (decision: HunkDecision) => void;
 }) {
   const t = useTranslations("authoring.suggestion");
+  const tField = useTranslations("authoring.field");
   const [editing, setEditing] = useState<string | null>(null);
   const tool = hunk.kind === "tool_override";
+  const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
+  const editableAs = field ? editable(hunk.path) : "text";
+  const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
+  const accepting = (): HunkDecision =>
+    editing === null
+      ? { action: "accept" }
+      : field
+        ? { action: "accept", value: parsed(hunk.path, editing) }
+        : { action: "accept", text: editing };
 
   return (
     <Card data-testid="suggestion">
       <CardContent className="space-y-3 pt-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">
-            {tool ? t("tool", { tool: hunk.tool_id ?? "" }) : t("instructions")}
+            {field
+              ? fieldLabel(hunk, tField)
+              : tool
+                ? t("tool", { tool: hunk.tool_id ?? "" })
+                : t("instructions")}
           </Badge>
           {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
           {hunk.status !== "pending" && (
@@ -46,7 +62,9 @@ export function SuggestionCard({
             <Badge variant="warning">{t("stale")}</Badge>
           )}
         </div>
-        {tool ? (
+        {field ? (
+          <FieldDiff hunk={hunk} editing={editing} onEdit={setEditing} />
+        ) : tool ? (
           <div className="space-y-2">
             {hunk.new_name !== null && (
               <TextDiff before={hunk.base_name ?? hunk.tool_id ?? ""} after={hunk.new_name} />
@@ -80,8 +98,12 @@ export function SuggestionCard({
               <>
                 <Button
                   size="sm"
-                  disabled={busy}
-                  onClick={() => onDecide({ action: "accept", text: editing })}
+                  disabled={
+                    busy ||
+                    Boolean(hunk.blocked) ||
+                    (editableAs === "number" && editing.trim() === "")
+                  }
+                  onClick={() => onDecide(accepting())}
                 >
                   {t("saveAndAccept")}
                 </Button>
@@ -93,12 +115,16 @@ export function SuggestionCard({
             {pending && editing === null && (
               <>
                 {hunk.applies && (
-                  <Button size="sm" disabled={busy} onClick={() => onDecide({ action: "accept" })}>
+                  <Button
+                    size="sm"
+                    disabled={busy || Boolean(hunk.blocked)}
+                    onClick={() => onDecide(accepting())}
+                  >
                     {t("accept")}
                   </Button>
                 )}
-                {hunk.applies && !tool && (
-                  <Button size="sm" variant="outline" onClick={() => setEditing(hunk.new_text)}>
+                {hunk.applies && !tool && editableAs !== null && (
+                  <Button size="sm" variant="outline" onClick={() => setEditing(proposed)}>
                     {t("edit")}
                   </Button>
                 )}

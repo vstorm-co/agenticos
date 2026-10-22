@@ -1,15 +1,16 @@
 ---
-source_sha: "9f2d6d57c080"
+source_sha: "6acca3221f40"
 title: "Authoring-Assistent"
-description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tool-Beschreibungen und Skills vor. Über jede entscheidet ein Mensch."
+description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
 
 # Authoring-Assistent { #authoring-assistant }
 
 Der **Authoring-Assistent** verbessert Agents anhand von Belegen. Er liest, was
 Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an den
-Anweisungen eines Agents vor, an den Namen und Beschreibungen seiner Tools und an
-den Skills, die er nutzt. Er ändert nie etwas von sich aus: Jeder Vorschlag
+Anweisungen eines Agents vor, an den Namen und Beschreibungen seiner Tools, an
+seiner [Konfiguration](#configuration) und an den Skills und Context-Dateien, die
+er nutzt. Er ändert nie etwas von sich aus: Jeder Vorschlag
 wartet auf einen Menschen, ein angenommener landet im [Draft](concepts.md), und
 nichts erreicht irgendwen, bevor der Draft veröffentlicht ist.
 
@@ -20,8 +21,8 @@ Er tut drei Dinge:
 - Ihre eigenen Änderungen **prüfen**: den Draft mit der veröffentlichten Version
   anhand derselben Belege vergleichen und sagen, was die Änderungen verbessern,
   riskieren und entfernt haben.
-- **Einen Skill verbessern**: einen neuen Inhalt aus den Runs vorschlagen, die ihn
-  geöffnet haben.
+- **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
+  den Runs vorschlagen, die sie gelesen haben.
 
 Der Assistent ist ein eigener [System-Agent](datasets.md#judge), aufgeführt mit
 den übrigen System-Agents der Organisation. Seine Anweisungen lassen sich wie die
@@ -109,6 +110,59 @@ Jeder Vorschlag nennt die Wirkung, die er erwartet. Die Leiste zeigt sie neben
 den Eval Runs, die die Vorschläge geprüft haben, sodass Sie die Vorhersage mit
 dem vergleichen können, was die Runs ergaben.
 
+## Konfiguration { #configuration }
+
+Neben dem Text kann der Assistent eine Änderung an einigen Teilen der
+Konfiguration eines Agents vorschlagen. Jede ist ein Vorschlag wie jeder andere,
+einzeln in der Leiste entschieden und mit Namen gezeigt: das Modell, die
+Wissensbasis, die Context-Datei, die Capability oder der MCP-Server, auf die sie
+sich bezieht, nie eine Kennung.
+
+| Teil | Was ein Vorschlag tun kann |
+|---|---|
+| Beschreibung | Sie setzen |
+| Modell | Das Modellprofil wechseln |
+| Modelleinstellungen | Temperatur, Top-p, maximale Tokens, Timeout oder parallele Tool-Aufrufe setzen |
+| Schrittlimit | `max_steps` setzen |
+| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren |
+| Freigabe | Eine Capability oder eines ihrer Tools zuerst fragen lassen |
+| Spezialisten | Die Beschreibung eines eingebetteten [Spezialisten](reference/capabilities.md#delegation) umschreiben |
+| Wissensbasen | Eine binden oder lösen |
+| Context-Dateien | Eine binden oder lösen |
+| MCP-Tools | Ändern, welche Tools eines gebundenen Servers der Agent aufrufen darf |
+
+Alles andere ist überhaupt kein Vorschlag: Eval-Suites und ihre Schwellen,
+Datasets, Budgets, Observability und ein festgelegter Delegat werden vom
+Assistenten nie geändert. **Bearbeiten** funktioniert bei einem einzelnen Wert
+oder einem Text - einer Einstellung, dem Schrittlimit, einer Beschreibung; alles
+andere wird so angenommen oder verworfen, wie es vorgeschlagen wurde.
+
+### Er erweitert nie den Zugriff { #never-widens-access }
+
+Einen Vorschlag, der eine Wissensbasis, eine Context-Datei, ein Modellprofil
+oder einen MCP-Server bindet oder den Agent mehr MCP-Tools aufrufen lässt, nimmt
+nur an, wer diese Änderung auch von Hand vornehmen dürfte: Jeder andere wird
+abgelehnt, wie der Builder ihn ablehnen würde. Freigaben werden nur strenger:
+Ein Vorschlag kann eine Capability oder ein Tool zuerst fragen lassen, nie
+aufhören lassen zu fragen. Eine Capability, die der Assistent hinzufügt, kommt
+mit jedem ihrer Tools, das etwas ändert, auf zuerst fragen gesetzt, und der
+Vorschlag nennt diese Tools, so wie er die MCP-Tools nennt, die eine Änderung
+erreichbar macht.
+
+### Ein Modellwechsel { #a-change-of-model }
+
+Ein Vorschlag, das Modell zu wechseln, sagt, was ein Run mit jedem der beiden
+Modelle kosten würde, berechnet aus den letzten Runs des Agents. Beruht die
+Berechnung auf weniger als fünf, nennt er sie eine grobe Schätzung und sagt, aus
+wie vielen Runs.
+
+Ein Modellwechsel wird erst angenommen, wenn er sich bewährt hat. **Annehmen**
+bleibt deaktiviert und sagt warum, bis eine [Prüfung mit Evals](#check-with-evals)
+der wartenden Vorschläge auf diesem Modell gelaufen ist und keine bestätigte
+Regression gefunden hat. Eine Prüfung, die nichts entschieden hat - eine
+unbewertete Antwort oder kein Urteil -, hält ihn ebenfalls zurück: Bewerten Sie
+die Antworten oder starten Sie die Prüfung erneut.
+
 ## Skills { #skills }
 
 Ein Skill wird aus seiner Werkbank unter Skills verbessert. Der Assistent schlägt
@@ -122,6 +176,21 @@ Beide Seiten führen die veröffentlichte Version dieses Agents aus, und nur der
 Inhalt des Skills unterscheidet sich. Eine Änderung, die für eine ältere Version
 des Skills geschrieben wurde, wird abgelehnt, sobald jemand den Skill seitdem
 geändert hat.
+
+## Context-Dateien { #context-files }
+
+Eine [Context-Datei](context.md) wird aus ihrem Editor auf der Context-Seite
+verbessert, aus den Runs der Agents, die sie lesen. Was der Assistent
+vorschlägt, ist ein neuer Inhalt, und er wartet über der Liste auf dieser Seite,
+mit Begründung und Belegen und mit den Agents, an die die Datei gebunden ist - soweit Sie
+sie sehen dürfen. Pro Datei wartet jeweils eine Änderung.
+
+Sie anzuwenden wirkt sofort, wie bei einem Skill: Jeder an die Datei gebundene
+Agent liest den neuen Inhalt bei seinem nächsten Run. Deshalb lässt sie sich
+vorher mit Evals prüfen, an einem Agent, der die Datei nutzt, wobei sich nur der
+Inhalt der Datei unterscheidet. Auf eine Datei, die nach dem Vorschlag bearbeitet
+wurde, lässt sich die Änderung nicht anwenden: Vergleichen Sie beide und
+bearbeiten Sie die Datei von Hand, oder fragen Sie den Assistenten erneut.
 
 ## Einen neuen Agent beschreiben { #describing-a-new-agent }
 
@@ -148,7 +217,10 @@ Verbesserungen** gekostet hat, getrennt von den Kosten der Evals.
 | Verbessern oder Prüfen an einem Agent zu starten | `runs:view`, Bearbeitungsrechte am Agent und die Nutzung des Assistenten |
 | Einen Skill zu verbessern | `runs:view`, Bearbeitungsrechte am Skill und die Nutzung des Assistenten |
 | Einen Vorschlag anzunehmen, zu verwerfen oder rückgängig zu machen | Bearbeitungsrechte am Agent |
+| Eine Context-Datei zu verbessern | `runs:view`, `context:edit` an der Datei und die Nutzung des Assistenten |
+| Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
 | Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill |
+| Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei |
 | Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
@@ -157,7 +229,8 @@ diesen Agent verbessern.
 ## Wenn KI-Unterstützung ausgeschaltet ist { #when-ai-assistance-is-off }
 
 Ist der Schalter **KI-Unterstützung** der Organisation aus, läuft der Assistent
-nicht: Verbessern, Prüfen und das Verbessern eines Skills lehnt der Server ab,
+nicht: Verbessern, Prüfen und das Verbessern eines Skills oder einer
+Context-Datei lehnt der Server ab,
 und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Bereits
 wartende Vorschläge lassen sich weiterhin annehmen, verwerfen und rückgängig
 machen, und ein Eval Run, der keinen Bewerter braucht, läuft weiterhin.

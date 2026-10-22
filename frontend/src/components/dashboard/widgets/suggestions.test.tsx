@@ -45,6 +45,28 @@ describe("SuggestionsWidget", () => {
     );
   });
 
+  it("counts setting changes, and the context file changes", () => {
+    state.waiting = {
+      agents: [{ agent_id: "a1", name: "Clerk", instructions: 1, tools: 0, fields: 2 }],
+      skills: 0,
+      contexts: 1,
+    };
+    widget();
+    expect(screen.getByText("1 instruction change · 2 setting changes")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "1 context file change to review" })).toHaveAttribute(
+      "href",
+      "/context",
+    );
+    expect(screen.queryByRole("link", { name: /skill change/ })).toBeNull();
+  });
+
+  it("is not empty while only a context file change waits", () => {
+    state.waiting = { agents: [], skills: 0, contexts: 2 };
+    widget();
+    expect(screen.queryByText("Nothing waiting")).toBeNull();
+    expect(screen.getByRole("link", { name: "2 context file changes to review" })).toBeVisible();
+  });
+
   it("says nothing waits, and lists an agent with tool changes only", () => {
     state.waiting = { agents: [], skills: 0 };
     const { unmount } = render(<SuggestionsWidget title="t" hint="" period={PERIOD} />);

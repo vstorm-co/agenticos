@@ -80,6 +80,7 @@ import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
 import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
+import * as contextChanges from "./context-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
@@ -168,6 +169,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["secrets", secrets],
   ["sessions", sessions],
   ["skill-changes", skillChanges],
+  ["context-changes", contextChanges],
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
