@@ -199,7 +199,7 @@ export function useReauthenticate(): () => Promise<void> {
  * returns, and a refusal then signs out as it always has. A browser tab keeps
  * no copy, so it is sent to sign in as before.
  */
-function stayOffline(error: unknown): boolean {
+export function stayOffline(error: unknown): boolean {
   return isNetworkFailure(error) && offlineAvailable() && useAuthStore.getState().user !== null;
 }
 

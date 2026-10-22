@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
-import { readSession, useAdoptSession } from "@/hooks/use-auth";
+import { readSession, stayOffline, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 import { invitationTokenFrom, pendingLandingFor } from "@/lib/invitation-links";
 import { stageInvitation } from "@/lib/invitation-staging";
@@ -54,7 +54,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const { access_token, ...user } = await readSession();
         adoptSession(user as User, access_token ?? null);
-      } catch {
+      } catch (error) {
+        // The apps opened without a network: the account they kept stays
+        // signed in, and reads its copy on the device (#2097). This check runs
+        // even then, because the first render is the hydration's, before the
+        // persisted account is read.
+        if (stayOffline(error)) return;
         // Off `window.location`, not the navigation hooks: a hook here would
         // tie the verify effect to every navigation this guard sits above.
         const { pathname, search, hash } = window.location;

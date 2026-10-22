@@ -72,7 +72,9 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
+import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
@@ -921,6 +923,10 @@ function ChatUI({
       ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_CALLS_ANCHOR}`
       : null;
   const hasAgent = selectedAgentId !== null;
+  // The apps keep what is written without a connection in the outbox and send
+  // it when one comes back (#2097), so their composer stays open; a browser
+  // tab keeps nothing, and waits for the socket.
+  const keepsOutbox = useMounted() && offlineAvailable();
   const dictationStrip =
     engine === "server"
       ? dictationHint(
@@ -1448,7 +1454,7 @@ function ChatUI({
                           mentionsFromDraft={testingDraft}
                           hints={messages.length === 0}
                           disabled={
-                            !isConnected ||
+                            (!isConnected && !keepsOutbox) ||
                             isArchived ||
                             onCall ||
                             !!pendingApproval ||

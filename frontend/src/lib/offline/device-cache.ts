@@ -26,6 +26,7 @@ import type {
   QueuedMessage,
 } from "@/types";
 import type { MyPermissions } from "@/types/permissions";
+import type { AgentList } from "@/types/agents";
 import type { ApprovalList } from "@/types/runs";
 import { SealedStore, wipeSealedStore } from "./sealed-store";
 
@@ -47,6 +48,12 @@ export interface OfflineRecords {
   /** What the person may do, so the console offline draws what it draws online. */
   permissions: MyPermissions;
   organizations: OrganizationList;
+  /**
+   * The agents, unfiltered: `agents:all` with the archived (the chat's picker,
+   * and the names and faces beside old answers), `agents:active` without.
+   */
+  "agents:all": AgentList;
+  "agents:active": AgentList;
   approvals: ApprovalList;
   /** Conversation ids, most recently opened first. */
   recent: string[];

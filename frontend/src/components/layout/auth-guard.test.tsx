@@ -24,9 +24,13 @@ vi.mock("@/lib/api-client", async () => {
 // depends on it, and a fresh function per render would re-run the effect on every
 // state change and stage the same token twice.
 const adoptSession = vi.hoisted(() => vi.fn());
+// Whether a failed check leaves the apps signed in offline - `use-auth`'s rule,
+// tested there; here, what the guard does with its answer.
+const offline = vi.hoisted(() => ({ stays: false }));
 vi.mock("@/hooks/use-auth", () => ({
   useAdoptSession: () => adoptSession,
   readSession: () => apiClient.get("/auth/me"),
+  stayOffline: () => offline.stays,
 }));
 
 // One router object across renders, as `next/navigation` hands out: a fresh one per
@@ -40,6 +44,7 @@ const PENDING_FOR_FLOW = `${ROUTES.INVITATION_PENDING}?flow=${FLOW}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  offline.stays = false;
   useAuthStore.getState().logout();
 });
 
@@ -50,6 +55,18 @@ function renderGuard() {
     </AuthGuard>,
   );
 }
+
+describe("the dashboard guard, offline in the apps (#2097)", () => {
+  it("leaves the kept account on its page rather than sending it to sign in", async () => {
+    offline.stays = true;
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderGuard();
+
+    expect(await screen.findByText("the dashboard")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
 
 describe("the dashboard guard, refusing", () => {
   it("carries the whole address to login - path, query and fragment", async () => {
