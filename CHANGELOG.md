@@ -227,6 +227,13 @@ Two things are versioned separately from this file and worth knowing about:
   a dialog behind it by stopping them before React saw them, so every control
   opening on a press - the composer's `+` menu among them - did nothing there.
 
+### Security
+
+- **OpenTelemetry 1.45.1.** `opentelemetry-api` 1.44.0 carries
+  CVE-2026-114603 (GHSA-xcq7-p3pf-p88h), which failed `make audit` on every
+  branch. The OpenTelemetry packages Logfire brings in move together - 1.45.1,
+  and 0.66b1 for the instrumentations - as lockfile updates only.
+
 ## [1.13.0] - 2026-10-22
 
 ### Added
