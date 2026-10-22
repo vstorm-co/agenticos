@@ -1,5 +1,5 @@
 ---
-source_sha: "e3d2d8bbc68f"
+source_sha: "e2c4aa06f750"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -65,7 +65,7 @@ możliwości:
 |---|---|
 | Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
-| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie |
+| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie. Odpowiedź, która podaje politykę, regułę albo fakt, nie jest luką nawet wtedy, gdy zastosowała je źle: to błąd do poprawienia, a nie treść, której brakuje w bazie wiedzy |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
@@ -103,6 +103,13 @@ temacie tej bazy albo zakłada nowy. Jedno przejście tworzy embeddingi dla
 najwyżej 500 chybionych wyszukiwań na bazę wiedzy; reszta czeka na następne.
 Baza wiedzy bez nowych chybionych wyszukiwań nie kosztuje żadnego wywołania
 embeddingów.
+
+Chybienie trafia do najbliższego tematu tylko wtedy, gdy jest do niego co
+najmniej tak podobne jak `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; inaczej zakłada nowy.
+
+| Ustawienie | Domyślnie | Co decyduje |
+|---|---|---|
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Podobieństwo kosinusowe, jakiego chybienie potrzebuje do tematu, żeby do niego dołączyć. Ile punktów dostają pytania o jedną sprawę, zależy od modelu embeddingów: w modelach `text-embedding-3` OpenAI zwykle od 0.5 do 0.7. Podnieś je, jeśli niepowiązane pytania trafiają do jednego tematu, obniż, jeśli jedna sprawa wciąż zakłada nowe |
 
 - Wyszukiwanie w dwóch bazach wiedzy staje się pytaniem w temacie każdej z nich.
 - Baza wiedzy przeniesiona na inny model embeddingów zaczyna nowe tematy, bo
