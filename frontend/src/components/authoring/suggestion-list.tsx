@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
 import type { Hunk, HunkDecision, SuggestionBatch } from "@/types/authoring";
+import { CheckRunVerdicts } from "./check-run-verdicts";
 import { SuggestionCard } from "./suggestion-card";
 
 /**
@@ -52,6 +53,9 @@ export function SuggestionList({
             </Link>
           ))}
         </p>
+      )}
+      {batch.check_eval_run_ids.length > 0 && (
+        <CheckRunVerdicts agentId={agentId} runIds={batch.check_eval_run_ids} />
       )}
       {ordered.map((hunk) => (
         <SuggestionCard

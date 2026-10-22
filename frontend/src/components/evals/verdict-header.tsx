@@ -8,6 +8,7 @@ import { Button, Card, CardContent, Progress } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
+import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { usd } from "./format";
 import { sideName } from "./names";
@@ -133,6 +134,7 @@ export function VerdictHeader({
             {t("startedBySuite", { name: run.suite.name, trigger: run.suite.trigger })}
           </p>
         )}
+        {run.suite_check && <SuiteCheckVerdict agentId={agentId} check={run.suite_check} />}
         {run.error && <p className="text-destructive text-sm">{run.error}</p>}
         {!live && <UngradedNote run={run} />}
         {!live && <JudgeNotes run={run} />}

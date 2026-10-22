@@ -6,7 +6,7 @@
  */
 
 import type { DatasetCaseContent } from "./datasets";
-import type { EvalSuiteTrigger } from "./eval-suites";
+import type { EvalSuiteResultStatus, EvalSuiteTrigger, ThresholdReason } from "./eval-suites";
 import type { CaseScore } from "./scoring";
 
 export type EvalRunStatus =
@@ -168,6 +168,8 @@ export interface EvalRun {
   suite?: { id: string; name: string; trigger: EvalSuiteTrigger } | null;
   /** On the single-run read of a run of the draft: whether the draft changed since. */
   draft_changed?: boolean | null;
+  /** On the single-run read of a check made on an eval suite: what the suite would say. */
+  suite_check?: EvalSuiteCheck | null;
   error: string | null;
   created_by_user_id: string | null;
   created_at: string;
@@ -273,4 +275,19 @@ export interface EvalComparison {
   efficiency: Efficiency | null;
   cases: CaseFlip[];
   flips_by_tag: Record<string, Partial<Record<Flip, number>>>;
+}
+
+/**
+ * What the eval suite a check of suggestions ran on would have said of the run, by
+ * the threshold it had when the check started. The check is none of the suite's runs.
+ */
+export interface EvalSuiteCheck {
+  suite_id: string;
+  /** The suite's name when the check started. */
+  name: string;
+  /** Whether the suite is still there, under this agent, to be opened. */
+  suite_exists: boolean;
+  /** Null while the run runs, or when it ended without completing. */
+  status: Extract<EvalSuiteResultStatus, "passed" | "failed" | "inconclusive"> | null;
+  reasons: ThresholdReason[];
 }

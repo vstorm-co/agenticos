@@ -8646,6 +8646,7 @@
         "skipped": "Did not run",
         "error": "Error"
       },
+      "checkVerdict": "What the suite <suite>{name}</suite> would say, by its threshold when the check started. A check is not one of the suite's runs, so it is in no history.",
       "lastResult": "{status} · {rate}",
       "paused": {
         "byPerson": "Paused",

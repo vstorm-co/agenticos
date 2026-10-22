@@ -135,6 +135,28 @@ describe("EvalRunView", () => {
     expect(screen.getByText("Started by the suite Nightly on its schedule.")).toBeInTheDocument();
   });
 
+  it("says what the suite a check ran on would have said of it", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        suite_check: {
+          suite_id: "suite-1",
+          name: "Nightly",
+          suite_exists: true,
+          status: "failed",
+          reasons: [{ code: "pass_rate_below", value: 0.5, limit: 0.9, detail: null }],
+        },
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Nightly" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1?tab=evals",
+    );
+  });
+
   it("leads with the verdict, then each side, how they compare and every case", async () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
