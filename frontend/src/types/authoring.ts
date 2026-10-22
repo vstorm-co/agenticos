@@ -73,7 +73,8 @@ export type Rejection =
   | "invalid_config"
   | "does_not_apply"
   | "not_grantable"
-  | "dismissed_before";
+  | "dismissed_before"
+  | "superseded";
 
 export interface RejectedChange {
   kind: "instructions" | "tool_override" | "spec_field";

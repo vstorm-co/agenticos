@@ -9467,7 +9467,8 @@
         "invalid_config": "Jej ustawienia są niepoprawne",
         "does_not_apply": "Nie pasuje do draftu",
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
-        "dismissed_before": "Ktoś już ją wcześniej odrzucił"
+        "dismissed_before": "Ktoś już ją wcześniej odrzucił",
+        "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie"
       }
     }
   },

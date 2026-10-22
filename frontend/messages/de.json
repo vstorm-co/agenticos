@@ -9573,7 +9573,8 @@
         "invalid_config": "Ihre Einstellungen sind ungültig",
         "does_not_apply": "Sie passt nicht zum Draft",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
-        "dismissed_before": "Jemand hat sie schon verworfen"
+        "dismissed_before": "Jemand hat sie schon verworfen",
+        "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt"
       }
     }
   },

@@ -53,6 +53,8 @@ class Rejection(StrEnum):
     """It adds something the person who asked may not grant."""
     DISMISSED_BEFORE = "dismissed_before"
     """Somebody dismissed the same change in the batch it replaces."""
+    SUPERSEDED = "superseded"
+    """A request started later had already replaced the suggestions."""
 
 
 class EvidenceQuote(BaseModel):

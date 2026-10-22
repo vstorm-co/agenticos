@@ -28,6 +28,7 @@ const REJECTED: RejectedChange[] = [
     change: { path: "capabilities/memory_files/config", op: "set", value: { a: 1 } },
   },
   { kind: "spec_field", reason: "not_grantable", change: { path: "collection_ids", op: "add" } },
+  { kind: "instructions", reason: "superseded", change: { old_text: "Be brief.", new_text: "" } },
 ];
 
 function report(values: Partial<NonNullable<AuthoringRequest["report"]>>) {
@@ -44,7 +45,7 @@ describe("RejectedChanges", () => {
 
   it("says how many were not recorded, why, and what each proposed", async () => {
     render(<RejectedChanges report={report({ rejected: REJECTED, rejected_more: 2 })} />);
-    await userEvent.click(screen.getByText("8 proposed changes were not recorded"));
+    await userEvent.click(screen.getByText("9 proposed changes were not recorded"));
 
     expect(screen.getByText("The passage it changes occurs more than once")).toBeVisible();
     expect(screen.getByText("within 30 days")).toBeVisible();
@@ -60,6 +61,9 @@ describe("RejectedChanges", () => {
     expect(screen.getByText("It adds something the person who asked may not grant")).toBeVisible();
     expect(screen.getAllByText("Setting")).toHaveLength(2);
     expect(screen.getByText("2 more are not listed")).toBeVisible();
+    expect(
+      screen.getByText("A request started later had already replaced the suggestions"),
+    ).toBeVisible();
   });
 
   it("counts one in the singular, and lists all when none is cut", () => {

@@ -9690,7 +9690,8 @@
         "invalid_config": "Its settings are not valid",
         "does_not_apply": "It does not fit the draft",
         "not_grantable": "It adds something the person who asked may not grant",
-        "dismissed_before": "Somebody dismissed it before"
+        "dismissed_before": "Somebody dismissed it before",
+        "superseded": "A request started later had already replaced the suggestions"
       }
     }
   },
