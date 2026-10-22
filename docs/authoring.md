@@ -55,6 +55,13 @@ not among those the assistant read, and anything past twelve items or six hundre
 characters is dropped, and the suggestion says how many were. A reader without
 `runs:view` sees which runs a suggestion rests on, not what was said in them.
 
+The check proves that a quote is in its run, not that it bears on what it backs:
+a real quote about something else passes it. So a Verify finding names the line
+of the edit it is about, and the line must be part of the edit. The strip shows
+that line above the finding's quotes, for the reader to judge whether they back
+it. A finding that the edit is supported, left with no quote that could be
+checked, is not shown.
+
 ## Suggestions { #suggestions }
 
 Improve and Verify open the **assistant strip** on the agent's Build tab. Each

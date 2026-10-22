@@ -1,5 +1,5 @@
 ---
-source_sha: "cb389d355ac7"
+source_sha: "2f8125b4e417"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -58,6 +58,13 @@ ahí, un run que no está entre los que leyó el asistente y todo lo que pase de
 doce elementos o seiscientos caracteres se descarta, y la sugerencia dice
 cuántos fueron. Quien no tiene `runs:view` ve en qué runs se apoya una
 sugerencia, no lo que se dijo en ellos.
+
+La comprobación demuestra que una cita está en su run, no que tenga que ver con
+lo que respalda: una cita real sobre otra cosa la supera. Por eso un hallazgo de
+Verificar nombra la línea de la edición a la que se refiere, y esa línea tiene
+que formar parte de la edición. La barra muestra esa línea encima de las citas
+del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
+edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
 ## Sugerencias { #suggestions }
 

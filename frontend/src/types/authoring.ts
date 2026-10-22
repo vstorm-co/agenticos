@@ -22,6 +22,10 @@ export interface AuthoringEstimate {
 export interface VerifyFinding {
   verdict: "supports" | "risk" | "removed";
   text: string;
+  /** The line of the edit the finding is about, as the edit has it; empty for none. */
+  edit?: string;
+  /** Why the line it named was cleared - it is not part of the edit. */
+  edit_refused?: Rejection;
   /** `quote` is absent for a reader without `runs:view`. */
   evidence: { run_id: string; quote?: string }[];
   evidence_dropped: number;
@@ -74,12 +78,17 @@ export type Rejection =
   | "does_not_apply"
   | "not_grantable"
   | "dismissed_before"
+  | "unsupported"
+  | "edit_not_in_diff"
   | "superseded";
 
 export interface RejectedChange {
-  kind: "instructions" | "tool_override" | "spec_field";
+  kind: "instructions" | "tool_override" | "spec_field" | "finding";
   reason: Rejection;
-  /** The change as proposed: passages, a tool's new text, or a field's path and value. */
+  /**
+   * The change as proposed: passages, a tool's new text, a field's path and value,
+   * or a verify finding's verdict, text and the line it named.
+   */
   change: {
     old_text?: string;
     new_text?: string;
@@ -92,6 +101,9 @@ export interface RejectedChange {
     op?: string;
     value?: FieldValue;
     rationale?: string;
+    verdict?: VerifyFinding["verdict"];
+    text?: string;
+    edit?: string;
   };
 }
 

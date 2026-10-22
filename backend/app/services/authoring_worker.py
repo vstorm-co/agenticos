@@ -21,6 +21,7 @@ import logging
 from collections import Counter
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -69,6 +70,7 @@ from app.schemas.authoring import (
     RunFindings,
     SkillImprovement,
     ToolChange,
+    VerifyFinding,
     VerifyReport,
 )
 from app.services import authoring_hunks
@@ -232,7 +234,10 @@ def _verify_prompt(
     return (
         f'A person edited the agent "{name}" by hand. Check their edits against the '
         "evidence: what the edits improve, what they risk, and what they removed that the "
-        "evidence relied on. Propose changes only where the evidence asks for them.\n\n"
+        "evidence relied on. Propose changes only where the evidence asks for them. Each "
+        "finding names the line of the edit it is about, and quotes a run only where that "
+        "run shows that very line at work - a finding that the edit is supported, with no "
+        "such quote, is not shown.\n\n"
         f"# The edit to its instructions\n{diff or '(no change to the instructions)'}\n\n"
         f"# The edit to its tools\n{_tool_diff(published, draft) or '(no change to the tools)'}\n\n"
         "# The edit to its configuration\n"
@@ -265,6 +270,41 @@ def _signature(values: dict[str, Any]) -> tuple[Any, ...]:
         values.get("path"),
         values.get("op"),
         json.dumps(values.get("new_value"), sort_keys=True, default=str),
+    )
+
+
+def _unmarked(line: str) -> str:
+    """A line as a model copied it from the diff, without the `+` or `-` it was shown with."""
+    line = line.strip()
+    return line[1:].strip() if line[:1] in ("+", "-") else line
+
+
+@dataclass(frozen=True)
+class _Edited:
+    """What a person's edit added and removed, as a finding may name a line of it."""
+
+    added: str
+    removed: str
+    other: str
+
+    def has(self, line: str, *, removed_only: bool) -> bool:
+        if removed_only:
+            return any(authoring_hunks.mentions(text, line) for text in (self.removed, self.other))
+        return any(
+            authoring_hunks.mentions(text, line) for text in (self.added, self.removed, self.other)
+        )
+
+
+def _edited(published: AgentSpec, draft: AgentSpec) -> _Edited:
+    lines = list(
+        difflib.unified_diff(
+            published.instructions.splitlines(), draft.instructions.splitlines(), lineterm=""
+        )
+    )
+    return _Edited(
+        added="\n".join(line[1:] for line in lines[2:] if line.startswith("+")),
+        removed="\n".join(line[1:] for line in lines[2:] if line.startswith("-")),
+        other="\n".join((_tool_diff(published, draft), _config_diff(published, draft))),
     )
 
 
@@ -429,17 +469,7 @@ class AuthoringRun:
             _verify_prompt(agent.name, published, draft, configuration, pack, digests),
             VerifyReport,
         )
-        findings: list[dict[str, Any]] = []
-        for finding in report.findings:
-            kept, dropped = pack.verify(finding.evidence)
-            findings.append(
-                {
-                    "verdict": finding.verdict,
-                    "text": finding.text,
-                    "evidence": kept,
-                    "evidence_dropped": dropped,
-                }
-            )
+        findings = self._findings(report.findings, pack, _edited(published, draft))
         hunks = [
             *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
             *self._tool_hunks(draft, pack, report.tools, HunkOrigin.VERIFY),
@@ -701,8 +731,40 @@ class AuthoringRun:
             )
         return hunks
 
-    def _reject(self, kind: HunkKind, reason: Rejection, change: dict[str, Any]) -> None:
-        self.rejected.append({"kind": kind.value, "reason": reason.value, "change": change})
+    def _findings(
+        self, findings: Sequence[VerifyFinding], pack: EvidencePack, edited: _Edited
+    ) -> list[dict[str, Any]]:
+        """Verify's findings, each tied to the line of the edit it names and to checked quotes.
+
+        Whether a quote bears on that line is not something a check can decide; tying
+        the finding to the line lets the reader see what the quote is meant to back. A
+        finding that the edit is supported with nothing left to show it is not shown. A
+        line that is not in the edit is cleared, and the finding, still shown, says why
+        in `edit_refused` rather than being listed as not recorded.
+        """
+        kept_findings: list[dict[str, Any]] = []
+        for finding in findings:
+            kept, dropped = pack.verify(finding.evidence)
+            if finding.verdict == "supports" and not kept:
+                said = {"verdict": finding.verdict, "text": finding.text, "edit": finding.edit}
+                self._reject("finding", Rejection.UNSUPPORTED, said)
+                continue
+            edit = _unmarked(finding.edit)
+            refused = bool(edit) and not edited.has(edit, removed_only=finding.verdict == "removed")
+            kept_findings.append(
+                {
+                    "verdict": finding.verdict,
+                    "text": finding.text,
+                    "edit": "" if refused else edit,
+                    **({"edit_refused": Rejection.EDIT_NOT_IN_DIFF.value} if refused else {}),
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        return kept_findings
+
+    def _reject(self, kind: str, reason: Rejection, change: dict[str, Any]) -> None:
+        self.rejected.append({"kind": kind, "reason": reason.value, "change": change})
 
     def _rejections(self) -> dict[str, Any]:
         """What the report says about the changes nothing recorded, and the log line for them.

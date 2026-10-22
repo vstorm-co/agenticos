@@ -111,6 +111,12 @@ def _place(text: str, passage: str) -> tuple[int, int] | Rejection:
     return positions[found[0]], positions[found[0] + len(needle) - 1] + 1
 
 
+def mentions(text: str, passage: str) -> bool:
+    """Whether `passage` occurs in `text`, compared as loosely as an anchor is."""
+    needle = _evened(passage)[0].strip()
+    return bool(needle) and needle in _evened(text)[0]
+
+
 def _occurrences(text: str, needle: str) -> list[int]:
     found: list[int] = []
     start = text.find(needle)

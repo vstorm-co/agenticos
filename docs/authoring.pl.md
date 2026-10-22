@@ -1,5 +1,5 @@
 ---
-source_sha: "cb389d355ac7"
+source_sha: "2f8125b4e417"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -57,6 +57,13 @@ słowo z runem, który wskazuje. Cytat, którego tam nie ma, run spoza tych, kt�
 asystent przeczytał, oraz wszystko ponad dwanaście pozycji albo sześćset znaków
 jest odrzucane, a sugestia podaje, ile tego było. Czytelnik bez `runs:view`
 widzi, na których runach opiera się sugestia, ale nie to, co w nich powiedziano.
+
+Sprawdzenie dowodzi, że cytat jest w swoim runie, a nie że dotyczy tego, co
+popiera: prawdziwy cytat o czymś innym je przechodzi. Dlatego ustalenie Sprawdź
+wskazuje linię edycji, której dotyczy, a ta linia musi być częścią edycji. Pasek
+pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
+Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
+nie jest pokazywane.
 
 ## Sugestie { #suggestions }
 

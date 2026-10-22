@@ -64,12 +64,14 @@ describe("VerifyReport", () => {
           {
             verdict: "removed",
             text: "Dropped the language rule",
+            edit: "Answer in Polish.",
             evidence: [{ run_id: "run-cccccccc", quote: "Answer in Polish" }],
             evidence_dropped: 0,
           },
           {
             verdict: "risk",
             text: "May bring back long answers",
+            edit_refused: "edit_not_in_diff",
             evidence: [],
             evidence_dropped: 1,
           },
@@ -80,5 +82,10 @@ describe("VerifyReport", () => {
     expect(screen.getByLabelText("Removed something the evidence relied on")).toBeInTheDocument();
     expect(screen.getByLabelText("A risk")).toBeInTheDocument();
     expect(screen.getByText("Answer in Polish")).toBeInTheDocument();
+    // The line a quote is meant to back, so the reader can judge whether it does.
+    expect(screen.getByText("About: Answer in Polish.")).toBeInTheDocument();
+    expect(screen.getAllByText(/^About:/)).toHaveLength(1);
+    // Shown without the line it named, and saying why.
+    expect(screen.getByText("The line it names is not part of the edit")).toBeInTheDocument();
   });
 });

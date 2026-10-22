@@ -28,6 +28,16 @@ const REJECTED: RejectedChange[] = [
     change: { path: "capabilities/memory_files/config", op: "set", value: { a: 1 } },
   },
   { kind: "spec_field", reason: "not_grantable", change: { path: "collection_ids", op: "add" } },
+  {
+    kind: "finding",
+    reason: "unsupported",
+    change: { verdict: "supports", text: "Greeting helps", edit: "Greet the customer." },
+  },
+  {
+    kind: "finding",
+    reason: "edit_not_in_diff",
+    change: { verdict: "risk", text: "It may answer in Klingon", edit: "" },
+  },
   { kind: "instructions", reason: "superseded", change: { old_text: "Be brief.", new_text: "" } },
 ];
 
@@ -45,7 +55,7 @@ describe("RejectedChanges", () => {
 
   it("says how many were not recorded, why, and what each proposed", async () => {
     render(<RejectedChanges report={report({ rejected: REJECTED, rejected_more: 2 })} />);
-    await userEvent.click(screen.getByText("9 proposed changes were not recorded"));
+    await userEvent.click(screen.getByText("11 proposed changes were not recorded"));
 
     expect(screen.getByText("The passage it changes occurs more than once")).toBeVisible();
     expect(screen.getByText("within 30 days")).toBeVisible();
@@ -61,6 +71,14 @@ describe("RejectedChanges", () => {
     expect(screen.getByText("It adds something the person who asked may not grant")).toBeVisible();
     expect(screen.getAllByText("Setting")).toHaveLength(2);
     expect(screen.getByText("2 more are not listed")).toBeVisible();
+    expect(screen.getAllByText("Finding")).toHaveLength(2);
+    expect(
+      screen.getByText("Said the edit is supported, with no evidence that could be checked"),
+    ).toBeVisible();
+    expect(screen.getByText("Greeting helps")).toBeVisible();
+    expect(screen.getByText("About: Greet the customer.")).toBeVisible();
+    expect(screen.getByText("The line it names is not part of the edit")).toBeVisible();
+    expect(screen.getByText("It may answer in Klingon")).toBeVisible();
     expect(
       screen.getByText("A request started later had already replaced the suggestions"),
     ).toBeVisible();

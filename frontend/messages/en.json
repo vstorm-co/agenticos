@@ -9588,7 +9588,8 @@
         "supports": "Supported by the evidence",
         "risk": "A risk",
         "removed": "Removed something the evidence relied on"
-      }
+      },
+      "about": "About: {line}"
     },
     "improve": {
       "improve": {
@@ -9675,7 +9676,8 @@
       "kind": {
         "instructions": "Instructions",
         "tool_override": "Tool",
-        "spec_field": "Setting"
+        "spec_field": "Setting",
+        "finding": "Finding"
       },
       "reason": {
         "unanchored": "The passage it changes is not in the instructions",
@@ -9692,8 +9694,11 @@
         "does_not_apply": "It does not fit the draft",
         "not_grantable": "It adds something the person who asked may not grant",
         "dismissed_before": "Somebody dismissed it before",
+        "unsupported": "Said the edit is supported, with no evidence that could be checked",
+        "edit_not_in_diff": "The line it names is not part of the edit",
         "superseded": "A request started later had already replaced the suggestions"
-      }
+      },
+      "about": "About: {line}"
     }
   },
   "promotionGate": {
