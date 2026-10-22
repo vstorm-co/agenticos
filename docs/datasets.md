@@ -550,7 +550,7 @@ from it back to the conversation is cleared: the run, the conversation and the
 message it came from. The text stays, and may still hold personal data somebody
 typed into it. Deleting the case removes it.
 
-When the person a case was taken from is erased, the text goes too. The
+When the person who asked a case's question is erased, the text goes too. The
 question, the earlier turns, both answers and the note are replaced in every
 version that holds the case, and so are the answers and calls that eval runs
 recorded for it. The case keeps its id, its expected calls, its checks and its
@@ -558,9 +558,16 @@ tags, and is marked **Anonymised after erasure**, so its curator can rewrite it
 or remove it. Until then an eval run leaves it out, because an answer to the
 placeholder measures nothing.
 
-A case taken from somebody else's run that the
-erased person only rated keeps its question and answer, and loses only the note
-that held their comment. See
+A case keeps whose words it holds: who asked its question, who wrote each of
+its earlier turns, and whose comment became its note. This is never shown or
+exported, and it outlives the conversation, so an erasure still finds the case
+after the conversation it came from was deleted. A case asked by somebody else
+keeps its question and answer: an erased person's turns in its earlier history
+are replaced, and their comment kept as its note is cleared.
+
+A case written before authorship was kept has it filled from the links it still held; one
+whose conversation was already gone has none, and only deleting the case
+removes its text. See
 [Data protection](data-protection.md#what-deletion-reaches).
 
 A score is kept the same way. It holds a copy of the answer it graded, up to

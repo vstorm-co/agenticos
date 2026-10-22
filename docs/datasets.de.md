@@ -1,5 +1,5 @@
 ---
-source_sha: "c72fa42d8eda"
+source_sha: "f28732bad3b1"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -615,7 +615,7 @@ Nachricht, aus denen er stammt. Der Text bleibt und kann weiterhin
 personenbezogene Daten enthalten, die jemand eingegeben hat. Das Löschen des
 Falls entfernt ihn.
 
-Wird die Person gelöscht, von der ein Fall stammt, geht auch der Text. Die
+Wird die Person gelöscht, die die Frage eines Falls gestellt hat, geht auch der Text. Die
 Frage, die früheren Züge, beide Antworten und die Notiz werden in jeder Version
 ersetzt, die den Fall enthält, und ebenso die Antworten und Aufrufe, die
 Eval-Runs für ihn aufgezeichnet haben. Der Fall behält seine Id, seine
@@ -624,9 +624,18 @@ anonymisiert** markiert, damit sein Kurator ihn umschreiben oder entfernen kann.
 Bis dahin lässt ein Eval-Run ihn aus, denn eine Antwort auf den Platzhalter misst
 nichts.
 
-Ein Fall aus dem Run einer anderen Person, den die gelöschte Person nur
-bewertet hat, behält Frage und Antwort und verliert nur die Notiz mit ihrem
-Kommentar. Siehe
+Ein Fall hält fest, wessen Worte er enthält: wer seine Frage gestellt hat, wer
+jeden seiner früheren Züge geschrieben hat und wessen Kommentar zu seiner Notiz
+wurde. Das wird nie angezeigt oder exportiert und überdauert das Gespräch,
+sodass eine Löschung den Fall auch dann noch findet, wenn das Gespräch, aus dem
+er stammt, gelöscht wurde. Ein Fall, dessen Frage jemand anderes gestellt hat,
+behält Frage und Antwort: Die Züge der gelöschten Person in seinem früheren
+Verlauf werden ersetzt, und ihr als Notiz aufbewahrter Kommentar wird geleert.
+
+Bei einem Fall, der geschrieben wurde, bevor die Urheberschaft festgehalten
+wurde, wird sie aus den Verbindungen ergänzt, die er noch hatte; einer, dessen
+Gespräch schon gelöscht war, hat keine, und nur das Löschen des Falls entfernt
+seinen Text. Siehe
 [Datenschutz](data-protection.md#what-deletion-reaches).
 
 Ein Score wird auf dieselbe Weise aufbewahrt. Er enthält eine Kopie der

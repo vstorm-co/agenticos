@@ -1,5 +1,5 @@
 ---
-source_sha: "c72fa42d8eda"
+source_sha: "f28732bad3b1"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -579,7 +579,7 @@ powiązanie z rozmową jest czyszczone: run, rozmowa i wiadomość, z których
 pochodzi. Tekst zostaje i może nadal zawierać dane osobowe wpisane przez kogoś.
 Usunięcie przypadku go usuwa.
 
-Gdy osoba, od której wzięto przypadek, zostanie wymazana, znika też tekst.
+Gdy osoba, która zadała pytanie przypadku, zostanie wymazana, znika też tekst.
 Pytanie, wcześniejsze tury, obie odpowiedzi i notatka są zastępowane w każdej
 wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które eval
 runy zapisały dla niego. Przypadek zachowuje swoje id, oczekiwane wywołania,
@@ -587,9 +587,17 @@ sprawdzenia i tagi, i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
 tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu eval run go
 pomija, bo odpowiedź na placeholder niczego nie mierzy.
 
-Przypadek wzięty z runu
-innej osoby, który wymazana osoba jedynie oceniła, zachowuje pytanie i
-odpowiedź, a traci tylko notatkę z jej komentarzem. Zobacz
+Przypadek zapamiętuje, czyje słowa zawiera: kto zadał jego pytanie, kto
+napisał każdą z jego wcześniejszych tur i czyj komentarz stał się jego notatką.
+Nigdy się tego nie pokazuje ani nie eksportuje, a informacja ta przetrwa
+rozmowę, więc wymazanie odnajduje przypadek nawet po usunięciu rozmowy, z której
+pochodzi. Przypadek, którego pytanie zadał ktoś inny, zachowuje pytanie i
+odpowiedź: tury wymazanej osoby w jego wcześniejszej historii są zastępowane, a
+jej komentarz zachowany jako notatka jest czyszczony.
+
+Przypadek zapisany, zanim zaczęto zapamiętywać autorstwo, ma je uzupełnione z
+powiązań, które jeszcze miał; taki, którego rozmowy już nie było, nie ma go
+wcale i tylko usunięcie przypadku usuwa jego tekst. Zobacz
 [Ochrona danych](data-protection.md#what-deletion-reaches).
 
 Wynik jest przechowywany tak samo. Zawiera kopię ocenianej odpowiedzi, do 8000

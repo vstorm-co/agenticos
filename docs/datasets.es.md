@@ -1,5 +1,5 @@
 ---
-source_sha: "c72fa42d8eda"
+source_sha: "f28732bad3b1"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -587,7 +587,7 @@ y se elimina todo vínculo con la conversación: el run, la conversación y el
 mensaje de los que procede. El texto se queda, y puede seguir conteniendo datos
 personales que alguien escribió. Eliminar el caso lo elimina.
 
-Cuando se borra a la persona de la que se tomó un caso, el texto también se va.
+Cuando se borra a la persona que hizo la pregunta de un caso, el texto también se va.
 La pregunta, los turnos anteriores, ambas respuestas y la nota se sustituyen en
 todas las versiones que contienen el caso, y también las respuestas y llamadas
 que los eval runs registraron para él. El caso conserva su id, sus llamadas
@@ -596,9 +596,17 @@ el borrado (**Anonymised after erasure**), para que su curador pueda reescribirl
 o eliminarlo. Hasta entonces un eval run lo deja fuera, porque una respuesta al
 texto de sustitución no mide nada.
 
-Un caso tomado del run de otra persona que la
-persona borrada solo valoró conserva su pregunta y su respuesta, y pierde solo
-la nota que guardaba su comentario.
+Un caso guarda de quién son las palabras que contiene: quién hizo su pregunta,
+quién escribió cada uno de sus turnos anteriores y de quién es el comentario que
+se convirtió en su nota. Esto nunca se muestra ni se exporta, y sobrevive a la
+conversación, así que un borrado sigue encontrando el caso después de que se
+borrara la conversación de la que procede. Un caso cuya pregunta hizo otra
+persona conserva su pregunta y su respuesta: los turnos de la persona borrada en
+su historial anterior se sustituyen, y su comentario guardado como nota se vacía.
+
+Un caso escrito antes de que se guardara la autoría la tiene completada a partir
+de los vínculos que aún conservaba; uno cuya conversación ya no existía no tiene
+ninguna, y solo eliminar el caso elimina su texto.
 Consulta [Protección de datos](data-protection.md#what-deletion-reaches).
 
 Una puntuación se conserva de la misma forma. Guarda una copia de la respuesta
