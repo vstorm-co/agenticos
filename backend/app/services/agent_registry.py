@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -110,7 +111,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
-from app.services import agent_templates, mcp_catalog, skill_library
+from app.services import agent_templates, authoring_fields, mcp_catalog, skill_library
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -195,6 +196,7 @@ class PublishedCandidate:
 
     version_id: UUID
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
@@ -208,6 +210,7 @@ class UnpublishedCandidate:
 
     spec: AgentSpec
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
 
 
@@ -1511,6 +1514,43 @@ class AgentRegistryService:
             if problems.fields:
                 details["fields"] = problems.fields
             raise BadRequestError(message="This agent cannot be published yet", details=details)
+
+    async def reference_problems(
+        self, ctx: AuthContext, spec: AgentSpec, *, path: str, op: str
+    ) -> list[str]:
+        """What a proposed change to `path` adds that the caller may not grant.
+
+        `spec` is the draft with the change already made. Only what the change
+        adds is asked about - a capability, its new configuration, a collection,
+        a context file, a model, the tools an MCP binding now reaches - with the
+        same checks `validate_spec` makes at publish, so a proposal never widens
+        access beyond the person accepting it. Removing, narrowing and rewording
+        grant nothing and are never refused here.
+        """
+        address = authoring_fields.parse(path)
+        if address is None or op == "remove":
+            return []
+        pattern = address.pattern
+        if pattern in ("capabilities", "capabilities/{capability}/config"):
+            # An added binding is appended; a reconfigured one keeps its id.
+            bindings = (
+                spec.capabilities[-1:]
+                if pattern == "capabilities"
+                else [binding for binding in spec.capabilities if binding.id == address.capability]
+            )
+            problems = _SpecProblems()
+            for binding in bindings:
+                problems.merge(await self._binding_problems(ctx, binding))
+            return problems.messages
+        if pattern == "collection_ids":
+            return await self._collection_problems(ctx, spec.collection_ids[-1:])
+        if pattern == "context_ids":
+            return await self._context_problems(ctx, spec.context_ids[-1:])
+        if pattern == "model_profile_id" and spec.model_profile_id is not None:
+            return await self._model_profile_problems(ctx, spec.model_profile_id)
+        if pattern == "mcp_servers/{server}/allowed_tools":
+            return await self._mcp_problems(ctx, spec.mcp_servers)
+        return []
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec

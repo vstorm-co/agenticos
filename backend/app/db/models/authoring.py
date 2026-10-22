@@ -8,13 +8,13 @@ Three tables:
 - `spec_proposal_batches` is what an improve or verify request proposed for one
   agent's draft. An agent has at most one open batch: a newer request supersedes
   it, publishing the draft closes it, and either makes its decisions final.
-- `spec_proposal_hunks` is one change in a batch - a passage of the instructions
-  or one tool's name and description - each with its own decision, because one
-  review accepts a hunk and dismisses its neighbour.
+- `spec_proposal_hunks` is one change in a batch - a passage of the instructions,
+  one tool's name and description, or one field of the spec such as the model or
+  a bound collection - each with its own decision, because one review accepts a
+  hunk and dismisses its neighbour.
 
-A skill change is not a hunk: skills have no draft, so it lands in
-`skill_proposals`, decided whole, like every other change an agent makes to a
-skill.
+A skill or context file change is not a hunk: neither has a draft, so it lands in
+`skill_proposals` or `context_proposals`, decided whole.
 
 **Nothing here writes an agent.** Accepting a hunk writes the draft a person
 publishes; the improver itself only produces rows in these tables.
@@ -58,6 +58,7 @@ class AuthoringKind(StrEnum):
 class AuthoringTarget(StrEnum):
     AGENT = "agent"
     SKILL = "skill"
+    CONTEXT = "context"
 
 
 class AuthoringStatus(StrEnum):
@@ -82,13 +83,29 @@ class BatchStatus(StrEnum):
 class HunkKind(StrEnum):
     """What a hunk changes.
 
-    These, with a skill's body and description, are everything the assistant may
-    propose a change to; `tests/test_authoring_targets.py` pins the list, so no
-    eval suite, threshold, dataset, scorer or environment becomes a target.
+    These, with a skill's or a context file's body and description, are everything
+    the assistant may propose a change to; `tests/test_authoring_targets.py` pins
+    the list - and `authoring_fields.TARGETS`, the fields a `spec_field` hunk may
+    address - so no eval suite, threshold, dataset, scorer or environment becomes
+    a target.
     """
 
     INSTRUCTIONS = "instructions"
     TOOL_OVERRIDE = "tool_override"
+    SPEC_FIELD = "spec_field"
+
+
+class FieldOp(StrEnum):
+    """What a `spec_field` hunk does to the value at its path."""
+
+    SET = "set"
+    """Replace the value."""
+
+    ADD = "add"
+    """Add one item to a list, or one capability binding."""
+
+    REMOVE = "remove"
+    """Remove one item from a list, or one capability binding."""
 
 
 class HunkStatus(StrEnum):
@@ -124,6 +141,9 @@ class AuthoringRequest(Base):
     skill_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("skills.id", ondelete="CASCADE"), nullable=True
     )
+    context_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("context_files.id", ondelete="CASCADE"), nullable=True
+    )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -149,8 +169,12 @@ class AuthoringRequest(Base):
     __table_args__ = (
         CheckConstraint("kind IN ('improve', 'verify')", name="ck_authoring_request_kind"),
         CheckConstraint(
-            "(target = 'agent' AND agent_id IS NOT NULL AND skill_id IS NULL) OR "
-            "(target = 'skill' AND skill_id IS NOT NULL AND agent_id IS NULL)",
+            "(target = 'agent' AND agent_id IS NOT NULL AND skill_id IS NULL "
+            "AND context_id IS NULL) OR "
+            "(target = 'skill' AND skill_id IS NOT NULL AND agent_id IS NULL "
+            "AND context_id IS NULL) OR "
+            "(target = 'context' AND context_id IS NOT NULL AND agent_id IS NULL "
+            "AND skill_id IS NULL)",
             name="ck_authoring_request_target",
         ),
         CheckConstraint(
@@ -159,6 +183,7 @@ class AuthoringRequest(Base):
         ),
         Index("ix_authoring_requests_agent", "organization_id", "agent_id", "created_at"),
         Index("ix_authoring_requests_skill", "organization_id", "skill_id", "created_at"),
+        Index("ix_authoring_requests_context", "organization_id", "context_id", "created_at"),
     )
 
     def __repr__(self) -> str:
@@ -274,7 +299,19 @@ class SpecProposalHunk(Base):
         JSONB(none_as_null=True), nullable=True
     )
 
+    # `spec_field` values are JSON, where null is a value - a temperature left to
+    # the provider - not an absence.
+    path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    op: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    base_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    new_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    accepted_value: Mapped[Any] = mapped_column(JSONB, nullable=True)
+    effect: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    expected_effect: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     # Only verified items; `evidence_dropped` counts the rest, so a reviewer knows
     # something was removed.
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
@@ -290,7 +327,12 @@ class SpecProposalHunk(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('instructions', 'tool_override')", name="ck_spec_proposal_hunk_kind"
+            "kind IN ('instructions', 'tool_override', 'spec_field')",
+            name="ck_spec_proposal_hunk_kind",
+        ),
+        CheckConstraint(
+            "kind <> 'spec_field' OR (path IS NOT NULL AND op IN ('set', 'add', 'remove'))",
+            name="ck_spec_proposal_hunk_field",
         ),
         CheckConstraint("origin IN ('improve', 'verify')", name="ck_spec_proposal_hunk_origin"),
         CheckConstraint(

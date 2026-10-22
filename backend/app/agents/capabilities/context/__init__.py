@@ -1,5 +1,7 @@
 """Context capability - an organization's standing context, injected or linked."""
 
+from dataclasses import dataclass
+
 from pydantic import BaseModel, Field
 
 from app.agents.capabilities._registry import (
@@ -9,12 +11,33 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.context._capability import Context, ContextItem
 
-__all__ = ["CONTEXT_FILES_RESOURCE", "Context", "ContextConfig"]
+__all__ = [
+    "CONTEXT_BODIES_RESOURCE",
+    "CONTEXT_FILES_RESOURCE",
+    "Context",
+    "ContextBody",
+    "ContextConfig",
+]
 
 # The key the runner files the resolved context files under, read back by the
 # builder below. A named constant rather than a bare string on both sides,
 # because a typo in one of two copies is a capability that silently sees nothing.
 CONTEXT_FILES_RESOURCE = "context_files"
+
+CONTEXT_BODIES_RESOURCE = "context_bodies"
+"""Bodies that stand in for stored context files on this run, keyed by file id.
+
+Set only by an eval that checks a proposed context change: the candidate reads
+the proposed body where the stored one would be, and nothing is written to the file.
+"""
+
+
+@dataclass(frozen=True)
+class ContextBody:
+    """A context file's description and body, as a proposal would leave them."""
+
+    description: str | None
+    content: str
 
 
 class ContextConfig(BaseModel):
@@ -50,6 +73,7 @@ class ContextConfig(BaseModel):
         ),
     ),
     config_schema=ContextConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> Context | None:
     """Build the capability from the files the runner resolved.
@@ -59,16 +83,18 @@ def _build(ctx: CapabilityBuildContext) -> Context | None:
     no tool that can only report that there is nothing to read.
     """
     files = ctx.resources.get(CONTEXT_FILES_RESOURCE) or []
+    bodies = ctx.resources.get(CONTEXT_BODIES_RESOURCE) or {}
     config = ctx.config if isinstance(ctx.config, ContextConfig) else ContextConfig()
     items = tuple(
         ContextItem(
             name=file.name,
-            description=file.description,
-            content=file.content,
+            description=file.description if body is None else body.description,
+            content=file.content if body is None else body.content,
             mode=file.mode,
             format=file.format,
         )
         for file in files
+        for body in (bodies.get(file.id) if bodies else None,)
     )
     capability = Context(items=items, expose_read_tool=config.expose_read_tool)
     if capability.get_instructions() is None and capability.get_toolset() is None:

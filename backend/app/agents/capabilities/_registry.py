@@ -338,6 +338,20 @@ class CapabilityDef:
     capability nobody classified is blocked in an eval rather than allowed to
     send the e-mail it was written to send. A tool may override it either way.
     """
+    tunable: bool = False
+    """Whether the authoring assistant may change this capability's configuration.
+
+    Opt in only where the configuration is about quality alone - how much to
+    retrieve, when to compact, how hard to think. A field that reaches somewhere
+    (a URL, a domain, a connection, a provider, personal data) or holds other
+    agents keeps it off, so a new capability never becomes a target by accident.
+    """
+    protective: bool = False
+    """Whether this capability is a safeguard rather than something the agent can do.
+
+    The authoring assistant may add a safeguard but never remove it or change its
+    configuration: weakening one is a governance decision, not a quality one.
+    """
     test_key_isolates: bool = False
     """Whether a test key alone moves this capability's writes off production.
 
@@ -451,6 +465,8 @@ def register(
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
     read_only: bool = False,
+    tunable: bool = False,
+    protective: bool = False,
     test_key_isolates: bool = False,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
@@ -518,6 +534,8 @@ def register(
             secret=secret,
             provider_executed=provider_executed,
             read_only=read_only,
+            tunable=tunable,
+            protective=protective,
             test_key_isolates=test_key_isolates,
         )
         existing = REGISTRY.get(definition.id)

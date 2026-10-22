@@ -6,6 +6,7 @@ retry not a crash, and a binding with nothing usable contributes nothing at all
 (the issue's own done-when).
 """
 
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -15,7 +16,14 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import build
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, Context, ContextConfig, _build
+from app.agents.capabilities.context import (
+    CONTEXT_BODIES_RESOURCE,
+    CONTEXT_FILES_RESOURCE,
+    Context,
+    ContextBody,
+    ContextConfig,
+    _build,
+)
 from app.agents.capabilities.context._capability import _PREAMBLE, _ZWSP, _fence
 from app.agents.capabilities.context._toolset import ContextItem, ContextToolset
 
@@ -41,6 +49,34 @@ def _ctx(files, *, expose_read_tool=True):
         config=ContextConfig(expose_read_tool=expose_read_tool),
         resources={CONTEXT_FILES_RESOURCE: files},
     )
+
+
+class TestProposedBodies:
+    def test_a_proposed_body_is_read_in_place_of_the_stored_one(self):
+        """An eval checking a context change serves the proposal; nothing is written."""
+        stored = _file(content="Returns take 90 days.")
+        stored.id = uuid.uuid4()
+        other = _file(name="tone", content="Be warm.")
+        other.id = uuid.uuid4()
+        context = CapabilityBuildContext(
+            binding=CapabilityBinding(capability_id="context"),
+            config=ContextConfig(),
+            resources={
+                CONTEXT_FILES_RESOURCE: [stored, other],
+                CONTEXT_BODIES_RESOURCE: {
+                    stored.id: ContextBody(description="Returns", content="Returns take 30 days.")
+                },
+            },
+        )
+
+        capability = _build(context)
+
+        assert capability is not None
+        instructions = capability.get_instructions()
+        assert instructions is not None
+        assert "Returns take 30 days." in instructions and "Be warm." in instructions
+        assert "90 days" not in instructions
+        assert stored.content == "Returns take 90 days."
 
 
 class TestInstructions:

@@ -11,13 +11,14 @@ quotes - and the proposal is written from the digests. Every quote, the
 digests' and the proposal's, is checked against the runs before it is kept.
 
 **Nothing changes an agent.** An improve records a batch of hunks for the draft
-- or a skill proposal - and a person decides each; a verify adds its findings
+- or a skill or context file proposal - and a person decides each; a verify adds its findings
 to the open batch without replacing what is still waiting there.
 """
 
 from __future__ import annotations
 
 import difflib
+import json
 import logging
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -45,17 +46,21 @@ from app.db.models.authoring import (
     HunkOrigin,
     HunkStatus,
 )
+from app.db.models.context import ContextFile
 from app.db.models.skill import Skill
 from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    context_proposal_repo,
+    context_repo,
     member_repo,
     skill_proposal_repo,
     skill_repo,
 )
 from app.schemas.authoring import (
+    ContextImprovement,
     EvidenceQuote,
     ImprovementProposal,
     InstructionChange,
@@ -65,7 +70,8 @@ from app.schemas.authoring import (
     VerifyReport,
 )
 from app.services import authoring_hunks
-from app.services.access import AGENT, SKILL, resolve_access
+from app.services.access import AGENT, CONTEXT, SKILL, resolve_access
+from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import (
     EvidencePack,
     EvidenceService,
@@ -139,14 +145,42 @@ def _tool_diff(published: AgentSpec, draft: AgentSpec) -> str:
     return "\n".join(lines)
 
 
+_CONFIG_FIELDS = (
+    "description",
+    "model_profile_id",
+    "model_settings",
+    "max_steps",
+    "capabilities",
+    "collection_ids",
+    "context_ids",
+    "mcp_servers",
+)
+
+
+def _config_diff(published: AgentSpec, draft: AgentSpec) -> str:
+    """Each configuration field the edit changed, before and after, one line each."""
+    before, after = published.model_dump(mode="json"), draft.model_dump(mode="json")
+    return "\n".join(
+        f"~ {field}: {json.dumps(before.get(field), sort_keys=True, default=str)}\n"
+        f"  now: {json.dumps(after.get(field), sort_keys=True, default=str)}"
+        for field in _CONFIG_FIELDS
+        if before.get(field) != after.get(field)
+    )
+
+
 def _improve_prompt(
-    name: str, spec: AgentSpec, pack: EvidencePack, digests: Sequence[RunFindings] | None
+    name: str,
+    spec: AgentSpec,
+    configuration: str,
+    pack: EvidencePack,
+    digests: Sequence[RunFindings] | None,
 ) -> str:
     tools = _tool_lines(spec)
     return (
         f'Propose improvements to the agent "{name}".\n\n'
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
         f"# Its tools (capability_id / tool_id: name - description)\n{tools or '(none)'}\n\n"
+        f"{configuration}\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
     )
 
@@ -160,10 +194,27 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
     )
 
 
+def _context_prompt(
+    file: ContextFile, pack: EvidencePack, digests: Sequence[RunFindings] | None
+) -> str:
+    how = (
+        "It is put into every bound agent's instructions verbatim."
+        if file.mode == "inject"
+        else "Bound agents read it on demand, by its name and description."
+    )
+    return (
+        f'Propose an improved body for the context file "{file.name}". {how}\n\n'
+        f"# Its description\n{file.description or '(none)'}\n\n"
+        f"# Its current body\n<context>\n{file.content}\n</context>\n\n"
+        f"# Runs of the agents that use it\n{_evidence_section(pack, digests)}"
+    )
+
+
 def _verify_prompt(
     name: str,
     published: AgentSpec,
     draft: AgentSpec,
+    configuration: str,
     pack: EvidencePack,
     digests: Sequence[RunFindings] | None,
 ) -> str:
@@ -182,9 +233,12 @@ def _verify_prompt(
         "evidence relied on. Propose changes only where the evidence asks for them.\n\n"
         f"# The edit to its instructions\n{diff or '(no change to the instructions)'}\n\n"
         f"# The edit to its tools\n{_tool_diff(published, draft) or '(no change to the tools)'}\n\n"
+        "# The edit to its configuration\n"
+        f"{_config_diff(published, draft) or '(no change to the configuration)'}\n\n"
         f"# The draft's instructions\n<instructions>\n{draft.instructions}\n</instructions>\n\n"
         "# The draft's tools (capability_id / tool_id: name - description)\n"
         f"{_tool_lines(draft) or '(none)'}\n\n"
+        f"{configuration}\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
     )
 
@@ -206,6 +260,9 @@ def _signature(values: dict[str, Any]) -> tuple[Any, ...]:
         values.get("tool_id"),
         values.get("new_name"),
         values.get("new_description"),
+        values.get("path"),
+        values.get("op"),
+        json.dumps(values.get("new_value"), sort_keys=True, default=str),
     )
 
 
@@ -218,6 +275,7 @@ class AuthoringRun:
         self.request = request
         self.runner = SystemAgentRunner(db)
         self.evidence = EvidenceService(db)
+        self.configuration = ConfigurationService(db)
         self.cost = Decimal(0)
         self.run_ids: list[UUID] = []
 
@@ -270,6 +328,8 @@ class AuthoringRun:
             raise Stopped("Whoever started this may no longer read runs.")
         if self.request.target == AuthoringTarget.SKILL.value:
             await self._improve_skill()
+        elif self.request.target == AuthoringTarget.CONTEXT.value:
+            await self._improve_context()
         elif self.request.kind == AuthoringKind.VERIFY.value:
             await self._verify()
         else:
@@ -299,19 +359,28 @@ class AuthoringRun:
         )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
+        configuration = await self.configuration.describe(self.ctx, spec)
         proposal = await self._ask(
-            _improve_prompt(agent.name, spec, pack, digests), ImprovementProposal
+            _improve_prompt(agent.name, spec, configuration, pack, digests), ImprovementProposal
         )
         hunks = [
             *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
+            *await self.configuration.stage(
+                self.ctx,
+                agent_id=agent.id,
+                spec=spec,
+                changes=proposal.fields,
+                pack=pack,
+                origin=HunkOrigin.IMPROVE,
+            ),
         ]
         recorded = await self._supersede_with(agent.id, pack, proposal.expected_effect, hunks)
         await self._finish(
             {
                 "summary": proposal.summary,
                 "expected_effect": proposal.expected_effect,
-                "proposed": len(hunks),
+                "proposed": len(proposal.instructions) + len(proposal.tools) + len(proposal.fields),
                 "recorded": recorded,
             }
         )
@@ -332,8 +401,10 @@ class AuthoringRun:
         )
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
+        configuration = await self.configuration.describe(self.ctx, draft)
         report = await self._ask(
-            _verify_prompt(agent.name, published, draft, pack, digests), VerifyReport
+            _verify_prompt(agent.name, published, draft, configuration, pack, digests),
+            VerifyReport,
         )
         findings: list[dict[str, Any]] = []
         for finding in report.findings:
@@ -349,9 +420,18 @@ class AuthoringRun:
         hunks = [
             *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
             *self._tool_hunks(draft, pack, report.tools, HunkOrigin.VERIFY),
+            *await self.configuration.stage(
+                self.ctx,
+                agent_id=agent.id,
+                spec=draft,
+                changes=report.fields,
+                pack=pack,
+                origin=HunkOrigin.VERIFY,
+            ),
         ]
         merged = await self._merge_into_open(agent.id, pack, hunks)
-        await self._finish({"findings": findings, "proposed": len(hunks), "recorded": merged})
+        proposed = len(report.instructions) + len(report.tools) + len(report.fields)
+        await self._finish({"findings": findings, "proposed": proposed, "recorded": merged})
 
     async def _improve_skill(self) -> None:
         skill_id = self.request.skill_id
@@ -419,6 +499,55 @@ class AuthoringRun:
                 "summary": proposal.summary,
                 "expected_effect": proposal.expected_effect,
                 "skill_proposal_id": str(proposal_row.id),
+            }
+        )
+
+    async def _improve_context(self) -> None:
+        context_id = self.request.context_id
+        org = self.ctx.organization_id
+        file = (
+            None
+            if context_id is None
+            else await context_repo.get(self.db, context_id, organization_id=org)
+        )
+        if file is None:
+            raise Stopped("The context file is gone.")
+        if not await resolve_access(
+            self.db, self.ctx, file, Perm.CONTEXT_EDIT, resource_type=CONTEXT
+        ):
+            raise Stopped("Whoever started this may no longer edit the context file.")
+        pack = await self.evidence.for_context(
+            self.ctx, file.id, window_days=self.request.window_days
+        )
+        self._record_evidence(pack)
+        digests = await self._digests(pack, f'agents using the context file "{file.name}"')
+        proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
+        kept, dropped = pack.verify(proposal.evidence)
+        values = {
+            "base_updated_at": file.updated_at,
+            "description": proposal.description[:500],
+            "content": proposal.content,
+            "rationale": proposal.rationale,
+            "evidence": kept,
+            "evidence_dropped": dropped,
+            "expected_effect": proposal.expected_effect,
+            "authoring_request_id": self.request.id,
+        }
+        existing = await context_proposal_repo.get_pending_for_context(
+            self.db, organization_id=org, context_id=file.id
+        )
+        row = (
+            await context_proposal_repo.update(self.db, proposal=existing, values=values)
+            if existing is not None
+            else await context_proposal_repo.create(
+                self.db, organization_id=org, context_id=file.id, values=values
+            )
+        )
+        await self._finish(
+            {
+                "summary": proposal.summary,
+                "expected_effect": proposal.expected_effect,
+                "context_proposal_id": str(row.id),
             }
         )
 
@@ -523,6 +652,9 @@ class AuthoringRun:
                         "tool_id": hunk.tool_id,
                         "new_name": hunk.new_name,
                         "new_description": hunk.new_description,
+                        "path": hunk.path,
+                        "op": hunk.op,
+                        "new_value": hunk.new_value,
                     }
                 )
                 for hunk in await authoring_repo.list_hunks(

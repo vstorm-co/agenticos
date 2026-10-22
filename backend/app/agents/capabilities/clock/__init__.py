@@ -28,6 +28,7 @@ class ClockConfig(BaseModel):
     # nothing here for a person to approve. See `clock/_capability.py`.
     tools=(),
     config_schema=ClockConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> Clock:
     config = ctx.config if isinstance(ctx.config, ClockConfig) else ClockConfig()

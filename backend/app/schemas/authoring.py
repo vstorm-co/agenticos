@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from app.schemas.base import BaseSchema
 
@@ -79,6 +79,35 @@ class ToolChange(BaseModel):
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
 
+class FieldChange(BaseModel):
+    """A change to one field of the agent's configuration, at a path the prompt lists."""
+
+    path: str = Field(
+        description=(
+            "Where the change goes, exactly as one of the paths listed, with its names "
+            "filled in - for example `model_settings/temperature` or "
+            "`capabilities/knowledge/config`."
+        )
+    )
+    op: Literal["set", "add", "remove"] = Field(
+        description=(
+            "`set` replaces the value; `add` and `remove` add or remove one item of a "
+            "list - a capability binding, a collection id, a context file id."
+        )
+    )
+    value: JsonValue = Field(
+        description=(
+            "For `set`, the new value; for `add`, the item to add - a capability binding "
+            "is `{id, config}`; for `remove`, the item to remove - a capability by its id."
+        )
+    )
+    rationale: str = Field(description="One paragraph: why, in terms of the evidence.")
+    expected_effect: str = Field(
+        description="What this change should do to quality and to cost, which you predict now."
+    )
+    evidence: list[EvidenceQuote] = Field(default_factory=list)
+
+
 class ImprovementProposal(BaseModel):
     """What the improver proposes for one agent."""
 
@@ -91,6 +120,7 @@ class ImprovementProposal(BaseModel):
     )
     instructions: list[InstructionChange] = Field(default_factory=list)
     tools: list[ToolChange] = Field(default_factory=list)
+    fields: list[FieldChange] = Field(default_factory=list)
 
 
 class SkillImprovement(BaseModel):
@@ -99,6 +129,17 @@ class SkillImprovement(BaseModel):
     summary: str
     expected_effect: str
     description: str = Field(description="The skill's one-line description, changed or not.")
+    content: str = Field(description="The complete new body, not a diff.")
+    rationale: str
+    evidence: list[EvidenceQuote] = Field(default_factory=list)
+
+
+class ContextImprovement(BaseModel):
+    """What the improver proposes for one context file: the whole new body."""
+
+    summary: str
+    expected_effect: str
+    description: str = Field(description="The file's one-line description, changed or not.")
     content: str = Field(description="The complete new body, not a diff.")
     rationale: str
     evidence: list[EvidenceQuote] = Field(default_factory=list)
@@ -122,6 +163,7 @@ class VerifyReport(BaseModel):
     findings: list[VerifyFinding] = Field(default_factory=list)
     instructions: list[InstructionChange] = Field(default_factory=list)
     tools: list[ToolChange] = Field(default_factory=list)
+    fields: list[FieldChange] = Field(default_factory=list)
 
 
 class AuthoringStart(BaseSchema):
@@ -162,6 +204,7 @@ class AuthoringRequestRead(BaseSchema):
     target: str
     agent_id: UUID | None
     skill_id: UUID | None
+    context_id: UUID | None = None
     status: str
     error: str | None
     estimate_usd: Decimal
@@ -206,7 +249,41 @@ class HunkRead(BaseSchema):
     base_description: str | None
     new_name: str | None
     new_description: str | None
+    path: str | None = None
+    op: str | None = None
+    base_value: JsonValue = None
+    new_value: JsonValue = None
+    accepted_value: JsonValue = None
+    effect: dict[str, JsonValue] | None = Field(
+        default=None,
+        description=(
+            "What a field change is expected to do to cost or limits, measured on recent "
+            "runs: for a model, `cost_per_run_before`, `cost_per_run_after` and `runs`"
+        ),
+    )
+    names: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Names of the models, collections, context files and MCP servers a field "
+            "change refers to, by id - only those the reader may see"
+        ),
+    )
+    writes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Tools a field change makes reachable that change something outside the run; "
+            "an eval holds them back, so a check does not measure what they do"
+        ),
+    )
+    blocked: str | None = Field(
+        default=None,
+        description=(
+            "Why Accept is refused for now, when it is: `check_first` - a model change "
+            "is accepted only after a check of the batch with no confirmed regression"
+        ),
+    )
     rationale: str
+    expected_effect: str = ""
     evidence: list[EvidenceItemRead]
     evidence_dropped: int
     applies: bool
@@ -250,10 +327,13 @@ class HunkDecision(BaseSchema):
 
     Attributes:
         text: Accept this instead of the proposed text - the person's edit of it.
+        value: Accept this instead of a field change's proposed value, for a field
+            whose value is a single setting or a text.
     """
 
     action: Literal["accept", "dismiss", "undo"]
     text: str | None = Field(default=None, max_length=20000)
+    value: JsonValue = None
 
 
 class ProposalCheck(BaseSchema):
@@ -271,10 +351,12 @@ class ProposalCheck(BaseSchema):
     environment_id: UUID | None = None
     agent_id: UUID | None = Field(
         default=None,
-        description="For a skill change: the agent, bound to the skill, the dataset runs on.",
+        description=(
+            "For a skill or context file change: the agent, bound to it, the dataset runs on."
+        ),
     )
     proposal_id: UUID | None = Field(
-        default=None, description="For a skill change: the pending change to check."
+        default=None, description="For a skill or context file change: the pending change."
     )
 
     @model_validator(mode="after")
@@ -291,6 +373,7 @@ class AgentWaiting(BaseSchema):
     name: str
     instructions: int
     tools: int
+    fields: int = 0
 
 
 class AuthoringWaiting(BaseSchema):
@@ -300,7 +383,10 @@ class AuthoringWaiting(BaseSchema):
         agents: Agents the caller may edit whose open batch has pending suggestions.
         skills: Pending skill changes the assistant proposed, for a caller holding
             `skills:edit`; zero otherwise.
+        contexts: Pending context file changes the assistant proposed, for a caller
+            holding `context:edit`; zero otherwise.
     """
 
     agents: list[AgentWaiting]
     skills: int
+    contexts: int = 0

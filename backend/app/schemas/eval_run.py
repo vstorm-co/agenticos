@@ -165,6 +165,10 @@ class EvalRunArmRead(BaseSchema):
         default_factory=list,
         description="The skills this side served a proposed body for instead of the stored one",
     )
+    context_ids: list[UUID] = Field(
+        default_factory=list,
+        description="The context files this side served a proposed body for instead of the stored one",
+    )
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
     ungraded_cases: list[EvalUngradedCaseRead] = Field(

@@ -29,6 +29,7 @@ from uuid import UUID
 from pydantic_ai.messages import ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.failures import run_failure_summary
 from app.agents.isolation import RunIsolation, ToolRecording, recorded_args
@@ -83,9 +84,17 @@ def _candidate(arm: EvalRunArm) -> Candidate:
         UUID(skill_id): SkillBody(description=body["description"], content=body["content"])
         for skill_id, body in (arm.skill_bodies or {}).items()
     }
+    contexts = {
+        UUID(context_id): ContextBody(description=body["description"], content=body["content"])
+        for context_id, body in (arm.context_bodies or {}).items()
+    }
     if arm.source == ArmSource.VERSION.value and arm.agent_version_id is not None:
-        return PublishedCandidate(arm.agent_version_id, skill_bodies=bodies)
-    return UnpublishedCandidate(AgentSpec.model_validate(arm.spec), skill_bodies=bodies)
+        return PublishedCandidate(
+            arm.agent_version_id, skill_bodies=bodies, context_bodies=contexts
+        )
+    return UnpublishedCandidate(
+        AgentSpec.model_validate(arm.spec), skill_bodies=bodies, context_bodies=contexts
+    )
 
 
 def _latency_ms(run: AgentRun) -> int | None:

@@ -43,6 +43,7 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
     "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
     "tests/test_ask_user.py::test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval": "the stored step status a parked call reads, no refusal",
     "tests/test_channel_prompts.py::TestOffering::test_each_approval_and_each_question_is_its_own_message": "what a chat is offered, display, no refusal",

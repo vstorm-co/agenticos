@@ -936,10 +936,17 @@ include = [
     "app/schemas/authoring.py",
     "app/services/authoring_evidence.py",
     "app/services/authoring_hunks.py",
+    "app/services/authoring_fields.py",
+    "app/services/authoring_config.py",
     "app/services/authoring.py",
     "app/services/authoring_worker.py",
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
+    "app/db/models/context_proposal.py",
+    "app/repositories/context_proposal.py",
+    "app/schemas/context_proposal.py",
+    "app/services/context_proposal.py",
+    "app/api/routes/v1/context_changes.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1463,10 +1470,17 @@ include = [
     "app/schemas/authoring.py",
     "app/services/authoring_evidence.py",
     "app/services/authoring_hunks.py",
+    "app/services/authoring_fields.py",
+    "app/services/authoring_config.py",
     "app/services/authoring.py",
     "app/services/authoring_worker.py",
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
+    "app/db/models/context_proposal.py",
+    "app/repositories/context_proposal.py",
+    "app/schemas/context_proposal.py",
+    "app/services/context_proposal.py",
+    "app/api/routes/v1/context_changes.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code

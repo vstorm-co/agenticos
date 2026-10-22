@@ -591,6 +591,10 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/skill-changes/{proposal_id}", Perm.SKILLS_EDIT),
     Call("POST", "/skill-changes/{proposal_id}/apply", Perm.SKILLS_EDIT),
     Call("POST", "/skill-changes/{proposal_id}/discard", Perm.SKILLS_EDIT),
+    Call("GET", "/context-changes", Perm.CONTEXT_EDIT),
+    Call("GET", "/context-changes/{proposal_id}", Perm.CONTEXT_EDIT),
+    Call("POST", "/context-changes/{proposal_id}/apply", Perm.CONTEXT_EDIT),
+    Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT),
 )
 
 WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
