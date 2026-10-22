@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -561,6 +561,24 @@ class ChannelAdapter(ABC):
         is then linked to the member who signed in with that address (#1985).
         """
         return None
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Greet one person directly, found by their address (#2301).
+
+        `False` by default, and wherever they are not in this workspace or the
+        platform cannot start a chat with them. `places` are conversations this
+        bot is in, for a platform with no directory to search: Teams finds people
+        in their rosters.
+        """
+        return False
 
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.

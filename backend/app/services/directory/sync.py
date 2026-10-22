@@ -39,6 +39,7 @@ from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.organization import MembershipSource
 from app.repositories import directory_mapping_repo, group_repo, member_repo
 from app.services.member import end_membership
+from app.services.proactive import ProactiveService
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,7 @@ class DirectorySyncService:
                 # membership says what this one would have.
                 logger.info("directory_member_created_concurrently")
                 return
+            await ProactiveService(self.db).queue_welcome(organization_id, user_id)
             await self._audit(
                 "directory.member_added",
                 user_id,

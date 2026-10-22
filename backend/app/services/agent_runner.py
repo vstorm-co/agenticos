@@ -247,6 +247,7 @@ from app.repositories import (
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
@@ -2491,6 +2492,11 @@ class AgentRunnerService:
                 time_zone=zone,
                 job_title=person.job_title,
                 about=person.about,
+                working_hours=(
+                    WorkingHours.model_validate(person.working_hours)
+                    if isinstance(person.working_hours, dict)
+                    else None
+                ),
             )
             if person is not None
             else None

@@ -31,6 +31,7 @@ import logging
 import mimetypes
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -514,6 +515,78 @@ class TeamsAdapter(ChannelAdapter):
             return None
         email = member.get("email") or member.get("userPrincipalName")
         return str(email).lower() if email else None
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Find the person in the rosters of `places` and greet them in a personal chat.
+
+        Teams has no directory a bot may search, but a member of any team or
+        group chat the bot is in is on its roster, with their address. A personal
+        chat is then opened through the Connector - which a bot may do for
+        anybody in its own tenant - and the greeting posted there.
+        """
+        credentials = TeamsCredentials.decode(bot_token)
+        wanted = email.lower()
+        for key in places:
+            ref = await self._ref(key)
+            if not is_connector_url(ref.service_url):
+                continue
+            member_id = await self._member_id_by_email(credentials, ref, wanted)
+            if member_id is None:
+                continue
+            headers = await self._headers(credentials)
+            service = ref.service_url.rstrip("/")
+            opened = await self._client.post(
+                f"{service}/v3/conversations",
+                json={
+                    "bot": {"id": f"28:{credentials.app_id}"},
+                    "members": [{"id": member_id}],
+                    "isGroup": False,
+                    "tenantId": credentials.tenant_id,
+                    "channelData": {"tenant": {"id": credentials.tenant_id}},
+                },
+                headers=headers,
+            )
+            opened.raise_for_status()
+            sent = await self._client.post(
+                f"{service}/v3/conversations/{opened.json()['id']}/activities",
+                json={"type": "message", "text": text},
+                headers=headers,
+            )
+            sent.raise_for_status()
+            return True
+        return False
+
+    async def _member_id_by_email(
+        self, credentials: TeamsCredentials, ref: ConversationRef, email: str
+    ) -> str | None:
+        """The roster id of whoever in this conversation has `email`, page by page."""
+        token: str | None = None
+        while True:
+            params = {"pageSize": "500"}
+            if token:
+                params["continuationToken"] = token
+            response = await self._client.get(
+                f"{ref.service_url.rstrip('/')}/v3/conversations/{ref.conversation_id}/pagedmembers",
+                params=params,
+                headers=await self._headers(credentials),
+            )
+            response.raise_for_status()
+            page = response.json()
+            for member in page.get("members", []):
+                address = member.get("email") or member.get("userPrincipalName") or ""
+                if str(address).lower() == email and member.get("id"):
+                    return str(member["id"])
+            token = page.get("continuationToken")
+            if not token:
+                return None
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None

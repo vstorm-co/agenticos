@@ -22,6 +22,7 @@ from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.schemas.user import UserCreate
 from app.services.deployment_settings import DeploymentSettingsService, NewAccountPlacement
 from app.services.organization import OrganizationService
+from app.services.proactive import ProactiveService
 from app.services.user import UserService
 
 _SPEECH_KEY = uuid.uuid4()
@@ -47,6 +48,7 @@ def _org_row(*, name: str) -> Organization:
         is_personal=False,
         avatar_url=None,
         monthly_budget_usd=None,
+        proactive_limit_usd=Decimal("1"),
         # Set explicitly: a column default is applied on flush, and this row was
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
@@ -410,6 +412,59 @@ class TestOrganizationService:
             )
 
         write.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
+    async def test_the_proactivity_limit_needs_the_budgets_manage_permission(
+        self, service, mock_db, role
+    ):
+        """#2301: what background work may spend per person is a spending limit too."""
+        with (
+            patch.object(
+                service,
+                "get_for_user",
+                new=AsyncMock(return_value=(MagicMock(), MagicMock(role=role))),
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_proactive_limit", new=AsyncMock()
+            ) as write,
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(proactive_limit_usd=Decimal("2")),
+                requester_id=uuid.uuid4(),
+            )
+
+        write.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_owner_sets_the_proactivity_limit_and_zero_switches_it_off(
+        self, service, mock_db
+    ):
+        org = MagicMock()
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role="owner")))
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_proactive_limit",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(proactive_limit_usd=Decimal("0")),
+                requester_id=uuid.uuid4(),
+            )
+
+        assert write.await_args.kwargs == {"limit_usd": Decimal("0")}
+
+    def test_a_negative_proactivity_limit_is_refused(self):
+        with pytest.raises(ValidationError):
+            OrganizationUpdate(proactive_limit_usd=Decimal("-1"))
 
     @pytest.mark.anyio
     async def test_the_cap_and_the_metadata_are_separate_entitlements(
@@ -1100,6 +1155,9 @@ class TestWhereANewAccountStarts:
             joined = stack.enter_context(
                 patch("app.services.organization.member_repo.create", new=AsyncMock())
             )
+            self.welcomed = stack.enter_context(
+                patch.object(ProactiveService, "queue_welcome", new=AsyncMock())
+            )
             return stack, personal, joined
 
         return place
@@ -1114,6 +1172,19 @@ class TestWhereANewAccountStarts:
 
         personal.assert_awaited_once()
         joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_joining_the_default_organization_queues_a_welcome_in_the_chat_apps(
+        self, service, placed
+    ):
+        """#2301: queued with the membership, sent by the worker - never in this request."""
+        company = uuid.uuid4()
+        user = uuid.uuid4()
+        stack, _personal, _joined = placed(_placement(personal=False, default=company))
+        with stack:
+            await service.settle_new_account(user, "ada@acme.com")
+
+        self.welcomed.assert_awaited_once_with(company, user)
 
     @pytest.mark.anyio
     async def test_a_company_deployment_joins_the_default_organization_only(self, service, placed):

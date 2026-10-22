@@ -60,6 +60,7 @@ from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
 from app.repositories import external_agent as external_agent_repo
 from app.repositories import project as project_repo
+from app.repositories import suggestion as suggestion_repo
 from app.repositories import teams_conversation as teams_conversation_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
@@ -99,6 +100,7 @@ __all__ = [
     "channel_prompt_repo",
     "external_agent_repo",
     "project_repo",
+    "suggestion_repo",
     "teams_conversation_repo",
     "organization_assistant_repo",
     "member_repo",

@@ -1,0 +1,661 @@
+"""The platform's own initiative, all of it in background jobs (#2301).
+
+What is asserted is what a person would notice: nothing is spent past a limit or
+without a starter agent, a model call leaves a run row either way, the nightly
+look proposes only what is new and offers nothing twice, the sweep reaches each
+person early in their own morning, a role pack makes each routine once, and a
+welcome that fails on one platform still greets on the next.
+"""
+
+import uuid
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
+
+from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.suggestion import SuggestionKind
+from app.schemas.user import WorkingHours
+from app.services.proactive import _role_pack, _thinker, _welcome
+from app.services.proactive._nightly import (
+    NightlyLook,
+    NightlyReading,
+    ProfileUpdate,
+    RepeatedRequest,
+)
+from app.services.proactive._thinker import ProactiveThinker
+from app.services.proactive.facade import _STARTER_SLUG, ProactiveService
+from app.services.role_packs import PACKS, pack, routines_of
+from app.worker.jobs import INSTALL_ROLE_PACK, THINK_FOR_PERSON, WELCOME_MEMBER
+
+pytestmark = pytest.mark.anyio
+
+THINKER = "app.services.proactive._thinker"
+NIGHTLY = "app.services.proactive._nightly"
+FACADE = "app.services.proactive.facade"
+WELCOME = "app.services.proactive._welcome"
+PACK = "app.services.proactive._role_pack"
+
+ORG = uuid.uuid4()
+USER = uuid.uuid4()
+
+
+def _ctx() -> AuthContext:
+    return AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.MEMBER)
+
+
+def _agent(*, published: bool = True) -> MagicMock:
+    return MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4() if published else None)
+
+
+def _organization(limit: str = "1", cap: str | None = None) -> MagicMock:
+    return MagicMock(
+        proactive_limit_usd=Decimal(limit),
+        monthly_budget_usd=None if cap is None else Decimal(cap),
+    )
+
+
+def test_the_facade_and_the_thinker_name_the_same_starter_agent():
+    assert _STARTER_SLUG == _thinker.STARTER_SLUG
+
+
+class TestTheLimits:
+    async def test_an_organization_without_a_published_starter_agent_gets_nothing(self):
+        thinker = ProactiveThinker(MagicMock())
+        with patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)):
+            assert await thinker.starter_agent(ORG) is None
+        with patch(
+            f"{THINKER}.agent_repo.get_by_slug",
+            new=AsyncMock(return_value=_agent(published=False)),
+        ):
+            assert await thinker.starter_agent(ORG) is None
+
+    @pytest.mark.parametrize(
+        ("organization", "org_spent", "mine", "allowed"),
+        [
+            (None, "0", "0", False),
+            (_organization(limit="0"), "0", "0", False),
+            (_organization(cap="10"), "10", "0", False),
+            (_organization(), "0", "1", False),
+            (_organization(cap="10"), "9", "0.99", True),
+        ],
+        ids=["no-organization", "switched-off", "org-cap-reached", "person-limit-reached", "room"],
+    )
+    async def test_background_work_spends_only_inside_both_limits(
+        self, organization, org_spent, mine, allowed
+    ):
+        with (
+            patch(
+                f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(
+                f"{THINKER}.organization_monthly_spend",
+                new=AsyncMock(return_value=Decimal(org_spent)),
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.proactive_spend_since",
+                new=AsyncMock(return_value=Decimal(mine)),
+            ),
+        ):
+            assert await ProactiveThinker(MagicMock()).within_limits(_ctx()) is allowed
+
+    async def test_nobody_signed_in_has_no_limit_to_spend_against(self):
+        ctx = AuthContext(user_id=None, organization_id=ORG, role=OrgRoleName.MEMBER)
+        with patch(
+            f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=_organization())
+        ):
+            assert await ProactiveThinker(MagicMock()).within_limits(ctx) is False
+
+
+class TestThinking:
+    @staticmethod
+    def _patches(model, *, version=True, resolve_error=None):
+        request = SimpleNamespace(
+            build=lambda: model,
+            label="Sonnet",
+            provider="anthropic",
+            model="claude",
+            secret_id=None,
+        )
+        resolve = (
+            AsyncMock(side_effect=resolve_error)
+            if resolve_error
+            else AsyncMock(return_value=request)
+        )
+        run = MagicMock(id=uuid.uuid4())
+        stored = MagicMock(id=uuid.uuid4())
+        stored.spec = {"name": "AgenticOS"}
+        return (
+            patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=_agent())),
+            patch.object(ProactiveThinker, "within_limits", new=AsyncMock(return_value=True)),
+            patch(
+                f"{THINKER}.agent_repo.get_version",
+                new=AsyncMock(return_value=stored if version else None),
+            ),
+            patch(f"{THINKER}.ModelProfileService", return_value=MagicMock(resolve=resolve)),
+            patch(f"{THINKER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
+            patch(f"{THINKER}.agent_run_repo.finish_run", new=AsyncMock()),
+        )
+
+    async def test_an_answer_is_returned_and_the_run_is_written_down(self):
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with get_slug, limits, version, profiles, create as create_run, finish as finish_run:
+            answer = await ProactiveThinker(MagicMock()).think(
+                _ctx(), output_type=NightlyReading, instructions="Read.", prompt="{}"
+            )
+
+        assert isinstance(answer, NightlyReading)
+        assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
+        assert create_run.await_args.kwargs["user_id"] == USER
+        finished = finish_run.await_args.kwargs
+        assert finished["status"] == RunStatus.COMPLETED.value
+        # The test model is not priced: recorded as zero and marked partial, not lost.
+        assert finished["cost_usd"] == Decimal(0)
+        assert finished["cost_is_partial"] is True
+
+    async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self):
+        def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            raise ModelHTTPError(status_code=500, model_name="claude")
+
+        get_slug, limits, version, profiles, create, finish = self._patches(FunctionModel(broken))
+        with get_slug, limits, version, profiles, create, finish as finish_run:
+            answer = await ProactiveThinker(MagicMock()).think(
+                _ctx(), output_type=NightlyReading, instructions="Read.", prompt="{}"
+            )
+
+        assert answer is None
+        assert finish_run.await_args.kwargs["status"] == RunStatus.FAILED.value
+        assert finish_run.await_args.kwargs["error"]
+
+    async def test_a_model_nobody_may_use_spends_nothing(self):
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            TestModel(), resolve_error=BadRequestError(message="no model")
+        )
+        with get_slug, limits, version, profiles, create as create_run, finish:
+            assert (
+                await ProactiveThinker(MagicMock()).think(
+                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                )
+                is None
+            )
+        create_run.assert_not_awaited()
+
+    async def test_nothing_is_called_without_a_version_a_starter_or_room_in_the_limit(self):
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            TestModel(), version=False
+        )
+        with get_slug, limits, version, profiles, create as create_run, finish:
+            assert (
+                await ProactiveThinker(MagicMock()).think(
+                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                )
+                is None
+            )
+        create_run.assert_not_awaited()
+
+        with patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)):
+            assert (
+                await ProactiveThinker(MagicMock()).think(
+                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                )
+                is None
+            )
+
+        with (
+            patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=_agent())),
+            patch.object(ProactiveThinker, "within_limits", new=AsyncMock(return_value=False)),
+        ):
+            assert (
+                await ProactiveThinker(MagicMock()).think(
+                    _ctx(), output_type=NightlyReading, instructions="", prompt=""
+                )
+                is None
+            )
+
+
+def _user(**overrides):
+    values = {
+        "id": USER,
+        "is_active": True,
+        "locale": "pl",
+        "time_zone": "Europe/Warsaw",
+        "job_title": None,
+        "about": None,
+        "working_hours": None,
+        "personal_starters": None,
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+class TestTheNightlyLook:
+    @staticmethod
+    def _patches(*, user=None, member=True, agent=True, last=None, requests=(), reading=None):
+        thinker = MagicMock()
+        thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
+        thinker.think = AsyncMock(return_value=reading)
+        return {
+            "thinker": thinker,
+            "patches": [
+                patch(
+                    f"{NIGHTLY}.user_repo.get_by_id", new=AsyncMock(return_value=user or _user())
+                ),
+                patch(
+                    f"{NIGHTLY}.member_repo.get_active",
+                    new=AsyncMock(return_value=MagicMock(role="member") if member else None),
+                ),
+                patch(
+                    f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
+                    new=AsyncMock(return_value=last),
+                ),
+                patch(
+                    f"{NIGHTLY}.conversation_repo.person_requests_since",
+                    new=AsyncMock(return_value=list(requests)),
+                ),
+                patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
+                patch(
+                    f"{NIGHTLY}.agent_trigger_repo.prompts_created_by",
+                    new=AsyncMock(return_value=[]),
+                ),
+                patch(
+                    f"{NIGHTLY}.mcp_connection_repo.list_for_user",
+                    new=AsyncMock(return_value=([], 0)),
+                ),
+                patch(f"{NIGHTLY}.user_repo.update", new=AsyncMock()),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.propose", new=AsyncMock(return_value=MagicMock())
+                ),
+                patch(
+                    f"{NIGHTLY}.NotificationService",
+                    return_value=MagicMock(suggestions_ready=AsyncMock()),
+                ),
+            ],
+        }
+
+    async def _look(self, **kwargs):
+        setup = self._patches(**kwargs)
+        look = NightlyLook(MagicMock())
+        look.thinker = setup["thinker"]
+        started = [p.start() for p in setup["patches"]]
+        try:
+            made = await look.look(ORG, USER)
+        finally:
+            for p in setup["patches"]:
+                p.stop()
+        names = [
+            "get",
+            "member",
+            "last",
+            "requests",
+            "notes",
+            "routines",
+            "connections",
+            "update",
+            "propose",
+            "notify",
+        ]
+        return made, setup["thinker"], dict(zip(names, started, strict=True))
+
+    async def test_a_quiet_week_with_first_messages_written_costs_nothing(self):
+        made, thinker, _ = await self._look(
+            user=_user(personal_starters=["a"]), last=datetime.now(UTC), requests=()
+        )
+
+        assert made == 0
+        thinker.think.assert_not_awaited()
+
+    @pytest.mark.parametrize("case", ["gone", "suspended", "not-a-member", "no-starter"])
+    async def test_nobody_who_cannot_be_reached_is_read(self, case):
+        made, thinker, _ = (
+            await self._look(
+                user=_user(is_active=case != "suspended"),
+                member=case != "not-a-member",
+                agent=case != "no-starter",
+            )
+            if case != "gone"
+            else (0, None, None)
+        )
+        if case == "gone":
+            with (
+                patch(f"{NIGHTLY}.user_repo.get_by_id", new=AsyncMock(return_value=None)),
+                patch(f"{NIGHTLY}.member_repo.get_active", new=AsyncMock(return_value=None)),
+            ):
+                made = await NightlyLook(MagicMock()).look(ORG, USER)
+        else:
+            thinker.think.assert_not_awaited()
+        assert made == 0
+
+    async def test_a_model_that_could_not_answer_proposes_nothing(self):
+        made, _, mocks = await self._look(
+            reading=None, requests=[MagicMock(content="x", created_at=datetime.now(UTC))]
+        )
+
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
+
+    async def test_what_it_read_becomes_first_messages_and_proposals_in_their_language(self):
+        reading = NightlyReading(
+            repeats=[
+                RepeatedRequest(
+                    title="Raport",
+                    why="3x",
+                    prompt="Raport sprzedaży",
+                    cron="0 7 * * 1",
+                    as_agent=False,
+                ),
+                RepeatedRequest(
+                    title="Agent", why="2x", prompt="Odpowiadaj klientom", as_agent=True
+                ),
+            ],
+            profile=ProfileUpdate(
+                job_title="Head of sales",
+                about=None,
+                working_hours=WorkingHours(days=[1, 2, 3, 4, 5], start="09:00", end="17:00"),
+                title="Zapisać rolę?",
+                why="Notatka mówi",
+            ),
+            starters=["  Pokaż mój pipeline  ", "", "Plan na dziś"],
+            role_pack="sales",
+            role_pack_title="Pakiet sprzedaży",
+        )
+        made, _, mocks = await self._look(
+            reading=reading, requests=[MagicMock(content="Raport", created_at=datetime.now(UTC))]
+        )
+
+        assert made == 4
+        update = mocks["update"].await_args.kwargs["update_data"]
+        assert update["personal_starters"] == ["Pokaż mój pipeline", "Plan na dziś"]
+        proposed = [call.kwargs for call in mocks["propose"].await_args_list]
+        assert [p["kind"] for p in proposed] == ["routine", "agent", "profile", "role_pack"]
+        assert proposed[0]["payload"] == {"prompt": "Raport sprzedaży", "cron": "0 7 * * 1"}
+        assert proposed[1]["payload"] == {"request": "Odpowiadaj klientom"}
+        assert proposed[2]["payload"]["job_title"] == "Head of sales"
+        assert "about" not in proposed[2]["payload"]
+        assert proposed[3]["payload"] == {"pack": "sales"}
+        # Keys are stable per proposal, so the same one tomorrow is the same key.
+        assert proposed[0]["dedupe_key"].startswith("routine:")
+        mocks["notify"].return_value.suggestions_ready.assert_awaited_once()
+
+    async def test_a_profile_it_already_has_and_an_unknown_pack_propose_nothing(self):
+        reading = NightlyReading(
+            profile=ProfileUpdate(job_title="CFO", title="t", why="w"),
+            role_pack="astronaut",
+        )
+        made, _, mocks = await self._look(user=_user(job_title="CFO"), reading=reading)
+
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
+        mocks["update"].assert_not_awaited()
+        mocks["notify"].return_value.suggestions_ready.assert_not_awaited()
+
+    async def test_a_proposal_already_made_does_not_count_as_new(self):
+        reading = NightlyReading(role_pack="sales")
+        setup = self._patches(reading=reading)
+        look = NightlyLook(MagicMock())
+        look.thinker = setup["thinker"]
+        for p in setup["patches"]:
+            p.start()
+        try:
+            with patch(f"{NIGHTLY}.suggestion_repo.propose", new=AsyncMock(return_value=None)):
+                assert await look.look(ORG, USER) == 0
+        finally:
+            for p in setup["patches"]:
+                p.stop()
+
+    @pytest.mark.parametrize(
+        ("last", "due"),
+        [(None, True), (timedelta(hours=21), True), (timedelta(hours=2), False)],
+    )
+    async def test_a_person_is_due_once_most_of_a_day_has_passed(self, last, due):
+        now = datetime.now(UTC)
+        with patch(
+            f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
+            new=AsyncMock(return_value=None if last is None else now - last),
+        ):
+            assert await NightlyLook(MagicMock()).due(ORG, USER, now=now) is due
+
+
+class TestTheSweep:
+    async def test_each_person_is_queued_early_in_their_own_morning_and_only_when_due(self):
+        # 03:30 UTC: 05:30 in Warsaw (summer), 23:30 in New York, 03:30 in UTC.
+        now = datetime(2026, 7, 1, 3, 30, tzinfo=UTC)
+        warsaw, new_york, utc, rested = (uuid.uuid4() for _ in range(4))
+        candidates = [
+            (ORG, warsaw, "Europe/Warsaw"),
+            (ORG, new_york, "America/New_York"),
+            (ORG, utc, None),
+            (ORG, rested, "Europe/Warsaw"),
+        ]
+        enqueue = AsyncMock()
+
+        async def due(_self, _org, user_id, *, now):
+            return user_id != rested
+
+        with (
+            patch(f"{FACADE}.member_repo.sweep_candidates", new=AsyncMock(return_value=candidates)),
+            patch.object(NightlyLook, "due", new=due),
+            patch(f"{FACADE}.enqueue", new=enqueue),
+        ):
+            queued = await ProactiveService(MagicMock()).sweep(now=now)
+
+        assert queued == 1
+        task, payload = enqueue.await_args.args[1], enqueue.await_args.args[2]
+        assert task is THINK_FOR_PERSON
+        assert payload.user_id == warsaw
+
+    async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
+        enqueue = AsyncMock()
+        with patch(f"{FACADE}.enqueue", new=enqueue):
+            service = ProactiveService(MagicMock())
+            await service.queue_role_pack(ORG, USER, "sales")
+            await service.queue_welcome(ORG, USER)
+
+        (_, pack_task, pack_payload), (_, welcome_task, welcome_payload) = (
+            call.args for call in enqueue.await_args_list
+        )
+        assert pack_task is INSTALL_ROLE_PACK and pack_payload.pack_id == "sales"
+        assert welcome_task is WELCOME_MEMBER and welcome_payload.user_id == USER
+
+    async def test_the_worker_side_hands_each_job_to_its_module(self):
+        service = ProactiveService(MagicMock())
+        with (
+            patch.object(NightlyLook, "look", new=AsyncMock(return_value=2)),
+            patch(f"{PACK}.install", new=AsyncMock(return_value=3)),
+            patch(f"{WELCOME}.welcome", new=AsyncMock(return_value=1)),
+        ):
+            assert await service.think_for(ORG, USER) == 2
+            assert await service.install_role_pack(ORG, USER, "sales") == 3
+            assert await service.welcome(ORG, USER) == 1
+
+
+class TestRolePacks:
+    def test_every_pack_installs_only_schedule_templates_it_names(self):
+        for role_pack in PACKS:
+            templates = routines_of(role_pack)
+            assert [template.key for template in templates] == list(role_pack.routines)
+            assert all(template.trigger_type == "schedule" for template in templates)
+        assert pack("nobody") is None
+
+    async def test_installing_makes_each_routine_once_as_the_person(self):
+        sales = pack("sales")
+        assert sales is not None
+        already = routines_of(sales)[0].prompt
+        create = AsyncMock()
+        with (
+            patch(
+                f"{PACK}.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock(role="member")),
+            ),
+            patch.object(ProactiveThinker, "starter_agent", new=AsyncMock(return_value=_agent())),
+            patch(
+                f"{PACK}.agent_trigger_repo.prompts_created_by",
+                new=AsyncMock(return_value=[already]),
+            ),
+            patch(f"{PACK}.AgentTriggerService", return_value=MagicMock(create=create)),
+        ):
+            made = await _role_pack.install(MagicMock(), ORG, USER, "sales")
+
+        assert made == len(sales.routines) - 1
+        ctx, _agent_id, data = create.await_args.args
+        assert ctx.user_id == USER
+        assert data.trigger_type == "schedule"
+        assert data.prompt != already
+
+    @pytest.mark.parametrize("missing", ["pack", "member", "agent"])
+    async def test_nothing_is_installed_for_an_unknown_pack_a_leaver_or_no_starter(self, missing):
+        with (
+            patch(
+                f"{PACK}.member_repo.get_active",
+                new=AsyncMock(
+                    return_value=None if missing == "member" else MagicMock(role="member")
+                ),
+            ),
+            patch.object(
+                ProactiveThinker,
+                "starter_agent",
+                new=AsyncMock(return_value=None if missing == "agent" else _agent()),
+            ),
+        ):
+            pack_id = "nobody" if missing == "pack" else "sales"
+            assert await _role_pack.install(MagicMock(), ORG, USER, pack_id) == 0
+
+
+def _bot(platform: str, *, active: bool = True) -> MagicMock:
+    bot = MagicMock(id=uuid.uuid4(), platform=platform, is_active=active, api_base_url=None)
+    bot.name = f"{platform} bot"
+    return bot
+
+
+class TestTheWelcome:
+    async def _welcome(self, bots_by_platform, adapters, *, user=None, shared=()):
+        async def by_platform(_db, platform, *, organization_id):
+            return bots_by_platform.get(platform, [])
+
+        organization = MagicMock()
+        organization.name = "Acme"
+
+        class Fake:
+            def __init__(self, platform):
+                self.platform = platform
+
+            async def __aenter__(self):
+                return adapters[self.platform]
+
+            async def __aexit__(self, *_):
+                return False
+
+        with (
+            patch(
+                f"{WELCOME}.user_repo.get_by_id",
+                new=AsyncMock(
+                    return_value=user
+                    or SimpleNamespace(email="ada@acme.com", locale="de", is_active=True)
+                ),
+            ),
+            patch(
+                f"{WELCOME}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(f"{WELCOME}.channel_bot_repo.get_by_platform", new=by_platform),
+            patch(
+                f"{WELCOME}.teams_conversation_repo.list_shared",
+                new=AsyncMock(return_value=list(shared)),
+            ),
+            patch(f"{WELCOME}.unseal_bot_token", return_value="token"),
+            patch(f"{WELCOME}._adapter", new=Fake),
+        ):
+            return await _welcome.welcome(MagicMock(), ORG, USER)
+
+    async def test_every_connected_platform_that_knows_them_greets_them_in_their_language(self):
+        slack, teams = _bot("slack"), _bot("teams")
+        adapters = {
+            "slack": MagicMock(welcome=AsyncMock(return_value=True)),
+            "teams": MagicMock(welcome=AsyncMock(return_value=True)),
+        }
+        shared = [MagicMock(bot_id=teams.id, key="k1"), MagicMock(bot_id=uuid.uuid4(), key="other")]
+
+        greeted = await self._welcome(
+            {"slack": [slack, _bot("slack", active=False)], "teams": [teams]},
+            adapters,
+            shared=shared,
+        )
+
+        assert greeted == 2
+        args = adapters["slack"].welcome.await_args
+        assert args.args[1] == "ada@acme.com"
+        assert args.args[2].startswith("Willkommen bei Acme! Ich bin slack bot")
+        # Teams looks people up only in the conversations its own bot is in.
+        assert adapters["teams"].welcome.await_args.kwargs["places"] == ["k1"]
+
+    async def test_one_platform_failing_does_not_cost_the_others_their_greeting(self):
+        adapters = {
+            "slack": MagicMock(welcome=AsyncMock(side_effect=httpx.ConnectError("down"))),
+            "mattermost": MagicMock(welcome=AsyncMock(return_value=True)),
+        }
+
+        greeted = await self._welcome(
+            {"slack": [_bot("slack")], "mattermost": [_bot("mattermost")]}, adapters
+        )
+
+        assert greeted == 1
+
+    async def test_nobody_is_greeted_without_bots_an_account_or_an_organization(self):
+        assert await self._welcome({}, {}) == 0
+        assert (
+            await self._welcome(
+                {"slack": [_bot("slack")]},
+                {"slack": MagicMock(welcome=AsyncMock(return_value=True))},
+                user=SimpleNamespace(email="x@acme.com", locale=None, is_active=False),
+            )
+            == 0
+        )
+
+    async def test_the_process_adapter_is_used_and_a_borrowed_one_is_closed(self):
+        registered = MagicMock()
+        with patch(f"{WELCOME}.get_adapter", return_value=registered):
+            async with _welcome._adapter("slack") as adapter:
+                assert adapter is registered
+
+        closes = AsyncMock()
+        with (
+            patch(f"{WELCOME}.get_adapter", side_effect=KeyError("slack")),
+            patch("app.services.channels.slack.SlackAdapter.aclose", new=closes),
+        ):
+            async with _welcome._adapter("slack") as adapter:
+                assert adapter.platform == "slack"
+        closes.assert_awaited_once()
+
+        mattermost_close = AsyncMock()
+        with (
+            patch(f"{WELCOME}.get_adapter", side_effect=KeyError("mattermost")),
+            patch(
+                "app.services.channels.mattermost.MattermostAdapter.aclose", new=mattermost_close
+            ),
+        ):
+            async with _welcome._adapter("mattermost") as adapter:
+                assert adapter.platform == "mattermost"
+        mattermost_close.assert_awaited_once()
+
+        with (
+            patch(f"{WELCOME}.get_adapter", side_effect=KeyError("teams")),
+            patch("app.services.channels.teams.teams_adapter", return_value="teams-adapter"),
+        ):
+            async with _welcome._adapter("teams") as adapter:
+                assert adapter == "teams-adapter"
+
+    def test_every_greeting_names_the_organization_the_bot_and_the_console(self):
+        for text in _welcome.GREETING.values():
+            filled = text.format(organization="O", bot="B", url="U")
+            assert "O" in filled and "B" in filled and "U" in filled
+
+
+def test_suggestion_kinds_match_what_the_look_proposes():
+    assert {kind.value for kind in SuggestionKind} == {"routine", "agent", "profile", "role_pack"}

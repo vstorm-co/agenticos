@@ -20,6 +20,7 @@ from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
+from app.api.routes.v1 import me_suggestions
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import local_services
 from app.api.routes.v1 import ml as ml_services
@@ -169,6 +170,7 @@ v1_router.include_router(
 v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
 )
+v1_router.include_router(me_suggestions.router, prefix="/me/suggestions", tags=["me:suggestions"])
 
 v1_router.include_router(
     me_channel_link.router, prefix="/me/channel-link", tags=["me:channel-link"]

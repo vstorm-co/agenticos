@@ -182,6 +182,7 @@ class TestTheRunnersFacts:
             time_zone=None,
             job_title=None,
             about=None,
+            working_hours=None,
         )
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         with (
@@ -227,6 +228,7 @@ class TestTheRunnersFacts:
             time_zone="America/New_York",
             job_title="Head of sales",
             about="Nordic deals",
+            working_hours={"days": [1, 2, 3, 4, 5], "start": "08:00", "end": "16:00"},
         )
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         with (
@@ -253,7 +255,9 @@ class TestTheRunnersFacts:
             "- Their console is in Polish: answer in Polish unless they write in another language.\n"
             "- Their time zone is America/New_York; read and state times in it.\n"
             "- Their role: Head of sales.\n"
-            "- What they work on: Nordic deals"
+            "- What they work on: Nordic deals\n"
+            "- They work Monday to Friday, 08:00-16:00 their time; plan around it, "
+            "and nothing waits on it."
         )
 
     @pytest.mark.security

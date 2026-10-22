@@ -124,6 +124,19 @@ async def list_active_for_event_source(
     return list(result.scalars().all())
 
 
+async def prompts_created_by(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[str]:
+    """The prompts of the routines one person set up here - what not to propose to them again."""
+    result = await db.execute(
+        select(AgentTrigger.prompt).where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_for_organization(
     db: AsyncSession,
     *,

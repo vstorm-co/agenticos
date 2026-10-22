@@ -1,5 +1,5 @@
 ---
-source_sha: "20ad11767ce7"
+source_sha: "459824052fb1"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -388,7 +388,7 @@ La última columna es Teams (#1985), en representación de las plataformas de ch
 | Anulación del modelo | sí | **no, deliberadamente**: una superficie pública no puede dejar que su visitante elija lo que gasta | **no**: la petición no lleva `model_profile_id`. Qué versión se ejecuta sigue siendo del que llama, por `environment_id`, y un entorno puede fijar una que nunca fue la predeterminada | **no**, como en toda plataforma de chat |
 | `ask_user` | sí | **no, todavía no** — véase abajo | **no, con razón**: nadie espera colgado de una petición HTTP para responder una pregunta | sí, como una Adaptive Card |
 | Aviso de compactación | sí | sí | n/a — no hay nada en streaming a quien decírselo | no — la respuesta llega cuando está lista |
-| Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira | | no |
+| Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira | n/a — no hay nada en streaming donde dibujarlos | **no** — la respuesta llega cuando está lista, sin dibujar los pasos |
 | Aprobaciones: aparcan la ejecución | sí | sí | sí | sí |
 | Aprobaciones: un camino hasta la decisión | sí (`/runs`) | una frase, deliberadamente: a un desconocido con un enlace no se le enseña una URL a la consola de otra persona | sí — el resultado lleva `parked`, que nombra qué espera y a qué aprobación enviar la decisión | sí — una Adaptive Card, decidida como el miembro que la pulsa |
 | Menciones `@` | sí (`mentions`) | **no, todavía no**: un widget no tiene menú del que elegir, y la mención de un visitante necesitaría la misma comprobación en su nombre | **no, todavía no**: un script nombra qué usar en el propio mensaje | **no**, como en toda plataforma de chat |

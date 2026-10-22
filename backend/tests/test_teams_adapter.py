@@ -645,6 +645,7 @@ class TestLinkingThroughTheDirectory:
         connector.answers["/members/aad-ada"] = httpx.Response(200, json=member)
         assert await adapter.vouched_email(TOKEN, self._incoming()) == expected
 
+    @pytest.mark.security
     async def test_a_conversation_in_another_tenant_vouches_for_nobody(
         self, adapter: TeamsAdapter, monkeypatch: pytest.MonkeyPatch
     ) -> None:

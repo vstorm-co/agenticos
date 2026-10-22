@@ -52,6 +52,7 @@ class NotificationEventType(enum.StrEnum):
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     BACKGROUND_TASK_PAUSED = "background_task_paused"
     CAPABILITY_REQUESTED = "capability_requested"
+    SUGGESTION = "suggestion"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -145,7 +146,7 @@ class Notification(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'capability_requested')",
+            "'background_task_paused', 'capability_requested', 'suggestion')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

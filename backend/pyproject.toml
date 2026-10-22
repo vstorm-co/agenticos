@@ -1005,6 +1005,14 @@ include = [
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
+    # What the platform does for people on its own initiative, all of it in
+    # background jobs, and the suggestions it leaves them (#2301).
+    "app/services/proactive/**",
+    "app/services/suggestions.py",
+    "app/services/role_packs.py",
+    "app/repositories/suggestion.py",
+    "app/api/routes/v1/me_suggestions.py",
+    "app/worker/tasks/proactive_tasks.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1498,6 +1506,14 @@ include = [
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
+    # What the platform does for people on its own initiative, all of it in
+    # background jobs, and the suggestions it leaves them (#2301).
+    "app/services/proactive/**",
+    "app/services/suggestions.py",
+    "app/services/role_packs.py",
+    "app/repositories/suggestion.py",
+    "app/api/routes/v1/me_suggestions.py",
+    "app/worker/tasks/proactive_tasks.py",
 ]
 branch = true
 omit = [

@@ -87,6 +87,10 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Hourly, against thresholds measured in hours or days: an approval or an
     # invitation expiring forty minutes late has cost nobody anything, and a
     # crashed run reaped late is still reaped, which nothing else would do.
+    # The platform's look at each person's week (#2301): hourly, because who is
+    # due depends on their own clock - each is thought about once a night, early
+    # in their morning, so what it proposes is waiting when they start.
+    Schedule("proactive-sweep", jobs.PROACTIVE_SWEEP, _HOUR),
     Schedule("expire-approvals", jobs.EXPIRE_APPROVALS, _HOUR),
     Schedule("expire-invitations", jobs.EXPIRE_INVITATIONS, _HOUR),
     Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _HOUR),

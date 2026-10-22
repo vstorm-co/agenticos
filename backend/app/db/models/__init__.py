@@ -68,6 +68,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
+from app.db.models.suggestion import Suggestion
 from app.db.models.teams_conversation import TeamsConversation
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
@@ -92,6 +93,7 @@ __all__ = [
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
+    "Suggestion",
     "TeamsConversation",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",

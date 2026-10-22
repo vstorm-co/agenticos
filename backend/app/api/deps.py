@@ -1611,6 +1611,14 @@ def get_mcp_connection_service(db: DBSession) -> McpConnectionService:
 
 
 McpConnectionSvc = Annotated[McpConnectionService, Depends(get_mcp_connection_service)]
+from app.services.suggestions import SuggestionService
+
+
+def get_suggestion_service(db: DBSession) -> SuggestionService:
+    return SuggestionService(db)
+
+
+SuggestionSvc = Annotated[SuggestionService, Depends(get_suggestion_service)]
 from app.services.organization_secret import OrganizationSecretService
 
 

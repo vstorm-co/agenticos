@@ -117,6 +117,20 @@ from tests.workspaces import document_workspace
 
 
 @pytest.fixture(autouse=True)
+def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No account behind these runs' facts; `test_prompt_variables` covers the person (#2301).
+
+    The mocked session would answer the lookup with a `MagicMock`, whose every
+    profile field is truthy and none of which is a value.
+    """
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.user_repo.get_by_id", AsyncMock(return_value=None)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
     from unittest.mock import AsyncMock
@@ -259,10 +273,6 @@ class TestPrepare:
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
-            # Nobody the account describes, so the spec reaches the run as written.
-            patch(
-                "app.services.agent_runner.user_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=run),

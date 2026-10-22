@@ -63,6 +63,18 @@ class OrganizationUpdate(BaseSchema):
             "or null for no limit. Omit to leave the current setting alone."
         ),
     )
+    proactive_limit_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=6,
+        description=(
+            "Dollars the platform may spend per person per month on work it does on its "
+            "own initiative - noticing repeated requests, writing first messages. Zero "
+            "switches that work off. Omit to leave it alone; changing it needs "
+            "'budgets:manage'."
+        ),
+    )
     chat_may_waive_approvals: bool | None = Field(
         default=None,
         description=(
@@ -116,6 +128,10 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     member_count: int = 0
     role: str  # current user's role in this org
     monthly_budget_usd: Decimal | None = None
+    proactive_limit_usd: Decimal = Field(
+        default=Decimal("1"),
+        description="What background work may spend per person per month; zero is off.",
+    )
     chat_may_waive_approvals: bool = Field(
         default=False,
         description=(

@@ -89,6 +89,15 @@ class Organization(Base, TimestampMixin):
     # Activity page shows.
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
 
+    # What the platform may spend on each person in a calendar month on work it
+    # does on its own initiative - noticing a repeated request, writing their
+    # first messages (#2301). Per person, so one busy member cannot use up
+    # everybody's. Zero switches that work off; it is inside `monthly_budget_usd`,
+    # never beside it.
+    proactive_limit_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("1"), server_default=text("1")
+    )
+
     # Whether a chat session may grant standing consent to this agent's gated
     # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
     # the point: without a ceiling a Builder's deliberate gate on `send_email` is
@@ -159,6 +168,7 @@ class Organization(Base, TimestampMixin):
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
             name="ck_organization_budget_positive",
         ),
+        CheckConstraint("proactive_limit_usd >= 0", name="ck_organization_proactive_limit"),
         CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_organization_speech_pair",

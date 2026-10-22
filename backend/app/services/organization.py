@@ -36,6 +36,7 @@ from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
+from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.worker.jobs import Restamp
@@ -78,6 +79,7 @@ def _org_read(
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
+        proactive_limit_usd=org.proactive_limit_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
@@ -339,6 +341,7 @@ class OrganizationService:
         await member_repo.create(
             self.db, organization_id=organization_id, user_id=user_id, role=role
         )
+        await ProactiveService(self.db).queue_welcome(organization_id, user_id)
 
     async def fallback_for(self, user_id: UUID) -> Organization | None:
         """The organization a session acts in when the request names none.
@@ -427,17 +430,17 @@ class OrganizationService:
             return role_has(membership.role, perm) and (key_scopes is None or perm in key_scopes)
 
         wants_budget = "monthly_budget_usd" in data.model_fields_set
+        wants_proactive = data.proactive_limit_usd is not None
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
         wants_metadata = bool(
-            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
+            data.model_fields_set
+            - {"monthly_budget_usd", "proactive_limit_usd", "chat_may_waive_approvals"}
         )
         if wants_metadata and not holds(Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
-        if wants_budget and not holds(Perm.BUDGETS_MANAGE):
-            raise AuthorizationError(
-                message="Changing the spending limit requires 'budgets:manage'"
-            )
+        if (wants_budget or wants_proactive) and not holds(Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(message="Changing a spending limit requires 'budgets:manage'")
         if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
@@ -449,6 +452,11 @@ class OrganizationService:
             # exactly where it was.
             org = await organization_repo.set_monthly_budget(
                 self.db, org, limit_usd=data.monthly_budget_usd
+            )
+
+        if data.proactive_limit_usd is not None:
+            org = await organization_repo.set_proactive_limit(
+                self.db, org, limit_usd=data.proactive_limit_usd
             )
 
         if wants_color:

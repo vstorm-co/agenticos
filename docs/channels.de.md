@@ -1,5 +1,5 @@
 ---
-source_sha: "20ad11767ce7"
+source_sha: "459824052fb1"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -409,7 +409,7 @@ Die letzte Spalte ist Teams (#1985), stellvertretend für die Chat-Plattformen d
 | Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war | **nein**, wie auf jeder Chat-Plattform |
 | `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten | ja, als Adaptive Card |
 | Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte | nein — die Antwort kommt, wenn sie fertig ist |
-| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht | | nein |
+| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht | entfällt — nichts wird gestreamt, worin man sie zeichnen könnte | **nein** — die Antwort kommt, wenn sie fertig ist, ohne gezeichnete Schritte |
 | Freigaben: parken den Lauf | ja | ja | ja | ja |
 | Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist | ja — eine Adaptive Card, entschieden als das Mitglied, das sie drückt |
 | `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist | **nein**, wie auf jeder Chat-Plattform |

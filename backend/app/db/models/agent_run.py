@@ -119,6 +119,10 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Work the platform did for a person on its own initiative, in the background
+    # (#2301): noticing a request they keep repeating, writing their first
+    # messages. Metered against the organization's per-person proactivity limit.
+    PROACTIVE = "proactive"
 
 
 class RunOrder(enum.StrEnum):

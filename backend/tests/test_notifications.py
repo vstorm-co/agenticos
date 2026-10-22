@@ -1925,3 +1925,34 @@ class TestCapabilityRequested:
             )
 
         assert written.calls == []
+
+
+class TestSuggestionsReady:
+    """#2301: the night's proposals announced once, however many there are."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("count", "summary"), [(1, "a new suggestion"), (3, "3 new suggestions")]
+    )
+    async def test_one_row_a_day_naming_how_many(self, written, count, summary):
+        person = uuid.uuid4()
+        now = datetime(2026, 10, 22, 5, tzinfo=UTC)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+            await NotificationService(MagicMock()).suggestions_ready(
+                organization_id=uuid.uuid4(), user_id=person, count=count, now=now
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.SUGGESTION
+        assert call["occurrence_id"] == f"{person}:2026-10-22"
+        assert summary in call["summary"]
+        assert "agent=agenticos" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_somebody_who_left_hears_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).suggestions_ready(
+                organization_id=uuid.uuid4(), user_id=uuid.uuid4(), count=2, now=datetime.now(UTC)
+            )
+
+        assert written.calls == []

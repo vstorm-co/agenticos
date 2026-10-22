@@ -474,6 +474,40 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def suggestions_ready(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """The night's look at somebody's week found things worth proposing (#2301).
+
+        One row however many there are, and one a day at most: the occurrence is
+        the person and the date, so a second sweep the same morning adds nothing.
+        The link opens the starter agent's empty chat, where the cards wait.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/chat?agent=agenticos", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SUGGESTION,
+            occurrence_id=f"{user_id}:{now.date().isoformat()}",
+            summary=(
+                "AgenticOS has a new suggestion for you."
+                if count == 1
+                else f"AgenticOS has {count} new suggestions for you."
+            ),
+            context_url=path,
+            render_context={
+                "count": count,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
     async def run_failed(self, run: AgentRun, *, agent: Agent, error: str | None) -> None:
         """The mirror of `run_completed`, for the run that did not finish
         cleanly - same audience, same surface exclusion, same publisher-

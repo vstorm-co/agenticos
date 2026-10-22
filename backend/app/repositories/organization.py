@@ -214,6 +214,16 @@ async def update(
     return org
 
 
+async def set_proactive_limit(
+    db: AsyncSession, org: Organization, *, limit_usd: Decimal
+) -> Organization:
+    """Set what background work may spend per person per month; zero switches it off (#2301)."""
+    org.proactive_limit_usd = limit_usd
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_monthly_budget(
     db: AsyncSession, org: Organization, *, limit_usd: Decimal | None
 ) -> Organization:

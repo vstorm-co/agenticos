@@ -3,9 +3,10 @@
 from typing import Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.organization import (
     MembershipSource,
     Organization,
@@ -84,6 +85,27 @@ async def get_active(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def sweep_candidates(
+    db: AsyncSession, *, agent_slug: str
+) -> list[tuple[UUID, UUID, str | None]]:
+    """`(organization, person, time zone)` for every active member of an organization
+    whose starter agent is published - who the platform's nightly look may reach (#2301)."""
+    result = await db.execute(
+        select(OrganizationMember.organization_id, OrganizationMember.user_id, User.time_zone)
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(
+            Agent,
+            and_(
+                Agent.organization_id == OrganizationMember.organization_id,
+                Agent.slug == agent_slug,
+                Agent.current_version_id.is_not(None),
+            ),
+        )
+        .where(User.is_active.is_(True))
+    )
+    return [(row[0], row[1], row[2]) for row in result.all()]
 
 
 async def list_for_org(

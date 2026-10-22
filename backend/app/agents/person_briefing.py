@@ -13,9 +13,12 @@ from dataclasses import dataclass
 
 from app.agents.prompt_variables import flattened
 from app.agents.spec import AgentSpec
+from app.schemas.user import WorkingHours
 
 LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "de": "German"}
 """The console's languages - `ConsoleLocale` - by the name a model reads best."""
+
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +29,14 @@ class Person:
     time_zone: str | None = None
     job_title: str | None = None
     about: str | None = None
+    working_hours: WorkingHours | None = None
+
+
+def _working_days(days: list[int]) -> str:
+    """Monday to Friday reads as a range; anything else is listed."""
+    if len(days) > 2 and days == list(range(days[0], days[-1] + 1)):
+        return f"{_WEEKDAYS[days[0] - 1]} to {_WEEKDAYS[days[-1] - 1]}"
+    return ", ".join(_WEEKDAYS[day - 1] for day in days)
 
 
 def person_briefing(person: Person) -> str | None:
@@ -46,6 +57,12 @@ def person_briefing(person: Person) -> str | None:
         lines.append(f"- Their role: {flattened(person.job_title)}.")
     if person.about:
         lines.append(f"- What they work on: {flattened(person.about)}")
+    if person.working_hours is not None:
+        hours = person.working_hours
+        lines.append(
+            f"- They work {_working_days(hours.days)}, {hours.start}-{hours.end} their time; "
+            "plan around it, and nothing waits on it."
+        )
     if not lines:
         return None
     return "\n".join(["# The person you are talking to", "", *lines])

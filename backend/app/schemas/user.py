@@ -5,12 +5,42 @@ from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import EmailStr, Field, field_validator
+from pydantic import EmailStr, Field, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 
 ConsoleLocale = Literal["en", "pl", "de"]
 """The languages the console is translated into - `frontend/src/lib/locales.ts`."""
+
+
+_CLOCK = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class WorkingHours(BaseSchema):
+    """When a person works, in their own time zone, as every agent is told it (#2301).
+
+    Knowledge for the agent and nothing else: a routine still runs at 22:00 if
+    that is when somebody set it, and a notification is not held back.
+    """
+
+    days: list[int] = Field(
+        min_length=1, max_length=7, description="ISO weekdays they work, 1 = Monday."
+    )
+    start: str = Field(pattern=_CLOCK, description="When the working day starts, HH:MM.")
+    end: str = Field(pattern=_CLOCK, description="When it ends, HH:MM, after `start`.")
+
+    @field_validator("days")
+    @classmethod
+    def _weekdays(cls, days: list[int]) -> list[int]:
+        if any(day < 1 or day > 7 for day in days):
+            raise ValueError("Weekdays run from 1 (Monday) to 7 (Sunday)")
+        return sorted(set(days))
+
+    @model_validator(mode="after")
+    def _ends_after_it_starts(self) -> WorkingHours:
+        if self.end <= self.start:
+            raise ValueError("The working day has to end after it starts")
+        return self
 
 
 class UserBase(BaseSchema):
@@ -91,6 +121,9 @@ class UserUpdate(BaseSchema):
     about: str | None = Field(
         default=None, max_length=500, description="What I work on, as every agent is told it."
     )
+    working_hours: WorkingHours | None = Field(
+        default=None, description="When I work, as every agent is told it; null clears it."
+    )
 
     @field_validator("email")
     @classmethod
@@ -134,6 +167,10 @@ class UserRead(UserBase, TimestampSchema):
     time_zone: str | None = None
     job_title: str | None = None
     about: str | None = None
+    working_hours: WorkingHours | None = None
+    # The first messages an empty chat with the starter agent offers this person,
+    # written for them in the background; null until the first sweep reaches them.
+    personal_starters: list[str] | None = None
 
 
 class UserLocale(BaseSchema):

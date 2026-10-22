@@ -33,6 +33,7 @@ from app.db.models.agent_run import (
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
 from app.db.models.conversation import Message
@@ -661,6 +662,35 @@ def _counts_for_a_department() -> list[ColumnElement[bool]]:
     gives them none - so counting them would spend a cap that never held them.
     """
     return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+
+
+async def proactive_spend_since(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime
+) -> Decimal:
+    """What the platform spent on one person's background work here since `since` (#2301)."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+            AgentRun.started_at >= since,
+        )
+    )
+    return Decimal(result.scalar_one())
+
+
+async def last_proactive_run_at(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> datetime | None:
+    """When the platform last thought about this person here - their last background run."""
+    result = await db.execute(
+        select(func.max(AgentRun.started_at)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def sum_cost_since(

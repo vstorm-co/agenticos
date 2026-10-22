@@ -1,5 +1,5 @@
 ---
-source_sha: "20ad11767ce7"
+source_sha: "459824052fb1"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -389,7 +389,7 @@ Ostatnia kolumna to Teams (#1985), reprezentujący stojące obok platformy czatu
 | Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna | **nie**, jak na każdej platformie czatu |
 | `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP | tak, jako karta Adaptive Card |
 | Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć | nie — odpowiedź przychodzi, gdy jest gotowa |
-| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy | | nie |
+| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy | nie dotyczy — nic nie streamuje, w czym by je rysować | **nie** — odpowiedź przychodzi, gdy jest gotowa, bez rysowania kroków |
 | Zatwierdzenia: parkują uruchomienie | tak | tak | tak | tak |
 | Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję | tak — karta Adaptive Card, rozstrzygana jako członek, który ją nacisnął |
 | Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości | **nie**, jak na każdej platformie czatu |

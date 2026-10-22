@@ -107,6 +107,28 @@ class RunAgent(Payload):
     """The request's fingerprint: an idempotent retry must send the same one."""
 
 
+class ThinkForPerson(Payload):
+    """One person in one organization, for the platform's nightly look at their week (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
+class InstallRolePack(Payload):
+    """The routines of a role pack, to create for the person who accepted it (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    pack_id: str
+
+
+class WelcomeMember(Payload):
+    """Somebody who just joined, to greet in the chat apps the organization connected (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
 class Restamp(Payload):
     collection: str
     organization_id: UUID
@@ -211,6 +233,37 @@ RUN_AGENT = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+# One attempt: it is a model call booked to the person's proactivity limit, and
+# the next night is the retry - nothing a person asked for waits on it.
+THINK_FOR_PERSON = Task(
+    kind="think-for-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# Three: creating a routine is idempotent per pack (a routine already made from
+# the same template is not made twice), and the person clicked and is waiting.
+INSTALL_ROLE_PACK = Task(
+    kind="install-role-pack",
+    payload_type=InstallRolePack,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
+)
+# One: a greeting is best-effort, and a retry would greet the person a second
+# time on every platform that had already succeeded. A platform that fails is
+# logged and the others still try, inside the one attempt.
+WELCOME_MEMBER = Task(
+    kind="welcome-member",
+    payload_type=WelcomeMember,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
@@ -235,6 +288,7 @@ APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+PROACTIVE_SWEEP = _sweep("proactive-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -250,6 +304,9 @@ TASKS: dict[str, TaskKind] = {
         SYNC_SOURCE,
         FIRE_TRIGGER,
         RUN_AGENT,
+        THINK_FOR_PERSON,
+        INSTALL_ROLE_PACK,
+        WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,
@@ -266,6 +323,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        PROACTIVE_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

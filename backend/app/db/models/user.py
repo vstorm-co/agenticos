@@ -2,10 +2,10 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -92,6 +92,17 @@ class User(Base, TimestampMixin):
     time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     job_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     about: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # When they work - `{"days": [1-7], "start": "HH:MM", "end": "HH:MM"}`, read by
+    # `WorkingHours`. Knowledge for the agent only: nothing is held back or moved
+    # outside these hours, an agent just plans around them.
+    working_hours: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # The first messages an empty chat with the starter agent offers this person,
+    # written for them in the background from their role, connections and recent
+    # conversations. Null until the first sweep, which the fixed four stand in for.
+    personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    personal_starters_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     sessions: Mapped[list[Session]] = relationship(
         "Session",

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from app.agents.person_briefing import Person, person_briefing, with_person
 from app.agents.spec import AgentSpec
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserUpdate, WorkingHours
 
 
 class TestTheSection:
@@ -64,3 +64,32 @@ class TestTheAccountFields:
             UserUpdate(job_title="x" * 121)
         with pytest.raises(ValidationError):
             UserUpdate(about="x" * 501)
+
+
+class TestWorkingHours:
+    def test_a_working_week_reads_as_a_range_and_anything_else_is_listed(self):
+        week = person_briefing(
+            Person(working_hours=WorkingHours(days=[5, 1, 2, 3, 4], start="09:00", end="17:30"))
+        )
+        odd = person_briefing(
+            Person(working_hours=WorkingHours(days=[1, 3], start="07:00", end="15:00"))
+        )
+
+        assert week is not None and "They work Monday to Friday, 09:00-17:30 their time" in week
+        assert odd is not None and "They work Monday, Wednesday, 07:00-15:00" in odd
+
+    @pytest.mark.parametrize(
+        "hours",
+        [
+            {"days": [0], "start": "09:00", "end": "17:00"},
+            {"days": [1], "start": "17:00", "end": "09:00"},
+            {"days": [1], "start": "9:00", "end": "17:00"},
+            {"days": [], "start": "09:00", "end": "17:00"},
+        ],
+    )
+    def test_hours_that_cannot_be_a_working_day_are_refused(self, hours):
+        with pytest.raises(ValidationError):
+            UserUpdate(working_hours=hours)
+
+    def test_days_are_kept_once_each_in_order(self):
+        assert WorkingHours(days=[3, 1, 3], start="08:00", end="16:00").days == [1, 3]
