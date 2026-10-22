@@ -202,6 +202,7 @@ async def _run(
     during_start=None,
     connect_seconds=60.0,
     mark=None,
+    deadline=5.0,
 ):
     held: list[VoiceCallSession] = []
 
@@ -239,7 +240,7 @@ async def _run(
             connect_seconds=connect_seconds,
         )
         held.append(session)
-        await asyncio.wait_for(session.run(), timeout=5)
+        await asyncio.wait_for(session.run(), timeout=deadline)
     return hung, repo
 
 
@@ -877,11 +878,16 @@ async def test_the_budget_notice_ends_when_the_agent_has_said_it_not_at_the_time
     started = _started(realtime)
     started.prepared.built.budget.can_afford_next_request = AsyncMock(return_value=False)
 
+    # A notice timeout far above the bound asserted below: ending at speech end
+    # takes milliseconds and waiting out the timeout takes 30 s, so a loaded
+    # runner cannot push one case into the other (it did with 4 s against 2 s).
+    # The helper's own deadline sits between the two, so a slow runner reaches
+    # the assertion and a call waiting out the notice fails there instead.
     loop = asyncio.get_running_loop()
     began = loop.time()
-    _, repo = await _run(socket, started, notice_seconds=4.0)
+    _, repo = await _run(socket, started, notice_seconds=30.0, deadline=15.0)
 
-    assert loop.time() - began < 2.0
+    assert loop.time() - began < 10.0
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.BUDGET
     assert len(realtime.sent) == 1
 

@@ -91,26 +91,6 @@ Two things are versioned separately from this file and worth knowing about:
   routes under `/agents/{id}/triggers` and `GET /triggers`,
   `GET /providers/model-profiles`, `GET /me/mcp-connections` and the new
   `PUT /users/me/locale` are reachable with an organization key.
-- **Interactive answers in the chat (#2302).** An agent with Visuals chooses
-  the form of each answer - text, a Markdown table, a native chart, or a
-  drawing - and a drawing can be a tool: an explainer with controls, a
-  calculator, a map. A button in a drawing can continue the conversation with
-  what the person picked through `agenticos.followUp(text)`: the console shows
-  the exact text under the drawing and sends it only when the person clicks
-  Send, so a drawing can never speak for them. In a saved app the call does
-  nothing.
-- **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
-  `openstreetmap`, `usgs-topo`, or a https URL template with
-  `VISUAL_MAP_TILES_ATTRIBUTION`. The deployment fetches the tiles and serves
-  them from its own tile path, by three checked numbers and limited per address
-  (`RATE_LIMIT_MAP_TILES_PER_MINUTE`), so a page never sees the server's address
-  or key and can send it nothing. Off by default. Leaflet 1.9.4 and the map kit
-  `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
-  replay, stop cards) join the library set; without tiles a map is drawn as an
-  outline of its stops. *Admin → System* shows whether the tile server answers.
-- **Starters for an agent that draws**: an empty chat with Visuals on opens on
-  four - explain in 3D, compare then chart, make a calculator, plan a trip on a
-  map. Switching Visuals on in the Builder binds Charts too.
 - **Microsoft Teams as a channel** (#1985). An agent answers in a personal chat,
   in a group chat and in a team channel's thread when it is @mentioned, through a
   single-tenant Azure Bot reached over the Bot Connector's own protocol. Every
@@ -158,6 +138,63 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- A fresh organization's starter agent is installed as **AgenticOS**
+  (`@agenticos`). An organization bootstrapped earlier keeps its
+  `@claude-code-like` agent as it is - an agent's handle never changes - and
+  rerunning bootstrap there installs AgenticOS beside it.
+
+
+## [1.12.2] - 2026-10-22
+
+### Fixed
+
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
+
+## [1.12.1] - 2026-10-22
+
+### Security
+
+- **Dependency alerts match the backend's locked versions again.** Dependabot
+  cannot read a project that requires Python 3.15, so since 1.9.0 its graph kept
+  the versions locked before, and fourteen alerts for Pillow, certifi and
+  virtualenv stayed open although `backend/uv.lock` already held the fixed
+  releases. A new workflow, `.github/workflows/dependency-graph.yml`, submits
+  the graph from the lock on every push to `main` that moves it. See
+  [Dependency updates](docs/branching.md#dependency-updates).
+
+## [1.12.0] - 2026-10-22
+
+### Added
+
+- **Interactive answers in the chat (#2302).** An agent with Visuals chooses
+  the form of each answer - text, a Markdown table, a native chart, or a
+  drawing - and a drawing can be a tool: an explainer with controls, a
+  calculator, a map. A button in a drawing can continue the conversation with
+  what the person picked through `agenticos.followUp(text)`: the console shows
+  the exact text under the drawing and sends it only when the person clicks
+  Send, so a drawing can never speak for them. In a saved app the call does
+  nothing.
+- **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
+  `openstreetmap`, `usgs-topo`, or a https URL template with
+  `VISUAL_MAP_TILES_ATTRIBUTION`. The deployment fetches the tiles and serves
+  them from its own tile path, by three checked numbers and limited per address
+  (`RATE_LIMIT_MAP_TILES_PER_MINUTE`), so a page never sees the server's address
+  or key and can send it nothing. Off by default. Leaflet 1.9.4 and the map kit
+  `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
+  replay, stop cards) join the library set; without tiles a map is drawn as an
+  outline of its stops. *Admin → System* shows whether the tile server answers.
+- **Starters for an agent that draws**: an empty chat with Visuals on opens on
+  four - explain in 3D, compare then chart, make a calculator, plan a trip on a
+  map. Switching Visuals on in the Builder binds Charts too.
+
+### Changed
+
 - **Drawings sit in the conversation without a card around them**, from the
   text's left edge, named by a quiet line underneath; a drawing holds the height
   it declared while it streams, and shows nothing until its styles are written.
@@ -166,11 +203,6 @@ Two things are versioned separately from this file and worth knowing about:
   explainer, a calculator and an itinerary. Messages in the chat sit a little
   closer together, and a drawing and the answer after the steps a little
   further apart.
-
-- A fresh organization's starter agent is installed as **AgenticOS**
-  (`@agenticos`). An organization bootstrapped earlier keeps its
-  `@claude-code-like` agent as it is - an agent's handle never changes - and
-  rerunning bootstrap there installs AgenticOS beside it.
 
 ## [1.11.0] - 2026-10-21
 

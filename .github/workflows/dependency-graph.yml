@@ -1,0 +1,56 @@
+# The backend's dependency graph, submitted rather than detected.
+#
+# Dependabot builds the graph for `backend/uv.lock` itself and cannot read a
+# project that requires Python 3.15, so its job fails and the graph keeps the
+# versions from before. Every alert on those versions then stays open after the
+# fix has landed - fourteen were, on 21 October 2026, against a lockfile that
+# already held the fixed Pillow, certifi and virtualenv.
+#
+# This submits what the lock actually resolves to, through the dependency
+# submission API, on every push to `main` that moves it. Alerts close when the
+# submitted versions are fixed ones and open on the versions that are locked,
+# whatever Dependabot can read. `scripts/dependency_snapshot.py` builds the body.
+name: Dependency graph
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/uv.lock
+      - scripts/dependency_snapshot.py
+      - .github/workflows/dependency-graph.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-graph
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    name: submit backend/uv.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # The dependency submission API asks for write on contents; nothing here
+      # pushes.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the snapshot
+        # The runner's own python3: the script needs only the standard library.
+        run: python3 scripts/dependency_snapshot.py backend/uv.lock > "$RUNNER_TEMP/snapshot.json"
+
+      - name: Submit it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: >-
+          gh api --method POST "repos/$REPOSITORY/dependency-graph/snapshots"
+          --input "$RUNNER_TEMP/snapshot.json"
+          --jq '"\(.result): \(.message)"'
