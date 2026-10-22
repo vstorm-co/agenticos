@@ -1,17 +1,21 @@
-"""Web Push (#2097): the endpoint allowlist, the deployment's signing key and a send."""
+"""Web Push (#2097): the endpoint's shape and where it may point, the
+deployment's signing key, and a send."""
 
 import base64
+import socket
 from collections.abc import Iterator
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import aiohttp
 import pytest
 from pydantic import ValidationError
 from pywebpush import WebPushException
 
-from app.core.exceptions import AppException, NotFoundError
+from app.core.exceptions import AppException, BadRequestError, NotFoundError
+from app.core.sanitize import SSRFBlockedError, UrlRefusedError
 from app.core.vault import VaultScope, seal, unseal
 from app.schemas.push import PushSubscriptionCreate, push_endpoint
 from app.services import web_push
@@ -27,28 +31,25 @@ def _decoded(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-class TestTheEndpointAllowlist:
+class TestTheEndpointShape:
     @pytest.mark.parametrize(
         "url",
         [
             "https://fcm.googleapis.com/fcm/send/abc",
             "https://updates.push.services.mozilla.com/wpush/v2/abc",
-            "https://web.push.apple.com/abc",
-            "https://wns2-par02p.notify.windows.com/w/?token=abc",
+            "https://ntfy.acme.com/upAbc?up=1",
         ],
     )
-    def test_a_browser_push_service_is_accepted(self, url: str) -> None:
+    def test_an_https_push_service_or_distributor_is_accepted(self, url: str) -> None:
         assert push_endpoint(url) == url
 
     @pytest.mark.parametrize(
         "url",
         [
             "http://fcm.googleapis.com/fcm/send/abc",
-            "https://169.254.169.254/latest",
-            "https://internal.acme.local/hook",
-            "https://fcm.googleapis.com.evil.example/abc",
             "https://user:pw@fcm.googleapis.com/abc",
             "https://fcm.googleapis.com:8443/abc",
+            "https:///no-host",
         ],
     )
     def test_anything_else_is_refused(self, url: str) -> None:
@@ -56,6 +57,32 @@ class TestTheEndpointAllowlist:
             push_endpoint(url)
         with pytest.raises(ValidationError):
             PushSubscriptionCreate.model_validate({"endpoint": url, "keys": KEYS})
+
+
+class TestTheResolver:
+    async def test_it_answers_with_the_addresses_the_policy_approved(self) -> None:
+        pinned = SimpleNamespace(port=443, ips=("203.0.113.7", "2001:db8::7"))
+        with patch(f"{MODULE}.resolve_pinned_url", return_value=pinned) as check:
+            results = await web_push._PublicOnly().resolve("ntfy.acme.com", 443)
+        assert check.call_args.args[0] == "https://ntfy.acme.com:443/"
+        assert [(r["host"], r["family"]) for r in results] == [
+            ("203.0.113.7", socket.AF_INET),
+            ("2001:db8::7", socket.AF_INET6),
+        ]
+        assert all(r["hostname"] == "ntfy.acme.com" for r in results)
+        await web_push._PublicOnly().close()
+
+    async def test_a_name_inside_the_network_is_refused_and_an_ipv6_host_is_bracketed(
+        self,
+    ) -> None:
+        with (
+            patch(
+                f"{MODULE}.resolve_pinned_url", side_effect=SSRFBlockedError("internal")
+            ) as check,
+            pytest.raises(UrlRefusedError),
+        ):
+            await web_push._PublicOnly().resolve("fd00::1")
+        assert check.call_args.args[0] == "https://[fd00::1]:443/"
 
 
 def test_a_new_key_is_a_p256_pair_as_web_push_spells_it() -> None:
@@ -140,27 +167,36 @@ class TestSending:
     async def test_each_browser_is_sent_to_forgotten_when_gone_and_counted_when_refused(
         self, service: WebPushService
     ) -> None:
-        ok, gone, refused, slow = (_subscription() for _ in range(4))
-        sends = AsyncMock(side_effect=[None, _refusal(410), _refusal(500), TimeoutError()])
+        ok, gone, refused, slow, internal, down = (_subscription() for _ in range(6))
+        sends = AsyncMock(
+            side_effect=[
+                None,
+                _refusal(410),
+                _refusal(500),
+                TimeoutError(),
+                SSRFBlockedError("now internal"),
+                aiohttp.ClientConnectionError("down"),
+            ]
+        )
         with (
             patch(
                 f"{MODULE}.push_repo.list_for_user",
-                new=AsyncMock(return_value=[ok, gone, refused, slow]),
+                new=AsyncMock(return_value=[ok, gone, refused, slow, internal, down]),
             ),
             patch(f"{MODULE}.webpush_async", new=sends),
             patch(f"{MODULE}.push_repo.delete_by_id", new=AsyncMock()) as delete,
             patch(f"{MODULE}.push_repo.mark_sent", new=AsyncMock()) as mark,
         ):
             outcome = await service.send(uuid4(), PushMessage("Acme", "Run done", "/runs", "n1"))
-        assert (outcome.sent, outcome.gone, outcome.failed) == (1, 1, 2)
-        delete.assert_awaited_once()
-        assert delete.await_args.args[1] == gone.id
+        assert (outcome.sent, outcome.gone, outcome.failed) == (1, 2, 3)
+        assert [call.args[1] for call in delete.await_args_list] == [gone.id, internal.id]
         assert mark.await_args.args[1] == ok.id
         assert isinstance(mark.await_args.args[2], datetime)
         first = sends.await_args_list[0].kwargs
         assert first["subscription_info"]["endpoint"] == ok.endpoint
         assert '"url": "/runs"' in first["data"]
         assert first["ttl"] == web_push.TTL_SECONDS
+        assert isinstance(first["aiohttp_session"], aiohttp.ClientSession)
 
     async def test_a_test_needs_a_subscribed_browser(self, service: WebPushService) -> None:
         with (
@@ -185,7 +221,10 @@ class TestSubscribing:
         subscription = PushSubscriptionCreate.model_validate(
             {"endpoint": "https://fcm.googleapis.com/fcm/send/a", "keys": KEYS}
         )
-        with patch(f"{MODULE}.push_repo.upsert", new=AsyncMock()) as upsert:
+        with (
+            patch(f"{MODULE}.resolve_pinned_url"),
+            patch(f"{MODULE}.push_repo.upsert", new=AsyncMock()) as upsert,
+        ):
             await WebPushService(AsyncMock()).subscribe(user_id, subscription, user_agent="Chrome")
         assert upsert.await_args.kwargs["user_id"] == user_id
         assert upsert.await_args.kwargs["auth"] == KEYS["auth"]
@@ -196,3 +235,15 @@ class TestSubscribing:
             pytest.raises(NotFoundError),
         ):
             await WebPushService(AsyncMock()).unsubscribe(user_id, subscription.endpoint)
+
+    async def test_an_endpoint_inside_the_network_is_refused_when_stored(self) -> None:
+        subscription = PushSubscriptionCreate.model_validate(
+            {"endpoint": "https://ntfy.internal.acme/up", "keys": KEYS}
+        )
+        with (
+            patch(f"{MODULE}.resolve_pinned_url", side_effect=SSRFBlockedError("internal")),
+            patch(f"{MODULE}.push_repo.upsert", new=AsyncMock()) as upsert,
+            pytest.raises(BadRequestError),
+        ):
+            await WebPushService(AsyncMock()).subscribe(uuid4(), subscription, user_agent=None)
+        upsert.assert_not_called()

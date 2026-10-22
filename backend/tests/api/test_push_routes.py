@@ -56,12 +56,12 @@ async def test_a_browser_gets_the_key_subscribes_and_unsubscribes() -> None:
     push.unsubscribe.assert_awaited_once_with(user_id, ENDPOINT)
 
 
-async def test_an_endpoint_outside_the_push_services_is_refused() -> None:
+async def test_an_endpoint_that_is_not_https_is_refused() -> None:
     push = MagicMock(subscribe=AsyncMock())
     async with _client(push, uuid4()) as client:
         response = await client.post(
             "/api/v1/push/subscriptions",
-            json={"endpoint": "https://internal.acme.local/hook", "keys": KEYS},
+            json={"endpoint": "http://ntfy.acme.com/up", "keys": KEYS},
         )
     assert response.status_code == 422
     push.subscribe.assert_not_called()

@@ -8,28 +8,20 @@ from app.schemas.base import BaseSchema
 
 _BASE64URL = r"^[A-Za-z0-9_-]+={0,2}$"
 
-# The push services browsers subscribe through - Chrome and every Chromium
-# browser (FCM), Firefox (Mozilla's autopush), Safari (Apple), Edge on Windows
-# (WNS). An endpoint is a URL a signed-in person hands the server for it to
-# POST to, so it is held to these hosts rather than to "anything public": the
-# library that sends connects by name, and a name checked as public here could
-# answer with a private address there.
-PUSH_SERVICE_SUFFIXES = (
-    ".googleapis.com",
-    ".services.mozilla.com",
-    ".push.apple.com",
-    ".notify.windows.com",
-)
-
 
 def push_endpoint(url: str) -> str:
-    """A browser's push endpoint, or `ValueError` for anything else."""
+    """A push endpoint's shape: https, no credentials in it, the default port.
+
+    Where it points is checked when it is stored and again on every send
+    (`app.services.web_push`): a browser's push service, or a UnifiedPush
+    distributor such as a company's own ntfy server - anything public, and
+    nothing inside the deployment's network.
+    """
     parts = urlsplit(url)
-    host = (parts.hostname or "").lower()
-    if parts.scheme != "https" or parts.username or parts.password or parts.port not in (None, 443):
-        raise ValueError("A push endpoint is an https address of a browser's push service.")
-    if not any(host.endswith(suffix) for suffix in PUSH_SERVICE_SUFFIXES):
-        raise ValueError("That is not a push service this deployment sends to.")
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        raise ValueError("A push endpoint is an https address with no credentials in it.")
+    if parts.port not in (None, 443):
+        raise ValueError("A push endpoint is served on the https port.")
     return url
 
 
