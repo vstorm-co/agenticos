@@ -436,6 +436,10 @@ result that could not be compared with that run, the next one has no baseline:
 it is held to its own numbers and, passing, becomes the run the ones after it
 are compared with.
 
+A [check of the authoring assistant's suggestions](authoring.md#check-with-evals)
+run on a suite is held to the same threshold, but it is not a result of the
+suite: it is in none of its history and notifies nobody.
+
 ### Who it runs as, and who is told { #who-it-runs-as-and-who-is-told }
 
 A suite runs as whoever last saved it - its **owner** - with that person's

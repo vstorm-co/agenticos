@@ -102,6 +102,7 @@ from app.schemas.eval_run import (
     EvalUngradedCaseRead,
     RoutingErrorRead,
 )
+from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
 from app.schemas.scoring import CaseScoreRead, DatasetScoring
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
@@ -122,6 +123,7 @@ from app.services.eval_comparison import (
     quality_verdict,
     summarize,
 )
+from app.services.eval_suite_threshold import judge
 from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ungraded
@@ -877,8 +879,12 @@ class EvalRunService:
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
+        suite: EvalSuiteCheck | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
+
+        `suite` is the eval suite a check of suggestions runs on, kept on the run
+        as it stands now so its read can hold the run to that suite's threshold.
 
         Raises:
             PaymentRequiredError: The estimate is more than the agent or the
@@ -927,6 +933,7 @@ class EvalRunService:
             estimate_usd=estimate.total_usd,
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
             excluded_case_ids=plan.excluded_case_ids,
+            suite_check=None if suite is None else suite.model_dump(mode="json"),
         )
         arms = [
             EvalRunArm(
@@ -1015,9 +1022,15 @@ class EvalRunService:
         return run
 
     async def get(self, ctx: AuthContext, run_id: UUID) -> EvalRunRead:
-        """One run, and - for a run of the draft - whether the draft changed since."""
+        """One run, and - for a run of the draft - whether the draft changed since.
+
+        A check of suggestions made on an eval suite also says what that suite
+        would have said of it.
+        """
         run = await self._readable(ctx, run_id)
         read = (await self._reads(ctx, [run]))[0]
+        if run.suite_check is not None:
+            read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
         tested = next(
             (
                 arm
@@ -1031,6 +1044,36 @@ class EvalRunService:
         agent = await self.registry.get(ctx, run.agent_id)
         current = spec_hash(AgentSpec.model_validate(agent.draft_spec))
         return read.model_copy(update={"draft_changed": current != tested.spec_hash})
+
+    async def _suite_check(
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead
+    ) -> EvalSuiteCheckRead:
+        """The suite's verdict on a completed check, judged as the suite judges its own runs.
+
+        The threshold is the one kept when the check started. Only a run that
+        completed is judged; nothing is written, so the check stays out of the
+        suite's history and notifies nobody.
+        """
+        check = EvalSuiteCheck.model_validate(run.suite_check)
+        suite = await eval_suite_repo.get(
+            self.db, check.suite_id, organization_id=ctx.organization_id
+        )
+        verdict = EvalSuiteCheckRead(
+            suite_id=check.suite_id,
+            name=check.name,
+            suite_exists=suite is not None and suite.agent_id == run.agent_id,
+            status=None,
+        )
+        if run.status != EvalRunStatus.COMPLETED.value:
+            return verdict
+        candidate = next(arm for arm in read.arms if arm.role == ArmRole.CANDIDATE)
+        status, reasons = judge(
+            check.threshold,
+            candidate.summary,
+            await self._comparison(ctx, run),
+            ungraded=len(candidate.ungraded_cases),
+        )
+        return verdict.model_copy(update={"status": status, "reasons": reasons})
 
     async def arm_spec(self, ctx: AuthContext, run_id: UUID, arm_id: UUID) -> AgentSpec:
         """The spec one side of a run answered with - what History compares a version with.

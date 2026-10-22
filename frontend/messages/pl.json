@@ -7890,6 +7890,7 @@
         "skipped": "Nie uruchomiona",
         "error": "Błąd"
       },
+      "checkVerdict": "Tak oceniłaby to suita <suite>{name}</suite> według progu z chwili startu sprawdzenia. Sprawdzenie evalami nie jest runem suity, więc nie trafia do jej historii.",
       "lastResult": "{status} · {rate}",
       "paused": {
         "byPerson": "Wstrzymana",

@@ -89,9 +89,15 @@ fits the draft, or clashes with another, the check is refused until it is
 accepted or dismissed: the run measures exactly what waits.
 
 Instead of a dataset, the check can run one of the agent's
-[eval suites](evals.md#suites): its dataset, in its environment. The suite's
-threshold is not applied; the run compares the draft with the published version
-as any check does.
+[eval suites](evals.md#suites): its dataset, in its environment. The run compares
+the draft with the published version as any check does, and once it completes it
+also says what the suite would have said: passed, failed or inconclusive, and
+why, by the threshold the suite had when the check started. That shows on the
+run and beside the check on the strip, worded as the suite's own results are.
+
+The check is not one of the suite's runs: it is in no suite's history and
+notifies nobody, and the run's own verdict is what Accept goes by. A skill or
+context change checked on a suite of the agent it runs on gets the same.
 
 The cases taken from the conversations the suggestions were derived from are left
 out, and the run says how many: a change is never measured on the data it was

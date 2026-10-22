@@ -19,6 +19,7 @@ from app.db.models.eval_run import (
 from app.db.models.eval_suite import EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.dataset import StoredCaseContent
+from app.schemas.eval_threshold import EvalSuiteCheckRead
 from app.schemas.scoring import CaseScoreRead
 
 CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
@@ -313,6 +314,13 @@ class EvalRunRead(BaseSchema):
         description=(
             "Whether the agent's draft changed since this run tested it. Sent on the "
             "single-run read of a run of the draft; null otherwise"
+        ),
+    )
+    suite_check: EvalSuiteCheckRead | None = Field(
+        default=None,
+        description=(
+            "What the eval suite a check of suggestions ran on would have said of the "
+            "run. Sent on the single-run read of such a check; null otherwise"
         ),
     )
     error: str | None

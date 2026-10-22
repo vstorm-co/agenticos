@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import { batch, hunk } from "@/test-utils/authoring";
 import { SuggestionList } from "./suggestion-list";
 
+vi.mock("./check-run-verdicts", () => ({
+  CheckRunVerdicts: ({ runIds }: { runIds: string[] }) => <p>{`verdicts ${runIds.join(",")}`}</p>,
+}));
+
 describe("SuggestionList", () => {
   it("puts waiting suggestions first, says what they should change, and links the checks", async () => {
     const onDecide = vi.fn();
@@ -29,6 +33,7 @@ describe("SuggestionList", () => {
       "href",
       "/agents/agent-1/evals/eval-1",
     );
+    expect(screen.getByText("verdicts eval-1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Accept" }));
     expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: "waiting" }), {
       action: "accept",

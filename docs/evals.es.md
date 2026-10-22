@@ -1,5 +1,5 @@
 ---
-source_sha: "2d16b5486721"
+source_sha: "c86fa0b502c9"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -467,6 +467,10 @@ y así miden la deriva; una publicación o una promoción ejecutan su baseline e
 el mismo run. Tras un resultado que no se pudo comparar con esa ejecución, la
 siguiente no tiene baseline: se mide por sus propios números y, si aprueba, es
 la ejecución con la que se comparan las siguientes.
+
+Una [comprobación de las sugerencias del asistente de autoría](authoring.md#check-with-evals)
+ejecutada en una suite se mide con el mismo umbral, pero no es un resultado de la
+suite: no está en su historial y no avisa a nadie.
 
 ### Como quién se ejecuta y a quién se avisa { #who-it-runs-as-and-who-is-told }
 

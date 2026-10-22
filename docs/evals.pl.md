@@ -1,5 +1,5 @@
 ---
-source_sha: "2d16b5486721"
+source_sha: "c86fa0b502c9"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -467,6 +467,10 @@ pozostaje zepsuty, dopóki ktoś go nie naprawi - i dzięki temu mierzą dryf;
 publikacja i promocja uruchamiają baseline w tym samym runie. Po wyniku,
 którego nie dało się porównać z tym runem, następny nie ma baseline'u: liczą
 się tylko jego własne wyniki, a jeśli przejdzie, z nim porównuje się kolejne.
+
+[Sprawdzenie sugestii asystenta tworzenia](authoring.md#check-with-evals)
+uruchomione na suicie jest oceniane według tego samego progu, ale nie jest
+wynikiem suity: nie trafia do jej historii i nikogo nie powiadamia.
 
 ### Jako kto działa i kto dostaje wiadomość { #who-it-runs-as-and-who-is-told }
 

@@ -8530,6 +8530,7 @@
         "skipped": "Nicht gelaufen",
         "error": "Fehler"
       },
+      "checkVerdict": "So würde die Suite <suite>{name}</suite> nach ihrem Schwellenwert beim Start der Prüfung urteilen. Eine Prüfung ist keiner ihrer Runs und steht in keinem Verlauf.",
       "lastResult": "{status} · {rate}",
       "paused": {
         "byPerson": "Pausiert",

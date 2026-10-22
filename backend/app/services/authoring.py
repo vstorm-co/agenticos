@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic_ai.usage import RunUsage
@@ -90,6 +90,7 @@ from app.schemas.authoring import (
     ProposalCheck,
 )
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
+from app.schemas.eval_threshold import EvalSuiteCheck
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
@@ -175,6 +176,13 @@ def _refers_to(hunk: SpecProposalHunk, key: str) -> bool:
             (value.get("id") if isinstance(value, dict) else value) == key for value in values
         )
     return any(str(value) == key for value in values) or key in (hunk.path or "")
+
+
+class _CheckRun(NamedTuple):
+    """The eval run a check asks for, and the suite it runs on, read together."""
+
+    request: EvalRunRequest
+    suite: EvalSuiteCheck | None
 
 
 class AuthoringService:
@@ -935,21 +943,31 @@ class AuthoringService:
 
     async def _check_request(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
-    ) -> EvalRunRequest:
-        """The run a check makes: on the dataset named, or on a suite's dataset and environment."""
+    ) -> _CheckRun:
+        """The run a check makes: on the dataset named, or on a suite's dataset and environment.
+
+        A suite is read once, so its dataset, environment and threshold are the
+        ones of the same moment.
+        """
         if body.suite_id is not None:
             suite = await EvalSuiteService(self.db).get(ctx, agent_id, body.suite_id)
-            return EvalRunRequest(
-                dataset_id=suite.dataset_id,
-                environment_id=suite.environment_id,
-                paired_baseline=True,
+            return _CheckRun(
+                request=EvalRunRequest(
+                    dataset_id=suite.dataset_id,
+                    environment_id=suite.environment_id,
+                    paired_baseline=True,
+                ),
+                suite=EvalSuiteCheck(suite_id=suite.id, name=suite.name, threshold=suite.threshold),
             )
         assert body.dataset_id is not None, "ProposalCheck names a dataset or a suite"
-        return EvalRunRequest(
-            dataset_id=body.dataset_id,
-            dataset_version=body.dataset_version,
-            environment_id=body.environment_id,
-            paired_baseline=True,
+        return _CheckRun(
+            request=EvalRunRequest(
+                dataset_id=body.dataset_id,
+                dataset_version=body.dataset_version,
+                environment_id=body.environment_id,
+                paired_baseline=True,
+            ),
+            suite=None,
         )
 
     async def estimate_check(
@@ -960,7 +978,7 @@ class AuthoringService:
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            await self._check_request(ctx, agent.id, body),
+            (await self._check_request(ctx, agent.id, body)).request,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
@@ -968,7 +986,7 @@ class AuthoringService:
 
     async def _skill_check(
         self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
-    ) -> tuple[Agent, EvalRunRequest, dict[UUID, SkillBody], list[UUID]]:
+    ) -> tuple[Agent, _CheckRun, dict[UUID, SkillBody], list[UUID]]:
         """The agent a skill change is checked on, the run that checks it, the body, and what to leave out.
 
         Both sides run the agent's published version - frozen and already
@@ -1020,20 +1038,26 @@ class AuthoringService:
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
         bodies = {skill.id: SkillBody(description=proposal.description, content=proposal.content)}
-        request = (await self._check_request(ctx, agent.id, body)).model_copy(
+        checked = await self._check_request(ctx, agent.id, body)
+        pinned = checked.request.model_copy(
             update={"version": version.version, "baseline_version": version.version}
         )
-        return agent, request, bodies, [UUID(str(conversation)) for conversation in evidence]
+        return (
+            agent,
+            checked._replace(request=pinned),
+            bodies,
+            [UUID(str(conversation)) for conversation in evidence],
+        )
 
     async def estimate_skill_check(
         self, ctx: AuthContext, skill_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
         """What checking a pending skill change on one agent would cost."""
-        agent, request, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        agent, checked, bodies, evidence = await self._skill_check(ctx, skill_id, body)
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            request,
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
@@ -1048,19 +1072,20 @@ class AuthoringService:
         comparison measures the skill change alone. Applying the change is live
         for every agent bound to the skill, which is why it is checked before.
         """
-        agent, request, bodies, evidence = await self._skill_check(ctx, skill_id, body)
+        agent, checked, bodies, evidence = await self._skill_check(ctx, skill_id, body)
         return await EvalRunService(self.db).start(
             ctx,
             agent.id,
-            request,
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
+            suite=checked.suite,
         )
 
     async def _context_check(
         self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
-    ) -> tuple[Agent, EvalRunRequest, dict[UUID, ContextBody], list[UUID]]:
+    ) -> tuple[Agent, _CheckRun, dict[UUID, ContextBody], list[UUID]]:
         """The agent a context change is checked on, the run, the body, and what to leave out.
 
         As for a skill: both sides run the agent's published version, and the
@@ -1112,20 +1137,26 @@ class AuthoringService:
         )
         evidence = [] if request is None else request.evidence.get("conversation_ids", [])
         bodies = {file.id: ContextBody(description=proposal.description, content=proposal.content)}
-        checked = (await self._check_request(ctx, agent.id, body)).model_copy(
+        checked = await self._check_request(ctx, agent.id, body)
+        pinned = checked.request.model_copy(
             update={"version": version.version, "baseline_version": version.version}
         )
-        return agent, checked, bodies, [UUID(str(conversation)) for conversation in evidence]
+        return (
+            agent,
+            checked._replace(request=pinned),
+            bodies,
+            [UUID(str(conversation)) for conversation in evidence],
+        )
 
     async def estimate_context_check(
         self, ctx: AuthContext, context_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
         """What checking a pending context change on one agent would cost."""
-        agent, request, bodies, evidence = await self._context_check(ctx, context_id, body)
+        agent, checked, bodies, evidence = await self._context_check(ctx, context_id, body)
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            request,
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
@@ -1139,14 +1170,15 @@ class AuthoringService:
         Applying the change is live for every agent bound to the file, which is
         why it is checked before.
         """
-        agent, request, bodies, evidence = await self._context_check(ctx, context_id, body)
+        agent, checked, bodies, evidence = await self._context_check(ctx, context_id, body)
         return await EvalRunService(self.db).start(
             ctx,
             agent.id,
-            request,
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
+            suite=checked.suite,
         )
 
     async def check(self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck) -> EvalRunRead:
@@ -1157,13 +1189,15 @@ class AuthoringService:
         does not change.
         """
         agent, batch, projected = await self._projection(ctx, agent_id)
+        checked = await self._check_request(ctx, agent.id, body)
         started = await EvalRunService(self.db).start(
             ctx,
             agent.id,
-            await self._check_request(ctx, agent.id, body),
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
+            suite=checked.suite,
         )
         await authoring_repo.update_batch(
             self.db,
