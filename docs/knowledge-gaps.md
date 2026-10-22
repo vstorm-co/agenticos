@@ -63,7 +63,7 @@ decides one of four things:
 |---|---|
 | The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information. A fair question the agent turned down because it had nothing on it is this, not a refusal |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
-| Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too |
+| Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too, in every knowledge base the run searched: a refusal is about the request, not about one knowledge base |
 | No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
@@ -199,9 +199,8 @@ knowledge base, a question must be one of the topic's, a context file one you
 may read - and one that is not is left out, never shown, and counted on the
 draft. At most 12 sources are kept. A source deleted later is no longer shown.
 
-A topic is drafted without a person asking - by an automated improvement, for
-example - only once at least two different people asked about it, so one
-person's questions alone never decide what everybody is told.
+Change a draft in the editor and it is your content: its run and its sources
+are no longer shown, since what the model cited no longer speaks for it.
 
 A draft is a model run like any other. It is refused while the organization
 has [AI assistance](governance.md#ai-assistance) switched off, which it is
@@ -263,7 +262,8 @@ any such number or code it repeats from the topic's questions, answers or
 comments, unless a context file of the topic's agents states it too. What is
 found is shown in the topic, and adding waits until you confirm it. The audit
 entry records how much was flagged and that it was confirmed, not what. The
-document stays when the topic or the person who added it is deleted.
+document stays when the topic, the person who added it or a person whose
+question shaped it is deleted: a person checked and confirmed what it says.
 
 A question read from an answer is kept the same way as a search: it holds the
 person's question and goes with its run and its conversation. Checking answers

@@ -1,5 +1,5 @@
 ---
-source_sha: "e84db70caef9"
+source_sha: "032462f776bb"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -65,7 +65,7 @@ możliwości:
 |---|---|
 | Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji. Uzasadnione pytanie, którego agent nie podjął, bo nie miał na ten temat nic, należy tutaj, a nie do odmów |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
-| Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki |
+| Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki, w każdej bazie wiedzy, którą run przeszukał: odmowa dotyczy prośby, a nie jednej bazy wiedzy |
 | Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
@@ -202,9 +202,8 @@ takim, który możesz czytać - a to, które nie przejdzie, jest pomijane, nigdy
 pokazywane, i liczone przy szkicu. Zachowywanych jest najwyżej 12 źródeł.
 Źródło usunięte później przestaje być pokazywane.
 
-Temat jest szkicowany bez prośby człowieka - na przykład przez automatyczne
-ulepszanie - dopiero wtedy, gdy zapytały o niego co najmniej dwie różne osoby,
-więc pytania jednej osoby nigdy same nie decydują o tym, co usłyszą wszyscy.
+Zmieniony w edytorze szkic staje się twoją treścią: jego run i źródła przestają
+być pokazywane, bo to, na co powołał się model, już za nim nie przemawia.
 
 Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
 [asystenta AI](governance.md#ai-assistance), a jest on wyłączony, dopóki nie
@@ -269,7 +268,8 @@ każdej takiej liczby albo kodu, które powtarza z pytań, odpowiedzi albo
 komentarzy tematu, chyba że podaje je też plik kontekstowy agentów tematu. To,
 co zostanie znalezione, jest pokazywane w temacie, a dodanie czeka, aż to
 potwierdzisz. Wpis audytu zapisuje, ile oznaczono i że to potwierdzono, ale nie
-co. Dokument zostaje, gdy temat albo osoba, która go dodała, zostanie usunięta.
+co. Dokument zostaje, gdy zostanie usunięty temat, osoba, która go dodała, albo
+osoba, której pytanie go ukształtowało: ktoś sprawdził i potwierdził jego treść.
 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
 zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie

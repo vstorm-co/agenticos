@@ -1,5 +1,5 @@
 ---
-source_sha: "e84db70caef9"
+source_sha: "032462f776bb"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -68,7 +68,7 @@ haben, und entscheidet eines von vier Dingen:
 |---|---|
 | Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand. Eine berechtigte Frage, die der Agent abgelehnt hat, weil er nichts dazu hatte, gehört hierher, nicht zu den Ablehnungen |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
-| Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken |
+| Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken, in jeder Wissensdatenbank, die der Run durchsucht hat: Eine Ablehnung betrifft die Anfrage, nicht eine Wissensdatenbank |
 | Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
@@ -215,10 +215,9 @@ Kontextdatei muss eine sein, die du lesen darfst - und eine, die das nicht tut,
 wird weggelassen, nie angezeigt und beim Entwurf gezählt. Höchstens 12 Quellen
 werden behalten. Eine später gelöschte Quelle wird nicht mehr angezeigt.
 
-Ohne dass ein Mensch darum bittet - etwa durch eine automatische Verbesserung -
-wird ein Thema erst entworfen, wenn mindestens zwei verschiedene Personen danach
-gefragt haben, damit die Fragen einer einzelnen Person nie allein entscheiden,
-was alle zu hören bekommen.
+Änderst du einen Entwurf im Editor, ist er dein Inhalt: Sein Run und seine
+Quellen werden nicht mehr gezeigt, weil das, worauf sich das Modell berief, nicht
+mehr für ihn spricht.
 
 Ein Entwurf ist ein Modell-Run wie jeder andere. Er wird verweigert, solange die
 Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
@@ -287,9 +286,12 @@ Hinzufügen auf personenbezogene Daten geprüft und auf jede solche Zahl und
 jeden solchen Code, den er aus den Fragen, Antworten oder Kommentaren des
 Themas wiederholt, es sei denn, eine Kontextdatei der Agents des Themas nennt
 ihn ebenfalls. Was gefunden wird, steht im Thema, und das Hinzufügen wartet,
-bis du es bestätigst. Der Audit-Eintrag hält fest, wie viel markiert wurde und
-dass es bestätigt wurde, nicht was. Das Dokument bleibt, wenn das Thema oder
-die Person, die es hinzugefügt hat, gelöscht wird.
+bis du es bestätigst.
+
+Der Audit-Eintrag hält fest, wie viel markiert wurde und
+dass es bestätigt wurde, nicht was. Das Dokument bleibt, wenn das Thema, die
+Person, die es hinzugefügt hat, oder eine Person, deren Frage es geprägt hat,
+gelöscht wird: Jemand hat geprüft und bestätigt, was es sagt.
 
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
 die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen

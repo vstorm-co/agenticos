@@ -1,5 +1,5 @@
 ---
-source_sha: "e84db70caef9"
+source_sha: "032462f776bb"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -69,7 +69,7 @@ negativamente, y decide una de cuatro cosas:
 |---|---|
 | El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información. Una pregunta legítima que el agent rechazó porque no tenía nada sobre ella entra aquí, no entre los rechazos |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
-| Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas |
+| Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas, en cada base de conocimiento que el run buscó: un rechazo trata de la petición, no de una base de conocimiento |
 | Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
@@ -217,10 +217,8 @@ tema, un archivo de contexto debe ser uno que puedes leer - y la que no pasa se
 omite, nunca se muestra, y se cuenta en el borrador. Se guardan como mucho 12
 fuentes. Una fuente borrada después deja de mostrarse.
 
-Un tema se redacta sin que una persona lo pida - por una mejora automática, por
-ejemplo - solo cuando al menos dos personas distintas han preguntado por él,
-así que las preguntas de una sola persona nunca deciden por sí solas lo que se
-dice a todos.
+Si cambias un borrador en el editor, pasa a ser tu contenido: su run y sus
+fuentes dejan de mostrarse, porque lo que citó el modelo ya no habla por él.
 
 Un borrador es un run de modelo como cualquier otro. Se deniega mientras la
 organización tiene la [asistencia de IA](governance.md#ai-assistance)
@@ -288,9 +286,12 @@ revisa el contenido en busca de datos personales y de cualquier número o
 código de ese tipo que repita de las preguntas, respuestas o comentarios del
 tema, salvo que un archivo de contexto de los agents del tema también lo
 indique. Lo que se encuentra se muestra en el tema, y la adición espera hasta
-que lo confirmes. La entrada de auditoría registra cuánto se marcó y que se
-confirmó, no qué. El documento se queda cuando se borra el tema o la persona
-que lo añadió.
+que lo confirmes.
+
+La entrada de auditoría registra cuánto se marcó y que se
+confirmó, no qué. El documento se queda cuando se borra el tema, la persona que
+lo añadió o una persona cuya pregunta le dio forma: alguien revisó y confirmó lo
+que dice.
 
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
 la pregunta de la persona y se va con su run y su conversación. Revisar
