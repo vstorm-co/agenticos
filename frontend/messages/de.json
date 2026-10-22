@@ -9470,7 +9470,8 @@
         "supports": "Von den Belegen gestützt",
         "risk": "Ein Risiko",
         "removed": "Etwas entfernt, auf das sich die Belege stützten"
-      }
+      },
+      "about": "Betrifft: {line}"
     },
     "improve": {
       "improve": {
@@ -9557,7 +9558,8 @@
       "kind": {
         "instructions": "Anweisungen",
         "tool_override": "Tool",
-        "spec_field": "Einstellung"
+        "spec_field": "Einstellung",
+        "finding": "Befund"
       },
       "reason": {
         "unanchored": "Die Stelle, die sie ändert, steht nicht in den Anweisungen",
@@ -9573,8 +9575,11 @@
         "invalid_config": "Ihre Einstellungen sind ungültig",
         "does_not_apply": "Sie passt nicht zum Draft",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
-        "dismissed_before": "Jemand hat sie schon verworfen"
-      }
+        "dismissed_before": "Jemand hat sie schon verworfen",
+        "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
+        "edit_not_in_diff": "Die Zeile, die er nennt, gehört nicht zur Änderung"
+      },
+      "about": "Betrifft: {line}"
     }
   },
   "promotionGate": {

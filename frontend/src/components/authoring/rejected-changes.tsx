@@ -43,6 +43,18 @@ export function RejectedChanges({ report }: { report: AuthoringRequest["report"]
 function Proposed({ item }: { item: RejectedChange }) {
   const t = useTranslations("authoring.rejected");
   const { change } = item;
+  if (item.kind === "finding") {
+    return (
+      <div className="text-muted-foreground space-y-1 text-xs">
+        <p>{change.text}</p>
+        {change.edit && (
+          <p className="font-mono break-words whitespace-pre-wrap">
+            {t("about", { line: change.edit })}
+          </p>
+        )}
+      </div>
+    );
+  }
   const subject =
     item.kind === "tool_override"
       ? `${change.capability_id} / ${change.tool_id}`

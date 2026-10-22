@@ -9364,7 +9364,8 @@
         "supports": "Potwierdzone dowodami",
         "risk": "Ryzyko",
         "removed": "Usunięto coś, na czym opierały się dowody"
-      }
+      },
+      "about": "Dotyczy: {line}"
     },
     "improve": {
       "improve": {
@@ -9451,7 +9452,8 @@
       "kind": {
         "instructions": "Instrukcje",
         "tool_override": "Narzędzie",
-        "spec_field": "Ustawienie"
+        "spec_field": "Ustawienie",
+        "finding": "Ustalenie"
       },
       "reason": {
         "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
@@ -9467,8 +9469,11 @@
         "invalid_config": "Jej ustawienia są niepoprawne",
         "does_not_apply": "Nie pasuje do draftu",
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
-        "dismissed_before": "Ktoś już ją wcześniej odrzucił"
-      }
+        "dismissed_before": "Ktoś już ją wcześniej odrzucił",
+        "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
+        "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji"
+      },
+      "about": "Dotyczy: {line}"
     }
   },
   "promotionGate": {
