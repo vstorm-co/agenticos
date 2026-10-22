@@ -18,10 +18,10 @@ from app.core.exceptions import (
 )
 from app.db.models.organization import Organization, OrgRole
 from app.schemas.deployment_settings import DeploymentLimits
-from app.schemas.organization import OrganizationCreate, OrganizationUpdate
+from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
 from app.schemas.user import UserCreate
 from app.services.deployment_settings import DeploymentSettingsService, NewAccountPlacement
-from app.services.organization import OrganizationService
+from app.services.organization import OrganizationService, _org_read
 from app.services.proactive import ProactiveService
 from app.services.user import UserService
 
@@ -57,6 +57,9 @@ def _org_row(*, name: str) -> Organization:
         proactive_days=[1, 2, 3, 4, 5],
         proactive_hour=5,
         proactive_timing="fixed",
+        proactive_watches_enabled=True,
+        proactive_watch_servers=["github"],
+        proactive_watch_min_minutes=30,
         welcome_dm_enabled=False,
         dictation_max_seconds=300,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
@@ -1584,3 +1587,18 @@ class TestWhereARequestNamingNoOrganizationLands:
         header must not quietly act in one of them."""
         with self._patches(memberships=[_org_row(name="A"), _org_row(name="B")]):
             assert await service.fallback_for(uuid.uuid4()) is None
+
+
+def test_every_setting_the_row_holds_reaches_the_response():
+    """The response is built field by field, so a column added to both the row and
+    the schema but not to the builder reads as its default forever - watches were
+    switched on in the database and off in every console (#2301)."""
+    row = _org_row(name="Acme")
+    read = _org_read(row, member_count=1, role="owner", is_default=False)
+    columns = set(Organization.__table__.columns.keys())
+    shared = [name for name in OrganizationRead.model_fields if name in columns]
+
+    assert shared
+    assert {name: getattr(read, name) for name in shared} == {
+        name: getattr(row, name) for name in shared
+    }
