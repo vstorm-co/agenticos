@@ -267,6 +267,36 @@ class TestRounds:
         assert request.improvement_run_id is None
 
 
+class TestPins:
+    async def test_a_pin_outlives_the_dataset_and_suite_it_names(self, db: AsyncSession):
+        """Deleting what a session is pinned to must not erase the pin, or nothing goes stale."""
+        org, user, agent, dataset = await _world(db)
+        run = await _session(db, org, agent, user, dataset)
+        suite_id = uuid.uuid4()
+        await improvement_repo.update_run(db, run=run, values={"suite_id": suite_id})
+
+        await db.delete(dataset)
+        await db.flush()
+        await db.refresh(run)
+
+        assert run.dataset_id == dataset.id
+        assert run.suite_id == suite_id
+
+    async def test_deleting_the_agent_takes_its_sessions(self, db: AsyncSession):
+        org, user, agent, dataset = await _world(db)
+        run = await _session(db, org, agent, user, dataset)
+        await improvement_repo.create_iteration(db, organization_id=org.id, run_id=run.id, number=1)
+
+        await db.delete(agent)
+        await db.flush()
+        db.expunge_all()
+
+        assert await improvement_repo.get_run(db, run.id, organization_id=org.id) is None
+        assert (
+            await improvement_repo.list_iterations(db, organization_id=org.id, run_id=run.id) == []
+        )
+
+
 class TestCandidateBatch:
     async def test_a_candidate_sits_beside_the_open_batch(self, db: AsyncSession):
         org, user, agent, dataset = await _world(db)
@@ -343,24 +373,54 @@ class TestOrganizations:
         assert locked.id == newer.id
         assert [r.id for r in listed] == [newer.id, older.id]
 
-    async def test_the_sweep_sees_open_sessions_in_every_organization(self, db: AsyncSession):
+    async def test_the_sweep_sees_moving_sessions_in_every_organization(self, db: AsyncSession):
         org, user, agent, dataset = await _world(db)
         other_org, other_user, other_agent, other_dataset = await _world(db)
         queued = await _session(db, org, agent, user, dataset)
-        ready = await _session(db, other_org, other_agent, other_user, other_dataset)
+        running = await _session(db, other_org, other_agent, other_user, other_dataset)
+        await improvement_repo.update_run(
+            db, run=running, values={"status": ImprovementStatus.RUNNING.value}
+        )
+        ready = await _session(db, org, await _agent(db, org, user), user, dataset)
         await improvement_repo.update_run(
             db, run=ready, values={"status": ImprovementStatus.READY.value}
         )
-        done = await _session(db, other_org, other_agent, other_user, other_dataset)
-        await improvement_repo.update_run(
-            db, run=done, values={"status": ImprovementStatus.PUBLISHED.value}
-        )
 
-        found = await improvement_repo.list_open(db)
+        found = await improvement_repo.list_active(db)
 
         assert (queued.id, org.id) in found
-        assert (ready.id, other_org.id) in found
-        assert (done.id, other_org.id) not in found
+        assert (running.id, other_org.id) in found
+        assert (ready.id, org.id) not in found
+
+    async def test_the_sweep_pages_through_waiting_sessions(self, db: AsyncSession):
+        """A waiting session never changes on its own, so a fixed first page would starve the rest."""
+        org, user, _, dataset = await _world(db)
+        waiting = []
+        for status in (
+            ImprovementStatus.READY,
+            ImprovementStatus.ACCEPTED,
+            ImprovementStatus.READY,
+        ):
+            run = await _session(db, org, await _agent(db, org, user), user, dataset)
+            await improvement_repo.update_run(db, run=run, values={"status": status.value})
+            waiting.append(run.id)
+        finished = await _session(db, org, await _agent(db, org, user), user, dataset)
+        await improvement_repo.update_run(
+            db, run=finished, values={"status": ImprovementStatus.PUBLISHED.value}
+        )
+        mine = set(waiting)
+
+        pages: list[uuid.UUID] = []
+        after = None
+        while True:
+            page = await improvement_repo.list_waiting(db, after=after, limit=1)
+            if not page:
+                break
+            pages.extend(run_id for run_id, _ in page)
+            after = page[-1][0]
+
+        assert [run_id for run_id in pages if run_id in mine] == sorted(waiting)
+        assert finished.id not in pages
 
 
 async def test_rows_describe_themselves(db: AsyncSession):

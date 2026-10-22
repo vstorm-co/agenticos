@@ -3,9 +3,11 @@
 A session runs Improve, the policy filter and a paired check in the background
 and stops at a checked proposal, so its state has to outlive the request and
 the worker: `improvement_runs` holds where it is and what it is pinned to, and
-`improvement_iterations` holds each round's children and verdict. At most one
-session per agent is queued or running, enforced by a partial unique index so
-two concurrent starts cannot both get in.
+`improvement_iterations` holds each round's children and verdict. The base
+version, dataset and suite a session is pinned to are kept without foreign keys,
+so deleting one leaves the pin behind and the session goes stale instead of
+losing its bar. At most one session per agent is queued or running, enforced by
+a partial unique index so two concurrent starts cannot both get in.
 
 The authoring tables learn which session a request or a batch belongs to, and a
 batch gets the status `candidate`: the session's proposal lives beside a
@@ -61,7 +63,7 @@ def upgrade() -> None:
         sa.Column("max_iterations", sa.Integer(), nullable=False),
         sa.Column("base_version_id", _uuid(), nullable=True),
         sa.Column("base_draft_hash", sa.String(length=64), nullable=False),
-        sa.Column("dataset_id", _uuid(), nullable=True),
+        sa.Column("dataset_id", _uuid(), nullable=False),
         sa.Column("dataset_version", sa.Integer(), nullable=False),
         sa.Column("suite_id", _uuid(), nullable=True),
         sa.Column("scoring_hash", sa.String(length=64), nullable=False),
@@ -122,24 +124,6 @@ def upgrade() -> None:
             name=op.f("improvement_runs_created_by_api_key_id_fkey"),
             ondelete="SET NULL",
         ),
-        sa.ForeignKeyConstraint(
-            ["base_version_id"],
-            ["agent_versions.id"],
-            name=op.f("improvement_runs_base_version_id_fkey"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["dataset_id"],
-            ["datasets.id"],
-            name=op.f("improvement_runs_dataset_id_fkey"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["suite_id"],
-            ["eval_suites.id"],
-            name=op.f("improvement_runs_suite_id_fkey"),
-            ondelete="SET NULL",
-        ),
         sa.PrimaryKeyConstraint("id", name=op.f("improvement_runs_pkey")),
     )
     op.create_index(
@@ -161,7 +145,7 @@ def upgrade() -> None:
         "ix_improvement_runs_open",
         "improvement_runs",
         ["status"],
-        postgresql_where=sa.text("status IN ('queued', 'running', 'ready')"),
+        postgresql_where=sa.text("status IN ('queued', 'running', 'ready', 'accepted')"),
     )
 
     op.create_table(

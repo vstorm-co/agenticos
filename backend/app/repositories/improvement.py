@@ -7,10 +7,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.improvement import ImprovementIteration, ImprovementRun, ImprovementStatus
+from app.db.models.improvement import (
+    ACTIVE_STATUSES,
+    WAITING_STATUSES,
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementStatus,
+)
 
-_ACTIVE = (ImprovementStatus.QUEUED.value, ImprovementStatus.RUNNING.value)
-_OPEN = (*_ACTIVE, ImprovementStatus.READY.value)
+_ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
+_WAITING = tuple(status.value for status in WAITING_STATUSES)
 
 
 async def create_run(
@@ -109,18 +115,39 @@ async def list_for_agent(
     return list(result.scalars().all())
 
 
-async def list_open(db: AsyncSession, *, limit: int = 200) -> list[tuple[UUID, UUID]]:
-    """`(run id, organization id)` of sessions the sweep looks at, across organizations.
+async def list_active(db: AsyncSession, *, limit: int = 200) -> list[tuple[UUID, UUID]]:
+    """`(run id, organization id)` of queued and running sessions, least recently beaten first.
 
-    The sweep runs as nobody, so it only learns which sessions to advance; each
-    transition then reads its session under the session's own organization.
+    Unscoped, for the deployment's sweep, which runs as nobody: it only learns
+    which sessions to advance, and each transition then reads its session under
+    the session's own organization. Every transition beats, so a long queue
+    rotates through the limit.
     """
     result = await db.execute(
         select(ImprovementRun.id, ImprovementRun.organization_id)
-        .where(ImprovementRun.status.in_(_OPEN))
-        .order_by(ImprovementRun.heartbeat_at.asc().nulls_first())
+        .where(ImprovementRun.status.in_(_ACTIVE))
+        .order_by(ImprovementRun.heartbeat_at.asc().nulls_first(), ImprovementRun.id)
         .limit(limit)
     )
+    return [(row.id, row.organization_id) for row in result.all()]
+
+
+async def list_waiting(
+    db: AsyncSession, *, after: UUID | None = None, limit: int = 200
+) -> list[tuple[UUID, UUID]]:
+    """`(run id, organization id)` of sessions waiting for a person, a page at a time by id.
+
+    Unscoped, for the deployment's sweep, which settles a waiting session once
+    its batch is published or replaced. A waiting session does not change on its
+    own, so the sweep pages past `after` rather than reading the same first page
+    on every tick.
+    """
+    statement = select(ImprovementRun.id, ImprovementRun.organization_id).where(
+        ImprovementRun.status.in_(_WAITING)
+    )
+    if after is not None:
+        statement = statement.where(ImprovementRun.id > after)
+    result = await db.execute(statement.order_by(ImprovementRun.id).limit(limit))
     return [(row.id, row.organization_id) for row in result.all()]
 
 

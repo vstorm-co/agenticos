@@ -16,10 +16,11 @@ person accepts and publishes; the draft, versions and environments are untouched
 """
 
 import uuid
+from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import TypedDict
 
 from sqlalchemy import (
     CheckConstraint,
@@ -42,6 +43,8 @@ from app.db.base import Base
 
 
 class ImprovementStatus(StrEnum):
+    """Where a session is: moving on its own, waiting for a person, or over."""
+
     QUEUED = "queued"
     RUNNING = "running"
     READY = "ready"
@@ -67,8 +70,13 @@ class ImprovementStatus(StrEnum):
         return self in {ImprovementStatus.QUEUED, ImprovementStatus.RUNNING}
 
     @property
+    def waiting(self) -> bool:
+        """Waiting for a person: to decide on the candidate, or to publish what was accepted."""
+        return self in {ImprovementStatus.READY, ImprovementStatus.ACCEPTED}
+
+    @property
     def terminal(self) -> bool:
-        return not self.active and self is not ImprovementStatus.READY
+        return not self.active and not self.waiting
 
 
 class ImprovementStage(StrEnum):
@@ -82,6 +90,8 @@ class ImprovementStage(StrEnum):
 
 
 class StopReason(StrEnum):
+    """Why a session ended where it did."""
+
     NO_DATA = "no_data"
     NO_PROPOSAL = "no_proposal"
     BUDGET = "budget"
@@ -102,14 +112,39 @@ class StopReason(StrEnum):
 
 
 class ImprovementVerdict(StrEnum):
+    """How a round's candidate compared with the base on the pinned dataset."""
+
     BETTER = "better"
     NO_CHANGE = "no_change"
     REGRESSION = "regression"
     INCONCLUSIVE = "inconclusive"
 
 
-def _values(enum: type[StrEnum]) -> str:
-    return ", ".join(f"'{member.value}'" for member in enum)
+def _values(members: Iterable[StrEnum]) -> str:
+    return ", ".join(f"'{member.value}'" for member in members)
+
+
+ACTIVE_STATUSES = tuple(status for status in ImprovementStatus if status.active)
+WAITING_STATUSES = tuple(status for status in ImprovementStatus if status.waiting)
+
+
+class DroppedHunk(TypedDict):
+    """A hunk the policy left out of a round's candidate, and why."""
+
+    hunk_id: str
+    reason: str
+
+
+class VerdictDetail(TypedDict, total=False):
+    """The counts behind a round's verdict - never a question's or an answer's text."""
+
+    fixed: int
+    broken: int
+    incomplete: int
+    ungraded: int
+    candidate_pass_rate: float | None
+    baseline_pass_rate: float | None
+    suite: str | None
 
 
 class ImprovementRun(Base):
@@ -132,8 +167,6 @@ class ImprovementRun(Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    # A key-started session acts as that key on every step, so its scopes keep
-    # applying while the person who minted it is away.
     created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True
     )
@@ -143,19 +176,13 @@ class ImprovementRun(Base):
     stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    # Pinned at start: a change to the base, the dataset or its grading makes the
-    # session stale rather than quietly measuring something else.
-    base_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="SET NULL"), nullable=True
-    )
+    # Pinned at start and kept without a foreign key, so deleting the version, the
+    # dataset or the suite leaves the pin to compare with and the session goes stale.
+    base_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    dataset_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
-    )
+    dataset_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    suite_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("eval_suites.id", ondelete="SET NULL"), nullable=True
-    )
+    suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
@@ -203,13 +230,13 @@ class ImprovementRun(Base):
             "uq_improvement_runs_active",
             "agent_id",
             unique=True,
-            postgresql_where=text("status IN ('queued', 'running')"),
+            postgresql_where=text(f"status IN ({_values(ACTIVE_STATUSES)})"),
         ),
         Index("ix_improvement_runs_agent", "organization_id", "agent_id", "created_at"),
         Index(
             "ix_improvement_runs_open",
             "status",
-            postgresql_where=text("status IN ('queued', 'running', 'ready')"),
+            postgresql_where=text(f"status IN ({_values(ACTIVE_STATUSES + WAITING_STATUSES)})"),
         ),
     )
 
@@ -254,8 +281,7 @@ class ImprovementIteration(Base):
     dropped_hunk_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
-    # Why each dropped hunk was dropped, as `{"hunk_id", "reason"}` objects.
-    dropped: Mapped[list[dict[str, Any]]] = mapped_column(
+    dropped: Mapped[list[DroppedHunk]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
     # Every eval run that checked this round's candidate, oldest first; the last
@@ -264,7 +290,7 @@ class ImprovementIteration(Base):
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    verdict_detail: Mapped[dict[str, Any] | None] = mapped_column(
+    verdict_detail: Mapped[VerdictDetail | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
