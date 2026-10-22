@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "3f83a5542375"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -164,6 +164,11 @@ Un run que no podría decirle nada a nadie se rechaza antes de estimarse:
   borrador en su lugar;
 - un baseline para una primera versión, que no tiene nada antes.
 
+Una versión en la que solo algunos casos no tienen nada que los califique se
+ejecuta igualmente, y la estimación los cuenta antes (`ungraded_cases`): el
+diálogo de inicio, un check de sugerencias y el diálogo de una suite dicen «1
+case has nothing to grade it. The result will be inconclusive.»
+
 ### Comprobar sugerencias { #checking-suggestions }
 
 El [asistente de autoría](authoring.md#check-with-evals) inicia eval runs para
@@ -251,11 +256,33 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 
 | Eje | Mide |
 |---|---|
-| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos no pudieron decidirse |
+| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué |
 | Eficiencia | Coste por caso aprobado, tokens por caso y latencia en p50 y p95 |
 
-Un caso cuyo evaluador obligatorio no pudo ejecutarse queda **sin decidir**,
-nunca aprobado. Uno en el que el juez falló o que omitió queda **sin
+Cada intento sale de una de cuatro maneras (`state` en el intento):
+
+- **aprobado** o **suspendido** según su calificación;
+- también **suspendido** cuando el agent se cayó - una herramienta lanzó una
+  excepción, su límite de pasos, un bucle, un guardrail, una petición que el
+  provider rechazó -, lo que cuenta contra la tasa de aprobados;
+- **incompleto** cuando el provider falló tras sus reintentos (un error 5xx,
+  408 o 429, o ninguna respuesta), un evaluador lanzó una excepción, el run se
+  canceló o se quedó sin budget, o sus intentos empataron;
+- **sin calificar** cuando nada califica la respuesta: no aplica ningún
+  evaluador obligatorio, o solo podría el juez y la asistencia de IA está
+  desactivada.
+
+Ninguno de los dos últimos es nunca un aprobado; el resumen los cuenta aparte
+(`incomplete`, `ungraded`).
+
+La cabecera de un run dice «Pass rate 67% · 1 of 3 cases undecided» y llama al
+resultado sin conclusión hasta que cada caso tenga veredicto. Un provider que
+rechaza las credenciales se nombra como tal, y un lado cuyas respuestas fallaron
+todas con el mismo error lo dice en lugar de un veredicto. Un caso en el que el
+agent se cayó donde el baseline aprobó es una regresión como cualquier otra,
+mostrada con su error.
+
+Una respuesta en la que el juez falló o que omitió queda **sin
 calificar**: el run lista esas puntuaciones como `ungraded_score_ids`, y
 volver a calificarlas (`POST /api/v1/datasets/{id}/scores/rescore`) lee la
 respuesta guardada en el intento en lugar de preguntar al agent. El veredicto
@@ -447,9 +474,15 @@ límites opcionales comprueban la eficiencia: la subida del coste por caso
 aprobado y de la latencia p95 frente al baseline; vacíos, no comprueban nada.
 
 Un resultado cuya comparación es
-[no válida](#a-different-judge-invalidates-the-comparison), o en el que no se
-pudo puntuar algún caso, queda **sin conclusión** - nunca aprobado - salvo que
-algo haya fallado claramente, y nombra los casos que nadie puntuó. Volver a
+[no válida](#a-different-judge-invalidates-the-comparison), o con algún caso
+incompleto o sin calificar, queda **sin conclusión** - nunca aprobado - salvo
+que algo haya fallado claramente: una regresión confirmada, o un mínimo que la
+tasa de aprobados no alcanza aunque aprobara cada caso sin decidir. Nombra los
+casos que quedaron sin decidir.
+
+Un caso en el que el agent se cayó no queda sin
+decidir: suspendió, así que catorce caídas y un aprobado suspenden un mínimo
+del 90 % con un 7 % aproximadamente. Volver a
 publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
 resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
 propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado

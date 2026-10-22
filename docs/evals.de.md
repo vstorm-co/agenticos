@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "3f83a5542375"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -175,6 +175,11 @@ wird:
   starte stattdessen seinen Draft;
 - eine Baseline für eine erste Version, vor der es nichts gibt.
 
+Eine Version, in der nur einige Fälle nichts haben, das sie bewertet, läuft
+trotzdem, und die Schätzung zählt sie vorher (`ungraded_cases`): der
+Startdialog, ein Check von Vorschlägen und der Dialog einer Suite sagen „1 case
+has nothing to grade it. The result will be inconclusive.“
+
 ### Vorschläge prüfen { #checking-suggestions }
 
 Der [Authoring-Assistent](authoring.md#check-with-evals) startet Eval Runs, um zu
@@ -268,12 +273,33 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 
 | Achse | Misst |
 |---|---|
-| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele nicht entschieden werden konnten |
+| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum |
 | Effizienz | Kosten pro bestandenem Fall, Tokens pro Fall und Latenz bei p50 und p95 |
 
-Ein Fall, dessen erforderlicher Bewerter nicht laufen konnte, ist
-**unentschieden**, nie bestanden. Einer, bei dem der Judge gescheitert ist oder
-den er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
+Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
+
+- **bestanden** oder **nicht bestanden** nach seiner Bewertung;
+- ebenfalls **nicht bestanden**, wenn der Agent abgestürzt ist - ein Werkzeug
+  hat eine Ausnahme geworfen, sein Schrittlimit, eine Schleife, eine Guardrail,
+  eine vom Provider abgelehnte Anfrage -, was gegen die Bestehensquote zählt;
+- **unvollständig**, wenn der Provider nach seinen Wiederholungen gescheitert
+  ist (ein Fehler 5xx, 408 oder 429 oder gar keine Antwort), ein Bewerter eine
+  Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder
+  seine Versuche unentschieden ausgingen;
+- **nicht bewertet**, wenn nichts die Antwort bewertet - kein erforderlicher
+  Bewerter passt, oder nur der Judge könnte es und die KI-Unterstützung ist aus.
+
+Keiner der letzten beiden ist je bestanden; die Zusammenfassung zählt sie
+getrennt (`incomplete`, `ungraded`).
+
+Der Kopf eines Runs sagt „Pass rate 67% · 1 of 3 cases undecided“ und nennt das
+Ergebnis unentschieden, bis jeder Fall ein Urteil hat. Ein Provider, der die
+Zugangsdaten ablehnt, wird als solcher genannt, und eine Seite, deren Antworten
+alle mit demselben Fehler gescheitert sind, sagt das statt eines Urteils. Ein
+Fall, an dem der Agent abgestürzt ist, wo die Baseline bestand, ist eine
+Regression wie jede andere, gezeigt mit ihrem Fehler.
+
+Eine Antwort, bei der der Judge gescheitert ist oder die er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
 Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
 Antwort, statt den Agent zu fragen. Das Urteil einer Person in der
@@ -471,9 +497,14 @@ nichts.
 
 Ein Ergebnis, dessen Vergleich
 [ungültig](#a-different-judge-invalidates-the-comparison) ist oder in dem auch
-nur ein Fall nicht bewertet werden konnte, ist **ohne Ergebnis** - nie
-bestanden -, es sei denn, etwas ist klar durchgefallen, und es nennt die Fälle,
-die niemand bewertet hat. Den Judge neu zu veröffentlichen ändert, wie Antworten
+nur ein Fall unvollständig oder nicht bewertet blieb, ist **ohne Ergebnis** - nie
+bestanden -, es sei denn, etwas ist klar durchgefallen: eine bestätigte
+Regression oder ein Minimum, das die Bestehensquote verfehlt, selbst wenn jeder
+unentschiedene Fall bestünde. Es nennt die Fälle, die unentschieden blieben.
+
+Ein Fall, an dem der Agent abgestürzt ist, ist nicht unentschieden: Er ist
+nicht bestanden, daher fallen vierzehn Abstürze und ein Bestehen bei einem
+Minimum von 90 % mit etwa 7 % durch. Den Judge neu zu veröffentlichen ändert, wie Antworten
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
 einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
 Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich

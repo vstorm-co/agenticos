@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "3f83a5542375"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -166,6 +166,11 @@ oszacowany:
   zamiast tego jego draft;
 - baseline dla pierwszej wersji, przed którą nic nie ma.
 
+Wersja, w której tylko część przypadków nie ma czym ich ocenić, nadal się
+uruchamia, a estymata najpierw je liczy (`ungraded_cases`): okno startu, check
+sugestii i okno suity mówią „1 case has nothing to grade it. The result will be
+inconclusive.”
+
 ### Sprawdzanie sugestii { #checking-suggestions }
 
 [Asystent tworzenia](authoring.md#check-with-evals) uruchamia eval runy, żeby
@@ -252,12 +257,32 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile nie dało się rozstrzygnąć |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
-Przypadek, którego wymagany oceniający nie mógł zadziałać, jest
-**nierozstrzygnięty**, nigdy zaliczony. Taki, którego sędzia nie zdołał ocenić
-albo który pominął, jest **nieoceniony**: run wymienia te oceny jako
+Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
+
+- **zaliczona** albo **niezaliczona** według oceny;
+- również **niezaliczona**, gdy agent się wysypał - narzędzie rzuciło wyjątek,
+  przekroczył limit kroków, zapętlił się, zatrzymał go guardrail, provider
+  odrzucił żądanie - i to liczy się przeciw odsetkowi zaliczonych;
+- **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
+  albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
+  się budżet, albo próby wyszły na remis;
+- **nieoceniona**, gdy nic nie ocenia odpowiedzi - nie pasuje żaden wymagany
+  oceniający albo mógłby tylko sędzia, a wsparcie AI jest wyłączone.
+
+Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je
+osobno (`incomplete`, `ungraded`).
+
+Nagłówek runu mówi „Pass rate 67% · 1 of 3 cases undecided” i nazywa wynik
+nierozstrzygniętym, dopóki każdy przypadek nie ma werdyktu. Provider, który
+odrzuca dane uwierzytelniające, jest nazwany wprost, a strona, której każda
+odpowiedź skończyła się tym samym błędem, mówi to zamiast werdyktu. Przypadek,
+na którym agent się wysypał, a baseline przeszedł, jest regresją jak każda inna,
+pokazaną z jej błędem.
+
+Odpowiedź, której sędzia nie zdołał ocenić albo którą pominął, jest **nieoceniona**: run wymienia te oceny jako
 `ungraded_score_ids`, a ponowne ocenienie
 (`POST /api/v1/datasets/{id}/scores/rescore`) czyta odpowiedź zachowaną w
 próbie, zamiast pytać agenta. Werdykt osoby w
@@ -448,10 +473,14 @@ zaliczony przypadek i opóźnienia p95 względem baseline'u; puste niczego nie
 sprawdzają.
 
 Wynik, którego porównanie jest
-[nieważne](#a-different-judge-invalidates-the-comparison) albo w którym nie
-udało się ocenić choćby jednego przypadku, jest **bez rozstrzygnięcia** -
-nigdy zaliczony - chyba że coś wprost nie przeszło, i podaje przypadki, których
-nikt nie ocenił. Ponowna publikacja sędziego zmienia sposób oceniania, więc
+[nieważne](#a-different-judge-invalidates-the-comparison) albo w którym choć
+jeden przypadek został niekompletny lub nieoceniony, jest **bez rozstrzygnięcia** -
+nigdy zaliczony - chyba że coś wprost nie przeszło: potwierdzona regresja albo
+minimum, którego odsetek zaliczonych nie osiągnie, nawet gdyby każdy
+nierozstrzygnięty przypadek przeszedł. Podaje przypadki, które zostały
+nierozstrzygnięte. Przypadek, na którym agent się wysypał, nie jest
+nierozstrzygnięty: nie przeszedł, więc czternaście awarii i jedno zaliczenie
+oblewają minimum 90% przy około 7%. Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
 właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
 wynik niezależnie od porównania: minimum nie potrzebuje baseline'u.
