@@ -25,6 +25,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -341,6 +342,23 @@ async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -
     assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
 
 
+async def test_the_estimate_counts_the_cases_nothing_would_grade(db) -> None:
+    """A reference answer with nothing comparing answers with it grades nothing."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    await DatasetService(db).add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Name one primary colour.", reference_answer="Red."),
+    )
+    service = EvalRunService(db)
+
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert (estimate.cases, estimate.ungraded_cases) == (3, 1)
+
+
 async def test_a_run_on_an_older_version_asks_exactly_what_it_held(db) -> None:
     """Edits after a version leave what a run started on it is asked unchanged."""
     ctx = await _owner(db)
@@ -442,6 +460,37 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
         await service.cases(ctx, v7.id, arm_id=uuid.uuid4(), outcome="failed")
     assert [case.input for case in failed.items] == ["Question 0"]
     assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2]
+
+
+async def test_a_case_the_agent_crashes_on_where_it_passed_is_a_regression_naming_why(
+    db,
+) -> None:
+    """A crash has no answer to grade, so it is not sent to review - it is shown with its error."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+    model.raises = lambda call: (
+        RuntimeError("the lookup tool exploded")
+        if model.calls[call]["prompt"] == "Question 0"
+        else None
+    )
+
+    await _run_to_end(db, model, v7.id, ctx)
+
+    comparison = await service.compare(ctx, v7.id)
+    [regression] = [case for case in comparison.cases if case.flip == "regression"]
+    assert (regression.confirmed, regression.candidate_reruns) == (True, [False, False])
+    assert regression.candidate_error is not None
+    assert "RuntimeError" in regression.candidate_error
+    assert comparison.verdict == "worse"
+    run = await db.get(EvalRun, v7.id)
+    assert run is not None
+    assert await service.review_worthy(ctx, run) == []
 
 
 async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
@@ -699,32 +748,66 @@ async def test_every_call_is_kept_and_a_held_write_counts_as_blocked(db) -> None
     assert seen[0]["eval_run_id"] == started.id
 
 
-async def test_a_case_that_breaks_is_kept_as_failed_and_the_run_goes_on(db) -> None:
+async def test_a_crash_of_the_agent_fails_its_case_and_one_of_the_provider_leaves_it_open(
+    db,
+) -> None:
+    """A tool that raised and a run that ended failed count against the pass rate; a
+    provider that answered 503 or nothing at all leaves the case incomplete."""
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx, cases=3)
+    dataset = await _dataset(db, ctx, cases=5)
     service = EvalRunService(db)
     started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    raised: dict[int, Exception] = {
+        0: RuntimeError("the lookup tool exploded"),
+        1: ModelHTTPError(503, "gpt-test"),
+        3: ModelAPIError("gpt-test", "Connection timed out"),
+    }
     model = Model(
         db,
-        raises=lambda call: RuntimeError("provider exploded") if call == 0 else None,
-        status=lambda call: "failed" if call == 1 else "completed",
+        raises=lambda call: raised.get(call),
+        status=lambda call: "loop_stopped" if call == 2 else "completed",
     )
 
     await _run_to_end(db, model, started.id, ctx)
 
     read = await service.get(ctx, started.id)
-    statuses = [
-        attempt.status
-        for case in (await service.cases(ctx, started.id)).items
-        for attempt in case.attempts
-    ]
+    attempts = [case.attempts[0] for case in (await service.cases(ctx, started.id)).items]
     assert read.status == "completed"
-    assert statuses == ["failed", "failed", "done"]
-    assert read.arms[0].summary.incomplete == 2
+    assert [(a.status, a.state) for a in attempts] == [
+        ("failed", "failed"),
+        ("failed", "incomplete"),
+        ("failed", "failed"),
+        ("failed", "incomplete"),
+        ("done", "passed"),
+    ]
+    summary = read.arms[0].summary
+    assert (summary.passed, summary.failed, summary.incomplete, summary.ungraded) == (1, 2, 2, 0)
+    assert summary.pass_rate == pytest.approx(1 / 3)
+    assert read.outcome is not None and read.outcome.candidate_undecided == 2
+    assert read.arms[0].failed_alike is None
 
 
-async def test_a_case_nothing_scores_is_undecided_and_a_scoring_crash_is_a_failure(db) -> None:
+async def test_credentials_the_provider_rejects_on_every_case_are_named_once(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, raises=lambda call: ModelHTTPError(401, "gpt-test"))
+
+    await _run_to_end(db, model, started.id, ctx)
+
+    read = await service.get(ctx, started.id)
+    attempts = [case.attempts[0] for case in (await service.cases(ctx, started.id)).items]
+    assert {a.state for a in attempts} == {"failed"}
+    assert read.arms[0].failed_alike is not None
+    assert read.arms[0].failed_alike.startswith("The model provider rejected the credentials")
+
+
+async def test_a_case_nothing_scores_is_ungraded_and_a_scoring_crash_leaves_it_incomplete(
+    db,
+) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=2)
@@ -739,7 +822,12 @@ async def test_a_case_nothing_scores_is_undecided_and_a_scoring_crash_is_a_failu
         await _run_to_end(db, Model(db), started.id, ctx)
 
     attempts = [case.attempts[0] for case in (await service.cases(ctx, started.id)).items]
-    assert [(a.status, a.outcome) for a in attempts] == [("done", None), ("failed", None)]
+    assert [(a.status, a.outcome, a.state) for a in attempts] == [
+        ("done", None, "ungraded"),
+        ("failed", None, "incomplete"),
+    ]
+    summary = (await service.get(ctx, started.id)).arms[0].summary
+    assert (summary.incomplete, summary.ungraded, summary.pass_rate) == (1, 1, None)
     assert attempts[0].answer == _PASS
     assert attempts[0].error is not None
 

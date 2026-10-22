@@ -169,6 +169,15 @@ class TestSummarize:
         assert (summary.cases, summary.passed, summary.failed, summary.incomplete) == (3, 1, 1, 1)
         assert summary.pass_rate == summary.first_pass_rate == 0.5
 
+    def test_a_case_nothing_grades_is_counted_apart_from_an_incomplete_one(self):
+        summary = summarize([Attempt(True), Attempt(None, ungraded=True), Attempt(None)])
+        assert (summary.passed, summary.incomplete, summary.ungraded) == (1, 1, 1)
+        assert summary.pass_rate == 1.0
+
+    def test_a_tie_across_reruns_is_incomplete(self):
+        summary = summarize([Attempt(True, reruns=(False,))])
+        assert (summary.passed, summary.failed, summary.incomplete) == (0, 0, 1)
+
     def test_a_rerun_case_counts_as_it_settled_and_its_first_answer_aside(self):
         summary = summarize(
             [Attempt(False, reruns=(True, True)), Attempt(True), Attempt(None, reruns=())]

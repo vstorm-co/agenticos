@@ -151,8 +151,9 @@ _GATE_MESSAGES = {
         "these suggestions first, and accept it when the check shows no confirmed regression."
     ),
     "inconclusive": (
-        "The last check of this model decided nothing - some answers went ungraded or "
-        "there was no verdict. Grade them or run the check again before accepting."
+        "The last check of this model left cases undecided - nothing graded them, the "
+        "provider or a scorer failed on them, or there was no verdict. Grade them or run "
+        "the check again before accepting."
     ),
     "regression": (
         "The last check of this model broke cases it used to pass. Fix the suggestions "
@@ -601,9 +602,10 @@ class AuthoringService:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
         It pays off only once a check of the batch - one that ran this very model
-        and that the reader can see - came out with nothing graded left open, a
-        verdict, and no confirmed regression. `check_first` until there is one,
-        `inconclusive` when it decided nothing, `regression` when it broke cases.
+        and that the reader can see - came out with every case decided, a verdict
+        and no confirmed regression. `check_first`
+        until there is one, `inconclusive` when it left a case undecided or reached
+        no verdict, `regression` when it broke cases.
         """
         evals = EvalRunService(self.db)
         for run_id in reversed(batch.check_eval_run_ids):
@@ -620,7 +622,8 @@ class AuthoringService:
             ran = None if stored is None or stored.spec is None else stored.spec
             if ran is None or str(ran.get("model_profile_id")) != str(hunk.new_value):
                 continue
-            if candidate.ungraded_cases or run.outcome is None:
+            undecided = candidate.summary.incomplete + candidate.summary.ungraded
+            if undecided or run.outcome is None:
                 return "inconclusive"
             if run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed"):
                 return "regression"

@@ -69,6 +69,11 @@ def test_a_failure_names_why_and_the_first_cases() -> None:
         ),
         (ThresholdReason(code="p95_rise", value=1.0, limit=0.5), "p95 latency rose 100%"),
         (ThresholdReason(code="invalid_comparison"), "the comparison is invalid"),
+        (ThresholdReason(code="ungraded", value=2), "2 case(s) nothing grades"),
+        (
+            ThresholdReason(code="incomplete", value=1),
+            "1 case(s) the provider or a scorer failed on",
+        ),
     ],
 )
 def test_each_reason_is_said_in_words(reason: ThresholdReason, said: str) -> None:
@@ -78,22 +83,26 @@ def test_each_reason_is_said_in_words(reason: ThresholdReason, said: str) -> Non
     assert f": {said}." in _suite_summary(suite, result, agent=agent, summary=summary)
 
 
-def test_an_undecided_result_names_the_cases_nobody_graded() -> None:
+def test_an_undecided_result_names_the_cases_left_undecided() -> None:
     summary = EvalSuiteSummary(
         pass_rate=1.0,
         first_pass_rate=1.0,
         cases=4,
-        reasons=[ThresholdReason(code="ungraded", value=1)],
+        reasons=[
+            ThresholdReason(code="incomplete", value=1),
+            ThresholdReason(code="ungraded", value=1),
+        ],
         failing_cases=[
             FailingCase(case_id=uuid.uuid4(), input="Where is it?", kind="ungraded"),
+            FailingCase(case_id=uuid.uuid4(), input="Is it late?", kind="incomplete"),
             FailingCase(case_id=uuid.uuid4(), input="Can I return it?", kind="failed"),
         ],
     )
     suite, result, agent = _rows(status="inconclusive")
 
     assert _suite_summary(suite, result, agent=agent, summary=summary) == (
-        "Refunds could not decide on Clerk v7: 1 case(s) could not be graded. "
-        "Not graded: 'Where is it?'."
+        "Refunds could not decide on Clerk v7: 1 case(s) the provider or a scorer failed on; "
+        "1 case(s) nothing grades. Undecided: 'Where is it?', 'Is it late?'."
     )
 
 

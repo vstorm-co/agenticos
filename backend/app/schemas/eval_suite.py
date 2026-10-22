@@ -14,7 +14,7 @@ from app.schemas.base import BaseSchema
 from app.schemas.eval_run import EvalRunEstimate, OverallLiteral, VerdictLiteral
 from app.schemas.eval_threshold import EvalSuiteThreshold, ThresholdReason
 
-FailingKind = Literal["regression", "failed", "ungraded"]
+FailingKind = Literal["regression", "failed", "ungraded", "incomplete"]
 DependencyKind = Literal["skill", "knowledge_base"]
 
 
@@ -120,7 +120,8 @@ class FailingCase(BaseSchema):
     input: str = Field(description="The question the case asks, cut to a line")
     kind: FailingKind = Field(
         description="`regression`: passed on the baseline and fails reproducibly now; "
-        "`failed`: the first answer failed; `ungraded`: no scorer reached a verdict on it"
+        "`failed`: the first answer failed or the agent crashed on it; `ungraded`: nothing "
+        "grades it; `incomplete`: the provider or a scorer failed on it"
     )
 
 

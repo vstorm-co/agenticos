@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +45,7 @@ from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
     ArmSource,
+    AttemptFault,
     CaseAttemptStatus,
     EvalRun,
     EvalRunArm,
@@ -93,6 +95,54 @@ def _candidate(arm: EvalRunArm) -> Candidate:
     return UnpublishedCandidate(
         AgentSpec.model_validate(arm.spec), skill_bodies=bodies, context_bodies=contexts
     )
+
+
+#: Provider answers worth waiting out rather than holding against the agent.
+_TRANSIENT_STATUSES = frozenset({408, 429})
+
+
+def _leaves(exc: BaseException) -> list[BaseException]:
+    if isinstance(exc, BaseExceptionGroup):
+        return [leaf for inner in exc.exceptions for leaf in _leaves(inner)]
+    return [exc]
+
+
+def _provider_failed(exc: BaseException) -> bool:
+    """Whether the provider, not the agent, failed: no answer at all - a timeout or a
+    dropped connection - or one it may give differently later."""
+    if isinstance(exc, ModelHTTPError):
+        return exc.status_code >= 500 or exc.status_code in _TRANSIENT_STATUSES
+    return isinstance(exc, ModelAPIError)
+
+
+def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
+    """What an attempt whose run raised keeps as its error, and whose failure it was.
+
+    A provider that failed after its retries leaves the case incomplete: a
+    fallback chain's failure is the provider's only when every model in it
+    failed that way. Anything else - a tool that raised, the step limit, a
+    request the provider refused - is the agent's, and fails the case. A refused
+    credential is said plainly, since every case fails with it at once and the
+    run would otherwise read as an agent that broke everywhere.
+    """
+    leaves = _leaves(exc)
+    if all(_provider_failed(leaf) for leaf in leaves):
+        return run_failure_summary(exc), AttemptFault.INFRASTRUCTURE
+    rejected = next(
+        (
+            leaf.status_code
+            for leaf in leaves
+            if isinstance(leaf, ModelHTTPError) and leaf.status_code in (401, 403)
+        ),
+        None,
+    )
+    if rejected is not None:
+        return (
+            f"The model provider rejected the credentials (HTTP {rejected}). Check the API "
+            "key behind the agent's model profile.",
+            AttemptFault.AGENT,
+        )
+    return run_failure_summary(exc), AttemptFault.AGENT
 
 
 def _latency_ms(run: AgentRun) -> int | None:
@@ -351,15 +401,31 @@ class EvalRunWorker:
                 )
             except Exception as exc:
                 logger.exception("Eval case %s failed to run", attempt_id)
-                await self._fail(db, attempt, run_failure_summary(exc))
+                error, fault = run_failure(exc)
+                await self._fail(db, attempt, error, fault=fault)
                 return False
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
-                await self._fail(db, attempt, agent_run.error or "Budget exceeded", agent_run)
+                await self._fail(
+                    db,
+                    attempt,
+                    agent_run.error or "Budget exceeded",
+                    agent_run,
+                    fault=AttemptFault.INFRASTRUCTURE,
+                )
                 await self._stop_for_budget(db)
                 return True
             if agent_run.status != RunStatus.COMPLETED.value:
                 await self._fail(
-                    db, attempt, agent_run.error or f"The run ended {agent_run.status}", agent_run
+                    db,
+                    attempt,
+                    agent_run.error or f"The run ended {agent_run.status}",
+                    agent_run,
+                    # Cancelled from outside; looping, a guardrail or a parked call is the agent.
+                    fault=(
+                        AttemptFault.INFRASTRUCTURE
+                        if agent_run.status == RunStatus.CANCELLED.value
+                        else AttemptFault.AGENT
+                    ),
                 )
                 return False
             intercepted = await intercepted_tool_call_repo.list_for_run(
@@ -410,7 +476,13 @@ class EvalRunWorker:
             except Exception as exc:
                 logger.exception("Eval case %s failed to score", attempt_id)
                 await self._fail(
-                    db, attempt, run_failure_summary(exc), agent_run, answer=output, calls=rows
+                    db,
+                    attempt,
+                    run_failure_summary(exc),
+                    agent_run,
+                    fault=AttemptFault.INFRASTRUCTURE,
+                    answer=output,
+                    calls=rows,
                 )
                 return False
             await eval_run_repo.update_case(
@@ -445,6 +517,7 @@ class EvalRunWorker:
         error: str,
         agent_run: AgentRun | None = None,
         *,
+        fault: AttemptFault,
         answer: str | None = None,
         calls: list[dict[str, Any]] | None = None,
     ) -> None:
@@ -454,6 +527,7 @@ class EvalRunWorker:
             values={
                 **(self._spend(agent_run) if agent_run is not None else {}),
                 "status": CaseAttemptStatus.FAILED.value,
+                "fault": fault.value,
                 "answer": answer,
                 "calls": calls or [],
                 "error": error,

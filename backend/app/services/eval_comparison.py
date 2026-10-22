@@ -5,8 +5,10 @@ service that gathers them so every rule here can be checked without a database.
 
 The rules are the ones a gate can trust:
 
-* **An outcome is pass, fail or incomplete.** A required scorer that did not
-  run leaves a case incomplete, and incomplete is never counted as a pass.
+* **An outcome is pass, fail or undecided.** An agent that crashed failed the
+  case. A case nothing grades is ungraded; one a provider or a scorer failed
+  on, or whose tries tied, is incomplete. Neither is ever counted as a pass,
+  and both are counted beside the pass rate rather than dropped.
 * **A flip is confirmed only when it reproduces.** A case that changed outcome
   is rerun; it stays a regression (or a fix) only if every rerun repeats it on
   the side it was rerun on.
@@ -32,6 +34,18 @@ from typing import Literal
 from uuid import UUID
 
 type Outcome = bool | None
+
+
+class CaseState(enum.StrEnum):
+    """How one attempt came out, and when undecided, why."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+    INCOMPLETE = "incomplete"
+    """Something failed on it - the provider, a scorer, the run itself - or it never ran."""
+
+    UNGRADED = "ungraded"
+    """It was answered, and nothing the dataset grades with applies to it."""
 
 
 class Flip(enum.StrEnum):
@@ -198,6 +212,8 @@ class Attempt:
     tags: tuple[str, ...] = ()
     reruns: tuple[Outcome, ...] = ()
     by_person: bool = False
+    ungraded: bool = False
+    """Undecided because nothing could grade it, rather than because something failed."""
 
     @property
     def settled(self) -> Outcome:
@@ -213,7 +229,9 @@ class ArmSummary:
         cases: How many cases were attempted.
         passed: How many settled as passed.
         failed: How many settled as failed.
-        incomplete: How many could not be decided.
+        incomplete: How many could not be decided because something failed on
+            them, or their tries tied.
+        ungraded: How many could not be decided because nothing grades them.
         pass_rate: `passed` over the decided cases, or `None` with none decided.
         first_pass_rate: The same over first attempts alone, reruns aside.
         cost_usd: What the attempts cost together.
@@ -228,6 +246,7 @@ class ArmSummary:
     passed: int
     failed: int
     incomplete: int
+    ungraded: int
     pass_rate: float | None
     first_pass_rate: float | None
     cost_usd: Decimal
@@ -255,6 +274,9 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
     passed = sum(1 for outcome in settled if outcome is True)
     failed = sum(1 for outcome in settled if outcome is False)
     decided = passed + failed
+    ungraded = sum(
+        1 for a, outcome in zip(attempts, settled, strict=True) if outcome is None and a.ungraded
+    )
     first_passed = sum(1 for a in attempts if a.outcome is True)
     first_decided = first_passed + sum(1 for a in attempts if a.outcome is False)
     cost = sum((a.cost_usd for a in attempts if a.cost_usd is not None), Decimal(0))
@@ -268,7 +290,8 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
         cases=len(attempts),
         passed=passed,
         failed=failed,
-        incomplete=len(attempts) - decided,
+        incomplete=len(attempts) - decided - ungraded,
+        ungraded=ungraded,
         pass_rate=passed / decided if decided else None,
         first_pass_rate=first_passed / first_decided if first_decided else None,
         cost_usd=cost,

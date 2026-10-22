@@ -194,6 +194,27 @@ async def test_a_failing_guard_holds_the_version_back_until_it_passes(db) -> Non
     assert (passed.passing, promoted.version_id) == (True, second.id)
 
 
+async def test_a_guard_whose_run_left_a_case_ungraded_holds_the_version_back(db) -> None:
+    """Every case it graded passed; the one nothing grades keeps the gate shut."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    await DatasetService(db).add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Name one primary colour.", reference_answer="Red."),
+    )
+    env_id, _ = await _guarded(db, ctx, agent, first, dataset, threshold=_BAR)
+    second = await _published(db, ctx, agent)
+
+    await _run_guards(db, ctx, agent, env_id, second, Model(db))
+    gate = await _check(db, ctx, agent, env_id, second)
+
+    assert ([g.state for g in gate.guards], gate.passing) == (["inconclusive"], False)
+    with pytest.raises(PromotionBlockedError):
+        await _promote(db, ctx, agent, env_id, second)
+
+
 async def test_a_run_in_progress_holds_the_version_back(db) -> None:
     ctx = await _owner(db)
     agent, first = await _agent(db, ctx)

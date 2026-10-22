@@ -60,6 +60,7 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.eval_run import (
     ArmRole,
     ArmSource,
+    AttemptFault,
     CaseAttemptStatus,
     EvalRun,
     EvalRunArm,
@@ -114,6 +115,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_comparison import (
     ArmSummary,
     Attempt,
+    CaseState,
     Flip,
     Outcome,
     PairedCase,
@@ -168,15 +170,66 @@ def _bodies_json(
     }
 
 
+def attempt_state(attempt: EvalRunCase, score: CaseScore | None) -> CaseState:
+    """How an attempt came out - the one reading every count, gate and flip rests on.
+
+    A person's verdict comes before the scorers'. An attempt the agent crashed
+    on failed; one the infrastructure failed on is incomplete, as is a failed
+    attempt that predates recording whose failure it was. An answer nothing
+    grades - no scorer applied, or the only one that could is the judge and AI
+    assistance is off - is ungraded; one a scorer erred on, or the judge was
+    refused for, is incomplete, since grading it again can settle it.
+    """
+    if attempt.status == CaseAttemptStatus.FAILED.value:
+        return (
+            CaseState.FAILED if attempt.fault == AttemptFault.AGENT.value else CaseState.INCOMPLETE
+        )
+    if attempt.status != CaseAttemptStatus.DONE.value:
+        return CaseState.INCOMPLETE
+    if score is None:
+        return CaseState.UNGRADED
+    verdict = score.human_passed if score.human_passed is not None else score.passed
+    if verdict is not None:
+        return CaseState.PASSED if verdict else CaseState.FAILED
+    required = [result for result in score.results if result.get("required")]
+    if not required or any(result.get("reason_code") == "ai_assistance_off" for result in required):
+        return CaseState.UNGRADED
+    return CaseState.INCOMPLETE
+
+
 def attempt_outcome(attempt: EvalRunCase, score: CaseScore | None) -> Outcome:
-    """Pass, fail, or undecided - a person's verdict before the scorers'."""
-    if attempt.status != CaseAttemptStatus.DONE.value or score is None:
-        return None
-    return score.human_passed if score.human_passed is not None else score.passed
+    """Pass, fail, or undecided, as `attempt_state` reads the attempt."""
+    state = attempt_state(attempt, score)
+    if state in (CaseState.PASSED, CaseState.FAILED):
+        return state is CaseState.PASSED
+    return None
 
 
 def _check_type(check: object) -> str | None:
     return check.get("type") if isinstance(check, dict) else None
+
+
+def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -> bool:
+    """Whether a required scorer has something to decide this case on.
+
+    A check needs a check to apply, the trajectory an expected call, and the
+    judge - for a rubric, a reference answer or a judge check - needs AI
+    assistance on.
+    """
+    checks, trajectory = scoring.checks, scoring.trajectory
+    judge, reference = scoring.judge, scoring.reference
+    own = [_check_type(check) for check in case.checks]
+    if checks.enabled and checks.required:
+        if checks.defaults or any(kind != "judge" for kind in own):
+            return True
+        if "judge" in own and ai_enabled:
+            return True
+    if trajectory.enabled and trajectory.required and case.expected_tool_calls:
+        return True
+    judged = (reference.enabled and reference.required and bool(case.reference_answer)) or (
+        judge.enabled and any(criterion.required for criterion in judge.criteria)
+    )
+    return judged and ai_enabled
 
 
 def scoring_refusal(
@@ -184,29 +237,11 @@ def scoring_refusal(
 ) -> BadRequestError | None:
     """Why no case of this version could be decided, or `None` when one can.
 
-    A run whose every case ends undecided spends money to say nothing. Each
-    required scorer is checked against what the cases hold: a check needs a
-    check to apply, the trajectory an expected call, and the judge - for a
-    rubric, a reference answer or a judge check - needs AI assistance on.
+    A run whose every case ends undecided spends money to say nothing.
     """
-    checks, trajectory = scoring.checks, scoring.trajectory
-    judge, reference = scoring.judge, scoring.reference
-    rubric = judge.enabled and any(criterion.required for criterion in judge.criteria)
-    judged = False
-    for case in cases:
-        own = [_check_type(check) for check in case.checks]
-        if checks.enabled and checks.required:
-            if scoring.checks.defaults or any(kind != "judge" for kind in own):
-                return None
-            judged = judged or "judge" in own
-        if trajectory.enabled and trajectory.required and case.expected_tool_calls:
-            return None
-        if reference.enabled and reference.required and case.reference_answer:
-            judged = True
-        judged = judged or rubric
-    if judged and ai_enabled:
+    if any(decidable(case, scoring, ai_enabled=ai_enabled) for case in cases):
         return None
-    if judged:
+    if any(decidable(case, scoring, ai_enabled=True) for case in cases):
         return BadRequestError(
             message=(
                 "The judge needs AI assistance, which is off for this organization, and "
@@ -258,6 +293,8 @@ class RunPlan:
     from_recordings: bool
     live_reads: bool
     judged: bool
+    ungraded: int = 0
+    """Cases no required scorer can decide, which leave the result inconclusive."""
     excluded_case_ids: list[UUID] = field(default_factory=list)
 
 
@@ -282,6 +319,7 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         passed=summary.passed,
         failed=summary.failed,
         incomplete=summary.incomplete,
+        ungraded=summary.ungraded,
         pass_rate=summary.pass_rate,
         first_pass_rate=summary.first_pass_rate,
         cost_usd=summary.cost_usd,
@@ -303,8 +341,10 @@ def _attempt(
         if attempt.input_tokens is None and attempt.output_tokens is None
         else (attempt.input_tokens or 0) + (attempt.output_tokens or 0)
     )
+    state = attempt_state(attempt, score)
     return Attempt(
         outcome=attempt_outcome(attempt, score),
+        ungraded=state is CaseState.UNGRADED,
         cost_usd=attempt.cost_usd,
         tokens=tokens,
         latency_ms=attempt.latency_ms,
@@ -471,6 +511,7 @@ class EvalRunService:
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
             judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+            ungraded=sum(1 for case in cases if not decidable(case, config, ai_enabled=ai_enabled)),
             excluded_case_ids=excluded,
         )
 
@@ -843,6 +884,7 @@ class EvalRunService:
             org_after_usd=None if org_left is None else org_left - total,
             affordable=(agent_left is None or arms_usd <= agent_left)
             and (org_left is None or total <= org_left),
+            ungraded_cases=plan.ungraded,
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
@@ -1075,10 +1117,7 @@ class EvalRunService:
             return verdict
         candidate = next(arm for arm in read.arms if arm.role == ArmRole.CANDIDATE)
         status, reasons = judge(
-            check.threshold,
-            candidate.summary,
-            await self._comparison(ctx, run),
-            ungraded=len(candidate.ungraded_cases),
+            check.threshold, candidate.summary, await self._comparison(ctx, run)
         )
         return verdict.model_copy(update={"status": status, "reasons": reasons})
 
@@ -1372,6 +1411,7 @@ class EvalRunService:
                             EvalUngradedCaseRead(case_id=a.case_id, input=inputs[a.case_id])
                             for a in sorted(not_graded, key=lambda a: a.position)
                         ],
+                        failed_alike=_failed_alike(firsts),
                         unsent_failed=sum(
                             1
                             for score in first_scores.values()
@@ -1513,10 +1553,9 @@ class EvalRunService:
             if comparison.invalid_reason is not None:
                 continue
             for case in comparison.cases:
-                if case.flip == Flip.REGRESSION.value and case.confirmed:
-                    # A case that failed was decided, so its first answer was scored.
-                    score_id = firsts[(arm.id, case.case_id)]
-                    assert score_id is not None
+                score_id = firsts[(arm.id, case.case_id)]
+                # A run the agent crashed on has no answer to grade: its error says why.
+                if case.flip == Flip.REGRESSION.value and case.confirmed and score_id is not None:
                     worthy.append(score_id)
         scores = await self._scores(ctx, attempts)
         worthy += sorted(
@@ -1627,6 +1666,7 @@ class EvalRunService:
             latency_ms=attempt.latency_ms,
             error=attempt.error,
             outcome=attempt_outcome(attempt, score),
+            state=attempt_state(attempt, score).value,
             score=CaseScoreRead.model_validate(score) if score is not None else None,
         )
 
@@ -1776,6 +1816,8 @@ class EvalRunService:
             baseline_pass_rate=theirs.pass_rate if theirs else None,
             candidate_first_pass_rate=comparison.candidate_summary.first_pass_rate,
             baseline_first_pass_rate=theirs.first_pass_rate if theirs else None,
+            candidate_undecided=comparison.candidate_summary.incomplete
+            + comparison.candidate_summary.ungraded,
         )
         await eval_run_repo.update_run(
             self.db,
@@ -1880,6 +1922,13 @@ class EvalRunService:
             with_tags=False,
         )
         inputs = await self._inputs(ctx, [a for a in attempts if a.arm_id == candidate.id])
+        crashed = {
+            a.case_id: a.error
+            for a in await self._arm_attempts(ctx, candidate, attempts)
+            if a.attempt == 0
+            and a.status == CaseAttemptStatus.FAILED.value
+            and a.fault == AttemptFault.AGENT.value
+        }
 
         def count(flip: Flip, confirmed: bool) -> int:
             return sum(1 for c in paired_cases if c.flip is flip and c.confirmed is confirmed)
@@ -1920,6 +1969,7 @@ class EvalRunService:
                     baseline_reruns=list(c.baseline_reruns),
                     candidate_reruns=list(c.candidate_reruns),
                     tags=list(c.tags),
+                    candidate_error=crashed.get(c.case_id),
                 )
                 for c in paired_cases
             ],
@@ -2061,6 +2111,13 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:
+    """The error every first answer failed with, when they all failed with one."""
+    errors = {a.error for a in firsts if a.status == CaseAttemptStatus.FAILED.value}
+    every = bool(firsts) and all(a.status == CaseAttemptStatus.FAILED.value for a in firsts)
+    return errors.pop() if every and len(errors) == 1 else None
 
 
 def _not_graded(score: CaseScore | None) -> bool:

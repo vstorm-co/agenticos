@@ -23,6 +23,7 @@ def _summary(**values: Any) -> ArmSummaryRead:
         "passed": 10,
         "failed": 0,
         "incomplete": 0,
+        "ungraded": 0,
         "pass_rate": 1.0,
         "first_pass_rate": 1.0,
         "cost_usd": Decimal("1.00"),
@@ -75,7 +76,7 @@ def _comparison(
 
 def test_a_run_meeting_every_limit_passes() -> None:
     status, reasons = judge(
-        EvalSuiteThreshold(min_pass_rate=0.8), _summary(pass_rate=0.9), _comparison(), ungraded=0
+        EvalSuiteThreshold(min_pass_rate=0.8), _summary(pass_rate=0.9), _comparison()
     )
     assert (status, reasons) == (EvalSuiteResultStatus.PASSED, [])
 
@@ -85,7 +86,6 @@ def test_one_confirmed_regression_fails_by_default() -> None:
         EvalSuiteThreshold(),
         _summary(),
         _comparison(verdict="worse", regressions_confirmed=1),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [(r.code, r.value, r.limit) for r in reasons] == [("regressions", 1, 0)]
@@ -96,7 +96,6 @@ def test_an_owner_may_allow_some_regressions() -> None:
         EvalSuiteThreshold(max_confirmed_regressions=2),
         _summary(),
         _comparison(verdict="worse", regressions_confirmed=2),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.PASSED
 
@@ -106,14 +105,15 @@ def test_unconfirmed_flips_and_the_mcnemar_direction_decide_nothing() -> None:
         EvalSuiteThreshold(),
         _summary(),
         _comparison(regressions_unconfirmed=4, overall="worse", p_value=0.01),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.PASSED
 
 
 def test_a_pass_rate_below_the_minimum_fails() -> None:
     status, reasons = judge(
-        EvalSuiteThreshold(min_pass_rate=0.8), _summary(pass_rate=0.5), _comparison(), ungraded=0
+        EvalSuiteThreshold(min_pass_rate=0.8),
+        _summary(passed=5, failed=5, pass_rate=0.5),
+        _comparison(),
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [(r.code, r.value, r.limit) for r in reasons] == [("pass_rate_below", 0.5, 0.8)]
@@ -126,7 +126,6 @@ def test_a_run_in_which_nothing_was_graded_is_inconclusive(minimum: float | None
         EvalSuiteThreshold(min_pass_rate=minimum),
         _summary(pass_rate=None),
         _comparison(),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.INCONCLUSIVE
     assert [(r.code, r.limit) for r in reasons] == [("nothing_graded", minimum)]
@@ -137,7 +136,6 @@ def test_without_a_baseline_only_the_pass_rate_is_held() -> None:
         EvalSuiteThreshold(max_cost_per_pass_rise=0.1),
         _summary(),
         _comparison(baseline=False, regressions_confirmed=3),
-        ungraded=0,
     )
     assert (status, reasons) == (EvalSuiteResultStatus.PASSED, [])
 
@@ -147,7 +145,6 @@ def test_an_invalid_comparison_is_inconclusive_never_a_pass() -> None:
         EvalSuiteThreshold(),
         _summary(),
         _comparison(verdict="invalid", invalid_reason="A different judge graded the baseline"),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.INCONCLUSIVE
     assert reasons[0].detail == "A different judge graded the baseline"
@@ -157,9 +154,8 @@ def test_a_pass_rate_below_the_minimum_fails_even_when_the_baseline_cannot_be_co
     """The minimum is the candidate's own number; an incomparable baseline does not excuse it."""
     status, reasons = judge(
         EvalSuiteThreshold(min_pass_rate=0.8),
-        _summary(pass_rate=0.5),
+        _summary(passed=5, failed=5, pass_rate=0.5),
         _comparison(verdict="invalid", invalid_reason="A different judge graded the baseline"),
-        ungraded=0,
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [r.code for r in reasons] == ["pass_rate_below"]
@@ -168,12 +164,11 @@ def test_a_pass_rate_below_the_minimum_fails_even_when_the_baseline_cannot_be_co
 def test_efficiency_is_held_only_where_a_ceiling_was_set() -> None:
     dearer = _summary(cost_per_pass_usd=Decimal("0.20"), p95_ms=3000.0)
 
-    unset, _ = judge(EvalSuiteThreshold(), _summary(), _comparison(candidate=dearer), ungraded=0)
+    unset, _ = judge(EvalSuiteThreshold(), _summary(), _comparison(candidate=dearer))
     status, reasons = judge(
         EvalSuiteThreshold(max_cost_per_pass_rise=0.5, max_p95_rise=1.0),
         _summary(),
         _comparison(candidate=dearer),
-        ungraded=0,
     )
 
     assert unset is EvalSuiteResultStatus.PASSED
@@ -204,17 +199,73 @@ def test_a_month_of_a_daily_schedule_is_thirty_runs() -> None:
 
 
 def test_a_case_nobody_graded_keeps_the_result_from_passing() -> None:
-    status, reasons = judge(EvalSuiteThreshold(), _summary(), _comparison(), ungraded=2)
+    """One passing case and one nothing grades: the pass rate is 100% of what was decided."""
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=0.9),
+        _summary(cases=2, passed=1, ungraded=1, pass_rate=1.0),
+        _comparison(),
+    )
     assert status is EvalSuiteResultStatus.INCONCLUSIVE
-    assert [(r.code, r.value) for r in reasons] == [("ungraded", 2)]
+    assert [(r.code, r.value) for r in reasons] == [("ungraded", 1)]
+
+
+def test_a_case_the_provider_or_a_scorer_failed_on_keeps_the_result_from_passing() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(), _summary(passed=9, incomplete=1, pass_rate=1.0), _comparison()
+    )
+    assert status is EvalSuiteResultStatus.INCONCLUSIVE
+    assert [(r.code, r.value) for r in reasons] == [("incomplete", 1)]
+
+
+def test_an_agent_that_crashed_on_most_cases_fails() -> None:
+    """Fourteen crashes are fourteen failures: the pass rate is one in fifteen."""
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=0.9),
+        _summary(cases=15, passed=1, failed=14, pass_rate=1 / 15),
+        _comparison(),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [(r.code, r.value, r.limit) for r in reasons] == [
+        ("pass_rate_below", pytest.approx(0.0667, abs=1e-4), 0.9)
+    ]
+
+
+def test_a_minimum_the_undecided_cases_could_still_reach_is_inconclusive() -> None:
+    """One failure and three undecided: were all three to pass, the rate is 75%."""
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=0.5),
+        _summary(cases=4, passed=0, failed=1, incomplete=1, ungraded=2, pass_rate=0.0),
+        _comparison(),
+    )
+    assert status is EvalSuiteResultStatus.INCONCLUSIVE
+    assert [r.code for r in reasons] == ["pass_rate_below", "incomplete", "ungraded"]
+
+
+def test_a_minimum_out_of_reach_whatever_the_undecided_cases_do_fails() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=0.9),
+        _summary(cases=4, passed=1, failed=2, ungraded=1, pass_rate=1 / 3),
+        _comparison(),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [r.code for r in reasons] == ["pass_rate_below"]
+
+
+def test_an_invalid_comparison_names_the_undecided_cases_too() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        _summary(passed=9, ungraded=1, pass_rate=1.0),
+        _comparison(verdict="invalid", invalid_reason="A different judge graded the baseline"),
+    )
+    assert status is EvalSuiteResultStatus.INCONCLUSIVE
+    assert [r.code for r in reasons] == ["invalid_comparison", "ungraded"]
 
 
 def test_a_confirmed_regression_fails_whatever_else_went_ungraded() -> None:
     status, reasons = judge(
         EvalSuiteThreshold(),
-        _summary(),
+        _summary(passed=6, incomplete=1, ungraded=3, pass_rate=1.0),
         _comparison(verdict="worse", regressions_confirmed=1),
-        ungraded=3,
     )
     assert status is EvalSuiteResultStatus.FAILED
     assert [r.code for r in reasons] == ["regressions"]

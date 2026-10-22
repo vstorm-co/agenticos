@@ -1327,12 +1327,12 @@ def _suite_summary(
     cases = [
         case.input
         for case in (summary.failing_cases if summary else [])
-        if failed or case.kind == "ungraded"
+        if failed or case.kind in ("ungraded", "incomplete")
     ]
     if cases:
         named = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
         more = len(cases) - _SHOWN_CASES
-        label = "Failing" if failed else "Not graded"
+        label = "Failing" if failed else "Undecided"
         line += f" {label}: {named}" + (f" and {more} more." if more > 0 else ".")
     return line
 
@@ -1352,6 +1352,8 @@ def _reason_text(reason: ThresholdReason) -> str:
         case "p95_rise":
             return f"p95 latency rose {value:.0%}"
         case "ungraded":
-            return f"{int(value)} case(s) could not be graded"
+            return f"{int(value)} case(s) nothing grades"
+        case "incomplete":
+            return f"{int(value)} case(s) the provider or a scorer failed on"
         case _:
             return "the comparison is invalid"
