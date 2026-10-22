@@ -21,6 +21,7 @@ import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
 import { ImproveDialog } from "./improve-dialog";
 import { SuggestionList } from "./suggestion-list";
+import { RejectedChanges } from "./rejected-changes";
 import { VerifyReport } from "./verify-report";
 
 /**
@@ -157,6 +158,7 @@ export function AssistantStrip({
             onDecide={onDecide}
           />
         )}
+        {latest?.status === "completed" && <RejectedChanges report={latest.report} />}
         {authoring?.verify?.report?.findings !== undefined && (
           <details>
             <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>

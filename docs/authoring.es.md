@@ -1,5 +1,5 @@
 ---
-source_sha: "8fb435c85b91"
+source_sha: "cb389d355ac7"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -82,6 +82,14 @@ aceptado se editó después a mano: tiraría esa edición.
 Un Mejorar más reciente sustituye a las sugerencias pendientes; Verificar añade
 las suyas en su lugar. Publicar el draft las cierra: sus decisiones son
 definitivas y la barra las conserva como registro.
+
+Un cambio que propone el asistente y que no se puede guardar no desaparece en
+silencio. La barra lo enumera bajo **cambios propuestos que no se guardaron**,
+con el motivo: el pasaje que cambia no está en las instrucciones o aparece más de
+una vez, el agent no tiene esa herramienta, ese ajuste no es algo que pueda
+cambiar. El worker registra los mismos motivos. Un pasaje copiado con las
+comillas enderezadas, sin backticks o con las líneas unidas sigue encontrando el
+texto del draft.
 
 ### Comprobar con evals { #check-with-evals }
 

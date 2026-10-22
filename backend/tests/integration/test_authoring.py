@@ -524,11 +524,23 @@ class TestImprove:
         assert first is not None
         await service.decide(ctx, agent.id, first.hunks[0].id, HunkDecision(action="dismiss"))
 
-        await _improve(db, ctx, agent, Improver(db))
+        request = await _improve(db, ctx, agent, Improver(db))
 
         second = (await service.for_agent(ctx, agent.id)).batch
         assert second is not None and second.id != first.id
         assert [hunk.kind for hunk in second.hunks] == ["tool_override"]
+        assert request.report is not None
+        assert request.report["dropped"] == {"dismissed_before": 1, "unknown_tool": 1}
+
+        await service.decide(ctx, agent.id, second.hunks[0].id, HunkDecision(action="dismiss"))
+        third = await _improve(db, ctx, agent, Improver(db))
+
+        assert third.report is not None
+        assert [
+            (item["reason"], item["change"]["tool_id"])
+            for item in third.report["rejected"]
+            if item["kind"] == "tool_override"
+        ] == [("unknown_tool", "no_such_tool"), ("dismissed_before", "create_chart")]
         old = await db.get(SpecProposalBatch, first.id)
         assert old is not None and old.status == "superseded"
 
@@ -558,6 +570,8 @@ class TestImprove:
         await db.refresh(late_row)
         assert late_row.status == "completed" and late_row.report is not None
         assert late_row.report["recorded"] == 0
+        # What it would have recorded is accounted for, not silently gone.
+        assert late_row.report["dropped"] == {"unknown_tool": 1, "superseded": 2}
 
 
 class TestVerify:

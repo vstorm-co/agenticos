@@ -236,6 +236,26 @@ describe("AssistantStrip", () => {
     expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
   });
 
+  it("says which proposed changes the last request could not record", () => {
+    state.authoring = agentAuthoring({
+      latest: authoringRequest({
+        report: {
+          proposed: 1,
+          recorded: 0,
+          rejected: [
+            {
+              kind: "instructions",
+              reason: "unanchored",
+              change: { old_text: "Refunds take 90 days.", new_text: "Refunds take 30 days." },
+            },
+          ],
+        },
+      }),
+    });
+    strip();
+    expect(screen.getByText("1 proposed change was not recorded")).toBeInTheDocument();
+  });
+
   it("goes to the eval run a check started", async () => {
     strip();
     await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));

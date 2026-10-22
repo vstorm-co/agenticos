@@ -11,6 +11,12 @@ surroundings, or - when the passage has moved - the only place the passage now
 occurs. Anything else is *stale*: the passage is gone, changed or ambiguous, and
 the hunk is never applied silently or in the wrong place.
 
+**A proposed passage is found as the model copied it.** A model copying a
+passage straightens a curly quote, drops the backticks around a name or joins
+two lines; the passage is then looked for with those differences evened out on
+both sides, and the hunk keeps the draft's own characters. It must still occur
+exactly once - evening out never decides between two places.
+
 **Undo is anchored the same way**, on what Accept wrote: a person who edited the
 accepted text by hand has made a newer decision, and Undo refuses to reverse it.
 
@@ -20,6 +26,7 @@ draft's, or a newer manual edit would be overwritten. A field hunk does the same
 with the value it read, through :mod:`app.services.authoring_fields`.
 """
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -27,7 +34,7 @@ from typing import Any
 from app.agents.capabilities import ToolOverride
 from app.agents.spec import AgentSpec
 from app.db.models.authoring import HunkKind, HunkStatus, SpecProposalHunk
-from app.schemas.authoring import InstructionChange
+from app.schemas.authoring import InstructionChange, Rejection
 from app.services import authoring_fields
 
 CONTEXT_CHARS = 60
@@ -47,6 +54,63 @@ class Anchor:
     after: str
 
 
+_SAME = str.maketrans(
+    {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201b": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u201e": '"',
+        "\u201f": '"',
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+        "\u00a0": " ",
+    }
+)
+_SPACE = re.compile(r"\s+")
+
+
+def _evened(text: str) -> tuple[str, list[int]]:
+    """`text` as compared loosely, and where each of its characters came from.
+
+    Quotes and dashes become plain, backticks go, and every run of whitespace is
+    one space; `positions[i]` is the index in `text` of the evened character `i`.
+    """
+    characters: list[str] = []
+    positions: list[int] = []
+    for index, character in enumerate(text.translate(_SAME)):
+        if character == "`":
+            continue
+        if _SPACE.fullmatch(character):
+            if characters and characters[-1] == " ":
+                continue
+            character = " "
+        characters.append(character)
+        positions.append(index)
+    return "".join(characters), positions
+
+
+def _place(text: str, passage: str) -> tuple[int, int] | Rejection:
+    """Where `passage` sits in `text`, as `(start, end)` in `text`'s own characters."""
+    exact = _occurrences(text, passage)
+    if len(exact) == 1:
+        return exact[0], exact[0] + len(passage)
+    if exact:
+        return Rejection.AMBIGUOUS_ANCHOR
+    evened, positions = _evened(text)
+    needle, _ = _evened(passage)
+    needle = needle.strip()
+    found = _occurrences(evened, needle) if needle else []
+    if len(found) > 1:
+        return Rejection.AMBIGUOUS_ANCHOR
+    if not found:
+        return Rejection.UNANCHORED
+    return positions[found[0]], positions[found[0] + len(needle) - 1] + 1
+
+
 def _occurrences(text: str, needle: str) -> list[int]:
     found: list[int] = []
     start = text.find(needle)
@@ -56,34 +120,36 @@ def _occurrences(text: str, needle: str) -> list[int]:
     return found
 
 
-def anchor_change(base: str, change: InstructionChange) -> dict[str, Any] | None:
-    """The hunk columns for a change to `base`, or `None` when it cannot be anchored.
+def anchor_change(base: str, change: InstructionChange) -> dict[str, Any] | Rejection:
+    """The hunk columns for a change to `base`, or why it cannot be anchored.
 
     A replaced passage must occur exactly once; an insertion follows a passage
     that occurs exactly once, or ends the text. A change that changes nothing
-    is not a change.
+    is not a change. The hunk holds the passage as `base` has it, so applying it
+    later finds the draft's own characters.
     """
     if change.old_text == change.new_text:
-        return None
+        return Rejection.NO_CHANGE
     if change.old_text:
-        positions = _occurrences(base, change.old_text)
-        if len(positions) != 1:
-            return None
-        start = positions[0]
+        placed = _place(base, change.old_text)
+        if isinstance(placed, Rejection):
+            return placed
+        start, end = placed
     elif change.after:
-        positions = _occurrences(base, change.after)
-        if len(positions) != 1:
-            return None
-        start = positions[0] + len(change.after)
+        placed = _place(base, change.after)
+        if isinstance(placed, Rejection):
+            return placed
+        start = end = placed[1]
     else:
-        start = len(base)
-    end = start + len(change.old_text)
+        start = end = len(base)
+    if base[start:end] == change.new_text:
+        return Rejection.NO_CHANGE
     return {
         "base_start": start,
         "base_end": end,
         "context_before": base[max(0, start - CONTEXT_CHARS) : start],
         "context_after": base[end : end + CONTEXT_CHARS],
-        "old_text": change.old_text,
+        "old_text": base[start:end],
         "new_text": change.new_text,
     }
 

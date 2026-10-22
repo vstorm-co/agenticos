@@ -1,5 +1,5 @@
 ---
-source_sha: "8fb435c85b91"
+source_sha: "cb389d355ac7"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -85,6 +85,15 @@ wurde: Es würde diese Änderung verwerfen.
 Ein neueres Verbessern ersetzt die wartenden Vorschläge; Prüfen fügt seine
 stattdessen hinzu. Das Veröffentlichen des Drafts schließt sie: Ihre
 Entscheidungen sind endgültig, und die Leiste behält sie als Protokoll.
+
+Eine Änderung, die der Assistent vorschlägt und die sich nicht speichern lässt,
+verschwindet nicht stillschweigend. Die Leiste führt sie unter **vorgeschlagene
+Änderungen wurden nicht gespeichert** auf, mit dem Grund: Die Stelle, die sie
+ändert, steht nicht in den Anweisungen oder kommt mehr als einmal vor, der Agent
+hat kein solches Tool, die Einstellung darf der Assistent nicht ändern. Der
+Worker protokolliert dieselben Gründe. Eine Stelle, die mit begradigten
+Anführungszeichen, ohne Backticks oder mit zusammengezogenen Zeilen kopiert
+wurde, findet trotzdem den Text des Drafts.
 
 ### Mit Evals prüfen { #check-with-evals }
 

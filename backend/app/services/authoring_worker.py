@@ -18,6 +18,7 @@ to the open batch without replacing what is still waiting there.
 import difflib
 import json
 import logging
+from collections import Counter
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
@@ -58,10 +59,13 @@ from app.repositories import (
     skill_repo,
 )
 from app.schemas.authoring import (
+    MAX_REJECTED,
     ContextImprovement,
     EvidenceQuote,
+    FieldChange,
     ImprovementProposal,
     InstructionChange,
+    Rejection,
     RunFindings,
     SkillImprovement,
     ToolChange,
@@ -264,6 +268,32 @@ def _signature(values: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _proposed(hunk: dict[str, Any]) -> dict[str, Any]:
+    """A hunk's change in the words the model proposed it, as a rejection lists it."""
+    if hunk["kind"] == HunkKind.TOOL_OVERRIDE.value:
+        return {
+            "capability_id": hunk["capability_id"],
+            "tool_id": hunk["tool_id"],
+            "name": hunk["new_name"],
+            "description": hunk["new_description"],
+            "rationale": hunk["rationale"],
+        }
+    if hunk["kind"] == HunkKind.SPEC_FIELD.value:
+        return {
+            "path": hunk["path"],
+            "op": hunk["op"],
+            "value": hunk["new_value"],
+            "rationale": hunk["rationale"],
+        }
+    # An insertion keeps no `after`; the text it was anchored behind says the same.
+    return {
+        "old_text": hunk["old_text"],
+        "new_text": hunk["new_text"],
+        "after": "" if hunk["old_text"] else hunk["context_before"],
+        "rationale": hunk["rationale"],
+    }
+
+
 class AuthoringRun:
     """One request, carried out on one session as the person who started it."""
 
@@ -276,6 +306,7 @@ class AuthoringRun:
         self.configuration = ConfigurationService(db)
         self.cost = Decimal(0)
         self.run_ids: list[UUID] = []
+        self.rejected: list[dict[str, Any]] = []
 
     async def _ask[T: BaseModel](self, prompt: str, output_type: type[T]) -> T:
         try:
@@ -364,14 +395,7 @@ class AuthoringRun:
         hunks = [
             *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
-            *await self.configuration.stage(
-                self.ctx,
-                agent_id=agent.id,
-                spec=spec,
-                changes=proposal.fields,
-                pack=pack,
-                origin=HunkOrigin.IMPROVE,
-            ),
+            *await self._field_hunks(agent.id, spec, pack, proposal.fields, HunkOrigin.IMPROVE),
         ]
         recorded = await self._supersede_with(agent.id, pack, proposal.expected_effect, hunks)
         await self._finish(
@@ -380,6 +404,7 @@ class AuthoringRun:
                 "expected_effect": proposal.expected_effect,
                 "proposed": len(proposal.instructions) + len(proposal.tools) + len(proposal.fields),
                 "recorded": recorded,
+                **self._rejections(),
             }
         )
 
@@ -418,18 +443,18 @@ class AuthoringRun:
         hunks = [
             *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
             *self._tool_hunks(draft, pack, report.tools, HunkOrigin.VERIFY),
-            *await self.configuration.stage(
-                self.ctx,
-                agent_id=agent.id,
-                spec=draft,
-                changes=report.fields,
-                pack=pack,
-                origin=HunkOrigin.VERIFY,
-            ),
+            *await self._field_hunks(agent.id, draft, pack, report.fields, HunkOrigin.VERIFY),
         ]
         merged = await self._merge_into_open(agent.id, pack, hunks)
         proposed = len(report.instructions) + len(report.tools) + len(report.fields)
-        await self._finish({"findings": findings, "proposed": proposed, "recorded": merged})
+        await self._finish(
+            {
+                "findings": findings,
+                "proposed": proposed,
+                "recorded": merged,
+                **self._rejections(),
+            }
+        )
 
     async def _improve_skill(self) -> None:
         skill_id = self.request.skill_id
@@ -567,8 +592,17 @@ class AuthoringRun:
         hunks: list[dict[str, Any]] = []
         for change in changes:
             columns = authoring_hunks.anchor_change(spec.instructions, change)
-            if columns is None:
-                logger.info("authoring_change_unanchored", extra={"request": str(self.request.id)})
+            if isinstance(columns, Rejection):
+                self._reject(
+                    HunkKind.INSTRUCTIONS,
+                    columns,
+                    {
+                        "old_text": change.old_text,
+                        "new_text": change.new_text,
+                        "after": change.after,
+                        "rationale": change.rationale,
+                    },
+                )
                 continue
             kept, dropped = pack.verify(change.evidence)
             hunks.append(
@@ -594,15 +628,19 @@ class AuthoringRun:
         known = {(capability, tool) for capability, tool, _, _ in tool_catalog(spec)}
         hunks: list[dict[str, Any]] = []
         for change in changes:
-            if (change.capability_id, change.tool_id) not in known:
-                continue
-            if change.name is not None and not TOOL_NAME_PATTERN.fullmatch(change.name):
-                continue
-            if change.name is None and change.description is None:
-                continue
-            try:
-                ToolOverride(name=change.name, description=change.description)
-            except ValidationError:
+            reason = self._tool_refusal(known, change)
+            if reason is not None:
+                self._reject(
+                    HunkKind.TOOL_OVERRIDE,
+                    reason,
+                    {
+                        "capability_id": change.capability_id,
+                        "tool_id": change.tool_id,
+                        "name": change.name,
+                        "description": change.description,
+                        "rationale": change.rationale,
+                    },
+                )
                 continue
             _, base_name, base_description = authoring_hunks.current_override(
                 spec, change.capability_id, change.tool_id
@@ -625,6 +663,66 @@ class AuthoringRun:
             )
         return hunks
 
+    @staticmethod
+    def _tool_refusal(known: set[tuple[str, str]], change: ToolChange) -> Rejection | None:
+        if (change.capability_id, change.tool_id) not in known:
+            return Rejection.UNKNOWN_TOOL
+        if change.name is None and change.description is None:
+            return Rejection.NO_CHANGE
+        if change.name is not None and not TOOL_NAME_PATTERN.fullmatch(change.name):
+            return Rejection.INVALID_TOOL_CHANGE
+        try:
+            ToolOverride(name=change.name, description=change.description)
+        except ValidationError:
+            return Rejection.INVALID_TOOL_CHANGE
+        return None
+
+    async def _field_hunks(
+        self,
+        agent_id: UUID,
+        spec: AgentSpec,
+        pack: EvidencePack,
+        changes: Sequence[FieldChange],
+        origin: HunkOrigin,
+    ) -> list[dict[str, Any]]:
+        hunks, refused = await self.configuration.stage(
+            self.ctx, agent_id=agent_id, spec=spec, changes=changes, pack=pack, origin=origin
+        )
+        for change, reason in refused:
+            self._reject(
+                HunkKind.SPEC_FIELD,
+                reason,
+                {
+                    "path": change.path,
+                    "op": change.op,
+                    "value": change.value,
+                    "rationale": change.rationale,
+                },
+            )
+        return hunks
+
+    def _reject(self, kind: HunkKind, reason: Rejection, change: dict[str, Any]) -> None:
+        self.rejected.append({"kind": kind.value, "reason": reason.value, "change": change})
+
+    def _rejections(self) -> dict[str, Any]:
+        """What the report says about the changes nothing recorded, and the log line for them.
+
+        The changes are the model's own words without the quotes they cite, so the
+        report's readers - those who read the suggestions - see no more than they would.
+        """
+        if not self.rejected:
+            return {}
+        dropped = dict(Counter(item["reason"] for item in self.rejected))
+        logger.warning(
+            "authoring_changes_rejected",
+            extra={"request": str(self.request.id), "rejected": dropped},
+        )
+        return {
+            "dropped": dropped,
+            "rejected": self.rejected[:MAX_REJECTED],
+            "rejected_more": max(0, len(self.rejected) - MAX_REJECTED),
+        }
+
     async def _supersede_with(
         self, agent_id: UUID, pack: EvidencePack, expected_effect: str, hunks: list[dict[str, Any]]
     ) -> int:
@@ -639,6 +737,8 @@ class AuthoringRun:
         )
         if current is not None:
             if current.source_started_at > started:
+                for hunk in hunks:
+                    self._reject(HunkKind(hunk["kind"]), Rejection.SUPERSEDED, _proposed(hunk))
                 return 0
             dismissed = {
                 _signature(
@@ -660,6 +760,11 @@ class AuthoringRun:
                 )
                 if hunk.status == HunkStatus.DISMISSED.value
             }
+            for hunk in hunks:
+                if _signature(hunk) in dismissed:
+                    self._reject(
+                        HunkKind(hunk["kind"]), Rejection.DISMISSED_BEFORE, _proposed(hunk)
+                    )
             hunks = [hunk for hunk in hunks if _signature(hunk) not in dismissed]
             await authoring_repo.close_batch(self.db, batch=current, status=BatchStatus.SUPERSEDED)
         batch = await authoring_repo.create_batch(

@@ -45,10 +45,54 @@ export interface AuthoringRequest {
     summary?: string;
     expected_effect?: string;
     findings?: VerifyFinding[];
+    proposed?: number;
+    recorded?: number;
+    /** How many proposed changes nothing recorded, by why. */
+    dropped?: Partial<Record<Rejection, number>>;
+    /** The first of them, in the model's words without the quotes they cite. */
+    rejected?: RejectedChange[];
+    rejected_more?: number;
   } | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+}
+
+/** Why a change the assistant proposed was not recorded - the server's own names. */
+export type Rejection =
+  | "unanchored"
+  | "ambiguous_anchor"
+  | "no_change"
+  | "unknown_tool"
+  | "invalid_tool_change"
+  | "not_a_target"
+  | "operation"
+  | "loosens_approval"
+  | "weakens_protection"
+  | "unknown_capability"
+  | "invalid_config"
+  | "does_not_apply"
+  | "not_grantable"
+  | "dismissed_before"
+  | "superseded";
+
+export interface RejectedChange {
+  kind: "instructions" | "tool_override" | "spec_field";
+  reason: Rejection;
+  /** The change as proposed: passages, a tool's new text, or a field's path and value. */
+  change: {
+    old_text?: string;
+    new_text?: string;
+    after?: string;
+    capability_id?: string;
+    tool_id?: string;
+    name?: string | null;
+    description?: string | null;
+    path?: string;
+    op?: string;
+    value?: FieldValue;
+    rationale?: string;
+  };
 }
 
 export interface EvidenceItem {

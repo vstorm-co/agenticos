@@ -10,7 +10,7 @@ from typing import Any
 from app.agents.capabilities import ToolOverride
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.db.models.authoring import SpecProposalHunk
-from app.schemas.authoring import InstructionChange
+from app.schemas.authoring import InstructionChange, Rejection
 from app.services import authoring_hunks as hunks
 
 BASE = "Be brief.\nAnswer refunds.\nBe brief.\nHand off to a human."
@@ -34,7 +34,7 @@ def _hunk(**values: Any) -> SpecProposalHunk:
 
 def _anchored(base: str, change: InstructionChange, **values: Any) -> SpecProposalHunk:
     columns = hunks.anchor_change(base, change)
-    assert columns is not None
+    assert not isinstance(columns, Rejection), columns
     return _hunk(**columns, **values)
 
 
@@ -51,23 +51,84 @@ def _spec(instructions: str = BASE, overrides: dict[str, ToolOverride] | None = 
 
 class TestAnchoring:
     def test_a_passage_that_occurs_twice_cannot_be_anchored(self):
-        assert hunks.anchor_change(BASE, _change("Be brief.", "Be short.")) is None
+        assert hunks.anchor_change(BASE, _change("Be brief.", "Be short.")) == (
+            Rejection.AMBIGUOUS_ANCHOR
+        )
 
     def test_a_change_that_changes_nothing_is_not_proposed(self):
-        assert hunks.anchor_change(BASE, _change("Answer refunds.", "Answer refunds.")) is None
+        assert hunks.anchor_change(BASE, _change("Answer refunds.", "Answer refunds.")) == (
+            Rejection.NO_CHANGE
+        )
+        # Copied loosely, it would still write back what is already there.
+        assert hunks.anchor_change(BASE, _change("Answer  refunds.", "Answer refunds.")) == (
+            Rejection.NO_CHANGE
+        )
 
     def test_an_insertion_follows_a_unique_passage_or_ends_the_text(self):
         after = hunks.anchor_change(BASE, _change(new="Cite the policy.\n", after="refunds.\n"))
         ended = hunks.anchor_change(BASE, _change(new="\nSign off."))
         ambiguous = hunks.anchor_change(BASE, _change(new="x", after="Be brief."))
 
-        assert after is not None and after["base_start"] == BASE.index("Be brief.\nHand")
-        assert ended is not None and ended["base_start"] == len(BASE)
+        assert isinstance(after, dict) and after["base_start"] == BASE.index("Be brief.\nHand")
+        assert isinstance(ended, dict) and ended["base_start"] == len(BASE)
         assert ended["context_after"] == ""
-        assert ambiguous is None
+        assert ambiguous == Rejection.AMBIGUOUS_ANCHOR
 
     def test_a_missing_passage_cannot_be_anchored(self):
-        assert hunks.anchor_change(BASE, _change("Never said this.", "x")) is None
+        assert hunks.anchor_change(BASE, _change("Never said this.", "x")) == (Rejection.UNANCHORED)
+        assert hunks.anchor_change(BASE, _change(new="x", after="Never said this.")) == (
+            Rejection.UNANCHORED
+        )
+        assert hunks.anchor_change(BASE, _change(" \n", "x")) == Rejection.UNANCHORED
+
+
+class TestCopiedLoosely:
+    """A model copies a passage with its quotes straightened, its backticks dropped or
+    its lines joined; the change still lands on the draft's own characters, and only
+    where that passage occurs once."""
+
+    TEXT = (
+        "Before answering, read the `refund-policy` context file.\n"
+        "A refund above $500 always needs a manager\u2019s approval \u2014 say so.\n"
+        "An item within 30 days qualifies.\n"
+        "Store credit applies only within 30 days."
+    )
+
+    def test_straightened_quotes_and_dashes_find_the_draft_s_passage(self):
+        columns = hunks.anchor_change(
+            self.TEXT,
+            _change("a manager's approval - say so.", "a manager's approval: log it."),
+        )
+        assert isinstance(columns, dict)
+        assert columns["old_text"] == "a manager\u2019s approval \u2014 say so."
+        assert self.TEXT[columns["base_start"] : columns["base_end"]] == columns["old_text"]
+
+    def test_dropped_backticks_and_joined_lines_find_it_too(self):
+        columns = hunks.anchor_change(
+            self.TEXT,
+            _change("read the refund-policy context file. A refund", "read the policy. A refund"),
+        )
+        assert isinstance(columns, dict)
+        assert columns["old_text"] == ("read the `refund-policy` context file.\nA refund")
+
+    def test_an_insertion_follows_a_loosely_copied_passage(self):
+        columns = hunks.anchor_change(
+            self.TEXT, _change(new=" Log it.", after="a manager's approval - say so.")
+        )
+        assert isinstance(columns, dict)
+        assert columns["base_start"] == self.TEXT.index("\nAn item")
+        assert columns["old_text"] == ""
+
+    def test_a_passage_that_occurs_twice_once_evened_out_is_ambiguous(self):
+        assert hunks.anchor_change(self.TEXT, _change("within  30\ndays", "within 14 days")) == (
+            Rejection.AMBIGUOUS_ANCHOR
+        )
+
+    def test_a_paraphrase_is_still_unanchored(self):
+        assert (
+            hunks.anchor_change(self.TEXT, _change("Refunds over $500 need a manager.", "x"))
+            == Rejection.UNANCHORED
+        )
 
 
 class TestApplying:
