@@ -21,6 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
+  deployment's own network (#2349).** Before, the SSRF check refused every
+  connection URL whose host resolves to a private or loopback address, such as a
+  compose service. There was no way past it. Now an operator can list such
+  hosts. A listed host skips only the address check, when a connection is saved.
+  The match is exact and ignores case, and OAuth sign-in to a listed host is
+  still refused. Every account can reach every port on a listed host, so list
+  only a server that checks a token. A cloud metadata, link-local or loopback
+  entry (`localhost` too) is refused at startup. Empty, the default, changes
+  nothing. See [a connection](docs/mcp.md#a-connection).
 - **The agents people meet first guide them (#2301).** The general-purpose
   starter agent is now called **AgenticOS** and wears the product's logo. It leads
   with the answer, asks one question with proposed answers when a request is
@@ -142,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
   (`@agenticos`). An organization bootstrapped earlier keeps its
   `@claude-code-like` agent as it is - an agent's handle never changes - and
   rerunning bootstrap there installs AgenticOS beside it.
+
+## [1.12.3] - 2026-10-22
 
 ### Fixed
 

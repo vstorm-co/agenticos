@@ -16,6 +16,7 @@ import pytest
 
 from app.agents.mcp import McpToolInfo
 from app.agents.mcp_oauth import OAuthError
+from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.db.models.mcp_server_check import CheckOutcome
 from app.services import mcp_audit
@@ -154,6 +155,51 @@ class TestOneServer:
         monkeypatch.setattr(socket, "getaddrinfo", private)
 
         assert (await _probe(_wire(_initialized()))).outcome is CheckOutcome.REFUSED
+
+    async def test_a_listed_host_is_refused_at_the_first_request(self, monkeypatch):
+        """The audit judges public listings, and its results ship in the bundled
+        snapshot every deployment seeds. So one deployment's `MCP_ALLOWED_HOSTS`
+        must not let a listing that names an internal host be called. The second
+        look and the tool listing are stubbed open, so `REFUSED` can only come
+        from the pinned first request."""
+        seen: list[httpx2.Request] = []
+
+        def private(host: str, port: object, *_args: object, **_kwargs: object):
+            return [(2, 1, 6, "", ("10.0.0.5", port or 443))]
+
+        def answer(request: httpx2.Request) -> httpx2.Response:
+            seen.append(request)
+            return _initialized()
+
+        monkeypatch.setattr(socket, "getaddrinfo", private)
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["mcp.example.com"])
+        monkeypatch.setattr(mcp_audit, "validate_mcp_url", AsyncMock())
+        monkeypatch.setattr(mcp_audit, "probe_mcp_server", AsyncMock(return_value=[]))
+
+        assert (await _probe(httpx2.MockTransport(answer))).outcome is CheckOutcome.REFUSED
+        assert seen == []
+
+    async def test_a_listed_host_is_refused_at_the_second_look_too(self, monkeypatch):
+        """The tool listing resolves the name again, so the address is checked
+        again first, with the strict default. The name answers public to the
+        first two lookups (`_resolves`, then the pinned request) and private to
+        the third. Had that check honoured the list, the stub below would have
+        made this read `OPEN`."""
+        asked: list[str] = []
+
+        def public_then_private(host: str, port: object, *_args: object, **_kwargs: object):
+            asked.append(host)
+            address = _PUBLIC if len(asked) <= 2 else "10.0.0.5"
+            return [(2, 1, 6, "", (address, port or 443))]
+
+        monkeypatch.setattr(socket, "getaddrinfo", public_then_private)
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["mcp.example.com"])
+        monkeypatch.setattr(
+            mcp_audit, "probe_mcp_server", AsyncMock(return_value=[McpToolInfo("search", "")])
+        )
+
+        assert (await _probe(_wire(_initialized()))).outcome is CheckOutcome.REFUSED
+        assert asked == ["mcp.example.com"] * 3
 
     async def test_a_gateway_that_fails_once_is_asked_again(self, monkeypatch):
         monkeypatch.setattr(mcp_audit, "_RETRY_AFTER_S", 0)
