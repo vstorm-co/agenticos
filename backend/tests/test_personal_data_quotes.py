@@ -17,15 +17,30 @@ COMMENT = "Wrong floor, ask   Anna at reception"
     [
         ("ask Anna", True),
         ("Wrong floor, ask Anna at reception Where is the parking?", True),
-        ("at reception Where is the parking?", True),
-        ("Where is the parking? Wrong floor,", True),
+        ("Anna at reception Where is the parking?", True),
+        ("Where is the parking? Wrong floor, ask", True),
+        ("at reception Where is the parking?", False),
+        ("Where is the parking? Wrong floor,", False),
         ("Where is the parking?", False),
         ("", False),
     ],
 )
-def test_a_quote_repeats_a_comment_wherever_it_overlaps_it(quote: str, repeats: bool) -> None:
+def test_a_quote_repeats_a_comment_it_holds_or_runs_across(quote: str, repeats: bool) -> None:
     assert _repeats(quote, COMMENT) is repeats
 
 
-def test_an_empty_comment_is_never_repeated() -> None:
-    assert _repeats("Where is the parking?", "  ") is False
+@pytest.mark.parametrize(
+    ("quote", "comment"),
+    [
+        ("Please book a flight to Oslo", "ok"),
+        ("What is the price", "price is wrong"),
+        ("The booking failed", "  "),
+    ],
+)
+def test_words_shared_by_chance_are_not_a_repeat(quote: str, comment: str) -> None:
+    assert _repeats(quote, comment) is False
+
+
+def test_a_short_comment_repeats_only_whole() -> None:
+    assert _repeats("Where is it? Too slow", "Too slow") is True
+    assert _repeats("Where is it? Too", "Too slow") is False

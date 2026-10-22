@@ -13,6 +13,7 @@ runs on. `docs/security.md` has the table, with the reason for each.
 """
 
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -35,6 +36,7 @@ from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.db.locks import LockScope, try_hold_subject
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
@@ -58,6 +60,7 @@ from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.skill_proposal import SkillProposal
+from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 
 
@@ -552,10 +555,44 @@ def _forget_answer(score: CaseScore) -> None:
 
 
 def _their_own_threads(user_id: UUID) -> Select[UUID]:
-    """Their conversations outside any project, whose turns are theirs alone."""
-    return select(Conversation.id).where(
-        Conversation.user_id == user_id, Conversation.project_id.is_(None)
+    """Their console and API conversations outside any project, whose turns are theirs alone.
+
+    Not a channel thread, which belongs to whoever spoke first and holds
+    everyone else who spoke in it: a turn there carries the speaker's identity.
+    """
+    spoken_in_a_channel = (
+        select(Message.id)
+        .where(Message.conversation_id == Conversation.id, Message.channel_identity_id.is_not(None))
+        .exists()
     )
+    return select(Conversation.id).where(
+        Conversation.user_id == user_id,
+        Conversation.project_id.is_(None),
+        ~spoken_in_a_channel,
+    )
+
+
+def _runs_they_asked(user_id: UUID) -> Select[UUID]:
+    """Runs answering a question of theirs: started by them, or by a chat account of theirs.
+
+    Read before :func:`purge_identities_of` unlinks those accounts, as
+    :func:`runs_started_by` reads them for the export.
+    """
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return select(AgentRun.id).where(
+        or_(
+            and_(
+                AgentRun.user_id == user_id,
+                AgentRun.initiated_by_publisher_fallback.is_(False),
+            ),
+            AgentRun.channel_identity_id.in_(linked),
+        )
+    )
+
+
+def _their_turns(user_id: UUID) -> ColumnElement[bool]:
+    linked = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(linked))
 
 
 async def anonymise_dataset_cases_of(
@@ -563,8 +600,8 @@ async def anonymise_dataset_cases_of(
 ) -> list[UUID]:
     """Replace the text of every case revision taken from this person, in every version.
 
-    A case taken from a thread of their own or a run they started holds their
-    question, the turns before it and the answer they got, so all of it goes:
+    A case whose question they asked holds it, the turns before it and the
+    answer they got, so all of it goes:
     the input becomes `placeholder`, and the history, both answers and the note -
     the comment a down-rating left - are emptied. The case keeps its id, its
     place, its expected tool calls and its checks, which are the curator's, and
@@ -572,9 +609,10 @@ async def anonymise_dataset_cases_of(
 
     Revisions are immutable everywhere else; an erasure is the exception, and
     reaches the revisions only earlier versions still hold. Unscoped by
-    organization, as every erasure is. Matched by the links
-    :func:`unlink_dataset_cases_of` clears, so it runs first; a revision already
-    anonymised is skipped.
+    organization, as every erasure is. Found by `asked_by_user_id`, which the
+    case keeps after its conversation and run are gone; a case with no asker
+    recorded is found by the links :func:`unlink_dataset_cases_of` clears, so
+    this runs first. A revision already anonymised is skipped.
 
     Returns:
         The revisions anonymised, whose copies in eval results go next.
@@ -583,8 +621,14 @@ async def anonymise_dataset_cases_of(
         update(DatasetCase)
         .where(
             or_(
-                DatasetCase.source_conversation_id.in_(_their_own_threads(user_id)),
-                DatasetCase.source_run_id.in_(_runs_they_started(user_id)),
+                DatasetCase.asked_by_user_id == user_id,
+                and_(
+                    DatasetCase.asked_by_user_id.is_(None),
+                    or_(
+                        DatasetCase.source_conversation_id.in_(_their_own_threads(user_id)),
+                        DatasetCase.source_run_id.in_(_runs_they_asked(user_id)),
+                    ),
+                ),
             ),
             DatasetCase.anonymised_at.is_(None),
         )
@@ -594,6 +638,8 @@ async def anonymise_dataset_cases_of(
             reference_answer=None,
             counter_example=None,
             note=None,
+            history_author_ids=[],
+            noted_by_user_id=None,
             anonymised_at=at,
         )
         .returning(DatasetCase.id)
@@ -630,6 +676,60 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     return (attempts.rowcount or 0) + len(scores)  # ty: ignore[unresolved-attribute]
 
 
+async def scrub_history_turns_of(db: AsyncSession, user_id: UUID, *, placeholder: str) -> int:
+    """Replace their turns in the history of cases asked by somebody else.
+
+    A case taken from a shared thread - a project chat, a channel - keeps the
+    turns before its question, whoever wrote them. Found by the author the case
+    recorded for each turn; a turn with none recorded is matched against what
+    they wrote in the thread the case came from, as long as that thread is there.
+
+    Returns:
+        How many case revisions lost a turn.
+    """
+    written = await db.execute(
+        select(Message.conversation_id, Message.content).where(
+            Message.role == "user", _their_turns(user_id)
+        )
+    )
+    said: defaultdict[UUID, set[str]] = defaultdict(set)
+    for conversation_id, content in written.tuples():
+        said[conversation_id].add(_normal(content))
+    result = await db.execute(
+        select(DatasetCase).where(
+            DatasetCase.anonymised_at.is_(None),
+            or_(
+                DatasetCase.history_author_ids.contains([user_id]),
+                DatasetCase.source_conversation_id.in_(list(said)),
+            ),
+        )
+    )
+    scrubbed = 0
+    for case in result.scalars().all():
+        theirs = said.get(case.source_conversation_id) if case.source_conversation_id else None
+        history: list[dict[str, Any]] = []
+        authors: list[UUID | None] = []
+        for turn, author in zip(case.history, case.history_author_ids, strict=True):
+            matched = (
+                author is None
+                and theirs is not None
+                and turn.get("role") == "user"
+                and _normal(str(turn.get("content", ""))) in theirs
+            )
+            if author == user_id or matched:
+                history.append({**turn, "content": placeholder})
+                authors.append(None)
+            else:
+                history.append(turn)
+                authors.append(author)
+        if history != case.history:
+            case.history = history
+            case.history_author_ids = authors
+            scrubbed += 1
+    await db.flush()
+    return scrubbed
+
+
 async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
     """What this person wrote when rating answers, by the run that gave the answer.
 
@@ -649,35 +749,46 @@ async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
     )
     comments: defaultdict[UUID, list[str]] = defaultdict(list)
     for run_id, comment in result.tuples():
-        if run_id is not None and comment:
-            comments[run_id].append(comment)
+        assert run_id is not None and comment is not None
+        comments[run_id].append(comment)
     return dict(comments)
 
 
-async def clear_case_notes_of(db: AsyncSession, comments: dict[UUID, list[str]]) -> int:
-    """Clear the note of every case that kept one of these comments on its run's answer.
+async def clear_case_notes_of(
+    db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
+) -> int:
+    """Clear the note of every case, or drafted case, that holds their comment.
 
-    The rest of such a case stays: a question somebody else asked, and the
-    answer they got, are not the commenter's to erase.
+    A case keeps a rated-down answer's comment as its note, and a draft from the
+    case generator does too. The note goes whole when it holds the comment
+    anywhere - a curator may have written around it - and the rest of the case
+    stays: a question somebody else asked, and the answer they got, are not the
+    commenter's to erase. Found by `noted_by_user_id`, which a case keeps after
+    the rating is gone, and otherwise by the comments they still have:
+    `comments` carries each as written and as credential redaction stored it.
 
     Returns:
-        How many case revisions lost their note.
+        How many cases and drafts lost their note.
     """
-    if not comments:
-        return 0
-    result = await db.execute(
-        select(DatasetCase).where(
-            DatasetCase.source_run_id.in_(list(comments)), DatasetCase.note.is_not(None)
-        )
+    noted = await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.noted_by_user_id == user_id)
+        .values(note=None, noted_by_user_id=None)
     )
-    cleared = 0
-    for case in result.scalars().all():
-        assert case.source_run_id is not None
-        if case.note is not None and case.note.strip() in {
-            comment.strip() for comment in comments[case.source_run_id]
-        }:
-            case.note = None
-            cleared += 1
+    cleared = noted.rowcount or 0  # ty: ignore[unresolved-attribute]
+    if not comments:
+        await db.flush()
+        return cleared
+    for model in (DatasetCase, CaseProposal):
+        result = await db.execute(
+            select(model).where(model.source_run_id.in_(list(comments)), model.note.is_not(None))
+        )
+        for row in result.scalars().all():
+            assert row.source_run_id is not None and row.note is not None
+            note = _normal(row.note)
+            if any(_normal(comment) in note for comment in comments[row.source_run_id]):
+                row.note = None
+                cleared += 1
     await db.flush()
     return cleared
 
@@ -686,28 +797,40 @@ def _normal(text: str) -> str:
     return " ".join(text.split())
 
 
+_EDGE_WORDS = 3
+"""How many of a comment's words a quote must carry across its edge to repeat it."""
+
+
+def _within(inner: list[str], outer: list[str]) -> bool:
+    return any(outer[start : start + len(inner)] == inner for start in range(len(outer)))
+
+
 def _repeats(quote: str, comment: str) -> bool:
-    """Whether a quote holds any of a comment's words where the comment ran.
+    """Whether a quote repeats a comment, in whole words.
 
     An assistant quote is whitespace-normalized and taken word for word from a
     run's text, in which a comment is followed by the next comment or the
-    question, so a quote can begin inside the comment and run on past it, or the
-    other way round. Any overlap counts: an erasure that keeps half a sentence
-    has not erased it.
+    question, so a quote can sit inside the comment, hold it, or run across its
+    edge. Across an edge, a few words shared by chance are not the comment:
+    the quote must carry at least `_EDGE_WORDS` of them, or all of a shorter one.
     """
     quoted, said = _normal(quote).split(), _normal(comment).split()
     if not quoted or not said:
         return False
-    if " ".join(quoted) in " ".join(said) or " ".join(said) in " ".join(quoted):
+    if _within(quoted, said) or _within(said, quoted):
         return True
+    least = min(_EDGE_WORDS, len(said))
     return any(
         quoted[:size] == said[-size:] or quoted[-size:] == said[:size]
-        for size in range(1, min(len(quoted), len(said)) + 1)
+        for size in range(least, min(len(quoted), len(said)) + 1)
     )
 
 
 def _cites(
-    document: InstrumentedAttribute[Any], path: str, runs: ColumnElement[bool]
+    document: InstrumentedAttribute[list[dict[str, Any]]]
+    | InstrumentedAttribute[dict[str, Any] | None],
+    path: str,
+    runs: ColumnElement[bool],
 ) -> ColumnElement[bool]:
     """Whether a JSONB document holds, at `path`, the id of a run matching `runs`."""
     cited = func.jsonb_path_query(document, cast(path, JSONPATH)).column_valued("run_id")
@@ -736,7 +859,7 @@ async def purge_evidence_of(
 
     An evidence item is `{"run_id", "quote"}`, quoted word for word from a run
     the assistant read: its question, its answer, its calls and the comments of
-    its ratings. An item about a run they started goes whole, since anything it
+    its ratings. An item about a run that answered them goes whole, since anything it
     quotes is from their conversation. From a run they only rated, only what
     repeats their comment goes - the rest is somebody else's question.
 
@@ -747,8 +870,8 @@ async def purge_evidence_of(
     Returns:
         How many quotes were removed.
     """
-    reached = or_(AgentRun.id.in_(_runs_they_started(user_id)), AgentRun.id.in_(list(comments)))
-    theirs = {str(run_id) for run_id in (await db.execute(_runs_they_started(user_id))).scalars()}
+    reached = or_(AgentRun.id.in_(_runs_they_asked(user_id)), AgentRun.id.in_(list(comments)))
+    theirs = {str(run_id) for run_id in (await db.execute(_runs_they_asked(user_id))).scalars()}
     said = {str(run_id): text for run_id, text in comments.items()}
     removed = 0
     for model in (SpecProposalHunk, SkillProposal, ContextProposal):
@@ -914,3 +1037,48 @@ def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
     right there on the row.
     """
     return [{field: getattr(item, field) for field in fields} for item in items]
+
+
+async def present_among(db: AsyncSession, people: Iterable[UUID]) -> set[UUID]:
+    """Which of these people may still be quoted, held against an erasure until this transaction ends.
+
+    For a writer that read somebody's words before a slow step and writes them
+    down after it. An erasure takes `PERSONAL_DATA_PER_USER` before it purges,
+    so a person whose lock is free here, and whose account is still there, is
+    not being erased; held, the lock lasts to this transaction's commit and the
+    erasure that follows finds what was written. Taken without waiting, as
+    :meth:`AgentRunnerService._may_record_about` does: a writer may hold rows
+    the erasure is about to update.
+    """
+    present: set[UUID] = set()
+    for person in sorted(set(people)):
+        if not await try_hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person):
+            continue
+        if await db.scalar(select(User.id).where(User.id == person)) is not None:
+            present.add(person)
+    return present
+
+
+async def askers_of(db: AsyncSession, run_ids: Iterable[UUID]) -> set[UUID]:
+    """Who these runs answered, by the account that started each, for :func:`present_among`."""
+    result = await db.execute(
+        select(AgentRun.user_id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.user_id.is_not(None),
+            AgentRun.initiated_by_publisher_fallback.is_(False),
+        )
+    )
+    return {user_id for user_id in result.scalars() if user_id is not None}
+
+
+async def linked_people(db: AsyncSession, identity_ids: Iterable[UUID]) -> dict[UUID, UUID]:
+    """The account each of these chat identities is linked to, for those that are."""
+    wanted = list(set(identity_ids))
+    if not wanted:
+        return {}
+    result = await db.execute(
+        select(ChannelIdentity.id, ChannelIdentity.user_id).where(
+            ChannelIdentity.id.in_(wanted), ChannelIdentity.user_id.is_not(None)
+        )
+    )
+    return {identity: user for identity, user in result.tuples() if user is not None}

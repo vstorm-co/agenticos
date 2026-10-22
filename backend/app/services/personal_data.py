@@ -34,6 +34,7 @@ from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge
+from app.services.dataset import redact_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -315,24 +316,30 @@ class PersonalDataService:
         # commit. A memory write for the same person takes it too, so the two
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
-        notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
-        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
-        workspaces = await personal_data_repo.purge_workspaces_of(
-            self.db, person_owner_key(user_id)
-        )
-        comments = await personal_data_repo.comments_of(self.db, user_id)
-        # Before the unlink below, which clears the links these are found by.
+        comments = _as_stored(await personal_data_repo.comments_of(self.db, user_id))
+        # Before the unlink below, which clears the links these are found by, and
+        # before their chat accounts are unlinked, which says which runs were theirs.
         anonymised = await personal_data_repo.anonymise_dataset_cases_of(
             self.db, user_id, placeholder=ANONYMISED_CASE_INPUT, at=datetime.now(UTC)
         )
         case_copies = await personal_data_repo.purge_case_copies(self.db, anonymised)
-        case_notes = await personal_data_repo.clear_case_notes_of(self.db, comments)
+        history_turns = await personal_data_repo.scrub_history_turns_of(
+            self.db, user_id, placeholder=ANONYMISED_CASE_INPUT
+        )
+        case_notes = await personal_data_repo.clear_case_notes_of(
+            self.db, user_id, comments=comments
+        )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
         evidence_quotes = await personal_data_repo.purge_evidence_of(
             self.db, user_id, comments=comments
         )
         # Before the searches go, since a topic is found through its members.
         gap_drafts = await personal_data_repo.clear_gap_drafts_of(self.db, user_id)
+        notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
+        identities = await personal_data_repo.purge_identities_of(self.db, user_id)
+        workspaces = await personal_data_repo.purge_workspaces_of(
+            self.db, person_owner_key(user_id)
+        )
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
         case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
@@ -343,6 +350,7 @@ class PersonalDataService:
             dataset_cases=dataset_cases,
             anonymised_cases=len(anonymised),
             case_copies=case_copies,
+            history_turns=history_turns,
             case_notes=case_notes,
             evidence_quotes=evidence_quotes,
             gap_drafts=gap_drafts,
@@ -355,3 +363,11 @@ class PersonalDataService:
                 "personal_data_purged", extra={"user_id": str(user_id), **purged.model_dump()}
             )
         return purged
+
+
+def _as_stored(comments: dict[UUID, list[str]]) -> dict[UUID, list[str]]:
+    """Each comment as written and as a case stored it, credentials redacted."""
+    return {
+        run_id: [*said, *(redact_credentials(comment)[0] or comment for comment in said)]
+        for run_id, said in comments.items()
+    }

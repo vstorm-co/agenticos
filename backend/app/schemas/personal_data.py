@@ -117,6 +117,9 @@ class PersonalDataPurge(BaseModel):
     case_copies: int = Field(
         description="Eval attempts and scores of those revisions, cleared of what they recorded."
     )
+    history_turns: int = Field(
+        description="Cases asked by somebody else whose earlier turns held theirs, now replaced."
+    )
     case_notes: int = Field(
         description="Dataset cases that kept their comment on somebody else's answer as a note."
     )

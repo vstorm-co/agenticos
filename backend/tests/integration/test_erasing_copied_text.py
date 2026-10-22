@@ -9,19 +9,25 @@ Against a real database, because the copies sit in JSONB documents and in
 revisions only older versions hold, which only real rows can show reached.
 """
 
+import importlib.util
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch, SpecProposalHunk
+from app.db.models.case_generation import CaseGeneration, CaseProposal
 from app.db.models.case_score import CaseScore
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.conversation import Conversation, Message
@@ -32,10 +38,18 @@ from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, K
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill_proposal import SkillProposal
-from app.repositories import case_score_repo, eval_run_repo, user_repo
-from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
+from app.db.models.user import User
+from app.repositories import case_score_repo, eval_run_repo, personal_data_repo, user_repo
+from app.schemas.dataset import (
+    DatasetCaseCreate,
+    DatasetCaseFromMessage,
+    DatasetCaseRead,
+    DatasetCaseUpdate,
+    DatasetCreate,
+)
 from app.services.dataset import DatasetService
 from app.services.personal_data import ANONYMISED_CASE_INPUT, PersonalDataService
+from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -85,15 +99,17 @@ class _World:
         db.add(self.agent)
         await db.flush()
 
-        self.their_conversation, self.their_run, their_answer = await self._asked(
+        self.their_conversation, self.their_run, self.their_answer = await self._asked(
             self.person.id, f"My account {MARKER} was charged twice"
         )
-        _, self.colleagues_run, colleagues_answer = await self._asked(
-            self.colleague.id, "Where is the parking?"
-        )
+        (
+            self.colleagues_conversation,
+            self.colleagues_run,
+            self.colleagues_answer,
+        ) = await self._asked(self.colleague.id, "Where is the parking?")
         db.add(
             MessageRating(
-                message_id=colleagues_answer.id,
+                message_id=self.colleagues_answer.id,
                 user_id=self.person.id,
                 rating=-1,
                 comment=f"Wrong floor, ask {MARKER}",
@@ -268,7 +284,7 @@ class _World:
         return [
             {"run_id": str(self.their_run.id), "quote": f"My account {MARKER}"},
             {"run_id": str(self.colleagues_run.id), "quote": "Where is the parking?"},
-            {"run_id": str(self.colleagues_run.id), "quote": f"ask {MARKER} Where is"},
+            {"run_id": str(self.colleagues_run.id), "quote": f"floor, ask {MARKER} Where is"},
         ]
 
     async def _proposals(self) -> None:
@@ -499,6 +515,441 @@ class TestEverybodyElsesStays:
         assert [item["run_id"] for item in world.hunk.evidence] == [str(world.their_run.id)]
 
 
+async def _channel_thread(world: _World) -> tuple[Conversation, AgentRun]:
+    """A Slack thread the person opened, where the colleague then asked the agent something."""
+    db = world.db
+    identities = {}
+    for person in (world.person, world.colleague):
+        identities[person.id] = ChannelIdentity(
+            platform="slack", platform_user_id=uuid4().hex[:10], user_id=person.id
+        )
+        db.add(identities[person.id])
+    await db.flush()
+    thread = Conversation(
+        user_id=world.person.id, organization_id=world.ctx.organization_id, title="#help"
+    )
+    db.add(thread)
+    await db.flush()
+    run = AgentRun(
+        organization_id=world.ctx.organization_id,
+        agent_id=world.agent.id,
+        user_id=world.colleague.id,
+        conversation_id=thread.id,
+        channel_identity_id=identities[world.colleague.id].id,
+        status="completed",
+    )
+    db.add(run)
+    await db.flush()
+    for ordinal, (role, content, speaker) in enumerate(
+        (
+            ("user", f"Is {MARKER} on call?", world.person.id),
+            ("assistant", "Yes.", None),
+            ("user", "Where is the parking?", world.colleague.id),
+            ("assistant", "Level -2", None),
+        )
+    ):
+        db.add(
+            Message(
+                conversation_id=thread.id,
+                run_id=run.id if ordinal >= 2 else None,
+                role=role,
+                content=content,
+                ordinal=ordinal,
+                channel_identity_id=identities[speaker].id if speaker else None,
+            )
+        )
+    await db.flush()
+    return thread, run
+
+
+class TestSharedThreads:
+    """A channel thread belongs to whoever spoke first, and holds everyone who spoke after."""
+
+    async def test_a_colleagues_case_from_their_channel_thread_keeps_its_question(
+        self, db, world
+    ) -> None:
+        thread, run = await _channel_thread(world)
+        case_id = await world._sourced(
+            DatasetCaseCreate(
+                input="Where is the parking?",
+                history=[
+                    {"role": "user", "content": f"Is {MARKER} on call?"},
+                    {"role": "assistant", "content": "Yes."},
+                ],
+                reference_answer="Level -2",
+            ),
+            source_conversation_id=thread.id,
+            source_run_id=run.id,
+        )
+
+        purged = await PersonalDataService(db).purge(world.person.id)
+
+        [case] = await world._revisions(case_id)
+        await db.refresh(case)
+        assert purged.history_turns == 1
+        assert case.input == "Where is the parking?"
+        assert case.reference_answer == "Level -2"
+        assert case.anonymised_at is None
+        assert case.history == [
+            {"role": "user", "content": ANONYMISED_CASE_INPUT},
+            {"role": "assistant", "content": "Yes."},
+        ]
+
+    async def test_a_case_a_chat_account_of_theirs_asked_is_anonymised(self, db, world) -> None:
+        thread, _ = await _channel_thread(world)
+        identity = (
+            await db.execute(
+                select(ChannelIdentity).where(ChannelIdentity.user_id == world.person.id)
+            )
+        ).scalar_one()
+        run = AgentRun(
+            organization_id=world.ctx.organization_id,
+            agent_id=world.agent.id,
+            user_id=world.ctx.user_id,
+            initiated_by_publisher_fallback=True,
+            conversation_id=thread.id,
+            channel_identity_id=identity.id,
+            status="completed",
+        )
+        db.add(run)
+        await db.flush()
+        case_id = await world._sourced(
+            DatasetCaseCreate(input=f"Is {MARKER} on call?", reference_answer="Yes."),
+            source_run_id=run.id,
+        )
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        [case] = await world._revisions(case_id)
+        await db.refresh(case)
+        assert case.input == ANONYMISED_CASE_INPUT
+        assert case.anonymised_at is not None
+
+
+class TestTheirComments:
+    async def test_a_note_a_curator_wrote_around_their_comment_goes(self, db, world) -> None:
+        [rated] = await world._revisions(world.rated_case)
+        rated.note = f"Reader said: Wrong floor, ask {MARKER} - check the map"
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(rated)
+        assert rated.note is None
+
+    async def test_a_drafted_case_loses_their_comment_and_keeps_the_question(
+        self, db, world
+    ) -> None:
+        generation = CaseGeneration(
+            organization_id=world.ctx.organization_id,
+            dataset_id=world.dataset_id,
+            sources=["conversations"],
+            requested_count=1,
+        )
+        db.add(generation)
+        await db.flush()
+        draft = CaseProposal(
+            organization_id=world.ctx.organization_id,
+            generation_id=generation.id,
+            dataset_id=world.dataset_id,
+            position=0,
+            origin="conversation",
+            input="Where is the parking?",
+            note=f"Wrong floor, ask {MARKER}",
+            source_run_id=world.colleagues_run.id,
+        )
+        db.add(draft)
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(draft)
+        assert (draft.input, draft.note) == ("Where is the parking?", None)
+
+
+class TestAfterTheErasure:
+    async def test_editing_an_anonymised_case_without_its_question_keeps_it_marked(
+        self, db, world
+    ) -> None:
+        await PersonalDataService(db).purge(world.person.id)
+
+        edited = await world.datasets.update_case(
+            world.ctx, world.dataset_id, world.their_case, DatasetCaseUpdate(tags=["billing"])
+        )
+        rewritten = await world.datasets.update_case(
+            world.ctx,
+            world.dataset_id,
+            world.their_case,
+            DatasetCaseUpdate(input="Why was I charged twice?", reference_answer="A refund"),
+        )
+
+        assert edited.anonymised_at is not None
+        assert rewritten.anonymised_at is None
+
+
+async def _from_answer(world: _World, answer_id: UUID, **kwargs) -> DatasetCase:
+    """A case an owner added with Add to dataset, the way the product adds one."""
+    added = await world.datasets.add_from_message(
+        world.ctx,
+        world.dataset_id,
+        DatasetCaseFromMessage(message_id=answer_id),
+        **kwargs,
+    )
+    revision = await world.db.get(DatasetCase, added.id)
+    assert revision is not None
+    return revision
+
+
+async def _thread_deleted(world: _World, conversation: Conversation) -> None:
+    """What deleting a conversation does to the cases taken from it, and the thread itself."""
+    await personal_data_repo.unlink_dataset_cases_from_conversation(
+        world.db, conversation.id, organization_id=world.ctx.organization_id
+    )
+    await world.db.delete(conversation)
+    await world.db.flush()
+
+
+class TestWhenTheSourceIsGone:
+    """The case records whose words it holds, so an erasure finds it after the thread goes."""
+
+    async def test_a_case_from_a_thread_deleted_first_is_still_anonymised(self, db, world) -> None:
+        case = await _from_answer(world, world.their_answer.id)
+        assert case.asked_by_user_id == world.person.id
+        await _thread_deleted(world, world.their_conversation)
+        await db.delete(world.their_run)
+        await db.flush()
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(case)
+        assert case.source_conversation_id is None
+        assert case.input == ANONYMISED_CASE_INPUT
+        assert case.anonymised_at is not None
+
+    async def test_their_comment_kept_as_a_note_goes_after_the_rating_does(self, db, world) -> None:
+        case = await _from_answer(world, world.colleagues_answer.id)
+        assert (case.note, case.noted_by_user_id) == (f"Wrong floor, ask {MARKER}", world.person.id)
+        await _thread_deleted(world, world.colleagues_conversation)
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(case)
+        assert (case.input, case.note, case.anonymised_at) == ("Where is the parking?", None, None)
+
+    async def test_their_turn_in_a_colleagues_case_goes_after_the_channel_thread_does(
+        self, db, world
+    ) -> None:
+        thread, run = await _channel_thread(world)
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        case = await _from_answer(world, answer.id)
+        assert case.asked_by_user_id == world.colleague.id
+        assert case.history_author_ids == [world.person.id, None]
+        await _thread_deleted(world, thread)
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        await db.refresh(case)
+        assert case.input == "Where is the parking?"
+        assert case.history == [
+            {"role": "user", "content": ANONYMISED_CASE_INPUT},
+            {"role": "assistant", "content": "Yes."},
+        ]
+        assert case.history_author_ids == [None, None]
+
+    async def test_deleting_their_account_anonymises_what_they_asked(self, db, world) -> None:
+        case = await _from_answer(world, world.their_answer.id)
+
+        await UserService(db).delete(world.person.id)
+
+        await db.refresh(case)
+        assert case.input == ANONYMISED_CASE_INPUT
+        assert case.asked_by_user_id is None
+
+
+class TestInEveryOrganization:
+    async def test_their_cases_go_in_every_organization_and_nobody_elses_do(
+        self, db, world
+    ) -> None:
+        other = Organization(
+            id=uuid4(),
+            name="Globex",
+            slug=f"g-{uuid4().hex[:8]}",
+            created_by_user_id=world.colleague.id,
+        )
+        db.add(other)
+        await db.flush()
+        for person, role in ((world.colleague, "owner"), (world.person, "member")):
+            db.add(OrganizationMember(organization_id=other.id, user_id=person.id, role=role))
+        await db.flush()
+        globex = AuthContext(
+            user_id=world.colleague.id, organization_id=other.id, role=OrgRoleName.OWNER.value
+        )
+        datasets = DatasetService(db)
+        dataset = await datasets.create(globex, DatasetCreate(name="globex"))
+        theirs = await datasets.add_case(
+            globex, dataset.id, DatasetCaseCreate(input=f"{MARKER} asks", reference_answer="a")
+        )
+        colleagues = await datasets.add_case(
+            globex, dataset.id, DatasetCaseCreate(input="Colleague asks", reference_answer="b")
+        )
+        for case_id, asker in ((theirs.id, world.person.id), (colleagues.id, world.colleague.id)):
+            row = await db.get(DatasetCase, case_id)
+            assert row is not None
+            row.asked_by_user_id = asker
+        await db.flush()
+        ours = await _from_answer(world, world.their_answer.id)
+
+        await PersonalDataService(db).purge(world.person.id)
+
+        for case_id, expected in (
+            (theirs.id, ANONYMISED_CASE_INPUT),
+            (colleagues.id, "Colleague asks"),
+            (ours.id, ANONYMISED_CASE_INPUT),
+        ):
+            row = await db.get(DatasetCase, case_id)
+            assert row is not None
+            await db.refresh(row)
+            assert row.input == expected
+
+
+class TestAuthorshipStaysInside:
+    async def test_whose_words_a_case_holds_is_never_read_out(self, db, world) -> None:
+        case = await _from_answer(world, world.their_answer.id)
+
+        read = DatasetCaseRead.model_validate(case).model_dump()
+        exported = await world.datasets.export(
+            world.ctx, world.dataset_id, version=None, fmt="jsonl"
+        )
+
+        for field in ("asked_by_user_id", "history_author_ids", "noted_by_user_id"):
+            assert field not in read
+        assert str(world.person.id) not in exported.content
+
+    async def test_a_history_and_its_authors_cannot_drift_apart(self, db, world) -> None:
+        [revision, *_] = await world._revisions(world.their_case)
+        revision.history_author_ids = []
+
+        with pytest.raises(IntegrityError):
+            async with db.begin_nested():
+                await db.flush()
+
+    async def test_an_edited_history_keeps_who_wrote_the_turns_it_kept(self, db, world) -> None:
+        thread, _ = await _channel_thread(world)
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        case = await _from_answer(world, answer.id)
+
+        edited = await world.datasets.update_case(
+            world.ctx,
+            world.dataset_id,
+            case.case_id,
+            DatasetCaseUpdate(
+                history=[
+                    {"role": "user", "content": "Context the curator added"},
+                    *case.history,
+                ]
+            ),
+        )
+
+        revision = await db.get(DatasetCase, edited.id)
+        assert revision is not None
+        assert revision.history_author_ids == [None, world.person.id, None]
+        assert revision.asked_by_user_id == world.colleague.id
+
+
+def _migration():
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "alembic"
+        / "versions"
+        / "0177_dataset_case_anonymised_at.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0177", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestTheBackfill:
+    """Cases written before authorship was kept get it from the links they still hold."""
+
+    async def _forgotten(self, db: AsyncSession, case: DatasetCase) -> None:
+        await db.execute(
+            text(
+                "UPDATE dataset_cases SET asked_by_user_id = NULL, noted_by_user_id = NULL, "
+                "history_author_ids = array_fill(NULL::uuid, ARRAY[jsonb_array_length(history)]) "
+                "WHERE id = :id"
+            ),
+            {"id": case.id},
+        )
+
+    async def _backfill(self, db: AsyncSession) -> None:
+        migration = _migration()
+        await db.run_sync(
+            lambda session: [
+                step(session.connection())
+                for step in (migration._asked_by, migration._history_authors, migration._noted_by)
+            ]
+        )
+
+    async def test_who_asked_wrote_and_commented_comes_back_from_the_thread(
+        self, db, world
+    ) -> None:
+        thread, _ = await _channel_thread(world)
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        shared = await _from_answer(world, answer.id)
+        noted = await _from_answer(world, world.colleagues_answer.id)
+        for case in (shared, noted):
+            await self._forgotten(db, case)
+
+        await self._backfill(db)
+
+        for case in (shared, noted):
+            await db.refresh(case)
+        assert shared.asked_by_user_id == world.colleague.id
+        assert shared.history_author_ids == [world.person.id, None]
+        assert noted.noted_by_user_id == world.person.id
+
+    async def test_a_turn_said_twice_in_its_thread_is_left_without_an_author(
+        self, db, world
+    ) -> None:
+        thread, _ = await _channel_thread(world)
+        db.add(
+            Message(
+                conversation_id=thread.id,
+                role="user",
+                content=f"Is {MARKER} on call?",
+                ordinal=4,
+                author_user_id=world.colleague.id,
+            )
+        )
+        await db.flush()
+        answer = (
+            await db.execute(
+                select(Message).where(Message.conversation_id == thread.id, Message.ordinal == 3)
+            )
+        ).scalar_one()
+        case = await _from_answer(world, answer.id)
+        await self._forgotten(db, case)
+
+        await self._backfill(db)
+
+        await db.refresh(case)
+        assert case.history_author_ids == [None, None]
+
+
 class TestPurgingTwice:
     async def test_the_second_purge_finds_nothing_left_to_do(self, db, world) -> None:
         first = await PersonalDataService(db).purge(world.person.id)
@@ -510,3 +961,40 @@ class TestPurgingTwice:
         assert first.evidence_quotes == 8
         assert first.gap_drafts == 1
         assert second.model_dump() == dict.fromkeys(second.model_dump(), 0)
+
+
+class TestWritingWhileTheyAreErased:
+    """A writer that read somebody's words before a slow step asks again before writing them."""
+
+    async def _person(self, engine) -> tuple[async_sessionmaker, UUID]:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as setup:
+            person = await user_repo.create(
+                setup, email=f"p-{uuid4().hex[:8]}@x.io", hashed_password="x"
+            )
+            await setup.commit()
+        return factory, person.id
+
+    async def test_somebody_who_is_here_may_be_quoted(self, engine) -> None:
+        factory, person = await self._person(engine)
+        async with factory() as session:
+            assert await personal_data_repo.present_among(session, [person]) == {person}
+
+    async def test_somebody_being_erased_may_not(self, engine) -> None:
+        factory, person = await self._person(engine)
+        erasing = factory()
+        try:
+            await hold_subject(erasing, LockScope.PERSONAL_DATA_PER_USER, person)
+            async with factory() as session:
+                assert await personal_data_repo.present_among(session, [person]) == set()
+        finally:
+            await erasing.rollback()
+            await erasing.close()
+
+    async def test_somebody_whose_account_is_gone_may_not(self, engine) -> None:
+        factory, person = await self._person(engine)
+        async with factory() as session:
+            await session.execute(delete(User).where(User.id == person))
+            await session.commit()
+        async with factory() as session:
+            assert await personal_data_repo.present_among(session, [person]) == set()

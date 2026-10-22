@@ -1707,7 +1707,7 @@ async def test_deleting_a_project_keeps_a_case_from_a_chat_it_takes_but_not_the_
 
 
 @pytest.mark.security
-async def test_erasing_the_person_keeps_the_case_with_no_link_back_to_them(
+async def test_erasing_the_person_keeps_the_case_anonymised_with_no_link_back_to_them(
     engine: AsyncEngine,
 ) -> None:
     """The setup commits first, as the run and the case have long before an erasure:
@@ -1723,9 +1723,13 @@ async def test_erasing_the_person_keeps_the_case_with_no_link_back_to_them(
     async with factory() as session:
         await UserService(session).delete(member.user_id)
 
-        stored = await _unlinked(session, revision_id)
+        session.expire_all()
+        stored = await session.get(DatasetCase, revision_id)
+        assert stored is not None
+        assert stored.anonymised_at is not None
+        assert (stored.counter_example, stored.note, stored.asked_by_user_id) == (None, None, None)
+        assert (stored.source_run_id, stored.source_conversation_id) == (None, None)
         assert stored.created_by_user_id == owner.user_id
-        assert stored.note == "Wrong refund window"
         await session.rollback()
 
 
