@@ -141,7 +141,9 @@ class TestConfiguration:
         assert config.resolved_voice() == "Kore"
 
     def test_a_chosen_voice_is_kept_and_trimmed(self):
-        config = TextToSpeechConfig(provider="elevenlabs", model="eleven_v4", voice=" abc123 ")
+        config = TextToSpeechConfig(
+            provider="elevenlabs", model="eleven_multilingual_v2", voice=" abc123 "
+        )
 
         assert config.resolved_voice() == "abc123"
 
@@ -150,12 +152,18 @@ class TestConfiguration:
         [
             ({"provider": "openai", "model": "tts-9"}, "cannot speak"),
             ({"provider": "anthropic", "model": "gpt-4o-mini-tts"}, "cannot speak"),
-            ({"provider": "elevenlabs", "model": "eleven_v4"}, "belong to your account"),
             (
-                {"provider": "elevenlabs", "model": "eleven_v4", "voice": "  "},
+                {"provider": "elevenlabs", "model": "eleven_multilingual_v2"},
                 "belong to your account",
             ),
-            ({"provider": "elevenlabs", "model": "eleven_v4", "voice": ".."}, "is not a voice id"),
+            (
+                {"provider": "elevenlabs", "model": "eleven_multilingual_v2", "voice": "  "},
+                "belong to your account",
+            ),
+            (
+                {"provider": "elevenlabs", "model": "eleven_multilingual_v2", "voice": ".."},
+                "is not a voice id",
+            ),
             ({"provider": "openai", "model": "tts-1", "voice": "marin"}, "has no voice"),
             (
                 {"provider": "openai", "model": "tts-1", "voices": [{"id": "marin"}]},
@@ -164,7 +172,7 @@ class TestConfiguration:
             (
                 {
                     "provider": "elevenlabs",
-                    "model": "eleven_v4",
+                    "model": "eleven_multilingual_v2",
                     "voice": "abc123",
                     "voices": [{"id": "a b"}],
                 },
@@ -189,7 +197,7 @@ class TestConfiguration:
             (
                 {
                     "provider": "elevenlabs",
-                    "model": "eleven_v4",
+                    "model": "eleven_multilingual_v2",
                     "voice": "abc123",
                     "voices": [{"id": "def456", "note": "Anna"}, {"id": " def456", "note": "Igor"}],
                 },
@@ -225,7 +233,7 @@ class TestConfiguration:
         with pytest.raises(ValidationError) as refused:
             TextToSpeechConfig(
                 provider="elevenlabs",
-                model="eleven_v4",
+                model="eleven_multilingual_v2",
                 voice="n1",
                 voices=[{"id": "good1"}, {"id": "a b"}, {"id": "good1"}],
             )
@@ -244,7 +252,9 @@ class TestConfiguration:
         assert len(offered) == 9 and "alloy" in {voice.id for voice in offered}
 
     def test_with_no_voices_listed_an_account_provider_leaves_any_id_open(self):
-        config = TextToSpeechConfig(provider="elevenlabs", model="eleven_v4", voice="n1")
+        config = TextToSpeechConfig(
+            provider="elevenlabs", model="eleven_multilingual_v2", voice="n1"
+        )
 
         assert config.offered_voices() is None
 
@@ -267,7 +277,7 @@ class TestConfiguration:
     def test_an_account_voice_is_described_only_by_its_authors_note(self):
         config = TextToSpeechConfig(
             provider="elevenlabs",
-            model="eleven_v4",
+            model="eleven_multilingual_v2",
             voice="narrator1",
             voices=[{"id": " villain2 ", "note": "Igor, the villain"}, {"id": "extra3"}],
         )
@@ -282,7 +292,7 @@ class TestConfiguration:
         ("config", "field"),
         [
             ({"provider": "openai", "model": "tts-9"}, "model"),
-            ({"provider": "elevenlabs", "model": "eleven_v4"}, "voice"),
+            ({"provider": "elevenlabs", "model": "eleven_multilingual_v2"}, "voice"),
             ({"provider": "openai", "model": "tts-1", "voice": "marin"}, "voice"),
             (
                 {"provider": "google", "model": "gemini-3.8-flash-tts", "output_format": "mp3"},

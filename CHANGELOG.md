@@ -39,8 +39,9 @@ Two things are versioned separately from this file and worth knowing about:
   provider allows. Google keeps the request it answers, because Gemini delivers
   a clip by address only from a stored interaction. `GET
   /providers/video-models` lists each model's lengths, shapes, resolutions and
-  sound. A clip the provider took is booked at its estimate if the run stops, or
-  the clip cannot be fetched, before it arrives. In a voice call a clip is
+  sound. A clip the provider took, or may have taken when its answer was lost, is
+  booked at its estimate if the run stops, or the clip cannot be fetched, before
+  it arrives. In a voice call a clip is
   handed to the agent's text model, since a call cannot wait minutes in silence.
   BytePlus keys are a new purpose in the vault (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a

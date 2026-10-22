@@ -33,6 +33,7 @@ estimate: the provider may finish it and bill it after the call has given up.
 """
 
 import asyncio
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -301,7 +302,7 @@ def build_video_toolset(
             # The run went away - a person pressed stop, a call hung up - while
             # the provider had the job. It may still finish and bill it, so its
             # estimate is booked, or the next clip would spend the same money.
-            if "submitted" in stages:
+            if stages & {"sent", "submitted"}:
                 record_ambient_cost(ledger_name, estimate)
             raise
         except VideoProviderError as exc:
@@ -313,6 +314,15 @@ def build_video_toolset(
                     "Not delivered: the video was made and billed, but it could not be "
                     "fetched from the provider. Tell the user rather than trying again - a "
                     "second attempt is billed again."
+                )
+            if "sent" in stages:
+                # The request may have reached the provider with nothing to say
+                # whether a job came of it, so it is treated as one that did.
+                record_ambient_cost(ledger_name, estimate)
+                return (
+                    "Not confirmed: the request reached the video provider, but its answer "
+                    "was lost, so the video may still be made and billed. Tell the user "
+                    "rather than trying again - a second attempt may be billed again."
                 )
             match exc.failure:
                 case VideoFailure.CREDENTIALS:
@@ -339,7 +349,13 @@ def build_video_toolset(
                 case _:
                     return steer(ctx, f"{exc.message} Try once more, or answer without a video.")
 
-        made_seconds = clip.seconds if clip.seconds is not None else priced_seconds
+        # The provider's own figure, within what the model can make: a negative or
+        # non-finite length would hand budget back or poison the ledger.
+        made_seconds = (
+            min(clip.seconds, model.max_seconds)
+            if clip.seconds is not None and math.isfinite(clip.seconds) and clip.seconds > 0
+            else priced_seconds
+        )
         record_ambient_cost(
             ledger_name, None if price is None else price * Decimal(str(made_seconds))
         )

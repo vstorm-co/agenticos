@@ -147,25 +147,13 @@
     "voices": [],
     "models": [
       {
-        "id": "eleven_v4_turbo",
-        "name": "Eleven v4 Turbo",
-        "description": "Top of the public speech rankings, at half the price of v4. 90+ languages, Polish among them.",
+        "id": "eleven_multilingual_v2",
+        "name": "Eleven Multilingual v2",
+        "description": "The ElevenLabs quality model, steady over long passages. 29 languages, Polish among them.",
         "max_characters": 10000,
         "prices": [
           {
-            "since": "2026-10-13",
-            "usd_per_million_characters": "40"
-          }
-        ]
-      },
-      {
-        "id": "eleven_v4",
-        "name": "Eleven v4",
-        "description": "The most expressive ElevenLabs model, for narration where delivery matters most.",
-        "max_characters": 10000,
-        "prices": [
-          {
-            "since": "2026-10-13",
+            "since": "2024-12-01",
             "usd_per_million_characters": "80"
           }
         ]
@@ -179,18 +167,6 @@
           {
             "since": "2024-12-01",
             "usd_per_million_characters": "40"
-          }
-        ]
-      },
-      {
-        "id": "eleven_multilingual_v2",
-        "name": "Eleven Multilingual v2",
-        "description": "The previous generation's quality model, steady over long passages.",
-        "max_characters": 10000,
-        "prices": [
-          {
-            "since": "2024-12-01",
-            "usd_per_million_characters": "80"
           }
         ]
       }

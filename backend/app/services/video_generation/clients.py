@@ -120,9 +120,10 @@ class VideoCall:
 
     first_frame: FirstFrame | None = None
     reached: Callable[[JobStage], None] = field(default=lambda _stage: None, repr=False)
-    """Told when the job is `submitted` - the provider has it, so it may be billed
-    whatever happens to this call - and when it is `made`: finished and billed,
-    with only the clip left to fetch."""
+    """Told when the job is `sent` - its creation request may have reached the
+    provider, but no answer says so - when it is `submitted`: the provider has it,
+    so it may be billed whatever happens to this call - and when it is `made`:
+    finished and billed, with only the clip left to fetch."""
 
 
 @dataclass(frozen=True)
@@ -133,9 +134,9 @@ class Clip:
     seconds: float | None
 
 
-JobStage = Literal["submitted", "made"]
-"""How far a job got: past the first, a cancelled call may still be billed; past
-the second, it was."""
+JobStage = Literal["sent", "submitted", "made"]
+"""How far a job got: past the first two, a failed or cancelled call may still be
+billed; past the third, it was."""
 
 Client = Callable[[httpx.AsyncClient, VideoCall, float], Awaitable[Clip]]
 """A client takes the HTTP client, the call, and the deadline on the loop's clock."""
@@ -177,7 +178,7 @@ def _failure_for(status: int, body: str) -> VideoFailure:
         return VideoFailure.UNAVAILABLE
     if status in (401, 403) or (status == 400 and any(m in lowered for m in _KEY_MARKERS)):
         return VideoFailure.CREDENTIALS
-    if 400 <= status < 500:
+    if status >= 400:
         if any(marker in lowered for marker in _POLICY_MARKERS):
             return VideoFailure.POLICY
         return VideoFailure.REJECTED
@@ -210,6 +211,46 @@ def _dict(call: VideoCall, value: object) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise _unusable(call)
     return value
+
+
+_NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+"""Transport failures that happen before a request leaves, so no job can exist."""
+
+
+async def _create(
+    call: VideoCall,
+    request: Awaitable[httpx.Response],
+    job_id: Callable[[dict[str, Any]], object],
+) -> str:
+    """Send a job's creation request and read the id of the job it made.
+
+    A request lost after it may have left - a read timeout, a dropped connection,
+    the run cancelled mid-flight - or an accepted one whose answer names no job is
+    reported `sent`: the provider may have the job and bill it, and nothing here
+    can follow it, so a retry could be a second bill.
+
+    Raises:
+        VideoProviderError: When the provider refused the request or its answer
+            names no job.
+    """
+    try:
+        response = await request
+    except _NOT_SENT:
+        raise
+    except httpx.HTTPError, asyncio.CancelledError:
+        call.reached("sent")
+        raise
+    _raise_for(call, response)
+    try:
+        found = job_id(_json(call, response))
+    except VideoProviderError:
+        call.reached("sent")
+        raise
+    if not isinstance(found, str):
+        call.reached("sent")
+        raise _unusable(call)
+    call.reached("submitted")
+    return found
 
 
 def _dicts(call: VideoCall, value: object) -> list[dict[str, Any]]:
@@ -402,7 +443,6 @@ async def _read_until_settled(
     cancel: Callable[[], Awaitable[None]] | None,
 ) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    cause = "no answer"
     while True:
         remaining = deadline - loop.time()
         try:
@@ -469,7 +509,9 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
                 "data": base64.b64encode(call.first_frame.data).decode(),
                 "mime_type": call.first_frame.mime_type,
             },
-            {"type": "text", "text": call.prompt},
+            # Untagged, the model decides how to use the image and may treat it as
+            # a reference; the tag binds it to the opening frame the tool promises.
+            {"type": "text", "text": f"<FIRST_FRAME> {call.prompt}"},
         ]
     # The job runs inside this request, so it may be billed once it is sent.
     call.reached("submitted")
@@ -567,17 +609,16 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
         body["duration"] = call.duration
     if call.audio is not None:
         body["generate_audio"] = call.audio
-    response = await client.post(
-        f"{call.base_url}/contents/generations/tasks",
-        headers=headers,
-        json=body,
-        timeout=_until(deadline),
+    task_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/contents/generations/tasks",
+            headers=headers,
+            json=body,
+            timeout=_until(deadline),
+        ),
+        lambda answer: answer.get("id"),
     )
-    _raise_for(call, response)
-    task_id = _json(call, response).get("id")
-    if not isinstance(task_id, str):
-        raise _unusable(call)
-    call.reached("submitted")
     task_url = f"{call.base_url}/contents/generations/tasks/{task_id}"
 
     async def cancel() -> None:
@@ -632,15 +673,16 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
         body["image"] = {"url": call.first_frame.data_uri()}
     else:
         body["aspect_ratio"] = call.aspect_ratio
-    response = await client.post(
-        f"{call.base_url}/videos/generations", headers=headers, json=body, timeout=_until(deadline)
+    request_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/videos/generations",
+            headers=headers,
+            json=body,
+            timeout=_until(deadline),
+        ),
+        lambda answer: answer.get("request_id"),
     )
-    _raise_for(call, response)
-    request_id = _json(call, response).get("request_id")
-    if isinstance(request_id, str):
-        call.reached("submitted")
-    if not isinstance(request_id, str):
-        raise _unusable(call)
     job = await _poll(
         client,
         call,
@@ -687,17 +729,16 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
         parameters["duration"] = call.duration
     if call.audio is not None:
         parameters["audio"] = call.audio
-    response = await client.post(
-        f"{call.base_url}/services/aigc/video-generation/video-synthesis",
-        headers={**headers, "X-DashScope-Async": "enable"},
-        json={"model": call.model, "input": request_input, "parameters": parameters},
-        timeout=_until(deadline),
+    task_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/services/aigc/video-generation/video-synthesis",
+            headers={**headers, "X-DashScope-Async": "enable"},
+            json={"model": call.model, "input": request_input, "parameters": parameters},
+            timeout=_until(deadline),
+        ),
+        lambda answer: _dict(call, answer.get("output")).get("task_id"),
     )
-    _raise_for(call, response)
-    task_id = _dict(call, _json(call, response).get("output")).get("task_id")
-    if not isinstance(task_id, str):
-        raise _unusable(call)
-    call.reached("submitted")
     task = await _poll(
         client,
         call,

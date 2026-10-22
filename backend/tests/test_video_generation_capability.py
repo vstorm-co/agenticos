@@ -431,6 +431,33 @@ class TestMaking:
             == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
         )
 
+    @pytest.mark.parametrize("reported", [-30.0, float("nan"), float("inf"), 0.0])
+    async def test_a_length_that_cannot_be_true_is_booked_as_asked(self, generation, reported):
+        """A negative length would hand budget back, and NaN would poison the ledger."""
+        generation.seconds = reported
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            await _make(_toolset(), _ctx(uuid4()))
+
+        assert (
+            ledger.entries[0].cost_usd
+            == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+        )
+
+    async def test_a_length_past_the_models_longest_is_booked_at_its_longest(self, generation):
+        generation.seconds = 10_000.0
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            await _make(_toolset(), _ctx(uuid4()))
+
+        entry = video_models.by_provider("byteplus")
+        assert entry is not None
+        chosen = entry.model("dreamina-seedance-2-0-260128")
+        assert chosen is not None
+        assert ledger.entries[0].cost_usd == _price(
+            "byteplus", "dreamina-seedance-2-0-260128", "720p"
+        ) * Decimal(chosen.max_seconds)
+
     async def test_a_model_that_decides_its_own_length_is_sent_none_and_priced_at_its_longest(
         self, generation
     ):
@@ -906,6 +933,32 @@ class TestAFailedJob:
 
         [entry] = ledger.entries
         assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+
+    @pytest.mark.parametrize("failure", [VideoFailure.UNAVAILABLE, VideoFailure.TIMED_OUT])
+    async def test_a_request_whose_answer_was_lost_is_booked_and_answered(
+        self, generation, failure
+    ):
+        """The provider may have the job with nothing here to say so: a retry could
+        be a second bill."""
+        generation.stages = ("sent",)
+        generation.error = VideoProviderError(failure, provider="byteplus")
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            result = await _make(_toolset(), _ctx(uuid4()))
+
+        assert result.startswith("Not confirmed: the request reached the video provider")
+        [entry] = ledger.entries
+        assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+
+    async def test_a_run_cancelled_mid_request_books_its_estimate(self, generation):
+        generation.stages = ("sent",)
+        generation.hang = True
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            with anyio.move_on_after(0.05):
+                await _make(_toolset(), _ctx(uuid4()))
+
+        assert len(ledger.entries) == 1
 
     async def test_a_run_cancelled_before_the_provider_took_the_job_books_nothing(self, generation):
         generation.stages = ()

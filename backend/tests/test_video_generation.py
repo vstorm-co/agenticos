@@ -164,7 +164,7 @@ class TestGemini:
                 "data": base64.b64encode(PNG.data).decode(),
                 "mime_type": "image/png",
             },
-            {"type": "text", "text": "A red bicycle in the rain."},
+            {"type": "text", "text": "<FIRST_FRAME> A red bicycle in the rain."},
         ]
         assert clip.data == MP4
 
@@ -1197,6 +1197,47 @@ async def test_a_call_cancelled_where_the_provider_has_no_cancel_just_stops(
         await _make("xai", "grok-imagine-video-1.5")
 
     assert {r.method for r in seen} == {"POST", "GET"}
+
+
+@pytest.mark.parametrize(
+    ("answer", "stages"),
+    [
+        (httpx.ReadTimeout, ["sent"]),
+        (httpx.RemoteProtocolError, ["sent"]),
+        (httpx.ConnectError, []),
+        (httpx.ConnectTimeout, []),
+    ],
+    ids=["read-timeout", "dropped", "never-connected", "connect-timeout"],
+)
+async def test_a_creation_request_lost_in_transit_reports_sent_only_if_it_may_have_left(
+    answer, stages
+):
+    """A job the provider may have taken with no answer to say so may be billed."""
+
+    def lost(request: httpx.Request) -> httpx.Response:
+        raise answer("lost", request=request)
+
+    seen: list[str] = []
+    with _answering({("POST", "/v1/videos/generations"): lost}), pytest.raises(VideoProviderError):
+        await _make("xai", "grok-imagine-video-1.5", reached=seen.append)
+
+    assert seen == stages
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "path"),
+    [
+        ("xai", "grok-imagine-video-1.5", "/v1/videos/generations"),
+        ("byteplus", "dreamina-seedance-2-0-260128", "/api/v3/contents/generations/tasks"),
+    ],
+    ids=["xai", "byteplus"],
+)
+async def test_an_accepted_request_that_names_no_job_reports_sent(provider, model, path):
+    seen: list[str] = []
+    with _answering({("POST", path): _json({"status": "ok"})}), pytest.raises(VideoProviderError):
+        await _make(provider, model, reached=seen.append)
+
+    assert seen == ["sent"]
 
 
 async def test_a_refused_submission_reports_no_stage():

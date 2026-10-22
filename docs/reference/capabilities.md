@@ -1189,7 +1189,8 @@ model, as is a provider that is rate limiting or down. A refused key, a spent
 budget, a prompt the provider's content policy refused and a job past the time
 limit are answered as the result: a retry prompt on a refusal would invite a way
 around it. A job past the time limit, or cancelled with the run, is booked at its
-estimate once it was submitted, since the provider may still finish and bill it.
+estimate once its request may have reached the provider, since the provider may
+still finish and bill it.
 A clip that was made but could not be fetched is booked too, and answered rather
 than steered: a second attempt would be billed again.
 

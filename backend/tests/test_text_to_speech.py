@@ -113,7 +113,7 @@ class TestEachProvidersRequest:
         with _answering(lambda _: httpx.Response(200, content=b"mp3")) as seen:
             await synthesize(
                 _provider("elevenlabs"),
-                model="eleven_v4_turbo",
+                model="eleven_multilingual_v2",
                 voice="JBFqnCBsd6RMkjVDRZzb",
                 text="Hello.",
                 audio_format="mp3",
@@ -126,7 +126,10 @@ class TestEachProvidersRequest:
         assert request.headers["xi-api-key"] == KEY
         assert "authorization" not in request.headers
         assert KEY not in str(request.url)
-        assert json.loads(request.content) == {"text": "Hello.", "model_id": "eleven_v4_turbo"}
+        assert json.loads(request.content) == {
+            "text": "Hello.",
+            "model_id": "eleven_multilingual_v2",
+        }
 
     @pytest.mark.parametrize("voice", ["../../user", ".", "..", "a/b", ""])
     async def test_an_elevenlabs_voice_id_cannot_reach_another_endpoint(self, voice):
@@ -138,7 +141,7 @@ class TestEachProvidersRequest:
         ):
             await synthesize(
                 _provider("elevenlabs"),
-                model="eleven_v4_turbo",
+                model="eleven_multilingual_v2",
                 voice=voice,
                 text="Hello.",
                 audio_format="mp3",
@@ -236,7 +239,7 @@ class TestALongText:
         with _answering(lambda request: httpx.Response(200, content=b"frame")) as seen:
             speech = await synthesize(
                 _provider("elevenlabs"),
-                model="eleven_v4_turbo",
+                model="eleven_multilingual_v2",
                 voice="v",
                 text="word " * 2500,
                 audio_format="mp3",
@@ -272,7 +275,7 @@ class TestALongText:
         with _answering(lambda _: httpx.Response(200, content=next(pieces))):
             speech = await synthesize(
                 _provider("elevenlabs"),
-                model="eleven_v4_turbo",
+                model="eleven_multilingual_v2",
                 voice="v",
                 text="word " * 2500,
                 audio_format="mp3",

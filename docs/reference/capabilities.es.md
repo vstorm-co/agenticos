@@ -1,5 +1,5 @@
 ---
-source_sha: "cc719d38e794"
+source_sha: "9389f115faa2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1274,7 +1274,8 @@ clave rechazada, un presupuesto agotado, un prompt que la política de contenido
 del provider rechazó y un trabajo que pasa el límite de tiempo se responden como
 resultado: una indicación de reintento ante un rechazo invitaría a sortearlo. Un
 trabajo que pasa el límite de tiempo, o que se cancela con la ejecución, se
-contabiliza con su estimación una vez enviado, porque el provider aún puede
+contabiliza con su estimación en cuanto su solicitud pudo llegar al provider,
+porque el provider aún puede
 terminarlo y cobrarlo. Un clip hecho que no se pudo descargar también se
 contabiliza, y se responde como resultado en lugar de devolverse al modelo: un
 segundo intento se cobraría de nuevo.

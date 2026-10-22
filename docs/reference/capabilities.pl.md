@@ -1,5 +1,5 @@
 ---
-source_sha: "cc719d38e794"
+source_sha: "9389f115faa2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1251,8 +1251,8 @@ do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
 działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
 treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
 ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu albo
-anulowane razem z przebiegiem jest księgowane według szacunku, o ile zostało już
-wysłane, bo provider może je jeszcze dokończyć i rozliczyć. Klip zrobiony, ale nie
+anulowane razem z przebiegiem jest księgowane według szacunku, o ile jego żądanie
+mogło już dotrzeć do providera, bo provider może je jeszcze dokończyć i rozliczyć. Klip zrobiony, ale nie
 do pobrania, też jest księgowany i zwracany jako wynik, a nie kierowany z powrotem
 do modelu: druga próba zostałaby rozliczona ponownie.
 

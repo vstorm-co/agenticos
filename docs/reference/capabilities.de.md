@@ -1,5 +1,5 @@
 ---
-source_sha: "cc719d38e794"
+source_sha: "9389f115faa2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1326,7 +1326,7 @@ Budget, ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, und e
 Job über dem Zeitlimit werden als Ergebnis beantwortet: ein Wiederholungshinweis
 bei einer Ablehnung würde zu ihrer Umgehung einladen. Ein Job über dem Zeitlimit
 oder einer, der mit dem Lauf abgebrochen wird, wird mit seiner Schätzung gebucht,
-sobald er abgeschickt war, weil der Provider ihn noch beenden und abrechnen kann.
+sobald seine Anfrage den Provider erreicht haben kann, weil der Provider ihn noch beenden und abrechnen kann.
 Ein Clip, der erstellt, aber nicht abgerufen werden konnte, wird ebenfalls gebucht
 und als Ergebnis beantwortet statt an das Modell zurückgegeben: ein zweiter
 Versuch würde erneut abgerechnet.
