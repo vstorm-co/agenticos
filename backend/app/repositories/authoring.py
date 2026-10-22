@@ -103,7 +103,22 @@ async def update_request(
 async def fail_unfinished(
     db: AsyncSession, request_id: UUID, *, organization_id: UUID, error: str, now: datetime
 ) -> bool:
-    """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome."""
+    """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome.
+
+    Raises:
+        DBAPIError: Another transaction holds the request - a worker still at
+            it keeps its row locked for the whole request. Refused at once
+            rather than waited on, so the caller can try again later instead
+            of stalling behind a run that may last an hour.
+    """
+    await db.execute(
+        select(AuthoringRequest.id)
+        .where(
+            AuthoringRequest.id == request_id,
+            AuthoringRequest.organization_id == organization_id,
+        )
+        .with_for_update(nowait=True)
+    )
     result = await db.execute(
         update(AuthoringRequest)
         .where(

@@ -144,7 +144,11 @@ class RunReaperService:
     async def settle_lost_authoring(
         self, request_id: UUID, *, organization_id: UUID, why: str
     ) -> None:
-        """Fail an authoring request whose job ended for good before the request did."""
+        """Fail an authoring request whose job ended for good before the request did.
+
+        A request a worker still holds is refused rather than waited on, and
+        the rescuer settles it on a later pass.
+        """
         if await authoring_repo.fail_unfinished(
             self.db,
             request_id,
