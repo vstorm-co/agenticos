@@ -154,7 +154,7 @@ capability or MCP server it refers to, never an identifier.
 | Model | Change the model profile |
 | Model settings | Set temperature, top-p, max tokens, timeout or parallel tool calls |
 | Step limit | Set `max_steps` |
-| Capabilities | Add or remove one, or change its settings - only where the settings are about quality alone, such as how much knowledge to retrieve or when to compact; settings that reach a URL, a domain, a connection, a provider or personal data never change, and Subagents are never added or reconfigured. A safeguard - Guardrails - can only be added: never removed or reconfigured |
+| Capabilities | Add or remove one, or change its settings - only where the settings are about quality alone, such as how much knowledge to retrieve or when to compact; settings that reach a URL, a domain, a connection, a provider or personal data never change, and Subagents are never added or reconfigured. A safeguard - Guardrails - can only be added: never removed or reconfigured, however the suggestion names it |
 | Approval | Make a capability or one of its tools ask first |
 | Specialists | Rewrite the description of an inline [specialist](reference/capabilities.md#delegation) |
 | Knowledge bases | Bind or unbind one |
@@ -166,16 +166,27 @@ budgets, observability and a pinned delegate are never changed by the assistant.
 **Edit** works on a single value or a text - a setting, the step limit, a
 description; anything else is accepted or dismissed as suggested.
 
-### It never widens access { #never-widens-access }
+### Widening access { #widening-access }
+
+The assistant may suggest giving the agent more to reach: a capability, a
+knowledge base, a context file, more MCP tools. Such a suggestion is marked
+**Adds access** and names each thing it adds. It never widens what runs without
+a person:
+
+- A capability it adds arrives with each of its tools that changes something set
+  to ask for approval, whatever the suggestion itself set them to.
+- Allowing more tools of an MCP server makes a binding that asked for nothing ask
+  for approval of the tools that write. **Undo** puts the tools back and leaves
+  them asking: lowering the approval again is a person's decision. For a server
+  each person reaches through their own account, a tool the assistant cannot see
+  described counts as one that writes.
+- Approval only tightens: a suggestion can make a capability or a tool ask first,
+  never stop asking.
 
 A suggestion that binds a knowledge base, a context file, a model profile or an
 MCP server, or lets the agent call more MCP tools, is accepted only by somebody
-who could make that change by hand: accepting it as anybody else is refused,
-as the Builder would refuse it. Approval only tightens: a suggestion can make a
-capability or a tool ask first, never stop asking. A capability the assistant
-adds arrives with each of its tools that changes something set to ask first, and
-the suggestion lists those tools, as it does for MCP tools a change makes
-reachable.
+who could make that change by hand: accepting it as anybody else is refused, as
+the Builder would refuse it.
 
 ### A change of model { #a-change-of-model }
 
@@ -184,8 +195,11 @@ priced from the agent's recent runs. Priced from fewer than five, it says it is
 a rough estimate and from how many runs.
 
 A change of model is accepted only after it has paid off. **Accept** stays
-disabled, and says why, until a [check with evals](#check-with-evals) of the
-waiting suggestions has run on that model and found no confirmed regression. A
+disabled, and says why, until a [check with evals](#check-with-evals) of exactly
+what accepting leaves - the draft with every suggestion still waiting made - has
+run on that model and found no confirmed regression. Dismissing another
+suggestion or editing the draft makes the last check out of date, and a new one
+is needed. A
 check that decided nothing - an answer left ungraded, or no verdict - holds it
 back too: grade the answers or run the check again.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0bce8e124ea1"
+source_sha: "417a482ca530"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -159,7 +159,7 @@ serwera MCP, do którego się odnosi, nigdy przez identyfikator.
 | Model | Zmienić profil modelu |
 | Ustawienia modelu | Ustawić temperaturę, top-p, maksymalną liczbę tokenów, timeout albo równoległe wywołania narzędzi |
 | Limit kroków | Ustawić `max_steps` |
-| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień |
+| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień, niezależnie od tego, jak nazywa je sugestia |
 | Zatwierdzanie | Sprawić, że capability albo jedno z jej narzędzi najpierw pyta |
 | Specjaliści | Przepisać opis wbudowanego [specjalisty](reference/capabilities.md#delegation) |
 | Bazy wiedzy | Podpiąć albo odpiąć jedną |
@@ -171,17 +171,29 @@ obserwowalność i przypięty delegat nigdy nie są zmieniane przez asystenta.
 **Edytuj** działa na pojedynczej wartości albo tekście - ustawieniu, limicie
 kroków, opisie; wszystko inne przyjmuje się albo odrzuca tak, jak zasugerowano.
 
-### Nigdy nie poszerza dostępu { #never-widens-access }
+### Poszerzanie dostępu { #widening-access }
+
+Asystent może zasugerować, by agent sięgał do większej liczby rzeczy: capability,
+bazy wiedzy, pliku kontekstowego, kolejnych narzędzi MCP. Taka sugestia jest
+oznaczona **Dodaje dostęp** i wymienia każdą rzecz, którą dodaje. Nigdy nie
+poszerza tego, co działa bez udziału człowieka:
+
+- Capability, którą dodaje, przychodzi z każdym swoim narzędziem, które coś
+  zmienia, ustawionym na pytanie o zatwierdzenie, niezależnie od tego, na co
+  ustawiła je sama sugestia.
+- Dopuszczenie większej liczby narzędzi serwera MCP sprawia, że powiązanie, które
+  o nic nie pytało, pyta o zatwierdzenie narzędzi zapisujących. **Cofnij**
+  przywraca poprzednie narzędzia i zostawia je pytające: ponowne obniżenie
+  zatwierdzania to decyzja człowieka. W przypadku serwera, do którego każdy
+  sięga przez własne konto, narzędzie, którego opisu asystent nie widzi, liczy
+  się jako zapisujące.
+- Zatwierdzanie tylko się zaostrza: sugestia może sprawić, że capability albo
+  narzędzie najpierw pyta, nigdy że przestaje pytać.
 
 Sugestię, która podpina bazę wiedzy, plik kontekstowy, profil modelu albo serwer
 MCP, albo pozwala agentowi wywołać więcej narzędzi MCP, przyjmie tylko ktoś, kto
 mógłby wprowadzić tę zmianę ręcznie: przyjęcie jej przez kogokolwiek innego jest
-odrzucane, tak jak odrzuciłby je Builder. Zatwierdzanie tylko się zaostrza:
-sugestia może sprawić, że capability albo narzędzie najpierw pyta, nigdy że
-przestaje pytać. Capability dodana przez asystenta przychodzi z każdym swoim
-narzędziem, które coś zmienia, ustawionym na pytanie najpierw, a sugestia
-wymienia te narzędzia, tak jak wymienia narzędzia MCP, do których zmiana daje
-dostęp.
+odrzucane, tak jak odrzuciłby je Builder.
 
 ### Zmiana modelu { #a-change-of-model }
 
@@ -191,7 +203,10 @@ niż pięciu, mówi, że to przybliżone oszacowanie, i z ilu runów.
 
 Zmianę modelu przyjmuje się dopiero, gdy się opłaciła. **Przyjmij** pozostaje
 wyłączone i mówi dlaczego, dopóki [sprawdzenie evalami](#check-with-evals)
-czekających sugestii nie przejdzie na tym modelu bez potwierdzonej regresji.
+dokładnie tego, co zostawia przyjęcie - draftu z naniesionymi wszystkimi wciąż
+czekającymi sugestiami - nie przejdzie na tym modelu bez potwierdzonej regresji.
+Odrzucenie innej sugestii albo edycja draftu sprawia, że ostatnie sprawdzenie
+jest nieaktualne i potrzebne jest nowe.
 Sprawdzenie, które niczego nie rozstrzygnęło - odpowiedź bez oceny albo brak
 werdyktu - też ją wstrzymuje: oceń odpowiedzi albo uruchom sprawdzenie ponownie.
 
