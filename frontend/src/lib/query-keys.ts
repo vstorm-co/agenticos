@@ -576,6 +576,8 @@ export const qk = {
     // of each query is its own resource rather than a filter over one blob.
     listPage: (query: string, category: string, auth: string, page: number) =>
       ["mcp-servers", "list", query, category, auth, page] as const,
+    // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts

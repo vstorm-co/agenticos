@@ -203,7 +203,7 @@ class TestProposingSetup:
             [
                 _proposal("routine", cron="0 7 * * 1-5"),
                 _proposal("agent"),
-                _proposal("connection", request="Gmail"),
+                _proposal("connection", request="Gmail", server="com.mintmcp/gmail"),
             ],
         )
 
@@ -211,6 +211,9 @@ class TestProposingSetup:
         assert [p["kind"] for p in proposals] == ["routine", "agent", "connection"]
         assert proposals[0]["cron"] == "0 7 * * 1-5"
         assert proposals[1]["cron"] is None
+        # The key the card resolves to a logo and a one-click connect.
+        assert proposals[2]["server"] == "com.mintmcp/gmail"
+        assert proposals[1]["server"] is None
 
     @pytest.mark.parametrize(("count", "says"), [(0, "at least one"), (4, "at most 3")])
     def test_none_or_too_many_is_sent_back_to_the_model(self, count, says):

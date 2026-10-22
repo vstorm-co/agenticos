@@ -156,9 +156,15 @@ Two things are versioned separately from this file and worth knowing about:
   composer takes a card's light shadow instead of a dark drop, and a lost
   connection is said by the box itself - "Reconnecting…" where it asks for a
   message - instead of a red "Offline" line under it.
-- **The call button stands in Send's place.** While the box is empty, an agent
-  that takes calls offers the call where Send is; type something and Send comes
-  back. Dictation stays where it was.
+- **The call button stands in Send's place.** While the box is empty, every
+  agent offers the call where Send is, as a waveform - crossed out, saying why,
+  where it cannot take one; type something and Send comes back. Dictation stays
+  where it was.
+- **Connect a service from the chat.** When a request needs one of your
+  services you have not connected, the agent offers it as a card with the
+  service's logo and **Connect**, which goes straight to its sign-in and back to
+  the conversation (`propose_setup` takes the server's catalog key as
+  `server`).
 - **Map kit version 2, `lib/agenticos-map-2.js`.** An itinerary shows its whole
   route on load and drops the pins one by one only on request (`autoplay: true`
   plays them on load); the map is 16:9 of the page's width, never lower than its

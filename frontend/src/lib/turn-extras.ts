@@ -87,6 +87,8 @@ export interface SetupProposal {
   /** What the agent should do, the routine's prompt, or the service's name. */
   request: string;
   cron: string | null;
+  /** A connection's catalog key, which the card resolves to a logo and a one-click connect. */
+  server: string | null;
 }
 
 const SETUP_KINDS: readonly string[] = ["agent", "routine", "connection"];
@@ -98,7 +100,7 @@ export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupP
   if (!last || !Array.isArray(proposals)) return [];
   return proposals.flatMap((proposal: unknown, index) => {
     if (!proposal || typeof proposal !== "object") return [];
-    const { kind, title, why, request, cron } = proposal as Record<string, unknown>;
+    const { kind, title, why, request, cron, server } = proposal as Record<string, unknown>;
     return typeof kind === "string" &&
       SETUP_KINDS.includes(kind) &&
       typeof title === "string" &&
@@ -112,6 +114,7 @@ export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupP
             why,
             request,
             cron: typeof cron === "string" ? cron : null,
+            server: typeof server === "string" && server ? server : null,
           },
         ]
       : [];

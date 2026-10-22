@@ -1,5 +1,5 @@
 ---
-source_sha: "1cdbf74d7e0e"
+source_sha: "4e81cc4fde03"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2352,9 +2352,14 @@ los botones, nunca la respuesta. Vacío, el agent los ofrece él mismo.
 `propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
 bajo la respuesta: un agent propio de la persona, una rutina o un servicio que
 conectar. Una tarjeta actúa con un clic - una rutina abre el diálogo de rutinas
-relleno, en el agent que la propuso; un agent es una pregunta al Architect; una
-conexión abre la página de servidores MCP en su botón de añadir. El agent
-AgenticOS termina con ellas su entrevista de bienvenida. Las tarjetas son de la
+relleno, en el agent que la propuso; un agent es una pregunta al Architect.
+
+Una conexión que nombra su servidor por clave del catálogo es la tarjeta de ese
+servicio - su logo y su botón Conectar, que lleva directo al inicio de sesión del
+proveedor y de vuelta a la conversación - y una sin clave abre la página de
+servidores MCP en su botón de añadir. El agent AgenticOS termina con ellas su
+entrevista de bienvenida, y ofrece una tarjeta de conexión siempre que una
+petición necesita un servicio que la persona no ha conectado. Las tarjetas son de la
 consola; una app de chat no las dibuja.
 
 Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.

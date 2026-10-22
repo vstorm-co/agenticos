@@ -39,6 +39,14 @@ class SetupProposal(BaseModel):
             "connection, the service's name as the MCP servers page lists it."
         ),
     )
+    server: str | None = Field(
+        default=None,
+        max_length=255,
+        description=(
+            "For a connection, the service's `key` as the MCP server search returned it - "
+            "the card then shows its logo and connects it in one click; otherwise null."
+        ),
+    )
     cron: str | None = Field(
         default=None,
         max_length=60,
@@ -96,6 +104,11 @@ class FollowUpsToolset(FunctionToolset[AgentDepsT]):
         digest of new support tickets", not "Try routines" - and mix the kinds
         where it fits: an agent of their own, a routine, a service to connect.
         The cards say what each does; do not repeat them in your answer.
+
+        Use it too whenever what they want needs one of their services that is
+        not connected - their mail, calendar, Notion, CRM: one `connection` card
+        with the service's `server` key, which they connect without leaving the
+        conversation, instead of a link to the MCP servers page.
 
         Args:
             proposals: One to three proposals.

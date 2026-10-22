@@ -17,7 +17,27 @@ const push = vi.hoisted(() => vi.fn());
 const pointAt = vi.hoisted(() => vi.fn());
 const dialogs = vi.hoisted(() => [] as { agentId: string | null; template?: TriggerTemplate }[]);
 
+const servers = vi.hoisted(() => ({
+  entry: null as { key: string; name: string; icon: string | null; url: string } | null,
+  isLoading: false,
+  connections: [] as { catalog_key: string; is_enabled: boolean; authorized: boolean }[],
+  connectedWith: [] as { entry: { key: string }; returnTo?: string }[],
+}));
+
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/hooks/use-mcp-servers", () => ({
+  useMcpServerEntry: () => ({ entry: servers.entry, isLoading: servers.isLoading }),
+}));
+vi.mock("@/hooks/use-mcp-connections", () => ({
+  useMcpConnections: () => ({ connections: servers.connections }),
+}));
+vi.mock("@/components/agents/connect-server-dialog", () => ({
+  ConnectOwnButton: (props: { entry: { key: string }; label: string; returnTo?: string }) => (
+    <button type="button" onClick={() => servers.connectedWith.push(props)}>
+      {props.label}
+    </button>
+  ),
+}));
 vi.mock("@/lib/assistant-highlight", () => ({ pointAt }));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
   TriggerFormDialog: ({
@@ -48,6 +68,7 @@ function proposal(overrides: Partial<SetupProposal>): SetupProposal {
     why: "You read tickets every Monday",
     request: "Summarise last week's tickets",
     cron: null,
+    server: null,
     ...overrides,
   };
 }
@@ -62,6 +83,10 @@ beforeEach(() => {
   pointAt.mockReset();
   dialogs.length = 0;
   useArchitectAskStore.setState({ request: null });
+  servers.entry = null;
+  servers.isLoading = false;
+  servers.connections = [];
+  servers.connectedWith = [];
 });
 
 describe("SetupProposals", () => {
@@ -138,5 +163,58 @@ describe("SetupProposals", () => {
 
     expect(push).toHaveBeenCalledWith("/mcp-servers");
     expect(pointAt).toHaveBeenCalledWith("mcp-add");
+  });
+
+  describe("a connection naming its server", () => {
+    const GMAIL = {
+      key: "com.mintmcp/gmail",
+      name: "com.mintmcp/gmail",
+      icon: null,
+      url: "https://gmail.mintmcp.com/mcp",
+    };
+    const gmail = () =>
+      proposal({
+        kind: "connection",
+        title: "Connect Gmail",
+        request: "Gmail",
+        server: GMAIL.key,
+      });
+
+    it("connects that service from the card, and comes back to this conversation", async () => {
+      servers.entry = GMAIL;
+      window.history.replaceState({}, "", "/chat?id=c-1");
+      render(<SetupProposals agentId="a-1" proposals={[gmail()]} />);
+
+      await take("Connect Gmail");
+
+      expect(servers.connectedWith).toEqual([
+        expect.objectContaining({ entry: GMAIL, returnTo: "/chat?id=c-1" }),
+      ]);
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("says it is connected once the person's own account is on it", () => {
+      servers.entry = GMAIL;
+      servers.connections = [{ catalog_key: GMAIL.key, is_enabled: true, authorized: true }];
+      render(<SetupProposals agentId="a-1" proposals={[gmail()]} />);
+
+      expect(screen.getByRole("status")).toHaveTextContent("Connected");
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("waits, unclickable, while the server is looked up", () => {
+      servers.isLoading = true;
+      render(<SetupProposals agentId="a-1" proposals={[gmail()]} />);
+
+      expect(screen.getByRole("button", { name: "Connect it" })).toBeDisabled();
+    });
+
+    it("falls back to the MCP servers page for a key nothing knows", async () => {
+      render(<SetupProposals agentId="a-1" proposals={[gmail()]} />);
+
+      await take("Connect Gmail");
+
+      expect(push).toHaveBeenCalledWith("/mcp-servers");
+    });
   });
 });

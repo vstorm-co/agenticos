@@ -2198,9 +2198,14 @@ answer. Empty, the agent offers them itself.
 `propose_setup` proposes up to three things to set up, drawn as cards under the
 answer: an agent of the person's own, a routine, or a service to connect. A card
 acts in one click - a routine opens the routine dialog filled in, on the agent
-that proposed it; an agent is a question to the Architect; a connection opens the
-MCP servers page at its add button. The AgenticOS agent ends its welcome
-interview with them. The cards are the console's; a chat app does not draw them.
+that proposed it; an agent is a question to the Architect.
+
+A connection that names its server by catalog key is that service's card - its logo and its
+Connect, which goes straight to the provider's sign-in and back to the
+conversation - and one that does not opens the MCP servers page at its add
+button. The AgenticOS agent ends its welcome interview with them, and offers a
+connection card whenever a request needs a service the person has not
+connected. The cards are the console's; a chat app does not draw them.
 
 It is on in the starter agent and in the Architect, and an author can switch it
 off. A voice call leaves it out.

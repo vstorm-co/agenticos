@@ -1976,7 +1976,8 @@
           "agent": "Mit dem Architect bauen",
           "routine": "Einrichten",
           "connection": "Verbinden"
-        }
+        },
+        "connected": "Verbunden"
       },
       "makeSkill": "Einen Skill daraus machen",
       "makeSkillAsk": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht.\n\nWorum ich gebeten habe:\n{request}\n\nWie es beantwortet wurde:\n{answer}",

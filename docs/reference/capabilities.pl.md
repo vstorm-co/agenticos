@@ -1,5 +1,5 @@
 ---
-source_sha: "1cdbf74d7e0e"
+source_sha: "4e81cc4fde03"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2302,9 +2302,13 @@ odpowiedź. Puste pole zostawia kroki agentowi.
 `propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
 pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
 działa jednym kliknięciem - rutyna otwiera wypełnione okno rutyny na agencie,
-który ją zaproponował; agent to pytanie do Architekta; połączenie otwiera stronę
-serwerów MCP przy przycisku dodawania. Agent AgenticOS kończy nimi rozmowę
-powitalną. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
+który ją zaproponował; agent to pytanie do Architekta.
+
+Połączenie, które wskazuje serwer kluczem z katalogu, jest kartą tej usługi - z jej logo i przyciskiem
+Podłącz, który prowadzi prosto do logowania u dostawcy i z powrotem do rozmowy -
+a połączenie bez klucza otwiera stronę serwerów MCP przy przycisku dodawania.
+Agent AgenticOS kończy nimi rozmowę powitalną i proponuje kartę połączenia
+zawsze, gdy prośba wymaga usługi, której osoba jeszcze nie podłączyła. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
 
 Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
 Rozmowa głosowa jej nie używa.

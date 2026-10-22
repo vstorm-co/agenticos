@@ -132,14 +132,30 @@ describe("setupProposalsOf", () => {
       call(PROPOSE_SETUP, {
         id: "p-2",
         result: JSON.stringify({
-          proposals: [routine, { ...routine, kind: "connection", request: "Gmail", cron: null }],
+          proposals: [
+            routine,
+            {
+              ...routine,
+              kind: "connection",
+              request: "Gmail",
+              cron: null,
+              server: "com.mintmcp/gmail",
+            },
+          ],
         }),
       }),
     ];
 
     expect(setupProposalsOf(calls)).toEqual([
-      { key: "p-2-0", ...routine },
-      { key: "p-2-1", ...routine, kind: "connection", request: "Gmail", cron: null },
+      { key: "p-2-0", ...routine, server: null },
+      {
+        key: "p-2-1",
+        ...routine,
+        kind: "connection",
+        request: "Gmail",
+        cron: null,
+        server: "com.mintmcp/gmail",
+      },
     ]);
   });
 
@@ -152,12 +168,12 @@ describe("setupProposalsOf", () => {
         { ...routine, title: 3 },
         { ...routine, why: undefined },
         { ...routine, request: ["x"] },
-        { ...routine, kind: "agent", cron: 7 },
+        { ...routine, kind: "agent", cron: 7, server: "" },
       ],
     });
 
     expect(setupProposalsOf([call(PROPOSE_SETUP, { id: "p", result })])).toEqual([
-      { key: "p-6", ...routine, kind: "agent", cron: null },
+      { key: "p-6", ...routine, kind: "agent", cron: null, server: null },
     ]);
   });
 

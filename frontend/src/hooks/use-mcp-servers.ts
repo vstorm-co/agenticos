@@ -27,6 +27,26 @@ export function useMcpCatalog() {
 }
 
 /**
+ * One server by its catalog key - curated, or mirrored from the public registry,
+ * which the curated catalog does not hold and which is searched for by name
+ * (a registry server's name is its key). Null while looking, and for a key
+ * neither knows: an agent wrote it, so it may name nothing.
+ */
+export function useMcpServerEntry(key: string | null) {
+  const { servers, isLoading: catalogLoading } = useMcpCatalog();
+  const curated = key === null ? null : (servers.find((server) => server.key === key) ?? null);
+  const mirrored = useQuery({
+    queryKey: qk.mcpServers.entry(key ?? ""),
+    queryFn: () =>
+      apiClient.get<McpCatalog>(`/agents/mcp-servers?q=${encodeURIComponent(key ?? "")}&limit=10`),
+    enabled: key !== null && !catalogLoading && curated === null,
+    staleTime: Infinity,
+  });
+  const entry = curated ?? mirrored.data?.items.find((server) => server.key === key) ?? null;
+  return { entry, isLoading: entry === null && (catalogLoading || mirrored.isLoading) };
+}
+
+/**
  * The tools of this deployment's own MCP server, for a platform binding to pick from.
  *
  * Cached indefinitely for the same reason as the catalog: they change on redeploy.

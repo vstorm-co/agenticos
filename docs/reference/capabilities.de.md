@@ -1,5 +1,5 @@
 ---
-source_sha: "1cdbf74d7e0e"
+source_sha: "4e81cc4fde03"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2478,9 +2478,14 @@ Antwort. Leer bietet der Agent sie selbst an.
 der Antwort: einen eigenen Agent der Person, eine Routine oder einen Dienst zum
 Verbinden. Eine Karte wirkt mit einem Klick - eine Routine öffnet den
 Routinendialog ausgefüllt, auf dem Agent, der sie vorgeschlagen hat; ein Agent
-ist eine Frage an den Architect; eine Verbindung öffnet die Seite der MCP-Server
-an ihrem Hinzufügen-Button. Der AgenticOS-Agent beendet sein Kennenlerngespräch
-damit. Die Karten gibt es nur in der Konsole; eine Chat-App zeichnet sie nicht.
+ist eine Frage an den Architect.
+
+Eine Verbindung, die ihren Server mit dem Katalogschlüssel nennt, ist die Karte dieses Dienstes - mit seinem Logo und
+seinem Verbinden, das direkt zur Anmeldung beim Anbieter und zurück ins Gespräch
+führt -, und eine ohne Schlüssel öffnet die Seite der MCP-Server an ihrem
+Hinzufügen-Button. Der AgenticOS-Agent beendet sein Kennenlerngespräch damit und
+bietet eine Verbindungskarte an, wann immer eine Anfrage einen Dienst braucht,
+den die Person noch nicht verbunden hat. Die Karten gibt es nur in der Konsole; eine Chat-App zeichnet sie nicht.
 
 Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
 abschalten. Ein Sprachanruf lässt sie weg.
