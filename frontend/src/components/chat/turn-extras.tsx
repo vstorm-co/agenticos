@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, BookmarkCheck, BookmarkX, Sparkles } from "lucide-react";
+import { BookmarkCheck, BookmarkX, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -13,7 +13,6 @@ import { ROUTES } from "@/lib/constants";
 import { useRouter } from "@/lib/locale-navigation";
 import {
   capabilityCardsOf,
-  followUpsOf,
   memoryChangesOf,
   setupProposalsOf,
   type CapabilityCard,
@@ -27,22 +26,19 @@ interface TurnExtrasProps {
   message: ChatMessage;
   /** The agent that answered, by name, for the card's sentence. */
   agentName?: string;
-  /** Set on the latest answer only: older next steps are history, not offers. */
-  onFollowUp?: (step: string) => void;
 }
 
 /**
  * What a turn's calls left under its answer (#2301): what the agent noted about
- * the person, a card for a capability it lacked, things to set up, and next
- * steps as buttons.
+ * the person, a card for a capability it lacked, and things to set up. Its next
+ * steps sit above the composer instead - see `NextSteps`.
  */
-export function TurnExtras({ message, agentName, onFollowUp }: TurnExtrasProps) {
+export function TurnExtras({ message, agentName }: TurnExtrasProps) {
   if (message.role !== "assistant" || message.isStreaming) return null;
   const changes = memoryChangesOf(message.toolCalls);
   const cards = capabilityCardsOf(message.toolCalls);
   const proposals = setupProposalsOf(message.toolCalls);
-  const steps = onFollowUp ? followUpsOf(message.toolCalls) : [];
-  if (!changes.length && !cards.length && !proposals.length && !steps.length) return null;
+  if (!changes.length && !cards.length && !proposals.length) return null;
   return (
     <div className="space-y-2 pb-3">
       {changes.length > 0 && <MemoryLine labels={changes} />}
@@ -52,7 +48,6 @@ export function TurnExtras({ message, agentName, onFollowUp }: TurnExtrasProps) 
       {proposals.length > 0 && (
         <SetupProposals proposals={proposals} agentId={message.agentId ?? null} />
       )}
-      {steps.length > 0 && onFollowUp && <FollowUpButtons steps={steps} onPick={onFollowUp} />}
     </div>
   );
 }
@@ -141,25 +136,6 @@ function CapabilityRequestCard({ card, agentName }: { card: CapabilityCard; agen
           </Button>
         )}
       </div>
-    </div>
-  );
-}
-
-function FollowUpButtons({ steps, onPick }: { steps: string[]; onPick: (step: string) => void }) {
-  const t = useTranslations("chat.extras");
-  return (
-    <div role="group" aria-label={t("nextSteps")} className="flex flex-wrap gap-1.5">
-      {steps.map((step) => (
-        <button
-          key={step}
-          type="button"
-          onClick={() => onPick(step)}
-          className="group bg-muted/60 hover:bg-muted focus-visible:ring-ring text-foreground inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-colors outline-none focus-visible:ring-2"
-        >
-          {step}
-          <ArrowUpRight className="text-muted-foreground group-hover:text-foreground h-3.5 w-3.5" />
-        </button>
-      ))}
     </div>
   );
 }

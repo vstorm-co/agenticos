@@ -183,6 +183,8 @@ interface ChatInputProps {
   incoming?: IncomingFiles | null;
   /** Called as the person types, so a shared chat can say they are. */
   onTyping?: () => void;
+  /** Whether the box holds words of the person's own, as it changes. */
+  onDraftChange?: (drafting: boolean) => void;
   /**
    * Projects `@` offers beside what the agent reaches, before the first message;
    * picking one starts the chat in it rather than mentioning it.
@@ -223,6 +225,7 @@ export function ChatInput({
   mentionsFromDraft = false,
   hints = false,
   onTyping,
+  onDraftChange,
   projects,
   onPickProject,
 }: ChatInputProps) {
@@ -235,6 +238,8 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const drafting = message.trim().length > 0;
+  useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);

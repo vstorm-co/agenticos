@@ -31,22 +31,10 @@ vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/assistant-highlight")>()),
   pointAt: navigation.pointAt,
 }));
-// The extras are tested on their own; the list decides which answer may offer next steps.
+// The extras are tested on their own; the list decides which agent they name.
 vi.mock("./turn-extras", () => ({
-  TurnExtras: ({
-    message,
-    agentName,
-    onFollowUp,
-  }: {
-    message: ChatMessage;
-    agentName?: string;
-    onFollowUp?: (step: string) => void;
-  }) => (
-    <div
-      data-testid={`extras-${message.id}`}
-      data-agent={agentName ?? ""}
-      data-offers={String(onFollowUp !== undefined)}
-    />
+  TurnExtras: ({ message, agentName }: { message: ChatMessage; agentName?: string }) => (
+    <div data-testid={`extras-${message.id}`} data-agent={agentName ?? ""} />
   ),
 }));
 
@@ -532,8 +520,8 @@ describe("where the transcript crosses into another day", () => {
   });
 });
 
-describe("the next steps under an answer", () => {
-  it("are offered on the latest answer only, named by the agent that gave it", () => {
+describe("what a turn left under its answer", () => {
+  it("is named by the agent that gave it", () => {
     state.agents = [{ id: "a-1", slug: "helper", name: "Helper" }];
     render(
       <MessageList
@@ -542,12 +530,9 @@ describe("the next steps under an answer", () => {
           message({ id: "m-2", role: "user", content: "and?" }),
           message({ id: "m-3", agentId: "a-1" }),
         ]}
-        onFollowUp={vi.fn()}
       />,
     );
 
-    expect(screen.getByTestId("extras-m-1")).toHaveAttribute("data-offers", "false");
-    expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-offers", "true");
     expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-agent", "Helper");
     expect(screen.getByTestId("extras-m-2")).toHaveAttribute("data-agent", "");
   });

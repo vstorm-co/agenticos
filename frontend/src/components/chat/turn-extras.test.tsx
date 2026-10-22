@@ -70,19 +70,14 @@ describe("TurnExtras", () => {
     rerender(<TurnExtras message={answer([request], { isStreaming: true })} />);
     expect(container).toBeEmptyDOMElement();
 
-    rerender(<TurnExtras message={answer([call("web_search")])} onFollowUp={vi.fn()} />);
+    rerender(<TurnExtras message={answer([call("web_search")])} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("offers next steps only on the answer that can still take one, and sends the one picked", async () => {
-    const onFollowUp = vi.fn();
-    const { rerender } = render(<TurnExtras message={answer([steps])} />);
-    expect(screen.queryByRole("button", { name: /Draft the email/ })).not.toBeInTheDocument();
+  it("leaves the next steps to the composer, not the answer (#2301)", () => {
+    const { container } = render(<TurnExtras message={answer([steps])} />);
 
-    rerender(<TurnExtras message={answer([steps])} onFollowUp={onFollowUp} />);
-    await userEvent.click(screen.getByRole("button", { name: /Draft the email/ }));
-
-    expect(onFollowUp).toHaveBeenCalledWith("Draft the email");
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("says what the agent remembered and forgot, with the way to manage it", async () => {

@@ -17,8 +17,6 @@ interface MessageListProps {
   onRegenerate?: (messageId: string) => void;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
-  /** Send a next step the latest answer offered; absent while a turn runs. */
-  onFollowUp?: (step: string) => void;
 }
 
 /**
@@ -123,7 +121,7 @@ export function requestOf(messages: ChatMessage[], index: number): string | unde
   return undefined;
 }
 
-export function MessageList({ messages, onRegenerate, pins, onFollowUp }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
   // turns. The query is the one the agent picker already made, so this costs a
@@ -199,7 +197,6 @@ export function MessageList({ messages, onRegenerate, pins, onFollowUp }: Messag
           <TurnExtras
             message={message}
             agentName={message.agentId ? byId.get(message.agentId)?.name : undefined}
-            onFollowUp={index === lastAssistantIndex ? onFollowUp : undefined}
           />
         </Fragment>
       ))}

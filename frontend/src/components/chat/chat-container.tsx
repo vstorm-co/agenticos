@@ -90,6 +90,7 @@ import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FloatingPill } from "@/components/voice/floating-pill";
 import { MessageItem } from "./message-item";
+import { NextSteps, nextStepsOf } from "./next-steps";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
@@ -960,6 +961,10 @@ function ChatUI({
   );
   const browserLevel = useAudioLevel(stopBrowserDictation ? mic.stream : null);
   const [composerFocused, setComposerFocused] = useState(false);
+  // The latest answer's next steps sit on the composer until somebody types
+  // their own (#2301).
+  const [drafting, setDrafting] = useState(false);
+  const nextSteps = drafting ? [] : nextStepsOf(messages, isProcessing);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   // Offered by `@` only while the chat can still choose its project, as the `+` is.
   const projectMentions = useProjectMentions(!agentFixed && conversationId === null);
@@ -1190,12 +1195,7 @@ function ChatUI({
                   onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
                   onSend={isArchived ? undefined : (text) => sendMessage(text)}
                 >
-                  <MessageList
-                    messages={messages}
-                    onRegenerate={onRegenerate}
-                    pins={pins}
-                    onFollowUp={isProcessing ? undefined : (step) => sendMessage(step)}
-                  />
+                  <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
                 </ConversationVisualsProvider>
               </LiveBrowsesProvider>
             )}
@@ -1413,6 +1413,9 @@ function ChatUI({
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
                   {/* Every hint on top of the box, beside the pill it belongs to. */}
+                  {!isArchived && !onCall && (
+                    <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
+                  )}
                   <DictationStrip hint={composerStrip} placement="above" />
                   <Beam
                     size="md"
@@ -1461,6 +1464,7 @@ function ChatUI({
                           attachmentSlot={attachmentSlot}
                           incoming={incoming}
                           onTyping={onTyping}
+                          onDraftChange={setDrafting}
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}

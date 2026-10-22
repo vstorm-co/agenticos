@@ -86,6 +86,19 @@ describe("ChatInput typing", () => {
     await userEvent.clear(screen.getByRole("textbox"));
     expect(onTyping).toHaveBeenCalledTimes(2);
   });
+
+  it("says when the box holds words of the person's own, and when it no longer does", async () => {
+    // What hides the latest answer's next steps from the composer (#2301).
+    const onDraftChange = vi.fn();
+    render(<ChatInput onSend={vi.fn()} onDraftChange={onDraftChange} />);
+    expect(onDraftChange).toHaveBeenLastCalledWith(false);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+    expect(onDraftChange).toHaveBeenLastCalledWith(true);
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(onDraftChange).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe("ChatInput paste", () => {
