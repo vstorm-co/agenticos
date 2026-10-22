@@ -790,6 +790,9 @@ class Settings(BaseSettings):
     # Cosine similarity, so what counts as close depends on the embedding model.
     # Searches keep their similarity, so a change reclassifies the ones already made.
     KNOWLEDGE_GAP_MIN_SIMILARITY: float = Field(default=0.30, ge=0.0, le=1.0)
+    # Cosine to a topic's centroid. Questions on one subject score about 0.5-0.7 on
+    # OpenAI's text-embedding-3 models, so a bar near 0.8 asks for the same sentence.
+    KNOWLEDGE_GAP_TOPIC_SIMILARITY: float = Field(default=0.55, gt=0.0, le=1.0)
 
     EMAIL_PROVIDER: str = "smtp"
     EMAIL_FROM: str = "noreply@agenticos.com"

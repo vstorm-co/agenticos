@@ -63,7 +63,7 @@ decides one of three things:
 |---|---|
 | The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
-| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake |
+| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the
@@ -98,6 +98,13 @@ with that knowledge base's own embedding model, and puts each in the closest top
 of that knowledge base, or starts a new one. A pass embeds at most 500 misses
 per knowledge base; the rest wait for the next one. A knowledge base with no
 new misses costs no embedding call.
+
+A miss joins the closest topic only when it is at least as similar to it as
+`KNOWLEDGE_GAP_TOPIC_SIMILARITY`; otherwise it starts a new one.
+
+| Setting | Default | What it decides |
+|---|---|---|
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | The cosine similarity a miss needs to a topic to join it. What questions about one subject score depends on the embedding model: about 0.5 to 0.7 on OpenAI's `text-embedding-3` models. Raise it if unrelated questions share topics, lower it if one subject keeps starting new ones. The default is tuned for those models; an embedding model served behind an OpenAI-compatible endpoint, such as bge or e5, scores even unrelated questions high, so raise it there |
 
 - A search over two knowledge bases becomes a question in a topic of each.
 - A knowledge base moved to another embedding model starts new topics, because

@@ -1,5 +1,5 @@
 ---
-source_sha: "e3d2d8bbc68f"
+source_sha: "dce04e2d4523"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -69,7 +69,7 @@ negativamente, y decide una de tres cosas:
 |---|---|
 | El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
-| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error |
+| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
@@ -107,6 +107,13 @@ y coloca cada uno en el tema más cercano de esa base de conocimiento, o abre un
 nuevo. Una pasada procesa como mucho 500 fallos por base de conocimiento; el
 resto espera a la siguiente. Una base de conocimiento sin fallos nuevos no
 cuesta ninguna llamada de embeddings.
+
+Un fallo entra en el tema más cercano solo si se le parece al menos tanto como
+`KNOWLEDGE_GAP_TOPIC_SIMILARITY`; si no, abre uno nuevo.
+
+| Ajuste | Por defecto | Qué decide |
+|---|---|---|
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | La similitud coseno que un fallo necesita con un tema para unirse a él. Lo que puntúan las preguntas sobre un mismo asunto depende del modelo de embeddings: entre 0,5 y 0,7 aproximadamente en los modelos `text-embedding-3` de OpenAI. Súbelo si preguntas sin relación comparten tema, bájalo si un mismo asunto sigue abriendo temas nuevos. El valor por defecto está ajustado a esos modelos; un modelo de embeddings servido tras un endpoint compatible con OpenAI, como bge o e5, puntúa alto incluso preguntas sin relación, así que súbelo ahí |
 
 - Una búsqueda en dos bases de conocimiento se convierte en una pregunta en un tema de
   cada una.
