@@ -1,5 +1,5 @@
 ---
-source_sha: "3f83a5542375"
+source_sha: "03947b258648"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -478,9 +478,14 @@ jeden przypadek został niekompletny lub nieoceniony, jest **bez rozstrzygnięci
 nigdy zaliczony - chyba że coś wprost nie przeszło: potwierdzona regresja albo
 minimum, którego odsetek zaliczonych nie osiągnie, nawet gdyby każdy
 nierozstrzygnięty przypadek przeszedł. Podaje przypadki, które zostały
-nierozstrzygnięte. Przypadek, na którym agent się wysypał, nie jest
-nierozstrzygnięty: nie przeszedł, więc czternaście awarii i jedno zaliczenie
-oblewają minimum 90% przy około 7%. Ponowna publikacja sędziego zmienia sposób oceniania, więc
+nierozstrzygnięte.
+
+Przypadek, na którym agent się wysypał, nie jest nierozstrzygnięty: nie
+przeszedł i, jak potwierdzona regresja, od razu oblewa wynik, z minimum czy bez,
+z baseline czy bez - a czternaście awarii i jedno zaliczenie dają odsetek
+zaliczonych około 7%.
+
+Ponowna publikacja sędziego zmienia sposób oceniania, więc
 następny wynik każdej suity, którą ocenia, będzie raz bez rozstrzygnięcia, a jej
 właściciel dostanie wiadomość. Odsetek zaliczonych poniżej minimum oblewa
 wynik niezależnie od porównania: minimum nie potrzebuje baseline'u.

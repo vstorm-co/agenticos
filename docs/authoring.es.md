@@ -1,5 +1,5 @@
 ---
-source_sha: "ebde7c56e07b"
+source_sha: "2d8ad168bb1c"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -179,7 +179,9 @@ desactivado, y dice por qué, hasta que una
 ejecutado con ese modelo sin encontrar ninguna regresión confirmada. Una
 comprobación que dejó un caso sin decidir - nada lo calificó, o el provider o un
 evaluador fallaron en él - o que no llegó a un veredicto también lo retiene:
-califica las respuestas o vuelve a ejecutar la comprobación.
+califica las respuestas o vuelve a ejecutar la comprobación. Igual una
+comprobación en la que el agent se cayó: corrige lo que falló y vuelve a
+ejecutarla.
 
 ## Skills { #skills }
 

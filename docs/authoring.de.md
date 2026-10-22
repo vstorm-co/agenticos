@@ -1,5 +1,5 @@
 ---
-source_sha: "ebde7c56e07b"
+source_sha: "2d8ad168bb1c"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -186,7 +186,9 @@ der wartenden Vorschläge auf diesem Modell gelaufen ist und keine bestätigte
 Regression gefunden hat. Eine Prüfung, die einen Fall unentschieden ließ -
 nichts hat ihn bewertet, oder der Provider oder ein Bewerter ist daran
 gescheitert - oder zu keinem Urteil kam, hält ihn ebenfalls zurück: Bewerten Sie
-die Antworten oder starten Sie die Prüfung erneut.
+die Antworten oder starten Sie die Prüfung erneut. Ebenso eine Prüfung, in der
+der Agent abgestürzt ist: Beheben Sie, was gescheitert ist, und starten Sie sie
+erneut.
 
 ## Skills { #skills }
 

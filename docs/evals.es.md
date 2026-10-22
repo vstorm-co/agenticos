@@ -1,5 +1,5 @@
 ---
-source_sha: "3f83a5542375"
+source_sha: "03947b258648"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -481,8 +481,11 @@ tasa de aprobados no alcanza aunque aprobara cada caso sin decidir. Nombra los
 casos que quedaron sin decidir.
 
 Un caso en el que el agent se cayó no queda sin
-decidir: suspendió, así que catorce caídas y un aprobado suspenden un mínimo
-del 90 % con un 7 % aproximadamente. Volver a
+decidir: suspendió y, como una regresión confirmada, suspende el resultado de
+inmediato, con o sin mínimo o baseline; catorce caídas y un aprobado dan además
+una tasa de aprobados de un 7 % aproximadamente.
+
+Volver a
 publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
 resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
 propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado

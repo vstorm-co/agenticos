@@ -1,5 +1,5 @@
 ---
-source_sha: "3f83a5542375"
+source_sha: "03947b258648"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -503,8 +503,11 @@ Regression oder ein Minimum, das die Bestehensquote verfehlt, selbst wenn jeder
 unentschiedene Fall bestünde. Es nennt die Fälle, die unentschieden blieben.
 
 Ein Fall, an dem der Agent abgestürzt ist, ist nicht unentschieden: Er ist
-nicht bestanden, daher fallen vierzehn Abstürze und ein Bestehen bei einem
-Minimum von 90 % mit etwa 7 % durch. Den Judge neu zu veröffentlichen ändert, wie Antworten
+nicht bestanden und lässt das Ergebnis wie eine bestätigte Regression sofort
+durchfallen, mit oder ohne Minimum oder Baseline - vierzehn Abstürze und ein
+Bestehen ergeben zudem eine Bestehensquote von etwa 7 %.
+
+Den Judge neu zu veröffentlichen ändert, wie Antworten
 bewertet werden, daher ist das nächste Ergebnis jeder Suite, die er bewertet,
 einmal ohne Ergebnis, und ihr Eigentümer wird benachrichtigt. Eine
 Bestehensquote unter dem Minimum lässt ein Ergebnis unabhängig vom Vergleich

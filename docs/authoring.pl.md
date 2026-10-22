@@ -1,5 +1,5 @@
 ---
-source_sha: "ebde7c56e07b"
+source_sha: "2d8ad168bb1c"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -172,7 +172,9 @@ wyłączone i mówi dlaczego, dopóki [sprawdzenie evalami](#check-with-evals)
 czekających sugestii nie przejdzie na tym modelu bez potwierdzonej regresji.
 Sprawdzenie, które zostawiło przypadek nierozstrzygnięty - nic go nie oceniło
 albo zawiódł na nim provider lub oceniający - albo nie doszło do werdyktu, też ją
-wstrzymuje: oceń odpowiedzi albo uruchom sprawdzenie ponownie.
+wstrzymuje: oceń odpowiedzi albo uruchom sprawdzenie ponownie. Tak samo
+sprawdzenie, w którym agent się wysypał: napraw to, co zawiodło, i uruchom je
+ponownie.
 
 ## Skille { #skills }
 

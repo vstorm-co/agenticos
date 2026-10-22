@@ -168,7 +168,8 @@ disabled, and says why, until a [check with evals](#check-with-evals) of the
 waiting suggestions has run on that model and found no confirmed regression. A
 check that left a case undecided - nothing graded it, or the provider or a
 scorer failed on it - or reached no verdict holds it back too: grade the answers
-or run the check again.
+or run the check again. So does a check the agent crashed on: fix what failed,
+then run it again.
 
 ## Skills { #skills }
 

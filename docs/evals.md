@@ -446,8 +446,12 @@ A result whose comparison is [invalid](#a-different-judge-invalidates-the-compar
 or with any case left incomplete or ungraded, is **inconclusive** - never
 passed - unless something failed outright: a confirmed regression, or a
 minimum the pass rate misses even were every undecided case to pass. It names
-the cases left undecided. A case the agent crashed on is not undecided: it
-failed, so fourteen crashes and one pass fail a 90% minimum at about 7%.
+the cases left undecided.
+
+A case the agent crashed on is not undecided: it failed, and like a confirmed
+regression it fails the result outright, with or without a minimum or a
+baseline - fourteen crashes and one pass also read a pass rate of about 7%.
+
 Republishing the judge changes how answers are graded, so the next result of
 every suite it grades for is inconclusive once, and its owner is told. A pass
 rate below the minimum fails a result whatever its comparison: the minimum
