@@ -1,5 +1,5 @@
 ---
-source_sha: "fbfbb2992d3e"
+source_sha: "9537cca0a893"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -176,8 +176,8 @@ En ambos casos, el caso se crea a partir de ese turno:
   del chat (el del pulgar abajo, una vez que lo marcas), Activity y **Score
   against a case**; cada uno empieza por **Only this question**, para que un
   chat que empezó con otro tema se quede fuera. En el chat, una pregunta que
-  continúa claramente la anterior, porque empieza por "and" o "what about",
-  empieza en cambio por la conversación, y a una pregunta sin nada antes no se
+  continúa claramente la anterior, porque empieza por "and" o "what about", se
+  señala como continuación, y a una pregunta sin nada antes no se
   le pregunta (`with_history` en `POST /datasets/{id}/cases/from-message`);
 - la respuesta es la respuesta entera del agent a la pregunta (cada paso que
   escribió antes de la siguiente pregunta), y su texto se convierte en el

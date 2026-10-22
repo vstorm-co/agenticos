@@ -21,7 +21,7 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { Perm } from "@/types/permissions";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
-import { asksAboutHistory, keepsHistoryFirst, type AskedBefore } from "./follows-on";
+import { asksAboutHistory, type AskedBefore } from "./follows-on";
 import { HistoryChoice } from "./history-choice";
 import { useDatasetTarget } from "./use-dataset-target";
 
@@ -40,10 +40,9 @@ interface AddToDatasetDialogProps {
   /** Whether the answer was rated down, so the rating's comment comes with it. */
   ratedDown?: boolean;
   /**
-   * The question, when the surface showing the answer knows it. It picks whether
-   * the conversation before it is kept by default; a question with nothing before
-   * it is not asked about. Unknown, the reader chooses and the question alone is
-   * offered first.
+   * The question, when the surface showing the answer knows it: one that plainly
+   * follows on is pointed out, and one with nothing before it is not asked about.
+   * Either way the question alone is what is chosen until the reader picks more.
    */
   asked?: AskedBefore;
 }
@@ -72,7 +71,7 @@ export function AddToDatasetDialog({
     useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
-  const [withHistory, setWithHistory] = useState(keepsHistoryFirst(asked));
+  const [withHistory, setWithHistory] = useState(false);
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
   const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
@@ -127,6 +126,7 @@ export function AddToDatasetDialog({
             idPrefix="add-to-dataset"
             withHistory={withHistory}
             onChange={setWithHistory}
+            asked={asked}
           />
         )}
         <DialogFooter>

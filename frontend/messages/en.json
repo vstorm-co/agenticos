@@ -7867,6 +7867,7 @@
     "historyChoice": "The conversation before the question",
     "historyAlone": "Only this question",
     "historyWith": "With the conversation",
+    "historyFollowUp": "This looks like a follow-up to the conversation before it.",
     "discardCaseTitle": "Discard your changes?",
     "discardCaseBody": "The changes to this case are not saved and will be lost.",
     "discardCase": "Discard",

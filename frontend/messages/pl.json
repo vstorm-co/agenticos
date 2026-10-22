@@ -7634,6 +7634,7 @@
     "historyChoice": "Rozmowa przed pytaniem",
     "historyAlone": "Tylko to pytanie",
     "historyWith": "Razem z rozmową",
+    "historyFollowUp": "To wygląda na ciąg dalszy wcześniejszej rozmowy.",
     "discardCaseTitle": "Odrzucić zmiany?",
     "discardCaseBody": "Zmiany w tym przypadku nie są zapisane i zostaną utracone.",
     "discardCase": "Odrzuć",

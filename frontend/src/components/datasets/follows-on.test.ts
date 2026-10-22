@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { asksAboutHistory, followsOn, keepsHistoryFirst } from "./follows-on";
+import { asksAboutHistory, followsOn } from "./follows-on";
 
 describe("followsOn", () => {
   it.each([
@@ -30,13 +30,10 @@ describe("followsOn", () => {
   });
 });
 
-describe("the history choice", () => {
-  it("is asked unless nothing came before the question, and keeps the conversation only when it plainly continues", () => {
+describe("asksAboutHistory", () => {
+  it("asks unless nothing came before the question", () => {
     expect(asksAboutHistory(undefined)).toBe(true);
+    expect(asksAboutHistory({ question: "And boots?", earlier: true })).toBe(true);
     expect(asksAboutHistory({ question: "And boots?", earlier: false })).toBe(false);
-    expect(keepsHistoryFirst(undefined)).toBe(false);
-    expect(keepsHistoryFirst({ question: "And boots?", earlier: true })).toBe(true);
-    expect(keepsHistoryFirst({ question: "And boots?", earlier: false })).toBe(false);
-    expect(keepsHistoryFirst({ question: "Can I return boots?", earlier: true })).toBe(false);
   });
 });

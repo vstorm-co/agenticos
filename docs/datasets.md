@@ -166,8 +166,8 @@ Either way, the case is created from the turn:
   one once you tick it - and so do Activity and **Score against a case**; each
   starts from **Only this question**, so a chat that began on another topic
   stays out. In the chat, a question that plainly continues the one before,
-  opening on "and" or "what about", starts from the conversation instead, and
-  a question with nothing before it is not asked about (`with_history` on
+  opening on "and" or "what about", is pointed out as a follow-up, and a
+  question with nothing before it is not asked about (`with_history` on
   `POST /datasets/{id}/cases/from-message`);
 - the agent's whole reply to the question - every step it wrote before the next
   question - is the answer, and its text becomes the counter-example. If nobody

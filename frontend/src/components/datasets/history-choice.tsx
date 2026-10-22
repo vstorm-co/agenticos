@@ -10,18 +10,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { followsOn, type AskedBefore } from "./follows-on";
 
 interface HistoryChoiceProps {
   idPrefix: string;
   withHistory: boolean;
   onChange: (withHistory: boolean) => void;
+  /** The question, when known, so one that plainly follows on is pointed out. */
+  asked?: AskedBefore;
 }
 
 /** Whether the conversation before the question comes into the case with it. */
-export function HistoryChoice({ idPrefix, withHistory, onChange }: HistoryChoiceProps) {
+export function HistoryChoice({ idPrefix, withHistory, onChange, asked }: HistoryChoiceProps) {
   const t = useTranslations("datasets");
   return (
-    <FormField htmlFor={`${idPrefix}-history`} label={t("historyChoice")}>
+    <FormField
+      htmlFor={`${idPrefix}-history`}
+      label={t("historyChoice")}
+      description={
+        asked !== undefined && followsOn(asked.question) ? t("historyFollowUp") : undefined
+      }
+    >
       <Select
         value={withHistory ? "with" : "alone"}
         onValueChange={(next) => onChange(next === "with")}

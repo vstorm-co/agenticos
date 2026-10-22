@@ -10,7 +10,7 @@ import { useAddToDataset } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DatasetTargetFields } from "./dataset-target-fields";
-import { asksAboutHistory, keepsHistoryFirst, type AskedBefore } from "./follows-on";
+import { asksAboutHistory, type AskedBefore } from "./follows-on";
 import { HistoryChoice } from "./history-choice";
 import { useCanAddToDataset, useDatasetTarget } from "./use-dataset-target";
 
@@ -42,7 +42,7 @@ export function AlsoAddToDataset({ messageId, ref, asked }: AlsoAddToDatasetProp
   const router = useRouter();
   const allowed = useCanAddToDataset();
   const [wanted, setWanted] = useState(false);
-  const [withHistory, setWithHistory] = useState(keepsHistoryFirst(asked));
+  const [withHistory, setWithHistory] = useState(false);
   const { editable, isLoading, search, target, choose, remember } = useDatasetTarget({
     enabled: allowed && wanted,
   });
@@ -94,7 +94,12 @@ export function AlsoAddToDataset({ messageId, ref, asked }: AlsoAddToDatasetProp
         />
       )}
       {wanted && asksAboutHistory(asked) && (
-        <HistoryChoice idPrefix="rate-down" withHistory={withHistory} onChange={setWithHistory} />
+        <HistoryChoice
+          idPrefix="rate-down"
+          withHistory={withHistory}
+          onChange={setWithHistory}
+          asked={asked}
+        />
       )}
     </div>
   );

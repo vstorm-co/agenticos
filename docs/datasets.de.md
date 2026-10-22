@@ -1,5 +1,5 @@
 ---
-source_sha: "fbfbb2992d3e"
+source_sha: "9537cca0a893"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -185,9 +185,9 @@ In beiden Fällen entsteht der Fall aus diesem Zug:
   **Mit dem Gespräch** wählen. Beide Dialoge im Chat fragen danach - der nach
   dem Daumen nach unten, sobald Sie ihn ankreuzen -, ebenso Activity und
   **Score against a case**; jeder beginnt mit **Nur diese Frage**, damit ein
-  Chat, der mit einem anderen Thema begann, draußen bleibt. Im Chat beginnt
-  eine Frage, die die vorige erkennbar fortsetzt, weil sie mit „und“ oder „was
-  ist mit“ anfängt, stattdessen mit dem Gespräch, und nach einer Frage ohne
+  Chat, der mit einem anderen Thema begann, draußen bleibt. Im Chat wird eine
+  Frage, die die vorige erkennbar fortsetzt, weil sie mit „und“ oder „was ist
+  mit“ anfängt, als Fortsetzung gekennzeichnet, und nach einer Frage ohne
   etwas davor wird nicht gefragt (`with_history` auf
   `POST /datasets/{id}/cases/from-message`);
 - die ganze Antwort des Agents auf die Frage - jeder Schritt, den er vor der

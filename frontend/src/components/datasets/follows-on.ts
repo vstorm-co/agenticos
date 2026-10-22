@@ -10,9 +10,8 @@ const OPENERS = /^(and|what about|how about|a co|a jak|und|was ist mit)([\s,.?!]
 
 /**
  * Whether a question plainly continues the conversation before it ("And to
- * Toronto?"), which only picks the default between keeping that conversation
- * and not. Anything else is offered alone: copying turns nobody chose is the
- * costlier mistake.
+ * Toronto?"). Only a hint beside the choice: the conversation is never kept
+ * unless a person picks it.
  */
 export function followsOn(question: string): boolean {
   return OPENERS.test(question.trim().toLowerCase());
@@ -21,9 +20,4 @@ export function followsOn(question: string): boolean {
 /** Whether to ask about the conversation at all: not when nothing came before the question. */
 export function asksAboutHistory(asked: AskedBefore | undefined): boolean {
   return asked === undefined || asked.earlier;
-}
-
-/** The conversation is kept by default only for a question known to continue it. */
-export function keepsHistoryFirst(asked: AskedBefore | undefined): boolean {
-  return asked !== undefined && asked.earlier && followsOn(asked.question);
 }

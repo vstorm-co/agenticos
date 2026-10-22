@@ -228,7 +228,32 @@ describe("Add to dataset", () => {
     );
   });
 
-  it("offers the conversation first for a question that leans on it, and not at all for none", () => {
+  it.each(["I need an invoice for order 12", "Do you ship?", "Refund policy?"])(
+    "copies no conversation for %o unless asked to",
+    async (question) => {
+      state.add.mockResolvedValue({});
+      render(
+        <AddToDatasetDialog
+          open
+          onOpenChange={vi.fn()}
+          messageId="m1"
+          answerAs="reference_answer"
+          askAnswerAs={false}
+          asked={{ question, earlier: true }}
+        />,
+      );
+      expect(
+        screen.getByRole("combobox", { name: "The conversation before the question" }),
+      ).toHaveTextContent("Only this question");
+      expect(screen.queryByText(/looks like a follow-up/)).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Add" }));
+      await waitFor(() =>
+        expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: false })),
+      );
+    },
+  );
+
+  it("points out a follow-up without choosing it, and asks nothing with no conversation", () => {
     const dialog = (question: string, earlier: boolean) => (
       <AddToDatasetDialog
         open
@@ -242,12 +267,11 @@ describe("Add to dataset", () => {
     const history = () =>
       screen.queryByRole("combobox", { name: "The conversation before the question" });
     const first = render(dialog("And how much to Toronto?", true));
-    expect(history()).toHaveTextContent("With the conversation");
-    first.unmount();
-
-    const second = render(dialog("How long do refunds take for a card payment?", true));
     expect(history()).toHaveTextContent("Only this question");
-    second.unmount();
+    expect(
+      screen.getByText("This looks like a follow-up to the conversation before it."),
+    ).toBeInTheDocument();
+    first.unmount();
 
     render(dialog("And how much to Toronto?", false));
     expect(history()).toBeNull();
