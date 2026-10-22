@@ -59,19 +59,25 @@ Two things are versioned separately from this file and worth knowing about:
 - **What agents generate is bounded: a per-organization quota and a
   retention period.** Each generated image, speech clip and video is now
   recorded in a new `generated_media` table and counted against
-  `GENERATED_MEDIA_QUOTA_MB` (default 5120) per organization - files made in
-  a conversation only - which a generation tool checks before spending
-  anything; past it, the tool answers that the organization has used its
-  storage. A daily `sweep-generated-media` job deletes files older than
-  `GENERATED_MEDIA_RETENTION_DAYS` (default 90), whether or not their
-  conversation is still there. Generated files are also deleted with their
+  `GENERATED_MEDIA_QUOTA_MB` (default 5120) per organization, which a
+  generation tool checks before spending anything; past it, the tool answers
+  that the organization has used its storage. A daily `sweep-generated-media`
+  job deletes files older than `GENERATED_MEDIA_RETENTION_DAYS` (default 90),
+  whether or not their conversation is still there, and a file made with no
+  conversation - a preview or test run, a channel `/btw` aside, an API run
+  that names no conversation - after 7 days whatever that setting is, since
+  no member could delete anything to free it. Generated files are also deleted with their
   conversation, with the account whose conversations they were, and with
   their organization, by a job queued in the same transaction. **Operators:**
   both are on by default; set `GENERATED_MEDIA_RETENTION_DAYS=0` and
   `GENERATED_MEDIA_QUOTA_MB=0` to keep the previous behaviour - no deletion by
   age and no limit (a deleted conversation's files still go with it). Files
   generated before this release have no record: they are still served, but
-  are neither counted nor swept, and go only with their organization (#2310).
+  are neither counted nor swept, and go only with their organization.
+  **Operators:** an organization purge now queues a cleanup job that only
+  this release's worker can run, so upgrade the workers with the API hosts,
+  and do not roll back to an earlier worker while such a job is queued; every
+  other cleanup job stays readable by the previous worker (#2310).
 
 ### Changed
 

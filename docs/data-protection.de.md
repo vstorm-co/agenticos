@@ -1,5 +1,5 @@
 ---
-source_sha: "2c7a8627ced0"
+source_sha: "332cbf2910d8"
 ---
 
 # Datenschutz { #data-protection }
@@ -110,23 +110,34 @@ Ein Bild, ein Sprachclip oder ein Video, das ein Agent erzeugt, ist eine Datei
 unter `generated_<org>/` und eine `generated_media`-Zeile, die sie benennt. Die
 Zeile hält die Organisation fest, die Conversation, sofern der Run eine hatte, und
 die Größe - so ist die Summe der Organisation durch `GENERATED_MEDIA_QUOTA_MB`
-(5120) begrenzt, geprüft vor jedem bezahlten Erzeugungsaufruf. Es zählen nur
-Dateien, die in einer Conversation entstanden sind: Die einer Vorschau oder eines
-Testlaufs hat keine Conversation, die jemand löschen könnte, um Platz zu schaffen,
-daher begrenzt sie allein die Aufbewahrungsfrist.
+(5120) begrenzt, geprüft vor jedem bezahlten Erzeugungsaufruf. Jede Datei zählt,
+auch eine ohne Conversation: aus einer Vorschau oder einem Testlauf, aus einem
+`/btw`-Einschub in einem Kanal, aus einem API-Run, der keine Conversation nennt,
+oder eine Datei, deren Conversation über einen Weg gelöscht wurde, der sie
+zurückließ.
 
 Die Datei wird mit ihrer
 Conversation gelöscht, mit dem Konto, dem diese Conversation gehörte, vom
 täglichen Job `sweep-generated-media`, sobald sie älter als
 `GENERATED_MEDIA_RETENTION_DAYS` (90) ist, auch wenn ihre Conversation noch
 existiert, und per Präfix mit ihrer Organisation. 0 schaltet jede der beiden
-Grenzen ab.
+Grenzen ab. Eine Datei ohne Conversation kann kein Mitglied löschen, um Platz zu
+schaffen, daher löscht derselbe Job sie nach 7 Tagen, unabhängig von
+`GENERATED_MEDIA_RETENTION_DAYS`, auch bei 0. Ein Link darauf - in einer
+Kanalantwort oder einer API-Antwort - funktioniert dann nicht mehr.
 
 Das Löschen einer Conversation, eines Kontos oder einer Organisation entfernt die
 Zeilen in seiner eigenen Transaktion und reiht das Lösen der Bytes in derselben
 Transaktion als Hintergrundjob ein - die Bytes gehen also nur, wenn die Zeilen
-gehen, und ein Neustart nach dem Commit verliert das Lösen nicht. Der Sweep
-löscht zuerst die Datei und ihre Zeile erst, wenn die Datei weg ist; eine Datei,
+gehen, und ein Neustart nach dem Commit verliert das Lösen nicht. Dieser Job
+wiederholt ein Präfix, das der Speicher nicht ganz entfernt - das einer
+Organisation -, weil nichts anderes diese Bytes je wiederfinden könnte. Eine
+einzelne Datei einer gelöschten Conversation oder eines gelöschten Kontos, die der
+Speicher verweigert, wird protokolliert, nicht wiederholt; sie bleibt ohne Zeile
+unter `generated_<org>/`, bis ihre Organisation geht, und der Bericht unten zählt
+sie.
+
+Der Sweep löscht zuerst die Datei und ihre Zeile erst, wenn die Datei weg ist; eine Datei,
 die der Speicher verweigert, behält ihre Zeile, und der nächste Sweep versucht es
 erneut.
 
@@ -139,7 +150,7 @@ Datenschutzbericht zählt sie zu den Dateien ohne Zeile.
 
 | Speicher | Hält | Gelöscht, wenn |
 |---|---|---|
-| `MEDIA_DIR` auf dem API-Host (Volume `media_data`) | Chat-Anhänge unter `<user_id>/`, Avatare, Embed-Logos, die von Agenten erzeugten Bilder, Sprachclips und Videos unter `generated_<org>/` und eine temporäre Kopie jedes Dokuments unter `_rag_tmp`, solange es geparst wird | Ein Dokument über das Produkt gelöscht wird. **Nichts im Produkt entfernt die Bytes eines Chat-Anhangs** — weder das Löschen seiner Conversation noch das Löschen seines Besitzers. Eine erzeugte Datei geht mit der Conversation, in der sie entstand, nach `GENERATED_MEDIA_RETENTION_DAYS` (90) unabhängig davon, was aus der Conversation wurde, und mit ihrer Organisation; siehe [Erzeugte Medien](#generated-media). Siehe [Was das Löschen erreicht](#what-deletion-reaches) |
+| `MEDIA_DIR` auf dem API-Host (Volume `media_data`) | Chat-Anhänge unter `<user_id>/`, Avatare, Embed-Logos, die von Agenten erzeugten Bilder, Sprachclips und Videos unter `generated_<org>/` und eine temporäre Kopie jedes Dokuments unter `_rag_tmp`, solange es geparst wird | Ein Dokument über das Produkt gelöscht wird. Die Bytes eines Chat-Anhangs werden nach dem Commit gelöst, der seine Conversation oder seinen Besitzer löscht. Eine erzeugte Datei geht mit der Conversation, in der sie entstand, nach `GENERATED_MEDIA_RETENTION_DAYS` (90) unabhängig davon, was aus der Conversation wurde - nach 7 Tagen, wenn sie keine Conversation hat -, und mit ihrer Organisation; siehe [Erzeugte Medien](#generated-media). Siehe [Was das Löschen erreicht](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` auf dem Sandbox-Host | Die Dateien jedes containergestützten Workspace | Die Conversation gelöscht wird oder `SANDBOXD_WORKSPACE_TTL` sie wegräumt; ungesetzt bleiben sie unbegrenzt. Siehe [Wie lange etwas überlebt](sandbox.md#how-long-anything-survives) |
 | Redis | Rate-Limit-Buckets, geschlüsselt auf den Aufrufer — bei einer öffentlichen Oberfläche ist das die **IP-Adresse im Klartext**, im Schlüssel, für die TTL des Fensters; Dedup-Schlüssel für Trigger und Kanäle; OAuth-Austauschzustand; vorgemerkte Einladungen; die Live-Ansicht eines Browsens — sein letzter Screenshot, seine Schritte und was die Person, die den Browser hält, geklickt und getippt hat, bis das Browsen es liest; die wiederholbaren Browse-Schritte einer Person — Adressen und Beschriftungen dessen, was ihre abgeschlossenen Browses gedrückt haben, nie das Getippte | Beim Ablauf: eine Live-Ansicht eine Stunde nach dem letzten Frame des Browsens, wiederholbare Schritte zwei Wochen nach der letzten Erledigung der Aufgabe, alles andere binnen Minuten |
 | `background_jobs` in PostgreSQL | Der Payload jedes Hintergrund-Jobs, sein letzter Fehler und die Antwort eines asynchronen API-Runs | Der Aufbewahrungs-Sweep entfernt einen beendeten Job nach `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloads sind Ids und Pfade, mit zwei Ausnahmen: der **`event_context` eines ereignisgesteuerten Auslösens** — Absender, Betreff und Text einer Gmail-Nachricht, eines GitHub-Issues, eines Webhook-Payloads — sowie **Prompt und Antwort eines asynchronen API-Runs** bleiben bis dahin im Job. Die Logs des Workers laufen durch denselben Redaktionsfilter wie die der API |
@@ -242,7 +253,7 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 |---|---|---|
 | `DELETE /conversations/{id}` (der Besitzer) | Die Conversation, ihre Nachrichten, Tool-Aufrufe, Bewertungen, Freigaben und `chat_files`-Zeilen per Kaskade - darunter das Transkript eines Sprachanrufs, da seine Züge Nachrichten sind; die Anhang-Bytes unter `MEDIA_DIR`, vor dem Löschen eingesammelt und nach dessen Commit gelöst; die von ihren Agenten erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; die aus diesem Thread ausgelagerten Medienobjekte per Präfix; ein Container-Workspace über `purge_for_conversation` | Run-Zeilen und Manifeste, die die Conversation benannten, behalten ihre Prompt-Kopie; eine `voice_calls`-Zeile behält ihre Zeiten und Kosten, mit geleerter Verknüpfung zur Conversation |
 | `DELETE /memory/person/{user_id}` (die Person oder `members:manage`) | Jede `agent_memory_files`-Zeile, die auf die Person geschlüsselt ist, über alle Agents der Organisation hinweg, und dasselbe in jedem gebundenen mem0-Speicher | Notizen, die auf einen Gruppenchat geschlüsselt sind, in dem die Person gesprochen hat |
-| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations außerhalb eines Projekts und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; die von Agenten in diesen Conversations erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören, und die Projekt-Chats, die die Person begonnen hat - für das Team behalten, ohne Urheber, mit den darin erzeugten Medien; ihre Nachrichten darin erscheinen als die eines ehemaligen Mitglieds |
+| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations außerhalb eines Projekts und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; die von Agenten in diesen Conversations erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören, und die Projekt-Chats, die die Person begonnen hat - für das Team behalten, ohne Urheber, mit den darin erzeugten Medien; ihre Nachrichten darin erscheinen als die eines ehemaligen Mitglieds. Die Medien, die die Person ohne Conversation erzeugt hat - Vorschauen und Testläufe, `/btw`-Einschübe in Kanälen, API-Runs ohne Conversation -, die keine Zeile mit ihr verknüpft; sie gehen nach 7 Tagen |
 | Ein Dokument oder eine Collection löschen | Die Zeilen, die Vektortabelle und die gespeicherte Datei, über einen dauerhaften Flow nach dem Commit | Nichts, sobald der Flow gelaufen ist; die Zählstände in `sync_logs` bleiben |
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau - ihre erzeugten Medien per Präfix, einschließlich der Dateien, die geschrieben wurden, bevor sie erfasst wurden | Persönliche Collections, die die Id lediglich mitführten |
 
@@ -332,9 +343,11 @@ gebracht hat.
 
 Das Parse-Arbeitsverzeichnis ist ausgenommen - es hat von
 vornherein keine Zeile. Erzeugte Medien werden gezählt, seit `generated_media`
-jede Datei festhält, daher erscheint eine Datei, die vor dieser Tabelle erzeugt
-wurde, unter ihrem Verzeichnis `generated_<org>`: Sie hat keine Zeile und geht nur
-mit ihrer Organisation. Alles andere, was dort gezählt wird, sind Bytes, die das
+jede Datei festhält, daher ist, was unter einem Verzeichnis `generated_<org>`
+erscheint, meist eine Datei, die vor dieser Tabelle erzeugt wurde und nur mit
+ihrer Organisation geht. Es kann auch eine Datei sein, deren Lösen nach dem
+Löschen ihrer Zeile fehlschlug, oder eine, die noch gespeichert wird, bevor ihre
+Zeile geschrieben ist. Alles andere, was dort gezählt wird, sind Bytes, die das
 Produkt nicht mehr findet und nicht löschen kann. Er meldet ein Verzeichnis und eine Zahl statt eines Dateinamens, denn ein
 gespeicherter Pfad behält den Namen, unter dem die Datei hochgeladen wurde.
 

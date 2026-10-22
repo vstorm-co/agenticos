@@ -20,6 +20,9 @@ from app.repositories import generated_media_repo, retention_repo
 
 pytestmark = pytest.mark.anyio
 
+_LONG_AGO = datetime(2000, 1, 1, tzinfo=UTC)
+"""An `unlinked_cutoff` no row is older than, so a test reads by `cutoff` alone."""
+
 
 async def _user(db) -> User:
     user = User(
@@ -110,15 +113,16 @@ async def test_the_quota_sums_this_organizations_files_alone(db):
     assert await generated_media_repo.bytes_used(db, organization_id=(await _org(db)).id) == 0
 
 
-async def test_the_quota_leaves_out_what_no_member_could_delete(db):
-    """A preview's or a test run's file has no conversation to delete; counting it
-    would refuse the organization until the sweep reached it (#2310)."""
+async def test_the_quota_counts_files_made_with_no_conversation(db):
+    """A preview's, a `/btw` aside's or an API run's file has no conversation, and
+    still counts: left out, repeating any of them generated past the quota for
+    free. The sweep removes it after its short lifetime instead (#2310)."""
     organization = await _org(db)
     thread = await _conversation(db, organization)
     await _media(db, organization, conversation_id=thread.id, size=7)
     await _media(db, organization, size=1000)
 
-    assert await generated_media_repo.bytes_used(db, organization_id=organization.id) == 7
+    assert await generated_media_repo.bytes_used(db, organization_id=organization.id) == 1007
 
 
 async def test_an_accounts_conversations_give_up_their_media_in_every_organization(db):
@@ -235,23 +239,58 @@ async def test_the_sweep_reads_the_oldest_first_across_organizations(db):
 
     assert [
         row.id
-        for row in await generated_media_repo.expired(db, cutoff=now - timedelta(days=30), limit=10)
+        for row in await generated_media_repo.expired(
+            db, unlinked_cutoff=_LONG_AGO, cutoff=now - timedelta(days=30), limit=10
+        )
     ] == [older.id, newer.id]
     assert [
         row.id
-        for row in await generated_media_repo.expired(db, cutoff=now - timedelta(days=30), limit=1)
+        for row in await generated_media_repo.expired(
+            db, unlinked_cutoff=_LONG_AGO, cutoff=now - timedelta(days=30), limit=1
+        )
     ] == [older.id]
-    assert await generated_media_repo.expired(db, cutoff=now - timedelta(days=200), limit=10) == []
+    assert (
+        await generated_media_repo.expired(
+            db, unlinked_cutoff=_LONG_AGO, cutoff=now - timedelta(days=200), limit=10
+        )
+        == []
+    )
     assert [
         row.id
         for row in await generated_media_repo.expired(
             db,
+            unlinked_cutoff=_LONG_AGO,
             cutoff=now - timedelta(days=30),
             limit=10,
             after=(now - timedelta(days=100), older.id),
         )
     ] == [newer.id]
     assert await generated_media_repo.delete_by_ids(db, ids=[older.id]) == 1
+
+
+async def test_a_file_with_no_conversation_expires_on_its_own_shorter_bound(db):
+    """With retention off (`cutoff=None`) a file made with no conversation still
+    expires at `unlinked_cutoff`; one made in a conversation does not (#2310)."""
+    organization = await _org(db)
+    thread = await _conversation(db, organization)
+    unlinked = await _media(db, organization)
+    linked = await _media(db, organization, conversation_id=thread.id)
+    fresh = await _media(db, organization)
+    now = datetime.now(UTC)
+    await db.execute(
+        GeneratedMedia.__table__.update()
+        .where(GeneratedMedia.id.in_([unlinked.id, linked.id]))
+        .values(created_at=now - timedelta(days=10))
+    )
+    week = now - timedelta(days=7)
+
+    expired = await generated_media_repo.expired(db, cutoff=None, unlinked_cutoff=week, limit=10)
+    assert [row.id for row in expired] == [unlinked.id]
+    assert fresh.id not in [row.id for row in expired]
+    both = await generated_media_repo.expired(
+        db, cutoff=now - timedelta(days=9), unlinked_cutoff=week, limit=10
+    )
+    assert {row.id for row in both} == {unlinked.id, linked.id}
 
 
 async def test_the_sweep_reads_past_a_row_with_its_own_timestamp_by_id(db):
@@ -264,9 +303,11 @@ async def test_the_sweep_reads_past_a_row_with_its_own_timestamp_by_id(db):
     ordered = sorted(row.id for row in rows)
     cutoff = datetime.now(UTC) - timedelta(days=30)
 
-    first = await generated_media_repo.expired(db, cutoff=cutoff, limit=2)
+    first = await generated_media_repo.expired(
+        db, cutoff=cutoff, unlinked_cutoff=_LONG_AGO, limit=2
+    )
     rest = await generated_media_repo.expired(
-        db, cutoff=cutoff, limit=2, after=(stamp, first[-1].id)
+        db, cutoff=cutoff, unlinked_cutoff=_LONG_AGO, limit=2, after=(stamp, first[-1].id)
     )
 
     assert [row.id for row in first + rest] == ordered

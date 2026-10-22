@@ -1,5 +1,5 @@
 ---
-source_sha: "2c7a8627ced0"
+source_sha: "332cbf2910d8"
 ---
 
 # Ochrona danych { #data-protection }
@@ -105,20 +105,31 @@ Obraz, klip mowy albo wideo wygenerowane przez agenta to plik pod
 `generated_<org>/` i nazywający go wiersz `generated_media`. Wiersz zapisuje
 organizację, konwersację, jeśli run ją miał, oraz rozmiar - więc suma organizacji
 jest ograniczona przez `GENERATED_MEDIA_QUOTA_MB` (5120), sprawdzane przed każdym
-płatnym wywołaniem generowania. Liczą się tylko pliki utworzone w konwersacji:
-plik z podglądu albo przebiegu testowego nie ma konwersacji, którą ktokolwiek
-mógłby usunąć, żeby zwolnić miejsce, więc ogranicza go wyłącznie okres retencji.
+płatnym wywołaniem generowania. Liczy się każdy plik, także utworzony bez
+konwersacji: z podglądu albo przebiegu testowego, z wtrącenia `/btw` w kanale, z
+runu API, który nie wskazuje konwersacji, albo plik, którego konwersację usunęła
+ścieżka, która go zostawiła.
 
 Plik jest usuwany razem ze swoją konwersacją, razem z kontem, do którego ta
 konwersacja należała, przez codzienne zadanie `sweep-generated-media`, gdy jest
 starszy niż `GENERATED_MEDIA_RETENTION_DAYS` (90), nawet jeśli konwersacja wciąż
 istnieje, oraz po prefiksie razem ze swoją organizacją. 0 wyłącza każde z tych
-ograniczeń.
+ograniczeń. Pliku bez konwersacji żaden członek nie może usunąć, żeby zwolnić
+miejsce, więc to samo zadanie usuwa go po 7 dniach, bez względu na
+`GENERATED_MEDIA_RETENTION_DAYS`, także przy 0. Link do niego - w odpowiedzi w
+kanale albo w odpowiedzi API - przestaje wtedy działać.
 
 Usunięcie konwersacji, konta albo organizacji usuwa wiersze we własnej
 transakcji i w tej samej transakcji kolejkuje odpięcie bajtów jako zadanie w
 tle, więc bajty odchodzą tylko wtedy, gdy odchodzą wiersze, a restart po commicie
-nie gubi odpięcia. Sweep usuwa najpierw plik, a jego wiersz dopiero wtedy, gdy
+nie gubi odpięcia. To zadanie ponawia prefiks, którego magazyn nie usunie w
+całości - prefiks organizacji - bo nic innego nie znalazłoby już tych bajtów.
+Pojedynczy plik usuniętej konwersacji albo konta, którego magazyn nie chce
+usunąć, trafia do logu i nie jest ponawiany; zostaje bez wiersza pod
+`generated_<org>/`, dopóki nie odejdzie jego organizacja, a raport niżej go
+liczy.
+
+Sweep usuwa najpierw plik, a jego wiersz dopiero wtedy, gdy
 pliku już nie ma; plik, którego magazyn nie chce usunąć, zachowuje wiersz, a
 następny sweep próbuje ponownie.
 
@@ -131,7 +142,7 @@ wiersza.
 
 | Magazyn | Trzyma | Usuwane, gdy |
 |---|---|---|
-| `MEDIA_DIR` na hoście API (wolumen `media_data`) | Załączniki czatu pod `<user_id>/`, awatary, logotypy embedów, obrazy, mowę i wideo wygenerowane przez agentów pod `generated_<org>/` oraz tymczasową kopię każdego dokumentu pod `_rag_tmp` na czas parsowania | Dokument zostaje usunięty przez produkt. **Nic w produkcie nie usuwa bajtów załącznika czatu** — ani usunięcie jego konwersacji, ani usunięcie jego właściciela. Wygenerowany plik odchodzi razem z konwersacją, w której powstał, po `GENERATED_MEDIA_RETENTION_DAYS` (90) bez względu na los konwersacji, oraz razem ze swoją organizacją; zobacz [Wygenerowane media](#generated-media). Zobacz [Co obejmuje usunięcie](#what-deletion-reaches) |
+| `MEDIA_DIR` na hoście API (wolumen `media_data`) | Załączniki czatu pod `<user_id>/`, awatary, logotypy embedów, obrazy, mowę i wideo wygenerowane przez agentów pod `generated_<org>/` oraz tymczasową kopię każdego dokumentu pod `_rag_tmp` na czas parsowania | Dokument zostaje usunięty przez produkt. Bajty załącznika czatu są odpinane po commicie, który usuwa jego konwersację albo jego właściciela. Wygenerowany plik odchodzi razem z konwersacją, w której powstał, po `GENERATED_MEDIA_RETENTION_DAYS` (90) bez względu na los konwersacji - po 7 dniach, gdy nie ma konwersacji - oraz razem ze swoją organizacją; zobacz [Wygenerowane media](#generated-media). Zobacz [Co obejmuje usunięcie](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` na hoście sandboksa | Pliki każdego workspace'u opartego o kontener | Konwersacja zostaje usunięta albo zamiata je `SANDBOXD_WORKSPACE_TTL`; nieustawiony — trzymane bezterminowo. Zobacz [Jak długo cokolwiek przeżywa](sandbox.md#how-long-anything-survives) |
 | Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia; podgląd przeglądania na żywo — ostatni zrzut ekranu, kroki oraz to, co osoba trzymająca przeglądarkę kliknęła i wpisała, dopóki przeglądanie tego nie odczyta; kroki do powtórzenia danej osoby — adresy i etykiety tego, co nacisnęły jej zakończone przeglądania, nigdy to, co wpisała | Po wygaśnięciu: podgląd na żywo godzinę po ostatniej klatce przeglądania, kroki do powtórzenia dwa tygodnie po ostatnim wykonaniu zadania, wszystko inne w ciągu minut |
 | `background_jobs` w PostgreSQL | Payload każdego zadania w tle, jego ostatni błąd i odpowiedź asynchronicznego runu przez API | Sweep retencji usuwa zakończone zadanie po `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloady to id i ścieżki, z dwoma wyjątkami: **`event_context` odpalenia wyzwolonego zdarzeniem** — nadawca, temat i treść wiadomości Gmail, zgłoszenia GitHub, ładunku webhooka — oraz **prompt i odpowiedź asynchronicznego runu przez API** zostają w zadaniu do tego czasu. Logi workera przechodzą przez ten sam filtr redakcji co logi API |
@@ -231,7 +242,7 @@ harmonogramu to [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 |---|---|---|
 | `DELETE /conversations/{id}` (właściciel) | Konwersację, jej wiadomości, wywołania narzędzi, oceny, udostępnienia i wiersze `chat_files`, kaskadą - w tym transkrypcję rozmowy głosowej, bo jej tury są wiadomościami; bajty załączników pod `MEDIA_DIR`, zebrane przed usunięciem i odpięte po commicie; obrazy, mowę i wideo wygenerowane przez jej agentów - wiersze w usunięciu, bajty przez zadanie zakolejkowane razem z nim; obiekty mediów odciążone z tego wątku, po prefiksie; workspace kontenerowy przez `purge_for_conversation` | Wiersze runów i manifesty, które nazywały tę konwersację, zachowują swoją kopię promptu; wiersz `voice_calls` zachowuje swoje czasy i koszt, z wyczyszczonym powiązaniem z konwersacją |
 | `DELETE /memory/person/{user_id}` (osoba albo `members:manage`) | Każdy wiersz `agent_memory_files` kluczowany na osobę we wszystkich agentach organizacji, i to samo w każdym związanym magazynie mem0 | Notatki kluczowane na czat grupowy, w którym osoba się odzywała |
-| `DELETE /users/{id}` | Konto, jego sesje, jego osobistą organizację i osobiste kolekcje wraz z ich tabelami wektorowymi i plikami, jawnym teardownem; konwersacje poza projektami i pliki czatu kaskadą; ich bajty, odpięte po commicie; obrazy, mowę i wideo wygenerowane przez agentów w tych konwersacjach - wiersze w usunięciu, bajty przez zadanie zakolejkowane razem z nim; oraz to, do czego nie sięga żadna kaskada — notatki, które agenci zapisali o tej osobie (`owner_key` to string, nie klucz obcy), jej tożsamości platformowe i workspace'y przypisane do użytkownika | Wpisy audytowe nazywające id aktora, a przy niektórych akcjach e-mail — zatrzymywane celowo, bo wpis z usuniętym aktorem jest gorszy niż wpis nazywający usunięte konto. Wiadomości w konwersacjach należących do kogoś innego oraz czaty projektów, które ta osoba zaczęła - zostają dla zespołu, bez autora, razem z wygenerowanymi w nich mediami; jej wiadomości są w nich pokazywane jako byłego członka |
+| `DELETE /users/{id}` | Konto, jego sesje, jego osobistą organizację i osobiste kolekcje wraz z ich tabelami wektorowymi i plikami, jawnym teardownem; konwersacje poza projektami i pliki czatu kaskadą; ich bajty, odpięte po commicie; obrazy, mowę i wideo wygenerowane przez agentów w tych konwersacjach - wiersze w usunięciu, bajty przez zadanie zakolejkowane razem z nim; oraz to, do czego nie sięga żadna kaskada — notatki, które agenci zapisali o tej osobie (`owner_key` to string, nie klucz obcy), jej tożsamości platformowe i workspace'y przypisane do użytkownika | Wpisy audytowe nazywające id aktora, a przy niektórych akcjach e-mail — zatrzymywane celowo, bo wpis z usuniętym aktorem jest gorszy niż wpis nazywający usunięte konto. Wiadomości w konwersacjach należących do kogoś innego oraz czaty projektów, które ta osoba zaczęła - zostają dla zespołu, bez autora, razem z wygenerowanymi w nich mediami; jej wiadomości są w nich pokazywane jako byłego członka. Media, które osoba wygenerowała bez konwersacji - podglądy i przebiegi testowe, wtrącenia `/btw` w kanałach, runy API, które nie wskazały konwersacji - których żaden wiersz z nią nie łączy; odchodzą po 7 dniach |
 | Usunięcie dokumentu albo kolekcji | Wiersze, tabelę wektorową i zapisany plik, przez trwały flow po commicie | Nic, gdy flow już przebiegł; liczniki `sync_logs` zostają |
 | Usunięcie organizacji | Wszystko do niej ograniczone, tym samym odroczonym rozmontowaniem - jej wygenerowane media po prefiksie, łącznie z plikami zapisanymi, zanim zaczęto je rejestrować | Kolekcje osobiste, które jedynie niosły to id |
 
@@ -312,9 +323,10 @@ usunięć albo z odpięcia, którego zamiatanie best-effort nie dokończyło.
 
 Katalog roboczy parsowania jest wyłączony, bo z założenia nie ma wiersza.
 Wygenerowane media są liczone, odkąd `generated_media` zapisuje każdy plik, więc
-plik wygenerowany, zanim ta tabela powstała, pojawia się pod swoim katalogiem
-`generated_<org>`: nie ma wiersza i odchodzi tylko razem ze swoją organizacją.
-Wszystko inne, co się tam liczy, to bajty, których produkt już nie znajdzie i nie
+to, co pojawia się pod katalogiem `generated_<org>`, to głównie plik wygenerowany,
+zanim ta tabela powstała, który odchodzi tylko razem ze swoją organizacją. Może to
+być też plik, którego odpięcie się nie udało po usunięciu jego wiersza, albo plik
+wciąż zapisywany, zanim powstał jego wiersz. Wszystko inne, co się tam liczy, to bajty, których produkt już nie znajdzie i nie
 umie usunąć. Raportuje katalog i liczbę, a nie
 nazwę pliku, bo zapisana ścieżka zachowuje nazwę, pod którą plik został wgrany.
 

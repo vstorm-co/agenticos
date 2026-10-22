@@ -74,8 +74,9 @@ async def quota_refusal(ctx: RunContext[AgentDeps], *, verdict: str) -> str | No
         return None
     return (
         f"{verdict}: this organization has used its storage for generated media. Tell the "
-        "user; deleting conversations with generated files frees it, or the deployment's "
-        "operator can raise GENERATED_MEDIA_QUOTA_MB."
+        "user; deleting conversations with generated files frees it, files made outside a "
+        "conversation are deleted within a week, or the deployment's operator can raise "
+        "GENERATED_MEDIA_QUOTA_MB."
     )
 
 

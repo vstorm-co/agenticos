@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, delete, func, insert, select, tuple_
+from sqlalchemy import ColumnElement, CursorResult, and_, delete, func, insert, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
@@ -27,8 +27,8 @@ async def create(
     there: the id comes from the run, and a run with no saved thread - a
     preview, a test run - or one whose thread was deleted mid-run would
     otherwise fail the insert on the foreign key, losing the record of bytes
-    that are already stored. Unlinked, the row is still swept, though no longer
-    counted against the quota (`bytes_used`).
+    that are already stored. Unlinked, the row is still counted and is swept
+    after the short lifetime of a file with no conversation (`expired`).
     """
     linked = (
         select(Conversation.id)
@@ -52,17 +52,17 @@ async def create(
 
 
 async def bytes_used(db: AsyncSession, *, organization_id: UUID) -> int:
-    """How many bytes of generated media made in a conversation this organization keeps.
+    """How many bytes of generated media this organization keeps.
 
-    A row with no conversation - a preview's, a test run's - is left out: no
-    member can delete anything to free it, so counting it would stop the
-    organization generating until the retention sweep reached it, or for good
-    with retention off. The sweep bounds those alone.
+    Every row counts, a row with no conversation too - a preview's, a test
+    run's, a channel `/btw` aside's, an API run's that named no thread. No
+    member can delete anything to free those, so the sweep removes them after a
+    short lifetime of their own (`expired`), even with retention off, which is
+    what keeps a burst of them from refusing the organization for long.
     """
     total = await db.scalar(
         select(func.coalesce(func.sum(GeneratedMedia.size_bytes), 0)).where(
-            GeneratedMedia.organization_id == organization_id,
-            GeneratedMedia.conversation_id.is_not(None),
+            GeneratedMedia.organization_id == organization_id
         )
     )
     return int(total or 0)
@@ -142,18 +142,28 @@ async def delete_in_conversations_of_user(db: AsyncSession, *, user_id: UUID) ->
 async def expired(
     db: AsyncSession,
     *,
-    cutoff: datetime,
+    cutoff: datetime | None,
+    unlinked_cutoff: datetime,
     limit: int,
     after: tuple[datetime, UUID] | None = None,
 ) -> list[GeneratedMedia]:
-    """The oldest rows created before `cutoff`, across every organization.
+    """The oldest expired rows, across every organization.
+
+    A row is expired when it has no conversation and was created before
+    `unlinked_cutoff`, or was created before `cutoff` - `None` with retention
+    off, when only the first holds.
 
     `after` is the `(created_at, id)` of the last row a previous batch read:
     rows the sweep could not delete stay in the table, and reading past them
     rather than from the start is what keeps them from being every batch's
     first rows.
     """
-    query = select(GeneratedMedia).where(GeneratedMedia.created_at < cutoff)
+    bounds: list[ColumnElement[bool]] = [
+        and_(GeneratedMedia.conversation_id.is_(None), GeneratedMedia.created_at < unlinked_cutoff)
+    ]
+    if cutoff is not None:
+        bounds.append(GeneratedMedia.created_at < cutoff)
+    query = select(GeneratedMedia).where(or_(*bounds))
     if after is not None:
         query = query.where(tuple_(GeneratedMedia.created_at, GeneratedMedia.id) > tuple_(*after))
     rows = await db.execute(

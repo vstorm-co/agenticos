@@ -23,13 +23,15 @@ the run had one, and its size. That record is what bounds it:
 
 - a per-organization byte quota (`GENERATED_MEDIA_QUOTA_MB`), checked before each
   paid generation call, so a tenant past it is told so before anything is spent.
-  Only files made in a conversation count: one from a run with none - a
-  preview, a test run - is nothing a member could delete to free space, so it
-  is bounded by the retention period alone;
+  Every file counts, including one from a run with no conversation - a preview,
+  a test run, a channel `/btw` aside, an API run that named no thread;
 - deletion with the conversation it was generated in, and with the account
   whose conversations they were;
 - deletion after `GENERATED_MEDIA_RETENTION_DAYS`, by the daily
   `sweep-generated-media` job, whether or not the conversation is still there;
+- deletion after `UNLINKED_MEDIA_LIFETIME` by the same job, for a file with no
+  conversation, even with retention off: no member can delete anything to free
+  it, so this is what bounds how long it holds the quota;
 - deletion with the organization, by prefix.
 
 Deletion with a conversation, an account or an organization removes the rows in
@@ -83,6 +85,14 @@ of clips - is worked off over several daily runs rather than in one long one."""
 SWEEP_TIME_BUDGET = timedelta(minutes=10)
 """How long one sweep starts new batches for, below the job's 15-minute timeout,
 so a slow store ends a run between batches rather than cancelling one."""
+
+UNLINKED_MEDIA_LIFETIME = timedelta(days=7)
+"""How long a file with no conversation is kept, whatever the retention setting.
+
+It counts against the quota, and no member can free it by deleting a thread, so
+this is what keeps a burst of previews, `/btw` asides or API runs from refusing
+the organization for longer than a week - and from being kept for good with
+retention off."""
 
 
 def organization_directory(organization_id: UUID) -> str:
@@ -168,9 +178,19 @@ async def keep_generated_media(
     except BaseException:
         # `BaseException`, because a person pressing Stop or a run timing out
         # cancels the call here, and that leaves the same unrecorded file. The
-        # unlink is shielded so the cancellation cannot interrupt it in turn.
+        # unlink is shielded so the cancellation cannot interrupt it in turn -
+        # though not a second native `task.cancel()`, which a shield does not
+        # hold against; that file is left behind, unrecorded. A failed unlink
+        # is logged so the error that got here, a cancellation above all, is
+        # the one that goes on.
         with anyio.CancelScope(shield=True):
-            await get_file_storage().delete(storage_path)
+            try:
+                await get_file_storage().delete(storage_path)
+            except Exception:
+                logger.exception(
+                    "generated_media_not_unlinked",
+                    extra={"organization_id": str(organization_id), "storage_path": storage_path},
+                )
         raise
     return leaf
 
@@ -185,9 +205,8 @@ async def generated_media_quota_reached(organization_id: UUID) -> bool:
     calls in one response - may finish, so the organization can end over it by
     up to one file per call in flight. The next call after them is refused.
 
-    Only files made in a conversation count (`bytes_used`): a member can free
-    those by deleting the conversation, and a preview's or a test run's cannot
-    be freed by anyone in the organization.
+    Every file counts (`bytes_used`). A member frees one made in a conversation
+    by deleting it; one made with none goes after `UNLINKED_MEDIA_LIFETIME`.
     """
     quota_mb = settings.GENERATED_MEDIA_QUOTA_MB
     if quota_mb == 0:
@@ -307,9 +326,16 @@ class GeneratedMediaService:
         await queue_external_state_cleanup(self.db, paths, [], organization_id=organization_id)
 
     async def sweep_batch(
-        self, *, cutoff: datetime, after: tuple[datetime, UUID] | None
+        self,
+        *,
+        cutoff: datetime | None,
+        unlinked_cutoff: datetime,
+        after: tuple[datetime, UUID] | None,
     ) -> SweptBatch:
-        """Delete one batch of files older than `cutoff`, read past `after`.
+        """Delete one batch of expired files, read past `after`.
+
+        Expired is older than `cutoff` (`None` with retention off) or, for a file
+        with no conversation, older than `unlinked_cutoff`.
 
         The bytes before the row, and the row only once its bytes are gone: the
         other order leaves a file nothing can find. A file the store would not
@@ -319,7 +345,7 @@ class GeneratedMediaService:
         """
         storage = get_file_storage()
         batch = await generated_media_repo.expired(
-            self.db, cutoff=cutoff, limit=SWEEP_BATCH, after=after
+            self.db, cutoff=cutoff, unlinked_cutoff=unlinked_cutoff, limit=SWEEP_BATCH, after=after
         )
         gone: list[UUID] = []
         for row in batch:
@@ -338,7 +364,10 @@ class GeneratedMediaService:
 
 
 async def sweep_expired_generated_media(*, now: datetime | None = None) -> int:
-    """Delete every generated file older than the retention period; answer how many.
+    """Delete every generated file past its lifetime; answer how many.
+
+    Past the retention period, or - for a file with no conversation - past
+    `UNLINKED_MEDIA_LIFETIME`, which applies with retention off too.
 
     Each batch in a session of its own, committed before the next is read. One
     transaction for the whole run would be rolled back by the job's timeout,
@@ -350,16 +379,18 @@ async def sweep_expired_generated_media(*, now: datetime | None = None) -> int:
     Args:
         now: The moment the period is measured back from; a test freezes it.
     """
+    now = now or datetime.now(UTC)
     days = settings.GENERATED_MEDIA_RETENTION_DAYS
-    if days == 0:
-        return 0
-    cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
+    cutoff = now - timedelta(days=days) if days else None
+    unlinked_cutoff = now - UNLINKED_MEDIA_LIFETIME
     stop_at = time.monotonic() + SWEEP_TIME_BUDGET.total_seconds()
     removed = 0
     after: tuple[datetime, UUID] | None = None
     for _ in range(SWEEP_MAX_BATCHES):
         async with get_worker_db_context() as db:
-            swept = await GeneratedMediaService(db).sweep_batch(cutoff=cutoff, after=after)
+            swept = await GeneratedMediaService(db).sweep_batch(
+                cutoff=cutoff, unlinked_cutoff=unlinked_cutoff, after=after
+            )
         removed += swept.removed
         if swept.after is None or time.monotonic() >= stop_at:
             break

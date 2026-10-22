@@ -1,5 +1,5 @@
 ---
-source_sha: "2c7a8627ced0"
+source_sha: "332cbf2910d8"
 ---
 
 # Protección de datos { #data-protection }
@@ -108,20 +108,33 @@ Una imagen, un clip de voz o un vídeo que genera un agent es un archivo bajo
 `generated_<org>/` y una fila `generated_media` que lo nombra. La fila registra la
 organización, la conversación si el run tenía una, y el tamaño, así que el total de
 la organización queda acotado por `GENERATED_MEDIA_QUOTA_MB` (5120), comprobado
-antes de cada llamada de generación de pago. Solo cuentan los archivos creados en
-una conversación: el de una vista previa o una ejecución de prueba no tiene una
-conversación que alguien pueda borrar para liberar espacio, así que solo lo acota
-el periodo de retención.
+antes de cada llamada de generación de pago. Cuenta cada archivo, también uno
+creado sin conversación: de una vista previa o una ejecución de prueba, de un
+inciso `/btw` en un canal, de un run de la API que no nombra conversación, o un
+archivo cuya conversación se borró por un camino que lo dejó atrás.
 
 El archivo se borra con su conversación, con la cuenta a
 la que pertenecía esa conversación, con la tarea diaria `sweep-generated-media`
 cuando supera `GENERATED_MEDIA_RETENTION_DAYS` (90) aunque su conversación siga
 ahí, y por prefijo con su organización. 0 desactiva cualquiera de los dos límites.
+Un archivo sin conversación no es nada que un miembro pueda borrar para liberar
+espacio, así que la misma tarea lo borra a los 7 días, sea cual sea
+`GENERATED_MEDIA_RETENTION_DAYS`, 0 incluido. Un enlace a él - en una respuesta de
+un canal o de la API - deja de funcionar entonces.
 
 Borrar una conversación, una cuenta o una organización elimina las filas en su
 propia transacción y encola la desvinculación de los bytes como tarea en segundo
 plano en esa misma transacción, así que los bytes se van solo si se van las filas,
-y un reinicio tras el commit no pierde la desvinculación. El barrido borra primero
+y un reinicio tras el commit no pierde la desvinculación.
+
+Esa tarea reintenta un
+prefijo que el almacenamiento no elimina entero - el de una organización -, porque
+nada más podría volver a encontrar esos bytes. Un archivo suelto de una
+conversación o una cuenta borradas que el almacenamiento rechaza se registra en el
+log, no se reintenta; se queda sin fila bajo `generated_<org>/` hasta que se va su
+organización, y el informe de abajo lo cuenta.
+
+El barrido borra primero
 el archivo y su fila solo cuando el archivo ya no está; un archivo que el
 almacenamiento se niega a borrar conserva su fila, y el siguiente barrido lo
 vuelve a intentar.
@@ -135,7 +148,7 @@ archivos sin fila.
 
 | Almacén | Guarda | Se borra cuando |
 |---|---|---|
-| `MEDIA_DIR` en el host de la API (volumen `media_data`) | Adjuntos de chat bajo `<user_id>/`, avatares, logos de embeds, las imágenes, la voz y los vídeos que generaron los agents bajo `generated_<org>/` y una copia temporal de cada documento bajo `_rag_tmp` mientras se parsea | Se borra un documento desde el producto. **Nada en el producto elimina los bytes de un adjunto de chat** — ni borrar su conversación, ni borrar a su propietario. Un archivo generado se va con la conversación en la que se hizo, tras `GENERATED_MEDIA_RETENTION_DAYS` (90) sea cual sea la suerte de la conversación, y con su organización; consulta [Medios generados](#generated-media). Consulta [Qué alcanza el borrado](#what-deletion-reaches) |
+| `MEDIA_DIR` en el host de la API (volumen `media_data`) | Adjuntos de chat bajo `<user_id>/`, avatares, logos de embeds, las imágenes, la voz y los vídeos que generaron los agents bajo `generated_<org>/` y una copia temporal de cada documento bajo `_rag_tmp` mientras se parsea | Se borra un documento desde el producto. Los bytes de un adjunto de chat se desvinculan tras el commit que borra su conversación o a su propietario. Un archivo generado se va con la conversación en la que se hizo, tras `GENERATED_MEDIA_RETENTION_DAYS` (90) sea cual sea la suerte de la conversación - a los 7 días si no tiene conversación -, y con su organización; consulta [Medios generados](#generated-media). Consulta [Qué alcanza el borrado](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` en el host de la sandbox | Los archivos de cada workspace respaldado por contenedor | Se borra la conversación, o `SANDBOXD_WORKSPACE_TTL` los barre; sin definir, se conservan indefinidamente. Consulta [Cuánto sobrevive cada cosa](sandbox.md#how-long-anything-survives) |
 | Redis | Cubos de rate limit con clave en quien llama — en una superficie pública eso es la **dirección IP en claro**, dentro de la clave, durante el TTL de la ventana; claves de deduplicación de triggers y canales; estado del intercambio OAuth; invitaciones en espera; la vista en directo de una navegación — su última captura, sus pasos y lo que la persona que maneja el navegador pulsó y escribió hasta que la navegación lo lee; los pasos repetibles de una persona — las direcciones y etiquetas de lo que pulsaron sus navegaciones terminadas, nunca lo que escribió | Al expirar: una vista en directo una hora después del último fotograma de la navegación, los pasos repetibles dos semanas después de la última vez que se hizo la tarea, todo lo demás en minutos |
 | `background_jobs` en PostgreSQL | El payload de cada job en segundo plano, su último error y la respuesta de un run asíncrono de la API | El barrido de retención elimina un job terminado tras `BACKGROUND_JOB_RETENTION_DAYS` (14). Los payloads son ids y rutas, con dos excepciones: el **`event_context` de un disparo por evento** — el remitente, el asunto y el cuerpo de un mensaje de Gmail, una incidencia de GitHub, un payload de webhook — y **el prompt y la respuesta de un run asíncrono de la API** se quedan en el job hasta entonces. Los logs del worker pasan por el mismo filtro de redacción que los de la API |
@@ -236,7 +249,7 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 |---|---|---|
 | `DELETE /conversations/{id}` (el propietario) | La conversación, sus mensajes, llamadas a herramientas, valoraciones, comparticiones y filas `chat_files`, por cascada - entre ellos la transcripción de una llamada de voz, ya que sus turnos son mensajes; los bytes de los adjuntos bajo `MEDIA_DIR`, recogidos antes del borrado y desvinculados tras su commit; las imágenes, la voz y los vídeos que generaron sus agents: las filas en el borrado, los bytes mediante una tarea encolada con él; los objetos de medios descargados de ese hilo, por prefijo; un workspace de contenedor mediante `purge_for_conversation` | Las filas de runs y los manifiestos que nombraron la conversación conservan su copia del prompt; una fila `voice_calls` conserva sus horas y su coste con el vínculo a la conversación vaciado |
 | `DELETE /memory/person/{user_id}` (la persona, o `members:manage`) | Cada fila de `agent_memory_files` con clave en la persona a lo largo de todos los agents de la organización, y lo mismo en cada almacén mem0 vinculado | Las notas con clave en un chat de grupo en el que la persona habló |
-| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones fuera de un proyecto y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; las imágenes, la voz y los vídeos que generaron los agents en esas conversaciones, las filas en el borrado y los bytes mediante una tarea encolada con él; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona, y los chats de proyecto que empezó, que se conservan para el equipo sin autor, con los medios generados en ellos; sus mensajes ahí se muestran como de un antiguo miembro |
+| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones fuera de un proyecto y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; las imágenes, la voz y los vídeos que generaron los agents en esas conversaciones, las filas en el borrado y los bytes mediante una tarea encolada con él; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona, y los chats de proyecto que empezó, que se conservan para el equipo sin autor, con los medios generados en ellos; sus mensajes ahí se muestran como de un antiguo miembro. Los medios que la persona generó sin conversación - vistas previas y ejecuciones de prueba, incisos `/btw` en canales, runs de la API que no nombraron conversación -, que ninguna fila vincula con ella; se van a los 7 días |
 | Borrar un documento o una colección | Las filas, la tabla vectorial y el archivo almacenado, mediante un flow duradero tras el commit | Nada, una vez que el flow ha corrido; los recuentos de `sync_logs` permanecen |
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido - sus medios generados por prefijo, incluidos los archivos escritos antes de que se registraran | Las colecciones personales que solo llevaban el id |
 
@@ -322,10 +335,14 @@ o de una desvinculación que un barrido best-effort no completó.
 
 El directorio
 temporal de parseo queda excluido, ya que por diseño no tiene fila. Los medios
-generados se cuentan desde que `generated_media` registra cada archivo, así que un
-archivo generado antes de que existiera esa tabla aparece bajo su directorio
-`generated_<org>`: no tiene fila y solo se va con su organización. Todo lo demás
-que se cuenta ahí son bytes que el producto ya no encuentra y no puede borrar. Informa de un directorio y un
+generados se cuentan desde que `generated_media` registra cada archivo, así que lo
+que aparece bajo un directorio `generated_<org>` es sobre todo un archivo generado
+antes de que existiera esa tabla, que solo se va con su organización. También
+puede ser un archivo cuya desvinculación falló tras borrarse su fila, o uno que
+aún se está guardando, antes de que se escriba su fila. Todo lo demás
+que se cuenta ahí son bytes que el producto ya no encuentra y no puede borrar.
+
+Informa de un directorio y un
 recuento en vez de un nombre de archivo, porque una ruta almacenada conserva el
 nombre con el que se subió el archivo.
 

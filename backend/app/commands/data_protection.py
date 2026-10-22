@@ -676,9 +676,11 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
             "The parse scratch directory is excluded - it has no row by design. "
-            "Generated media made before generated_media recorded it is counted "
-            "under generated_<organization>: it has no row and goes only with its "
-            "organization. Everything else here is bytes the product can no "
+            "Under generated_<organization> these are mostly files generated "
+            "before generated_media recorded them, which go only with their "
+            "organization; also a file whose unlink failed after its row was "
+            "deleted, or one still being saved before its row is written. "
+            "Everything else here is bytes the product can no "
             "longer find, and cannot delete. Directories and counts only: a "
             "stored path carries the original filename."
         ),

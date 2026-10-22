@@ -95,6 +95,38 @@ class TestQueueing:
         )
         assert payload.prefixes == []
 
+    async def test_a_job_with_no_prefixes_is_one_a_previous_worker_still_parses(self) -> None:
+        """A worker from the release before prefixes forbids extra fields and fails a
+        payload it cannot parse permanently - so an empty list stays out of the dump,
+        and only a purge's prefixes need the current worker (#2310)."""
+        from pydantic import BaseModel, ConfigDict
+
+        class _PreviousRestamp(BaseModel):
+            model_config = ConfigDict(frozen=True, extra="forbid")
+            collection: str
+            organization_id: UUID
+            knowledge_base_id: UUID
+
+        class _PreviousCleanup(BaseModel):
+            model_config = ConfigDict(frozen=True, extra="forbid")
+            storage_paths: list[str]
+            collections: list[str]
+            restamps: list[_PreviousRestamp]
+
+        dumped = CLEANUP_EXTERNAL_STATE.dump(
+            CleanupExternalState(storage_paths=["u/a.txt"], collections=[], restamps=[_restamp()])
+        )
+        assert "prefixes" not in dumped
+        _PreviousCleanup.model_validate(dumped)
+
+        with_prefix = CLEANUP_EXTERNAL_STATE.dump(
+            CleanupExternalState(
+                storage_paths=[], collections=[], restamps=[], prefixes=["generated_org"]
+            )
+        )
+        assert with_prefix["prefixes"] == ["generated_org"]
+        assert CLEANUP_EXTERNAL_STATE.load(with_prefix).prefixes == ["generated_org"]
+
 
 @asynccontextmanager
 async def _db_ctx() -> Any:

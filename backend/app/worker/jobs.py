@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Pool(enum.StrEnum):
@@ -117,8 +117,11 @@ class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
     restamps: list[Restamp]
-    # Defaulted, so a job queued by a release before it existed still parses.
-    prefixes: list[str] = []
+    # Defaulted, so a job queued by a release before it existed still parses; and
+    # left out of the dump when empty, so a worker from that release (whose payload
+    # forbids extra fields) still runs every cleanup that carries none. Only an
+    # organization purge carries prefixes, and only a current worker runs it.
+    prefixes: list[str] = Field(default_factory=list, exclude_if=lambda prefixes: not prefixes)
     """Storage prefixes removed whole - an organization's generated media (#2310)."""
 
 

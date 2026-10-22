@@ -157,6 +157,32 @@ class TestKeeping:
         directory = settings.MEDIA_DIR / organization_directory(organization_id)
         assert list(directory.iterdir()) == []
 
+    async def test_a_failed_unlink_does_not_replace_the_cancellation(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """Raised from the cleanup, the store's error would turn a Stop into a
+        failure and the cancellation would never reach the run."""
+        monkeypatch.setattr(
+            generated_media.generated_media_repo,
+            "create",
+            AsyncMock(side_effect=asyncio.CancelledError()),
+        )
+        storage = MagicMock()
+        storage.save = AsyncMock(return_value="generated_x/a_video.mp4")
+        storage.delete = AsyncMock(side_effect=OSError("store refused"))
+        monkeypatch.setattr(generated_media, "get_file_storage", lambda: storage)
+
+        with pytest.raises(asyncio.CancelledError):
+            await keep_generated_media(
+                uuid4(), b"clip", filename="video.mp4", conversation_id=uuid4()
+            )
+
+        storage.delete.assert_awaited_once()
+        assert "generated_media_not_unlinked" in [record.message for record in caplog.records]
+
 
 class TestTheQuota:
     async def test_an_organization_under_its_quota_may_generate(
@@ -348,6 +374,7 @@ class TestTheRetentionSweep:
         assert removed == 2
         assert expired.await_args is not None
         assert expired.await_args.kwargs["cutoff"] == self.NOW - timedelta(days=30)
+        assert expired.await_args.kwargs["unlinked_cutoff"] == self.NOW - timedelta(days=7)
         assert expired.await_args.kwargs["after"] is None
         assert [call.args[0] for call in storage.delete.await_args_list] == [
             row.storage_path for row in rows
@@ -440,15 +467,28 @@ class TestTheRetentionSweep:
         assert await sweep_expired_generated_media() == 1
         assert expired.await_count == 1
 
-    async def test_a_period_of_zero_keeps_everything(self, monkeypatch: pytest.MonkeyPatch):
+    async def test_a_period_of_zero_still_bounds_files_with_no_conversation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Retention off keeps every file made in a conversation; one made with
+        none - a preview, a `/btw` aside, an API run with no thread - counts
+        against the quota and nobody could free it, so it still goes after its
+        short lifetime (#2310)."""
         monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 0)
-        expired = AsyncMock()
-        monkeypatch.setattr(generated_media.generated_media_repo, "expired", expired)
-        sessions = self._sessions(monkeypatch)
+        unlinked = _row()
+        expired = AsyncMock(return_value=[unlinked])
+        deleted = self._repo(monkeypatch, expired)
+        self._storage(monkeypatch)
+        self._sessions(monkeypatch)
 
-        assert await sweep_expired_generated_media(now=self.NOW) == 0
-        expired.assert_not_awaited()
-        assert sessions.ended == []
+        assert await sweep_expired_generated_media(now=self.NOW) == 1
+        assert expired.await_args is not None
+        assert expired.await_args.kwargs["cutoff"] is None
+        assert expired.await_args.kwargs["unlinked_cutoff"] == (
+            self.NOW - generated_media.UNLINKED_MEDIA_LIFETIME
+        )
+        assert deleted.await_args is not None
+        assert deleted.await_args.kwargs["ids"] == [unlinked.id]
 
     async def test_the_worker_task_runs_the_sweep_and_logs_what_went(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture

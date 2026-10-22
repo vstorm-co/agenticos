@@ -710,8 +710,8 @@ conversation it was made in. What an organization keeps is bounded twice. See
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Generated media one organization may keep, in MiB. Only files made in a conversation count; one from a preview or a test run goes with the retention period alone. Checked before each paid generation call: past it, the tool answers that the organization has used its storage and spends nothing. Nothing is reserved, so calls admitted just under it may finish over it by up to one file per call in flight - concurrent runs, or parallel calls in one response. `0` is no quota |
-| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Age at which the daily `sweep-generated-media` job deletes a generated file and its record, whether or not its conversation is still there. `0` keeps them until their conversation or organization is deleted |
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Generated media one organization may keep, in MiB. Every file counts, including one made with no conversation - a preview or a test run, a channel `/btw` aside, an API run that names no conversation; the sweep deletes those after 7 days. Checked before each paid generation call: past it, the tool answers that the organization has used its storage and spends nothing. Nothing is reserved, so calls admitted just under it may finish over it by up to one file per call in flight - concurrent runs, or parallel calls in one response. `0` is no quota |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Age at which the daily `sweep-generated-media` job deletes a generated file and its record, whether or not its conversation is still there. `0` keeps them until their conversation or organization is deleted. A file with no conversation goes after 7 days either way |
 
 A file is served by streaming only the byte range a player asks for, from disk
 or by a ranged `GetObject`, so a long clip is never held whole in the API or the

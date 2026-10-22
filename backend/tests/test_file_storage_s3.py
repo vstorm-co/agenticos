@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError
 from app.services.file_storage import (
     LocalFileStorage,
     S3FileStorage,
@@ -67,6 +68,7 @@ class _Client:
         self.deleted: list[str] = []
         self.bodies: list[_Body] = []
         self.ranges: list[str | None] = []
+        self.locked: set[str] = set()
 
     def put_object(self, **kwargs: Any) -> None:
         self.puts.append(kwargs)
@@ -97,10 +99,16 @@ class _Client:
         assert name == "list_objects_v2"
         return _Paginator(self.objects)
 
-    def delete_objects(self, *, Bucket: str, Delete: dict[str, Any]) -> None:
+    def delete_objects(self, *, Bucket: str, Delete: dict[str, Any]) -> dict[str, Any]:
+        """S3's answer: 200, with each key it would not delete listed in `Errors`."""
+        errors = []
         for entry in Delete["Objects"]:
+            if entry["Key"] in self.locked:
+                errors.append({"Key": entry["Key"], "Code": "AccessDenied"})
+                continue
             self.deleted.append(entry["Key"])
             self.objects.pop(entry["Key"], None)
+        return {"Errors": errors} if errors else {}
 
 
 class _Paginator:
@@ -332,6 +340,25 @@ class TestSavingIsCancellationSafe:
 
         assert removed == 2
         assert list(client.objects) == ["media/org/other/c"]
+
+    async def test_a_key_s3_refuses_fails_the_prefix_after_the_rest_go(self) -> None:
+        """`delete_objects` answers 200 and lists refused keys in `Errors`; read
+        as success, an org purge's retry would never run for them (#2310)."""
+        client = _Client()
+        storage = S3FileStorage(client, "files")
+        await storage.save_at("generated_org/a", b"1")
+        await storage.save_at("generated_org/b", b"2")
+        client.locked = {"generated_org/a"}
+
+        with pytest.raises(ExternalServiceError) as refused:
+            await storage.delete_prefix("generated_org")
+
+        assert refused.value.details == {
+            "prefix": "generated_org",
+            "refused": 1,
+            "codes": ["AccessDenied"],
+        }
+        assert list(client.objects) == ["generated_org/a"]
 
     async def test_a_prefix_nothing_is_under_deletes_nothing(self) -> None:
         """A conversation that never offloaded a picture is the common case, and

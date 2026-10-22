@@ -31,6 +31,7 @@ from app.core.blocking import (
     write_bytes_cancel_safe,
 )
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError
 
 if TYPE_CHECKING:
     from botocore.client import BaseClient
@@ -566,6 +567,9 @@ class BaseFileStorage(ABC):
 
         Not abstract, for `save_at`'s reason: a backend with no use for it says
         so at the call site rather than failing to import.
+
+        A prefix left partly in place raises rather than reporting success, so a
+        caller that retries - an organization purge's cleanup job - is told.
         """
         raise NotImplementedError(
             f"{type(self).__name__} cannot delete a prefix"
@@ -727,11 +731,19 @@ class LocalFileStorage(BaseFileStorage):
 
         Missing is not an error: a conversation that offloaded nothing has no
         directory, and the teardown must not care.
+
+        Raises:
+            OSError: When anything is left - a file the process may not unlink,
+                or one written while the tree was removed. The rows that named
+                these bytes are gone, so a caller that retries (the cleanup job)
+                is the only thing that will ever try again, and it must be told.
         """
         if not directory.is_dir():
             return 0
         count = sum(1 for path in directory.rglob("*") if path.is_file())
         shutil.rmtree(directory, ignore_errors=True)
+        if directory.exists():
+            raise OSError(f"Stored prefix not fully removed: {directory.name}")
         return count
 
     async def load(self, storage_path: str) -> bytes:
@@ -925,14 +937,30 @@ class S3FileStorage(BaseFileStorage):
         return await run_blocking(self._delete_prefix_blocking, self._key(prefix))
 
     def _delete_prefix_blocking(self, key_prefix: str) -> int:
+        """Raises `ExternalServiceError` when S3 refused any key - `delete_objects`
+        answers 200 and lists per-key failures (an `AccessDenied`, an object lock)
+        in `Errors`, which would otherwise read as success. Every page is tried
+        first, so one refused key does not keep the rest."""
         removed = 0
+        refused: list[str] = []
         paginator = self.client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=self.bucket, Prefix=f"{key_prefix}/"):
             keys = [{"Key": item["Key"]} for item in page.get("Contents", [])]
             if not keys:
                 continue
-            self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
-            removed += len(keys)
+            response = self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
+            errors = response.get("Errors", [])
+            refused.extend(str(error.get("Code", "")) for error in errors)
+            removed += len(keys) - len(errors)
+        if refused:
+            raise ExternalServiceError(
+                message="S3 refused to delete objects under a prefix",
+                details={
+                    "prefix": key_prefix,
+                    "refused": len(refused),
+                    "codes": sorted(set(refused)),
+                },
+            )
         return removed
 
     async def exists(self, storage_path: str) -> bool:
