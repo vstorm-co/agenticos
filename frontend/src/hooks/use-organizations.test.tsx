@@ -269,6 +269,17 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Capped"));
   });
 
+  it("sets the per-person proactive limit and keeps it in the list (#2301)", async () => {
+    // Zero is a value - it switches the work off - not an omitted field.
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ name: "Quiet" }));
+
+    await result.current.setProactiveLimit("org-1", 0);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { proactive_limit_usd: 0 });
+    await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Quiet"));
+  });
+
   it("sends the approval waiver as the boolean it is", async () => {
     // A boolean somebody deliberately set to false is not an omitted field, and
     // the ceiling on standing consent is exactly the setting where the two must

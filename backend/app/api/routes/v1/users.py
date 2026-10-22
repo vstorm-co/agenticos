@@ -123,8 +123,11 @@ async def set_current_user_agent_context(
     The two fields and nothing else on the account, and only for a key issued for
     `agents:run`.
     """
-    changes = data.model_dump(exclude_unset=True)
-    updated = await user_service.update(current_user.id, UserUpdate(**changes))
+    # Only the fields the caller sent: one left out stays as it is.
+    changes = UserUpdate.model_validate(
+        {name: getattr(data, name) for name in data.model_fields_set}
+    )
+    updated = await user_service.update(current_user.id, changes)
     return UserAgentContext(job_title=updated.job_title, about=updated.about)
 
 

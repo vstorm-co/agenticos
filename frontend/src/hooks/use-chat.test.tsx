@@ -401,6 +401,24 @@ describe("useChat - the streamed answer", () => {
     expect(useAuthStore.getState().user?.locale).toBe("pl");
   });
 
+  it("shows the role an agent saved for the person without a reload (#2301)", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_profile",
+      args: { job_title: "Head of sales" },
+    });
+    receive("tool_result", {
+      tool_call_id: "tc-1",
+      content: '{"job_title": "Head of sales", "about": null}',
+    });
+
+    expect(useAuthStore.getState().user).toMatchObject({ job_title: "Head of sales" });
+  });
+
   it("ignores a tool frame with no message open", () => {
     renderHook(() => useChat(), { wrapper });
 
