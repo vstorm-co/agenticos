@@ -580,6 +580,20 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     assert case.note == "Wrong refund window"
 
 
+async def test_a_question_added_on_its_own_keeps_no_history(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="from activity"))
+    run, answer = await _rated_down_turn(db, ctx)
+
+    case = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=False)
+    )
+
+    assert (case.input, case.history) == ("How long do I have to return it?", [])
+    assert (case.counter_example, case.source_run_id) == ("You have 90 days.", run.id)
+
+
 def _racing_on_the_lock(monkeypatch, service: DatasetService, ctx, dataset_id, message_id) -> None:
     """Another request adds `message_id` while this one waits for the dataset's lock:
     the check made before the lock has passed, and the other request got there first."""
@@ -690,6 +704,12 @@ async def test_an_answer_from_another_organization_is_refused_as_missing(db) -> 
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=foreign_answer.id)
         )
+    with pytest.raises(NotFoundError):
+        await service.add_from_message(
+            ctx,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=foreign_answer.id, with_history=False),
+        )
     with pytest.raises(NotFoundError) as missing:
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=uuid.uuid4())
@@ -713,6 +733,12 @@ async def test_a_member_without_runs_view_needs_to_be_able_to_open_the_conversat
     with pytest.raises(NotFoundError):
         await service.add_from_message(
             member, dataset.id, DatasetCaseFromMessage(message_id=someone_elses.id)
+        )
+    with pytest.raises(NotFoundError):
+        await service.add_from_message(
+            member,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=someone_elses.id, with_history=False),
         )
     case = await service.add_from_message(
         member, dataset.id, DatasetCaseFromMessage(message_id=their_own.id)
