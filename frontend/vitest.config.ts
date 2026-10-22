@@ -158,6 +158,8 @@ export default defineConfig({
         "src/components/ui/more-options.tsx",
         // A row a finger swipes to decide (#2097).
         "src/components/ui/swipe-to-decide.tsx",
+        // A list's filters behind one button on a phone (#2097).
+        "src/components/ui/phone-filters.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",

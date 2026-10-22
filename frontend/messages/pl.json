@@ -1991,7 +1991,8 @@
     "showLess": "Mniej",
     "copy": "Kopiuj",
     "copied": "Skopiowano",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filters": "Filtry"
   },
   "dashboard": {
     "actions": {

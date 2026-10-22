@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { RunFilterBar } from "@/components/runs/run-filter-bar";
+import { PhoneFilters } from "@/components/ui/phone-filters";
+import { activeFilterCount } from "@/lib/runs/filter-params";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -260,13 +262,15 @@ export function RunHistoryTab({
               {canView && (
                 <ListCardControlsRow className="shrink-0">
                   {periodControl}
-                  <RunFilterBar
-                    filters={filters}
-                    period={period}
-                    onChange={onFiltersChange}
-                    agentId={agentId}
-                    onAgentChange={changeAgent}
-                  />
+                  <PhoneFilters active={activeFilterCount(filters) + (agentId === null ? 0 : 1)}>
+                    <RunFilterBar
+                      filters={filters}
+                      period={period}
+                      onChange={onFiltersChange}
+                      agentId={agentId}
+                      onAgentChange={changeAgent}
+                    />
+                  </PhoneFilters>
                 </ListCardControlsRow>
               )}
               {!canView ? (
