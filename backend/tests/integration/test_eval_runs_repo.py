@@ -16,10 +16,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.background_job import BackgroundJob
 from app.db.models.credential import ModelProfile
 from app.db.models.eval_run import (
     ArmRole,
@@ -32,10 +34,13 @@ from app.db.models.eval_run import (
 )
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import background_task_kind as background_task_kind_repo
 from app.repositories import dataset_repo, eval_run_repo
 from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
+from app.worker.jobs import RUN_EVAL, RunEval
 
 pytestmark = pytest.mark.anyio
 
@@ -399,10 +404,8 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     run.created_at = _NOW - timedelta(hours=3)
     run.status = EvalRunStatus.RUNNING.value
     await db.flush()
-    queued_since = _NOW - timedelta(days=1)
-
     still_moving = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW - timedelta(hours=1), queued_since=queued_since, now=_NOW
+        db, idle_since=_NOW - timedelta(hours=1), job_kind=RUN_EVAL.kind, now=_NOW
     )
     assert still_moving == 0
 
@@ -411,12 +414,12 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
         db, run.id, organization_id=ctx.organization_id, now=_NOW + timedelta(minutes=5)
     )
     beating = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW + timedelta(minutes=1), queued_since=queued_since, now=_NOW
+        db, idle_since=_NOW + timedelta(minutes=1), job_kind=RUN_EVAL.kind, now=_NOW
     )
     assert beating == 0
 
     reaped = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW + timedelta(minutes=10), queued_since=queued_since, now=_NOW
+        db, idle_since=_NOW + timedelta(minutes=10), job_kind=RUN_EVAL.kind, now=_NOW
     )
     await db.refresh(run)
     cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
@@ -460,22 +463,148 @@ async def test_a_live_run_is_failed_with_what_it_had_not_finished(db) -> None:
     assert (again, run.error) == (False, "Stopped.")
 
 
-async def test_a_queued_run_waits_its_own_window_before_it_is_given_up(db) -> None:
-    ctx, *_, run, _arm = await _setup(db)
-    run.created_at = _NOW - timedelta(hours=3)
-    run.status = EvalRunStatus.QUEUED.value
+async def _two_runs(db: AsyncSession, **kwargs) -> tuple[AuthContext, EvalRun, EvalRun]:
+    """Two runs of one agent over one dataset, in one organization."""
+    ctx, agent, versions, dataset, dataset_version, revisions, run, _arm = await _setup(
+        db, **kwargs
+    )
+    other, _arm = await _run(
+        db,
+        ctx,
+        agent=agent,
+        version=versions[1],
+        dataset=dataset,
+        dataset_version=dataset_version,
+        revisions=revisions,
+        **kwargs,
+    )
+    return ctx, run, other
+
+
+async def _job(db: AsyncSession, ctx: AuthContext, run: EvalRun, status: str) -> None:
+    job_id = await enqueue(
+        db,
+        RUN_EVAL,
+        RunEval(eval_run_id=run.id, organization_id=ctx.organization_id),
+        organization_id=ctx.organization_id,
+    )
+    job = await db.get(BackgroundJob, job_id)
+    assert job is not None
+    job.status = status
     await db.flush()
 
-    waiting = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW, queued_since=_NOW - timedelta(hours=4), now=_NOW
-    )
-    assert waiting == 0
+
+async def test_a_queued_run_is_given_up_once_no_job_is_left_to_run_it(db) -> None:
+    ctx, run, other = await _two_runs(db, status=EvalRunStatus.QUEUED)
+    # Another run's job does not keep this one.
+    await _job(db, ctx, other, "queued")
+
+    async def sweep() -> int:
+        return await eval_run_repo.fail_abandoned(
+            db, idle_since=_NOW, job_kind=RUN_EVAL.kind, now=_NOW
+        )
+
+    await _job(db, ctx, run, "queued")
+    # Waiting behind a paused kind is waiting, not lost.
+    await background_task_kind_repo.pause(db, RUN_EVAL.kind, None, reason="maintenance")
+    assert await sweep() == 0
+    job = (
+        await db.execute(
+            select(BackgroundJob).where(BackgroundJob.payload["eval_run_id"].astext == str(run.id))
+        )
+    ).scalar_one()
+    job.status = "running"
+    await db.flush()
+    assert await sweep() == 0
+
+    job.status = "cancelled"
+    await db.flush()
+    assert await sweep() == 1
+    await db.refresh(run)
+    await db.refresh(other)
+    assert run.status == EvalRunStatus.FAILED.value
+    assert other.status == EvalRunStatus.QUEUED.value
+
+
+async def test_a_queued_run_with_no_job_at_all_is_given_up(db) -> None:
+    ctx, *_, run, _arm = await _setup(db, status=EvalRunStatus.QUEUED)
+    await _job(db, ctx, run, "dead")
 
     given_up = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW, queued_since=_NOW - timedelta(hours=2), now=_NOW
+        db, idle_since=_NOW, job_kind=RUN_EVAL.kind, now=_NOW
     )
     await db.refresh(run)
+    cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
     assert (given_up, run.status) == (1, EvalRunStatus.FAILED.value)
+    assert {case.status for case in cases} == {"skipped"}
+
+
+async def test_only_the_attempts_of_live_runs_hold_the_organizations_slots(db) -> None:
+    ctx, run, other = await _two_runs(db)
+    for _ in range(2):
+        assert await eval_run_repo.claim_next(
+            db, run.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
+        )
+
+    # Two attempts of a live run fill a limit of two.
+    refused = await eval_run_repo.claim_next(
+        db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
+    )
+    assert refused is None
+
+    # Its worker died after it was cancelled: its attempts still read running.
+    await eval_run_repo.update_run(db, run=run, values={"status": EvalRunStatus.CANCELLED.value})
+    claimed = await eval_run_repo.claim_next(
+        db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
+    )
+    assert claimed is not None and claimed.eval_run_id == other.id
+
+
+async def test_attempts_left_running_by_an_ended_run_are_closed_after_the_window(db) -> None:
+    ctx, run, other = await _two_runs(db)
+    orphan = await eval_run_repo.claim_next(
+        db, run.id, organization_id=ctx.organization_id, org_limit=10, now=_NOW
+    )
+    live = await eval_run_repo.claim_next(
+        db, other.id, organization_id=ctx.organization_id, org_limit=10, now=_NOW
+    )
+    assert orphan is not None and live is not None
+    await eval_run_repo.update_run(
+        db, run=run, values={"status": EvalRunStatus.CANCELLED.value, "ended_at": _NOW}
+    )
+
+    # Within the window, the attempt a cancelled run's worker is answering may finish.
+    assert await eval_run_repo.close_orphaned_attempts(db, ended_before=_NOW) == 0
+    closed = await eval_run_repo.close_orphaned_attempts(
+        db, ended_before=_NOW + timedelta(minutes=1)
+    )
+    await db.refresh(orphan)
+    await db.refresh(live)
+
+    assert closed == 1
+    assert (orphan.status, orphan.error) == ("failed", "The worker stopped mid-case.")
+    assert live.status == CaseAttemptStatus.RUNNING.value
+
+
+async def test_a_live_run_is_cancelled_with_what_it_had_not_started(db) -> None:
+    ctx, *_, run, _arm = await _setup(db, status=EvalRunStatus.QUEUED)
+
+    elsewhere = await eval_run_repo.cancel_live(db, run.id, organization_id=uuid.uuid4(), now=_NOW)
+    assert elsewhere is False
+
+    cancelled = await eval_run_repo.cancel_live(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW
+    )
+    await db.refresh(run)
+    cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
+
+    assert cancelled is True
+    assert (run.status, run.ended_at) == (EvalRunStatus.CANCELLED.value, _NOW)
+    assert {case.status for case in cases} == {"skipped"}
+    assert (
+        await eval_run_repo.cancel_live(db, run.id, organization_id=ctx.organization_id, now=_NOW)
+        is False
+    )
 
 
 async def test_an_attempt_is_read_and_updated_in_place(db) -> None:

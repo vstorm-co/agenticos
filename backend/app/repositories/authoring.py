@@ -100,6 +100,25 @@ async def update_request(
     return request
 
 
+async def fail_unfinished(
+    db: AsyncSession, request_id: UUID, *, organization_id: UUID, error: str, now: datetime
+) -> bool:
+    """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome."""
+    result = await db.execute(
+        update(AuthoringRequest)
+        .where(
+            AuthoringRequest.id == request_id,
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.status.in_(
+                (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value)
+            ),
+        )
+        .values(status=AuthoringStatus.FAILED.value, error=error, finished_at=now)
+        .returning(AuthoringRequest.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def get_batch(
     db: AsyncSession, batch_id: UUID, *, organization_id: UUID, lock: bool = False
 ) -> SpecProposalBatch | None:

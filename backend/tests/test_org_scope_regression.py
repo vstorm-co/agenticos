@@ -202,6 +202,7 @@ CROSS_TENANT_BY_DESIGN = [
     (knowledge_gap_repo, "knowledge_bases_with_ungrouped_misses"),
     (knowledge_gap_repo, "delete_empty_topics"),
     (eval_run_repo, "fail_abandoned"),
+    (eval_run_repo, "close_orphaned_attempts"),
     (eval_suite_repo, "claim_due_schedules"),
     (eval_suite_repo, "claim_pending"),
     (eval_suite_repo, "claim_finished"),
