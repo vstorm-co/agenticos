@@ -546,7 +546,6 @@ async def test_only_the_attempts_of_live_runs_hold_the_organizations_slots(db) -
             db, run.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
         )
 
-    # Two attempts of a live run fill a limit of two.
     refused = await eval_run_repo.claim_next(
         db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
     )
