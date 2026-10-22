@@ -39,6 +39,12 @@ MAX_QUOTE = 600
 MAX_RULE = 300
 MAX_REASON = 2000
 _QUOTE_SHOWN = 80
+_QUOTE_MARKS = str.maketrans(
+    dict.fromkeys("\u2018\u2019\u201a\u201b\u2032`", "'")
+    | dict.fromkeys("\u201c\u201d\u201e\u201f\u2033\u00ab\u00bb", '"')
+)
+_QUOTE_EDGES = " '\""
+_QUOTE_END = ".,;:!?… "
 
 MAX_MATCH_TEXT = 100_000
 # A pattern is a person's input and backtracking is exponential in the text it
@@ -593,12 +599,27 @@ def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _as_quoted(text: str) -> str:
+    return " ".join(text.translate(_QUOTE_MARKS).split())
+
+
+def holds(answer: str, quote: str) -> bool:
+    """Whether the answer says the quote, word for word.
+
+    Spacing and the style of quotation marks and apostrophes aside, and the
+    quote's own surrounding quotation marks and final punctuation: a judge
+    quoting a clause ends it with a full stop where the answer goes on.
+    """
+    said = _as_quoted(quote).strip(_QUOTE_EDGES).rstrip(_QUOTE_END).rstrip(_QUOTE_EDGES)
+    return bool(said) and said in _as_quoted(answer)
+
+
 def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
     """The quotes the answer does not hold, each cut to what a reader needs to spot it."""
     return [
         quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…"
         for quote in quotes
-        if quote not in answer
+        if not holds(answer, quote)
     ]
 
 
@@ -745,7 +766,7 @@ def graded(
                 )
             )
             continue
-        quoted = any(quote in shown for quote in grade.quotes)
+        quoted = any(holds(shown, quote) for quote in grade.quotes)
         if not quoted and restates(grade.reason, criterion.description):
             results.append(
                 ScorerResult(

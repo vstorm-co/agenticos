@@ -35,6 +35,7 @@ from app.services.scorers import (
     case_passed,
     copies,
     graded,
+    holds,
     judge_criteria,
     judge_prompt,
     not_graded,
@@ -866,6 +867,56 @@ class TestGrades:
             ("pass", "4/5: Right", []),
             ("pass", "5/5: Warm", ["Happy to help", f"{'x' * 80}…"]),
         ]
+
+    @pytest.mark.parametrize(
+        "quote",
+        [
+            "Refunds above $500 require a manager's approval.",
+            "Refunds above  $500 require\na manager\u2019s approval",
+            "\u201cRefunds above $500 require a manager's approval\u201d",
+            "Refunds above $500 require a manager\u2019s approval, and I will",
+        ],
+    )
+    def test_a_quote_differing_only_in_marks_spacing_or_its_last_stop_is_held(self, quote) -> None:
+        answer = "Refunds above $500 require a manager\u2019s approval, and I will ask one today."
+
+        assert holds(answer, quote) is True
+
+    @pytest.mark.parametrize(
+        "quote",
+        [
+            "Refunds above $600 require a manager's approval.",
+            "refunds above $500 require a manager's approval",
+            "Refunds above $500 require approval.",
+            "...",
+            "\u201d \u201c",
+        ],
+    )
+    def test_a_quote_the_answer_does_not_say_word_for_word_is_not_held(self, quote) -> None:
+        answer = "Refunds above $500 require a manager\u2019s approval, and I will ask one today."
+
+        assert holds(answer, quote) is False
+
+    def test_a_quote_with_a_curly_apostrophe_and_a_full_stop_is_not_flagged(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        quote = (
+            "According to our refund policy, refunds above $500 require a manager\u2019s approval."
+        )
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="r1", score=5, reason="Right", quotes=[quote])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="According to our refund policy, refunds above $500 require a manager's "
+            "approval, and I will ask one for you.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.unverified_quotes, result.unverified) == ([], False)
 
     def test_an_unverified_quote_stays_out_of_a_reason_at_the_length_limit(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
