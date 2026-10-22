@@ -990,6 +990,7 @@ include = [
     # checked proposal.
     "app/db/models/improvement.py",
     "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",
@@ -1559,6 +1560,7 @@ include = [
     # checked proposal.
     "app/db/models/improvement.py",
     "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",

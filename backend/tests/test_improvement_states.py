@@ -1,0 +1,349 @@
+"""An improvement session's rules: what stops it, what it waits for, and a verdict
+that is never "better" on anything it did not measure."""
+
+import uuid
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import pytest
+
+from app.db.models.authoring import AuthoringStatus
+from app.db.models.eval_run import EvalRunStatus
+from app.db.models.improvement import (
+    ImprovementStage,
+    ImprovementStatus,
+    ImprovementVerdict,
+    StopReason,
+)
+from app.services.improvement_states import (
+    INCONCLUSIVE_RERUNS,
+    MIN_GRADABLE_CASES,
+    STALL_MARGIN,
+    STEP_TIMEOUT,
+    CheckResult,
+    Pins,
+    Standing,
+    SuiteOutcome,
+    Transition,
+    after_analyzing,
+    after_evaluating,
+    after_filtering,
+    after_judging,
+    after_proposing,
+    before_evaluating,
+    can_move,
+    checked,
+    judge,
+    stale,
+    stalled,
+)
+
+_BETTER = CheckResult(
+    comparable=True,
+    incomplete=0,
+    ungraded=0,
+    regressions_confirmed=0,
+    fixed_confirmed=3,
+    candidate_pass_rate=0.8,
+    baseline_pass_rate=0.6,
+)
+_PINS = Pins(draft_hash="a" * 64, base_version_id=uuid.uuid4(), scoring_hash="s" * 64)
+_ALLOWED = Standing(
+    member=True, edits_agent=True, views_runs=True, runs_dataset=True, ai_assistance=True
+)
+
+
+def test_a_measured_improvement_is_better() -> None:
+    assert judge(_BETTER) is ImprovementVerdict.BETTER
+
+
+def test_an_equal_pass_rate_with_confirmed_fixes_is_still_better() -> None:
+    assert judge(replace(_BETTER, candidate_pass_rate=0.6)) is ImprovementVerdict.BETTER
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        replace(_BETTER, incomplete=1),
+        replace(_BETTER, ungraded=1),
+        replace(_BETTER, comparable=False),
+        replace(_BETTER, candidate_pass_rate=None),
+        replace(_BETTER, baseline_pass_rate=None),
+        replace(_BETTER, suite=SuiteOutcome.INCONCLUSIVE),
+    ],
+    ids=["infrastructure-failed", "nothing-grades", "invalid", "no-candidate", "no-base", "suite"],
+)
+def test_a_check_that_did_not_measure_everything_is_inconclusive(result: CheckResult) -> None:
+    """D1: an ungraded case or a provider failure never lets a candidate count as better."""
+    assert judge(result) is ImprovementVerdict.INCONCLUSIVE
+
+
+def test_an_unmeasured_check_is_inconclusive_even_when_something_regressed() -> None:
+    result = replace(_BETTER, ungraded=2, regressions_confirmed=1)
+    assert judge(result) is ImprovementVerdict.INCONCLUSIVE
+
+
+def test_a_confirmed_regression_outweighs_the_fixes() -> None:
+    assert judge(replace(_BETTER, regressions_confirmed=1)) is ImprovementVerdict.REGRESSION
+
+
+def test_a_failed_suite_is_a_regression_even_with_fixes() -> None:
+    result = replace(_BETTER, suite=SuiteOutcome.FAILED)
+    assert judge(result) is ImprovementVerdict.REGRESSION
+
+
+def test_a_passed_suite_lets_a_better_candidate_through() -> None:
+    result = replace(_BETTER, suite=SuiteOutcome.PASSED)
+    assert judge(result) is ImprovementVerdict.BETTER
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        replace(_BETTER, fixed_confirmed=0),
+        replace(_BETTER, candidate_pass_rate=0.5),
+    ],
+    ids=["nothing-fixed", "lower-pass-rate"],
+)
+def test_no_confirmed_fix_or_a_lower_pass_rate_is_no_change(result: CheckResult) -> None:
+    assert judge(result) is ImprovementVerdict.NO_CHANGE
+
+
+def test_a_better_candidate_waits_for_a_person() -> None:
+    move = after_judging(ImprovementVerdict.BETTER, reruns_used=0)
+    assert move == Transition(ImprovementStatus.READY, ImprovementStage.JUDGING)
+
+
+def test_an_inconclusive_check_is_run_once_more() -> None:
+    move = after_judging(ImprovementVerdict.INCONCLUSIVE, reruns_used=0)
+    assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
+
+
+def test_a_second_inconclusive_check_stops_the_session() -> None:
+    move = after_judging(ImprovementVerdict.INCONCLUSIVE, reruns_used=INCONCLUSIVE_RERUNS)
+    assert move == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.JUDGING, StopReason.INCONCLUSIVE
+    )
+
+
+@pytest.mark.parametrize(
+    ("verdict", "reason"),
+    [
+        (ImprovementVerdict.REGRESSION, StopReason.REGRESSION),
+        (ImprovementVerdict.NO_CHANGE, StopReason.NO_CHANGE),
+    ],
+)
+def test_a_candidate_that_is_not_better_stops_with_its_verdict(
+    verdict: ImprovementVerdict, reason: StopReason
+) -> None:
+    move = after_judging(verdict, reruns_used=0)
+    assert move == Transition(ImprovementStatus.STOPPED, ImprovementStage.JUDGING, reason)
+
+
+def test_analysis_with_evidence_and_enough_cases_proposes() -> None:
+    move = after_analyzing(has_evidence=True, gradable_cases=MIN_GRADABLE_CASES)
+    assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)
+
+
+@pytest.mark.parametrize(
+    ("has_evidence", "gradable_cases"),
+    [(False, 10), (True, MIN_GRADABLE_CASES - 1)],
+    ids=["nothing-rated", "too-few-cases"],
+)
+def test_analysis_without_something_to_learn_from_or_measure_on_stops(
+    *, has_evidence: bool, gradable_cases: int
+) -> None:
+    move = after_analyzing(has_evidence=has_evidence, gradable_cases=gradable_cases)
+    assert move == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.ANALYZING, StopReason.NO_DATA
+    )
+
+
+@pytest.mark.parametrize("status", [AuthoringStatus.QUEUED, AuthoringStatus.RUNNING])
+def test_proposing_waits_for_the_request(status: AuthoringStatus) -> None:
+    assert after_proposing(status, hunks=0) is None
+
+
+def test_a_failed_request_fails_the_session() -> None:
+    assert after_proposing(AuthoringStatus.FAILED, hunks=2) == Transition(
+        ImprovementStatus.FAILED, ImprovementStage.PROPOSING, StopReason.PROPOSAL
+    )
+
+
+def test_a_request_that_proposed_nothing_stops_the_session() -> None:
+    assert after_proposing(AuthoringStatus.COMPLETED, hunks=0) == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.PROPOSING, StopReason.NO_PROPOSAL
+    )
+
+
+def test_a_proposal_goes_to_the_filter() -> None:
+    assert after_proposing(AuthoringStatus.COMPLETED, hunks=2) == Transition(
+        ImprovementStatus.RUNNING, ImprovementStage.FILTERING
+    )
+
+
+def test_a_candidate_the_policy_emptied_is_not_checked() -> None:
+    assert after_filtering(kept=0) == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.FILTERING, StopReason.NO_PROPOSAL
+    )
+    assert after_filtering(kept=1) == Transition(
+        ImprovementStatus.RUNNING, ImprovementStage.EVALUATING
+    )
+
+
+def test_a_check_that_fits_the_remaining_budget_starts() -> None:
+    move = before_evaluating(
+        spent=Decimal("0.02"), step_estimate=Decimal("0.03"), budget=Decimal("0.05")
+    )
+    assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
+
+
+def test_a_check_above_the_remaining_budget_is_never_started() -> None:
+    """D12: the full estimate is held to what is left before the step, not during it."""
+    move = before_evaluating(
+        spent=Decimal("0.03"), step_estimate=Decimal("0.03"), budget=Decimal("0.05")
+    )
+    assert move == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.EVALUATING, StopReason.BUDGET
+    )
+
+
+@pytest.mark.parametrize("status", [EvalRunStatus.QUEUED, EvalRunStatus.RUNNING])
+def test_evaluating_waits_for_the_check(status: EvalRunStatus) -> None:
+    assert after_evaluating(status) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (
+            EvalRunStatus.COMPLETED,
+            Transition(ImprovementStatus.RUNNING, ImprovementStage.JUDGING),
+        ),
+        (
+            EvalRunStatus.BUDGET_EXCEEDED,
+            Transition(ImprovementStatus.STOPPED, ImprovementStage.EVALUATING, StopReason.BUDGET),
+        ),
+        (
+            EvalRunStatus.FAILED,
+            Transition(ImprovementStatus.FAILED, ImprovementStage.EVALUATING, StopReason.EVAL),
+        ),
+        (
+            EvalRunStatus.CANCELLED,
+            Transition(ImprovementStatus.FAILED, ImprovementStage.EVALUATING, StopReason.EVAL),
+        ),
+    ],
+)
+def test_a_finished_check_is_judged_or_ends_the_session(
+    status: EvalRunStatus, expected: Transition
+) -> None:
+    assert after_evaluating(status) == expected
+
+
+def test_nothing_changed_is_not_stale() -> None:
+    assert not stale(_PINS, _PINS, archived=False)
+
+
+@pytest.mark.parametrize(
+    "current",
+    [
+        replace(_PINS, draft_hash="b" * 64),
+        replace(_PINS, base_version_id=uuid.uuid4()),
+        replace(_PINS, scoring_hash="t" * 64),
+    ],
+    ids=["draft-edited", "published", "grading-changed"],
+)
+def test_a_changed_base_or_grading_is_stale(current: Pins) -> None:
+    assert stale(_PINS, current, archived=False)
+
+
+def test_an_archived_agent_is_stale() -> None:
+    assert stale(_PINS, _PINS, archived=True)
+
+
+def test_a_session_in_good_standing_carries_on() -> None:
+    move = checked(
+        ImprovementStage.PROPOSING, standing=_ALLOWED, pinned=_PINS, current=_PINS, archived=False
+    )
+    assert move is None
+
+
+@pytest.mark.parametrize(
+    "standing",
+    [
+        replace(_ALLOWED, member=False),
+        replace(_ALLOWED, edits_agent=False),
+        replace(_ALLOWED, views_runs=False),
+        replace(_ALLOWED, runs_dataset=False),
+        replace(_ALLOWED, ai_assistance=False),
+    ],
+    ids=["left", "no-edit", "no-runs-view", "no-dataset-run", "ai-off"],
+)
+def test_losing_access_stops_the_session_with_permission(standing: Standing) -> None:
+    move = checked(
+        ImprovementStage.EVALUATING,
+        standing=standing,
+        pinned=_PINS,
+        current=replace(_PINS, draft_hash="b" * 64),
+        archived=False,
+    )
+    assert move == Transition(
+        ImprovementStatus.STOPPED, ImprovementStage.EVALUATING, StopReason.PERMISSION
+    )
+
+
+def test_a_change_under_the_session_makes_it_stale() -> None:
+    move = checked(
+        ImprovementStage.FILTERING,
+        standing=_ALLOWED,
+        pinned=_PINS,
+        current=replace(_PINS, draft_hash="b" * 64),
+        archived=False,
+    )
+    assert move == Transition(ImprovementStatus.STALE, ImprovementStage.FILTERING, StopReason.STALE)
+
+
+@pytest.mark.parametrize("stage", list(ImprovementStage))
+def test_a_step_stalls_only_after_its_timeout_and_the_margin(stage: ImprovementStage) -> None:
+    now = datetime.now(UTC)
+    limit = STEP_TIMEOUT[stage] + STALL_MARGIN
+    assert not stalled(stage, last_progress=now - limit, now=now)
+    assert stalled(stage, last_progress=now - limit - timedelta(seconds=1), now=now)
+
+
+def test_every_step_has_a_timeout() -> None:
+    assert set(STEP_TIMEOUT) == set(ImprovementStage)
+
+
+@pytest.mark.parametrize("status", [s for s in ImprovementStatus if s.terminal])
+def test_a_finished_session_never_moves_again_except_accepted_to_published(
+    status: ImprovementStatus,
+) -> None:
+    allowed = {to for to in ImprovementStatus if can_move(status, to)}
+    expected = {ImprovementStatus.PUBLISHED} if status is ImprovementStatus.ACCEPTED else set()
+    assert allowed == expected
+
+
+def test_only_a_person_moves_a_ready_session() -> None:
+    """D15: from `ready` the session goes nowhere on its own - no step, no stop, no rerun."""
+    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.READY, to)}
+    assert allowed == {
+        ImprovementStatus.ACCEPTED,
+        ImprovementStatus.PUBLISHED,
+        ImprovementStatus.REJECTED,
+    }
+
+
+def test_only_a_running_session_reaches_ready() -> None:
+    reaching = {s for s in ImprovementStatus if can_move(s, ImprovementStatus.READY)}
+    assert reaching == {ImprovementStatus.RUNNING}
+
+
+def test_active_and_terminal_statuses_split_around_ready() -> None:
+    assert {s for s in ImprovementStatus if s.active} == {
+        ImprovementStatus.QUEUED,
+        ImprovementStatus.RUNNING,
+    }
+    assert not ImprovementStatus.READY.active
+    assert not ImprovementStatus.READY.terminal
