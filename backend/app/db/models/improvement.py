@@ -143,9 +143,8 @@ class ImprovementRun(Base):
     stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    # The base, the dataset and its grading are pinned at start: every check
-    # compares against them, and a change to any of them makes the session stale
-    # rather than quietly measuring something else.
+    # Pinned at start: a change to the base, the dataset or its grading makes the
+    # session stale rather than quietly measuring something else.
     base_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="SET NULL"), nullable=True
     )
