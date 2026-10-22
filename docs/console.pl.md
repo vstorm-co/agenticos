@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7b297e8b55"
+source_sha: "60b512b4cb58"
 ---
 
 # Konsola { #the-console }
@@ -10,7 +10,8 @@ wyjaśnia go porządnie.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",
-nie ma przewodnika do odtworzenia.
+nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
+ustawieniach czatu, pod suwakami obok mikrofonu.
 
 ## Dashboard { #the-dashboard }
 

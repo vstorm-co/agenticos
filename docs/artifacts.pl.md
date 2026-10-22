@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "343d37ab9728"
 ---
 
 # Aplikacje { #artifacts }
@@ -197,7 +197,9 @@ mogą rysować na prawdziwych kafelkach map: deployment pobiera każdy kafelek z
 tego serwera i serwuje go z własnej ścieżki kafelków, `agenticos.map` mówi
 gdzie, a kit map rysuje na nim trasę z atrybucją serwera pod spodem. Bez tego to
 samo wywołanie rysuje zarys przystanków - pinezki i linię między nimi, bez ulic -
-i tak samo mapa, której kafelki się nie ładują. Obraz mapy w aplikacji czatowej
+i tak samo mapa, której kafelki się nie ładują. Agent mówi o tym w odpowiedzi: że
+nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
+ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest

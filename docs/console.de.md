@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7b297e8b55"
+source_sha: "60b512b4cb58"
 ---
 
 # Die Konsole { #the-console }
@@ -10,7 +10,9 @@ und welche Seite ihn ausführlich erklärt.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine
-Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
+Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Chat
+hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
+neben dem Mikrofon.
 
 ## Das Dashboard { #the-dashboard }
 

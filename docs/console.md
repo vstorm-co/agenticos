@@ -6,7 +6,8 @@ properly.
 
 If you are looking for one screen, the fastest route is the **"?"** in a page's
 header — it replays that page's walkthrough, and a page whose header carries no
-"?" has no walkthrough to replay.
+"?" has no walkthrough to replay. Chat has no header: its tips are under the chat
+settings, the sliders beside the microphone.
 
 ## The dashboard
 

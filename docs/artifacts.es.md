@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "343d37ab9728"
 ---
 
 # Aplicaciones { #artifacts }
@@ -208,7 +208,9 @@ despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
 teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
 itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
 contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
-hace un mapa cuyas teselas no cargan. La imagen de un mapa en una app de chat se
+hace un mapa cuyas teselas no cargan. El agent lo dice en su respuesta: que no hay
+un servidor de mapas conectado y que un administrador activa los mapas reales con
+este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es

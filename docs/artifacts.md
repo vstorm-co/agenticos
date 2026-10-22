@@ -190,6 +190,8 @@ from that server and serves it from its own tile path, `agenticos.map` says
 where, and the map kit draws an itinerary on it with the server's credit
 underneath. Without it, the same call draws an outline of the stops - pins and
 the line between them, no streets - and so does a map whose tiles do not load.
+The agent says so in its answer: that no map server is connected, and that an
+administrator turns real maps on with this setting.
 A chat app's picture of a map is drawn finished, with every pin in place.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing

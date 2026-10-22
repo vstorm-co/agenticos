@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "343d37ab9728"
 ---
 
 # Apps { #artifacts }
@@ -216,7 +216,9 @@ Deployment holt jede Kachel von diesem Server und liefert sie über seinen eigen
 Kachelpfad aus, `agenticos.map` sagt wohin, und das Karten-Kit zeichnet darauf eine
 Route mit der Quellenangabe des Servers darunter. Ohne die Einstellung zeichnet
 derselbe Aufruf einen Umriss der Stopps - Pins und die Linie dazwischen, keine
-Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Das Bild einer Karte in
+Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Der Agent sagt das in
+seiner Antwort: dass kein Kartenserver angebunden ist und dass ein Administrator
+echte Karten mit dieser Einstellung einschaltet. Das Bild einer Karte in
 einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung

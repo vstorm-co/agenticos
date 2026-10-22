@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7b297e8b55"
+source_sha: "60b512b4cb58"
 ---
 
 # La consola { #the-console }
@@ -10,7 +10,9 @@ como es debido.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una
-página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
+página cuya cabecera no lleva "?" no tiene recorrido que reproducir. El chat no
+tiene cabecera: sus consejos están en los ajustes del chat, los deslizadores junto
+al micrófono.
 
 ## El dashboard { #the-dashboard }
 

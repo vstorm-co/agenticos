@@ -142,6 +142,21 @@ Two things are versioned separately from this file and worth knowing about:
   (`@agenticos`). An organization bootstrapped earlier keeps its
   `@claude-code-like` agent as it is - an agent's handle never changes - and
   rerunning bootstrap there installs AgenticOS beside it.
+- **Less under the chat's composer.** The "AI can make mistakes" line is gone,
+  the "?" that replays the chat's tips moved into the chat settings, and the
+  composer takes a card's light shadow instead of a dark drop. What stays under
+  it is the connection, and only when it is offline.
+- **A map drawn without tiles is explained.** The agent says in its answer that
+  no map server is connected and that an administrator turns real maps on with
+  `VISUAL_MAP_TILES`, instead of a note inside the drawing. Tiles stay off by
+  default.
+
+### Fixed
+
+- **A question an agent asked comes back after leaving the chat.** Leaving the
+  chat page while a turn was being written and coming back showed the turn from
+  memory: its timer kept running, and a question it had parked on never
+  returned as a card. The chat now reads the conversation again.
 
 ## [1.13.0] - 2026-10-22
 
