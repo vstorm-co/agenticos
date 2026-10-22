@@ -1,5 +1,5 @@
 ---
-source_sha: "edee98ed294f"
+source_sha: "be539c53471b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -890,10 +890,10 @@ Punkt außerhalb dieses Screenshots wird verweigert, bevor irgendetwas läuft. E
 freigegebener Stapel läuft in einem eigenen Run, der den Bildschirm vor dem
 Handeln neu vermisst, statt ihn zu verweigern.
 
-| `backend` | Der Desktop | Braucht |
+| `desktop` | Der Desktop | Braucht |
 |---|---|---|
-| `daemon` | Ein `computerd`, den der Betreiber betreibt: ein Linux-Desktop in einem Container (`deploy/computer/Dockerfile`) oder der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
-| `e2b` | Eine [E2B](https://e2b.dev)-Desktop-Sandbox pro Gespräch, im nächsten Zug wiedergefunden | Einen E2B-Schlüssel aus dem Vault und das Extra `computer` |
+| `local` | Ein `computerd`, den der Betreiber betreibt: ein Linux-Desktop in einem Container (`deploy/computer/Dockerfile`) oder der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
+| `cloud`, mit `cloud_provider: e2b` | Eine [E2B](https://e2b.dev)-Desktop-Sandbox pro Gespräch, im nächsten Zug wiedergefunden | Einen E2B-Schlüssel aus dem Vault und das Extra `computer` |
 
 Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
 Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
@@ -904,8 +904,9 @@ nach dem Leerlauf-Timeout von E2B selbst ab.
 
 | Einstellung | Standard | Bereich |
 |---|---|---|
-| `backend` | `daemon` | `daemon`, `e2b` |
-| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host |
+| `desktop` | `local` | `local`, `cloud` |
+| `daemon_url` | leer, bei `local` beim Veröffentlichen verweigert | ein erlaubter Host |
+| `cloud_provider` | leer, bei `cloud` verweigert | `e2b` |
 | `e2b_template` | `desktop` | 1–100 Zeichen |
 | `e2b_timeout_seconds` | 900 | 60–86400; der Hobby-Plan von E2B begrenzt auf 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |

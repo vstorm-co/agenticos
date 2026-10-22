@@ -7526,17 +7526,21 @@
       }
     },
     "computer_use": {
-      "backend": {
+      "desktop": {
         "title": "Desktop",
-        "description": "Where the desktop is."
+        "description": "A computer you run, or one a cloud provider starts for each conversation."
       },
       "daemon_url": {
         "title": "Daemon URL",
-        "description": "The computerd endpoint, for the daemon backend. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS."
+        "description": "The computerd endpoint of your desktop. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS."
+      },
+      "cloud_provider": {
+        "title": "Cloud provider",
+        "description": "Who runs the cloud desktop."
       },
       "e2b_template": {
         "title": "E2B template",
-        "description": "The E2B template to start, for the e2b backend."
+        "description": "The E2B template to start."
       },
       "e2b_timeout_seconds": {
         "title": "E2B idle timeout (seconds)",

@@ -7310,17 +7310,21 @@
       }
     },
     "computer_use": {
-      "backend": {
+      "desktop": {
         "title": "Pulpit",
-        "description": "Gdzie jest pulpit."
+        "description": "Komputer, który uruchamiasz sam, albo pulpit, który dostawca chmurowy uruchamia dla każdej rozmowy."
       },
       "daemon_url": {
         "title": "Adres daemona",
-        "description": "Punkt końcowy computerd dla backendu daemon. Jego host musi być na liście COMPUTER_DAEMON_ALLOWED_HOSTS."
+        "description": "Punkt końcowy computerd twojego pulpitu. Jego host musi być na liście COMPUTER_DAEMON_ALLOWED_HOSTS."
+      },
+      "cloud_provider": {
+        "title": "Dostawca chmurowy",
+        "description": "Kto uruchamia pulpit w chmurze."
       },
       "e2b_template": {
         "title": "Szablon E2B",
-        "description": "Szablon E2B do uruchomienia, dla backendu e2b."
+        "description": "Szablon E2B do uruchomienia."
       },
       "e2b_timeout_seconds": {
         "title": "Czas bezczynności E2B (sekundy)",

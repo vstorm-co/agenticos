@@ -837,12 +837,40 @@ class TestRegistration:
         gated = CapabilityBindingSpec(id="computer_use", tool_approval={"computer_act": "required"})
         assert held(gated) == {"computer_act"}
 
-    def test_an_e2b_key_is_asked_for_only_by_the_e2b_backend(self):
+    def test_an_e2b_key_is_asked_for_only_by_an_e2b_desktop(self):
         requirement = get("computer_use").secret
         assert requirement is not None
         assert requirement.required_when is not None
-        assert (requirement.purpose, requirement.required_when.field) == ("e2b", "backend")
+        assert (requirement.purpose, requirement.required_when.field) == ("e2b", "cloud_provider")
         assert requirement.required_when.equals == ("e2b",)
+        assert requirement.required_when.is_met(
+            ComputerUseConfig(desktop="cloud", cloud_provider="e2b")
+        )
+        assert not requirement.required_when.is_met(ComputerUseConfig())
+
+    def test_local_or_cloud_is_asked_first_and_each_shows_only_its_own_fields(self):
+        properties = ComputerUseConfig.model_json_schema()["properties"]
+        assert next(iter(properties)) == "desktop"
+        assert properties["daemon_url"]["x-visible-when"] == {
+            "field": "desktop",
+            "equals": ["local"],
+        }
+        provider = properties["cloud_provider"]
+        assert provider["x-visible-when"] == {"field": "desktop", "equals": ["cloud"]}
+        assert provider["anyOf"][0] == {"enum": ["e2b"], "type": "string"}
+        assert provider["x-enum-when"]["choices"]["local"] == []
+        for field in ("e2b_template", "e2b_timeout_seconds"):
+            assert properties[field]["x-visible-when"] == {
+                "field": "cloud_provider",
+                "equals": ["e2b"],
+            }
+
+    def test_a_cloud_desktop_needs_a_provider(self):
+        with pytest.raises(ValidationError, match="needs a cloud_provider"):
+            ComputerUseConfig(desktop="cloud")
+
+    def test_a_local_desktop_drops_a_provider_left_from_a_cloud_one(self):
+        assert ComputerUseConfig(desktop="local", cloud_provider="e2b").cloud_provider is None
 
     def test_the_builder_hands_over_the_key_the_token_and_the_limits(
         self, monkeypatch: pytest.MonkeyPatch
@@ -850,7 +878,13 @@ class TestRegistration:
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_TOKEN", "deployment-token")
         org, conversation = uuid4(), uuid4()
         capability = _build(
-            {"backend": "e2b", "max_actions": 50, "max_actions_per_call": 5, "preview": False},
+            {
+                "desktop": "cloud",
+                "cloud_provider": "e2b",
+                "max_actions": 50,
+                "max_actions_per_call": 5,
+                "preview": False,
+            },
             secret=ApiKeySecret(api_key=SecretStr("e2b_" + "k" * 36)),
             resources={ORGANIZATION_RESOURCE: org, CONVERSATION_RESOURCE: conversation},
         )
@@ -911,7 +945,7 @@ class TestTheDaemonAllowlist:
 
     def test_e2b_has_no_url_to_check(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
-        validate_daemon_url(ComputerUseConfig(backend="e2b"))
+        validate_daemon_url(ComputerUseConfig(desktop="cloud", cloud_provider="e2b"))
 
     @pytest.mark.security
     def test_publish_names_an_unvetted_daemon(self, monkeypatch: pytest.MonkeyPatch):

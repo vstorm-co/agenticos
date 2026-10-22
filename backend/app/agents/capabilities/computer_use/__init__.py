@@ -26,6 +26,7 @@ _DEFAULT_DAEMON_PORT = 8765
 
 def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
     """Hint the daemon from what the operator allowed, as the web browser does for its `cdp_url`."""
+    schema["x-visible-when"] = {"field": "desktop", "equals": ["local"]}
     hosts = [host.strip() for host in settings.COMPUTER_DAEMON_ALLOWED_HOSTS if host.strip()]
     if not hosts:
         schema["x-placeholder"] = "Set COMPUTER_DAEMON_ALLOWED_HOSTS first"
@@ -33,17 +34,34 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
     schema["x-placeholder"] = f"http://{hosts[0]}:{_DEFAULT_DAEMON_PORT}"
 
 
+_ON_E2B: dict[str, JsonValue] = {"x-visible-when": {"field": "cloud_provider", "equals": ["e2b"]}}
+
+
+def _cloud_provider_form(schema: dict[str, JsonValue]) -> None:
+    """Offer the providers as choices, shown only for a cloud desktop.
+
+    Pydantic writes a one-value `Literal` as `const`, which the Builder takes for a
+    field with nothing to choose and hides; the choices it renders are an `enum`.
+    A provider stops being allowed when the desktop turns local, so the form
+    clears it rather than keep a choice it no longer shows.
+    """
+    schema["anyOf"] = [{"enum": ["e2b"], "type": "string"}, {"type": "null"}]
+    schema["x-enum-labels"] = {"e2b": "E2B"}
+    schema["x-visible-when"] = {"field": "desktop", "equals": ["cloud"]}
+    schema["x-enum-when"] = {"field": "desktop", "choices": {"local": [], "cloud": ["e2b"]}}
+
+
 class ComputerUseConfig(BaseModel):
     """Which desktop this agent works, and how much of it per run."""
 
-    backend: Literal["daemon", "e2b"] = Field(
-        default="daemon",
+    desktop: Literal["local", "cloud"] = Field(
+        default="local",
         title="Desktop",
-        description="Where the desktop is.",
+        description="A computer you run, or one a cloud provider starts for each conversation.",
         json_schema_extra={
             "x-enum-labels": {
-                "daemon": "A desktop the operator runs (computerd: a Linux container or a Mac)",
-                "e2b": "An E2B cloud desktop, one per conversation",
+                "local": "A computer you run (computerd: a Linux container or a Mac)",
+                "cloud": "A cloud desktop, one per conversation",
             }
         },
     )
@@ -51,14 +69,21 @@ class ComputerUseConfig(BaseModel):
         default="",
         title="Daemon URL",
         json_schema_extra=_daemon_url_form,
-        description="The computerd endpoint, for the daemon backend. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS.",
+        description="The computerd endpoint of your desktop. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS.",
+    )
+    cloud_provider: Literal["e2b"] | None = Field(
+        default=None,
+        title="Cloud provider",
+        description="Who runs the cloud desktop.",
+        json_schema_extra=_cloud_provider_form,
     )
     e2b_template: str = Field(
         default="desktop",
         title="E2B template",
         min_length=1,
         max_length=100,
-        description="The E2B template to start, for the e2b backend.",
+        description="The E2B template to start.",
+        json_schema_extra={"x-advanced": True, **_ON_E2B},
     )
     e2b_timeout_seconds: int = Field(
         default=900,
@@ -66,6 +91,7 @@ class ComputerUseConfig(BaseModel):
         ge=60,
         le=86_400,
         description="How long an idle E2B desktop lives after its last use. E2B's Hobby plan caps this at an hour.",
+        json_schema_extra={"x-advanced": True, **_ON_E2B},
     )
     screen_width: int = Field(
         default=1280,
@@ -102,6 +128,16 @@ class ComputerUseConfig(BaseModel):
     )
 
     @model_validator(mode="after")
+    def _a_cloud_desktop_has_a_provider(self) -> ComputerUseConfig:
+        # Dropped rather than refused for a local desktop: the field is hidden
+        # there, so a provider left from a cloud one is a value nobody can see.
+        if self.desktop == "local":
+            self.cloud_provider = None
+        elif self.cloud_provider is None:
+            raise ValueError("A cloud desktop needs a cloud_provider")
+        return self
+
+    @model_validator(mode="after")
     def _a_call_fits_in_a_run(self) -> ComputerUseConfig:
         if self.max_actions_per_call > self.max_actions:
             raise ValueError("max_actions_per_call cannot be larger than max_actions")
@@ -114,13 +150,13 @@ def validate_daemon_url(config: ComputerUseConfig) -> None:
     The same control as `BROWSER_CDP_ALLOWED_HOSTS`, for the same reason: the URL
     is in a spec an agent's editor writes, and this deployment sends its daemon
     token to whatever it names. Exact, case-folded host matching; an empty list
-    refuses the daemon backend outright. The E2B backend needs no URL.
+    refuses a local desktop outright. A cloud desktop needs no URL.
 
     Raises:
         UrlRefusedError: The URL is missing, malformed, or names a host that is
             not allowed.
     """
-    if config.backend != "daemon":
+    if config.desktop != "local":
         return
     if not config.daemon_url:
         raise UrlRefusedError(
@@ -180,7 +216,7 @@ def _session(organization: object, conversation: object) -> str:
         kind=SecretKind.API_KEY,
         description="The E2B API key that starts this agent's cloud desktops",
         purpose="e2b",
-        required_when=SecretCondition(field="backend", equals=("e2b",)),
+        required_when=SecretCondition(field="cloud_provider", equals=("e2b",)),
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
@@ -188,7 +224,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, ComputerUseConfig) else ComputerUseConfig()
     key = ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     return ComputerUse(
-        backend=config.backend,
+        backend=config.cloud_provider or "daemon",
         daemon_url=config.daemon_url,
         daemon_token=settings.COMPUTER_DAEMON_TOKEN,
         e2b_key=key,

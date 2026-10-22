@@ -309,7 +309,7 @@ def _computer_use_problems(config: BaseModel | None) -> list[str]:
     """A daemon desktop this deployment's operator has not vetted, or none at all.
 
     The same exact-match allowlist as the browser's `cdp_url`, against
-    `COMPUTER_DAEMON_ALLOWED_HOSTS`; the E2B backend has no URL to check.
+    `COMPUTER_DAEMON_ALLOWED_HOSTS`; a cloud desktop has no URL to check.
     """
     if not isinstance(config, ComputerUseConfig):
         return []

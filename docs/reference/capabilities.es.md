@@ -1,5 +1,5 @@
 ---
-source_sha: "edee98ed294f"
+source_sha: "be539c53471b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -849,10 +849,10 @@ visto tanto el modelo como quien aprueba. Un punto fuera de esa captura se
 rechaza antes de que se ejecute nada. Un lote aprobado se ejecuta en un run
 propio, que vuelve a medir la pantalla antes de actuar en lugar de rechazarlo.
 
-| `backend` | El escritorio | Necesita |
+| `desktop` | El escritorio | Necesita |
 |---|---|---|
-| `daemon` | Un `computerd` que ejecuta el operador: un escritorio Linux en un contenedor (`deploy/computer/Dockerfile`) o la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
-| `e2b` | Una sandbox de escritorio de [E2B](https://e2b.dev) por conversación, que se vuelve a encontrar en el siguiente turno | Una clave de E2B del vault, y el extra `computer` |
+| `local` | Un `computerd` que ejecuta el operador: un escritorio Linux en un contenedor (`deploy/computer/Dockerfile`) o la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
+| `cloud`, con `cloud_provider: e2b` | Una sandbox de escritorio de [E2B](https://e2b.dev) por conversación, que se vuelve a encontrar en el siguiente turno | Una clave de E2B del vault, y el extra `computer` |
 
 Un daemon es un escritorio: cada run que apunta a él comparte la máquina y todo
 lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
@@ -863,8 +863,9 @@ propio E2B.
 
 | Ajuste | Por defecto | Rango |
 |---|---|---|
-| `backend` | `daemon` | `daemon`, `e2b` |
-| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido |
+| `desktop` | `local` | `local`, `cloud` |
+| `daemon_url` | vacío, rechazado al publicar con `local` | un host permitido |
+| `cloud_provider` | vacío, rechazado con `cloud` | `e2b` |
 | `e2b_template` | `desktop` | 1–100 caracteres |
 | `e2b_timeout_seconds` | 900 | 60–86400; el plan Hobby de E2B lo limita a 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |

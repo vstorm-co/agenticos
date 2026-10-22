@@ -7409,17 +7409,21 @@
       }
     },
     "computer_use": {
-      "backend": {
+      "desktop": {
         "title": "Desktop",
-        "description": "Wo sich der Desktop befindet."
+        "description": "Ein Computer, den Sie selbst betreiben, oder einer, den ein Cloud-Anbieter für jede Unterhaltung startet."
       },
       "daemon_url": {
         "title": "Daemon-URL",
-        "description": "Der computerd-Endpunkt für das Daemon-Backend. Sein Host muss in COMPUTER_DAEMON_ALLOWED_HOSTS stehen."
+        "description": "Der computerd-Endpunkt Ihres Desktops. Sein Host muss in COMPUTER_DAEMON_ALLOWED_HOSTS stehen."
+      },
+      "cloud_provider": {
+        "title": "Cloud-Anbieter",
+        "description": "Wer den Cloud-Desktop betreibt."
       },
       "e2b_template": {
         "title": "E2B-Vorlage",
-        "description": "Die zu startende E2B-Vorlage, für das E2B-Backend."
+        "description": "Die zu startende E2B-Vorlage."
       },
       "e2b_timeout_seconds": {
         "title": "E2B-Leerlaufzeit (Sekunden)",

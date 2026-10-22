@@ -1,5 +1,5 @@
 ---
-source_sha: "edee98ed294f"
+source_sha: "be539c53471b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -840,10 +840,10 @@ odrzucany, zanim cokolwiek się wykona. Zaakceptowana paczka wykonuje się w
 osobnym runie, który przed działaniem ponownie mierzy ekran, zamiast ją
 odrzucić.
 
-| `backend` | Pulpit | Wymaga |
+| `desktop` | Pulpit | Wymaga |
 |---|---|---|
-| `daemon` | `computerd` uruchomiony przez operatora: pulpit Linux w kontenerze (`deploy/computer/Dockerfile`) albo własny ekran Maca (`uv run deploy/computer/computerd.py`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
-| `e2b` | Pulpit w sandboksie [E2B](https://e2b.dev), jeden na rozmowę, odnajdywany ponownie w następnej turze | Klucza E2B z vaulta oraz dodatku `computer` |
+| `local` | `computerd` uruchomiony przez operatora: pulpit Linux w kontenerze (`deploy/computer/Dockerfile`) albo własny ekran Maca (`uv run deploy/computer/computerd.py`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
+| `cloud`, z `cloud_provider: e2b` | Pulpit w sandboksie [E2B](https://e2b.dev), jeden na rozmowę, odnajdywany ponownie w następnej turze | Klucza E2B z vaulta oraz dodatku `computer` |
 
 Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
 wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
@@ -853,8 +853,9 @@ bezczynności ustawionym w samym E2B.
 
 | Ustawienie | Domyślnie | Zakres |
 |---|---|---|
-| `backend` | `daemon` | `daemon`, `e2b` |
-| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host |
+| `desktop` | `local` | `local`, `cloud` |
+| `daemon_url` | puste, odrzucane przy publikacji dla `local` | dozwolony host |
+| `cloud_provider` | puste, odrzucane dla `cloud` | `e2b` |
 | `e2b_template` | `desktop` | 1–100 znaków |
 | `e2b_timeout_seconds` | 900 | 60–86400; plan Hobby w E2B ogranicza do 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |

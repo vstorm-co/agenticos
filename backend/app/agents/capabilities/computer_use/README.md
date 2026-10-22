@@ -8,19 +8,24 @@ Unlike `browser_use`, the desktop can run any application, not only a web page.
 
 ## Where the desktop is
 
-- **`daemon`**: a `computerd` process the operator runs. It can serve a Linux
+The settings ask `desktop` first: `local` or `cloud`. A cloud desktop then
+names its `cloud_provider`, and only that provider's settings are shown. E2B
+is the one provider so far; another is a value in that `Literal`, a backend
+in `_backends.py` and a branch in `ComputerUse._open`.
+
+- **`local`**: a `computerd` process the operator runs. It can serve a Linux
   desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen.
   The deployment reaches it over HTTP with `COMPUTER_DAEMON_TOKEN`. Its host
   must be on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and publish checks that.
   `daemon_url` is in the spec, so it is under tenant control; this works the
   same way as `BROWSER_CDP_ALLOWED_HOSTS`.
   One daemon is one desktop: every run pointed at it shares the machine.
-- **`e2b`**: an E2B sandbox (`desktop` template), one per conversation. It is
+- **`cloud` on `e2b`**: an E2B sandbox (`desktop` template), one per conversation. It is
   found again on the next turn through the metadata key `agenticos_session`,
   which holds the organization and the conversation. The organization is
   included so that two tenants sharing one E2B key can never land on the same
   sandbox. The key is a vault secret with purpose `e2b`, required only for this
-  backend. The SDK ships as the `computer` extra.
+  provider. The SDK ships as the `computer` extra.
 
 ## Decisions
 

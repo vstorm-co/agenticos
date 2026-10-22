@@ -796,10 +796,10 @@ have seen. A point outside that screenshot is refused before anything runs. An
 approved batch runs in a run of its own, which measures the screen before acting
 rather than refuse it.
 
-| `backend` | The desktop | Needs |
+| `desktop` | The desktop | Needs |
 |---|---|---|
-| `daemon` | A `computerd` the operator runs: a Linux desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen (`uv run deploy/computer/computerd.py`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
-| `e2b` | An [E2B](https://e2b.dev) desktop sandbox per conversation, found again on the next turn | An E2B key from the vault, and the `computer` extra |
+| `local` | A `computerd` the operator runs: a Linux desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen (`uv run deploy/computer/computerd.py`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
+| `cloud`, with `cloud_provider: e2b` | An [E2B](https://e2b.dev) desktop sandbox per conversation, found again on the next turn | An E2B key from the vault, and the `computer` extra |
 
 One daemon is one desktop: every run pointed at it shares the machine and
 whatever is signed in on it. Give it a dedicated machine or account, not
@@ -809,8 +809,9 @@ expires on E2B's own idle timeout.
 
 | Config | Default | Range |
 |---|---|---|
-| `backend` | `daemon` | `daemon`, `e2b` |
-| `daemon_url` | empty, refused at publish for `daemon` | an allowed host |
+| `desktop` | `local` | `local`, `cloud` |
+| `daemon_url` | empty, refused at publish for `local` | an allowed host |
+| `cloud_provider` | empty, refused for `cloud` | `e2b` |
 | `e2b_template` | `desktop` | 1–100 characters |
 | `e2b_timeout_seconds` | 900 | 60–86400; E2B's Hobby plan caps it at 3600 |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
