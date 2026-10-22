@@ -462,6 +462,23 @@ async def case_from_message(
     return result.scalar_one_or_none()
 
 
+async def messages_held(
+    db: AsyncSession, version_id: UUID, message_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Which of these agent answers a version already holds a case made from."""
+    if not message_ids:
+        return set()
+    result = await db.execute(
+        select(DatasetCase.source_message_id)
+        .join(DatasetVersion, _held(version_id))
+        .where(
+            DatasetCase.source_message_id.in_(message_ids),
+            DatasetCase.organization_id == organization_id,
+        )
+    )
+    return {message_id for message_id in result.scalars() if message_id is not None}
+
+
 async def last_position(db: AsyncSession, version_id: UUID, *, organization_id: UUID) -> int:
     """The highest position a version uses, or -1 when it holds nothing."""
     value = await db.scalar(

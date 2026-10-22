@@ -577,6 +577,56 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     assert case.note == "Wrong refund window"
 
 
+def _racing_on_the_lock(monkeypatch, service: DatasetService, ctx, dataset_id, message_id) -> None:
+    """Another request adds `message_id` while this one waits for the dataset's lock:
+    the check made before the lock has passed, and the other request got there first."""
+    locked = DatasetService._locked
+    raced = False
+
+    async def lock(self, ctx_, dataset_id_):
+        nonlocal raced
+        if not raced:
+            raced = True
+            await DatasetService(service.db).add_from_message(
+                ctx, dataset_id, DatasetCaseFromMessage(message_id=message_id)
+            )
+        return await locked(self, ctx_, dataset_id_)
+
+    monkeypatch.setattr(DatasetService, "_locked", lock)
+
+
+async def test_an_answer_added_while_waiting_for_the_lock_is_not_added_again(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="from activity"))
+    _, answer = await _rated_down_turn(db, ctx)
+    _racing_on_the_lock(monkeypatch, service, ctx, dataset.id, answer.id)
+
+    with pytest.raises(AlreadyExistsError):
+        await service.add_from_message(
+            ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+        )
+
+    held = await service.list_cases(ctx, dataset.id)
+    assert [case.source_message_id for case in held.items] == [answer.id]
+
+
+async def test_a_batch_skips_an_answer_added_while_it_waited_for_the_lock(db, monkeypatch) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="from activity"))
+    _, answer = await _rated_down_turn(db, ctx)
+    _racing_on_the_lock(monkeypatch, service, ctx, dataset.id, answer.id)
+
+    version, skipped = await service.add_from_messages(ctx, dataset.id, [answer.id])
+
+    assert (version, skipped) == (None, 1)
+    held = await service.list_cases(ctx, dataset.id)
+    assert [case.source_message_id for case in held.items] == [answer.id]
+
+
 async def test_an_answer_already_a_case_is_not_added_twice(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)

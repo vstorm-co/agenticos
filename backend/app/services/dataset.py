@@ -746,6 +746,11 @@ class DatasetService:
     ) -> DatasetCaseRead:
         dataset = await self._locked(ctx, dataset_id)
         previous = await self._version(ctx, dataset, None)
+        message_id = provenance.get("source_message_id")
+        if message_id is not None and previous is not None:
+            # Checked again under the lock: two requests for the same answer
+            # both pass the check made before it, and the second would add a twin.
+            await self._refuse_held_answer(ctx, previous, message_id)
         fields, redacted = redacted_case(content)
         case = self._revision(ctx, dataset, fields, source=source, **provenance)
         await self._mint(
@@ -1095,18 +1100,8 @@ class DatasetService:
                 "reference answer to expect the tools it called",
             )
         newest = await self._version(ctx, dataset, None)
-        kept = (
-            None
-            if newest is None
-            else await dataset_repo.case_from_message(
-                self.db, newest.id, last.id, organization_id=ctx.organization_id
-            )
-        )
-        if kept is not None:
-            raise AlreadyExistsError(
-                message="This answer is already a case of this dataset",
-                details={"case_id": kept.case_id},
-            )
+        if newest is not None:
+            await self._refuse_held_answer(ctx, newest, last.id)
 
         earlier = [
             turn
@@ -1148,6 +1143,18 @@ class DatasetService:
             "source_conversation_id": conversation.id,
             "source_message_id": last.id,
         }
+
+    async def _refuse_held_answer(
+        self, ctx: AuthContext, version: DatasetVersion, message_id: UUID
+    ) -> None:
+        kept = await dataset_repo.case_from_message(
+            self.db, version.id, message_id, organization_id=ctx.organization_id
+        )
+        if kept is not None:
+            raise AlreadyExistsError(
+                message="This answer is already a case of this dataset",
+                details={"case_id": kept.case_id},
+            )
 
     async def add_from_messages(
         self,
@@ -1191,16 +1198,42 @@ class DatasetService:
         if not built:
             return None, skipped
         _refuse_past_ceiling(current.case_count, len(built))
-        revisions: list[DatasetCase] = []
-        redacted = 0
+        redacted_revisions: list[tuple[DatasetCase, int]] = []
         for content, provenance in built:
             fields, found = redacted_case(content)
-            redacted += found
-            revisions.append(
-                self._revision(ctx, current, fields, source=CaseSource.CONVERSATION, **provenance)
+            redacted_revisions.append(
+                (
+                    self._revision(
+                        ctx, current, fields, source=CaseSource.CONVERSATION, **provenance
+                    ),
+                    found,
+                )
             )
         dataset = await self._locked(ctx, dataset_id)
         previous = await self._version(ctx, dataset, None)
+        # A request that added one of these answers since the check above held
+        # this lock first; its case stands and the twin is skipped.
+        held = (
+            set()
+            if previous is None
+            else await dataset_repo.messages_held(
+                self.db,
+                previous.id,
+                [
+                    case.source_message_id
+                    for case, _ in redacted_revisions
+                    if case.source_message_id
+                ],
+                organization_id=ctx.organization_id,
+            )
+        )
+        revisions = [case for case, _ in redacted_revisions if case.source_message_id not in held]
+        redacted = sum(
+            found for case, found in redacted_revisions if case.source_message_id not in held
+        )
+        skipped += len(redacted_revisions) - len(revisions)
+        if not revisions:
+            return None, skipped
         version = await self._mint(
             ctx,
             dataset,
