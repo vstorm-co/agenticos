@@ -336,6 +336,27 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         {"locale": "en"},
         ("PUT", "/users/me/locale", {"json": {"locale": "en"}}),
     ),
+    # Only what the person said: a field left out stays as the account has it.
+    (
+        "set_my_profile",
+        {"job_title": "Head of sales"},
+        ("PATCH", "/users/me/agent-context", {"json": {"job_title": "Head of sales"}}),
+    ),
+    (
+        "create_skill",
+        {"name": "weekly-digest", "description": "When asked for the digest", "content": "1. Read"},
+        (
+            "POST",
+            "/skills",
+            {
+                "json": {
+                    "name": "weekly-digest",
+                    "description": "When asked for the digest",
+                    "content": "1. Read",
+                }
+            },
+        ),
+    ),
 ]
 
 
