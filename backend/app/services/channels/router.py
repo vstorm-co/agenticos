@@ -62,6 +62,7 @@ from app.services.channels.mentions import (
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
@@ -758,6 +759,11 @@ class ChannelMessageRouter:
                 platform=incoming.platform,
                 platform_chat_id=incoming.platform_chat_id,
                 run_id=answered.parked_run_id,
+            )
+        # What to do next, as buttons a press of which is the next message (#2301).
+        elif answered.next_steps and answered.run_id is not None:
+            await ChannelNextSteps(db).offer(
+                bot, incoming, run_id=answered.run_id, steps=answered.next_steps
             )
         return True
 
