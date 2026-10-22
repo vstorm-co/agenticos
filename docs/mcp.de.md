@@ -1,5 +1,5 @@
 ---
-source_sha: "0f103c0371dc"
+source_sha: "fde346ad33ee"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1042,7 +1042,7 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |

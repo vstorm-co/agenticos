@@ -445,7 +445,11 @@ export function MessageItem({
               </button>
             )}
             {!isUser && request && !message.isStreaming && message.content && (
-              <SkillShortcut request={request} answer={message.content} />
+              <SkillShortcut
+                request={request}
+                answer={message.content}
+                conversationId={message.conversationId}
+              />
             )}
             {!isUser && onRegenerate && (
               <button

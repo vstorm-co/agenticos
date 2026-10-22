@@ -336,6 +336,15 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         {"locale": "en"},
         ("PUT", "/users/me/locale", {"json": {"locale": "en"}}),
     ),
+    (
+        "read_conversation",
+        {"conversation_id": "00000000-0000-0000-0000-000000000001"},
+        (
+            "GET",
+            "/conversations/00000000-0000-0000-0000-000000000001/transcript",
+            {"params": {"limit": 100, "skip": 0}},
+        ),
+    ),
     # Only what the person said: a field left out stays as the account has it.
     (
         "set_my_profile",

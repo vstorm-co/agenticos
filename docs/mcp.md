@@ -960,7 +960,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` on the agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |

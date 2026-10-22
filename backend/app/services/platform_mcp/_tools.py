@@ -223,6 +223,22 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """One run: status, the error a failed one stopped on, tokens and cost. Needs `runs:view`."""
         return await api.request("GET", f"/runs/{run_id}")
 
+    async def read_conversation(
+        conversation_id: UUID, limit: int = 100, skip: int = 0
+    ) -> dict[str, Any]:
+        """One of the asker's own conversations, turn by turn. Needs `runs:view`.
+
+        What was asked and answered, oldest first, with the tools each turn called
+        and what they returned - for making a skill of how something was done, or
+        picking up where a conversation left off. Another member's conversation is
+        not found.
+        """
+        return await api.request(
+            "GET",
+            f"/conversations/{conversation_id}/transcript",
+            params={"limit": limit, "skip": skip},
+        )
+
     async def list_knowledge_bases() -> dict[str, Any]:
         """The knowledge bases this caller can see, with each one's `collection_name`.
 
@@ -501,6 +517,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (delete_routine, True),
         (list_runs, False),
         (get_run, False),
+        (read_conversation, False),
         (get_spend, False),
         (list_knowledge_bases, False),
         (list_embedding_models, False),

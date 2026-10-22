@@ -1979,7 +1979,8 @@
         }
       },
       "makeSkill": "Einen Skill daraus machen",
-      "makeSkillAsk": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht.\n\nWorum ich gebeten habe:\n{request}\n\nWie es beantwortet wurde:\n{answer}"
+      "makeSkillAsk": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht.\n\nWorum ich gebeten habe:\n{request}\n\nWie es beantwortet wurde:\n{answer}",
+      "makeSkillFromConversation": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht. Lies zuerst die ganze Unterhaltung mit read_conversation - ihre ID ist {conversation}.\n\nWorum ich gebeten habe:\n{request}"
     },
     "suggestions": {
       "label": "Vorschläge für Sie",

@@ -139,7 +139,10 @@ Two things are versioned separately from this file and worth knowing about:
   on the run. They reach the console, the chat apps and the run history as the
   agent's own call would.
 - **Make a skill of this.** A button under an answer hands the Architect your
-  request and the answer to write a skill from, for whoever may write skills.
+  request and the conversation's id, and the Architect reads the whole of it -
+  steps and tool calls included - with the new `read_conversation` platform tool
+  (`GET /conversations/{id}/transcript`, `runs:view`) before writing the skill.
+  Offered to whoever may write skills.
   A chat link with `?agent=<slug>` opens the chat on that agent.
 
 ### Changed

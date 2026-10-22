@@ -1,5 +1,5 @@
 ---
-source_sha: "0f103c0371dc"
+source_sha: "fde346ad33ee"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1023,7 +1023,7 @@ permiso que faltaba.
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
