@@ -956,13 +956,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <>
               <AgentStatusBadge status={agent.status} />
               {/* Two badges, two different questions. This one: is the stored
-                draft what published surfaces are answering with - computed
-                from the server's copies, so the autosave settling cannot clear
-                it into a page that reads as finished while every channel is
-                still on the old version (#519). */}
+                draft a published version, and which one production runs -
+                computed from the server's copies, so the autosave settling
+                cannot clear it into a page that reads as finished. */}
               <PublishState
                 agentId={id}
-                currentVersionId={agent.current_version_id}
+                production={environments.find((environment) => environment.is_default)}
                 draftSpec={agent.draft_spec}
                 onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
               />
@@ -1428,7 +1427,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {canEdit && !isSystem && (
               <AssistantStrip
                 agentId={id}
-                currentVersionId={agent.current_version_id}
                 storedDraft={agent.draft_spec}
                 canCheck={canTestDraft}
                 persist={persist}

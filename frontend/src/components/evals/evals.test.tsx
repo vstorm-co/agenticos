@@ -109,7 +109,7 @@ describe("EvalStatusBadge", () => {
 });
 
 describe("sideName", () => {
-  const t = (key: string, values?: { version: number }) =>
+  const t = (key: string, values?: { version?: number }) =>
     values ? `${key}:${values.version}` : key;
 
   it("names a version by its number, a draft and a proposal by what they are", () => {
@@ -386,6 +386,26 @@ describe("EstimateSummary", () => {
       />,
     );
     expect(screen.getByText(/The judge grades on gpt-4.1, the model being tested/)).toBeVisible();
+  });
+
+  it("names a check's sides, before it starts, by what the suggestions add", () => {
+    render(
+      <EstimateSummary
+        agentId="agent-1"
+        judgeName={null}
+        estimate={{
+          ...ESTIMATE,
+          arms: [
+            { ...CANDIDATE_ESTIMATE, source: "explicit" },
+            { ...CANDIDATE_ESTIMATE, role: "baseline", source: "draft" },
+          ],
+          proposal_check: { kind: "agent", base_version: 6, on_draft: true, suggestions: 2 },
+        }}
+        scoring={null}
+      />,
+    );
+    expect(screen.getByText(/Draft \+ 2 suggestions · gpt-4.1/)).toBeVisible();
+    expect(screen.getByText(/^Draft · gpt-4.1/)).toBeVisible();
   });
 
   it("shows each arm, the judge, the total and what the budgets keep after it", () => {

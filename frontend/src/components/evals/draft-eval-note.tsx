@@ -13,14 +13,18 @@ import { quoted } from "./verdict-headline";
 
 /**
  * What the evals said about the draft about to be published: the verdict of
- * its last run, or that it was not tested since it last changed and the way to
- * test it. It informs; it does not hold the publish back.
+ * its last run - a check of suggestions counts once the draft is what it
+ * checked - or that it was not tested since it last changed, or that the test
+ * it had is out of date, and the way to test it. It informs; it does not hold
+ * the publish back.
  */
 export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: () => void }) {
   const t = useTranslations("evals");
   const tc = useTranslations("common");
   const { runs, isLoading, error, refetch } = useDraftEvalRuns(agentId);
-  if (isLoading) return null;
+  const untested = !isLoading && !error && runs.length === 0;
+  const earlier = useDraftEvalRuns(agentId, { draft: "earlier", enabled: untested });
+  if (isLoading || (untested && earlier.isLoading)) return null;
   if (error) {
     return (
       <div
@@ -38,7 +42,9 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
   if (run === undefined) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-        <span className="text-muted-foreground">{t("draftNote.untested")}</span>
+        <span className="text-muted-foreground">
+          {t(earlier.runs.length > 0 ? "draftNote.outdated" : "draftNote.untested")}
+        </span>
         <Button size="sm" variant="outline" onClick={onTest}>
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
           {t("draftNote.test")}

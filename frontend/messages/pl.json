@@ -239,7 +239,7 @@
     "documentCount": "{count, plural, =1 {1 dokument} few {# dokumenty} many {# dokumentów} other {# dokumentu}}",
     "draft": "Wersja robocza",
     "draftDiffersFromPublished": "Wersja robocza różni się od v{version}",
-    "draftDiffersHint": "Wersja robocza jest zapisana. Wszystko, co opublikowane - kanały, widgety, API - nadal odpowiada wersją v{version}, dopóki nie opublikujesz.",
+    "draftDiffersHint": "Wersja robocza jest zapisana i różni się od v{version}, najnowszej opublikowanej wersji. Publikacja zrobi z niej nową wersję.",
     "duplicate": "Duplikuj",
     "editSurface": "Edytuj {name}",
     "editedWhen": "edytowano {when}",
@@ -597,6 +597,9 @@
     "unknownAuthor": "nieznany autor",
     "unnamedSpecialist": "Specjalista bez nazwy",
     "upToDateWithPublished": "Aktualny z v{version}",
+    "productionOn": "produkcja na v{version}",
+    "productionWaiting": "produkcja na v{version} (czeka na evale)",
+    "productionHint": "Kanały, widgety i API odpowiadają wersją v{version}: produkcja działa na niej, dopóki nowsza wersja nie zostanie wypromowana.",
     "updateToLatest": "Zaktualizuj do najnowszej",
     "urlSafeHint": "Hostowanej stronie można przekazać zmienną tylko przez jej własny URL, a URL to coś, co wpisuje odwiedzający. Oznacz tylko to, co może bezpiecznie ustawić.",
     "usageEveryNMessages": "Koszt: {count, plural, =1 {co wiadomość} few {co # wiadomości} many {co # wiadomości} other {co # wiadomości}}",
@@ -8209,6 +8212,10 @@
     "compareArm": "Porównaj ten model",
     "draft": "Draft",
     "proposed": "Proponowane zmiany",
+    "draftPlus": "Draft + {count, plural, one {# sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}",
+    "versionPlus": "v{version} + {count, plural, one {# sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}",
+    "proposedSkill": "v{version} + proponowany skill",
+    "proposedContext": "v{version} + proponowany plik kontekstu",
     "version": "v{version}",
     "status": {
       "queued": "W kolejce",
@@ -8432,6 +8439,7 @@
     },
     "draftNote": {
       "untested": "Ten draft nie był testowany od ostatniej zmiany.",
+      "outdated": "Ten draft zmienił się od ostatniego testu, więc tamten wynik jest nieaktualny.",
       "unread": "Nie udało się odczytać ostatniego testu tego draftu.",
       "test": "Przetestuj",
       "running": "Ten draft jest właśnie testowany.",
@@ -8444,6 +8452,7 @@
       "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{replaced, plural, =0 {} one {, zastępując # starszy, który czekał} few {, zastępując # starsze, które czekały} many {, zastępując # starszych, które czekały} other {, zastępując # starszego, który czekał}}{already, plural, =0 {} other {; # nie wysłano: już czekały, mają decyzję albo są starsze od czekającego}}.",
       "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, przy których ocenie sędzia zawiódł.{replaced, plural, =0 {} one { Zastąpiło to # starszą odpowiedź, która jeszcze czekała na tym samym case'ie.} few { Zastąpiło to # starsze odpowiedzi, które jeszcze czekały na tych samych case'ach.} many { Zastąpiło to # starszych odpowiedzi, które jeszcze czekały na tych samych case'ach.} other { Zastąpiło to # starszej odpowiedzi, która jeszcze czekała na tych samych case'ach.}}",
       "routingFailed": "Ten run nie zdołał sam wysłać odpowiedzi do review, więc wyślij oblane ręcznie. Powód: {reason}",
+      "checkHeld": "Sprawdzenie samo niczego nie wysyła do review: sprawdzając, niczego się nie akceptuje. Jeśli ktoś ma obejrzeć oblane odpowiedzi, wyślij je ręcznie.",
       "sendOther": "{count, plural, one {Wyślij pozostały oblany case} few {Wyślij pozostałe # oblane case'y} many {Wyślij pozostałe # oblanych case'ów} other {Wyślij pozostałe # oblanego case'a}}"
     },
     "draftChanged": "Draft zmienił się po tym runie.",
@@ -9356,8 +9365,20 @@
         "published": "Decyzje o tych sugestiach trafiły do wersji, która jest już opublikowana."
       },
       "expected": "Oczekiwany efekt:",
-      "checks": "Sprawdzone evalami:",
-      "checkRun": "run {index}"
+      "checks": "Sprawdzone evalami:"
+    },
+    "checkResult": {
+      "running": "Trwa sprawdzanie na {name}…",
+      "ended": "Sprawdzenie na {name} {status, select, cancelled {zostało zatrzymane} budget_exceeded {wyczerpało budżet} other {nie powiodło się}}, zanim doszło do werdyktu.",
+      "unread": "Nie udało się odczytać tego sprawdzenia.",
+      "suite": "{name}: {status, select, passed {przeszłoby} failed {nie przeszłoby} other {byłoby nierozstrzygnięte}} - {findings}",
+      "dataset": "Na {name}: {findings}",
+      "breaks": "psuje {cases}",
+      "breaksMore": "psuje {cases} i jeszcze {count}",
+      "fixes": "{count, plural, one {naprawia # case} few {naprawia # case'y} many {naprawia # case'ów} other {naprawia # case'a}}",
+      "noChange": "brak powtarzalnej zmiany",
+      "invalid": "obu stron nie da się porównać",
+      "quote": "„{text}”"
     },
     "verify": {
       "nothing": "Asystent nie ma uwag do Twoich zmian.",

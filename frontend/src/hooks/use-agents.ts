@@ -572,6 +572,18 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
+/**
+ * The version the draft is based on - the latest published one, whatever
+ * production runs - with its spec, so the draft can be compared with it.
+ *
+ * `base` is undefined while it loads and for an agent never published.
+ */
+export function useDraftBase(agentId: string | null) {
+  const { versions } = useAllAgentVersions(agentId);
+  const { version } = useAgentVersion(agentId, versions[0]?.id ?? null);
+  return { base: version };
+}
+
 /** The system variables any agent's instructions may write as `{{name}}` (#2065). */
 export function usePromptVariables() {
   const { data } = useQuery({

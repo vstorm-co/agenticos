@@ -12,9 +12,18 @@ const draft = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: (() => undefined) as () => unknown,
 }));
+const earlier = vi.hoisted(() => ({
+  runs: [] as unknown[],
+  isLoading: false,
+  enabled: [] as boolean[],
+}));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
-  useDraftEvalRuns: () => draft,
+  useDraftEvalRuns: (_agentId: string, options?: { draft?: string; enabled?: boolean }) => {
+    if (options?.draft !== "earlier") return draft;
+    earlier.enabled.push(options.enabled === true);
+    return earlier;
+  },
 }));
 
 const OUTCOME: EvalOutcome = {
@@ -34,6 +43,9 @@ beforeEach(() => {
   draft.runs = [];
   draft.isLoading = false;
   draft.error = null;
+  earlier.runs = [];
+  earlier.isLoading = false;
+  earlier.enabled = [];
 });
 
 describe("DraftEvalNote", () => {
@@ -125,9 +137,32 @@ describe("DraftEvalNote", () => {
     expect(onTest).toHaveBeenCalled();
   });
 
+  it("says a test of an earlier draft is out of date, and offers a new one", async () => {
+    earlier.runs = [evalRun({ outcome: OUTCOME })];
+    const onTest = vi.fn();
+    render(<DraftEvalNote agentId="agent-1" onTest={onTest} />);
+    expect(
+      screen.getByText("This draft changed since its last test, so that result is out of date."),
+    ).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Test it" }));
+    expect(onTest).toHaveBeenCalled();
+  });
+
+  it("asks about an earlier draft only when this one has no test", () => {
+    draft.runs = [evalRun({ outcome: OUTCOME })];
+    render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    expect(earlier.enabled).toEqual([false]);
+  });
+
   it("says nothing while it reads", () => {
     draft.isLoading = true;
-    const { container } = render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    const { container, rerender } = render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+
+    draft.isLoading = false;
+    earlier.isLoading = true;
+    rerender(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
 });

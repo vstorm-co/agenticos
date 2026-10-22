@@ -239,7 +239,7 @@
     "documentCount": "{count, plural, =1 {1 Dokument} other {# Dokumente}}",
     "draft": "Entwurf",
     "draftDiffersFromPublished": "Entwurf weicht von v{version} ab",
-    "draftDiffersHint": "Der Entwurf ist gespeichert. Alles Veröffentlichte – Kanäle, Widgets, die API – antwortet weiter mit v{version}, bis Sie veröffentlichen.",
+    "draftDiffersHint": "Der Entwurf ist gespeichert und weicht von v{version} ab, der neuesten veröffentlichten Version. Veröffentlichen macht daraus eine neue Version.",
     "duplicate": "Duplizieren",
     "editSurface": "{name} bearbeiten",
     "editedWhen": "bearbeitet {when}",
@@ -597,6 +597,9 @@
     "unknownAuthor": "unbekannter Autor",
     "unnamedSpecialist": "Spezialist ohne Namen",
     "upToDateWithPublished": "Auf dem Stand von v{version}",
+    "productionOn": "Produktion auf v{version}",
+    "productionWaiting": "Produktion auf v{version} (wartet auf Evals)",
+    "productionHint": "Kanäle, Widgets und die API antworten mit v{version}: Die Produktion läuft darauf, bis eine neuere Version befördert wird.",
     "updateToLatest": "Auf die neueste aktualisieren",
     "urlSafeHint": "Einer gehosteten Seite lässt sich eine Variable nur über ihre eigene URL mitteilen, und eine URL ist etwas, das der Besucher tippt. Markieren Sie nur, was er gefahrlos setzen darf.",
     "usageEveryNMessages": "Kosten: alle {count, plural, =1 {Nachricht} other {# Nachrichten}}",
@@ -8848,6 +8851,10 @@
     "compareArm": "Dieses Modell vergleichen",
     "draft": "Draft",
     "proposed": "Vorgeschlagene Änderungen",
+    "draftPlus": "Draft + {count, plural, =1 {1 Vorschlag} other {# Vorschläge}}",
+    "versionPlus": "v{version} + {count, plural, =1 {1 Vorschlag} other {# Vorschläge}}",
+    "proposedSkill": "v{version} + vorgeschlagener Skill",
+    "proposedContext": "v{version} + vorgeschlagene Kontextdatei",
     "version": "v{version}",
     "status": {
       "queued": "In der Warteschlange",
@@ -9071,6 +9078,7 @@
     },
     "draftNote": {
       "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
+      "outdated": "Dieser Entwurf hat sich seit seinem letzten Test geändert, das Ergebnis ist also veraltet.",
       "unread": "Der letzte Test dieses Entwurfs konnte nicht gelesen werden.",
       "test": "Testen",
       "running": "Dieser Entwurf wird gerade getestet.",
@@ -9083,6 +9091,7 @@
       "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{replaced, plural, =0 {} =1 {, ersetzt 1 älteren, der wartete} other {, ersetzt # ältere, die warteten}}{already, plural, =0 {} other {; # nicht gesendet: schon wartend, entschieden oder älter als der wartende}}.",
       "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, an deren Bewertung der Judge gescheitert ist.{replaced, plural, =0 {} =1 { Das ersetzte 1 ältere Antwort, die beim selben Fall noch wartete.} other { Das ersetzte # ältere Antworten, die bei denselben Fällen noch warteten.}}",
       "routingFailed": "Dieser Run konnte seine Antworten nicht selbst zum Review schicken, also schick die durchgefallenen von Hand. Grund: {reason}",
+      "checkHeld": "Eine Prüfung schickt nichts von selbst zum Review: Durch das Prüfen wird nichts übernommen. Schick die durchgefallenen Antworten von Hand, wenn jemand sie ansehen soll.",
       "sendOther": "{count, plural, =1 {Den anderen durchgefallenen Fall senden} other {Die anderen # durchgefallenen Fälle senden}}"
     },
     "draftChanged": "Der Entwurf hat sich nach diesem Run geändert.",
@@ -9462,8 +9471,20 @@
         "published": "Über diese Vorschläge wurde in einer Version entschieden, die jetzt veröffentlicht ist."
       },
       "expected": "Erwartete Wirkung:",
-      "checks": "Mit Evals geprüft:",
-      "checkRun": "Run {index}"
+      "checks": "Mit Evals geprüft:"
+    },
+    "checkResult": {
+      "running": "Prüfung auf {name} läuft…",
+      "ended": "Die Prüfung auf {name} {status, select, cancelled {wurde gestoppt} budget_exceeded {hat ihr Budget aufgebraucht} other {ist fehlgeschlagen}}, bevor sie zu einem Urteil kam.",
+      "unread": "Diese Prüfung konnte nicht gelesen werden.",
+      "suite": "{name} {status, select, passed {würde bestehen} failed {würde nicht bestehen} other {wäre unentschieden}}: {findings}",
+      "dataset": "Auf {name}: {findings}",
+      "breaks": "macht {cases} kaputt",
+      "breaksMore": "macht {cases} und {count, plural, =1 {1 weiteren} other {# weitere}} kaputt",
+      "fixes": "{count, plural, =1 {behebt 1 Fall} other {behebt # Fälle}}",
+      "noChange": "keine reproduzierbare Änderung",
+      "invalid": "die beiden Seiten lassen sich nicht vergleichen",
+      "quote": "„{text}“"
     },
     "verify": {
       "nothing": "Der Assistent hat zu Ihren Änderungen nichts anzumerken.",
