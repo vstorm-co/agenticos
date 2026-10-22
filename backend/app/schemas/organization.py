@@ -72,6 +72,14 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    public_live_data: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a page's data may reach anyone with its public link or on the sites "
+            "that embed it, once the page's owner confirms it. Omit to leave it alone. "
+            "Needs 'org:settings' (Owner or Admin), signed in as themselves."
+        ),
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -90,6 +98,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
+        ),
+    )
+    public_live_data: bool = Field(
+        default=False,
+        description=(
+            "Whether a page's data may reach anonymous visitors of its public link or its "
+            "embeds, where the page's owner has confirmed it"
         ),
     )
 

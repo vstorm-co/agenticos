@@ -1,5 +1,5 @@
 ---
-source_sha: "392bcbea8374"
+source_sha: "7b81e2332658"
 ---
 
 # Governance { #governance }
@@ -1231,6 +1231,19 @@ que una persona confirmó.
 | `artifact.owner_changed` | Una página cambió de manos: el propietario anterior y el nuevo, quién lo hizo y las concesiones `edit_data` que se descartaron |
 | `artifact.share_requested` | Se presentó una solicitud — de tipo `audience`, `access` o `version` — por una persona o por el run de su agent |
 | `artifact.share_request_approved` y `artifact.share_request_declined` | Se decidió una solicitud, y quién |
+| `organization.public_live_data_changed` | Un Owner o Admin activó o desactivó **Public pages with live data** para la organización, con el valor anterior y el nuevo |
+| `artifact.public_data_consented` | El propietario, o un Owner o Admin en su nombre, confirmó que cualquiera con el enlace público de la página, y los sitios web que la incrustan, puede leer sus datos. Nombra la versión, la huella, las tablas y columnas, los sitios web que incrustan y si hay una contraseña, y `for_owner` cuando alguien lo confirmó en su nombre |
+| `artifact.public_data_withdrawn` | Un editor retiró ese consentimiento, con la sesión iniciada como uno mismo (sin suplantar), con la huella que tenía |
+| `artifact.public_data_voided` | El consentimiento se borró porque cambió algo de lo que dependía, con un `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` o `archived` |
+
+**Public pages with live data** es un ajuste de la organización, desactivado por defecto, en los
+ajustes de la organización junto a la exención de aprobación. Decide si los datos de una página
+pueden llegar a personas sin cuenta mediante un enlace público o un embed. A diferencia de la
+exención, requiere `org:settings` - Owner o Admin - y debe cambiarse con la sesión iniciada como
+uno mismo: una sesión que suplanta se rechaza. La página sigue necesitando el
+[consentimiento de datos públicos](artifacts.md#live-data-on-a-public-link) de su propietario.
+Desactivar el interruptor es un interruptor de emergencia: las páginas públicas pierden sus datos en
+la siguiente carga y conservan su consentimiento, que vuelve a valer cuando se activa de nuevo.
 
 Ampliar la visibilidad o las concesiones de una página se registra como entradas
 `resource.share`, `resource.unshare` y `resource.visibility_changed`, como en cualquier otro

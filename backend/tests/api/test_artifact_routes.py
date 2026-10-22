@@ -40,6 +40,7 @@ from app.schemas.artifact_share_request import (
 from app.schemas.virtual_table import ColumnDef
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.artifact_public_data import ArtifactPublicDataService
 from app.services.artifact_request_service import ArtifactRequestService
 from app.services.sharing import Deferred, SharingService
 from app.services.virtual_tables import BoundRows, TableSource, VirtualTableService
@@ -101,6 +102,9 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
     app.dependency_overrides[deps.get_artifact_request_service] = lambda: ArtifactRequestService(
         MagicMock()
     )
+    app.dependency_overrides[deps.get_artifact_public_data_service] = lambda: (
+        ArtifactPublicDataService(MagicMock())
+    )
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:
@@ -109,6 +113,24 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
 
     yield open_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _public_data_edge() -> Iterator[None]:
+    """What an editor's page reads of its public data consent, at the database edge: an
+    organization with the switch off, no owner membership and no version served to the link.
+    A test of the consent itself patches these again."""
+    module = "app.services.artifact_public_data"
+    with (
+        patch(
+            f"{module}.organization_repo.get_by_id",
+            new=AsyncMock(return_value=MagicMock(public_live_data=False)),
+        ),
+        patch(f"{module}.owner_membership_id", new=AsyncMock(return_value=None)),
+        patch(f"{module}.artifact_repo.get_version_by_number", new=AsyncMock(return_value=None)),
+        patch(f"{module}.artifact_repo.latest_served", new=AsyncMock(return_value=None)),
+    ):
+        yield
 
 
 def _url(suffix: str = "") -> str:
@@ -214,6 +236,7 @@ class TestMembers:
 
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=_update),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
@@ -263,10 +286,15 @@ class TestTheContentRoute:
         self, client: OpenClient
     ) -> None:
         app.dependency_overrides.pop(deps.get_auth_context)
-        row = _artifact()
+        row = _artifact(public_key="k")
         version = _version(row)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="k",
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<script>document.title='x'</script>")
@@ -299,7 +327,7 @@ class TestTheContentRoute:
         """The page learns its binding names and its nonce; what they read comes
         later, by message, from a console that checked the viewer."""
         app.dependency_overrides.pop(deps.get_auth_context)
-        row = _artifact()
+        row = _artifact(public_key="k")
         binding = _binding("open_deals")
         version = _version(row, bindings=[binding])
         token = create_artifact_view_token(
@@ -308,6 +336,7 @@ class TestTheContentRoute:
             nonce="nonce-xyz",
             live=True,
             audience="public",
+            public_key="k",
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<p id=out></p>")
@@ -773,6 +802,7 @@ class TestArchive:
         audit = AsyncMock()
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=_set),
             patch(f"{PATH}.void_all", new=AsyncMock()) as voided,
@@ -845,6 +875,7 @@ class TestArchive:
         row = _artifact()
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.resource_grant_repo.get_level", new=AsyncMock(return_value="edit")),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=_set),
@@ -979,6 +1010,7 @@ class TestConsentRoutes:
                 new=AsyncMock(return_value=MagicMock(id=version.consented_by_membership_id)),
             ),
             patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.resource_grant_repo.lower_edit_data", new=AsyncMock(return_value=0)),
             patch(f"{PATH}.record_audit", new=audit),
         ):
             async with client() as http:
@@ -1298,3 +1330,110 @@ class TestGrantingEditData:
         assert one.json()["level"] == "edit_data"
         assert service.share.await_args.kwargs["confirmed"] == "edit_data.person.v1"
         assert service.share_with_group.await_args.kwargs["confirmed"] == "edit_data.group.v1"
+
+
+class TestPublicData:
+    """The consent to show a page's data on its public link: what each route answers (#1975).
+
+    The decisions are `tests/integration/test_artifact_public_data.py`'s; these prove the
+    routes carry them to the status codes the console reads.
+    """
+
+    MODULE = "app.services.artifact_public_data"
+
+    def _consented(self, row: Artifact) -> tuple[ArtifactVersion, uuid.UUID]:
+        membership = uuid.uuid4()
+        version = _version(row, number=2, bindings=[_binding()])
+        version.query_fingerprint = "a" * 64
+        version.consent_state = "consented"
+        version.consented_by_membership_id = membership
+        version.consented_at = datetime(2026, 10, 1, tzinfo=UTC)
+        return version, membership
+
+    @pytest.mark.security
+    async def test_an_editor_by_grant_is_refused_the_screen_with_a_403(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        app.dependency_overrides[deps.get_auth_context] = lambda: _member_context()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            async with client() as http:
+                response = await http.get(_url(f"/{row.id}/public-data"))
+        assert response.status_code == 403
+
+    async def test_a_fingerprint_that_is_not_a_digest_is_refused_at_the_edge(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/public-data"),
+                json={"fingerprint": "short", "audience_digest": "c" * 64, "confirmed": True},
+            )
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_a_confirm_for_page_queries_other_than_shown_is_a_409(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact(public_key="k")
+        version, membership = self._consented(row)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{self.MODULE}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(
+                f"{self.MODULE}.artifact_repo.latest_served", new=AsyncMock(return_value=version)
+            ),
+            patch(
+                f"{self.MODULE}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(public_live_data=True)),
+            ),
+            patch(f"{self.MODULE}.owner_membership_id", new=AsyncMock(return_value=membership)),
+            patch(f"{self.MODULE}.artifact_repo.update", new=AsyncMock()) as written,
+        ):
+            async with client() as http:
+                response = await http.post(
+                    _url(f"/{row.id}/public-data"),
+                    json={"fingerprint": "b" * 64, "audience_digest": "c" * 64, "confirmed": True},
+                )
+        assert response.status_code == 409
+        written.assert_not_awaited()
+
+    async def test_withdrawing_answers_the_page_without_its_public_consent(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact(public_key="k")
+        version, membership = self._consented(row)
+        row.auto_consent = False
+        row.public_data_fingerprint = "a" * 64
+        row.public_data_membership_id = membership
+        audit = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.get_version_by_number", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{self.MODULE}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{self.MODULE}.artifact_repo.update", new=_set),
+            patch(
+                f"{self.MODULE}.artifact_repo.latest_served", new=AsyncMock(return_value=version)
+            ),
+            patch(
+                f"{self.MODULE}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(public_live_data=True)),
+            ),
+            patch(f"{self.MODULE}.owner_membership_id", new=AsyncMock(return_value=membership)),
+            patch(f"{PATH}.member_repo.get_active", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=None)),
+            patch(f"{self.MODULE}.record_audit", new=audit),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"/{row.id}/public-data"))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["public_data"]["consented"] is False
+        assert body["public_data"]["holds"] is False
+        assert audit.await_args.kwargs["action"] == "artifact.public_data_withdrawn"

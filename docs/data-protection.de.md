@@ -1,5 +1,5 @@
 ---
-source_sha: "6e4e53c11fad"
+source_sha: "1a50cf8a4370"
 ---
 
 # Datenschutz { #data-protection }
@@ -85,7 +85,7 @@ des Elternteils.
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Die Zeilen einer [Virtual Table](virtual-tables.md) und die Spur jeder Änderung daran | Was die Organisation in ihre Zellen geschrieben hat, darunter möglicherweise personenbezogene Daten. Die aktuellen Werte (Records); der ganze Datensatz bei Create und Delete, bei einem Update nur die geänderten Zellen (History); der ganze Datensatz, wie ihn ein Schreibzugriff mit Schlüssel zurückgab (Receipts); die ids und die external id jedes erstellten Datensatzes (Outbox, keine Werte). Ein Löschen des Datensatzes entfernt nur die aktuelle Zeile: History und Receipts behalten die Werte, bis der tägliche Aufbewahrungs-Sweep sie entfernt: Receipts nach 24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History nach 365 Tagen, alles Einstellungen des Deployments. Das Löschen eines Kontos entfernt seine Receipts und löscht es als Akteur in der History; das Löschen der Organisation entfernt alle vier | Typisierte Datensätze für Agents und Workflows, sichere Wiederholungen eines Schreibzugriffs und die Übergabe eines erstellten Datensatzes |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | Die [Trigger](virtual-tables.md#triggers) einer Tabelle, jede Konfiguration, die sie hatten, und was jeder über einen angelegten Datensatz entschieden hat | Das Mitglied, als das ein Trigger läuft; seine Filterwerte und Zuordnungsschlüssel, die personenbezogene Daten enthalten können, wenn ein Builder welche eingetragen hat (ein Filter auf eine E-Mail-Adresse). Eine Entscheidung enthält einen Status, einen groben Grund und den gestarteten Run, nie die Werte des Datensatzes. Keine Aufbewahrungsklasse räumt sie auf: Sie gehen mit ihrer Tabelle und ihrem Trigger, und das Löschen eines Kontos entfernt es als Mitglied, danach startet der Trigger nichts mehr | Einen Workflow ausführen, wenn ein Datensatz hinzukommt |
-| `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte — oder, bei einer an Tabellendaten gebundenen Seite, ihre Seitenabfragen (Tabelle, Filter, Sortierung, Limit und Spalten, jeweils zu IDs aufgelöst), während die Datensätze selbst beim Ansehen mit dem Zugriff des Besitzers der Seite gelesen und nie in der Seite gespeichert werden; je Version, wer sie veröffentlicht hat, und die Einwilligung des Besitzers, ihre Daten zu teilen (ein Fingerabdruck der Abfragen, die Mitgliedschaft des Besitzers und wann); der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
+| `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte — oder, bei einer an Tabellendaten gebundenen Seite, ihre Seitenabfragen (Tabelle, Filter, Sortierung, Limit und Spalten, jeweils zu IDs aufgelöst), während die Datensätze selbst beim Ansehen mit dem Zugriff des Besitzers der Seite gelesen und nie in der Seite gespeichert werden; je Version, wer sie veröffentlicht hat, und die Einwilligung des Besitzers, ihre Daten zu teilen (ein Fingerabdruck der Abfragen, die Mitgliedschaft des Besitzers und wann), und die Einwilligung der Seite für öffentliche Daten (wer sie bestätigt hat, die Mitgliedschaft des Besitzers, wann); die Zeile der Organisation hält den Schalter `public_live_data`; der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
 | `agent_memory_files` | Notizen, die ein Agent über eine Person oder einen Gruppenchat geschrieben hat | Was der Agent für merkenswert hielt, geschlüsselt auf `person:<user_id>` oder einen Chatraum | Kontinuität zwischen Conversations |
 | `rag_documents`, `knowledge_bases` und eine Vektortabelle je Collection | Hochgeladene und synchronisierte Dokumente, ihre Chunks und Embeddings | Der Dokumenttext und seine Vektoren, der ursprüngliche Pfad der Datei in der Quelle | Retrieval |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Was jeder Run gekostet und getan hat | Der System-Prompt und die letzte an das Model übergebene Anfrage, Tool-Argumente, die auf Freigabe warten, die entscheidende Person und ihre Notiz. Neben den Argumenten hält `tool_approvals.context` die Namen, für die die IDs eines geparkten Aufrufs stehen - den Namen einer Ansicht und einer Tabelle, nie den Inhalt eines Datensatzes -, aufgelöst als die Person des Runs, als der Aufruf geparkt wurde. Er bleibt bei der Freigabe-Zeile, auch nachdem die Ansicht oder Tabelle umbenannt wurde oder verschwunden ist, und wird von jedem gelesen, der über Freigaben entscheiden darf, unabhängig von seinem eigenen Zugriff auf diese Tabelle | Budgets, Freigaben, Run-Historie |
@@ -168,7 +168,8 @@ Zugriffskontrolle der Tabelle und ist deshalb hier aufgeführt.
   bestätigt hat, nachdem er die Abfragen in Worten gelesen hat und wer die Seite
   jetzt und später öffnen kann (die Rollen, die jede Seite öffnen, die
   Sichtbarkeit, Personen und Gruppen). Die Daten werden bei jedem Laden erneut
-  gelesen, nie in der Seite gespeichert und nicht gecacht.
+  gelesen und nie in der Seite gespeichert. Lesevorgänge für Mitglieder werden nicht
+  gecacht; die für eine öffentliche Seite schon, wie unten beschrieben.
 - **Was darüber gespeichert wird.** Je Seitenversion: wer sie veröffentlicht hat,
   ein Fingerabdruck ihrer Abfragen, ob der Besitzer eingewilligt hat, wann und mit
   welcher Mitgliedschaft. Freigabeanfragen halten den Anfragenden, die Art, eine
@@ -179,10 +180,57 @@ Zugriffskontrolle der Tabelle und ist deshalb hier aufgeführt.
   Inhaltsadresse einer Seite, die mit ihren Daten ausgeliefert wird. Die
   Audit-Einträge und Benachrichtigungen nennen die Seite und die Personen, nie
   eine Zeile.
-- **Was sie nicht erreicht.** Ein öffentlicher Link oder ein Embed bekommt keine
-  Daten ausgeliefert. Die Einwilligung eines gelöschten Mitglieds verfällt mit
+- **Was sie nicht erreicht.** Die Einwilligung eines gelöschten Mitglieds verfällt mit
   seiner Mitgliedschaft, und eine Seite, deren Besitzer gegangen ist, liefert
   keine Daten aus, bis ein anderer Besitzer sie bestätigt.
+
+### An Personen ohne Konto { #table-data-on-a-public-page }
+
+Das ist der eine Ablauf hier, der **den Kreis der Personen mit einem Konto verlässt**.
+Der [öffentliche Link einer Seite und ihre Embeds](artifacts.md#live-data-on-a-public-link)
+können dieselben Datensätze für jeden, der die Adresse öffnet, und für jede Website,
+die sie einbettet, ohne Anmeldung in die Seite schreiben. Zwei Entscheidungen öffnen
+ihn, und ein Deployment, das den Ablauf nicht will, lässt die erste aus.
+
+- **Standardmäßig aus, für die ganze Organisation.** `public_live_data` ist ein
+  Schalter, den nur ein Owner oder Admin ändert, als er selbst. Ist er aus, zeigt keine
+  Seite Daten auf einem Link oder in einem Embed, was auch immer ihr Besitzer bestätigt
+  hat.
+- **Dann pro Seite.** Der Besitzer der Seite oder ein Owner oder Admin für ihn bestätigt
+  sie nach einem Bildschirm, der die Tabellen und Spalten nennt und sagt, wer sie lesen
+  kann - jeder mit dem Link, sein Passwort und sein Ablauf, jede einbettende Website.
+  Die Einwilligung ist an die Seitenabfragen und an dieses Publikum gebunden. Eine
+  Website hinzuzufügen, das Passwort zu entfernen, den Link auszuschalten, die Seite zu
+  archivieren, ein neuer Besitzer und eine zurückgezogene Einwilligung der Mitglieder
+  löschen sie.
+- **Was gespeichert wird.** Auf der Seite: der Fingerabdruck der Abfragen, für die sie
+  gegeben wurde, wer sie bestätigt hat, die Mitgliedschaft des Besitzers und wann. Die
+  Zeile der Organisation hält den Schalter. Der Audit-Trail erfasst
+  `organization.public_live_data_changed`, `artifact.public_data_consented`,
+  `artifact.public_data_withdrawn` und `artifact.public_data_voided` mit Tabellen- und
+  Spaltennamen, den einbettenden Websites, ob ein Passwort gesetzt ist, und dem Grund -
+  nie eine Zeile, ein Wert oder ein Besucher.
+- **Der Cache.** Die Datensätze eines Bindings werden 30 Sekunden lang im Speicher des
+  API-Prozesses gehalten, damit eine stark besuchte Seite ihre Tabelle nicht einmal pro
+  Besucher liest. Sie werden **nie in Redis**, die Datenbank oder eine Datei geschrieben,
+  der Speicher ist in Bytes begrenzt (`ARTIFACT_PUBLIC_DATA_CACHE_BYTES`) und mit dem
+  Prozess verschwunden. Jede Zugriffsbedingung läuft, bevor der Cache gelesen wird,
+  sodass das Ausschalten des Schalters oder das Rotieren des Links den Ablauf beim
+  nächsten Laden beendet; was ein Besucher bereits geladen hat, bleibt in seinem Browser.
+- **Was nie protokolliert wird.** Datensatzwerte, Filterwerte, der Schlüssel des Links
+  und die Inhaltsadresse einer Seite, die mit ihren Daten geladen wurde, bleiben aus
+  Logs, Traces und Audit-Einträgen heraus. Kein Besucher wird erfasst: Der Link zählt
+  Öffnungen, keine Personen. Nur der Schlüssel des Rate-Limits hält die IP des
+  Besuchers, in Redis, für Minuten.
+- **Niemand erfährt, warum.** Ein Besucher, dessen Laden an einer Bedingung scheitert,
+  sieht die Seite ohne ihre Daten und ohne Grund, sodass die Seite nicht sagt, was eine
+  Tabelle enthält oder warum es verborgen ist.
+- **Was eine Website sieht, die die Seite einbettet.** Die einbettende Website rahmt die
+  Seite; die Seite läuft in einem opaken Origin ohne Netzwerk, sodass die Website die
+  Datensätze nicht aus dem Frame lesen kann, aber wer die Website öffnet, liest sie.
+
+Datensätze, die jedem mit einem Link gezeigt werden, kann jeder kopieren, der sie sieht.
+Binden Sie eine öffentliche Seite nur an Spalten, die öffentlich sein sollen.
 
 Ein Deployment, das die Zeilen einer Tabelle vor einigen seiner Mitglieder
 schützen muss, sollte keine Seite an sie binden, die diese Mitglieder öffnen

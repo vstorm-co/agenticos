@@ -192,15 +192,33 @@ lives there. The embed document's origin and a link's listed embed sites are add
 public link and no password. Only a `member` token can carry data. When the console asks
 for data on load, that token also says so, and the route reads the bindings for the viewer
 it names, as they are served now: the member is looked up again, must still be allowed the
-page, and gets data only for the version they are served. A `public` token, thumbnails, cards
-and history versions get none.
+page, and gets data only for the version they are served. Thumbnails, cards and history
+versions get none. A `public` token can carry data too, under [the gates below](#public-data);
+it is never trusted past the link it names.
+
+### The public address { #public-data }
+
+A public token carries `pk`, a hash of the link's
+key, which the content route must find to be the link's current key on every load: a replaced
+or removed key is a 404 whatever the token's remaining lifetime. It carries `pw`, a digest of the
+link's password hash (none without a password), and `inj`, true only when the page's data gate
+held when it was minted.
+
+Data is written into the page only while the key, the password
+state, the expiry, the served version, the organization's `public_live_data` switch, the page's public
+data consent, the members' consent and the owner all hold, checked afresh on every load before
+any read or any cache. A failing load renders every binding `unavailable` with no reason. The
+public wrapper and the embed never ask for data and have no refresh. See
+[live data on a public link](artifacts.md#live-data-on-a-public-link).
 
 **The URL is a bearer credential.** For its lifetime - five minutes by default
 (`ARTIFACT_VIEW_TTL_SECONDS`), at most ten loads a minute per address - anyone who
 holds the address of a member's page that was minted for data loads it with that
 viewer's injected records, from anywhere, and the response is never cached. It is
 therefore kept out of logs and the rate limit counts it by its digest. Do not paste
-such an address into a ticket or a chat. A public address never carries data.
+such an address into a ticket or a chat. A public address's records are the ones its link
+may show now, and it stops carrying any when its key is replaced, its password changes or the
+consent is withdrawn.
 
 **Not an action.** `share_artifact` shares nothing. It files a request for the owner,
 who answers in the console, signed in as themselves; so a page that has been talked
@@ -282,8 +300,10 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports Postgres's live state from `pg_stat_ssl` | Postgres, on a live connection: `test_store_tls.py`; Redis, at URL construction and in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`), whose `script-src` carries a per-request nonce and `'strict-dynamic'` rather than `'unsafe-inline'` | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
-| Agent-authored pages cannot reach the console | A published [artifact](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address; optionally from its own registrable domain (`ARTIFACT_ORIGIN`); a public address never carries data, and a member's carries the page's records only as [the section below](#a-pages-data-and-its-address) describes; a refresh is fetched by the console from a data route behind the viewer's own session and posted to the page, with a nonce that matches each reply to its page load (correlation, not access control) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Agent-authored pages cannot reach the console | A published [artifact](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address; optionally from its own registrable domain (`ARTIFACT_ORIGIN`); a public address carries the page's records only [as below](#public-data), and a member's carries the page's records only as [the section below](#a-pages-data-and-its-address) describes; a refresh is fetched by the console from a data route behind the viewer's own session and posted to the page, with a nonce that matches each reply to its page load (correlation, not access control) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
 | Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public artifact links and their signed content addresses, and a page's live data route and its injected loads - 30 loads a minute per viewer, one in flight per viewer and a per-process cap; requests to share a page - 10 an hour per person per organization (`app/services/rate_limit.py`); with Redis down the rate limit's floor and the in-flight limit count per API worker, and the per-process cap still bounds each worker; per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; the channel-bot limit is implemented but thinly tested |
+| Data on a public link needs the organization and the owner | Anonymous visitors of a link or an embed are served a page's records only while the organization's `public_live_data` switch (off by default, changed by an Owner or Admin as themselves, audited) and the page's public consent (the owner's or an Owner's or Admin's, as themselves, bound to the query fingerprint and a digest of the audience) hold, plus the members' consent and the owner's access; each load re-checks the link's key (`pk`), expiry, password digest (`pw`) and served version before the cache; the consent is cleared by the link going off, a password removed, a new embedding site, a new owner, a withdrawn member consent and an archive; no agent tool reaches the switch or the consent | `test_artifact_public_data.py`, `test_artifact_public_serving.py`, `test_artifact_routes.py`, `test_services_organizations.py` |
+| Public data is read in a bounded, in-process cache | Reads for a public page are kept 30 s in the API process's memory, never in Redis, within `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`; only a load that has to read from the tables counts once against `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` per page; an unavailable read is never kept | `test_artifact_public_serving.py`, `test_artifact_public_data.py` |
 | A bound page's data is read on the owner's authority, and shared only by the owner | Every viewer is served the page's records through its page queries, read with the page **owner's** access and never stored in the page. The owner must be an active member reading every table the query reaches, on every load (`creator_gone`, `creator_lost_access`); the publisher is held to the same at publish; a column or table that changed since publish serves nothing (`source_changed`). The records reach anyone beyond the owner and the roles that read every table only while the owner's per-version consent holds; the audience is never served an unconsented version | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
 | Consent is the owner's own act | Confirming data, turning auto-consent on, granting `edit_data` and handing a page over are made signed in as the person, never while impersonating and never by an agent tool; an Owner or Admin may confirm for the owner and is audited as doing so; the confirmation carries the fingerprint of what the person was shown and is refused if the queries moved | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
 | Widening a bound page is guarded | A wider visibility, a new grant or a higher level on a page that reads data needs the owner (or an Owner or Admin) and a consent that holds; any other editor's attempt, and a `share_artifact` call, is filed as a request and applies nothing | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |

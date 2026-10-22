@@ -374,6 +374,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "artifact-public-data",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-public-data",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
     id: "artifact-requests",
     page: ARTIFACT_DETAIL,
     target: "artifact-requests",
@@ -556,6 +563,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The switch for page data on public links: Owner and Admin only, the PATCH's own gate.
+  {
+    id: "org-public-live-data",
+    page: ORG_MEMBERS,
+    target: "org-public-live-data",
+    permission: Perm.orgSettings,
+  },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {

@@ -219,6 +219,20 @@ ArtifactTokenAudience = Literal["member", "public"]
 """Who an artifact content address was minted for: a signed-in member, or a public link."""
 
 
+def public_key_digest(public_key: str) -> str:
+    """What a public artifact address carries of the link's key, so that rotating the key
+    ends the addresses minted for the old one."""
+    return hashlib.sha256(public_key.encode()).hexdigest()
+
+
+def password_digest(password_hash: str | None) -> str | None:
+    """A short fingerprint of a link's current password hash, or `None` with no password,
+    so that changing or removing the password ends the addresses minted under the old one."""
+    if password_hash is None:
+        return None
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
 def create_artifact_view_token(
     version_id: UUID,
     *,
@@ -230,6 +244,7 @@ def create_artifact_view_token(
     organization_id: UUID | None = None,
     inject: bool = False,
     public_key: str | None = None,
+    password_hash: str | None = None,
 ) -> str:
     """A short-lived address for one artifact version's bytes.
 
@@ -242,7 +257,10 @@ def create_artifact_view_token(
     Claims: `aud` is `member` or `public`. A member token carries the viewer
     (`uid`, `org`) and `inj` - whether the page is served with its data written
     in, which the route decides afresh for that viewer on every load. A public
-    token carries `pk`, a hash of the link's key, and never data. `n` is the
+    token carries `pk`, a hash of the link's key - which the route requires to still be
+    the link's - and, when the link's data gate held at mint time, `inj`, with `pw`,
+    a digest of the link's password hash (`None` with no password); the route serves data only while both
+    hold, and decides the rest afresh on every load. `n` is the
     nonce the served page and the console match their messages on, and `live`
     says whether the page asks the console for its bindings' data at all.
     """
@@ -260,7 +278,9 @@ def create_artifact_view_token(
             raise ValueError("A member's artifact address names the member and their organization")
         to_encode.update(uid=str(user_id), org=str(organization_id), inj=inject)
     elif public_key is not None:
-        to_encode["pk"] = hashlib.sha256(public_key.encode()).hexdigest()
+        to_encode.update(
+            pk=public_key_digest(public_key), inj=inject, pw=password_digest(password_hash)
+        )
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

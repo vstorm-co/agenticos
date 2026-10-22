@@ -38,6 +38,18 @@ from app.services.artifact_lint import KIT_CLASSES, lint_page
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def _no_public_data_state() -> Any:
+    """`_detail` asks the public-data service for the link's state; these tests stub the
+    database, so it answers nothing."""
+    with patch(
+        "app.services.artifact_public_data.ArtifactPublicDataService.state",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 PATH = "app.services.artifact"
 
 
@@ -884,7 +896,12 @@ class TestContentFraming:
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<p>x</p>")
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="k",
         )
         with (
             patch(
@@ -902,14 +919,20 @@ class TestContentFraming:
     @pytest.mark.security
     @pytest.mark.parametrize(
         "overrides",
-        [{"public_key": None}, {"public_key": "k", "public_password_hash": "hash"}],
-        ids=["link-off", "behind-a-password"],
+        [{"public_key": "k", "public_password_hash": "hash"}],
+        ids=["behind-a-password"],
     )
     async def test_a_page_that_cannot_be_embedded_names_none(
         self, overrides: dict[str, Any]
     ) -> None:
         artifact = _artifact(_ctx(), embed_origins=["https://a.example.com"], **overrides)
         assert (await self._served(artifact)).embed_origins == []
+
+    @pytest.mark.security
+    async def test_a_page_whose_link_was_turned_off_opens_nothing(self) -> None:
+        artifact = _artifact(_ctx(), public_key=None, embed_origins=["https://a.example.com"])
+        with pytest.raises(NotFoundError):
+            await self._served(artifact)
 
 
 class TestTheLibrarySet:

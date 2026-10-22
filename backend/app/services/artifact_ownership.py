@@ -40,6 +40,7 @@ from app.services.artifact_consent import (
     as_themselves,
     may_grant_edit_data,
 )
+from app.services.artifact_public_data import PublicDataVoid, void_public_data
 from app.services.artifact_requests import held_level, name_of, void_all
 from app.services.notifications import NotificationService
 from app.services.sharing import Deferred, ShareChange, register_sharing_guard
@@ -119,6 +120,7 @@ async def change_owner(
         },
     )
     await void_all(db, artifact, VoidReason.OWNER_CHANGED)
+    artifact = await void_public_data(db, ctx, artifact, PublicDataVoid.OWNER_CHANGED)
     lowered = await resource_grant_repo.lower_edit_data(
         db, organization_id=artifact.organization_id, resource_id=artifact.id
     )
@@ -220,7 +222,8 @@ class ArtifactSharingGuard:
     ) -> Deferred | None:
         """Widening who opens a page that reads data is the owner's call, or an Owner's or
         Admin's for them; anyone else who may edit it files a request instead. Narrowing,
-        and any change to a page that reads none, is left to every editor.
+        and any change to a page that reads none, is left to every editor - unless the
+        page is archived, which refuses widening altogether.
 
         Granting or raising to `edit_data` is the owner's (or an Owner's or Admin's), as
         themselves, with the text confirmed: :func:`_confirm_edit_data`. Lowering it is every

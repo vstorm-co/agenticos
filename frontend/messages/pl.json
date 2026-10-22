@@ -2641,6 +2641,14 @@
       "workflow-run-history": {
         "title": "Jego runy",
         "body": "Każdy run tego workflow, od najnowszego. Zawęź listę do nieudanych lub testowych runów i otwórz jeden, by zobaczyć dane każdego kroku albo ponowić go od kroku, który zawiódł."
+      },
+      "org-public-live-data": {
+        "title": "Dane na żywo na stronach publicznych",
+        "body": "Czy strony mogą pokazywać rekordy tabel osobom bez konta - przez publiczny link lub osadzenie. Wyłączone, dopóki tego nie włączysz; właściciel każdej strony nadal musi potwierdzić swoją stronę."
+      },
+      "artifact-public-data": {
+        "title": "Dane publiczne czekają na Ciebie",
+        "body": "Zapytania strony się zmieniły, więc jej publiczny link nie pokazuje danych, dopóki nie zostaną potwierdzone ponownie. Potwierdź dane pokazuje dokładnie, co link by udostępnił i komu."
       }
     }
   },
@@ -4692,6 +4700,41 @@
       "binding": "{change, select, added {{name} - nowe} removed {{name} - usunięte} other {{name}}}",
       "removedReads": "Nie czyta już tabeli {table}.",
       "change": "{aspect, select, table {Tabela: {before} -> {after}} field {{change, select, added {Dodano pole: {after}} removed {Usunięto pole: {before}} other {Zmieniono pole: {before} -> {after}}}} filter {{change, select, added {Dodano warunek: {after}} removed {Usunięto warunek: {before}} other {Zmieniono warunek: {before} -> {after}}}} sort {Kolejność: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Czyta teraz także, przez powiązania: {after}} other {Nie czyta już, przez powiązania: {before}}}} other {{change, select, added {Czyta teraz także, w warunku lub kolejności: {after}} other {Nie czyta już: {before}}}}}"
+    },
+    "publicData": {
+      "title": "Dane na żywo pod tym publicznym linkiem",
+      "confirmed": "Dane na żywo są teraz pokazywane pod publicznym linkiem",
+      "withdrawn": "Publiczny link nie pokazuje już danych na żywo",
+      "stateSwitchOff": "W tej organizacji strony publiczne nie mogą pokazywać danych na żywo. Najpierw właściciel lub administrator musi to włączyć w ustawieniach organizacji.",
+      "stateNotConfirmed": "Publiczny link pokazuje tę stronę bez jej danych. Potwierdź, żeby rekordy tabel były widoczne dla każdego, kto ma link.",
+      "stateOwnerCanEnable": "Publiczny link pokazuje tę stronę bez jej danych. Może to włączyć właściciel strony albo właściciel lub administrator organizacji.",
+      "stateHolding": "Pokazywane pod publicznym linkiem: wersja {version}, potwierdzona przez {name} dnia {date}.",
+      "notHoldingSwitchOff": "Potwierdzone, ale niepokazywane: właściciel lub administrator wyłączył dane na żywo na stronach publicznych w organizacji. Po ponownym włączeniu znów będą pokazywane od razu.",
+      "notHoldingNoServedVersion": "Potwierdzone, ale niepokazywane: publiczny link nie serwuje teraz żadnej wersji tej strony.",
+      "notHoldingQueriesChanged": "Potwierdzone, ale niepokazywane: zapytania strony się zmieniły. Strona publiczna nie pokazuje danych, dopóki nie zostaną potwierdzone ponownie.",
+      "notHoldingOwnerGone": "Potwierdzone, ale niepokazywane: właściciel strony nie jest już aktywnym członkiem organizacji.",
+      "notHoldingOwnerMembershipChanged": "Potwierdzone, ale niepokazywane: właściciel strony zmienił się od czasu potwierdzenia danych.",
+      "notHoldingMemberConsentMissing": "Potwierdzone, ale niepokazywane: brakuje zgody właściciela na czytanie danych tej wersji przez członków. Trzeba ją najpierw potwierdzić.",
+      "notHoldingLinkExpired": "Potwierdzone, ale niepokazywane: publiczny link wygasł.",
+      "queryChangedNotice": "Zapytania tej strony się zmieniły, więc jej publiczny link nie pokazuje danych, dopóki nie zostaną potwierdzone ponownie.",
+      "confirm": "Potwierdź dane",
+      "confirmAgain": "Potwierdź ponownie",
+      "cancel": "Anuluj",
+      "withdraw": "Wycofaj",
+      "withdrawTitle": "Przestać pokazywać dane pod publicznym linkiem?",
+      "withdrawWhy": "Publiczny link i jego osadzenia nadal pokazują stronę, ale bez danych, dopóki ktoś nie potwierdzi ich ponownie.",
+      "confirmTitle": "Potwierdź dane dla publicznego linku",
+      "confirmWhy": "Każdy, kto ma link, bez konta, przeczyta te rekordy tabel - tak samo jak każda witryna, która osadza tę stronę. Sprawdź, co jest udostępniane i kto ma do tego dostęp.",
+      "disclosureFailed": "Nie udało się wczytać, co zostałoby udostępnione",
+      "audienceTitle": "Kto może to czytać",
+      "audienceAnyone": "Każdy, kto ma publiczny link - bez konta, bez logowania.",
+      "audiencePassword": "Trzeba wpisać hasło do linku.",
+      "audienceNoPassword": "Bez hasła: wystarczy sam link.",
+      "audienceNoExpiry": "Link nie wygasa.",
+      "audienceExpires": "Link przestaje działać po {date}.",
+      "audienceEmbeds": "Pokazywane na tych witrynach, gdy osadzają stronę: {sites}.",
+      "blockedSwitch": "Najpierw właściciel lub administrator musi włączyć dane na żywo na stronach publicznych w ustawieniach organizacji.",
+      "blockedLink": "Strona nie ma publicznego linku. Najpierw go włącz."
     }
   },
   "tables": {

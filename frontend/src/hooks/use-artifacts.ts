@@ -16,6 +16,7 @@ import type {
   ArtifactDetail,
   ArtifactDisclosure,
   ArtifactList,
+  ArtifactPublicDataDisclosure,
   ArtifactPublicLinkUpdate,
   ArtifactVersionList,
   ArtifactView,
@@ -261,6 +262,34 @@ export function useArtifact(artifactId: string) {
     },
     onError: fail,
   });
+  // The public link's data: confirming and withdrawing change what anonymous
+  // visitors read, not the page the viewer has open, so neither reloads it. A 409
+  // means the queries or the audience moved since the dialog read them: the page
+  // is read again and the dialog closes.
+  const confirmPublicData = useMutation({
+    mutationFn: (body: { fingerprint: string; audience_digest: string }) =>
+      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/public-data`, {
+        ...body,
+        confirmed: true,
+      }),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: false });
+      toast.success(t("publicData.confirmed"));
+    },
+    onError: (error) => {
+      if (!(error instanceof ApiError && error.status === 409)) return;
+      void queryClient.invalidateQueries({ queryKey: qk.artifacts.detail(artifactId) });
+      fail(error);
+    },
+  });
+  const withdrawPublicData = useMutation({
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/public-data`),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: false });
+      toast.success(t("publicData.withdrawn"));
+    },
+    onError: fail,
+  });
   const setAutoConsent = useMutation({
     mutationFn: (changes: { enabled: boolean; confirmed?: string }) =>
       apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/auto-consent`, changes),
@@ -294,6 +323,8 @@ export function useArtifact(artifactId: string) {
     remove,
     confirmData,
     withdrawConsent,
+    confirmPublicData,
+    withdrawPublicData,
     setAutoConsent,
     changeOwner,
   };
@@ -311,6 +342,22 @@ export function useArtifactDisclosure(artifactId: string, versionId: string, ena
       apiClient.get<ArtifactDisclosure>(
         `/artifacts/${artifactId}/versions/${versionId}/disclosure`,
       ),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/**
+ * What confirming the page's data for its public link would share, and with whom,
+ * read when the dialog opens. Never cached, for the reason `useArtifactDisclosure` is not.
+ */
+export function usePublicDataDisclosure(artifactId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.artifacts.publicDataDisclosure(artifactId),
+    queryFn: () =>
+      apiClient.get<ArtifactPublicDataDisclosure>(`/artifacts/${artifactId}/public-data`),
     enabled,
     staleTime: 0,
     gcTime: 0,

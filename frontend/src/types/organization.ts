@@ -42,6 +42,8 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Whether a page's data may reach anonymous visitors of its public link or embeds. */
+  public_live_data: boolean;
   created_at: string;
   updated_at: string | null;
 }

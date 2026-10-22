@@ -196,6 +196,23 @@ class Artifact(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # The owner's consent to show the page's data to "anyone with the link" and the sites
+    # it names for embedding (#1975), given to the page queries `public_data_fingerprint`
+    # digests and valid under the owner's membership `public_data_membership_id` - no
+    # foreign key, as `ArtifactVersion.consented_by_membership_id` has none. All four
+    # are cleared together when the consent is voided or withdrawn.
+    public_data_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    public_data_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    public_data_membership_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    public_data_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     __table_args__ = (
         Index(
             "uq_artifact_identity",
@@ -211,6 +228,10 @@ class Artifact(Base, TimestampMixin):
         CheckConstraint(
             "public_version_number IS NULL OR public_version_number >= 1",
             name="ck_artifact_public_version_number",
+        ),
+        CheckConstraint(
+            "public_data_fingerprint IS NULL OR public_data_membership_id IS NOT NULL",
+            name="ck_artifact_public_data_membership",
         ),
     )
 

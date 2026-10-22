@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a4f0e2fb23"
+source_sha: "e9a27c8b197e"
 ---
 
 # Bezpieczeństwo { #security }
@@ -202,15 +202,33 @@ dodawane tylko dla strony, którą można osadzić: z publicznym linkiem i bez h
 Dane może nieść tylko token `member`. Gdy konsola prosi o dane przy ładowaniu, token
 mówi to także, a trasa czyta bindingi dla oglądającego, którego nazywa, tak jak są
 serwowane teraz: członek jest wyszukiwany od nowa, nadal musi mieć dostęp do strony
-i dostaje dane tylko dla wersji, którą mu serwowano. Token `public`, miniatury, karty
-i wersje historii nie dostają żadnych.
+i dostaje dane tylko dla wersji, którą mu serwowano. Miniatury, karty i wersje
+historii nie dostają żadnych. Token `public` też może je nieść, pod
+[bramkami poniżej](#public-data); nigdy nie jest zaufany poza linkiem, który nazywa.
+
+### Adres publiczny { #public-data }
+
+Token publiczny niesie `pk`, skrót klucza linku, który trasa treści musi uznać za
+bieżący klucz linku przy każdym ładowaniu: zmieniony albo usunięty klucz to 404,
+niezależnie od pozostałego czasu życia tokena. Niesie `pw`, skrót hasha hasła linku
+(brak, gdy nie ma hasła), oraz `inj`, prawdziwe tylko wtedy, gdy bramka danych strony
+obowiązywała w chwili wydania.
+
+Dane są wpisywane do strony tylko wtedy, gdy klucz, stan hasła, wygaśnięcie, obsługiwana
+wersja, wyłącznik organizacji `public_live_data`, zgoda strony na dane publiczne, zgoda
+członków i właściciel nadal obowiązują, sprawdzane od nowa przy każdym ładowaniu, przed
+jakimkolwiek odczytem i przed cache. Ładowanie, które zawodzi, renderuje każdy binding
+jako `unavailable` bez powodu. Publiczny wrapper i embed nigdy nie proszą o dane i nie
+mają odświeżania. Zobacz [dane na żywo w publicznym linku](artifacts.md#live-data-on-a-public-link).
 
 **URL to poświadczenie na okaziciela.** Przez swoje życie — domyślnie pięć minut
 (`ARTIFACT_VIEW_TTL_SECONDS`), najwyżej dziesięć załadowań na minutę na adres — każdy,
 kto ma adres strony członka wystawiony dla danych, ładuje ją z wstrzykniętymi rekordami
 tego oglądającego, skądkolwiek, a odpowiedź nigdy nie jest cache'owana. Dlatego jest
 trzymany poza logami, a limit zapytań liczy go po skrócie. Nie wklejaj takiego adresu
-do zgłoszenia ani na czat. Adres publiczny nigdy nie niesie danych.
+do zgłoszenia ani na czat. Rekordy adresu publicznego to te, które jego link może
+teraz pokazać, a przestaje je nieść, gdy jego klucz zostanie zmieniony, hasło się zmieni
+albo zgoda zostanie wycofana.
 
 **Nie akcja.** `share_artifact` niczego nie udostępnia. Składa prośbę do właściciela,
 który odpowiada w konsoli, zalogowany jako on sam; strona, którą nakłoniono do prośby,
@@ -290,8 +308,10 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | TLS do PostgreSQL i Redisa | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` raportuje żywy stan Postgresa z `pg_stat_ssl` | Postgres, na żywym połączeniu: `test_store_tls.py`; Redis, przy budowie URL-a i w `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`), którego `script-src` niesie nonce per żądanie i `'strict-dynamic'` zamiast `'unsafe-inline'` | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
-| Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`); publiczny adres nigdy nie niesie danych, a adres członka niesie rekordy strony tylko tak, jak opisuje [sekcja poniżej](#a-pages-data-and-its-address); odświeżenie pobiera konsola z trasy danych za własną sesją oglądającego i przekazuje je stronie, z nonce, który dopasowuje każdą odpowiedź do jej załadowania strony (korelacja, nie kontrola dostępu) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`); adres publiczny niesie rekordy strony tylko [tak, jak niżej](#public-data), a adres członka niesie rekordy strony tylko tak, jak opisuje [sekcja poniżej](#a-pages-data-and-its-address); odświeżenie pobiera konsola z trasy danych za własną sesją oglądającego i przekazuje je stronie, z nonce, który dopasowuje każdą odpowiedź do jej załadowania strony (korelacja, nie kontrola dostępu) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
 | Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach artefaktów i ich podpisanych adresach treści oraz na trasie danych na żywo strony i jej wstrzykniętych załadowaniach — 30 załadowań na minutę na oglądającego, jedno w toku na oglądającego i limit na proces; prośby o udostępnienie strony — 10 na godzinę na osobę na organizację (`app/services/rate_limit.py`); gdy Redis nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się per worker API, a limit na proces nadal ogranicza każdy worker; limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
+| Dane w publicznym linku wymagają organizacji i właściciela | Anonimowi odwiedzający linku albo embedu dostają rekordy strony tylko wtedy, gdy obowiązują wyłącznik organizacji `public_live_data` (domyślnie wyłączony, zmieniany przez Ownera albo Admina jako on sam, audytowany) i publiczna zgoda strony (właściciela albo Ownera lub Admina, jako on sam, związana z odciskiem zapytań i skrótem kręgu odbiorców), a także zgoda członków i dostęp właściciela; każde ładowanie sprawdza przed cache klucz linku (`pk`), wygaśnięcie, skrót hasła (`pw`) i obsługiwaną wersję; zgodę czyści wyłączenie linku, usunięte hasło, nowa witryna osadzająca, nowy właściciel, wycofana zgoda członka i archiwizacja; żadne narzędzie agenta nie sięga do wyłącznika ani zgody | `test_artifact_public_data.py`, `test_artifact_public_serving.py`, `test_artifact_routes.py`, `test_services_organizations.py` |
+| Dane publiczne są czytane w ograniczonym cache w procesie | Odczyty dla strony publicznej są trzymane 30 s w pamięci procesu API, nigdy w Redisie, w granicach `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`; tylko ładowanie, które musi czytać z tabel, liczy się raz do `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` per strona; niedostępny odczyt nigdy nie jest zachowywany | `test_artifact_public_serving.py`, `test_artifact_public_data.py` |
 | Dane powiązanej strony są czytane z upoważnienia właściciela i udostępniane tylko przez niego | Każdy oglądający dostaje rekordy strony przez jej zapytania strony, czytane z dostępem **właściciela** strony i nigdy nie przechowywane w stronie. Właściciel musi być aktywnym członkiem czytającym każdą tabelę, do której sięga zapytanie, przy każdym załadowaniu (`creator_gone`, `creator_lost_access`); publikujący podlega temu samemu przy publikacji; kolumna albo tabela, która zmieniła się od publikacji, nie serwuje niczego (`source_changed`). Rekordy docierają do kogokolwiek poza właścicielem i rolami czytającymi każdą tabelę tylko dopóki obowiązuje zgoda właściciela per wersja; odbiorcom nigdy nie serwuje się wersji bez zgody | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
 | Zgoda jest własnym aktem właściciela | Potwierdzenie danych, włączenie auto-zgody, nadanie `edit_data` i przekazanie strony dzieją się po zalogowaniu jako ta osoba, nigdy podczas impersonacji i nigdy przez narzędzie agenta; Owner albo Admin może potwierdzić za właściciela i jest audytowany jako ten, który to robi; potwierdzenie niesie odcisk tego, co osobie pokazano, i jest odrzucane, jeśli zapytania się zmieniły | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
 | Poszerzanie powiązanej strony jest strzeżone | Szersza widoczność, nowy grant albo wyższy poziom na stronie czytającej dane wymaga właściciela (albo Ownera lub Admina) i obowiązującej zgody; próba każdego innego edytora i wywołanie `share_artifact` są składane jako prośba i niczego nie stosują | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |

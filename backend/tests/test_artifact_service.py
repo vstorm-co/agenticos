@@ -37,6 +37,18 @@ from app.services.virtual_tables.exceptions import DeadlineReached
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def _no_public_data_state() -> Any:
+    """`_detail` asks the public-data service for the link's state; these tests stub the
+    database, so it answers nothing."""
+    with patch(
+        "app.services.artifact_public_data.ArtifactPublicDataService.state",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 PATH = "app.services.artifact"
 
 
@@ -443,6 +455,7 @@ class TestPublicLink:
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.update", new=_update),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.record_audit", new=audit),
         ):
             await getattr(_service(), method)(ctx, artifact.id)
@@ -707,6 +720,11 @@ class TestPublicView:
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+            patch(
+                f"{PATH}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(public_live_data=False)),
+            ),
+            patch(f"{PATH}.owner_membership_id", new=AsyncMock(return_value=None)),
         ):
             public = await _service().public_view("k")
             embed = await _service().embed("k")
@@ -715,7 +733,7 @@ class TestPublicView:
         assert public.view.injected is False
         assert _claims(public.view.url)["live"] is False
         assert _claims(public.view.url)["aud"] == "public"
-        assert "inj" not in _claims(public.view.url)
+        assert _claims(public.view.url)["inj"] is False
         assert "uid" not in _claims(public.view.url)
         assert _claims(public.view.url)["pk"] == hashlib.sha256(b"k").hexdigest()
         frame = re.search(r'src="([^"]*/artifact-content/[^"]+)"', embed.document.decode())
@@ -725,10 +743,15 @@ class TestPublicView:
 
 class TestContent:
     async def test_an_address_opens_its_own_version(self) -> None:
-        artifact = _artifact(_ctx())
+        artifact = _artifact(_ctx(), public_key="k")
         version = _version(artifact)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="k",
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<h1>hi</h1>")
@@ -773,10 +796,15 @@ class TestContent:
     async def test_an_address_whose_bytes_are_gone_is_not_found(self) -> None:
         """A row whose bytes storage no longer has - a restored database beside an
         older volume - answered 500, and a thumbnail showed a server error."""
-        artifact = _artifact(_ctx())
+        artifact = _artifact(_ctx(), public_key="k")
         version = _version(artifact)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="k",
         )
         storage = MagicMock()
         storage.load = AsyncMock(side_effect=FileNotFoundError(version.storage_path))
@@ -796,7 +824,7 @@ class TestContent:
     @pytest.mark.security
     async def test_a_token_without_a_nonce_serves_a_page_that_is_not_live(self) -> None:
         """A token minted before the nonce existed opens its page, with no data."""
-        artifact = _artifact(_ctx())
+        artifact = _artifact(_ctx(), public_key="k")
         version = _version(artifact, bindings=[_binding()])
         token = jwt.encode(
             {
@@ -804,6 +832,7 @@ class TestContent:
                 "sub": str(version.id),
                 "type": "artifact_view",
                 "aud": "public",
+                "pk": hashlib.sha256(b"k").hexdigest(),
                 "live": True,
             },
             artifacts.settings.SECRET_KEY,
@@ -897,7 +926,7 @@ class TestContentAudience:
             await self._content(artifact, version, token)
 
     @pytest.mark.security
-    async def test_a_public_token_is_never_served_data_whatever_it_claims(self) -> None:
+    async def test_a_public_token_is_never_read_as_a_member_whatever_it_claims(self) -> None:
         artifact, version, _ = self._served("public")
         token = jwt.encode(
             {
@@ -905,6 +934,7 @@ class TestContentAudience:
                 "sub": str(version.id),
                 "type": "artifact_view",
                 "aud": "public",
+                "pk": hashlib.sha256(b"k").hexdigest(),
                 "n": "n0",
                 "live": True,
                 "inj": True,
@@ -917,7 +947,24 @@ class TestContentAudience:
         with patch.object(ArtifactService, "_injection", new=AsyncMock()) as injection:
             served = await self._content(artifact, version, token)
         injection.assert_not_awaited()
-        assert b'"initial"' not in served.document
+        # No `pw` claim: the public gates refuse it, and every binding is unavailable.
+        assert b'"status": "ok"' not in served.document
+        assert b'"status": "unavailable"' in served.document
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("claim", ["missing", "other-key"])
+    async def test_a_public_token_for_another_key_is_not_found(self, claim: str) -> None:
+        artifact, version, _ = self._served("public")
+        token = create_artifact_view_token(
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="old" if claim == "other-key" else None,
+        )
+        with pytest.raises(NotFoundError):
+            await self._content(artifact, version, token)
 
 
 class TestViewToken:
@@ -1015,6 +1062,16 @@ class TestThePolicy:
         assert directives["frame-src"] == [artifacts.settings.PUBLIC_BASE_URL.rstrip("/")]
         assert directives["connect-src"] == ["'none'"]
         assert directives["frame-ancestors"] == ["'none'"]
+
+    @pytest.mark.security
+    def test_the_embed_document_relays_a_link_and_never_a_request_for_data(self) -> None:
+        document = artifacts._embed_document(
+            nonce="n0nce", title="T", frame_url="https://x/c/t", public_url="https://x/a/k"
+        ).decode()
+        assert "agenticos:open-link" in document
+        assert "agenticos:ready" not in document
+        assert "agenticos:data" not in document
+        assert "postMessage" not in document
 
 
 class TestUnlinking:
@@ -1182,6 +1239,70 @@ class TestData:
             data = await ArtifactService(_session()).data(ctx, artifact.id, version.id)
         assert data.bindings["deals"].status == "unavailable"
         assert data.bindings["deals"].reason == "timeout"
+
+    @pytest.mark.parametrize(
+        "stopped",
+        [
+            DBAPIError("SELECT pg_sleep(1)", {"needle": "x"}, MagicMock(sqlstate="57014")),
+            DeadlineReached(remaining_ms=0),
+        ],
+        ids=["statement_timeout", "deadline"],
+    )
+    async def test_a_read_stopped_after_the_source_is_a_timeout(self, stopped: Exception) -> None:
+        service = ArtifactService(_session())
+        with (
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock(return_value="0")),
+            patch(f"{PATH}.virtual_table_repo.restore_statement_timeout", new=AsyncMock()),
+            patch.object(
+                artifacts.VirtualTableService, "read_bound", AsyncMock(side_effect=stopped)
+            ),
+        ):
+            read = await service._read_rows(
+                _ctx(),
+                ArtifactBinding.model_validate(_binding()),
+                MagicMock(columns=[], name="t"),
+                MagicMock(remaining_ms=lambda: 5),
+            )
+        assert read == Unavailable("timeout")
+
+    async def test_a_read_with_no_time_left_is_a_timeout(self) -> None:
+        read = await ArtifactService(_session())._read_rows(
+            _ctx(),
+            ArtifactBinding.model_validate(_binding()),
+            MagicMock(),
+            MagicMock(remaining_ms=lambda: 0),
+        )
+        assert read == Unavailable("timeout")
+
+    async def test_a_read_that_is_not_a_timeout_is_not_swallowed_after_the_source(self) -> None:
+        broken = DBAPIError("SELECT 1", {}, MagicMock(sqlstate="40001"))
+        with (
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock(return_value="0")),
+            patch.object(
+                artifacts.VirtualTableService, "read_bound", AsyncMock(side_effect=broken)
+            ),
+            pytest.raises(DBAPIError),
+        ):
+            await ArtifactService(_session())._read_rows(
+                _ctx(),
+                ArtifactBinding.model_validate(_binding()),
+                MagicMock(columns=[]),
+                MagicMock(remaining_ms=lambda: 5),
+            )
+
+    async def test_a_read_that_answers_nothing_is_not_kept(self) -> None:
+        shared = MagicMock(lookup=MagicMock(return_value=None), admit=AsyncMock(return_value=True))
+        service = ArtifactService(_session())
+        timeout = Unavailable("timeout")
+        with (
+            patch.object(service, "_binding_source", AsyncMock(return_value=MagicMock())),
+            patch.object(service, "_read_rows", AsyncMock(return_value=timeout)),
+        ):
+            read = await service._read_shared(
+                shared, _ctx(), ArtifactBinding.model_validate(_binding()), MagicMock()
+            )
+        assert read is timeout
+        shared.store.assert_not_called()
 
     async def test_a_database_error_that_is_not_a_timeout_is_not_swallowed(self) -> None:
         ctx = _ctx()

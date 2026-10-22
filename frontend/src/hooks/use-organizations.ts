@@ -193,6 +193,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setPublicLiveData = useCallback(
+    async (id: string, allowed: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        public_live_data: allowed,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -227,6 +238,7 @@ export function useOrganizations() {
     patchOrg,
     setMonthlyBudget,
     setChatApprovalWaiver,
+    setPublicLiveData,
     deleteOrg,
     switchOrg,
   };

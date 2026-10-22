@@ -254,6 +254,19 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_public_live_data(
+    db: AsyncSession, org: Organization, *, allowed: bool
+) -> Organization:
+    """Allow or forbid a page's data reaching anonymous visitors here (#1975).
+
+    Its own function for the reason :func:`set_chat_approval_waiver` is.
+    """
+    org.public_live_data = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()

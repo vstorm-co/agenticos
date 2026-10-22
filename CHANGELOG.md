@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A page's public link and embeds can show live table data, behind two confirmations.**
+  An Owner or Admin turns on **Public pages with live data** in the organization's
+  settings (off by default, as themselves, audited); then the page's owner, or an Owner or
+  Admin for them, confirms its data for the link after a screen that names the queries and
+  who can reach them - anyone with the link, its password and expiry, each embedding site.
+  The confirmation is bound to the queries and that audience, and turning the link off,
+  removing its password, adding an embedding site, a new owner, a withdrawn member consent
+  or archiving clears it; replacing the key, changing the expiry or pin, and switching the
+  organization off do not. Every load re-checks the link's key, expiry, password, switch and
+  consents before reading: a replaced or removed key is a 404 at once, anything else renders the page
+  without data and without a reason. Visitors get the records as of load, with no refresh.
+  Reads are shared for 30 seconds in a byte-bounded cache in the API process, never in
+  Redis, and each page's real reads are capped per minute. Editors see why a consented
+  page shows nothing. New `organizations.public_live_data` and public data columns on
+  `artifacts` (migrations `0146_org_public_live_data`, `0147_artifact_public_data`), settings
+  `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` and `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`, and
+  audit entries `organization.public_live_data_changed`, `artifact.public_data_consented`,
+  `artifact.public_data_withdrawn` and `artifact.public_data_voided`. No agent tool reaches
+  any of it. (#1975) [Artifacts](docs/artifacts.md#live-data-on-a-public-link) has the rules.
+
 - **A published page can show live table data, shared on its owner's consent.**
   An agent binds a page to **page queries** - a table, or a saved view whose filters
   and sort are copied, with fields, filters, a sort and a limit - and the page's
@@ -45,7 +65,8 @@ Two things are versioned separately from this file and worth knowing about:
   `artifact.data_consented`, `artifact.data_withdrawn`, `artifact.auto_consent_changed`,
   `artifact.owner_changed`, `artifact.share_requested`, `artifact.share_request_approved`,
   `artifact.share_request_declined` and `artifact.edit_data_granted`. A public link or an
-  embed still carries no data. A page takes up to 5 bindings, 1,000 records each and 4 MiB,
+  embed carries data only under the separate switch and consent described above. A page
+  takes up to 5 bindings, 1,000 records each and 4 MiB,
   a 5 s deadline and 30 loads a minute per viewer, and a bound page is changed only by a run
   acting for a member (a signed-in member, a linked channel sender or a schedule's creator).
   The viewer's strip has Refresh and an auto-refresh each viewer chooses; cards, the

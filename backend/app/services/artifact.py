@@ -57,6 +57,8 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.core.security import (
     create_artifact_view_token,
     get_password_hash,
+    password_digest,
+    public_key_digest,
     read_uuid_claim,
     verify_password,
     verify_special_token,
@@ -83,6 +85,7 @@ from app.repositories import (
     artifact_share_request_repo,
     group_repo,
     member_repo,
+    organization_repo,
     resource_grant_repo,
     user_repo,
     virtual_table_repo,
@@ -157,6 +160,14 @@ from app.services.artifact_ownership import (
     change_owner,
     may_change_owner,
     require_may_change_owner,
+)
+from app.services.artifact_public_data import (
+    ArtifactPublicDataService,
+    PublicDataVoid,
+    PublicReads,
+    public_data_holds,
+    public_version,
+    void_public_data,
 )
 from app.services.artifact_requests import (
     file_audience_request,
@@ -1747,6 +1758,7 @@ def _view(
     viewer: AuthContext | None = None,
     inject: bool = False,
     public_key: str | None = None,
+    password_hash: str | None = None,
     awaiting_consent: bool = False,
 ) -> ArtifactView:
     """A signed address for one version's bytes, valid for `ARTIFACT_VIEW_TTL_SECONDS`.
@@ -1754,7 +1766,9 @@ def _view(
     A fresh nonce for every address, so each load of a frame has its own. With a
     `viewer` the address is a member's: it names them, and with `inject` the page
     is served with its data written in (:meth:`ArtifactService.content` decides that
-    afresh on each load). Without one it is a public link's, whose pages never get data.
+    afresh on each load). Without one it is a public link's - minted for `public_key`, and
+    with `inject` for a page whose public data gate held now, which the content route checks
+    again on each load; `password_hash` is the link's password hash at the mint, if any.
     """
     lifetime = timedelta(seconds=settings.ARTIFACT_VIEW_TTL_SECONDS)
     nonce = secrets.token_urlsafe(16)
@@ -1768,6 +1782,7 @@ def _view(
         organization_id=None if viewer is None else viewer.organization_id,
         inject=inject,
         public_key=public_key,
+        password_hash=password_hash,
     )
     return ArtifactView(
         url=f"{_content_origin()}{settings.API_V1_STR}/artifact-content/{token}",
@@ -2020,6 +2035,10 @@ class ArtifactService:
             ),
             may_change_owner=may_change_owner(ctx, artifact),
             may_grant_edit_data=may_grant_edit_data(ctx, artifact),
+            may_confirm_public_data=may_confirm(ctx, artifact),
+            public_data=(
+                await ArtifactPublicDataService(self.db).state(ctx, artifact) if can_edit else None
+            ),
             bindings=_binding_reads(current) if can_edit else [],
             consent=(
                 await self._consent(ctx, artifact, current, can_edit=can_edit)
@@ -2027,6 +2046,10 @@ class ArtifactService:
                 else None
             ),
         )
+
+    async def detail(self, ctx: AuthContext, artifact: Artifact) -> ArtifactDetail:
+        """`artifact` as `ctx` reads it, whether they may edit it decided here."""
+        return await self._detail(ctx, artifact, can_edit=await self._can_edit(ctx, artifact))
 
     async def _consent(
         self, ctx: AuthContext, artifact: Artifact, latest: ArtifactVersion, *, can_edit: bool
@@ -2362,10 +2385,22 @@ class ArtifactService:
                 if password is not None
                 else None
             )
+        widened: PublicDataVoid | None = None
+        if (
+            "password" in changes
+            and changes["password"] is None
+            and artifact.public_password_hash is not None
+        ):
+            widened = PublicDataVoid.PASSWORD_REMOVED
         if "embed_origins" in changes:
             update["embed_origins"] = normalise_embed_origins(changes["embed_origins"])
+            if set(update["embed_origins"]) - set(artifact.embed_origins or []):
+                widened = PublicDataVoid.ORIGIN_ADDED
         if update:
             artifact = await artifact_repo.update(self.db, artifact=artifact, update_data=update)
+            if widened is not None:
+                # A wider audience than the one the owner confirmed for.
+                artifact = await void_public_data(self.db, ctx, artifact, widened)
             await record_audit(
                 self.db,
                 actor_user_id=ctx.subject_id,
@@ -2398,14 +2433,24 @@ class ArtifactService:
         return version.number
 
     async def clear_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
-        """Turn the public address off. A frame already open keeps its page until its
-        signed address expires, `ARTIFACT_VIEW_TTL_SECONDS` at most."""
+        """Turn the public address off. A frame already open keeps the page it has, but a
+        reload of it is a 404 at once: its signed address is checked against the link."""
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
         artifact = await self._turn_off_public_link(ctx, artifact)
         return await self._detail(ctx, artifact, can_edit=True)
 
-    async def _turn_off_public_link(self, ctx: AuthContext, artifact: Artifact) -> Artifact:
-        """Clear the public key, audited, when one is on. Its settings stay for next time."""
+    async def _turn_off_public_link(
+        self,
+        ctx: AuthContext,
+        artifact: Artifact,
+        reason: PublicDataVoid = PublicDataVoid.LINK_OFF,
+    ) -> Artifact:
+        """Clear the public key, audited, when one is on, and with it the owner's consent to
+        show the page's data on it (for `reason`). Its settings stay for next time."""
+        # Under the lock a confirm takes, so one that began before this cannot land after it.
+        locked = await artifact_repo.lock(self.db, artifact.id)
+        artifact = locked or artifact
+        artifact = await void_public_data(self.db, ctx, artifact, reason)
         if artifact.public_key is None:
             return artifact
         artifact = await artifact_repo.update(
@@ -2436,7 +2481,7 @@ class ArtifactService:
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
         if artifact.archived_at is not None:
             return await self._detail(ctx, artifact, can_edit=True)
-        artifact = await self._turn_off_public_link(ctx, artifact)
+        artifact = await self._turn_off_public_link(ctx, artifact, PublicDataVoid.ARCHIVED)
         artifact = await artifact_repo.update(
             self.db, artifact=artifact, update_data={"archived_at": datetime.now(UTC)}
         )
@@ -2717,6 +2762,7 @@ class ArtifactService:
             artifact=artifact,
             update_data={"consent_withdrawn_at": datetime.now(UTC), "auto_consent": False},
         )
+        artifact = await void_public_data(self.db, ctx, artifact, PublicDataVoid.CONSENT_WITHDRAWN)
         lowered = await resource_grant_repo.lower_edit_data(
             self.db, organization_id=artifact.organization_id, resource_id=artifact.id
         )
@@ -2991,12 +3037,14 @@ class ArtifactService:
         can_edit: bool,
         current: bool,
         isolate_failures: bool = False,
+        shared: PublicReads | None = None,
     ) -> dict[str, BindingData]:
         """Every binding of `version` read as the page's owner, shaped for one viewer.
 
         The one read the data route and a page served with its data share. With
         `isolate_failures` a binding the database failed on is `failed` rather than an
-        error, so the page still renders.
+        error, so the page still renders. With `shared`, a public page's reads: a kept one is
+        reused, and one that reaches the tables is counted against the page's allowance.
         """
         deadline = ReadDeadline(
             settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS,
@@ -3020,7 +3068,11 @@ class ArtifactService:
                 reads[binding.name] = Unavailable("awaiting_consent")
             else:
                 try:
-                    reads[binding.name] = await self._read_binding(owner, binding, deadline)
+                    reads[binding.name] = (
+                        await self._read_binding(owner, binding, deadline)
+                        if shared is None
+                        else await self._read_shared(shared, owner, binding, deadline)
+                    )
                 except DBAPIError as failed:
                     if not isolate_failures:
                         raise
@@ -3038,22 +3090,80 @@ class ArtifactService:
                     reads[binding.name] = self._unavailable(binding, Unavailable("failed"))
         return page_data(reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit)
 
+    async def _read_shared(
+        self,
+        shared: PublicReads,
+        owner: AuthContext,
+        binding: ArtifactBinding,
+        deadline: ReadDeadline,
+    ) -> BindingRows | Unavailable:
+        """A public page's binding: its kept read, or one from the tables if the page's
+        allowance and this process have room - `busy` otherwise, which is never kept."""
+        # Every gate before the cache: the source step holds the owner's access to the
+        # tables and the drift check, which a kept read must not outlive.
+        source = await self._binding_source(owner, binding, deadline)
+        if isinstance(source, Unavailable):
+            return source
+        kept = shared.lookup(binding.name)
+        if kept is not None:
+            return kept
+        gate = _load_gate()
+        if gate.locked() or not await shared.admit():
+            return Unavailable("busy")
+        # `admit` awaits: the gate may have filled meanwhile, and a full gate refuses.
+        if gate.locked():
+            return Unavailable("busy")
+        async with gate:
+            read = await self._read_rows(owner, binding, source, deadline)
+        if isinstance(read, BindingRows):
+            shared.store(binding.name, read)
+        return read
+
     async def _read_binding(
         self, owner: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
     ) -> BindingRows | Unavailable:
         """One binding's page query read as the page's `owner`, or why it reads nothing."""
+        source = await self._binding_source(owner, binding, deadline)
+        if isinstance(source, Unavailable):
+            return source
+        return await self._read_rows(owner, binding, source, deadline)
+
+    async def _binding_source(
+        self, owner: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
+    ) -> TableSource | Unavailable:
+        """The binding's table as its owner reads it now, or why the binding reads nothing."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
         service = VirtualTableService(self.db)
-        table: str | None = None
         try:
             async with self.db.begin_nested():
                 prior = await virtual_table_repo.statement_timeout(self.db)
                 source = await page_source(service, owner, binding, deadline=deadline)
-                if isinstance(source, Unavailable):
-                    await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
-                    return self._unavailable(binding, source)
-                table = source.name
+                await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
+        except DeadlineReached:
+            return self._unavailable(binding, Unavailable("timeout"))
+        except DBAPIError as failed:
+            if getattr(failed.orig, "sqlstate", None) != _STATEMENT_TIMEOUT:
+                raise
+            return self._unavailable(binding, Unavailable("timeout"))
+        if isinstance(source, Unavailable):
+            return self._unavailable(binding, source)
+        return source
+
+    async def _read_rows(
+        self,
+        owner: AuthContext,
+        binding: ArtifactBinding,
+        source: TableSource,
+        deadline: ReadDeadline,
+    ) -> BindingRows | Unavailable:
+        """The rows of a binding whose `source` is known."""
+        if deadline.remaining_ms() <= 0:
+            return self._unavailable(binding, Unavailable("timeout"))
+        service = VirtualTableService(self.db)
+        try:
+            async with self.db.begin_nested():
+                prior = await virtual_table_repo.statement_timeout(self.db)
                 rows = await service.read_bound(
                     owner,
                     table_id=source.id,
@@ -3072,7 +3182,7 @@ class ArtifactService:
         except InvalidQueryError:
             # The revisions match, yet the table no longer answers a filter or the sort:
             # a query restored before its columns were converted. One binding, never the page.
-            return self._unavailable(binding, Unavailable("source_changed", table))
+            return self._unavailable(binding, Unavailable("source_changed", source.name))
         except DeadlineReached:
             return self._unavailable(binding, Unavailable("timeout"))
         except DBAPIError as failed:
@@ -3119,13 +3229,7 @@ class ArtifactService:
             artifact = None
         version = None
         if artifact is not None:
-            version = (
-                await artifact_repo.get_version_by_number(
-                    self.db, artifact.id, artifact.public_version_number
-                )
-                if artifact.public_version_number is not None
-                else await artifact_repo.latest_served(self.db, artifact.id)
-            )
+            version = await public_version(self.db, artifact)
         if artifact is None or version is None:
             raise NotFoundError(message="Artifact not found")
         return artifact, version
@@ -3157,8 +3261,15 @@ class ArtifactService:
         return PublicArtifactRead(
             title=artifact.title,
             published_at=artifact.published_at,
-            # A stranger is nobody the data could be read as.
-            view=_view(version, live=False, public_key=public_key),
+            # A stranger is nobody the data could be read as: the page is served with it
+            # written in, or without, and never asks for it.
+            view=_view(
+                version,
+                live=False,
+                public_key=public_key,
+                inject=await self._public_data_owner(artifact, version) is not None,
+                password_hash=artifact.public_password_hash,
+            ),
         )
 
     async def embed(self, public_key: str) -> EmbedDocument:
@@ -3188,7 +3299,14 @@ class ArtifactService:
         document = _embed_document(
             nonce=nonce,
             title=artifact.title,
-            frame_url=None if protected else _view(version, live=False, public_key=public_key).url,
+            frame_url=None
+            if protected
+            else _view(
+                version,
+                live=False,
+                public_key=public_key,
+                inject=await self._public_data_owner(artifact, version) is not None,
+            ).url,
             public_url=public_url_for(artifact) or "",
         )
         return EmbedDocument(
@@ -3204,13 +3322,15 @@ class ArtifactService:
         sites its page names for embedding. A member's address minted for a page's
         data (`inj`) is served with each binding's page query already read in - for
         the viewer it names, as they are served now (:meth:`_injection`). A public
-        address never gets data.
+        address is served only while it names the link's key as it is now - a rotated key
+        ends it - and gets data only while every gate of :meth:`_public_injection` holds.
 
         Raises:
             NotFoundError: The token is invalid or expired, its version is gone,
                 its artifact was archived since it was minted, or storage no
-                longer has the version's bytes. One answer for all five, so the
-                route gives an attacker nothing to distinguish.
+                longer has the version's bytes, or a public address names a key the
+                link no longer has. One answer for all, so the route gives an attacker
+                nothing to distinguish.
         """
         payload = verify_special_token(token, "artifact_view", audience=("member", "public"))
         version_id = read_uuid_claim(payload, "sub") if payload is not None else None
@@ -3222,8 +3342,10 @@ class ArtifactService:
         if payload is None or found is None or found[1].archived_at is not None:
             raise NotFoundError(message="Artifact not found")
         version, artifact = found
-        data = await _load_version(version, missing="Artifact not found")
         member = payload.get("aud") == "member"
+        if not member and not self._names_current_key(payload, artifact):
+            raise NotFoundError(message="Artifact not found")
+        data = await _load_version(version, missing="Artifact not found")
         embeddable = (
             not member and artifact.public_key is not None and artifact.public_password_hash is None
         )
@@ -3234,16 +3356,89 @@ class ArtifactService:
             nonce, live = "", False
         else:
             live = payload.get("live") is True
-        initial = (
-            await self._injection(payload, artifact, version)
-            if member and live and payload.get("inj") is True
-            else None
-        )
+        if member:
+            initial = (
+                await self._injection(payload, artifact, version)
+                if live and payload.get("inj") is True
+                else None
+            )
+        else:
+            initial = await self._public_injection(payload, artifact, version)
         return ServedArtifact(
             document=render(
                 version, data, title=artifact.title, nonce=nonce, live=live, initial=initial
             ),
             embed_origins=list(artifact.embed_origins or []) if embeddable else [],
+        )
+
+    @staticmethod
+    def _names_current_key(claims: dict[str, Any], artifact: Artifact) -> bool:
+        """Whether a public address was minted for the link's key as it is now."""
+        named = claims.get("pk")
+        return (
+            artifact.public_key is not None
+            and isinstance(named, str)
+            and secrets.compare_digest(named, public_key_digest(artifact.public_key))
+        )
+
+    async def _public_data_owner(self, artifact: Artifact, version: ArtifactVersion) -> UUID | None:
+        """The owner's membership the public link's data is read under, or `None` when the
+        data gate does not hold for `version` now."""
+        if not version.bindings:
+            return None
+        org = await organization_repo.get_by_id(self.db, artifact.organization_id)
+        assert org is not None  # the artifact's own organization
+        membership = await owner_membership_id(self.db, artifact)
+        return membership if public_data_holds(artifact, version, membership, org) else None
+
+    async def _public_injection(
+        self, claims: dict[str, Any], artifact: Artifact, version: ArtifactVersion
+    ) -> dict[str, BindingData] | None:
+        """What a page served to a stranger carries as its data, or `None` for a page with none.
+
+        Only an address minted for it (`inj`) is asked, and every gate is checked afresh
+        before anything is read, as no token is trusted past the link it names: the
+        link is not expired and its password state is what it was at the mint (a page
+        locked since gets nothing, and one that was behind a password was minted after the
+        check), the version is still the one the link serves, and the organization's switch,
+        the public consent, the members' consent and the owner hold
+        (:func:`~app.services.artifact_public_data.public_data_holds`). If one fails, the
+        page renders with every binding `unavailable`, and no reason - a stranger is told
+        nothing about the tables.
+
+        The owner's reads are shared across visitors for a short while and counted against
+        the page's allowance when they reach the tables (:class:`PublicReads`); each
+        binding is as an audience member would be told it, without the editor's reasons.
+        """
+        if claims.get("inj") is not True or not version.bindings:
+            return None
+        nothing = {binding.name: unavailable(None) for binding in _bindings_of(version)}
+        minted = claims.get("pw")
+        current_digest = password_digest(artifact.public_password_hash)
+        expires = artifact.public_expires_at
+        if (
+            "pw" not in claims
+            or (minted is None) != (current_digest is None)
+            or (
+                current_digest is not None
+                and not (isinstance(minted, str) and secrets.compare_digest(minted, current_digest))
+            )
+        ) or (expires is not None and expires <= datetime.now(UTC)):
+            return nothing
+        served_now = await public_version(self.db, artifact)
+        if served_now is None or served_now.id != version.id:
+            return nothing
+        membership = await self._public_data_owner(artifact, version)
+        if membership is None:
+            return nothing
+        return await self._read_page(
+            artifact,
+            version,
+            Served(version=version, data=True, latest=False),
+            can_edit=False,
+            current=True,
+            isolate_failures=True,
+            shared=PublicReads(artifact.id, version, membership),
         )
 
     async def _injection(

@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a4f0e2fb23"
+source_sha: "e9a27c8b197e"
 ---
 
 # Seguridad { #security }
@@ -209,15 +209,34 @@ de embed listados de un enlace se añaden solo para una página que se puede inc
 enlace público y sin contraseña. Solo un token `member` puede llevar datos. Cuando la consola
 pide datos al cargar, ese token también lo dice, y la ruta lee los bindings para el lector que
 nombra, tal como se sirven ahora: el miembro se busca de nuevo, aún debe tener permitida la
-página, y recibe datos solo de la versión que se le sirve. Un token `public`, las miniaturas,
-las tarjetas y las versiones del historial no reciben ninguno.
+página, y recibe datos solo de la versión que se le sirve. Las miniaturas, las tarjetas y las versiones
+del historial no reciben ninguno. Un token `public` también puede llevar datos, bajo
+[las comprobaciones de abajo](#public-data); nunca se confía en él más allá del enlace que nombra.
+
+### La dirección pública { #public-data }
+
+Un token público lleva `pk`, un hash de la clave del enlace, que la ruta de contenido debe
+encontrar como la clave vigente del enlace en cada carga: una clave sustituida o eliminada es un
+404 sea cual sea la vida restante del token. Lleva `pw`, un digest del hash de la contraseña del
+enlace (ninguno sin contraseña), e `inj`, verdadero solo cuando la comprobación de datos de la
+página se cumplía al acuñarlo.
+
+Los datos se escriben en la página solo mientras se cumplen la clave, el estado de la contraseña,
+la caducidad, la versión servida, el interruptor `public_live_data` de la organización, el
+consentimiento de datos públicos de la página, el consentimiento de los miembros y el propietario,
+comprobados de nuevo en cada carga antes de cualquier lectura o caché. Una carga que falla
+muestra todos los bindings como `unavailable` sin motivo. El wrapper público y el embed nunca
+piden datos y no tienen refresco. Consulta
+[datos en vivo en un enlace público](artifacts.md#live-data-on-a-public-link).
 
 **La URL es una credencial al portador.** Durante su vida útil — cinco minutos por defecto
 (`ARTIFACT_VIEW_TTL_SECONDS`), como máximo diez cargas por minuto por dirección — quien tenga la
 dirección de la página de un miembro acuñada para datos la carga con los registros inyectados de
 ese lector, desde cualquier sitio, y la respuesta nunca se almacena en caché. Por eso se
 mantiene fuera de los logs y el límite de peticiones la cuenta por su digest. No pegues una
-dirección así en un ticket ni en un chat. Una dirección pública nunca lleva datos.
+dirección así en un ticket ni en un chat. Los registros de una dirección pública son los que su
+enlace puede mostrar ahora, y deja de llevar ninguno cuando se sustituye su clave, cambia su
+contraseña o se retira el consentimiento.
 
 **No es una acción.** `share_artifact` no comparte nada. Presenta una solicitud para el
 propietario, que responde en la consola, con sesión iniciada como él mismo; así, una página a la
@@ -297,8 +316,10 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | TLS hacia PostgreSQL y Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` informa del estado en vivo de Postgres desde `pg_stat_ssl` | Postgres, sobre una conexión real: `test_store_tls.py`; Redis, al construir la URL y en `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Cabeceras de framing y MIME en cada respuesta; CSP en todas salvo los endpoints de la referencia de la API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), cuyos `exclude_paths` quitan la CSP — no el framing ni el MIME — para OpenAPI, Swagger y ReDoc; más la CSP propia del frontend por deployment (`frontend/src/middleware.ts`), cuyo `script-src` lleva un nonce por petición y `'strict-dynamic'` en vez de `'unsafe-inline'` | `test_security_headers.py`, incluido `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS y HSTS | Terminados en el reverse proxy — el `nginx/nginx.conf` incluido pone HSTS; la aplicación no, por diseño | Asunto del deployment; ver la lista de endurecimiento |
-| Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — ni `allow-popups`, más `connect-src 'none'`, ninguna fuente remota salvo la ruta de bibliotecas del propio despliegue, y `frame-ancestors` nombrando solo la consola (y, para una página pública que se puede incrustar, el documento de incrustación y los sitios listados); un enlace de la página se abre solo después de que una persona confirme su dirección; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`); una dirección pública nunca lleva datos, y la de un miembro lleva los registros de la página solo como describe [la sección de abajo](#a-pages-data-and-its-address); un refresco lo obtiene la consola desde una ruta de datos tras la propia sesión del lector y lo envía a la página, con un nonce que empareja cada respuesta con su carga de página (correlación, no control de acceso) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — ni `allow-popups`, más `connect-src 'none'`, ninguna fuente remota salvo la ruta de bibliotecas del propio despliegue, y `frame-ancestors` nombrando solo la consola (y, para una página pública que se puede incrustar, el documento de incrustación y los sitios listados); un enlace de la página se abre solo después de que una persona confirme su dirección; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`); una dirección pública lleva los registros de la página solo [como se indica abajo](#public-data), y la de un miembro los lleva solo como describe [la sección de abajo](#a-pages-data-and-its-address); un refresco lo obtiene la consola desde una ruta de datos tras la propia sesión del lector y lo envía a la página, con un nonce que empareja cada respuesta con su carga de página (correlación, no control de acceso) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
 | Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed, las páginas alojadas, los enlaces públicos de artefactos y sus direcciones de contenido firmadas, la ruta de datos en vivo de una página y sus cargas con datos inyectados — 30 cargas por minuto por lector, una en curso por lector y un tope por proceso; las solicitudes para compartir una página — 10 por hora por persona y organización (`app/services/rate_limit.py`); con Redis caído, el suelo del límite de peticiones y el límite de cargas en curso cuentan por worker de la API, y el tope por proceso sigue acotando cada worker; límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; el límite del bot de canal está implementado, pero poco testeado |
+| Los datos de un enlace público necesitan a la organización y al propietario | A los visitantes anónimos de un enlace o un embed se les sirven los registros de una página solo mientras se cumplen el interruptor `public_live_data` de la organización (desactivado por defecto, cambiado por un Owner o Admin como uno mismo, auditado) y el consentimiento público de la página (el del propietario o el de un Owner o Admin, como uno mismo, ligado a la huella de la query y a un digest de la audiencia), más el consentimiento de los miembros y el acceso del propietario; cada carga vuelve a comprobar la clave del enlace (`pk`), la caducidad, el digest de la contraseña (`pw`) y la versión servida antes de la caché; el consentimiento lo borran el enlace desactivado, una contraseña quitada, un sitio web que incrusta nuevo, un propietario nuevo, un consentimiento de miembro retirado y un archivado; ninguna herramienta de agent alcanza el interruptor ni el consentimiento | `test_artifact_public_data.py`, `test_artifact_public_serving.py`, `test_artifact_routes.py`, `test_services_organizations.py` |
+| Los datos públicos se leen en una caché acotada y en proceso | Las lecturas de una página pública se guardan 30 s en la memoria del proceso de la API, nunca en Redis, dentro de `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`; solo una carga que tiene que leer de las tablas cuenta una vez contra `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` por página; una lectura no disponible nunca se guarda | `test_artifact_public_serving.py`, `test_artifact_public_data.py` |
 | Los datos de una página vinculada se leen con la autoridad del propietario, y solo el propietario los comparte | A cada lector se le sirven los registros de la página mediante sus page queries, leídos con el acceso del **propietario** de la página y nunca guardados en ella. El propietario debe ser un miembro activo que lea cada tabla que alcanza la query, en cada carga (`creator_gone`, `creator_lost_access`); a quien publica se le exige lo mismo al publicar; una columna o tabla que cambió desde la publicación no sirve nada (`source_changed`). Los registros llegan a cualquiera más allá del propietario y de los roles que leen todas las tablas solo mientras se mantiene el consentimiento por versión del propietario; a la audiencia nunca se le sirve una versión sin consentimiento | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
 | El consentimiento es un acto propio del propietario | Confirmar datos, activar el consentimiento automático, conceder `edit_data` y entregar una página se hacen con sesión iniciada como la persona, nunca suplantando y nunca mediante una herramienta de agent; un Owner o Admin puede confirmar por el propietario y se audita que lo hizo; la confirmación lleva la huella de lo que se mostró a la persona y se rechaza si las queries cambiaron | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
 | Ampliar una página vinculada está vigilado | Una visibilidad más amplia, una concesión nueva o un nivel más alto en una página que lee datos requiere al propietario (o a un Owner o Admin) y un consentimiento vigente; el intento de cualquier otro editor, y una llamada a `share_artifact`, se presenta como solicitud y no aplica nada | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |

@@ -52,6 +52,10 @@ test.use({ storageState: AUTH_STATE });
  * random id the document picks once per load - unchanged after Refresh is the
  * proof the page was updated in place rather than loaded again.
  *
+ * A public link adds two more decisions: an admin allows public live data for the
+ * organization, and the owner confirms the data for the link. The journey then opens
+ * the link as a stranger, switches the organization off and on, and replaces the key.
+ *
  * Every page also asks for `https://example.invalid/beacon`, which the content
  * policy refuses. That refusal is the canary for the CSP collector: it shows
  * the collector reports a violation from the framed page, so "nothing else was
@@ -207,6 +211,12 @@ interface Fixture {
 let fixture: Fixture;
 let owner: BrowserContext | undefined;
 
+/**
+ * The organization's switch for public live data as this spec found it, kept once
+ * the journey touches it so the teardown can put it back. `undefined` until then.
+ */
+let publicSwitch: { orgId: string; wasOn: boolean } | undefined;
+
 async function ownerRequest(browser: Browser): Promise<APIRequestContext> {
   owner ??= await browser.newContext({ storageState: AUTH_STATE });
   return owner.request;
@@ -259,6 +269,33 @@ async function retitle(request: APIRequestContext, title: string): Promise<void>
   await expect
     .poll(async () => (await liveRecord(request)).values[fixture.titleColumnId])
     .toBe(title);
+}
+
+/** Switch the organization's public live data on or off, and wait until it reads back. */
+async function setPublicSwitch(
+  request: APIRequestContext,
+  orgId: string,
+  allowed: boolean,
+): Promise<void> {
+  await ok(
+    await request.patch(`/api/orgs/${orgId}`, { data: { public_live_data: allowed } }),
+    `switching public live data ${allowed ? "on" : "off"}`,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await rowsAt(request, "/api/orgs")).find((row) => row.id === orgId)?.public_live_data,
+      { message: `the organization never read back public_live_data=${allowed}` },
+    )
+    .toBe(allowed);
+}
+
+interface PublicDataDisclosure {
+  confirmable: boolean;
+  member_consent: boolean;
+  fingerprint: string | null;
+  audience_digest: string;
+  problem?: string | null;
 }
 
 test.describe("artifact live data", () => {
@@ -383,30 +420,38 @@ test.describe("artifact live data", () => {
 
   test.afterAll(async ({ browser }) => {
     const request = await ownerRequest(browser);
-    if (fixture !== undefined) {
-      await retitle(request, LIVE_RECORD_TITLE);
-      // What the editor journey lent the colleague, taken back: the table and the
-      // agent outlive this spec, the page does not.
-      const lent = [
-        fixture.grantedTable &&
-          `/api/tables/${fixture.tableId}/sharing/grants/${fixture.colleagueId}`,
-        fixture.grantedAgent &&
-          `/api/agents/${fixture.agentId}/sharing/grants/${fixture.colleagueId}`,
-      ].filter((path): path is string => typeof path === "string");
-      for (const path of lent) {
-        const revoked = await request.delete(path);
-        expect(revoked.ok(), `${path} answered ${revoked.status()} at teardown`).toBe(true);
+    try {
+      if (fixture !== undefined) {
+        await retitle(request, LIVE_RECORD_TITLE);
+        // What the editor journey lent the colleague, taken back: the table and the
+        // agent outlive this spec, the page does not.
+        const lent = [
+          fixture.grantedTable &&
+            `/api/tables/${fixture.tableId}/sharing/grants/${fixture.colleagueId}`,
+          fixture.grantedAgent &&
+            `/api/agents/${fixture.agentId}/sharing/grants/${fixture.colleagueId}`,
+        ].filter((path): path is string => typeof path === "string");
+        for (const path of lent) {
+          const revoked = await request.delete(path);
+          expect(revoked.ok(), `${path} answered ${revoked.status()} at teardown`).toBe(true);
+        }
+        // In dependency order, as `delegation.spec.ts` does: the artifact names the
+        // agent, the agent the profile.
+        const paths = [
+          fixture.artifactId && `/api/artifacts/${fixture.artifactId}`,
+          fixture.agentId && `/api/agents/${fixture.agentId}`,
+          `/api/providers/model-profiles/${fixture.profileId}`,
+        ].filter(Boolean);
+        for (const path of paths) {
+          const removed = await request.delete(path);
+          expect(removed.ok(), `${path} answered ${removed.status()} at teardown`).toBe(true);
+        }
       }
-      // In dependency order, as `delegation.spec.ts` does: the artifact names the
-      // agent, the agent the profile.
-      const paths = [
-        fixture.artifactId && `/api/artifacts/${fixture.artifactId}`,
-        fixture.agentId && `/api/agents/${fixture.agentId}`,
-        `/api/providers/model-profiles/${fixture.profileId}`,
-      ].filter(Boolean);
-      for (const path of paths) {
-        const removed = await request.delete(path);
-        expect(removed.ok(), `${path} answered ${removed.status()} at teardown`).toBe(true);
+    } finally {
+      // The organization's switch goes back to what it was, even when a delete above
+      // failed; the link goes with the page.
+      if (publicSwitch !== undefined) {
+        await setPublicSwitch(request, publicSwitch.orgId, publicSwitch.wasOn);
       }
     }
     await owner?.close();
@@ -704,6 +749,128 @@ test.describe("artifact live data", () => {
       await expect(frame.locator("#state")).toHaveText("unavailable", { timeout: 15_000 });
       await expect(frame.locator("#rows")).toBeEmpty();
       expect(reads, "the public page asked for live data").toEqual([]);
+    } finally {
+      await stranger.close();
+    }
+  });
+
+  test("a public link shows the data only while the switch and the owner's consent hold", async ({
+    page,
+    browser,
+  }) => {
+    const request = page.request;
+
+    // An admin allows it for the organization: off until somebody does.
+    const org = (await rowsAt(request, "/api/orgs"))[0]!;
+    const orgId = String(org.id);
+    publicSwitch = { orgId, wasOn: org.public_live_data === true };
+    await setPublicSwitch(request, orgId, true);
+
+    // The owner turns the link on and confirms the data for it, after the disclosure.
+    const linked = await request.put(`/api/artifacts/${fixture.artifactId}/public-link`);
+    await ok(linked, "turning the public link on");
+    const publicUrl = ((await linked.json()) as { public_url: string | null }).public_url;
+    expect(publicUrl, "the public link answered without an address").toBeTruthy();
+    const path = new URL(publicUrl!).pathname;
+
+    let disclosure!: PublicDataDisclosure;
+    await expect
+      .poll(
+        async () => {
+          disclosure = await json<PublicDataDisclosure>(
+            request,
+            `/api/artifacts/${fixture.artifactId}/public-data`,
+          );
+          return disclosure.confirmable;
+        },
+        { message: "the disclosure never became confirmable" },
+      )
+      .toBe(true);
+    expect(disclosure.problem ?? null, "the disclosure refused confirming").toBeNull();
+    expect(disclosure.member_consent, "the members' consent was missing").toBe(true);
+    await ok(
+      await request.post(`/api/artifacts/${fixture.artifactId}/public-data`, {
+        data: {
+          fingerprint: disclosure.fingerprint,
+          audience_digest: disclosure.audience_digest,
+          confirmed: true,
+        },
+      }),
+      "confirming the data for the public link",
+    );
+    await expect
+      .poll(
+        async () =>
+          (
+            await json<{ public_data: { holds: boolean } | null }>(
+              request,
+              `/api/artifacts/${fixture.artifactId}`,
+            )
+          ).public_data?.holds,
+        { message: "the public data consent never held" },
+      )
+      .toBe(true);
+
+    // An anonymous browser reads the record, with no refresh and no data route.
+    const stranger = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const visitor = await stranger.newPage();
+      await watch(visitor);
+      const reads: string[] = [];
+      visitor.on("request", (seen) => {
+        if (/\/versions\/.+\/data/.test(new URL(seen.url()).pathname)) reads.push(seen.url());
+      });
+      await visitor.goto(path);
+      const frame = framedPage(visitor, fixture.title);
+      await expect(frame.locator("#state")).toHaveText("ok", { timeout: 15_000 });
+      await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
+      await expect(frame.locator("#rows")).not.toContainText(LIVE_CLOSED_RECORD_TITLE);
+      expect(reads, "the public page asked for live data itself").toEqual([]);
+
+      // The switch off is a kill switch: the next load has the page and no data.
+      await setPublicSwitch(request, orgId, false);
+      await visitor.reload();
+      await expect(frame.locator("#marker")).toHaveText("v2");
+      await expect(frame.locator("#state")).toHaveText("unavailable", { timeout: 15_000 });
+      await expect(frame.locator("#rows")).toBeEmpty();
+
+      // Back on, the page's own consent still holds, so the data returns.
+      await setPublicSwitch(request, orgId, true);
+      await visitor.reload();
+      await expect(frame.locator("#state")).toHaveText("ok", { timeout: 15_000 });
+      await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
+
+      // Replacing the key is a new address; the old one is a 404, not a page without data.
+      // The signed content address the open page was served from dies with the key too.
+      const src = await visitor.locator("iframe").first().getAttribute("src");
+      expect(src, "the framed page had no content address").toBeTruthy();
+      const contentUrl = new URL(src!, visitor.url()).toString();
+      const rotated = await request.put(`/api/artifacts/${fixture.artifactId}/public-link`);
+      await ok(rotated, "rotating the public link");
+      const newPath = new URL(((await rotated.json()) as { public_url: string }).public_url)
+        .pathname;
+      expect(newPath, "rotating the link kept its address").not.toBe(path);
+      await expect
+        .poll(async () => (await stranger.request.get(contentUrl)).status(), {
+          message: "the old content address still served after the key was replaced",
+        })
+        .toBe(404);
+      await expect
+        .poll(async () => (await stranger.request.get(path)).status(), {
+          message: "the replaced address still opened",
+        })
+        .toBe(404);
+      const gone = await visitor.goto(path);
+      expect(gone?.status(), "the replaced address still opened").toBe(404);
+      await expect(visitor.locator("iframe")).toHaveCount(0);
+      // The new address carries the data: rotating changes the URL, not the consent.
+      await expect
+        .poll(async () => (await stranger.request.get(newPath)).status(), {
+          message: "the new address never served",
+        })
+        .toBe(200);
+      await visitor.goto(newPath);
+      await expect(frame.locator("#state")).toHaveText("ok", { timeout: 15_000 });
     } finally {
       await stranger.close();
     }

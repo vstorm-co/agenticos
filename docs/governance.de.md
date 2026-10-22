@@ -1,5 +1,5 @@
 ---
-source_sha: "392bcbea8374"
+source_sha: "7b81e2332658"
 ---
 
 # Governance { #governance }
@@ -1341,6 +1341,21 @@ bestätigt hat.
 | `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
 | `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
 | `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
+| `organization.public_live_data_changed` | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert |
+| `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
+| `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
+| `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
+
+**Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
+aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie
+entscheidet, ob die Daten einer Seite Personen ohne Konto über einen öffentlichen Link
+oder ein Embed erreichen dürfen. Anders als der Verzicht braucht sie `org:settings` -
+Owner oder Admin - und muss angemeldet als man selbst geändert werden: Eine
+imitierende Session wird abgelehnt. Die Seite braucht weiterhin die
+[Einwilligung ihres Besitzers für öffentliche Daten](artifacts.md#live-data-on-a-public-link).
+Das Ausschalten ist ein Kill-Switch: Öffentliche Seiten verlieren ihre Daten beim
+nächsten Laden und behalten ihre Einwilligung, die wieder gilt, sobald der Schalter
+wieder an ist.
 
 Die Sichtbarkeit oder die Grants einer Seite zu erweitern, wird wie bei jeder
 anderen Ressource als Einträge `resource.share`, `resource.unshare` und

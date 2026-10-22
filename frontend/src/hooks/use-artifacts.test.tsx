@@ -11,6 +11,7 @@ import {
   useArtifacts,
   useArtifactView,
   usePublicArtifactUnlock,
+  usePublicDataDisclosure,
 } from "./use-artifacts";
 import { ApiError, apiClient } from "@/lib/api-client";
 import type { ArtifactDetail } from "@/types/artifact";
@@ -67,6 +68,8 @@ const DETAIL: ArtifactDetail = {
   can_edit: true,
   may_change_owner: false,
   may_grant_edit_data: false,
+  may_confirm_public_data: false,
+  public_data: null,
   live: false,
   bindings: [],
   consent: null,
@@ -387,6 +390,83 @@ describe("a page's consent", () => {
     rerender({ open: true });
     await waitFor(() => expect(result.current.data).toEqual({ version: 2 }));
     expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions/v2/disclosure");
+  });
+});
+
+describe("a page's data on its public link", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : DETAIL),
+    );
+  });
+
+  it("confirms with both digests and says so, and leaves a refusal to the dialog", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() =>
+      result.current.confirmPublicData.mutateAsync({
+        fingerprint: "f".repeat(64),
+        audience_digest: "d".repeat(64),
+      }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/public-data", {
+      fingerprint: "f".repeat(64),
+      audience_digest: "d".repeat(64),
+      confirmed: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Live data is now shown on the public link");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "not yours"));
+    const reads = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => {
+      await result.current.confirmPublicData
+        .mutateAsync({ fingerprint: "a".repeat(64), audience_digest: "b".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(reads);
+
+    // A 409: the queries or the audience moved, so say so and read the page again.
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(409, "changed"));
+    await act(async () => {
+      await result.current.confirmPublicData
+        .mutateAsync({ fingerprint: "a".repeat(64), audience_digest: "b".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(reads));
+  });
+
+  it("withdraws, and toasts a refusal", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.withdrawPublicData.mutateAsync());
+    expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1/public-data");
+    expect(toastSuccess).toHaveBeenCalledWith("The public link no longer shows live data");
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.withdrawPublicData.mutateAsync().catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+  });
+
+  it("reads the disclosure only while the dialog is open", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ version: 2 });
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => usePublicDataDisclosure("a1", open),
+      { wrapper, initialProps: { open: false } },
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.data).toEqual({ version: 2 }));
+    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/public-data");
   });
 });
 

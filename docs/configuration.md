@@ -708,7 +708,8 @@ file storage above; these bound them and say where they are served from. See
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
-| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | The most bytes of records one API process keeps, for 30 seconds, for [pages' public links and embeds](artifacts.md#the-cache-and-the-cap). In process memory only, never Redis. The least recently used reads go first, and a read over the budget is not kept. At least 1024 |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
 | `ARTIFACT_RENDER_CDP_URL` | (empty) | The Chromium DevTools endpoint [`preview_artifact`](artifacts.md#seeing-the-page-preview) draws pages in, such as `http://artifact-render:9222`. Deployment config alone: it is not checked against `BROWSER_CDP_ALLOWED_HOSTS`, which lists what agent authors may drive, and a browsing agent is refused its host even when that list names it. The backend needs the `browser` extra. Empty, a preview returns its report without a picture |
 
@@ -1124,6 +1125,7 @@ whole API should carry a ceiling is a separate decision, not this one.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Answers one workflow [form](workflows.md#from-a-form) takes, **per form**: each one is a run its publisher pays for, and the console's server forwards them all, so an address would count nobody |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Times one page's data may be read from its tables for visitors of its public link or embeds, **per page across all visitors**. A load that has to read from the tables counts once, and one served from the 30-second [cache](artifacts.md#the-cache-and-the-cap) does not; past the limit, the page loads with that data unavailable |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, a table create, rename, archive or schema change, and saving, changing or deleting a saved view. Applies to the console as much as to a script. Reads are not counted |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 

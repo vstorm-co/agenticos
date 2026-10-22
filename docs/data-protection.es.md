@@ -1,5 +1,5 @@
 ---
-source_sha: "6e4e53c11fad"
+source_sha: "1a50cf8a4370"
 ---
 
 # Protección de datos { #data-protection }
@@ -83,7 +83,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Las filas de una [Virtual Table](virtual-tables.md) y el rastro de cada cambio en ellas | Lo que la organización puso en sus celdas, que puede ser dato personal. Los valores actuales (records); el registro completo en un create y un delete, y solo las celdas que cambiaron en un update (history); el registro completo tal como lo devolvió una escritura con clave (receipts); los ids y el external id de cada registro creado (outbox, sin valores). Borrar un registro elimina solo la fila actual: history y receipts conservan los valores hasta que el barrido diario de retención los elimina: los receipts a las 24 horas, las filas de outbox despachadas a los 3 días y el history a los 365 días, todo como ajustes del deployment. Borrar una cuenta elimina sus receipts y la borra como actor en history; borrar la organización elimina las cuatro | Registros tipados para agents y workflows, reintentos seguros de una escritura y el traspaso de un registro creado |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | Los [triggers](virtual-tables.md#triggers) de una tabla, cada configuración que han tenido y lo que cada uno decidió sobre un registro creado | El miembro con el que se ejecuta un trigger; los valores de sus filtros y las claves de su mapeo, que pueden contener datos personales si un builder los escribió (un filtro por una dirección de correo). Una decisión guarda un estado, un motivo general y el run que inició, nunca los valores del registro. Ninguna clase de retención los barre: se van con su tabla y su trigger, y borrar una cuenta la quita como miembro, tras lo cual el trigger no inicia nada | Ejecutar un workflow cuando se añade un registro |
-| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer — o, para una página vinculada a datos de tabla, sus page queries (tabla, filtros, orden, límite y columnas, cada una resuelta a ids), con los propios registros leídos en el momento de verla con el acceso del propietario de la página y nunca guardados en ella; por versión, quién la publicó y el consentimiento del propietario para compartir sus datos (una huella de las queries, la membresía del propietario y cuándo); el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
+| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer — o, para una página vinculada a datos de tabla, sus page queries (tabla, filtros, orden, límite y columnas, cada una resuelta a ids), con los propios registros leídos en el momento de verla con el acceso del propietario de la página y nunca guardados en ella; por versión, quién la publicó y el consentimiento del propietario para compartir sus datos (una huella de las queries, la membresía del propietario y cuándo) y el consentimiento de datos públicos de la página (quién lo confirmó, la membresía del propietario, cuándo); la fila de la organización guarda el interruptor `public_live_data`; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |
 | `rag_documents`, `knowledge_bases` y una tabla vectorial por colección | Documentos subidos y sincronizados, sus chunks y sus embeddings | El texto del documento y sus vectores, la ruta original del archivo en el origen | Recuperación |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota. Junto a los argumentos, `tool_approvals.context` guarda los nombres que representan los ids de una llamada aparcada (el nombre de una vista y el de una tabla, nunca el contenido de un registro), resueltos como la persona del run cuando la llamada se aparcó. Se conserva con la fila de aprobación aunque la vista o la tabla cambien de nombre o desaparezcan, y lo lee quien pueda decidir aprobaciones, tenga o no acceso propio a esa tabla | Budgets, aprobaciones, historial de runs |
@@ -161,8 +161,8 @@ pero salta el control de acceso propio de la tabla, así que se lista aquí.
   mismos registros, sea cual sea su acceso a la tabla. Los datos salen de la tabla solo cuando
   el propietario los ha confirmado, tras leer las queries en palabras y quién puede abrir la
   página ahora y más adelante (los roles que abren todas las páginas, la visibilidad, personas
-  y grupos). Los datos se leen de nuevo en cada carga, nunca se guardan en la página y no se
-  almacenan en caché.
+  y grupos). Los datos se leen de nuevo en cada carga y nunca se guardan en la página. Las lecturas
+  para miembros no se almacenan en caché; las de una página pública sí, como se describe más abajo.
 - **Qué se guarda al respecto.** Por versión de la página: quién la publicó, una huella de sus
   queries, si el propietario consintió, cuándo y con qué membresía. Las solicitudes de compartir
   guardan al solicitante, el tipo, una nota opcional, la decisión y quién la tomó. El registro de
@@ -171,9 +171,53 @@ pero salta el control de acceso propio de la tabla, así que se lista aquí.
 - **Qué no se registra nunca.** Los valores de los registros, los valores de los filtros y la
   dirección de contenido de una página servida con sus datos. Las entradas de auditoría y las
   notificaciones nombran la página y a las personas, nunca una fila.
-- **Qué no llega.** Un enlace público o un embed no recibe datos. El consentimiento de un
-  miembro eliminado caduca con su membresía, y una página cuyo propietario se fue no sirve datos
-  hasta que otro propietario la confirme.
+- **Qué no llega.** El consentimiento de un miembro eliminado caduca con su membresía, y una
+  página cuyo propietario se fue no sirve datos hasta que otro propietario la confirme.
+
+### A personas sin cuenta { #table-data-on-a-public-page }
+
+Este es el único flujo de aquí que **sale del círculo de personas que tienen una cuenta**. El
+[enlace público y los embeds](artifacts.md#live-data-on-a-public-link) de una página pueden
+escribir esos mismos registros en la página para cualquiera que abra la dirección, y para cada
+sitio web que la incruste, sin iniciar sesión. Lo abren dos decisiones, y un deployment que no
+quiera el flujo deja desactivada la primera.
+
+- **Desactivado por defecto, para toda la organización.** `public_live_data` es un interruptor
+  que solo cambia un Owner o Admin, como uno mismo. Desactivado, ninguna página muestra datos en
+  un enlace ni en un embed, haya confirmado lo que haya confirmado su propietario.
+- **Después, por página.** El propietario de la página, o un Owner o Admin en su nombre, lo
+  confirma tras una pantalla que nombra las tablas y columnas y dice quién puede leerlas:
+  cualquiera con el enlace, su contraseña y caducidad, y cada sitio web que la incrusta. El
+  consentimiento queda ligado a las page queries y a esa audiencia. Añadir un sitio, quitar la
+  contraseña, desactivar el enlace, archivar la página, un propietario nuevo y un consentimiento
+  de miembro retirado lo borran.
+- **Qué se guarda.** En la página: la huella de las queries a las que se dio, quién lo
+  confirmó, la membresía del propietario y cuándo. La fila de la organización guarda el
+  interruptor. El registro de auditoría recoge `organization.public_live_data_changed`,
+  `artifact.public_data_consented`, `artifact.public_data_withdrawn` y
+  `artifact.public_data_voided` con nombres de tablas y columnas, los sitios web que la
+  incrustan, si hay una contraseña y el motivo; nunca una fila, un valor ni un visitante.
+- **La caché.** Los registros de un binding se guardan 30 segundos en la memoria del proceso de
+  la API, para que una página muy visitada no lea su tabla una vez por visitante. **Nunca se
+  escriben en Redis**, en la base de datos ni en un archivo, la memoria está acotada en bytes
+  (`ARTIFACT_PUBLIC_DATA_CACHE_BYTES`) y desaparece cuando el proceso se detiene. Todas las
+  comprobaciones de acceso se ejecutan antes de leer la caché, así que desactivar el interruptor
+  o rotar el enlace termina el flujo en la siguiente carga; lo que un visitante ya cargó
+  permanece en su navegador.
+- **Qué no se registra nunca.** Los valores de los registros, los valores de los filtros, la
+  clave del enlace y la dirección de contenido de una página cargada con sus datos se mantienen
+  fuera de los logs, las trazas y las entradas de auditoría. No se registra a ningún visitante: el
+  enlace cuenta aperturas, no personas. Solo la clave del límite de peticiones guarda la IP del
+  visitante, en Redis, durante minutos.
+- **Nadie recibe el motivo.** Un visitante cuya carga no pasa una comprobación ve la página sin
+  sus datos y sin motivo, de modo que la página no dice qué contiene una tabla ni por qué está
+  oculta.
+- **Qué ve un sitio web que incrusta la página.** El sitio web enmarca la página; la página se
+  ejecuta en un origen opaco sin red, así que el sitio no puede leer los registros fuera del
+  frame, pero quien abre el sitio sí los lee.
+
+Los registros mostrados a cualquiera con un enlace puede copiarlos cualquiera que los vea.
+Vincula una página pública solo a columnas que estén pensadas para ser públicas.
 
 Un deployment que deba mantener las filas de una tabla fuera del alcance de algunos de sus
 miembros no debería vincularle una página que esos miembros puedan abrir; la confirmación

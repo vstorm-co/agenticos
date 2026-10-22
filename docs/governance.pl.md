@@ -1,5 +1,5 @@
 ---
-source_sha: "392bcbea8374"
+source_sha: "7b81e2332658"
 ---
 
 # Governance { #governance }
@@ -1256,6 +1256,19 @@ próśb i słowa, które osoba potwierdziła.
 | `artifact.owner_changed` | Strona zmieniła właściciela: dawny i nowy właściciel, kto to zrobił i jakie granty `edit_data` odrzucono |
 | `artifact.share_requested` | Złożono prośbę — typu `audience`, `access` albo `version` — przez osobę albo przez run jej agenta |
 | `artifact.share_request_approved` i `artifact.share_request_declined` | Prośbę rozstrzygnięto i kto to zrobił |
+| `organization.public_live_data_changed` | Owner albo Admin włączył lub wyłączył dla organizacji **Public pages with live data**, ze starą i nową wartością |
+| `artifact.public_data_consented` | Właściciel, albo w jego imieniu Owner lub Admin, potwierdził, że każdy z publicznym linkiem strony i witryny, które ją osadzają, mogą czytać jej dane. Nazywa wersję, odcisk, tabele i kolumny, witryny osadzające i to, czy hasło jest ustawione, oraz `for_owner`, gdy ktoś potwierdził w jego imieniu |
+| `artifact.public_data_withdrawn` | Edytor cofnął tę zgodę, zalogowany jako on sam (bez impersonacji), z odciskiem, który ona trzymała |
+| `artifact.public_data_voided` | Zgoda została wyczyszczona, bo zmieniło się coś pod nią, z `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` albo `archived` |
+
+**Public pages with live data** to ustawienie organizacji, domyślnie wyłączone, w
+ustawieniach organizacji obok zrzeczenia się zatwierdzeń. Decyduje, czy dane strony
+mogą dotrzeć do osób bez konta przez publiczny link albo embed. W odróżnieniu od
+zrzeczenia wymaga `org:settings` — Owner albo Admin — i trzeba je zmienić, będąc
+zalogowanym jako ten sam użytkownik: sesja z impersonacją jest odrzucana. Strona nadal
+potrzebuje [zgody właściciela na dane publiczne](artifacts.md#live-data-on-a-public-link).
+Wyłączenie jest wyłącznikiem awaryjnym: publiczne strony tracą dane przy następnym
+ładowaniu i zachowują swoją zgodę, która znów obowiązuje po ponownym włączeniu.
 
 Poszerzenie widoczności albo grantów strony jest zapisywane jako wpisy
 `resource.share`, `resource.unshare` i `resource.visibility_changed`, jak dla każdego

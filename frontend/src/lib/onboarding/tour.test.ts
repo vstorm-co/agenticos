@@ -56,7 +56,7 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
 // The organization detail walk: the members page (profile, then the list), then
 // across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-members", "org-roles"];
+const ORG_STEPS = ["org-profile", "org-public-live-data", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -382,6 +382,12 @@ describe("the groups and directory pages", () => {
       ORG_STEPS,
     );
   });
+
+  it("shows the public live data switch only to who may change organization settings", () => {
+    const without = stepsForPage("/orgs/some-id/members", (perm) => perm !== "org:settings");
+
+    expect(without.map((step) => step.id)).not.toContain("org-public-live-data");
+  });
 });
 
 describe("the Routines page", () => {
@@ -418,6 +424,7 @@ describe("an artifact's page", () => {
     expect(steps.map((step) => step.id)).toEqual([
       "artifact-strip",
       "artifact-consent",
+      "artifact-public-data",
       "artifact-requests",
       "artifact-review",
       "artifact-change-owner",
@@ -437,6 +444,7 @@ describe("an artifact's page", () => {
     expect(viewer.map((step) => step.id)).toEqual([
       "artifact-strip",
       "artifact-consent",
+      "artifact-public-data",
       "artifact-requests",
       "artifact-review",
       "artifact-change-owner",

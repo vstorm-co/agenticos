@@ -1,5 +1,5 @@
 ---
-source_sha: "70cee67a20ae"
+source_sha: "e4544b45cd9d"
 ---
 
 # Artefakte { #artifacts }
@@ -482,8 +482,9 @@ jede andere erneute Veröffentlichung auf die Einwilligung.
 wer der Betrachter ist. Die Content-Route liest jedes Binding **einmal, beim
 Laden**, und schreibt das Ergebnis in das Plattform-Skript der Seite, sodass der
 erste `onData`-Aufruf seine Daten bereits hat und kein weiterer Roundtrip folgt.
-Für eine Vorschau, eine Karte oder eine Version aus dem Verlauf wird nichts
-eingefügt.
+Ein [öffentlicher Link oder ein Embed](#live-data-on-a-public-link) wird auf
+dieselbe Weise beschrieben, unter strengeren Bedingungen. Für eine Vorschau, eine
+Karte oder eine Version aus dem Verlauf wird nichts eingefügt.
 
 Refresh und die automatische Aktualisierung nutzen weiterhin die Daten-Route und
 ein `postMessage` der Konsole, das jetzt für alle, denen diese Version
@@ -782,11 +783,13 @@ oder zu welcher Organisation sie gehört.
 
 **Replace the link** stellt einen neuen Schlüssel aus, und der alte öffnet sofort
 nichts mehr. **Turn off** entfernt ihn. Beides wird im Audit-Trail festgehalten.
-Eine Seite, die jemand bereits geöffnet hat, wird weiter angezeigt, bis ihre
-signierte Inhaltsadresse abläuft, höchstens `ARTIFACT_VIEW_TTL_SECONDS`
-(standardmäßig fünf Minuten).
+Eine Seite, die jemand bereits geöffnet hat, zeigt weiter, was sie hat, aber beim
+erneuten Laden oder wenn ihre Inhaltsadresse erneut geöffnet wird, antwortet sofort
+404: Die Adresse nennt den Schlüssel des Links, und die Route prüft diesen Schlüssel
+bei jedem Laden. Die eigene Lebensdauer der Adresse, `ARTIFACT_VIEW_TTL_SECONDS`
+(standardmäßig fünf Minuten), ist nur die äußere Grenze.
 
-Einem entzogenen Mitglied geht es genauso: Es verliert das Artefakt bei seiner
+Einem entzogenen Mitglied geht es wie zuvor genauso: Es verliert das Artefakt bei seiner
 nächsten Anfrage, und eine Seite, die es bereits geöffnet hatte, bleibt
 höchstens für dasselbe Zeitfenster.
 
@@ -797,7 +800,7 @@ ersetzt wird, und ein aus- und wieder eingeschalteter Link behält sie:
 |---|---|
 | **Stops opening after** | Ein Datum, nach dem der Link nichts mehr öffnet, als wäre er aus |
 | **Shows** | Die neueste Version oder eine aufbewahrte Version, angeheftet, damit eine neue Veröffentlichung nicht ändert, was Personen mit dem Link schon gesehen haben. Eine angeheftete Version wird nie entfernt |
-| **Password** | Abgefragt, bevor die Seite öffnet. Der Link sagt nichts — weder den Titel noch wann sie veröffentlicht wurde —, bis es stimmt. Als Hash gespeichert, nie wieder angezeigt; jeder Versuch zählt gegen das Rate-Limit des Links |
+| **Password** | Abgefragt, bevor die Seite öffnet. Der Link sagt nichts — weder den Titel noch wann sie veröffentlicht wurde —, bis es stimmt. Als Hash gespeichert, nie wieder angezeigt; jeder Versuch zählt gegen das Rate-Limit des Links. Wer es ändert oder entfernt, beendet die Adressen, die unter dem alten geöffnet wurden: Sie tragen keine Daten |
 | **Sites that may embed it** | Siehe unten |
 
 Die Karte sagt auch, wie oft der Link geöffnet wurde und wann zuletzt. Sie zählt
@@ -821,6 +824,114 @@ Konsole die Seite einbetten. Ist keine Website aufgeführt, kann es niemand. Ein
 Seite hinter einem Passwort kann nicht eingebettet werden — die Einbettung sagt
 dann, sie auf ihrer eigenen Seite zu öffnen —, und niemand meldet sich in einem
 Frame auf einer fremden Website an.
+
+Ein Embed trägt die Daten einer Seite zu denselben Bedingungen wie ihr Link; siehe
+[Live-Daten auf einem öffentlichen Link](#live-data-on-a-public-link). Eine Website
+hinzuzufügen erweitert, wer diese Daten liest, und löscht daher die Einwilligung für
+die Daten.
+
+### Live-Daten auf einem öffentlichen Link { #live-data-on-a-public-link }
+
+Eine [gebundene Seite](#live-data) zeigt ihre Datensätze auf ihrem öffentlichen Link
+und in ihren Embeds nur, wenn zwei getrennte Entscheidungen getroffen wurden und eine
+dritte Prüfung bei jedem Laden besteht. Ohne sie wird die öffentliche Seite wie
+veröffentlicht dargestellt, mit jedem Binding auf `unavailable`.
+
+1. **Die Organisation erlaubt es.** Ein Owner oder Admin schaltet **Public pages with
+   live data** in den Einstellungen der Organisation ein. Der Schalter ist standardmäßig
+   aus, warnt vor dem Einschalten und muss angemeldet als man selbst geändert werden,
+   nie im Namen eines anderen. Er ist ein Kill-Switch, kein Reset: Wird er
+   ausgeschaltet, verschwinden die Daten auf jeder öffentlichen Seite und in jedem Embed
+   beim nächsten Laden, und die eigene Einwilligung jeder Seite bleibt unberührt; wird
+   er wieder eingeschaltet, kommen die Seiten zurück, deren Einwilligung noch gilt.
+2. **Der Besitzer der Seite bestätigt sie für den Link.** Unter den Einstellungen des
+   Links in **Share** öffnet **Confirm data** einen Bildschirm mit dem, was die
+   Einwilligung der Mitglieder zeigt - die Seitenabfragen der ausgelieferten Version in
+   Worten, jede verknüpfte Tabelle, die sie erreichen - und mit dem, wer es lesen
+   kann: jeder mit dem Link, ohne Konto und ohne Anmeldung, ob ein Passwort ihn schützt,
+   wann er abläuft und jede einbettende Website. Der Besitzer oder ein Owner oder Admin
+   für ihn bestätigt es angemeldet als man selbst; ein `edit`-Grant genügt nicht. Es
+   setzt voraus, dass der Link an ist, der Schalter der Organisation an ist und die
+   [Einwilligung](#consent-the-owner-decides-who-reads-the-data) der Mitglieder für diese
+   Version vorliegt. Jeder mit Bearbeitungsrecht kann sie zurückziehen, angemeldet als
+   man selbst; ein Owner oder Admin kann das nicht, indem er jemanden imitiert.
+3. **Jede Bedingung gilt bei jedem Laden.** Siehe
+   [was ein anonymer Besucher bekommt](#what-an-anonymous-visitor-gets).
+
+Die Bestätigung gilt für die Version, die der Link ausliefert - die angeheftete, sonst
+die, die dem Publikum der Seite ausgeliefert wird - und ist an zwei Digests gebunden:
+den Fingerabdruck ihrer Seitenabfragen und einen Digest dessen, wen der Link erreicht
+(die einbettenden Websites, ob ein Passwort gesetzt ist, ob der Link an ist). Sie wird
+mit einem Konflikt abgelehnt, wenn sich eines von beiden geändert hat, nachdem der
+Bildschirm gezeichnet wurde. Sie wird unter der Mitgliedschaft des Besitzers
+festgehalten und nach Tabellen- und Spaltennamen auditiert, nie nach Zeilen.
+
+#### Was sie aufhebt und was nicht { #what-voids-it-and-what-does-not }
+
+Alles, was das Publikum erweitert oder ändert, wessen Daten es sind, löscht die
+Einwilligung, auditiert als `artifact.public_data_voided` mit dem Grund. Sie wieder
+einzuschalten erfordert eine neue Bestätigung.
+
+| Hebt die Einwilligung auf | Lässt sie unberührt |
+|---|---|
+| Den Link ausschalten oder die Seite archivieren | Den Schlüssel des Links ersetzen: Das ändert die Adresse, nicht die Daten |
+| Das Passwort entfernen | Das Passwort, den Ablauf des Links oder die angeheftete Version ändern |
+| Eine einbettende Website hinzufügen | Eine einbettende Website entfernen |
+| Die Seite an einen anderen Besitzer übergeben | Den Schalter der Organisation ausschalten |
+| Die Einwilligung der Mitglieder für die Daten zurückziehen | |
+
+Eine andere angeheftete Version oder eine erneute Veröffentlichung, die die
+Seitenabfragen ändert, hebt die Einwilligung nicht auf, aber sie gilt dann nicht mehr:
+Der Fingerabdruck der ausgelieferten Version passt nicht mehr, sodass die öffentliche
+Seite keine Daten zeigt, bis jemand erneut bestätigt. Auch ein abgelaufener Link hält
+nichts.
+
+Der Besitzer und die anderen Bearbeiter sehen den Grund in der Leiste über der Seite:
+Der Schalter ist aus, der Link liefert keine Version aus, die Abfragen haben sich
+geändert, der Besitzer ist gegangen oder hat gewechselt, die Einwilligung der Mitglieder
+fehlt oder der Link ist abgelaufen.
+
+#### Was ein anonymer Besucher bekommt { #what-an-anonymous-visitor-gets }
+
+Ein Besucher erfährt nicht, warum. Bevor irgendetwas gelesen wird, prüft jedes Laden,
+dass der Link noch den Schlüssel hat, für den die Adresse ausgestellt wurde, dass er
+nicht abgelaufen ist, dass der Passwortzustand der ist, unter dem die Adresse geöffnet
+wurde, dass die Version noch die ist, die der Link ausliefert, dass der Schalter der
+Organisation an ist und dass die Einwilligung der Seite für die Daten und die
+Einwilligung der Mitglieder gelten. Schlägt eine fehl, wird die Seite mit jedem Binding
+auf `unavailable` und ohne Grund dargestellt.
+
+Dann wird jedes Binding für sich geprüft: Der Besitzer muss noch ein aktives Mitglied
+sein, das die Tabelle liest, und die Tabelle darf nicht von der Abfrage abgewichen sein.
+Ein Binding, das dort scheitert, ist `unavailable`; die anderen laden trotzdem.
+
+Die Datensätze werden beim Laden in die Seite geschrieben und gelten zum Zeitpunkt
+dieses Ladens. Die öffentliche Seite und das Embed haben kein Refresh und keine
+Daten-Route, und die Seite kann nicht um mehr bitten; der Besucher lädt neu, um eine
+Änderung zu sehen. Ein rotierter oder entfernter Schlüssel ist ein 404, keine Seite
+ohne Daten, und ein geändertes oder entferntes Passwort gibt einer alten Adresse eine
+Seite ohne Daten.
+
+#### Der Cache und die Obergrenze { #the-cache-and-the-cap }
+
+Ein anonymes Laden kostet Tabellenlesevorgänge, daher werden Lesevorgänge geteilt. Die
+Datensätze eines Bindings werden 30 Sekunden lang im Speicher des API-Prozesses
+gehalten, geschlüsselt nach Version, Binding, Fingerabdruck der Abfragen und
+Mitgliedschaft des Besitzers - **nie in Redis**, weil es Datensätze sind. Jede
+Bedingung oben läuft, bevor der Cache gefragt wird, sodass eine ausgeschaltete
+Organisation, ein rotierter Schlüssel oder eine zurückgezogene Einwilligung sofort
+wirkt, was auch immer gehalten wird. Ein fehlgeschlagener oder nicht verfügbarer
+Lesevorgang wird nie gehalten.
+
+Der Speicher ist begrenzt: `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` (standardmäßig 32 MiB)
+und 64 Lesevorgänge pro Prozess, wobei der am längsten nicht genutzte zuerst fällt;
+ein Lesevorgang, der größer als das Budget ist, wird nicht gehalten. Davon getrennt
+darf jede Seite `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` Mal pro Minute (60) über
+alle ihre Besucher aus ihren Tabellen lesen. Ein Laden, das aus den Tabellen lesen
+muss, zählt einmal, sodass eine stark besuchte Seite durch die Obergrenze begrenzt
+ist und nicht durch ihr Publikum. Darüber hinaus, oder solange der Prozess bereits so
+viele Daten-Ladevorgänge bedient, wie er darf, kommt ein Binding, das einen
+Lesevorgang braucht, für diesen Besucher als `unavailable` zurück.
 
 ## Wie die Seite isoliert wird { #how-the-page-is-isolated }
 
@@ -863,8 +974,11 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   der Konsole, die sie mit der eigenen Session des Betrachters von der Daten-Route
   abruft. Die Anfrage der Seite trägt eine Nonce, mit der die Konsole jede Antwort
   dem richtigen Laden der Seite zuordnet; das ist **Korrelation, keine
-  Zugriffskontrolle**. Ein öffentlicher Link oder ein Embed bekommt nie Daten.
-  Siehe [die Sicherheitsseite](security.md#a-pages-data-and-its-address).
+  Zugriffskontrolle**. Ein öffentlicher Link oder ein Embed bekommt seine Daten nur
+  beim Laden, vom Server eingeschrieben, und fragt nie danach: Er hat keine
+  Daten-Route und kein Refresh. Siehe
+  [Live-Daten auf einem öffentlichen Link](#live-data-on-a-public-link) und
+  [die Sicherheitsseite](security.md#a-pages-data-and-its-address).
 - Eine signierte Adresse lädt ihre Seite höchstens einige Male pro Minute,
   gezählt pro Adresse, bevor irgendetwas gelesen wird. Die Konsole und die
   öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den
@@ -916,9 +1030,10 @@ gäbe es sie nicht:
   dass der Name nicht seiner ist.
 
 Archivieren schaltet den öffentlichen Link aus, auditiert als
-`artifact.public_link_disabled`, und Wiederherstellen schaltet ihn nicht wieder
-ein. Eine vor dem Archivieren verschickte Adresse bleibt tot, bis jemand unter
-**Share** eine neue erstellt. Ablaufdatum, angeheftete Version, Passwort und
+`artifact.public_link_disabled`, und löscht seine
+[Einwilligung für die Daten](#what-voids-it-and-what-does-not). Wiederherstellen
+schaltet keines von beidem wieder ein. Eine vor dem Archivieren verschickte Adresse
+bleibt tot, bis jemand unter **Share** eine neue erstellt. Ablaufdatum, angeheftete Version, Passwort und
 Einbettungs-Websites des Links bleiben dafür erhalten.
 
 Über die API archiviert `POST /api/v1/artifacts/{id}/archive` eine Seite, und ein
@@ -963,13 +1078,18 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   jeder sehen darf, der sie öffnen kann. Eine Seitenabfrage hat keine
   Freitextsuche, keinen Filter pro Betrachter wie „ich“ oder „heute“ und keine
   Begrenzung auf Zeilen- oder Spaltenebene über die Abfrage selbst hinaus.
-- **Ein öffentlicher Link oder ein Embed bekommt keine Daten.** Eine gebundene
-  Seite zeigt dort „unavailable“; Daten über einen öffentlichen Link
-  auszuliefern, ist ein eigenes Arbeitspaket (#1975).
+- **Ein öffentlicher Link oder ein Embed bekommt Daten erst nach zwei
+  Bestätigungen.** Die Organisation muss es erlauben, und der Besitzer der Seite muss
+  es für den Link bestätigen; bis dahin zeigt eine gebundene Seite dort
+  „unavailable“. Was sie zeigt, gilt zum Zeitpunkt des Ladens, ohne Refresh, bis zu 30
+  Sekunden alt, und wird mit dem Zugriff des Besitzers für Personen gelesen, die der
+  Besitzer nicht kennt. Ein Deployment, das das nicht akzeptieren kann, lässt den
+  Schalter aus. Siehe [Live-Daten auf einem öffentlichen Link](#live-data-on-a-public-link).
 - **Nichts auf der Seite handelt.** Ein Formular oder ein Knopf hat keinen Ort,
   an den es senden könnte, was es sammelt.
-- **Eine offene Seite überdauert einen Entzug um eine Lebensdauer der signierten
-  Adresse**, standardmäßig fünf Minuten.
+- **Eine offene Seite überdauert einen entzogenen Grant um eine Lebensdauer der
+  signierten Adresse**, standardmäßig fünf Minuten. Einen öffentlichen Link
+  auszuschalten oder seinen Schlüssel zu ersetzen beendet sie beim nächsten Laden.
 - **Ein Link in einer Seite fragt zuerst.** Er öffnet sich in einem neuen Tab,
   nachdem eine Person zugestimmt hat; die Seite selbst kann kein Fenster öffnen
   und die Konsole nicht navigieren.
@@ -1002,7 +1122,10 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   mit dem Zugriff ihres Besitzers, erst nachdem der Besitzer das Teilen bestätigt
   hat, und nie in der Seite gespeichert. Jeder mit Bearbeitungsrecht kann diese
   Einwilligung zurückziehen; zu erweitern, wer eine gebundene Seite öffnen kann,
-  entscheidet der Besitzer, sonst gibt es eine Anfrage.
+  entscheidet der Besitzer, sonst gibt es eine Anfrage. Ein öffentlicher Link oder ein
+  Embed zeigt die Daten nur, wenn ein Owner oder Admin es für die Organisation erlaubt
+  und der Besitzer es für den Link bestätigt hat, und wer das Publikum des Links
+  löscht, löscht diese Bestätigung.
 - Der Besitzer kann eine Seite an ein anderes Mitglied übergeben, das ihre Daten
   erneut bestätigen muss.
 - Ein kurzer Seitenvertrag in den Anweisungen jedes Agents mit Artifacts und

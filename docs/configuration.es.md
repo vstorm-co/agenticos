@@ -1,5 +1,5 @@
 ---
-source_sha: "a4ed874220d1"
+source_sha: "a0f89564f4d6"
 ---
 
 # Configuración { #configuration }
@@ -734,7 +734,8 @@ dónde se sirven. Consulta [Artefactos](artifacts.md).
 |----------|-------------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
-| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant revocado |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | El máximo de bytes de registros que un proceso de la API guarda, durante 30 segundos, para [los enlaces públicos y embeds de las páginas](artifacts.md#the-cache-and-the-cap). Solo en la memoria del proceso, nunca en Redis. Las lecturas menos usadas recientemente salen primero, y una lectura que supere el presupuesto no se guarda. Al menos 1024 |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 | `ARTIFACT_RENDER_CDP_URL` | (vacío) | El endpoint de Chromium DevTools en el que [`preview_artifact`](artifacts.md#seeing-the-page-preview) dibuja las páginas, por ejemplo `http://artifact-render:9222`. Es configuración exclusiva del despliegue: no se comprueba contra `BROWSER_CDP_ALLOWED_HOSTS`, que enumera lo que pueden manejar los autores de agents, y a un agent que navega se le rechaza su host aunque esa lista lo nombre. El backend necesita el extra `browser`. Vacío, una vista previa devuelve su informe sin imagen |
 
@@ -1165,6 +1166,7 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Veces que se pueden leer de sus tablas los datos de una página para los visitantes de su enlace público o de sus embeds, **por página entre todos los visitantes**. Una carga que tiene que leer de las tablas cuenta una vez, y una servida desde la [caché](artifacts.md#the-cache-and-the-cap) de 30 segundos no; pasado el límite, la página se carga con esos datos no disponibles |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Escrituras en [Virtual Tables](virtual-tables.md), **por miembro y organización**: un create, update, upsert o delete de registro, un create, renombrado, archivado o cambio de esquema de tabla, y guardar, cambiar o borrar una vista guardada. Se aplica a la consola igual que a un script. Las lecturas no se cuentan |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 

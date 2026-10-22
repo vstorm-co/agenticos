@@ -334,6 +334,7 @@ export const qk = {
     data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
     disclosure: (id: string, versionId: string) =>
       ["artifacts", id, "disclosure", versionId] as const,
+    publicDataDisclosure: (id: string) => ["artifacts", id, "public-data"] as const,
     requestsAll: (id: string) => ["artifacts", id, "requests"] as const,
     requests: (id: string, includeDecided: boolean) =>
       ["artifacts", id, "requests", includeDecided ? "all" : "pending"] as const,

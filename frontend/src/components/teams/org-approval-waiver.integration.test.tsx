@@ -41,6 +41,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     seats_limit: null,
     monthly_budget_usd: null,
     chat_may_waive_approvals: false,
+    public_live_data: false,
     created_at: "2026-08-01T00:00:00Z",
     updated_at: null,
     ...overrides,

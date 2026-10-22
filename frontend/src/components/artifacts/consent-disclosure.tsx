@@ -139,6 +139,21 @@ function Audience({ disclosure }: { disclosure: ArtifactDisclosure }) {
   );
 }
 
+/** The page queries and the tables they read, without the members' audience. */
+export function ConsentQueries({ disclosure }: { disclosure: ArtifactDisclosure }) {
+  const t = useTranslations("artifacts.consent");
+  return (
+    <>
+      <ul className="space-y-2">
+        {Object.entries(disclosure.parts).map(([name, query]) => (
+          <QueryInWords key={name} name={name} query={query} />
+        ))}
+      </ul>
+      <p>{t("tablesRead", { tables: disclosure.tables.join(", ") })}</p>
+    </>
+  );
+}
+
 /**
  * What confirming a version shares and with whom: the queries - each as its owner
  * reads the tables now - and the audience, worded by the console in the reader's
@@ -146,15 +161,9 @@ function Audience({ disclosure }: { disclosure: ArtifactDisclosure }) {
  * what it is made from, so everything the records reveal is on this page.
  */
 export function ConsentDisclosure({ disclosure }: { disclosure: ArtifactDisclosure }) {
-  const t = useTranslations("artifacts.consent");
   return (
     <div className="space-y-4 text-sm">
-      <ul className="space-y-2">
-        {Object.entries(disclosure.parts).map(([name, query]) => (
-          <QueryInWords key={name} name={name} query={query} />
-        ))}
-      </ul>
-      <p>{t("tablesRead", { tables: disclosure.tables.join(", ") })}</p>
+      <ConsentQueries disclosure={disclosure} />
       <Audience disclosure={disclosure} />
     </div>
   );

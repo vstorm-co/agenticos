@@ -34,11 +34,13 @@ const replace = vi.fn();
 const sharingPanel = vi.fn();
 
 const useArtifactDisclosureMock = vi.fn();
+const usePublicDataDisclosureMock = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifact: (...args: unknown[]) => useArtifactMock(...args),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
   useArtifactDisclosure: (...args: unknown[]) => useArtifactDisclosureMock(...args),
+  usePublicDataDisclosure: (...args: unknown[]) => usePublicDataDisclosureMock(...args),
 }));
 const requestsMock = vi.fn();
 const reviewMock = vi.fn();
@@ -100,6 +102,8 @@ function detail(overrides: Partial<ArtifactDetailData> = {}): ArtifactDetailData
     can_edit: false,
     may_change_owner: false,
     may_grant_edit_data: false,
+    may_confirm_public_data: false,
+    public_data: null,
     live: false,
     bindings: [],
     consent: null,
@@ -133,6 +137,8 @@ function state(artifact: ArtifactDetailData | null, overrides: Record<string, un
     remove: mutation(),
     confirmData: mutation(),
     withdrawConsent: mutation(),
+    confirmPublicData: mutation(),
+    withdrawPublicData: mutation(),
     setAutoConsent: mutation(),
     changeOwner: mutation(),
     ...overrides,
@@ -1544,5 +1550,114 @@ describe("ArtifactViewer requests", () => {
       within(dialog).getByText("The page's owner has to confirm its data before it can be shared"),
     ).toBeVisible();
     expect(within(dialog).queryByRole("button", { name: "Confirm data" })).toBeNull();
+  });
+});
+
+describe("a page's data on its public link, in the viewer", () => {
+  const FP = "f".repeat(64);
+  const DIGEST = "d".repeat(64);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useArtifactViewMock.mockReturnValue(LIVE_VIEW);
+    useArtifactDataMock.mockReturnValue(NO_DATA);
+    requestsMock.mockReturnValue({ requests: [], isLoading: false, error: null });
+    usePublicDataDisclosureMock.mockReturnValue({
+      data: {
+        switch_on: true,
+        link_on: true,
+        password_protected: false,
+        expires_at: null,
+        embed_origins: [],
+        version: 2,
+        fingerprint: FP,
+        audience_digest: DIGEST,
+        member_consent: true,
+        data: null,
+        confirmable: true,
+      },
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    useOrgStore.setState({ activeOrgId: null });
+  });
+
+  function page(publicData: Partial<NonNullable<ArtifactDetailData["public_data"]>>, rest = {}) {
+    return livePage({
+      can_edit: true,
+      may_confirm_public_data: true,
+      public_url: "https://x.example/p/key",
+      bindings: [{ name: "deals", table_id: "t1", fields: ["stage"] }],
+      consent: consent({ version: 2, state: "consented", fingerprint: "e".repeat(64) }),
+      public_data: {
+        switch_on: true,
+        consented: true,
+        fingerprint: FP,
+        version: 2,
+        by_name: "Olga Owner",
+        at: "2026-10-01T10:00:00Z",
+        holds: false,
+        not_holding: "queries_changed",
+        ...publicData,
+      },
+      ...rest,
+    });
+  }
+
+  function open(artifact: ArtifactDetailData) {
+    const hooks = state(artifact);
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    return hooks;
+  }
+
+  it("tells an editor a query change blanked the public page, and confirms from the strip", async () => {
+    const hooks = open(page({}));
+
+    const strip = screen.getByRole("status");
+    expect(strip).toHaveTextContent("shows no data until it is confirmed again");
+    await userEvent.click(within(strip).getByRole("button", { name: "Confirm data" }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Confirm data" }),
+    );
+
+    expect(hooks.confirmPublicData.mutateAsync).toHaveBeenCalledWith({
+      fingerprint: FP,
+      audience_digest: DIGEST,
+    });
+  });
+
+  it("confirms and withdraws from the share dialog's live data control", async () => {
+    const hooks = open(page({ holds: true, not_holding: null }));
+    hooks.withdrawPublicData.mutate.mockImplementation(
+      (_: undefined, { onSuccess }: { onSuccess: () => void }) => onSuccess(),
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+    const dialog = await openShare();
+    expect(dialog).toHaveTextContent("Live data on this public link");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+    const question = (await screen.findAllByRole("dialog")).at(-1)!;
+    await userEvent.click(within(question).getByRole("button", { name: "Withdraw" }));
+
+    expect(hooks.withdrawPublicData.mutate).toHaveBeenCalledWith(undefined, {
+      onSuccess: expect.any(Function),
+    });
+  });
+
+  it("confirms for a page that never was, from the share dialog", async () => {
+    const hooks = open(
+      page({ consented: false, fingerprint: null, holds: false, not_holding: null }),
+    );
+
+    const dialog = await openShare();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm data" }));
+    const confirming = (await screen.findAllByRole("dialog")).at(-1)!;
+    await userEvent.click(within(confirming).getByRole("button", { name: "Confirm data" }));
+
+    expect(hooks.confirmPublicData.mutateAsync).toHaveBeenCalledWith({
+      fingerprint: FP,
+      audience_digest: DIGEST,
+    });
   });
 });

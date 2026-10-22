@@ -118,8 +118,57 @@ export interface ArtifactDetail extends Artifact {
   may_grant_edit_data: boolean;
   bindings: ArtifactBindingInfo[];
   public_link: ArtifactPublicLink;
+  /** Whether the caller may confirm the page's data for its public link: the owner, or an Owner or Admin. */
+  may_confirm_public_data: boolean;
+  /** Null for a caller who may not edit the page. */
+  public_data: ArtifactPublicData | null;
   /** Null for the page's audience, and when the latest version reads no data. */
   consent: ArtifactConsent | null;
+}
+
+/** Why a consented page's data is not shown on its public link, first failing gate first. */
+export type PublicDataNotHolding =
+  | "switch_off"
+  | "no_served_version"
+  | "queries_changed"
+  | "owner_gone"
+  | "owner_membership_changed"
+  | "member_consent_missing"
+  | "link_expired";
+
+/** Where a page's consent to show its data on the public link stands; editors only. */
+export interface ArtifactPublicData {
+  /** Whether the organization lets a page's data reach anonymous visitors. */
+  switch_on: boolean;
+  consented: boolean;
+  fingerprint: string | null;
+  /** The version the public link serves: pinned, else the audience's. */
+  version: number | null;
+  by_name: string | null;
+  at: string | null;
+  /** Whether the public link shows the data now. */
+  holds: boolean;
+  /** Why it does not, when something is consented; null when it holds or nothing is. */
+  not_holding: PublicDataNotHolding | null;
+}
+
+/** What confirming a page's data for anyone with its link shares, and with whom. */
+export interface ArtifactPublicDataDisclosure {
+  switch_on: boolean;
+  link_on: boolean;
+  password_protected: boolean;
+  expires_at: string | null;
+  embed_origins: string[];
+  version: number | null;
+  fingerprint: string | null;
+  /** Binds the audience that was shown; confirming sends it back. */
+  audience_digest: string;
+  /** Whether that version's consent from the owner holds. */
+  member_consent: boolean;
+  data: ArtifactDisclosure | null;
+  confirmable: boolean;
+  /** Why confirming would be refused now; null when it would not. */
+  problem: string | null;
 }
 
 /** A page query in the server's English words - what an agent is told. */

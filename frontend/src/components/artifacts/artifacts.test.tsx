@@ -1345,6 +1345,28 @@ describe("the public page", () => {
     expect(screen.getByTitle("Weekly report").getAttribute("src")).toBe("https://api/c/t");
   });
 
+  it("never reads a page's data and never answers its ready: it carries its own, or none", () => {
+    const get = vi
+      .spyOn(apiClient, "get")
+      .mockImplementation((() =>
+        Promise.reject(new Error("a public page reads nothing"))) as typeof apiClient.get);
+    render(
+      <PublicArtifact
+        artifact={{ ...opened, view: { ...opened.view, injected: true, bindings: 2 } }}
+        publicKey="k"
+      />,
+    );
+    const frame = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+    fireEvent.load(frame);
+
+    postFromFrame(frame, ready("n"));
+    postFromFrame(frame, ready("n", true));
+
+    expect(post).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("asks for the password first and says nothing else about the page", async () => {
     const mutate = vi.fn();
     unlockMock.mockReturnValue({ mutate, data: undefined, error: null, isPending: false });

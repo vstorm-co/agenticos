@@ -43,6 +43,18 @@ from app.services.virtual_tables import TableSource
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def _no_public_data_state() -> Any:
+    """`_detail` asks the public-data service for the link's state; these tests stub the
+    database, so it answers nothing."""
+    with patch(
+        "app.services.artifact_public_data.ArtifactPublicDataService.state",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 PATH = "app.services.artifact"
 MEMBERSHIP = uuid.uuid4()
 FINGERPRINT = "f" * 64

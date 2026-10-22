@@ -1,5 +1,5 @@
 ---
-source_sha: "70cee67a20ae"
+source_sha: "e4544b45cd9d"
 ---
 
 # Artefactos { #artifacts }
@@ -425,8 +425,9 @@ consentimiento como cualquier otra republicación.
 Cuando la consola abre una página pide una dirección firmada que lleva quién es el lector. La
 ruta de contenido lee cada binding **una vez, al cargar**, y escribe el resultado en el script
 de plataforma de la página, de modo que la primera llamada a `onData` ya tiene sus datos y no
-sigue ningún viaje de ida y vuelta. No se inyecta nada para una miniatura, una tarjeta ni una
-versión del historial.
+sigue ningún viaje de ida y vuelta. Un [enlace público o un embed](#live-data-on-a-public-link) se
+escribe del mismo modo, con requisitos más estrictos. No se inyecta nada para una miniatura, una
+tarjeta ni una versión del historial.
 
 El refresco y el refresco automático siguen usando la ruta de datos y un `postMessage` de la
 consola, que ahora responde las mismas filas de page query a todos los que se sirve esa versión.
@@ -708,11 +709,13 @@ chat alojada. No dice nada de quién la publicó ni de a qué organización pert
 
 **Replace the link** emite una clave nueva, y la antigua deja de abrir nada al
 instante. **Turn off** lo elimina. Ambas acciones quedan registradas en el
-registro de auditoría. Una página que alguien ya tiene abierta se sigue mostrando
-hasta que caduca su dirección de contenido firmada, como máximo
-`ARTIFACT_VIEW_TTL_SECONDS` (cinco minutos por defecto).
+registro de auditoría. Una página que alguien ya tiene abierta sigue mostrando lo que
+tiene, pero al recargarla, o al abrir de nuevo su dirección de contenido, responde 404
+de inmediato: la dirección nombra la clave del enlace, y la ruta comprueba esa clave en
+cada carga. La vida de la propia dirección, `ARTIFACT_VIEW_TTL_SECONDS` (cinco minutos
+por defecto), es solo el límite exterior.
 
-Un miembro revocado está en la misma situación: pierde el artefacto en su
+Un miembro revocado está en la misma situación que antes: pierde el artefacto en su
 siguiente petición, y una página que ya tenía abierta se mantiene como mucho
 durante esa misma ventana.
 
@@ -723,7 +726,7 @@ enlace, y un enlace que se apaga y se vuelve a encender los conserva:
 |---|---|
 | **Stops opening after** | Una fecha a partir de la cual el enlace no abre nada, como si estuviera apagado |
 | **Shows** | La versión más reciente, o una versión conservada fijada para que una publicación nueva no cambie lo que ya vieron quienes tienen el enlace. Una versión fijada nunca se elimina |
-| **Password** | Se pide antes de abrir la página. El enlace no dice nada — ni el título, ni cuándo se publicó — hasta que es correcta. Se guarda como hash y no vuelve a mostrarse; cada intento cuenta contra el límite de peticiones del enlace |
+| **Password** | Se pide antes de abrir la página. El enlace no dice nada — ni el título, ni cuándo se publicó — hasta que es correcta. Se guarda como hash y no vuelve a mostrarse; cada intento cuenta contra el límite de peticiones del enlace. Cambiarla o quitarla pone fin a las direcciones abiertas con la antigua: no llevan datos |
 | **Sites that may embed it** | Consulta más abajo |
 
 La tarjeta también dice cuántas veces se abrió el enlace y cuándo fue la última.
@@ -746,6 +749,105 @@ enumerados, y la política de la propia página solo deja incrustarla a ese
 documento y a la consola. Sin ningún sitio enumerado, nadie puede. Una página tras
 una contraseña no se puede incrustar — la incrustación dice entonces que se abra en
 su propia página —, y nadie inicia sesión dentro de un frame en el sitio de otro.
+
+Un embed lleva los datos de una página en las mismas condiciones que su enlace; consulta
+[Datos en vivo en un enlace público](#live-data-on-a-public-link). Añadir un sitio amplía
+quién lee esos datos, así que borra el consentimiento de datos.
+
+### Datos en vivo en un enlace público { #live-data-on-a-public-link }
+
+Una [página vinculada](#live-data) muestra sus registros en su enlace público y en sus embeds
+solo cuando se han tomado dos decisiones distintas, y una tercera comprobación se cumple en cada
+carga. Sin ellas, la página pública se muestra tal como se publicó, con todos los bindings
+`unavailable`.
+
+1. **La organización lo permite.** Un Owner o Admin activa **Public pages with
+   live data** en los ajustes de la organización. Está desactivado por defecto, avisa antes de
+   activarse y debe cambiarse con la sesión iniciada como uno mismo, nunca en nombre de
+   otra persona. Es un interruptor de emergencia, no un reinicio: al desactivarlo se ocultan
+   los datos de todas las páginas públicas y embeds en la siguiente carga y se deja intacto
+   el consentimiento de cada página, de modo que al volver a activarlo se restauran las
+   páginas cuyo consentimiento sigue vigente.
+2. **El propietario de la página lo confirma para el enlace.** En los ajustes del enlace,
+   dentro de **Share**, **Confirm data** abre una pantalla con lo que muestra el consentimiento
+   de los miembros - las page queries de la versión servida en palabras, cada tabla vinculada
+   a la que llegan - y quién puede leerlos: cualquiera con el enlace, sin cuenta y sin iniciar
+   sesión, si una contraseña lo protege, cuándo caduca y cada sitio que lo incrusta. El
+   propietario, o un Owner o Admin en su nombre, lo confirma con la sesión iniciada como
+   uno mismo; un grant `edit` no basta. Exige que el enlace esté activado, que el interruptor
+   de la organización esté activado y el
+   [consentimiento](#consent-the-owner-decides-who-reads-the-data) de los miembros para esa
+   versión. Cualquier editor puede retirarlo, con la sesión iniciada como uno mismo; un Owner
+   o Admin no puede hacerlo suplantando a uno.
+3. **Todas las comprobaciones se cumplen en cada carga.** Consulta
+   [qué recibe un visitante anónimo](#what-an-anonymous-visitor-gets).
+
+La confirmación es para la versión que sirve el enlace - la fijada, o si no la que se sirve
+a la audiencia de la página - y queda ligada a dos digests: la huella de sus page queries y un
+digest de a quién llega el enlace (los sitios que lo incrustan, si hay una contraseña, si el
+enlace está activado). Se rechaza con un conflicto si cualquiera de los dos cambió después de
+dibujarse la pantalla. Se registra bajo la membresía del propietario y se audita por nombres
+de tablas y columnas, nunca por fila.
+
+#### Qué la anula y qué no { #what-voids-it-and-what-does-not }
+
+Todo lo que amplía la audiencia o cambia de quién son los datos borra el consentimiento, auditado
+como `artifact.public_data_voided` con el motivo. Volver a activarlo exige una nueva
+confirmación.
+
+| Anula el consentimiento | No lo afecta |
+|---|---|
+| Desactivar el enlace o archivar la página | Sustituir la clave del enlace: cambia la dirección, no los datos |
+| Quitar la contraseña | Cambiar la contraseña, la caducidad del enlace o la versión fijada |
+| Añadir un sitio que incrusta | Quitar un sitio que incrusta |
+| Entregar la página a otro propietario | Que el interruptor de la organización se desactive |
+| Retirar el consentimiento de los miembros para los datos | |
+
+Una versión fijada distinta, o una nueva publicación que cambie las page queries, no anula el
+consentimiento pero hace que deje de valer: la huella de la versión servida ya no coincide, así
+que la página pública no muestra datos hasta que alguien vuelva a confirmar. Un enlace caducado
+tampoco sirve nada.
+
+El propietario y los demás editores ven el motivo en la franja sobre la página: el interruptor
+está desactivado, el enlace no sirve ninguna versión, las queries cambiaron, el propietario se
+fue o cambió, falta el consentimiento de los miembros o el enlace caducó.
+
+#### Qué recibe un visitante anónimo { #what-an-anonymous-visitor-gets }
+
+A un visitante no se le dice nada sobre el motivo. Antes de leer nada, cada carga comprueba que
+el enlace aún tiene la clave para la que se emitió la dirección, que no ha caducado, que el
+estado de la contraseña es el que tenía la dirección al abrirse, que la versión sigue siendo la
+que sirve el enlace, que el interruptor de la organización está activado y que se cumplen el
+consentimiento de datos de la página y el de los miembros. Si algo falla, la página se muestra
+con todos los bindings `unavailable` y sin motivo.
+
+Después se comprueba cada binding por separado: el propietario debe seguir siendo un miembro
+activo que lee la tabla, y la tabla no debe haberse desviado de la query. Un binding que falla
+ahí queda `unavailable`; los demás se cargan igualmente.
+
+Los registros se escriben en la página al cargar y son los de esa carga. La página pública y el
+embed no tienen Refresh ni ruta de datos, y la página no puede pedir más; el visitante recarga
+para ver un cambio. Una clave rotada o eliminada da un 404, no una página sin datos, y una
+contraseña cambiada o eliminada da a una dirección antigua una página sin datos.
+
+#### La caché y el tope { #the-cache-and-the-cap }
+
+Una carga anónima cuesta lecturas de tablas, así que las lecturas se comparten. Los registros de
+un binding se guardan 30 segundos en la memoria del proceso de la API, con la versión, el
+binding, la huella de las queries y la membresía del propietario como clave - **nunca en Redis**,
+porque son registros. Todas las comprobaciones anteriores se ejecutan antes de consultar la
+caché, así que una organización con el interruptor desactivado, una clave rotada o un
+consentimiento retirado surten efecto al instante, sea lo que sea lo que se haya guardado. Una
+lectura fallida o `unavailable` nunca se guarda.
+
+La memoria está acotada: `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` (32 MiB por defecto) y 64 lecturas
+por proceso, descartando primero las menos usadas recientemente, y una lectura mayor que el
+presupuesto no se guarda. Aparte, cada página puede leer de sus tablas
+`RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` veces por minuto (60) entre todos sus visitantes.
+Una carga que tiene que leer de las tablas cuenta una vez, así que una página muy visitada queda
+acotada por el tope y no por su audiencia. Pasado el tope, o mientras el proceso ya sirve tantas
+cargas de datos como puede, un binding que necesita una lectura vuelve `unavailable` para ese
+visitante.
 
 ## Cómo se aísla la página { #how-the-page-is-isolated }
 
@@ -786,7 +888,9 @@ consola ni a la persona que lo mira:
   llega por `postMessage` desde la consola, que lo obtiene de la ruta de datos con la propia
   sesión del lector. La petición de la página lleva un nonce que permite a la consola emparejar
   cada respuesta con la carga de página correcta; eso es **correlación, no control de
-  acceso**. Un enlace público o un embed nunca recibe datos. Consulta
+  acceso**. Un enlace público o un embed recibe sus datos solo al cargar, escritos por el
+  servidor, y nunca los pide: no tiene ruta de datos ni refresco. Consulta
+  [datos en vivo en un enlace público](#live-data-on-a-public-link) y
   [la página de seguridad](security.md#a-pages-data-and-its-address).
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
@@ -836,9 +940,10 @@ no existiera:
   suyo para cambiarlo.
 
 Archivar desactiva el enlace público, auditado como
-`artifact.public_link_disabled`, y restaurar no lo vuelve a activar. Una
-dirección enviada antes del archivado sigue muerta hasta que alguien crea una
-nueva desde **Share**. Para eso se conservan la caducidad del enlace, la versión
+`artifact.public_link_disabled`, y borra su
+[consentimiento de datos](#what-voids-it-and-what-does-not). Restaurar no vuelve a activar
+ninguno de los dos. Una dirección enviada antes del archivado sigue muerta hasta que alguien
+crea una nueva desde **Share**. Para eso se conservan la caducidad del enlace, la versión
 fijada, la contraseña y los sitios que pueden incrustarlo.
 
 Por la API, `POST /api/v1/artifacts/{id}/archive` archiva una página, y
@@ -881,12 +986,17 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   acceso del propietario, así que una página es para datos que pueden ver todos los que puedan
   abrirla. Una page query no tiene búsqueda de texto libre, ni filtro por lector como «me» o
   «today», ni límite de fila o de columna más allá de la propia query.
-- **Un enlace público o un embed no recibe datos.** Una página vinculada muestra «unavailable»
-  ahí; servir datos mediante un enlace público es un trabajo aparte (#1975).
+- **Un enlace público o un embed recibe datos solo tras dos confirmaciones.** La organización
+  tiene que permitirlo y el propietario de la página tiene que confirmarlo para el enlace; hasta
+  entonces una página vinculada muestra «unavailable» ahí. Lo que muestra es el estado de la
+  carga, sin refresco, con hasta 30 segundos de antigüedad, y leído con el acceso del propietario
+  para personas a las que el propietario no conoce. Un despliegue que no pueda aceptarlo deja el
+  interruptor desactivado. Consulta [datos en vivo en un enlace público](#live-data-on-a-public-link).
 - **Nada en la página actúa.** Un formulario o un botón no tiene adónde enviar lo
   que recoge.
-- **Una página abierta sobrevive a una revocación durante la vida de una
-  dirección firmada**, cinco minutos por defecto.
+- **Una página abierta sobrevive a un grant revocado durante la vida de una
+  dirección firmada**, cinco minutos por defecto. Desactivar un enlace público o sustituir su
+  clave lo termina en la siguiente carga.
 - **Un enlace dentro de una página pregunta primero.** Se abre en una pestaña
   nueva cuando una persona acepta; la propia página no puede abrir una ventana ni
   navegar la consola.
@@ -914,7 +1024,9 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   campos — y mostrar datos en vivo, leídos en el momento de verla con el acceso de su
   propietario, solo cuando el propietario ha confirmado compartirlos, y nunca guardados en la
   página. Cualquiera con edit puede retirar ese consentimiento; ampliar quién puede abrir una
-  página vinculada es del propietario, o una solicitud.
+  página vinculada es del propietario, o una solicitud. Un enlace público o un embed muestra
+  los datos solo cuando un Owner o Admin lo ha permitido para la organización y el propietario
+  lo ha confirmado para el enlace, y borrar la audiencia del enlace borra esa confirmación.
 - El propietario puede entregar una página a otro miembro, que debe volver a confirmar sus datos.
 - Un breve contrato de página en las instrucciones de cada agent con Artifacts,
   y avisos en el resultado de la publicación sobre lo que parece estar mal en el

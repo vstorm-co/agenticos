@@ -402,6 +402,52 @@ class ArtifactConsentRead(BaseSchema):
     may_disable_auto_consent: bool = Field(description="The owner, or an admin")
 
 
+PublicDataNotHolding = Literal[
+    "switch_off",
+    "no_served_version",
+    "queries_changed",
+    "owner_gone",
+    "owner_membership_changed",
+    "member_consent_missing",
+    "link_expired",
+]
+
+
+class ArtifactPublicDataRead(BaseSchema):
+    """Where the owner's consent to show the page's data to anyone with its link stands.
+
+    Only for a caller who may edit the page. Names no row: a consent is to page queries.
+    """
+
+    switch_on: bool = Field(
+        description="Whether the organization lets a page's data reach anonymous visitors"
+    )
+    consented: bool = Field(
+        description="Whether the owner confirmed it, and it has not been voided"
+    )
+    fingerprint: str | None = Field(
+        default=None, description="The digest of the page queries the consent was given to"
+    )
+    version: int | None = Field(
+        default=None, description="The version the public link serves: pinned, else the audience's"
+    )
+    by_name: str | None = Field(default=None, description="Who confirmed it")
+    at: datetime | None = Field(default=None, description="When it was confirmed")
+    holds: bool = Field(
+        description=(
+            "Whether the public link shows the data now: the switch is on and the consent is "
+            "to the served version's queries, under the owner, with their consent holding"
+        )
+    )
+    not_holding: PublicDataNotHolding | None = Field(
+        default=None,
+        description=(
+            "Why a consented page's data is not shown now, in the order the gates are taken; "
+            "none when it holds or nothing is consented"
+        ),
+    )
+
+
 class ArtifactDetail(ArtifactRead):
     """One artifact as its own page reads it, with what the caller may do to it.
 
@@ -430,7 +476,18 @@ class ArtifactDetail(ArtifactRead):
             "owner, or an Owner or Admin, each signed in as themselves - decided by the server"
         ),
     )
+    may_confirm_public_data: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may confirm the page's data for anyone with its link: its "
+            "owner, or an Owner or Admin, each signed in as themselves - decided by the server"
+        ),
+    )
     public_link: ArtifactPublicLinkRead
+    public_data: ArtifactPublicDataRead | None = Field(
+        default=None,
+        description="Where the page's public data consent stands. Only for a caller who may edit it",
+    )
     bindings: list[ArtifactBindingRead] = Field(
         default_factory=list,
         description=(
@@ -504,6 +561,19 @@ class ArtifactConsentCreate(BaseSchema):
     fingerprint: str = Field(min_length=64, max_length=64)
 
 
+class ArtifactPublicDataCreate(BaseSchema):
+    """Confirm the page's data for anyone with its link: the digest of the page queries the
+    person was shown, and that they confirmed what the screen says."""
+
+    fingerprint: str = Field(min_length=64, max_length=64)
+    audience_digest: str = Field(
+        min_length=64,
+        max_length=64,
+        description="The digest of who the link reaches, as the disclosure showed it",
+    )
+    confirmed: bool = Field(description="Must be true: the person confirmed the screen")
+
+
 class ArtifactOwnerUpdate(BaseSchema):
     """Hand a page to another member of its organization."""
 
@@ -549,6 +619,41 @@ class ArtifactDisclosure(BaseSchema):
     problem: str | None = Field(
         default=None,
         description="Why it cannot be confirmed now: its owner left, or can't read a table",
+    )
+
+
+class ArtifactPublicDataDisclosure(BaseSchema):
+    """What confirming a page's data for anyone with its link shares, and with whom."""
+
+    switch_on: bool = Field(
+        description="Whether the organization lets a page's data reach anonymous visitors"
+    )
+    link_on: bool = Field(description="Whether the page has a public link")
+    password_protected: bool
+    expires_at: datetime | None = None
+    embed_origins: list[str] = Field(
+        description="Every site that may frame the public page, as `https://host` origins"
+    )
+    version: int | None = Field(
+        default=None, description="The version the link serves: pinned, else the audience's"
+    )
+    fingerprint: str | None = Field(
+        default=None, description="Its page queries' digest; what confirming sends back"
+    )
+    audience_digest: str = Field(
+        description="Digest of the embedding sites, the password and the link being on; "
+        "what confirming sends back, so it binds the audience that was shown"
+    )
+    member_consent: bool = Field(
+        description="Whether that version's consent from the owner holds; confirming needs it"
+    )
+    data: ArtifactDisclosure | None = Field(
+        default=None,
+        description="That version's page queries in words, as for the members' consent",
+    )
+    confirmable: bool = Field(description="Whether confirming would be accepted now")
+    problem: str | None = Field(
+        default=None, description="Why confirming would be refused now; none when it would not"
     )
 
 

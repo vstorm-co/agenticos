@@ -3491,6 +3491,14 @@
       "workflow-run-history": {
         "title": "Its runs",
         "body": "Every run of this workflow, newest first. Narrow it to failed runs or to test runs, and open one to see each step's data or retry it from the step that failed."
+      },
+      "org-public-live-data": {
+        "title": "Live data on public pages",
+        "body": "Whether pages may show table records to people with no account, through a public link or an embed. Off until you turn it on; the page's owner, or an Owner or Admin for them, still has to confirm each page. Pages confirmed before it was turned off show their data again at once."
+      },
+      "artifact-public-data": {
+        "title": "Public data waits for you",
+        "body": "The page's queries changed, so its public link shows no data until the data is confirmed again. Confirm data shows exactly what the link would share and with whom."
       }
     }
   },
@@ -5747,7 +5755,16 @@
     "waiverAllowed": "Conversations may now waive approvals",
     "waiverFailed": "Could not change whether chats may waive approvals",
     "waiverForbidden": "Conversations may no longer waive approvals",
-    "you": "(you)"
+    "you": "(you)",
+    "publicLiveData": "Public pages with live data",
+    "publicLiveDataDescription": "Whether a page's table records may reach people who have no account.",
+    "publicLiveDataHint": "Off by default. When this is on, a page whose owner has confirmed it shows its table records to anyone with its public link, and on the sites that embed it. Turning it off hides them from every public page at once and keeps the owners' confirmations.",
+    "publicLiveDataOn": "Pages may now show live data on their public links",
+    "publicLiveDataOff": "Public pages no longer show live data",
+    "publicLiveDataFailed": "Could not change whether public pages may show live data",
+    "publicLiveDataConfirmTitle": "Allow live data on public pages?",
+    "publicLiveDataConfirmWhy": "Pages whose owners consent will show table records to anyone with their link, and on every site that embeds them, with no sign-in. Nothing is shown until the page's owner, or an Owner or Admin for them, confirms it for that page. Pages confirmed before this was turned off show their data again at once. You can turn this off at any time.",
+    "publicLiveDataConfirm": "Allow"
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -7064,6 +7081,41 @@
       "binding": "{change, select, added {{name} - new} removed {{name} - removed} other {{name}}}",
       "removedReads": "It no longer reads {table}.",
       "change": "{aspect, select, table {Table: {before} -> {after}} field {{change, select, added {Field added: {after}} removed {Field removed: {before}} other {Field changed: {before} -> {after}}}} filter {{change, select, added {Condition added: {after}} removed {Condition dropped: {before}} other {Condition changed: {before} -> {after}}}} sort {Order: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Now also reads, through links: {after}} other {No longer reads, through links: {before}}}} other {{change, select, added {Now also reads, in a condition or the order: {after}} other {No longer reads: {before}}}}}"
+    },
+    "publicData": {
+      "title": "Live data on this public link",
+      "confirmed": "Live data is now shown on the public link",
+      "withdrawn": "The public link no longer shows live data",
+      "stateSwitchOff": "Public pages cannot show live data in this organization. An Owner or Admin has to turn it on in the organization's settings first.",
+      "stateNotConfirmed": "The public link shows this page without its data. Confirm to show the table records to anyone with the link.",
+      "stateOwnerCanEnable": "The public link shows this page without its data. The page's owner, or an Owner or Admin, can enable it.",
+      "stateHolding": "Shown on the public link: version {version}, confirmed by {name} on {date}.",
+      "notHoldingSwitchOff": "Confirmed, but not shown: an Owner or Admin switched live data on public pages off for the organization. It shows again at once when it is switched back on.",
+      "notHoldingNoServedVersion": "Confirmed, but not shown: the public link serves no version of this page now.",
+      "notHoldingQueriesChanged": "Confirmed, but not shown: the page's queries changed. The public page shows no data until it is confirmed again.",
+      "notHoldingOwnerGone": "Confirmed, but not shown: the page's owner is no longer an active member of the organization.",
+      "notHoldingOwnerMembershipChanged": "Confirmed, but not shown: the page's owner changed since the data was confirmed.",
+      "notHoldingMemberConsentMissing": "Confirmed, but not shown: the owner's consent for members to read this version's data is missing. It has to be confirmed first.",
+      "notHoldingLinkExpired": "Confirmed, but not shown: the public link has expired.",
+      "queryChangedNotice": "This page's queries changed, so its public link shows no data until it is confirmed again.",
+      "confirm": "Confirm data",
+      "confirmAgain": "Confirm again",
+      "cancel": "Cancel",
+      "withdraw": "Withdraw",
+      "withdrawTitle": "Stop showing data on the public link?",
+      "withdrawWhy": "The public link and its embeds keep showing the page, without its data, until somebody confirms it again.",
+      "confirmTitle": "Confirm data for the public link",
+      "confirmWhy": "Anyone with the link, with no account, will read these table records - and so will every site that embeds the page. Check what is shared and who can reach it.",
+      "disclosureFailed": "Could not load what would be shared",
+      "audienceTitle": "Who can read it",
+      "audienceAnyone": "Anyone with the public link - no account, no sign-in.",
+      "audiencePassword": "They have to enter the link's password.",
+      "audienceNoPassword": "No password: the link alone opens it.",
+      "audienceNoExpiry": "The link does not expire.",
+      "audienceExpires": "The link stops working after {date}.",
+      "audienceEmbeds": "Shown on these sites when they embed the page: {sites}.",
+      "blockedSwitch": "An Owner or Admin has to turn on live data on public pages in the organization's settings first.",
+      "blockedLink": "The page has no public link. Turn it on first."
     }
   },
   "tables": {

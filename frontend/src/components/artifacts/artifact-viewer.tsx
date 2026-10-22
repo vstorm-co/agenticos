@@ -14,6 +14,7 @@ import { ArtifactFrame, type DataBridge } from "@/components/artifacts/artifact-
 import { ChangeOwnerDialog } from "@/components/artifacts/change-owner-dialog";
 import { DataChangeReview } from "@/components/artifacts/data-change-review";
 import { RequestAccessScreen } from "@/components/artifacts/request-access-screen";
+import { PublicDataNotice } from "@/components/artifacts/public-data-control";
 import { ConsentControls } from "@/components/artifacts/consent-controls";
 import {
   liveHealth,
@@ -93,6 +94,8 @@ export function ArtifactViewer({
     remove,
     confirmData,
     withdrawConsent,
+    confirmPublicData,
+    withdrawPublicData,
     setAutoConsent,
     changeOwner,
   } = useArtifact(artifactId);
@@ -300,6 +303,13 @@ export function ArtifactViewer({
           withdrawPending={withdrawConsent.isPending}
         />
       )}
+      <PublicDataNotice
+        artifact={artifact}
+        onConfirm={(fingerprint, audience_digest) =>
+          confirmPublicData.mutateAsync({ fingerprint, audience_digest })
+        }
+        confirmPending={confirmPublicData.isPending}
+      />
       {reviewing !== null && reviewVersionId !== null ? (
         <DataChangeReview
           artifactId={artifact.id}
@@ -372,6 +382,14 @@ export function ArtifactViewer({
           confirmData.mutateAsync({ versionId: served.id, fingerprint })
         }
         confirmingData={confirmData.isPending}
+        onConfirmPublicData={(fingerprint, audience_digest) =>
+          confirmPublicData.mutateAsync({ fingerprint, audience_digest })
+        }
+        confirmingPublicData={confirmPublicData.isPending}
+        onWithdrawPublicData={(onDone) =>
+          withdrawPublicData.mutate(undefined, { onSuccess: onDone })
+        }
+        withdrawingPublicData={withdrawPublicData.isPending}
       />
       {artifact.may_change_owner && (
         <ChangeOwnerDialog

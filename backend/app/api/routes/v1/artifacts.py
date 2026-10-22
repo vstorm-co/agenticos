@@ -22,6 +22,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import (
+    ArtifactPublicDataSvc,
     ArtifactRequestSvc,
     ArtifactSvc,
     Auth,
@@ -45,6 +46,8 @@ from app.schemas.artifact import (
     ArtifactDisclosure,
     ArtifactList,
     ArtifactOwnerUpdate,
+    ArtifactPublicDataCreate,
+    ArtifactPublicDataDisclosure,
     ArtifactPublicLinkUpdate,
     ArtifactUpdate,
     ArtifactVersionList,
@@ -215,6 +218,46 @@ async def withdraw_artifact_consent(artifact_id: UUID, service: ArtifactSvc, ctx
     again; auto-consent is turned off.
     """
     return await service.withdraw_consent(ctx, artifact_id)
+
+
+@router.get("/{artifact_id}/public-data", response_model=ArtifactPublicDataDisclosure)
+async def read_artifact_public_data(
+    artifact_id: UUID, service: ArtifactPublicDataSvc, ctx: Auth
+) -> Any:
+    """What confirming the page's data for anyone with its link would share, and with whom.
+
+    The served version's page queries in words, and the public audience: the link, its
+    password, its expiry and each embedding site. For the page's owner, or an Owner or
+    Admin confirming for them; a 403 for anyone else.
+    """
+    return await service.disclosure(ctx, artifact_id)
+
+
+@router.post(
+    "/{artifact_id}/public-data",
+    response_model=ArtifactDetail,
+    responses={409: {"description": "`CONFLICT`: other page queries than the ones shown"}},
+)
+async def confirm_artifact_public_data(
+    artifact_id: UUID, data: ArtifactPublicDataCreate, service: ArtifactPublicDataSvc, ctx: Auth
+) -> Any:
+    """Confirm that anyone with the page's link may read the data of the version it serves.
+
+    Carries the `fingerprint` of the page queries shown and `confirmed: true`. By the
+    page's owner, or an Owner or Admin for them, signed in as themselves - a 403 for
+    anyone else. A 400 while the organization's switch is off, the page has no link, or the
+    version has no consent from the members.
+    """
+    return await service.confirm(ctx, artifact_id, data)
+
+
+@router.delete("/{artifact_id}/public-data", response_model=ArtifactDetail)
+async def withdraw_artifact_public_data(
+    artifact_id: UUID, service: ArtifactPublicDataSvc, ctx: Auth
+) -> Any:
+    """Take back the consent to show the page's data on its public link. Anyone who may
+    edit it, as themselves."""
+    return await service.withdraw(ctx, artifact_id)
 
 
 @router.patch("/{artifact_id}/auto-consent", response_model=ArtifactDetail)

@@ -104,6 +104,13 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Whether a page's data may reach anonymous visitors of its public link or its
+    # embeds (#1975). Off until an Owner or Admin allows it, and a kill switch: off
+    # again hides the data at the next load and leaves each page's own consent alone.
+    public_live_data: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     # How long this organization's data lives, per class, in days. `None` on the
     # column means it has never had an opinion and takes the deployment's
     # defaults; a class absent from the mapping means the same for that class

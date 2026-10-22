@@ -3354,6 +3354,14 @@
       "workflow-run-history": {
         "title": "Seine Runs",
         "body": "Jeder Run dieses Workflows, die neuesten zuerst. Grenzen Sie auf fehlgeschlagene oder Test-Runs ein und öffnen Sie einen, um die Daten jedes Schritts zu sehen oder ihn ab dem fehlgeschlagenen Schritt erneut zu starten."
+      },
+      "org-public-live-data": {
+        "title": "Live-Daten auf öffentlichen Seiten",
+        "body": "Ob Seiten Tabelleneinträge Personen ohne Konto zeigen dürfen - über einen öffentlichen Link oder eine Einbettung. Aus, bis Sie es einschalten; der Besitzer der Seite oder ein Owner bzw. Admin für ihn muss jede Seite weiterhin bestätigen. Seiten, die vor dem Ausschalten bestätigt wurden, zeigen ihre Daten sofort wieder."
+      },
+      "artifact-public-data": {
+        "title": "Öffentliche Daten warten auf Sie",
+        "body": "Die Abfragen der Seite haben sich geändert, daher zeigt ihr öffentlicher Link keine Daten, bis sie erneut bestätigt werden. Daten bestätigen zeigt genau, was der Link teilen würde und mit wem."
       }
     }
   },
@@ -5606,7 +5614,16 @@
     "waiverAllowed": "Unterhaltungen dürfen Freigaben jetzt übergehen",
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
-    "you": "(Sie)"
+    "you": "(Sie)",
+    "publicLiveData": "Öffentliche Seiten mit Live-Daten",
+    "publicLiveDataDescription": "Ob die Tabelleneinträge einer Seite Personen ohne Konto erreichen dürfen.",
+    "publicLiveDataHint": "Standardmäßig aus. Ist dies aktiv, zeigt eine Seite, die ihr Besitzer bestätigt hat, ihre Tabelleneinträge jedem mit ihrem öffentlichen Link und auf den Websites, die sie einbetten. Das Ausschalten blendet sie sofort auf allen öffentlichen Seiten aus; die Bestätigungen der Besitzer bleiben erhalten.",
+    "publicLiveDataOn": "Seiten dürfen jetzt Live-Daten unter ihrem öffentlichen Link zeigen",
+    "publicLiveDataOff": "Öffentliche Seiten zeigen keine Live-Daten mehr",
+    "publicLiveDataFailed": "Es ließ sich nicht ändern, ob öffentliche Seiten Live-Daten zeigen dürfen",
+    "publicLiveDataConfirmTitle": "Live-Daten auf öffentlichen Seiten erlauben?",
+    "publicLiveDataConfirmWhy": "Seiten, deren Besitzer zustimmen, zeigen Tabelleneinträge jedem mit ihrem Link und auf jeder Website, die sie einbettet - ohne Anmeldung. Gezeigt wird erst etwas, wenn der Besitzer der Seite oder ein Owner bzw. Admin für ihn sie für diese Seite bestätigt. Seiten, die vor dem Ausschalten bestätigt wurden, zeigen ihre Daten sofort wieder. Sie können das jederzeit wieder ausschalten.",
+    "publicLiveDataConfirm": "Erlauben"
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -6922,6 +6939,41 @@
       "binding": "{change, select, added {{name} - neu} removed {{name} - entfernt} other {{name}}}",
       "removedReads": "Sie liest {table} nicht mehr.",
       "change": "{aspect, select, table {Tabelle: {before} -> {after}} field {{change, select, added {Feld hinzugefügt: {after}} removed {Feld entfernt: {before}} other {Feld geändert: {before} -> {after}}}} filter {{change, select, added {Bedingung hinzugefügt: {after}} removed {Bedingung entfernt: {before}} other {Bedingung geändert: {before} -> {after}}}} sort {Reihenfolge: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Liest jetzt auch über Verknüpfungen: {after}} other {Liest nicht mehr über Verknüpfungen: {before}}}} other {{change, select, added {Liest jetzt auch, in einer Bedingung oder der Reihenfolge: {after}} other {Liest nicht mehr: {before}}}}}"
+    },
+    "publicData": {
+      "title": "Live-Daten auf diesem öffentlichen Link",
+      "confirmed": "Live-Daten werden jetzt auf dem öffentlichen Link gezeigt",
+      "withdrawn": "Der öffentliche Link zeigt keine Live-Daten mehr",
+      "stateSwitchOff": "Öffentliche Seiten dürfen in dieser Organisation keine Live-Daten zeigen. Ein Owner oder Admin muss das zuerst in den Einstellungen der Organisation einschalten.",
+      "stateNotConfirmed": "Der öffentliche Link zeigt diese Seite ohne ihre Daten. Bestätigen Sie, damit jeder mit dem Link die Tabelleneinträge sieht.",
+      "stateOwnerCanEnable": "Der öffentliche Link zeigt diese Seite ohne ihre Daten. Der Besitzer der Seite oder ein Owner bzw. Admin kann das aktivieren.",
+      "stateHolding": "Auf dem öffentlichen Link gezeigt: Version {version}, bestätigt von {name} am {date}.",
+      "notHoldingSwitchOff": "Bestätigt, aber nicht gezeigt: Ein Owner oder Admin hat Live-Daten auf öffentlichen Seiten für die Organisation ausgeschaltet. Beim Einschalten werden sie sofort wieder gezeigt.",
+      "notHoldingNoServedVersion": "Bestätigt, aber nicht gezeigt: Der öffentliche Link zeigt gerade keine Version dieser Seite.",
+      "notHoldingQueriesChanged": "Bestätigt, aber nicht gezeigt: Die Abfragen der Seite haben sich geändert. Die öffentliche Seite zeigt keine Daten, bis sie erneut bestätigt werden.",
+      "notHoldingOwnerGone": "Bestätigt, aber nicht gezeigt: Der Besitzer der Seite ist kein aktives Mitglied der Organisation mehr.",
+      "notHoldingOwnerMembershipChanged": "Bestätigt, aber nicht gezeigt: Der Besitzer der Seite hat sich seit der Bestätigung der Daten geändert.",
+      "notHoldingMemberConsentMissing": "Bestätigt, aber nicht gezeigt: Es fehlt die Zustimmung des Besitzers, dass Mitglieder die Daten dieser Version lesen. Sie muss zuerst bestätigt werden.",
+      "notHoldingLinkExpired": "Bestätigt, aber nicht gezeigt: Der öffentliche Link ist abgelaufen.",
+      "queryChangedNotice": "Die Abfragen dieser Seite haben sich geändert, daher zeigt ihr öffentlicher Link keine Daten, bis sie erneut bestätigt werden.",
+      "confirm": "Daten bestätigen",
+      "confirmAgain": "Erneut bestätigen",
+      "cancel": "Abbrechen",
+      "withdraw": "Zurückziehen",
+      "withdrawTitle": "Keine Daten mehr auf dem öffentlichen Link zeigen?",
+      "withdrawWhy": "Der öffentliche Link und seine Einbettungen zeigen die Seite weiter, aber ohne Daten, bis jemand sie erneut bestätigt.",
+      "confirmTitle": "Daten für den öffentlichen Link bestätigen",
+      "confirmWhy": "Jeder mit dem Link liest diese Tabelleneinträge, ohne Konto - ebenso jede Website, die diese Seite einbettet. Prüfen Sie, was geteilt wird und wer es erreichen kann.",
+      "disclosureFailed": "Es ließ sich nicht laden, was geteilt würde",
+      "audienceTitle": "Wer es lesen kann",
+      "audienceAnyone": "Jeder mit dem öffentlichen Link - ohne Konto, ohne Anmeldung.",
+      "audiencePassword": "Das Passwort des Links muss eingegeben werden.",
+      "audienceNoPassword": "Kein Passwort: Der Link allein genügt.",
+      "audienceNoExpiry": "Der Link läuft nicht ab.",
+      "audienceExpires": "Der Link funktioniert bis einschließlich {date}.",
+      "audienceEmbeds": "Auf diesen Websites gezeigt, wenn sie die Seite einbetten: {sites}.",
+      "blockedSwitch": "Ein Owner oder Admin muss zuerst Live-Daten auf öffentlichen Seiten in den Einstellungen der Organisation einschalten.",
+      "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
     }
   },
   "tables": {

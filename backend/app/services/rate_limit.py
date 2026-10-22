@@ -276,6 +276,12 @@ def artifact_data_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE)
 
 
+def artifact_public_data_limit() -> Limit:
+    """How many times one public page's data may be read from the tables per minute, across
+    all its visitors - only reads that missed the cache, which are what costs the database."""
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE)
+
+
 def artifact_share_request_limit() -> Limit:
     """How many requests to share a page or to open one a member may file per hour.
 

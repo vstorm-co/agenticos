@@ -1,5 +1,5 @@
 ---
-source_sha: "70cee67a20ae"
+source_sha: "e4544b45cd9d"
 ---
 
 # Artefakty { #artifacts }
@@ -431,8 +431,9 @@ dalej, i czeka na zgodę jak każda inna republikacja.
 Gdy konsola otwiera stronę, prosi o podpisany adres, który niesie, kim jest
 oglądający. Trasa treści czyta każdy binding **raz, przy ładowaniu**, i wpisuje wynik
 do platformowego skryptu strony, więc pierwsze wywołanie `onData` ma już swoje dane
-i nie następuje żadna dodatkowa wymiana. Nic nie jest wstrzykiwane dla miniatury,
-karty ani wersji z historii.
+i nie następuje żadna dodatkowa wymiana. [Publiczny link albo embed](#live-data-on-a-public-link)
+jest zapisywany tak samo, ale pod ostrzejszymi bramkami. Nic nie jest wstrzykiwane
+dla miniatury, karty ani wersji z historii.
 
 Odświeżenie i automatyczne odświeżanie nadal używają trasy danych i `postMessage` z
 konsoli, która teraz odpowiada tymi samymi wierszami zapytania strony każdemu, komu
@@ -703,11 +704,13 @@ mówi nic o tym, kto ją opublikował ani do której organizacji należy.
 
 **Replace the link** wydaje nowy klucz, a stary od razu przestaje cokolwiek
 otwierać. **Turn off** usuwa link. Oba działania trafiają do dziennika audytu.
-Strona, którą ktoś ma już otwartą, wyświetla się dalej, dopóki nie wygaśnie jej
-podpisany adres treści — najwyżej `ARTIFACT_VIEW_TTL_SECONDS` (domyślnie pięć
-minut).
+Strona, którą ktoś ma już otwartą, wyświetla dalej to, co ma, ale jej ponowne
+załadowanie albo ponowne otwarcie jej adresu treści od razu kończy się odpowiedzią
+404: adres wskazuje klucz linku, a trasa sprawdza ten klucz przy każdym ładowaniu.
+Własny czas życia adresu, `ARTIFACT_VIEW_TTL_SECONDS` (domyślnie pięć minut), jest
+tylko zewnętrzną granicą.
 
-Odwołany członek jest w tej samej sytuacji: traci artefakt przy następnym
+Odwołany członek jest w tej samej sytuacji co wcześniej: traci artefakt przy następnym
 żądaniu, a strona, którą miał już otwartą, zostaje najwyżej przez to samo okno.
 
 Pod linkiem **Share** trzyma jego ustawienia. Zostają, gdy link jest wymieniany, a
@@ -717,7 +720,7 @@ link wyłączony i włączony ponownie je zachowuje:
 |---|---|
 | **Stops opening after** | Data, po której link niczego nie otwiera, jakby był wyłączony |
 | **Shows** | Najnowszą wersję albo jedną zachowaną wersję przypiętą tak, żeby nowa publikacja nie zmieniła tego, co osoby z linkiem już widziały. Przypięta wersja nigdy nie jest usuwana |
-| **Password** | Pytanie przed otwarciem strony. Link nie mówi nic — ani tytułu, ani kiedy ją opublikowano — dopóki hasło nie jest poprawne. Przechowywane jako hash, nigdy nie pokazywane ponownie; każda próba liczy się do limitu żądań linku |
+| **Password** | Pytanie przed otwarciem strony. Link nie mówi nic — ani tytułu, ani kiedy ją opublikowano — dopóki hasło nie jest poprawne. Przechowywane jako hash, nigdy nie pokazywane ponownie; każda próba liczy się do limitu żądań linku. Zmiana albo usunięcie hasła kończy adresy otwarte pod starym: nie niosą żadnych danych |
 | **Sites that may embed it** | Zobacz niżej |
 
 Karta mówi też, ile razy link otwarto i kiedy ostatnio. Liczy otwarcia, nie
@@ -738,6 +741,104 @@ strony pozwala osadzić stronę tylko temu dokumentowi i konsoli. Bez żadnej
 wymienionej witryny nie może nikt. Strony za hasłem nie da się osadzić — osadzenie
 mówi wtedy, żeby otworzyć ją na jej własnej stronie — i nikt nie loguje się w
 ramce na cudzej witrynie.
+
+Osadzenie niesie dane strony na tych samych zasadach co jej link; zobacz
+[Dane na żywo w publicznym linku](#live-data-on-a-public-link). Dodanie witryny
+poszerza krąg osób czytających te dane, więc czyści zgodę na dane.
+
+### Dane na żywo w publicznym linku { #live-data-on-a-public-link }
+
+[Strona z bindingami](#live-data) pokazuje swoje rekordy w publicznym linku i w embedach
+tylko wtedy, gdy zapadły dwie osobne decyzje, a trzecia kontrola obowiązuje przy
+każdym ładowaniu. Bez nich publiczna strona renderuje się tak, jak ją opublikowano,
+z każdym bindingiem `unavailable`.
+
+1. **Organizacja na to pozwala.** Owner albo Admin włącza w ustawieniach organizacji
+   **Public pages with live data**. Domyślnie jest wyłączone, ostrzega przed
+   włączeniem i trzeba je zmienić, będąc zalogowanym jako ten sam użytkownik, nigdy
+   w czyimś imieniu. To wyłącznik, nie reset: wyłączenie ukrywa dane na każdej
+   publicznej stronie i w każdym embedzie przy następnym ładowaniu, a zgodę każdej
+   strony zostawia nietkniętą, więc ponowne włączenie przywraca strony, których
+   zgoda nadal obowiązuje.
+2. **Właściciel strony potwierdza to dla linku.** W ustawieniach linku w **Share**
+   **Confirm data** otwiera ekran z tym, co pokazuje zgoda członków — zapytania strony
+   obsługiwanej wersji opisane słowami, każda powiązana tabela, do której sięgają —
+   oraz z tym, kto może to czytać: każdy z linkiem, bez konta i bez logowania, czy
+   chroni go hasło, kiedy wygasa i każda witryna osadzająca. Właściciel, albo w jego
+   imieniu Owner lub Admin, potwierdza to, będąc zalogowanym jako ten sam użytkownik;
+   grant `edit` nie wystarcza. Potrzebny jest włączony link, włączony wyłącznik
+   organizacji i własna [zgoda](#consent-the-owner-decides-who-reads-the-data)
+   członków dla tej wersji. Każdy edytor może ją wycofać, będąc zalogowanym jako ten
+   sam użytkownik; Owner albo Admin nie może tego zrobić, podszywając się pod niego.
+3. **Każda bramka obowiązuje przy każdym ładowaniu.** Zobacz [co dostaje anonimowy
+   odwiedzający](#what-an-anonymous-visitor-gets).
+
+Potwierdzenie dotyczy wersji, którą obsługuje link — przypiętej, a jeśli jej nie ma,
+tej, którą obsługiwani są odbiorcy strony — i jest związane z dwoma skrótami: odciskiem
+jej zapytań strony oraz skrótem tego, do kogo link sięga (witryny osadzające, to, czy
+jest hasło, i to, czy link jest włączony). Jest odrzucane z konfliktem, jeśli któryś
+z nich zmienił się po narysowaniu ekranu. Zapisuje się je pod członkostwem właściciela
+i audytuje po nazwach tabel i kolumn, nigdy po wierszach.
+
+#### Co je unieważnia, a co nie { #what-voids-it-and-what-does-not }
+
+Wszystko, co poszerza krąg odbiorców albo zmienia to, czyje to dane, czyści zgodę, co
+trafia do audytu jako `artifact.public_data_voided` z powodem. Ponowne włączenie wymaga
+nowego potwierdzenia.
+
+| Unieważnia zgodę | Zostawia ją w spokoju |
+|---|---|
+| Wyłączenie linku albo archiwizacja strony | Wymiana klucza linku: zmienia adres, nie dane |
+| Usunięcie hasła | Zmiana hasła, wygaśnięcia linku albo przypiętej wersji |
+| Dodanie witryny osadzającej | Usunięcie witryny osadzającej |
+| Przekazanie strony innemu właścicielowi | Wyłączenie wyłącznika organizacji |
+| Wycofanie zgody członków na dane | |
+
+Inna przypięta wersja albo ponowna publikacja zmieniająca zapytania strony nie
+unieważnia zgody, ale sprawia, że przestaje obowiązywać: odcisk obsługiwanej wersji
+już nie pasuje, więc publiczna strona nie pokazuje danych, dopóki ktoś nie potwierdzi
+ich ponownie. Wygasły link też niczego nie trzyma.
+
+Właściciel i pozostali edytorzy widzą powód w pasku nad stroną: wyłącznik jest
+wyłączony, link nie obsługuje żadnej wersji, zapytania się zmieniły, właściciel odszedł
+albo się zmienił, brakuje zgody członków albo link wygasł.
+
+#### Co dostaje anonimowy odwiedzający { #what-an-anonymous-visitor-gets }
+
+Odwiedzający nie dowiaduje się, dlaczego. Zanim cokolwiek zostanie odczytane, każde
+ładowanie sprawdza, czy link nadal ma klucz, dla którego wydano adres, czy nie wygasł,
+czy stan hasła jest taki, pod jakim adres otwarto, czy wersja jest nadal tą, którą
+link obsługuje, czy wyłącznik organizacji jest włączony oraz czy obowiązują zgoda strony
+na dane i zgoda członków. Jeśli którakolwiek bramka zawiedzie, strona renderuje się z
+każdym bindingiem `unavailable` i bez powodu.
+
+Potem każdy binding jest sprawdzany osobno: właściciel nadal musi być aktywnym członkiem
+czytającym tabelę, a tabela nie może się rozjechać z zapytaniem. Binding, który tu
+zawiedzie, jest `unavailable`; pozostałe nadal się ładują.
+
+Rekordy są wpisywane do strony przy ładowaniu i obowiązują na jego chwilę. Publiczna
+strona i embed nie mają ani Refresh, ani trasy danych, a strona nie może poprosić o
+więcej; odwiedzający ładuje ją ponownie, żeby zobaczyć zmianę. Zmieniony albo usunięty
+klucz to 404, a nie strona bez danych, natomiast zmienione albo usunięte hasło daje
+staremu adresowi stronę bez danych.
+
+#### Cache i limit { #the-cache-and-the-cap }
+
+Anonimowe ładowanie kosztuje odczyty tabel, więc odczyty są współdzielone. Rekordy
+bindingu są trzymane przez 30 sekund w pamięci procesu API, pod kluczem złożonym z
+wersji, bindingu, odcisku zapytań i członkostwa właściciela — **nigdy w Redisie**,
+bo to rekordy. Każda bramka powyżej działa, zanim cache zostanie zapytany, więc
+wyłączona organizacja, zmieniony klucz albo wycofana zgoda działają od razu, niezależnie
+od tego, co jest trzymane. Nieudany albo niedostępny odczyt nigdy nie jest zachowywany.
+
+Pamięć jest ograniczona: `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` (domyślnie 32 MiB) i 64
+odczyty na proces, przy czym najdawniej używane są usuwane pierwsze, a odczyt większy
+niż budżet nie jest zachowywany. Osobno każda strona może czytać ze swoich tabel
+`RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` razy na minutę (60) dla wszystkich
+swoich odwiedzających łącznie. Ładowanie, które musi czytać z tabel, liczy się raz,
+więc ruchliwą stronę ogranicza limit, a nie jej publiczność. Po jego przekroczeniu, albo
+gdy proces obsługuje już tyle ładowań danych, ile może, binding wymagający odczytu
+wraca dla tego odwiedzającego jako `unavailable`.
 
 ## Jak strona jest izolowana { #how-the-page-is-isolated }
 
@@ -776,8 +877,11 @@ ani osoby, która go ogląda:
   odświeżenie przychodzi przez `postMessage` z konsoli, która pobiera je z trasy
   danych z własną sesją oglądającego. Żądanie strony niesie nonce, dzięki któremu
   konsola dopasowuje każdą odpowiedź do właściwego załadowania strony; to
-  **korelacja, a nie kontrola dostępu**. Publiczny link ani embed nigdy nie dostają
-  danych. Zobacz [stronę o bezpieczeństwie](security.md#a-pages-data-and-its-address).
+  **korelacja, a nie kontrola dostępu**. Publiczny link albo embed dostają swoje
+  dane tylko przy ładowaniu, wpisane przez serwer, i nigdy o nie nie proszą: nie mają
+  trasy danych ani odświeżania. Zobacz
+  [dane na żywo w publicznym linku](#live-data-on-a-public-link) i
+  [stronę o bezpieczeństwie](security.md#a-pages-data-and-its-address).
 - Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
@@ -825,9 +929,9 @@ tak, jakby jej nie było:
   który nie może edytować strony, słyszy tylko, że nazwa nie jest jego do zmiany.
 
 Archiwizacja wyłącza publiczny link, co trafia do audytu jako
-`artifact.public_link_disabled`, a przywrócenie nie włącza go ponownie. Adres
-rozesłany przed archiwizacją pozostaje martwy, dopóki ktoś nie utworzy nowego w
-**Share**. Na tę okazję zostają wygaśnięcie linku, przypięta wersja, hasło i
+`artifact.public_link_disabled`, i czyści jego [zgodę na dane](#what-voids-it-and-what-does-not).
+Przywrócenie nie włącza żadnego z nich ponownie. Adres rozesłany przed archiwizacją
+pozostaje martwy, dopóki ktoś nie utworzy nowego w **Share**. Na tę okazję zostają wygaśnięcie linku, przypięta wersja, hasło i
 witryny, które mogą go osadzać.
 
 Przez API `POST /api/v1/artifacts/{id}/archive` archiwizuje stronę, a ponowna
@@ -869,12 +973,18 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   może ją otworzyć. Zapytanie strony nie ma wyszukiwania pełnotekstowego, filtra
   per oglądający, takiego jak „ja” czy „dziś”, ani ograniczenia na poziomie wiersza
   czy kolumny poza samym zapytaniem.
-- **Publiczny link albo embed nie dostają danych.** Strona z bindingami pokazuje tam
-  „unavailable”; serwowanie danych przez publiczny link to osobna praca (#1975).
+- **Publiczny link albo embed dostają dane dopiero po dwóch potwierdzeniach.**
+  Organizacja musi na to pozwolić, a właściciel strony musi to potwierdzić dla linku;
+  do tego czasu strona z bindingami pokazuje tam „unavailable”. To, co pokazuje, jest
+  z chwili ładowania, bez odświeżania, nawet do 30 sekund stare i czytane z dostępem
+  właściciela dla osób, których właściciel nie zna. Wdrożenie, które tego nie
+  akceptuje, zostawia wyłącznik wyłączony. Zobacz
+  [dane na żywo w publicznym linku](#live-data-on-a-public-link).
 - **Nic na stronie nie działa.** Formularz albo przycisk nie mają dokąd wysłać
   tego, co zbiorą.
-- **Otwarta strona przeżywa odwołanie o jeden czas życia podpisanego adresu**,
-  domyślnie pięć minut.
+- **Otwarta strona przeżywa odwołany grant o jeden czas życia podpisanego adresu**,
+  domyślnie pięć minut. Wyłączenie publicznego linku albo wymiana jego klucza kończy to
+  przy następnym ładowaniu.
 - **Link wewnątrz strony najpierw pyta.** Otwiera się w nowej karcie, gdy
   człowiek się zgodzi; sama strona nie może otworzyć okna ani nawigować konsolą.
 - **Osadzenie wymaga publicznego linku i braku hasła.** Członkowie nie mogą
@@ -903,7 +1013,9 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   dostępem swojego właściciela, dopiero gdy właściciel potwierdzi ich udostępnienie,
   i nigdy nie przechowywane w stronie. Każdy, kto może edytować, może tę zgodę
   wycofać; poszerzenie tego, kto otwiera stronę z bindingami, należy do właściciela
-  albo jest prośbą.
+  albo jest prośbą. Publiczny link albo embed pokazują dane tylko wtedy, gdy Owner
+  lub Admin pozwolił na to dla organizacji, a właściciel potwierdził to dla linku, a
+  wyczyszczenie kręgu odbiorców linku czyści to potwierdzenie.
 - Właściciel może przekazać stronę innemu członkowi, który musi ponownie potwierdzić
   jej dane.
 - Krótki kontrakt strony w instrukcjach każdego agenta z Artifacts i ostrzeżenia w

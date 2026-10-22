@@ -1166,6 +1166,19 @@ confirmed.
 | `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
 | `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
 | `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |
+| `organization.public_live_data_changed` | An Owner or Admin switched **Public pages with live data** on or off for the organization, with the old and the new value |
+| `artifact.public_data_consented` | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
+| `artifact.public_data_withdrawn` | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held |
+| `artifact.public_data_voided` | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived` |
+
+**Public pages with live data** is an organization setting, off by default, in the
+organization's settings beside the approval waiver. It decides whether a page's data may
+reach people with no account through a public link or an embed. Unlike the waiver, it needs
+`org:settings` - Owner or Admin - and must be changed signed in as themselves: an impersonating
+session is refused. The page still needs its owner's
+[public data consent](artifacts.md#live-data-on-a-public-link). Turning the switch off is a
+kill switch: public pages lose their data at the next load and keep their consent, which
+holds again when it is switched back on.
 
 Widening a page's visibility or grants is recorded as `resource.share`, `resource.unshare` and
 `resource.visibility_changed` entries, as for any other resource. The tool `share_view` is gone, and with it the approval that gated it.

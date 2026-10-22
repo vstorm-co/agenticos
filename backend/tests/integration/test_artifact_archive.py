@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1._sharing_loaders import load_artifact
 from app.api.routes.v1.sharing import artifact_sharing_router
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType
@@ -174,12 +179,21 @@ class TestArchiving:
     async def test_only_an_editor_still_reaches_an_archived_pages_sharing(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
-        """A reader is told the page is missing, as `GET /artifacts/{id}` tells them."""
+        """A reader is told the page is missing, as `GET /artifacts/{id}` tells them; an
+        editor can still narrow its sharing, never widen it."""
         organization, _owner, _agent, published, ctx = await _org_wide_page(db)
         page_id = published.artifact_id
         reader = await _member(db, organization, role="viewer")
         reader_ctx = ctx_for(reader, organization, role="viewer")
+        newcomer = await _member(db, organization, role="viewer")
         sharing = SharingService(db)
+        await sharing.share(
+            ctx,
+            await load_artifact(db, page_id, ctx),
+            resource_type=ARTIFACT,
+            subject_user_id=reader.id,
+            level=GrantLevel.READ,
+        )
         get_sharing = next(
             route.endpoint
             for route in artifact_sharing_router.routes
@@ -193,14 +207,20 @@ class TestArchiving:
             await get_sharing(page_id, db, sharing, reader_ctx)
         with pytest.raises(NotFoundError):
             await load_artifact(db, page_id, reader_ctx)
-        # The editor still manages who it is shared with while it is archived.
         assert (await get_sharing(page_id, db, sharing, ctx)).resource_id == page_id
-        await sharing.share(
+        with pytest.raises(ConflictError):
+            await sharing.share(
+                ctx,
+                await load_artifact(db, page_id, ctx),
+                resource_type=ARTIFACT,
+                subject_user_id=newcomer.id,
+                level=GrantLevel.READ,
+            )
+        await sharing.revoke(
             ctx,
             await load_artifact(db, page_id, ctx),
             resource_type=ARTIFACT,
             subject_user_id=reader.id,
-            level=GrantLevel.READ,
         )
 
     async def test_a_page_whose_key_survived_is_still_refused_by_the_public_link(

@@ -1,5 +1,5 @@
 ---
-source_sha: "a4ed874220d1"
+source_sha: "a0f89564f4d6"
 ---
 
 # Konfiguracja { #configuration }
@@ -717,7 +717,8 @@ serwowane. Zobacz [Artefakty](artifacts.md).
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
-| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Najwięcej bajtów rekordów, jakie jeden proces API trzyma przez 30 sekund dla [publicznych linków i embedów stron](artifacts.md#the-cache-and-the-cap). Tylko w pamięci procesu, nigdy w Redisie. Najdawniej używane odczyty odpadają pierwsze, a odczyt ponad budżet nie jest zachowywany. Co najmniej 1024 |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 | `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
 
@@ -1148,6 +1149,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Ile razy dane jednej strony mogą być czytane z jej tabel dla odwiedzających jej publiczny link albo embedy, **per strona dla wszystkich odwiedzających łącznie**. Ładowanie, które musi czytać z tabel, liczy się raz, a to obsłużone z 30-sekundowego [cache](artifacts.md#the-cache-and-the-cap) nie; po przekroczeniu limitu strona ładuje się bez tych danych |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a4ed874220d1"
+source_sha: "a0f89564f4d6"
 ---
 
 # Konfiguration { #configuration }
@@ -756,7 +756,8 @@ sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
-| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant überdauert |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Die meisten Bytes an Datensätzen, die ein API-Prozess 30 Sekunden lang für [öffentliche Links und Embeds von Seiten](artifacts.md#the-cache-and-the-cap) hält. Nur im Prozessspeicher, nie in Redis. Die am längsten nicht genutzten Lesevorgänge gehen zuerst, und ein Lesevorgang über dem Budget wird nicht gehalten. Mindestens 1024 |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 | `ARTIFACT_RENDER_CDP_URL` | (empty) | Der Chromium-DevTools-Endpunkt, in dem [`preview_artifact`](artifacts.md#seeing-the-page-preview) Seiten zeichnet, etwa `http://artifact-render:9222`. Allein Deployment-Konfiguration: Er wird nicht gegen `BROWSER_CDP_ALLOWED_HOSTS` geprüft, das aufführt, was Autoren von Agents steuern dürfen, und einem browsenden Agent wird sein Host verweigert, selbst wenn diese Liste ihn nennt. Das Backend braucht das Extra `browser`. Leer liefert eine Vorschau ihren Bericht ohne Bild |
 
@@ -1225,6 +1226,7 @@ diese.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Wie oft die Daten einer Seite für Besucher ihres öffentlichen Links oder ihrer Embeds aus ihren Tabellen gelesen werden dürfen, **je Seite über alle Besucher**. Ein Laden, das aus den Tabellen lesen muss, zählt einmal, eines aus dem 30-Sekunden-[Cache](artifacts.md#the-cache-and-the-cap) nicht; darüber hinaus lädt die Seite ohne diese Daten |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes, Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle sowie Speichern, Ändern oder Löschen einer gespeicherten Ansicht. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 

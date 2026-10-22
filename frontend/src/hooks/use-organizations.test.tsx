@@ -240,6 +240,16 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("sends only the public live data field, and keeps the answer in the list", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ public_live_data: true }));
+
+    await result.current.setPublicLiveData("org-1", true);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { public_live_data: true });
+    await waitFor(() => expect(result.current.orgs[0]?.public_live_data).toBe(true));
+  });
+
   it("drops a deleted organization and clears the selection if it was the one", async () => {
     useOrgStore.setState({ activeOrgId: "org-1" });
     const result = await hook();

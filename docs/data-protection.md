@@ -76,7 +76,7 @@ parent's check.
 | `context_files` | Standing knowledge a builder wrote for agents | Whatever the author put there - and it reaches the prompt verbatim. See [Context files](context.md) | Instructions and facts an agent should always know |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | The rows of a [Virtual Table](virtual-tables.md) and the trail of every change to them | Whatever the organization put in its cells, which can be personal data. The current values (records); the whole record on a create and a delete and only the cells that changed on an update (history); the whole record as a keyed write returned it (receipts); the ids and external id of each created record (outbox, no values). A record delete removes only the current row: history and receipts keep the values until the daily retention sweep removes them, receipts after 24 hours, dispatched outbox rows after 3 days and history after 365 days, all deployment settings. Deleting an account removes its receipts and clears it as the actor on history; deleting the organization removes all four | Typed records for agents and workflows, safe retries of a write, and the hand-off of a created record |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | A table's [triggers](virtual-tables.md#triggers), every configuration each has had, and what each decided about a created record | The member a trigger runs as; its filter values and mapping keys, which can hold personal data if a builder typed some (a filter on an email address). A decision holds a status, a coarse reason and the run it started, never the record's values. No retention class sweeps them: they go with their table and trigger, and deleting an account clears it as the member, after which the trigger starts nothing | Running a workflow when a record is added |
-| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read - or, for a page bound to table data, its page queries (table, filters, sort, limit and columns, each resolved to ids) with the records themselves read at view time with the page owner's access and never stored in the page; per version, who published it and the owner's consent to share its data (a fingerprint of the queries, the owner's membership and when); the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Artifacts](artifacts.md) | Sharing a result under a stable link |
+| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read - or, for a page bound to table data, its page queries (table, filters, sort, limit and columns, each resolved to ids) with the records themselves read at view time with the page owner's access and never stored in the page; per version, who published it and the owner's consent to share its data (a fingerprint of the queries, the owner's membership and when) and the page's public data consent (who confirmed it, the owner's membership, when); the organization row holds the `public_live_data` switch; the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Artifacts](artifacts.md) | Sharing a result under a stable link |
 | `agent_memory_files` | Notes an agent wrote about a person or a group chat | Whatever the agent decided was worth remembering, keyed to `person:<user_id>` or a chat room | Continuity between conversations |
 | `rag_documents`, `knowledge_bases` and one vector table per collection | Uploaded and synced documents, their chunks and embeddings | The document text and its vectors, the file's original path in the source | Retrieval |
 | `agent_runs`, `tool_approvals`, `run_manifests` | What each run cost and did | The system prompt and last request handed to the model, tool arguments awaiting approval, the deciding person and their note. Beside the arguments, `tool_approvals.context` holds the names a parked call's ids stand for - a view's and a table's name, never a record's contents - resolved as the run's person when the call parked. It is kept with the approval row, after the view or table is renamed or gone, and read by whoever may decide approvals, whatever their own access to that table | Budgets, approvals, run history |
@@ -154,7 +154,8 @@ bypasses the table's own access control, so it is listed here.
   whatever their own access to the table. The data leaves the table only once the owner has
   confirmed it, after reading the queries in words and who can open the page now
   and later (the roles that open every page, the visibility, people and groups). The
-  data is read again on every load, never stored in the page, and not cached.
+  data is read again on every load and never stored in the page. Reads for members are
+  not cached; reads for a public page are, as described below.
 - **What is stored about it.** Per page version: who published it, a fingerprint of its
   queries, whether the owner consented, when and under which membership. Share requests keep
   the requester, the kind, an optional note, the decision and who made it. The audit trail
@@ -163,9 +164,48 @@ bypasses the table's own access control, so it is listed here.
 - **What is never logged.** Record values, filter values and the content address of a
   page served with its data. The audit entries and notifications name the page and the
   people, never a row.
-- **What does not reach it.** A public link or an embed is served no data. A deleted
-  member's consent lapses with their membership, and a page whose owner left serves no data
-  until another owner confirms it.
+- **What does not reach it.** A deleted member's consent lapses with their membership,
+  and a page whose owner left serves no data until another owner confirms it.
+
+### To people with no account { #table-data-on-a-public-page }
+
+This is the one flow here that **leaves the circle of people who have an account**. A
+page's [public link and its embeds](artifacts.md#live-data-on-a-public-link) can write the
+same records into the page for anyone who opens the address, and for every site that
+embeds it, with no sign-in. Two decisions open it, and a deployment that does not want
+the flow leaves the first one off.
+
+- **Off by default, organization-wide.** `public_live_data` is a switch only an Owner or
+  Admin changes, as themselves. Off, no page shows data on a link or in an embed, whatever
+  its owner confirmed.
+- **Then per page.** The page's owner, or an Owner or Admin for them, confirms it after a
+  screen that names the tables and columns and says who can read them - anyone with the
+  link, its password and expiry, each embedding site. The consent is bound to the page
+  queries and to that audience. Adding a site, removing the password, turning the link
+  off, archiving the page, a new owner and a withdrawn member consent clear it.
+- **What is stored.** On the page: the fingerprint of the queries it was given to, who
+  confirmed it, the owner's membership and when. The organization row holds the switch.
+  The audit trail records `organization.public_live_data_changed`,
+  `artifact.public_data_consented`, `artifact.public_data_withdrawn` and
+  `artifact.public_data_voided` with table and column names, the embedding sites, whether a
+  password is set, the reason - never a row, a value or a visitor.
+- **The cache.** A binding's records are kept for 30 seconds in the memory of the API
+  process, so a busy page does not read its table once per visitor. They are **never
+  written to Redis**, the database or a file, the memory is bounded in bytes
+  (`ARTIFACT_PUBLIC_DATA_CACHE_BYTES`) and gone when the process stops. Every access gate runs
+  before the cache is read, so turning the switch off or rotating the link ends the flow
+  at the next load; what a visitor already loaded stays in their browser.
+- **What is never logged.** Record values, filter values, the link's key and the content
+  address of a page loaded with its data are kept out of logs, traces and audit entries.
+  No visitor is recorded: the link counts openings, not people. Only the rate-limit key holds the visitor's IP, in Redis, for minutes.
+- **Nobody is told why.** A visitor whose load fails a gate sees the page without its
+  data and no reason, so the page does not say what a table holds or why it is hidden.
+- **What a site that embeds the page sees.** The embedding site frames the page; the page
+  runs in an opaque origin with no network, so the site cannot read the records out of
+  the frame, but whoever opens the site reads them.
+
+Records shown to anyone with a link can be copied by anyone who sees them. Bind a public
+page only to columns that are meant to be public.
 
 A deployment that must keep a table's rows from some of its members should not bind
 a page to it that those members can open; the confirmation names who they are.

@@ -415,8 +415,9 @@ any other republish.
 When the console opens a page it asks for a signed address that carries who the viewer
 is. The content route reads each binding **once, on load**, and writes the result
 into the page's platform script, so the first `onData` call already has its data
-and no round trip follows. Nothing is injected for a thumbnail, a card or a version
-from the history.
+and no round trip follows. A [public link or an embed](#live-data-on-a-public-link) is
+written in the same way, under stricter gates. Nothing is injected for a thumbnail, a
+card or a version from the history.
 
 Refresh and auto-refresh keep using the data route and a `postMessage` from the console,
 which now answers the same page-query rows for everyone served that version. The route
@@ -674,11 +675,13 @@ published it or which organization it belongs to.
 
 **Replace the link** issues a new key, and the old one stops opening anything at
 once. **Turn off** removes it. Both are recorded in the audit trail. A page
-somebody already has open keeps showing until its signed content address
-expires, at most `ARTIFACT_VIEW_TTL_SECONDS` (five minutes by default).
+somebody already has open keeps showing what it has, but reloading it, or opening
+its content address again, answers 404 right away: the address names the link's key,
+and the route checks that key on every load. The address's own lifetime,
+`ARTIFACT_VIEW_TTL_SECONDS` (five minutes by default), is only the outer bound.
 
-A revoked member is in the same position: they lose the artifact on their next
-request, and a page they already had open stays for that same window at most.
+A revoked member is in the same position as before: they lose the artifact on their
+next request, and a page they already had open stays for that same window at most.
 
 Under the link, **Share** holds its settings. They stay when the link is replaced,
 and a link turned off and on again keeps them:
@@ -687,7 +690,7 @@ and a link turned off and on again keeps them:
 |---|---|
 | **Stops opening after** | A date after which the link opens nothing, as if it were off |
 | **Shows** | The newest version, or one kept version pinned so a new publication does not change what people with the link already saw. A pinned version is never pruned |
-| **Password** | Asked before the page opens. The link says nothing - not the title, not when it was published - until it is right. Stored hashed, never shown again; every attempt counts against the link's rate limit |
+| **Password** | Asked before the page opens. The link says nothing - not the title, not when it was published - until it is right. Stored hashed, never shown again; every attempt counts against the link's rate limit. Changing or removing it ends the addresses opened under the old one: they carry no data |
 | **Sites that may embed it** | See below |
 
 The card also says how many times the link was opened and when last. It counts
@@ -708,6 +711,98 @@ own policy lets only that document and the console frame the page. With no site
 listed, nobody can. A page behind a password cannot be embedded - the embed says
 to open it on its own page instead - and nobody signs in inside a frame on
 somebody else's site.
+
+An embed carries a page's data on the same terms as its link; see
+[Live data on a public link](#live-data-on-a-public-link). Adding a site widens
+who reads that data, so it clears the data consent.
+
+### Live data on a public link { #live-data-on-a-public-link }
+
+A [bound page](#live-data) shows its records on its public link and in its embeds only
+when two separate decisions have been made, and a third check holds on every load.
+Without them the public page renders as published, with every binding `unavailable`.
+
+1. **The organization allows it.** An Owner or Admin turns on **Public pages with
+   live data** in the organization's settings. It is off by default, it warns before it
+   is turned on, and it must be changed signed in as themselves, never on
+   somebody's behalf. It is a kill switch, not a reset: switching it off hides the
+   data on every public page and embed at the next load and leaves each page's own
+   consent alone, so switching it on again restores the pages whose consent still holds.
+2. **The page's owner confirms it for the link.** Under the link's settings in **Share**,
+   **Confirm data** opens a screen with what the members' consent shows - the
+   served version's page queries in words, every linked table they reach - and
+   who can read it: anyone with the link, with no account and no sign-in, whether a
+   password guards it, when it expires and each embedding site. The owner, or an Owner
+   or Admin for them, confirms it signed in as themselves; an `edit` grant is not enough.
+   It needs the link to be on, the organization's switch on and the members' own
+   [consent](#consent-the-owner-decides-who-reads-the-data) for that version. Any
+   editor can withdraw it, signed in as themselves; an Owner or Admin cannot do it by
+   impersonating one.
+3. **Every gate holds on each load.** See [what an anonymous visitor gets](#what-an-anonymous-visitor-gets).
+
+The confirmation is to the version the link serves - the pinned one, else the one
+the page's audience is served - and is bound to two digests: the fingerprint of its page
+queries and a digest of who the link reaches (the embedding sites, whether a password
+is set, whether the link is on). It is refused with a conflict if either changed after the
+screen was drawn. It is recorded under the owner's membership, and audited by table and
+column names, never by row.
+
+#### What voids it, and what does not
+
+Whatever widens the audience or changes whose data it is clears the consent, audited
+as `artifact.public_data_voided` with the reason. Turning it on again takes a new
+confirmation.
+
+| Voids the consent | Leaves it alone |
+|---|---|
+| Turning the link off, or archiving the page | Replacing the link's key: that changes the address, not the data |
+| Removing the password | Changing the password, the link's expiry, or the pinned version |
+| Adding an embedding site | Removing an embedding site |
+| Handing the page to another owner | The organization's switch going off |
+| Withdrawing the members' consent for the data | |
+
+A different pinned version, or a republish that changes the page queries, does not
+void the consent but stops it holding: the served version's fingerprint no longer
+matches, so the public page shows no data until somebody confirms again. An expired
+link holds nothing either.
+
+The owner and the other editors see why in the strip above the page: the switch is
+off, the link serves no version, the queries changed, the owner left or changed, the
+members' consent is missing or the link expired.
+
+#### What an anonymous visitor gets { #what-an-anonymous-visitor-gets }
+
+A visitor is told nothing about why. Before anything is read, every load checks that
+the link still has the key the address was minted for, that it has not expired, that
+the password state is the one the address was opened under, that the version is still
+the one the link serves, that the organization's switch is on, and that the page's data
+consent and the members' consent hold. If any fails, the page renders with every binding
+`unavailable` and no reason.
+
+Then each binding is checked on its own: the owner must still
+be an active member who reads the table, and the table must not have drifted from the
+query. A binding that fails there is `unavailable`; the others still load.
+
+The records are written into the page on load and are as of that load. The public page
+and the embed have no Refresh and no data route, and the page cannot ask for more;
+the visitor reloads to see a change. A rotated or removed key is a 404, not a page
+without data, and a changed or removed password gives an old address a page without data.
+
+#### The cache and the cap
+
+An anonymous load costs table reads, so reads are shared. A binding's records are kept for
+30 seconds in the memory of the API process, keyed by the version, the binding, the queries'
+fingerprint and the owner's membership - **never in Redis**, because they are records. Every
+gate above runs before the cache is asked, so a switched-off organization, a rotated key or
+a withdrawn consent takes effect at once, whatever is kept. A failed or unavailable read is never kept.
+
+The memory is bounded: `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` (32 MiB by default) and 64 reads
+per process, the least recently used dropped first, and a read larger than the budget is not kept.
+Separately, each page may read from its tables `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE`
+times a minute (60) across all its visitors. A load that has to read from the tables counts once, so a
+busy page is bounded by the cap and not by its audience. Past it, or while the process
+already serves as many data loads as it may, a binding that needs a read comes back
+`unavailable` for that visitor.
 
 ## How the page is isolated
 
@@ -745,7 +840,9 @@ the person looking at it:
   `postMessage` from the console, which fetches it from the data route with the
   viewer's own session. The page's request carries a nonce that lets the console
   match each reply to the right page load; that is **correlation, not access
-  control**. A public link or an embed never gets data. See
+  control**. A public link or an embed gets its data only on load, written in by the
+  server, and never asks for it: it has no data route and no refresh. See
+  [live data on a public link](#live-data-on-a-public-link) and
   [the security page](security.md#a-pages-data-and-its-address).
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
@@ -794,8 +891,9 @@ were not there:
   may not edit the page hears only that the name is not its to change.
 
 Archiving turns the public link off, audited as `artifact.public_link_disabled`,
-and restoring does not turn it back on. An address sent out before the archive
-stays dead until somebody makes a new one from **Share**. The link's expiry,
+and clears its [data consent](#what-voids-it-and-what-does-not). Restoring does not turn
+either back on. An address sent out before the archive stays dead until somebody
+makes a new one from **Share**. The link's expiry,
 pinned version, password and embedding sites are kept for that.
 
 Over the API, `POST /api/v1/artifacts/{id}/archive` archives a page, and
@@ -836,12 +934,17 @@ under `artifacts/<organization>/<artifact>/`.
   owner's access, so a page is for data everyone who can open it may see. A page
   query has no free-text search, no per-viewer filter such as "me" or "today", and
   no row- or column-level limit beyond the query itself.
-- **A public link or an embed gets no data.** A bound page shows "unavailable" there;
-  serving data through a public link is a separate piece of work (#1975).
+- **A public link or an embed gets data only after two confirmations.** The organization has to
+  allow it and the page's owner has to confirm it for the link; until then a bound page
+  shows "unavailable" there. What it shows is as of the load, with no refresh, up to 30
+  seconds old, and read with the owner's access for people the owner does not know.
+  A deployment that cannot accept that leaves the switch off. See
+  [live data on a public link](#live-data-on-a-public-link).
 - **Nothing on the page acts.** A form or a button has nowhere to send what it
   collects.
-- **An open page outlives a revocation by one signed-address lifetime**, five
-  minutes by default.
+- **An open page outlives a revoked grant by one signed-address lifetime**, five
+  minutes by default. Turning a public link off or replacing its key ends it at the
+  next load.
 - **A link inside a page asks first.** It opens in a new tab after a person
   agrees; the page itself cannot open a window or navigate the console.
 - **An embed needs the public link and no password.** Members cannot sign in
@@ -868,6 +971,9 @@ under `artifacts/<organization>/<artifact>/`.
   and show live data, read at view time with its owner's access, only once the owner
   has confirmed sharing it, and never stored in the page. Anyone with edit can
   withdraw that consent; widening who can open a bound page is the owner's, or a request.
+  A public link or an embed shows the data only when an Owner or Admin has allowed it for
+  the organization and the owner has confirmed it for the link, and clearing the link's
+  audience clears that confirmation.
 - The owner can hand a page to another member, who must confirm its data again.
 - A short page contract in every Artifacts agent's instructions, and warnings in
   the publish result for what looks wrong in the markup.

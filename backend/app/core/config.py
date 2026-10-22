@@ -626,6 +626,13 @@ class Settings(BaseSettings):
     # calling the route, costs the database. Kept per process while the shared
     # Redis cannot count.
     RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE: int = Field(default=30, gt=0)
+    # How many times a public page's data may be read from the tables per minute,
+    # counted per page across every visitor. Only a read that missed the short
+    # in-process cache counts, so a busy page is bounded by this, not by its audience.
+    RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE: int = Field(default=60, gt=0)
+    # The most bytes of records one process keeps for public pages' short in-process
+    # cache; the oldest reads go first, and a read over it is never kept.
+    ARTIFACT_PUBLIC_DATA_CACHE_BYTES: int = Field(default=32 * 1024 * 1024, ge=1024)
     # How many requests to share a page or to open one a member may file per hour,
     # counted per member and organization. Each one notifies the page's owner, so
     # this bounds what one person can make arrive in somebody's inbox.

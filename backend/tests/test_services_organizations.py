@@ -40,6 +40,7 @@ def _org_row(*, name: str) -> Organization:
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
+        public_live_data=False,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )
@@ -368,6 +369,102 @@ class TestOrganizationService:
             await service.update(
                 uuid.uuid4(), OrganizationUpdate(name="New"), requester_id=uuid.uuid4()
             )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["owner", "admin"])
+    async def test_an_owner_or_admin_switches_public_data_and_it_is_audited(
+        self, service, mock_db, role
+    ):
+        org = _org_row(name="Acme")
+        requester = uuid.uuid4()
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+            ),
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+            patch("app.services.organization.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.update(
+                org.id, OrganizationUpdate(public_live_data=True), requester_id=requester
+            )
+            assert org.public_live_data is True
+            audit.assert_awaited_once()
+            assert audit.await_args.kwargs["action"] == "organization.public_live_data_changed"
+            assert audit.await_args.kwargs["details"] == {"from": False, "to": True}
+            assert audit.await_args.kwargs["actor_user_id"] == requester
+
+            # Naming the value it already has changes, and records, nothing.
+            await service.update(
+                org.id, OrganizationUpdate(public_live_data=True), requester_id=requester
+            )
+            assert audit.await_count == 1
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
+    async def test_nobody_else_switches_public_data(self, service, mock_db, role):
+        org = _org_row(name="Acme")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+            ),
+            patch("app.services.organization.record_audit", new=AsyncMock()) as audit,
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                org.id, OrganizationUpdate(public_live_data=True), requester_id=uuid.uuid4()
+            )
+
+        assert org.public_live_data is False
+        audit.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_nobody_impersonating_an_owner_switches_it(self, service, mock_db):
+        from app.core.audit import set_impersonator
+
+        org = _org_row(name="Acme")
+        set_impersonator(uuid.uuid4())
+        try:
+            with (
+                patch.object(
+                    service,
+                    "get_for_user",
+                    new=AsyncMock(return_value=(org, MagicMock(role="owner"))),
+                ),
+                pytest.raises(AuthorizationError),
+            ):
+                await service.update(
+                    org.id, OrganizationUpdate(public_live_data=True), requester_id=uuid.uuid4()
+                )
+        finally:
+            set_impersonator(None)
+
+        assert org.public_live_data is False
+
+    @pytest.mark.anyio
+    async def test_saving_the_switch_it_already_has_passes_under_impersonation(
+        self, service, mock_db
+    ):
+        from app.core.audit import set_impersonator
+
+        org = _org_row(name="Acme")
+        set_impersonator(uuid.uuid4())
+        try:
+            with patch.object(
+                service,
+                "get_for_user",
+                new=AsyncMock(return_value=(org, MagicMock(role="owner"))),
+            ):
+                await service.update(
+                    org.id, OrganizationUpdate(public_live_data=False), requester_id=uuid.uuid4()
+                )
+        finally:
+            set_impersonator(None)
+
+        assert org.public_live_data is False
 
     @pytest.mark.security
     @pytest.mark.anyio

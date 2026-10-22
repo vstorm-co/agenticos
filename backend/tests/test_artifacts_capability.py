@@ -12,6 +12,7 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,7 +26,7 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import _registry as registry
-from app.agents.capabilities.artifacts import Artifacts, ArtifactsConfig
+from app.agents.capabilities.artifacts import Artifacts, ArtifactsConfig, _toolset
 from app.agents.capabilities.artifacts._toolset import (
     PAGE_CONTRACT,
     PAGES_GUIDE,
@@ -443,6 +444,18 @@ class TestRegistration:
             "preview_artifact",
             "share_artifact",
         }
+
+    def test_no_tool_reaches_the_public_data_consent(self) -> None:
+        """Showing a page's data to anyone with its link is a person's act (#1975): no tool
+        is named for it, and nothing in the capability's code reaches it or the public link."""
+        (built,) = registry.build([registry.CapabilityBinding(capability_id="artifacts")])
+        assert not [name for name in built.get_toolset().tools if "public" in name]
+        agents = Path(_toolset.__file__).parents[2]
+        assert agents.name == "agents"
+        for source in agents.rglob("*.py"):
+            text = source.read_text().lower()
+            for forbidden in ("public_data", "publicdata", "public_link", "publiclink"):
+                assert forbidden not in text, f"{source.name}: {forbidden}"
 
 
 class TestThePageContract:

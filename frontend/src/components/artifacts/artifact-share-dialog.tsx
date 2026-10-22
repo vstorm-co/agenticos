@@ -7,6 +7,7 @@ import { ArtifactRequests } from "@/components/artifacts/artifact-requests";
 import { ConfirmDataDialog } from "@/components/artifacts/confirm-data-dialog";
 
 import { AutoConsentSetting } from "@/components/artifacts/auto-consent-setting";
+import { PublicDataControl } from "@/components/artifacts/public-data-control";
 import { PublicLinkCard } from "@/components/artifacts/public-link-card";
 import { EmbedSnippet, PublicLinkSettings } from "@/components/artifacts/public-link-settings";
 import { CopyButton } from "@/components/chat/copy-button";
@@ -57,6 +58,11 @@ interface ArtifactShareDialogProps {
   /** Confirms the latest version's data with the fingerprint shown; rejects with the refusal. */
   onConfirmData: (fingerprint: string) => Promise<unknown>;
   confirmingData: boolean;
+  /** Confirms the data for the public link with the digests shown; rejects with the refusal. */
+  onConfirmPublicData: (fingerprint: string, audienceDigest: string) => Promise<unknown>;
+  confirmingPublicData: boolean;
+  onWithdrawPublicData: (onDone: () => void) => void;
+  withdrawingPublicData: boolean;
 }
 
 /**
@@ -110,6 +116,10 @@ export function ArtifactShareDialog({
   onReview,
   onConfirmData,
   confirmingData,
+  onConfirmPublicData,
+  confirmingPublicData,
+  onWithdrawPublicData,
+  withdrawingPublicData,
 }: ArtifactShareDialogProps) {
   const t = useTranslations("artifacts");
   // Sharing was refused for want of consent: say so, with the way to give it.
@@ -165,6 +175,13 @@ export function ArtifactShareDialog({
               onSave={onUpdatePublicLink}
             />
           )}
+          <PublicDataControl
+            artifact={artifact}
+            onConfirm={onConfirmPublicData}
+            confirmPending={confirmingPublicData}
+            onWithdraw={onWithdrawPublicData}
+            withdrawPending={withdrawingPublicData}
+          />
         </PublicLinkCard>
         <SharingPanel
           resourceType="artifact"

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -59,6 +60,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        public_live_data=org.public_live_data,
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -275,13 +277,20 @@ class OrganizationService:
         decision about the approval queue, and somebody who may not decide one
         approval should not be able to switch the queue off for every
         conversation (#925).
+
+        `public_live_data` - whether a page's data may reach anonymous visitors - is
+        `org:settings` (Owner or Admin), signed in as themselves: nobody impersonating
+        them changes it (saving the value it already has is not a change), since it widens who reads the organization's tables. Audited
+        `organization.public_live_data_changed` with the old and the new value.
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_public_data = "public_live_data" in data.model_fields_set
         wants_metadata = bool(
-            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
+            data.model_fields_set
+            - {"monthly_budget_usd", "chat_may_waive_approvals", "public_live_data"}
         )
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -292,6 +301,22 @@ class OrganizationService:
         if wants_waiver and not role_has(membership.role, Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
+            )
+
+        if wants_public_data and not role_has(membership.role, Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Changing whether pages may show data publicly requires 'org:settings'"
+            )
+        if (
+            wants_public_data
+            and data.public_live_data != org.public_live_data
+            and current_impersonator() is not None
+        ):
+            raise AuthorizationError(
+                message=(
+                    "Changing whether pages may show data publicly needs you signed in as "
+                    "yourself, not on somebody's behalf."
+                )
             )
 
         if wants_budget:
@@ -309,6 +334,25 @@ class OrganizationService:
         if wants_waiver and data.chat_may_waive_approvals is not None:
             org = await organization_repo.set_chat_approval_waiver(
                 self.db, org, allowed=data.chat_may_waive_approvals
+            )
+
+        if (
+            wants_public_data
+            and data.public_live_data is not None
+            and data.public_live_data != org.public_live_data
+        ):
+            before = org.public_live_data
+            org = await organization_repo.set_public_live_data(
+                self.db, org, allowed=data.public_live_data
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                organization_id=org.id,
+                action="organization.public_live_data_changed",
+                target_type="organization",
+                target_id=str(org.id),
+                details={"from": before, "to": org.public_live_data},
             )
 
         return await organization_repo.update(
