@@ -12,7 +12,7 @@ import type { Watch } from "@/lib/watches-api";
 
 const state = vi.hoisted(() => ({
   orgOn: true as boolean | undefined,
-  connections: [{ id: "c-gh" }] as { id: string }[],
+  connections: [{ id: "c-gh", authorized: true }] as { id: string; authorized: boolean }[],
   watches: [] as Watch[],
   update: vi.fn(),
   remove: vi.fn(),
@@ -68,7 +68,7 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
 
 beforeEach(() => {
   state.orgOn = true;
-  state.connections = [{ id: "c-gh" }];
+  state.connections = [{ id: "c-gh", authorized: true }];
   state.watches = [];
   state.update.mockReset().mockResolvedValue(undefined);
   state.remove.mockReset().mockResolvedValue(undefined);
@@ -135,6 +135,13 @@ describe("YourWatches", () => {
     await userEvent.click(screen.getByRole("button", { name: "Stop watching Reviews" }));
     expect(state.remove).toHaveBeenCalledWith("w1");
     await waitFor(() => expect(toastSuccess).toHaveBeenLastCalledWith("Stopped watching"));
+  });
+
+  it("says when the account's sign-in lapsed, which a look cannot read through", () => {
+    state.connections = [{ id: "c-gh", authorized: false }];
+    state.watches = [watch(), watch({ id: "w2", title: "Paused", is_active: false })];
+    render(<YourWatches />);
+    expect(screen.getAllByText("Sign in to it again")).toHaveLength(1);
   });
 
   it("toasts a change the server refused", async () => {

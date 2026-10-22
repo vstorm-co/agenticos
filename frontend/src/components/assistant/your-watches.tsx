@@ -26,6 +26,9 @@ export function YourWatches() {
   const { activeOrg } = useOrganizations();
   const { connections } = useMcpConnections();
   const { watches, update, remove } = useWatches();
+  // A connection whose sign-in lapsed is still "on", and a look through it reads
+  // nothing - so the row says so rather than looking as if it were working.
+  const lapsed = new Set(connections.filter((each) => !each.authorized).map((each) => each.id));
   const [editing, setEditing] = useState<Watch | "new" | null>(null);
 
   const allowed = activeOrg?.proactive_watches_enabled === true;
@@ -51,6 +54,7 @@ export function YourWatches() {
               <WatchRow
                 key={watch.id}
                 watch={watch}
+                lapsed={lapsed.has(watch.connection_id)}
                 onEdit={() => setEditing(watch)}
                 onToggle={(on) =>
                   act(
@@ -83,11 +87,13 @@ export function YourWatches() {
 
 function WatchRow({
   watch,
+  lapsed,
   onEdit,
   onToggle,
   onRemove,
 }: {
   watch: Watch;
+  lapsed: boolean;
   onEdit: () => void;
   onToggle: (on: boolean) => void;
   onRemove: () => void;
@@ -111,6 +117,9 @@ function WatchRow({
       {watch.urgent && <Badge variant="secondary">{t("urgentBadge")}</Badge>}
       {watch.is_active && watch.stopped && (
         <Badge variant="outline">{t(`stopped.${watch.stopped}`)}</Badge>
+      )}
+      {watch.is_active && !watch.stopped && lapsed && (
+        <Badge variant="outline">{t("signInAgain")}</Badge>
       )}
       <Switch
         checked={watch.is_active}

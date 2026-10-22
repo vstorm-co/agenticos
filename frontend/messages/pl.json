@@ -6244,7 +6244,7 @@
       "nightly": "Nocne propozycje",
       "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
       "model": "Model",
-      "modelHint": "Na czym działa nocny przegląd. Wystarczy mały, tani model.",
+      "modelHint": "Na czym działa nocny przegląd i obserwacje. Wystarczy mały, tani model.",
       "modelPlaceholder": "Wybierz model",
       "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
       "label": "Limit na osobę (USD miesięcznie)",
@@ -8374,6 +8374,7 @@
         "title": "Zadania na dziś i zaległe",
         "instructions": "Moje zadania z terminem na dziś albo po terminie."
       }
-    }
+    },
+    "signInAgain": "Zaloguj się ponownie"
   }
 }
