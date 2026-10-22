@@ -6297,6 +6297,12 @@
   },
   "teams": {
     "acmeCom": "acme.com",
+    "aiAssistance": "Wsparcie AI",
+    "aiAssistanceDescription": "Wyłączone, dopóki ktoś go nie włączy. Pozwala modelom oceniać odpowiedzi w ewaluacjach, przygotowywać przypadki testowe, proponować zmiany w agentach i przygotowywać treści dla luk w wiedzy; każde użycie to rozliczany run w ramach budżetów agenta i organizacji.",
+    "aiAssistanceHint": "Gdy jest wyłączone, nic tutaj nie wywołuje modelu, żeby ocenić, wygenerować albo zaproponować: sędzia ewaluacji, generator przypadków i asystent tworzenia są odrzucane. Kontrole deterministyczne i werdykty ludzi działają dalej.",
+    "aiAssistanceOn": "Wsparcie AI jest włączone",
+    "aiAssistanceOff": "Wsparcie AI jest wyłączone",
+    "aiAssistanceFailed": "Nie udało się zmienić wsparcia AI",
     "approvalWaiver": "Pomijanie zatwierdzeń w czacie",
     "approvalWaiverDescription": "Czy rozmowa może działać bez zatrzymywania się na zatwierdzenia.",
     "approvalWaiverHint": "Gdy to jest włączone, ktoś, kto może decydować o zatwierdzeniach, może pozwolić jednej rozmowie wykonywać każde zabramkowane wywołanie narzędzia bez pytania. Każde pominięte wywołanie jest nadal zapisywane na jego koncie.",
