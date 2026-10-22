@@ -2,6 +2,7 @@
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { useMcpOAuthOutcome } from "@/hooks";
+import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,8 @@ export default function ChatPage() {
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
+  // A pinned agent's shortcut opens `?with=` it: a new chat with that agent.
+  useChatWith();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the
   // id here would short-circuit that loader and leave the chat empty on refresh.

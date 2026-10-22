@@ -16,6 +16,7 @@ fn main() {
             "show_activity",
             "end_activity",
             "update_widget",
+            "pin_shortcut",
             "push_status",
             "push_register",
             "push_unregister",

@@ -56,9 +56,16 @@ export interface WindowPreferences {
   launch_at_login: boolean;
 }
 
+/** An agent in the tray's and the Dock's "New Chat With" (`pinned.rs`). */
+export interface PinnedAgent {
+  id: string;
+  name: string;
+}
+
 export interface DesktopState {
   appearance: Appearance;
   blobby: BlobbySettings;
+  pinned: PinnedAgent[];
   shortcuts: ShortcutBinding[];
   window: WindowPreferences;
 }
@@ -162,6 +169,16 @@ function parseBinding(value: unknown): ShortcutBinding {
   };
 }
 
+/** The shell's pinned agents; none from a shell older than pinning. */
+function parsePinned(value: unknown): PinnedAgent[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new ShellError("malformed", "the pinned agents");
+  return value.map((item: unknown) => {
+    const agent = record(item, "a pinned agent");
+    return { id: field(agent, "id", isString), name: field(agent, "name", isString) };
+  });
+}
+
 export function parseDesktopState(value: unknown): DesktopState {
   const fields = record(value, "its state");
   const appearance = record(fields.appearance, "an appearance");
@@ -173,6 +190,7 @@ export function parseDesktopState(value: unknown): DesktopState {
       mode: field(appearance, "mode", isMode),
     },
     blobby: parseBlobbySettings(fields.blobby),
+    pinned: parsePinned(fields.pinned),
     // An action this console does not know - a newer shell's - is left out
     // rather than failing the whole page.
     shortcuts: fields.shortcuts
@@ -226,6 +244,15 @@ export async function notify(notice: Notice): Promise<void> {
 
 export async function setBadge(count: number): Promise<void> {
   await invokeShell("set_badge", { count: Math.max(0, Math.floor(count)) });
+}
+
+/** Pin an agent to "New Chat With", or rename it there. Resolves to the list as it now stands. */
+export async function pinAgent(agent: PinnedAgent): Promise<PinnedAgent[]> {
+  return parsePinned(await invokeShell("pin_agent", { agent }));
+}
+
+export async function unpinAgent(id: string): Promise<PinnedAgent[]> {
+  return parsePinned(await invokeShell("unpin_agent", { id }));
 }
 
 export async function openInConsole(path: string): Promise<void> {

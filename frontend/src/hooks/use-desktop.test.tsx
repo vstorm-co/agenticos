@@ -10,6 +10,7 @@ import { qk } from "@/lib/query-keys";
 import {
   useDesktopState,
   useSetBlobby,
+  useSetPinned,
   useSetShortcut,
   useSetWindowPreferences,
   useShellEvent,
@@ -20,6 +21,8 @@ const shell = vi.hoisted(() => ({
   setBlobby: vi.fn(),
   setShortcut: vi.fn(),
   setWindowPreferences: vi.fn(),
+  pinAgent: vi.fn(),
+  unpinAgent: vi.fn(),
   listenShell: vi.fn(),
   reportShellFailure: vi.fn(),
 }));
@@ -30,6 +33,8 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
   setBlobby: shell.setBlobby,
   setShortcut: shell.setShortcut,
   setWindowPreferences: shell.setWindowPreferences,
+  pinAgent: shell.pinAgent,
+  unpinAgent: shell.unpinAgent,
 }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
@@ -49,6 +54,7 @@ const STATE: DesktopState = {
     size: 1,
     position: null,
   },
+  pinned: [],
   shortcuts: [
     { action: "quick_ask", accelerator: "Alt+Space", problem: "taken" },
     { action: "screenshot_chat", accelerator: "CmdOrCtrl+Shift+A", problem: null },
@@ -121,6 +127,22 @@ describe("the changes", () => {
       { action: "quick_ask", accelerator: "Alt+K", problem: null },
       STATE.shortcuts[1],
     ]);
+  });
+
+  it("pin and unpin an agent, keeping the list the shell answers with", async () => {
+    client.setQueryData(qk.desktop.state(), STATE);
+    const support = { id: "00000000-0000-4000-8000-000000000001", name: "Support" };
+    shell.pinAgent.mockResolvedValue([support]);
+    shell.unpinAgent.mockResolvedValue([]);
+    const { result } = renderHook(() => useSetPinned(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ agent: support, pinned: true }));
+    expect(shell.pinAgent).toHaveBeenCalledWith(support);
+    expect(client.getQueryData<DesktopState>(qk.desktop.state())?.pinned).toEqual([support]);
+
+    await act(() => result.current.mutateAsync({ agent: support, pinned: false }));
+    expect(shell.unpinAgent).toHaveBeenCalledWith(support.id);
+    expect(client.getQueryData<DesktopState>(qk.desktop.state())?.pinned).toEqual([]);
   });
 
   it("leave an empty cache empty", async () => {

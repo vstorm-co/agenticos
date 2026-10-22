@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { PinnedSettings } from "@/components/desktop/pinned-settings";
 import { WindowSettings } from "@/components/desktop/window-settings";
 import { SectionHeading } from "@/components/ui";
 
@@ -13,6 +14,7 @@ export default function DesktopAppPage() {
     <div className="space-y-6">
       <SectionHeading title={t("heading")} description={t("headingHint")} />
       <WindowSettings />
+      <PinnedSettings />
     </div>
   );
 }

@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager, Url};
 
 use crate::appearance::Appearance;
 use crate::blobby::BlobbySettings;
+use crate::pinned::PinnedAgent;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -29,6 +30,9 @@ pub struct Settings {
     /// Whether the console's welcome - blobby, shortcuts, notifications - has been through.
     #[serde(default)]
     pub onboarded: bool,
+    /// The agents in the tray's and the Dock's "New Chat With", in order.
+    #[serde(default)]
+    pub pinned_agents: Vec<PinnedAgent>,
 }
 
 /// A stack the app set up on this machine, or an organization's server.

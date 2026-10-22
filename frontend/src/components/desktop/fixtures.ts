@@ -13,6 +13,7 @@ export const DESKTOP_STATE: DesktopState = {
     size: 1,
     position: null,
   },
+  pinned: [],
   shortcuts: [
     { action: "quick_ask", accelerator: "Alt+Space", problem: null },
     { action: "screenshot_chat", accelerator: "CmdOrCtrl+Shift+A", problem: null },

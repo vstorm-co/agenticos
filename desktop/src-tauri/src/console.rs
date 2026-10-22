@@ -22,6 +22,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::appearance::{self, Appearance, Surface};
 use crate::blobby::{self, BlobbySettings};
 use crate::notify::{self, Notice};
+use crate::pinned::{self, PinnedAgent};
 use crate::settings::{self, WindowPreferences};
 use crate::shortcuts::{self, Binding};
 use crate::{quick_ask, WINDOW};
@@ -43,6 +44,8 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-set-badge",
             "allow-finish-onboarding",
             "allow-take-shared",
+            "allow-pin-agent",
+            "allow-unpin-agent",
             "allow-page-error",
             "core:event:allow-listen",
             "core:event:allow-unlisten",
@@ -126,6 +129,8 @@ pub fn grant(app: &AppHandle, server: &Url) -> Result<(), String> {
 pub struct DesktopState {
     pub appearance: Appearance,
     pub blobby: BlobbySettings,
+    /// The agents in "New Chat With", in order.
+    pub pinned: Vec<PinnedAgent>,
     pub shortcuts: Vec<Binding>,
     pub window: WindowView,
 }
@@ -147,6 +152,7 @@ pub fn desktop_state(app: AppHandle) -> DesktopState {
         appearance: settings.appearance,
         shortcuts: shortcuts::views(&app, &settings.shortcuts),
         blobby: settings.blobby,
+        pinned: settings.pinned_agents,
         window: WindowView {
             keep_running: settings.window.keep_running,
             badge: settings.window.badge,
@@ -246,6 +252,28 @@ pub fn set_badge(app: AppHandle, count: u32) -> Result<(), String> {
 #[tauri::command]
 pub fn open_in_console(app: AppHandle, path: String) -> Result<(), String> {
     crate::open_in_console_at(&app, &path)
+}
+
+/// Pin an agent to the tray's and the Dock's "New Chat With", or rename one
+/// already there. Answers the list as it now stands.
+#[tauri::command]
+pub fn pin_agent(app: AppHandle, agent: PinnedAgent) -> Result<Vec<PinnedAgent>, String> {
+    let agent = pinned::validate(&agent)?;
+    let current = settings::current(&app).pinned_agents;
+    let next = pinned::pin(&current, agent)?;
+    save_pinned(&app, next)
+}
+
+#[tauri::command]
+pub fn unpin_agent(app: AppHandle, id: String) -> Result<Vec<PinnedAgent>, String> {
+    let next = pinned::unpin(&settings::current(&app).pinned_agents, &id);
+    save_pinned(&app, next)
+}
+
+fn save_pinned(app: &AppHandle, pinned: Vec<PinnedAgent>) -> Result<Vec<PinnedAgent>, String> {
+    settings::update(app, |settings| settings.pinned_agents = pinned.clone())?;
+    crate::reflect_pinned(app, &pinned)?;
+    Ok(pinned)
 }
 
 /// Blobby's own menu, under the right mouse button.

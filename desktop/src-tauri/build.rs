@@ -26,6 +26,8 @@ const COMMANDS: &[&str] = &[
     "take_context_files",
     "open_accessibility_settings",
     "take_shared",
+    "pin_agent",
+    "unpin_agent",
     "onboarding_state",
     "local_status",
     "set_up_local",

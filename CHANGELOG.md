@@ -107,6 +107,12 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **Pinned agents** (#2305, #2097): an agent's page offers Pin to Dock (Pin
+  to tray on Windows and Linux) in the desktop app - a new chat with it from
+  the Dock icon's right-click menu and the tray's "New Chat With", up to eight,
+  listed and unpinned under Settings → Desktop app - and Add to home screen in
+  the Android app, a shortcut wearing the agent's face. Both open
+  `/chat?with=<agent id>`, a new chat addressed to that agent.
 - **Drop a file on blobby or the Dock icon** (#2305) to start a chat with it:
   up to ten files of 20 MB each are attached to a new message in the console,
   and any that cannot be carried over are named. Blobby says it will take a

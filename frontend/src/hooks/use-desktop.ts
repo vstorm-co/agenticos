@@ -7,11 +7,14 @@ import { toast } from "sonner";
 
 import {
   getDesktopState,
+  pinAgent,
   setBlobby,
   setShortcut,
   setWindowPreferences,
+  unpinAgent,
   type BlobbySettings,
   type DesktopState,
+  type PinnedAgent,
   type ShortcutAction,
   type WindowPreferences,
 } from "@/lib/desktop/commands";
@@ -33,17 +36,17 @@ export function useDesktopState() {
 }
 
 /** A change to the desktop app's state, written to the cache as soon as the shell takes it. */
-function useDesktopChange<T>(
-  send: (value: T) => Promise<unknown>,
-  apply: (state: DesktopState, value: T) => DesktopState,
+function useDesktopChange<T, A>(
+  send: (value: T) => Promise<A>,
+  apply: (state: DesktopState, value: T, answer: A) => DesktopState,
 ) {
   const queryClient = useQueryClient();
   const t = useTranslations("desktop");
   return useMutation({
     mutationFn: send,
-    onSuccess: (_answer, value) =>
+    onSuccess: (answer, value) =>
       queryClient.setQueryData<DesktopState>(qk.desktop.state(), (state) =>
-        state ? apply(state, value) : state,
+        state ? apply(state, value, answer) : state,
       ),
     // The shell's reasons are English and written for a log; the person reads the catalog's.
     onError: (error) => {
@@ -55,6 +58,15 @@ function useDesktopChange<T>(
 
 export function useSetBlobby() {
   return useDesktopChange(setBlobby, (state, blobby: BlobbySettings) => ({ ...state, blobby }));
+}
+
+/** Pin an agent to "New Chat With" in the tray and the Dock, or take it off. */
+export function useSetPinned() {
+  return useDesktopChange(
+    ({ agent, pinned }: { agent: PinnedAgent; pinned: boolean }) =>
+      pinned ? pinAgent(agent) : unpinAgent(agent.id),
+    (state, _change, pinned) => ({ ...state, pinned }),
+  );
 }
 
 export function useSetWindowPreferences() {

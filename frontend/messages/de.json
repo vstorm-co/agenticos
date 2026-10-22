@@ -8184,6 +8184,26 @@
   "desktop": {
     "blobby": {
       "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
+    },
+    "settings": {
+      "pinned": {
+        "title": "Angeheftete Agenten",
+        "descriptionDock": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Dock-Symbols (Rechtsklick) und des Menüleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "descriptionTray": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Taskleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "empty": "Noch keine Agenten angeheftet. Öffne einen Agenten und wähle Anheften.",
+        "unpin": "Lösen"
+      }
     }
+  },
+  "agentPin": {
+    "toDock": "Im Dock anheften",
+    "toTray": "In der Taskleiste anheften",
+    "unpin": "Lösen",
+    "dockHint": "Rechtsklick auf das AgenticOS-Symbol im Dock startet einen neuen Chat mit diesem Agenten.",
+    "trayHint": "Ein neuer Chat mit diesem Agenten aus dem Menü des AgenticOS-Symbols.",
+    "toHomeScreen": "Zum Startbildschirm hinzufügen",
+    "onHomeScreen": "Auf dem Startbildschirm. Tippen für einen neuen Chat.",
+    "inLongPress": "Dein Launcher kann ihn nicht anheften, darum steht er in der Liste beim langen Drücken auf das AgenticOS-Symbol.",
+    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden."
   }
 }

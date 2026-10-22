@@ -8426,6 +8426,13 @@
           "label": "Voice call",
           "hint": "Calls the agent the chat has selected. Off until you pick a combination: a call starts talking at once."
         }
+      },
+      "pinned": {
+        "title": "Pinned agents",
+        "descriptionDock": "A new chat with any of them from the Dock icon's menu (right-click) and the menu bar icon. Pin an agent from its page.",
+        "descriptionTray": "A new chat with any of them from the tray icon's menu. Pin an agent from its page.",
+        "empty": "No agents pinned yet. Open an agent and choose Pin.",
+        "unpin": "Unpin"
       }
     },
     "quickAsk": {
@@ -8528,5 +8535,16 @@
     "share": {
       "notAttached": "Could not attach: {names}"
     }
+  },
+  "agentPin": {
+    "toDock": "Pin to Dock",
+    "toTray": "Pin to tray",
+    "unpin": "Unpin",
+    "dockHint": "Right-click the AgenticOS icon in the Dock for a new chat with this agent.",
+    "trayHint": "A new chat with this agent from the AgenticOS tray menu.",
+    "toHomeScreen": "Add to home screen",
+    "onHomeScreen": "On your home screen. Tap it for a new chat.",
+    "inLongPress": "Your launcher cannot pin it, so it is in the AgenticOS icon's long-press list.",
+    "failed": "The agent could not be added to the home screen."
   }
 }

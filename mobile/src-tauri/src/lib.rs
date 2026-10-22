@@ -16,6 +16,7 @@
 
 mod live;
 mod managed;
+mod pin;
 mod push;
 mod share;
 mod widget;
@@ -232,7 +233,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
 
 /// What the console - a remote page - may ask of the app: the unlock prompt
 /// again, its live activities, what was shared with the app, the widget's
-/// counts, and a haptic tap. Granted for the configured server's origin
+/// counts, an agent pinned to the home screen, and a haptic tap. Granted for the configured server's origin
 /// only, as the desktop shell grants its console's commands.
 fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
     let pattern = format!("{}/*", server.origin().ascii_serialization());
@@ -245,6 +246,7 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-show-activity")
             .permission("allow-end-activity")
             .permission("allow-update-widget")
+            .permission("allow-pin-shortcut")
             .permission("allow-push-status")
             .permission("allow-push-register")
             .permission("allow-push-unregister")
@@ -537,6 +539,7 @@ pub fn run() {
         .plugin(tauri_plugin_haptics::init())
         .plugin(live::init())
         .plugin(managed::init())
+        .plugin(pin::init())
         .plugin(push::init())
         .plugin(share::init())
         .plugin(widget::init());
@@ -556,6 +559,7 @@ pub fn run() {
             live::show_activity,
             live::end_activity,
             widget::update_widget,
+            pin::pin_shortcut,
             push::push_status,
             push::push_register,
             push::push_unregister

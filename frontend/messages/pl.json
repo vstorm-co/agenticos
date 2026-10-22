@@ -8211,6 +8211,13 @@
           "label": "Rozmowa głosowa",
           "hint": "Dzwoni do agenta wybranego w czacie. Wyłączony, dopóki nie wybierzesz kombinacji: rozmowa od razu zaczyna mówić."
         }
+      },
+      "pinned": {
+        "title": "Przypięci agenci",
+        "descriptionDock": "Nowy czat z każdym z nich z menu ikony w Docku (prawy przycisk) i ikony na pasku menu. Agenta przypinasz na jego stronie.",
+        "descriptionTray": "Nowy czat z każdym z nich z menu ikony w zasobniku. Agenta przypinasz na jego stronie.",
+        "empty": "Nie ma jeszcze przypiętych agentów. Otwórz agenta i wybierz Przypnij.",
+        "unpin": "Odepnij"
       }
     },
     "quickAsk": {
@@ -8313,5 +8320,16 @@
     "share": {
       "notAttached": "Nie udało się dołączyć: {names}"
     }
+  },
+  "agentPin": {
+    "toDock": "Przypnij do Docka",
+    "toTray": "Przypnij do zasobnika",
+    "unpin": "Odepnij",
+    "dockHint": "Kliknij prawym przyciskiem ikonę AgenticOS w Docku, aby zacząć nowy czat z tym agentem.",
+    "trayHint": "Nowy czat z tym agentem z menu ikony AgenticOS w zasobniku.",
+    "toHomeScreen": "Dodaj do ekranu głównego",
+    "onHomeScreen": "Jest na ekranie głównym. Stuknij, aby zacząć nowy czat.",
+    "inLongPress": "Launcher nie pozwala go przypiąć, więc jest na liście po przytrzymaniu ikony AgenticOS.",
+    "failed": "Nie udało się dodać agenta do ekranu głównego."
   }
 }

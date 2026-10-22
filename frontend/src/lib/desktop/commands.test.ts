@@ -25,9 +25,12 @@ const BLOBBY: BlobbySettings = {
   position: { x: 10, y: 20 },
 };
 
+const SUPPORT = { id: "00000000-0000-4000-8000-000000000001", name: "Support" };
+
 const STATE: DesktopState = {
   appearance: { look: "glass", mode: "dark" },
   blobby: BLOBBY,
+  pinned: [SUPPORT],
   shortcuts: [{ action: "quick_ask", accelerator: "Alt+Space", problem: null }],
   window: { keep_running: true, badge: false, launch_at_login: true },
 };
@@ -37,6 +40,17 @@ beforeEach(() => invoke.mockReset());
 describe("parseDesktopState", () => {
   it("reads the state the shell sends", () => {
     expect(parseDesktopState(STATE)).toEqual(STATE);
+  });
+
+  it("reads no pinned agents from a shell older than pinning", () => {
+    const { pinned: _pinned, ...older } = STATE;
+    expect(parseDesktopState(older).pinned).toEqual([]);
+    expect(() => parseDesktopState({ ...STATE, pinned: {} })).toThrow(
+      "malformed: the pinned agents",
+    );
+    expect(() => parseDesktopState({ ...STATE, pinned: [{ id: 1, name: "x" }] })).toThrow(
+      "malformed",
+    );
   });
 
   it("leaves out a shortcut a newer shell knows and this console does not", () => {
@@ -160,6 +174,15 @@ describe("the commands", () => {
       ["hide_quick_ask"],
       ["finish_onboarding"],
     ]);
+  });
+
+  it("pins and unpins an agent, answering with the list as it now stands", async () => {
+    invoke.mockResolvedValue([SUPPORT]);
+    await expect(commands.pinAgent(SUPPORT)).resolves.toEqual([SUPPORT]);
+    expect(invoke).toHaveBeenLastCalledWith("pin_agent", { agent: SUPPORT });
+    invoke.mockResolvedValue([]);
+    await expect(commands.unpinAgent(SUPPORT.id)).resolves.toEqual([]);
+    expect(invoke).toHaveBeenLastCalledWith("unpin_agent", { id: SUPPORT.id });
   });
 
   it("answers with what the shell bound, and refuses an answer that is not a binding", async () => {

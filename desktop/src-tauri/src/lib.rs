@@ -21,6 +21,7 @@ mod dropped;
 mod local_stack;
 mod managed;
 mod notify;
+mod pinned;
 mod quick_ask;
 mod settings;
 mod shortcuts;
@@ -838,26 +839,37 @@ impl ShellMenu {
     fn tray(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         let separator = || PredefinedMenuItem::separator(app);
         let blobby = self.blobby.submenu(app)?;
+        let agents = settings::current(app)
+            .pinned_agents
+            .iter()
+            .map(|agent| MenuItem::with_id(app, pinned::menu_id(agent), &agent.name, true, None::<&str>))
+            .collect::<tauri::Result<Vec<_>>>()?;
+        let agent_items: Vec<&dyn IsMenuItem<Wry>> = agents.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
+        // Absent rather than empty: a submenu with nothing in it is a dead end.
+        let chat_with = (!agents.is_empty())
+            .then(|| Submenu::with_items(app, "New Chat With", true, &agent_items))
+            .transpose()?;
         let quit = PredefinedMenuItem::quit(app, Some("Quit AgenticOS"))?;
         let [start, stop, update] = &self.local;
         let local = Submenu::with_items(app, "AgenticOS on This Computer", true, &[start, stop, update])?;
-        Menu::with_items(
-            app,
-            &[
-                &self.open_console,
-                &self.new_chat,
-                &self.quick_ask,
-                &self.screenshot,
-                &separator()?,
-                &blobby,
-                &local,
-                &separator()?,
-                &self.settings,
-                &self.change_server,
-                &separator()?,
-                &quit,
-            ],
-        )
+        let (first, second, third) = (separator()?, separator()?, separator()?);
+        let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&self.open_console, &self.new_chat];
+        if let Some(chat_with) = &chat_with {
+            items.push(chat_with);
+        }
+        items.extend([
+            &self.quick_ask as &dyn IsMenuItem<Wry>,
+            &self.screenshot,
+            &first,
+            &blobby,
+            &local,
+            &second,
+            &self.settings,
+            &self.change_server,
+            &third,
+            &quit,
+        ]);
+        Menu::with_items(app, &items)
     }
 
     /// The macOS menu bar. Windows and Linux get none: a menu bar inside the
@@ -975,6 +987,19 @@ pub fn popup_tray_menu(app: &AppHandle, window: &WebviewWindow) -> Result<(), St
     menu.popup(window.as_ref().window()).map_err(|e| e.to_string())
 }
 
+/// The pinned agents changed: the tray's menu again, and the Dock's next one.
+pub fn reflect_pinned(app: &AppHandle, pinned: &[pinned::PinnedAgent]) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    pinned::dock::set(pinned);
+    #[cfg(not(target_os = "macos"))]
+    let _ = pinned;
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        return Ok(());
+    };
+    let menu = app.state::<ShellMenu>().tray(app).map_err(|e| e.to_string())?;
+    tray.set_menu(Some(menu)).map_err(|e| e.to_string())
+}
+
 /// Blobby's settings changed: the checkmarks, then the window.
 pub fn reflect_blobby(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     app.state::<ShellMenu>()
@@ -1079,6 +1104,8 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                     })
                 } else if let Some(size) = blobby::size_from_menu_id(other) {
                     update_blobby(app, |blobby| blobby.size = size)
+                } else if let Some(agent) = pinned::from_menu_id(other) {
+                    open_in_console_at(app, &pinned::chat_path(agent))
                 } else {
                     Ok(())
                 }
@@ -1142,6 +1169,8 @@ pub fn run() {
             console::notify,
             console::set_badge,
             console::open_in_console,
+            console::pin_agent,
+            console::unpin_agent,
             onboarding_state,
             local_status,
             set_up_local,
@@ -1189,6 +1218,9 @@ pub fn run() {
             }
             app.manage(managed::Managed(policy));
             install_menu(handle, &settings)?;
+            // Right-click on the Dock icon: "New Chat With" the pinned agents.
+            #[cfg(target_os = "macos")]
+            pinned::dock::install(handle, &settings.pinned_agents);
             let (start, notice) = console_start(settings.server_url.clone());
             app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));
             app.manage(PendingScreenshot(Mutex::new(None)));
