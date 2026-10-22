@@ -1,5 +1,5 @@
 ---
-source_sha: "967585c98165"
+source_sha: "a17621366279"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -93,7 +93,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
-| `follow_ups` | Nächste Schritte | utility | `suggest_next_steps` | — | — | nicht verfügbar |
+| `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -2459,7 +2459,18 @@ wie die Person ihn sagen würde: „Mach eine Tabelle daraus“, „Mach das jed
 um 9:00“. Ein Klick sendet den Schritt als ihre nächste Nachricht. Nur die neueste
 Antwort bietet sie an, und keine, solange ein Durchgang läuft. Nach Smalltalk oder
 einer eigenen Frage lässt der Agent sie weg, und er wiederholt die Schritte nicht
-in seiner Antwort.
+in seiner Antwort. In Slack, Teams, Telegram und Mattermost kommen die Schritte
+als Nachricht mit Schaltflächen unter der Antwort, und ein Druck ist die Person,
+die diesen Schritt sagt - die Einzelheiten stehen unter
+[Kanäle](../channels.md#next-steps-as-buttons).
+
+`propose_setup` schlägt bis zu drei Dinge zum Einrichten vor, als Karten unter
+der Antwort: einen eigenen Agent der Person, eine Routine oder einen Dienst zum
+Verbinden. Eine Karte wirkt mit einem Klick - eine Routine öffnet den
+Routinendialog ausgefüllt, auf dem Agent, der sie vorgeschlagen hat; ein Agent
+ist eine Frage an den Architect; eine Verbindung öffnet die Seite der MCP-Server
+an ihrem Hinzufügen-Button. Der AgenticOS-Agent beendet sein Kennenlerngespräch
+damit. Die Karten gibt es nur in der Konsole; eine Chat-App zeichnet sie nicht.
 
 Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
 abschalten. Ein Sprachanruf lässt sie weg.

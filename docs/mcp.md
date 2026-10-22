@@ -953,16 +953,20 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
-| `list_my_connections`, `set_my_language` | — (the caller's own) |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
 reason when the draft would not publish - and published with `publish_agent`,
 which runs the checks the console's **Publish** button runs. A routine's
 `cron_expression` is evaluated in UTC. `set_my_language` switches the console's
-language for the caller (`en`, `pl` or `de`) on every device they sign in on.
+language for the caller (`en`, `pl` or `de`) on every device they sign in on, and
+`set_my_profile` saves their role and what they work on, which every agent is
+told from then on. `create_skill` saves a procedure that worked as a
+[skill](skills.md), for "make a skill of this".
 
 Deliberately absent: touching a credential, and deleting anything but an agent
 draft its caller created and never published - the undo for a draft made by
@@ -987,9 +991,9 @@ named after this deployment; switching it on binds it as
   changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
   `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
   reading too. `none` is not offered: these tools act with a person's authority.
-  The one write that never waits is `set_my_language`: it changes the asker's own
-  preference, on their word, and an approval card for "switch to English" would be
-  the whole conversation.
+  The writes that never wait are `set_my_language` and `set_my_profile`: each
+  changes the asker's own preference or description, on their word, and an
+  approval card for "switch to English" would be the whole conversation.
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 

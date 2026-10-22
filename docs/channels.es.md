@@ -1,5 +1,5 @@
 ---
-source_sha: "459824052fb1"
+source_sha: "7a029c284d40"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1204,7 +1204,7 @@ un guardrail de salida redactó algo -, el mensaje se reescribe entero.
 
 ### Scopes y events { #scopes-and-events }
 
-Trece bot token scopes, y cada uno se gana su sitio con una llamada que hace el
+Catorce bot token scopes, y cada uno se gana su sitio con una llamada que hace el
 adaptador:
 
 | Scope | Qué lo necesita |
@@ -1217,6 +1217,7 @@ adaptador:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` y `.members` — las consultas de canal que un agent puede hacer |
 | `im:read`, `mpim:read` | `conversations.members` en un mensaje directo. Fácil de olvidar y silencioso cuando lo haces: la comprobación de pertenencia falla en cerrado, así que una conversación en la que no se pudo confirmar a nadie **desaparece de la lista de conversaciones** en vez de dar error |
 | `users:read` | `users.info`, que convierte ids de miembro en personas |
+| `users:read.email` | `users.lookupByEmail`, que encuentra a un miembro nuevo para [darle la bienvenida](#a-welcome-for-a-new-member). Una app de Slack instalada antes de que se añadiera sigue funcionando sin él, y no da la bienvenida a nadie hasta que se reinstala desde el manifiesto nuevo |
 
 Cinco bot events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1594,6 +1595,32 @@ sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra qu
 el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
 el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
 puede editar el agente.
+
+### Pasos siguientes como botones { #next-steps-as-buttons }
+
+A la respuesta de un agent con [Follow-ups](reference/capabilities.md#follow-ups)
+que ofreció pasos siguientes le sigue un mensaje de botones, uno por paso - *Hazlo
+una tabla*, *Haz esto cada lunes*. Pulsar uno es quien pulsa diciendo ese paso: se
+responde como su siguiente mensaje en ese chat, sujeto a todo lo que lo está uno
+escrito - la vinculación, la política de acceso del bot, el límite de frecuencia -
+y el mensaje pulsado muestra después el paso en lugar de sus botones.
+
+Cada mensaje se pulsa una vez; cualquiera en la sala puede hacerlo, y la respuesta es
+suya. Una respuesta que se detuvo en una aprobación o una pregunta ofrece esas en
+su lugar. Las tarjetas de configuración que un agent puede proponer solo las
+dibuja la consola.
+
+## Una bienvenida para un miembro nuevo { #a-welcome-for-a-new-member }
+
+Cuando alguien se une a la organización - por una invitación, uniéndose a la
+organización por defecto o por la sincronización del directorio - cada bot activo
+de Slack, Mattermost y Teams de la organización lo busca por su dirección de
+correo y, donde lo encuentra, le envía un mensaje directo en el idioma de su
+consola: quién es, que puede preguntarle ahí mismo y la dirección de la consola.
+Es una tarea en segundo plano que se intenta una vez; un bot que no lo encuentra,
+o una plataforma que se niega, no cuesta nada más. Slack necesita el scope
+`users:read.email` para la búsqueda; Teams lo encuentra en el directorio del
+tenant.
 
 ## Reacciones y valoraciones { #reactions-and-ratings }
 

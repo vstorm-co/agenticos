@@ -1,5 +1,5 @@
 ---
-source_sha: "5386fb461910"
+source_sha: "4d7b297e8b55"
 ---
 
 # Konsola { #the-console }
@@ -300,6 +300,37 @@ proponuje ją włączyć albo poprosić o to właściciela agenta
 **Zachowanie prośby, która zadziałała.** Najedź na własną wiadomość: kalendarz
 zamienia ją w rutynę - ten sam prompt, domyślnie co tydzień, na agencie, który
 odpowiedział - a robot prosi Architekta, żeby zbudował agenta, który to robi.
+Najedź na odpowiedź, a zakładka prosi Architekta, żeby zrobił
+[skill](skills.md) z tego, jak to zostało zrobione, i każdy agent zrobił to
+następnym razem tak samo; dostaje twoją prośbę i odpowiedź, a przycisk widzi ten,
+kto może pisać skille.
+
+**Linki, które wskazują.** Link do konsoli, który agent napisze w odpowiedzi -
+„tu jest przycisk, który podłącza twój Gmail” - otwiera tę stronę bez
+przeładowania konsoli, a `?highlight=` w nim wskazuje kontrolkę, którą nazywa,
+tak jak linki Architekta.
+
+**Agent AgenticOS poznaje cię.** Dopóki twoje konto nic nie mówi o twojej roli
+ani pracy, powitanie zaczyna krótką rozmowę: czym się zajmujesz, co wypełnia ci
+tydzień, w jakich narzędziach pracujesz - po jednym pytaniu, każde z odpowiedziami
+do wybrania. To, co powiesz, trafia do twojego profilu, więc od tej pory wie to
+każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
+rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
+Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
+
+**Co zauważyła w nocy.** Raz na noc, wcześnie rano twojego czasu, platforma
+przegląda w zadaniu w tle twoje ostatnie rozmowy: prośba, którą powtarzasz,
+staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
+propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
+napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie i w
+dzwonku; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
+wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
+kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
+`?agent=<slug>` otwiera czat na tym agencie.
+
+**Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
+rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
+dla agenta, nie harmonogram.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

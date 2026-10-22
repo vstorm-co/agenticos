@@ -85,7 +85,7 @@ browser is pointed at the deployment's browser service
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
-| `follow_ups` | Follow-ups | utility | `suggest_next_steps` | — | — | not available |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -2181,7 +2181,17 @@ buttons under it, each at most 80 characters and phrased as the person would say
 it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
 their next message. Only the latest answer offers them, and none while a turn is
 running. The agent skips them after small talk or a question of its own, and
-does not repeat the steps in its answer.
+does not repeat the steps in its answer. In Slack, Teams, Telegram and Mattermost
+the steps arrive as a message of buttons under the answer, and a press is the
+presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
+the detail.
+
+`propose_setup` proposes up to three things to set up, drawn as cards under the
+answer: an agent of the person's own, a routine, or a service to connect. A card
+acts in one click - a routine opens the routine dialog filled in, on the agent
+that proposed it; an agent is a question to the Architect; a connection opens the
+MCP servers page at its add button. The AgenticOS agent ends its welcome
+interview with them. The cards are the console's; a chat app does not draw them.
 
 It is on in the starter agent and in the Architect, and an author can switch it
 off. A voice call leaves it out.

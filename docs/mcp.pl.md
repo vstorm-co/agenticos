@@ -1,5 +1,5 @@
 ---
-source_sha: "ff0bd63bf9ef"
+source_sha: "3130866c066b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -990,9 +990,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
-| `list_my_connections`, `set_my_language` | — (własne wywołującego) |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,
@@ -1000,7 +1001,10 @@ liczony do budżetu i zapisywany, odrzucany z podaniem powodu, gdy draft by się
 opublikował - i opublikować przez `publish_agent`, które wykonuje te same
 sprawdzenia co przycisk **Publish** w konsoli. `cron_expression` rutyny jest
 liczony w UTC. `set_my_language` przełącza język konsoli wywołującego (`en`, `pl`
-albo `de`) na każdym urządzeniu, na którym się loguje.
+albo `de`) na każdym urządzeniu, na którym się loguje, a `set_my_profile`
+zapisuje jego rolę i to, czym się zajmuje, co od tej pory słyszy każdy agent.
+`create_skill` zapisuje procedurę, która zadziałała, jako [skill](skills.md) - na
+„zrób z tego skill”.
 
 Celowo nie ma tu dotykania poświadczeń ani usuwania czegokolwiek poza draftem
 agenta, który wywołujący sam utworzył i nigdy nie opublikował - to cofnięcie
@@ -1026,9 +1030,10 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   narzędzie, które coś zmienia (`create_agent_draft`, `publish_agent`,
   `create_routine`, `run_agent`, `invite_member` i pozostałe), do zgody osoby;
   `all` wstrzymuje też odczyt. `none` nie jest oferowane: te narzędzia działają z
-  uprawnieniami człowieka. Jedyny zapis, który nigdy nie czeka, to
-  `set_my_language`: zmienia własną preferencję pytającego, na jego słowo, a karta
-  zatwierdzenia dla „przełącz na angielski” byłaby całą rozmową.
+  uprawnieniami człowieka. Zapisy, które nigdy nie czekają, to `set_my_language`
+  i `set_my_profile`: każdy zmienia własną preferencję albo opis pytającego, na
+  jego słowo, a karta zatwierdzenia dla „przełącz na angielski” byłaby całą
+  rozmową.
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.
 

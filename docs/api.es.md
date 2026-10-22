@@ -1,5 +1,5 @@
 ---
-source_sha: "f2c1bb1791c0"
+source_sha: "d77cb23fa679"
 ---
 
 # La API HTTP { #the-http-api }
@@ -174,10 +174,12 @@ agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
 Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
 `GET`, `POST`, `PATCH` y `DELETE` bajo `/api/v1/agents/{agent_id}/triggers`, más
 `POST .../{trigger_id}/run` para lanzar una ahora - y a los modelos de la
-organización en `GET /api/v1/providers/model-profiles`. Dos rutas actúan sobre el
-propio emisor: `GET /api/v1/me/mcp-connections` lista los servicios que conectó con
-su propia cuenta, y `PUT /api/v1/users/me/locale` le fija el idioma de la consola
-en cada dispositivo. Las dos necesitan una clave emitida para `agents:run`.
+organización en `GET /api/v1/providers/model-profiles`. Tres rutas actúan sobre
+el propio emisor: `GET /api/v1/me/mcp-connections` lista los servicios que conectó
+con su propia cuenta, `PUT /api/v1/users/me/locale` le fija el idioma de la consola
+en cada dispositivo, y `PATCH /api/v1/users/me/agent-context` guarda su rol
+(`job_title`) y en qué trabaja (`about`), lo que se le dice a cada agent. Cada una
+necesita una clave emitida para `agents:run`.
 
 `POST /api/v1/agents` crea un agent a partir del spec del cuerpo y deja vacío un
 campo vacío. Con `"from_starter": true` rellena lo que el spec omite - las

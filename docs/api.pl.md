@@ -1,5 +1,5 @@
 ---
-source_sha: "f2c1bb1791c0"
+source_sha: "d77cb23fa679"
 ---
 
 # API HTTP { #the-http-api }
@@ -168,10 +168,12 @@ odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
 Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
 `PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także
 `POST .../{trigger_id}/run`, żeby uruchomić jedną od razu - i do modeli organizacji
-pod `GET /api/v1/providers/model-profiles`. Dwie ścieżki działają na samym
+pod `GET /api/v1/providers/model-profiles`. Trzy ścieżki działają na samym
 wystawcy: `GET /api/v1/me/mcp-connections` wymienia usługi, które połączył własnym
-kontem, a `PUT /api/v1/users/me/locale` ustawia mu język konsoli na każdym
-urządzeniu. Obie wymagają klucza wydanego na `agents:run`.
+kontem, `PUT /api/v1/users/me/locale` ustawia mu język konsoli na każdym
+urządzeniu, a `PATCH /api/v1/users/me/agent-context` zapisuje jego rolę
+(`job_title`) i to, czym się zajmuje (`about`), co słyszy każdy agent. Każda
+wymaga klucza wydanego na `agents:run`.
 
 `POST /api/v1/agents` tworzy agenta ze speca w treści i zostawia puste pole
 puste. Z `"from_starter": true` uzupełnia to, czego spec nie podaje -

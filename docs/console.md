@@ -289,7 +289,37 @@ asks to switch it on, or to ask the agent's owner
 
 **Keeping a request that worked.** Hover your own message: the calendar turns it
 into a routine - the same prompt, weekly by default, on the agent that answered -
-and the robot asks the Architect to build an agent that does it.
+and the robot asks the Architect to build an agent that does it. Hover the answer
+and the bookmark asks the Architect to make a [skill](skills.md) of how it was
+done, so any agent can do it the same way next time; it is handed your request
+and the answer, and offered to whoever may write skills.
+
+**Links that point.** A console link an agent writes in its answer - "here is the
+button that connects your Gmail" - opens that page without reloading the console,
+and a `?highlight=` in it points at the control it names, as the Architect's
+links do.
+
+**The AgenticOS agent gets to know you.** While your account says nothing about
+your role or your work, a greeting starts a short interview: what you do, what
+fills your week, which tools you work in - one question at a time, each with
+answers to pick. What you say is saved to your profile, so every agent knows it
+from then on, and the interview ends with up to three cards to set up - a
+routine, a service to connect, an agent of your own - each one click. Skip a
+question, or ask for something real, and it does the work instead.
+
+**What it noticed overnight.** Once a night, early in your morning, the platform
+looks at your recent conversations in a background job: a request you keep
+repeating becomes a proposed routine, what an agent learnt about your role
+becomes a proposed profile, and your empty AgenticOS chat gets first messages
+written for your work. Proposals wait as cards in that empty chat and in the
+bell; accept one and it is set up, dismiss it and the same proposal is never
+made again. Nothing runs when nothing new happened, and what this may spend is
+[capped per person](governance.md#proactive-work). A chat link with
+`?agent=<slug>` opens the chat on that agent.
+
+**Working hours** under **Settings → Profile** tell agents when you work, so a
+routine they propose lands inside your day. Nothing waits on them: they are
+knowledge for the agent, not a schedule.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a

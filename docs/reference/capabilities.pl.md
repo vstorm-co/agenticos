@@ -1,5 +1,5 @@
 ---
-source_sha: "967585c98165"
+source_sha: "a17621366279"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -92,7 +92,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
-| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps` | — | — | niedostępna |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -2285,7 +2285,17 @@ kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
 powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
 9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
 najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
-po własnym pytaniu i nie powtarza kroków w odpowiedzi.
+po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
+Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
+przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
+w [Kanałach](../channels.md#next-steps-as-buttons).
+
+`propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
+pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
+działa jednym kliknięciem - rutyna otwiera wypełnione okno rutyny na agencie,
+który ją zaproponował; agent to pytanie do Architekta; połączenie otwiera stronę
+serwerów MCP przy przycisku dodawania. Agent AgenticOS kończy nimi rozmowę
+powitalną. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
 
 Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
 Rozmowa głosowa jej nie używa.

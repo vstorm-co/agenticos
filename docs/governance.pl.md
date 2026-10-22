@@ -1,5 +1,5 @@
 ---
-source_sha: "023fa6d893b4"
+source_sha: "39561a7d0018"
 ---
 
 # Governance { #governance }
@@ -503,6 +503,22 @@ się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
 Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
 zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
 wydatki umierają razem z jego procesem.
+
+### Praca z własnej inicjatywy { #proactive-work }
+
+Platforma robi trochę z własnej inicjatywy: raz na noc, wcześnie rano czasu
+każdej osoby, zadanie w tle czyta, o co ostatnio prosiła, i proponuje rutynę dla
+prośby, którą powtarza, profil albo pierwsze wiadomości, które oferuje jej pusty
+czat ([Konsola](console.md#chat)). Każde to jedno wywołanie modelu, na modelu
+agenta AgenticOS, zapisane w historii runów jako run z powierzchni **proactive** i
+liczone do budżetu organizacji jak każde inne.
+
+Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
+**limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany obok
+limitu wydatków organizacji na stronie jej członków (`proactive_limit_usd`,
+wymaga `budgets:manage`), a 0 wyłącza tę pracę. Osoba, u której nic nowego się
+nie wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co
+czytać.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 
@@ -1388,7 +1404,8 @@ Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
 błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
 odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
-właściciela agenta, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+właściciela agenta, propozycje, które [praca z własnej
+inicjatywy](#proactive-work) przygotowała dla osoby, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
 organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu

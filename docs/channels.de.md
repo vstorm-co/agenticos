@@ -1,5 +1,5 @@
 ---
-source_sha: "459824052fb1"
+source_sha: "7a029c284d40"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1264,7 +1264,7 @@ geschrieben.
 
 ### Scopes und Events { #scopes-and-events }
 
-Dreizehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
+Vierzehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
 Adapter macht:
 
 | Scope | Was ihn braucht |
@@ -1277,6 +1277,7 @@ Adapter macht:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` und `.members` — die Channel-Abfragen, die ein Agent aufrufen darf |
 | `im:read`, `mpim:read` | `conversations.members` bei einer Direktnachricht. Leicht zu vergessen und still, wenn man es tut: die Mitgliedschaftsprüfung schlägt geschlossen fehl, sodass eine Unterhaltung, in der niemand bestätigt werden konnte, **aus der Unterhaltungsliste verschwindet**, statt einen Fehler zu erzeugen |
 | `users:read` | `users.info`, was Member-IDs in Menschen verwandelt |
+| `users:read.email` | `users.lookupByEmail`, was ein neues Mitglied findet, um es zu [begrüßen](#a-welcome-for-a-new-member). Eine Slack-App, die vor seiner Aufnahme installiert wurde, funktioniert ohne ihn weiter und begrüßt niemanden, bis sie aus dem neuen Manifest neu installiert ist |
 
 Fünf Bot-Events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1675,6 +1676,32 @@ Mattermost gleichermaßen. Braucht die Seite jemanden, eine Anmeldung oder ein C
 wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser hat,
 solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
 Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
+
+### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
+
+Auf die Antwort eines Agents mit [Nächsten Schritten](reference/capabilities.md#follow-ups),
+die nächste Schritte angeboten hat, folgt eine Nachricht mit Schaltflächen, eine je
+Schritt - *Mach eine Tabelle daraus*, *Mach das jeden Montag*. Ein Druck ist die
+Person, die diesen Schritt sagt: Er wird als ihre nächste Nachricht in diesem Chat
+beantwortet und allem unterworfen, dem eine getippte unterliegt - der Verknüpfung,
+der Zugriffsrichtlinie des Bots, dem Rate Limit -, und die gedrückte Nachricht
+zeigt danach den Schritt statt ihrer Schaltflächen.
+
+Jede Nachricht wird einmal gedrückt; jeder im Raum darf es, und die Antwort gehört ihm. Eine Antwort, die für
+eine Freigabe oder eine Frage angehalten hat, bietet stattdessen diese an. Die
+Einrichtungskarten, die ein Agent vorschlagen kann, zeichnet nur die Konsole.
+
+## Eine Begrüßung für ein neues Mitglied { #a-welcome-for-a-new-member }
+
+Tritt jemand der Organisation bei - über eine Einladung, über den Beitritt zur
+Standardorganisation oder über die Verzeichnissynchronisation -, sucht jeder
+aktive Slack-, Mattermost- und Teams-Bot der Organisation die Person über ihre
+E-Mail-Adresse und schickt ihr, wo er sie findet, eine Direktnachricht in der
+Sprache ihrer Konsole: wer er ist, dass sie ihn gleich dort fragen kann, und die
+Adresse der Konsole. Es ist ein Hintergrundjob mit einem Versuch; ein Bot, der sie
+nicht findet, oder eine Plattform, die ablehnt, kostet sonst nichts. Slack braucht
+für die Suche den Scope `users:read.email`; Teams findet sie im Verzeichnis des
+Tenants.
 
 ## Reaktionen und Bewertungen { #reactions-and-ratings }
 

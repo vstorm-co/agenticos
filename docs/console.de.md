@@ -1,5 +1,5 @@
 ---
-source_sha: "5386fb461910"
+source_sha: "4d7b297e8b55"
 ---
 
 # Die Konsole { #the-console }
@@ -327,7 +327,40 @@ Besitzer des Agents darum zu bitten ([wie](reference/capabilities.md)).
 **Eine Anfrage behalten, die funktioniert hat.** Fahren Sie über Ihre eigene
 Nachricht: Der Kalender macht daraus eine Routine - derselbe Prompt, standardmäßig
 wöchentlich, auf dem Agent, der geantwortet hat -, und der Roboter bittet den
-Architect, einen Agent zu bauen, der das erledigt.
+Architect, einen Agent zu bauen, der das erledigt. Fahren Sie über die Antwort,
+und das Lesezeichen bittet den Architect, einen [Skill](skills.md) daraus zu
+machen, wie es erledigt wurde, damit jeder Agent es beim nächsten Mal genauso
+macht; er bekommt Ihre Anfrage und die Antwort, und angeboten wird es, wer Skills
+schreiben darf.
+
+**Links, die zeigen.** Ein Konsolenlink, den ein Agent in seine Antwort schreibt -
+„hier ist der Button, der Ihr Gmail verbindet“ - öffnet diese Seite, ohne die
+Konsole neu zu laden, und ein `?highlight=` darin zeigt auf das Bedienelement, das
+er nennt, wie die Links des Architect.
+
+**Der AgenticOS-Agent lernt Sie kennen.** Solange Ihr Konto nichts über Ihre
+Rolle oder Ihre Arbeit sagt, beginnt eine Begrüßung ein kurzes Gespräch: was Sie
+tun, was Ihre Woche füllt, mit welchen Werkzeugen Sie arbeiten - eine Frage nach
+der anderen, jede mit Antworten zur Auswahl. Was Sie sagen, wird in Ihrem Profil
+gespeichert, sodass es von da an jeder Agent weiß, und das Gespräch endet mit bis
+zu drei Karten zum Einrichten - einer Routine, einem Dienst zum Verbinden, einem
+eigenen Agent - jede mit einem Klick. Überspringen Sie eine Frage oder bitten Sie
+um etwas Echtes, und er erledigt stattdessen die Arbeit.
+
+**Was über Nacht auffiel.** Einmal pro Nacht, früh an Ihrem Morgen, liest die
+Plattform in einem Hintergrundjob Ihre letzten Unterhaltungen: Eine Anfrage, die
+Sie immer wiederholen, wird eine vorgeschlagene Routine, was ein Agent über Ihre
+Rolle erfahren hat, ein vorgeschlagenes Profil, und Ihr leerer AgenticOS-Chat
+bekommt erste Nachrichten, die für Ihre Arbeit geschrieben sind. Vorschläge
+warten als Karten in diesem leeren Chat und in der Glocke; nehmen Sie einen an,
+wird er eingerichtet, verwerfen Sie ihn, wird derselbe Vorschlag nie wieder
+gemacht. Nichts läuft, wenn nichts Neues passiert ist, und was das kosten darf,
+ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
+`?agent=<slug>` öffnet den Chat auf diesem Agent.
+
+**Arbeitszeiten** unter **Settings → Profile** sagen Agents, wann Sie arbeiten,
+sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf
+sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

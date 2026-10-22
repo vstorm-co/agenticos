@@ -1,5 +1,5 @@
 ---
-source_sha: "023fa6d893b4"
+source_sha: "39561a7d0018"
 ---
 
 # Governance { #governance }
@@ -542,6 +542,23 @@ Text-Run geschieht:
 Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
 Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,
 dessen Ausgaben mit seinem Prozess sterben.
+
+### Arbeit aus eigener Initiative { #proactive-work }
+
+Die Plattform tut ein wenig aus eigener Initiative: Einmal pro Nacht, früh am
+Morgen jeder Person, liest ein Hintergrundjob, worum sie zuletzt gebeten hat, und
+schlägt eine Routine für eine Anfrage vor, die sie immer wiederholt, ein Profil
+oder die ersten Nachrichten, die ihr leerer Chat anbietet
+([Konsole](console.md#chat)). Jeder ist ein Modellaufruf, auf dem Modell des
+AgenticOS-Agents, in der Run-Historie als Run der Oberfläche **proactive**
+festgehalten und wie jeder andere auf das Budget der Organisation angerechnet.
+
+Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
+Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
+eingestellt neben dem Ausgabenlimit der Organisation auf ihrer Mitgliederseite
+(`proactive_limit_usd`, braucht `budgets:manage`), und 0 schaltet die Arbeit ab.
+Eine Person, bei der nichts Neues passiert ist, kostet nichts: Der Job ruft das
+Modell nur, wenn es etwas zu lesen gibt.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
@@ -1483,7 +1500,9 @@ Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
 unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
 benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
-hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, die Ingestion eines Dokuments, die
+hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
+die die [Arbeit aus eigener Initiative](#proactive-work) für eine Person gemacht
+hat, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und

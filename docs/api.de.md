@@ -1,5 +1,5 @@
 ---
-source_sha: "f2c1bb1791c0"
+source_sha: "d77cb23fa679"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -180,11 +180,13 @@ veröffentlicht werden könnte, und nie mit `Prefer: respond-async`.
 Ein Key erreicht auch die Routinen eines Agents - `GET /api/v1/triggers` sowie
 `GET`, `POST`, `PATCH` und `DELETE` unter `/api/v1/agents/{agent_id}/triggers`,
 dazu `POST .../{trigger_id}/run`, um eine sofort auszulösen - und die Modelle der
-Organisation unter `GET /api/v1/providers/model-profiles`. Zwei Routen wirken auf
+Organisation unter `GET /api/v1/providers/model-profiles`. Drei Routen wirken auf
 den Aussteller selbst: `GET /api/v1/me/mcp-connections` listet die Dienste, die er
-mit dem eigenen Konto verbunden hat, und `PUT /api/v1/users/me/locale` setzt ihm
-die Sprache der Konsole auf jedem Gerät. Beide brauchen einen Schlüssel, der für
-`agents:run` ausgestellt wurde.
+mit dem eigenen Konto verbunden hat, `PUT /api/v1/users/me/locale` setzt ihm die
+Sprache der Konsole auf jedem Gerät, und `PATCH /api/v1/users/me/agent-context`
+speichert seine Rolle (`job_title`) und woran er arbeitet (`about`), was jeder
+Agent erfährt. Jede braucht einen Schlüssel, der für `agents:run` ausgestellt
+wurde.
 
 `POST /api/v1/agents` legt einen Agent aus dem Spec im Body an und lässt ein
 leeres Feld leer. Mit `"from_starter": true` füllt es, was der Spec auslässt -

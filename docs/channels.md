@@ -1146,7 +1146,7 @@ output guardrail redacted something - the streamed message is rewritten whole.
 
 ### Scopes and events
 
-Thirteen bot token scopes, each earning its place by a call the adapter makes:
+Fourteen bot token scopes, each earning its place by a call the adapter makes:
 
 | Scope | What needs it |
 |---|---|
@@ -1158,6 +1158,7 @@ Thirteen bot token scopes, each earning its place by a call the adapter makes:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` and `.members` — the channel lookups an agent may call |
 | `im:read`, `mpim:read` | `conversations.members` on a direct message. Easy to leave out and quiet when you do: the membership check fails closed, so a conversation nobody could be confirmed in **disappears from the conversation list** rather than erroring |
 | `users:read` | `users.info`, which turns member ids into people |
+| `users:read.email` | `users.lookupByEmail`, which finds a new member to [welcome](#a-welcome-for-a-new-member). A Slack app installed before it was added keeps working without it, and welcomes nobody until it is reinstalled from the new manifest |
 
 Five bot events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1517,6 +1518,30 @@ Mattermost alike. When the page needs somebody, a sign-in or a captcha, the step
 changes to *Needs you* and says what for, and names who has the browser while a
 person holds it. The link opens the console, so taking over needs a console account:
 the person the run is for, or someone who may edit the agent.
+
+### Next steps as buttons { #next-steps-as-buttons }
+
+An answer from an agent with [Follow-ups](reference/capabilities.md#follow-ups)
+that offered next steps is followed by a message of buttons, one per step -
+*Make it a table*, *Do this every Monday*. A press is the presser saying that
+step: it is answered as their next message in that chat, held to everything a
+typed one is - the link, the bot's access policy, the rate limit - and the
+pressed message then reads the step instead of its buttons.
+
+Each message is pressed once; anyone in the room may press it, and the answer is theirs. An
+answer that stopped for an approval or a question offers those instead. The setup
+cards an agent can propose are drawn in the console only.
+
+## A welcome for a new member { #a-welcome-for-a-new-member }
+
+When somebody joins the organization - by an invitation, by joining the default
+organization, or through directory sync - each active Slack, Mattermost and
+Teams bot of the organization looks them up by their email address and, where it
+finds them, sends one direct message in their console's language: who it is,
+that they can ask it right there, and the console's address. It is a background
+job tried once; a bot that cannot find them, or a platform that refuses, costs
+nothing else. Slack needs the
+`users:read.email` scope for the lookup; Teams finds them in the tenant's roster.
 
 ## Reactions and ratings
 

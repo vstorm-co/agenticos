@@ -1,5 +1,5 @@
 ---
-source_sha: "5386fb461910"
+source_sha: "4d7b297e8b55"
 ---
 
 # La consola { #the-console }
@@ -306,7 +306,37 @@ tiene, una tarjeta propone activarla o pedírselo a su propietario
 **Guardar una petición que funcionó.** Pasa el cursor por tu propio mensaje: el
 calendario lo convierte en una rutina - el mismo prompt, semanal por defecto, en
 el agent que respondió - y el robot le pide al Architect que cree un agent que lo
-haga.
+haga. Pasa el cursor por la respuesta y el marcador le pide al Architect que haga
+un [skill](skills.md) de cómo se hizo, para que cualquier agent lo haga igual la
+próxima vez; recibe tu petición y la respuesta, y se ofrece a quien puede escribir
+skills.
+
+**Enlaces que señalan.** Un enlace de la consola que un agent escribe en su
+respuesta - «aquí está el botón que conecta tu Gmail» - abre esa página sin
+recargar la consola, y un `?highlight=` en él señala el control que nombra, como
+hacen los enlaces del Architect.
+
+**El agent AgenticOS te conoce.** Mientras tu cuenta no dice nada de tu rol ni de
+tu trabajo, un saludo empieza una entrevista corta: a qué te dedicas, qué llena tu
+semana, con qué herramientas trabajas - una pregunta cada vez, cada una con
+respuestas para elegir. Lo que dices se guarda en tu perfil, así que desde
+entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
+configurar - una rutina, un servicio que conectar, un agent propio - cada una con
+un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
+
+**Lo que notó durante la noche.** Una vez por noche, temprano en tu mañana, la
+plataforma lee tus conversaciones recientes en una tarea en segundo plano: una
+petición que repites se convierte en una rutina propuesta, lo que un agent supo
+de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
+mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
+chat vacío y en la campana; acepta una y queda configurada, descártala y la misma
+propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
+que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
+Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+
+**El horario laboral** en **Settings → Profile** dice a los agents cuándo
+trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
+por él: es conocimiento para el agent, no un calendario.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff0bd63bf9ef"
+source_sha: "3130866c066b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1015,9 +1015,10 @@ permiso que faltaba.
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
-| `list_my_connections`, `set_my_language` | — (los de quien llama) |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
 
 Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
 como borrador sin publicar con `test_agent_draft` - un run de prueba, con
@@ -1025,7 +1026,12 @@ presupuesto y registrado, rechazado con el motivo cuando el borrador no se
 publicaría - y publicarlo con `publish_agent`, que hace las mismas comprobaciones
 que el botón **Publish** de la consola. El `cron_expression` de una rutina se
 evalúa en UTC. `set_my_language` cambia el idioma de la consola de quien llama
-(`en`, `pl` o `de`) en cada dispositivo en el que inicia sesión.
+(`en`, `pl` o `de`) en cada dispositivo en el que inicia sesión, y
+`set_my_profile` guarda su rol y en qué trabaja, lo que desde entonces se le dice
+a cada agent.
+
+`create_skill` guarda como [skill](skills.md) un procedimiento que funcionó,
+para «haz un skill de esto».
 
 A propósito no hay: tocar credenciales ni borrar nada salvo un borrador de agent
 que quien llama creó y nunca publicó - deshacer un borrador creado por error - o
@@ -1051,10 +1057,10 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   cada herramienta que cambia algo (`create_agent_draft`, `publish_agent`,
   `create_routine`, `run_agent`, `invite_member` y las demás) hasta que la persona
   la apruebe; `all` retiene también la lectura. `none` no se ofrece: estas
-  herramientas actúan con la autoridad de una persona. La única escritura que nunca
-  espera es `set_my_language`: cambia la preferencia propia de quien pregunta, por
-  su palabra, y una tarjeta de aprobación para «cambia a inglés» sería toda la
-  conversación.
+  herramientas actúan con la autoridad de una persona. Las escrituras que nunca
+  esperan son `set_my_language` y `set_my_profile`: cada una cambia la preferencia
+  o la descripción propia de quien pregunta, por su palabra, y una tarjeta de
+  aprobación para «cambia a inglés» sería toda la conversación.
 - **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
   cada herramienta y marcan las que cambian algo.
 

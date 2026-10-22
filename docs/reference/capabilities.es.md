@@ -1,5 +1,5 @@
 ---
-source_sha: "967585c98165"
+source_sha: "a17621366279"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -92,7 +92,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
-| `follow_ups` | Follow-ups | utility | `suggest_next_steps` | — | — | no disponible |
+| `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -2335,7 +2335,18 @@ siguientes como botones, cada uno de 80 caracteres como mucho y dicho como lo
 diría la persona: «Hazlo una tabla», «Haz esto cada lunes a las 9:00». Un clic
 envía el paso como su siguiente mensaje. Solo la respuesta más reciente los
 ofrece, y ninguna mientras un turno está en marcha. El agent los omite tras una
-charla trivial o una pregunta suya, y no repite los pasos en su respuesta.
+charla trivial o una pregunta suya, y no repite los pasos en su respuesta. En
+Slack, Teams, Telegram y Mattermost los pasos llegan bajo la respuesta como un
+mensaje de botones, y pulsar uno es quien pulsa diciendo ese paso - el detalle
+está en [Canales](../channels.md#next-steps-as-buttons).
+
+`propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
+bajo la respuesta: un agent propio de la persona, una rutina o un servicio que
+conectar. Una tarjeta actúa con un clic - una rutina abre el diálogo de rutinas
+relleno, en el agent que la propuso; un agent es una pregunta al Architect; una
+conexión abre la página de servidores MCP en su botón de añadir. El agent
+AgenticOS termina con ellas su entrevista de bienvenida. Las tarjetas son de la
+consola; una app de chat no las dibuja.
 
 Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
 Una llamada de voz la deja fuera.

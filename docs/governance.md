@@ -467,6 +467,22 @@ cannot be checked before each request the way a text run is:
 A call whose process died is closed by the voice sweep at the cost its last
 heartbeat recorded, unlike a text run, whose spend dies with its process.
 
+### Proactive work { #proactive-work }
+
+The platform does a little on its own initiative: once a night, early in each
+person's morning, a background job reads what they asked recently and proposes a
+routine for a request they keep repeating, a profile, or the first messages their
+empty chat offers ([Console](console.md#chat)). Each is one model call, on the
+AgenticOS agent's model, recorded in run history as a run from the **proactive**
+surface and counted against the organization's budget like any other.
+
+On top of that, each person's proactive runs in a calendar month are capped by
+the organization's **proactive limit** - $1 by default, set beside the
+organization's spending limit on its members page (`proactive_limit_usd`, which
+needs `budgets:manage`), and 0 to switch the work off. A person nothing new
+happened to costs nothing: the job only calls the model when there is something
+to read.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -1288,7 +1304,8 @@ email off, or the other way round.
 The same page also carries every other
 event the inbox delivers: a run finishing or failing unattended - a routine's
 finish named after the routine and opening with the start of its answer, told to
-whoever set it up - an ask to switch a capability on, for the agent's owner, a
+whoever set it up - an ask to switch a capability on, for the agent's owner,
+proposals the [proactive work](#proactive-work) made for a person, a
 document's ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both

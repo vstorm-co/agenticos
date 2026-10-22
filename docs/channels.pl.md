@@ -1,5 +1,5 @@
 ---
-source_sha: "459824052fb1"
+source_sha: "7a029c284d40"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1186,7 +1186,7 @@ w całości.
 
 ### Scope'y i eventy { #scopes-and-events }
 
-Trzynaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
+Czternaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
 adapter:
 
 | Scope | Co go potrzebuje |
@@ -1199,6 +1199,7 @@ adapter:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` i `.members` — odpytania o kanał, które agent może wywołać |
 | `im:read`, `mpim:read` | `conversations.members` na wiadomości bezpośredniej. Łatwo go pominąć i cicho, gdy się to zrobi: sprawdzenie członkostwa zawodzi domyślnie na „nie", więc rozmowa, w której nikogo nie dało się potwierdzić, **znika z listy rozmów**, zamiast dawać błąd |
 | `users:read` | `users.info`, które zamienia id członków w ludzi |
+| `users:read.email` | `users.lookupByEmail`, które znajduje nowego członka, żeby go [powitać](#a-welcome-for-a-new-member). Aplikacja Slacka zainstalowana przed jego dodaniem działa dalej bez niego i nikogo nie wita, dopóki nie zostanie zainstalowana ponownie z nowego manifestu |
 
 Pięć eventów bota: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1565,6 +1566,31 @@ Telegramie i Mattermost. Gdy strona kogoś potrzebuje, logowania albo captchy, k
 zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę, podaje,
 kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
 której działa run, albo kogoś, kto może edytować agenta.
+
+### Następne kroki jako przyciski { #next-steps-as-buttons }
+
+Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
+która zaproponowała następne kroki, ma pod sobą wiadomość z przyciskami, po
+jednym na krok - *Zrób z tego tabelę*, *Rób to w każdy poniedziałek*. Naciśnięcie
+to naciskający mówiący ten krok: dostaje odpowiedź jak na swoją następną
+wiadomość w tym czacie, z tymi samymi wymogami co wpisana - powiązanie konta,
+polityka dostępu bota, limit częstotliwości - a naciśnięta wiadomość pokazuje
+potem krok zamiast przycisków.
+
+Każdą wiadomość naciska się raz; może to zrobić
+każdy w pokoju, a odpowiedź jest dla niego. Odpowiedź, która zatrzymała się na
+zatwierdzeniu albo pytaniu, oferuje zamiast tego je. Karty ustawień, które agent
+może zaproponować, są rysowane tylko w konsoli.
+
+## Powitanie nowego członka { #a-welcome-for-a-new-member }
+
+Gdy ktoś dołącza do organizacji - przez zaproszenie, dołączenie do domyślnej
+organizacji albo synchronizację katalogu - każdy aktywny bot organizacji w
+Slacku, Mattermost i Teams szuka go po adresie e-mail i, jeśli znajdzie, wysyła
+jedną wiadomość prywatną w języku jego konsoli: kim jest, że można go pytać od
+razu tam, i adres konsoli. To zadanie w tle próbowane raz; bot, który go nie
+znajdzie, albo platforma, która odmówi, nie kosztują nic więcej. Slack potrzebuje
+do wyszukania scope'u `users:read.email`; Teams znajduje go w spisie tenanta.
 
 ## Reakcje i oceny { #reactions-and-ratings }
 

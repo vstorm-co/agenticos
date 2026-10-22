@@ -1,5 +1,5 @@
 ---
-source_sha: "ff0bd63bf9ef"
+source_sha: "3130866c066b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1033,9 +1033,10 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
-| `list_my_connections`, `set_my_language` | — (die eigenen des Aufrufers) |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
 
 Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
 `test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,
@@ -1044,7 +1045,10 @@ veröffentlicht werden könnte - und mit `publish_agent` veröffentlichen, das
 dieselben Prüfungen ausführt wie der Button **Publish** der Konsole. Der
 `cron_expression` einer Routine gilt in UTC. `set_my_language` stellt die Sprache
 der Konsole für den Aufrufer um (`en`, `pl` oder `de`), auf jedem Gerät, auf dem
-er sich anmeldet.
+er sich anmeldet, und `set_my_profile` speichert seine Rolle und woran er
+arbeitet, was von da an jeder Agent erfährt. `create_skill` speichert ein
+Vorgehen, das funktioniert hat, als [Skill](skills.md) - für „mach daraus einen
+Skill“.
 
 Bewusst fehlt: Zugangsdaten anfassen und etwas löschen außer einem Agent-Entwurf,
 den der Aufrufer selbst angelegt und nie veröffentlicht hat - das Rückgängigmachen
@@ -1070,9 +1074,10 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   das etwas ändert (`create_agent_draft`, `publish_agent`, `create_routine`,
   `run_agent`, `invite_member` und die übrigen), zur Freigabe zurück; `all` auch
   das Lesen. `none` wird nicht angeboten: Diese Werkzeuge handeln mit der Befugnis
-  eines Menschen. Der einzige Schreibzugriff, der nie wartet, ist
-  `set_my_language`: Er ändert die eigene Vorliebe des Fragenden, auf dessen Wort,
-  und eine Freigabekarte für „auf Englisch umstellen“ wäre die ganze Unterhaltung.
+  eines Menschen. Die Schreibzugriffe, die nie warten, sind `set_my_language` und
+  `set_my_profile`: Jeder ändert die eigene Vorliebe oder Beschreibung des
+  Fragenden, auf dessen Wort, und eine Freigabekarte für „auf Englisch umstellen“
+  wäre die ganze Unterhaltung.
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.
 

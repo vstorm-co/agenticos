@@ -159,10 +159,12 @@ reason when the draft would not publish, and never with `Prefer: respond-async`.
 A key also reaches an agent's routines - `GET /api/v1/triggers` and
 `GET`, `POST`, `PATCH` and `DELETE` under `/api/v1/agents/{agent_id}/triggers`,
 plus `POST .../{trigger_id}/run` to fire one now - and the organization's models
-at `GET /api/v1/providers/model-profiles`. Two routes act on the issuer
+at `GET /api/v1/providers/model-profiles`. Three routes act on the issuer
 themselves: `GET /api/v1/me/mcp-connections` lists the services they connected
-with their own account, and `PUT /api/v1/users/me/locale` sets the console's
-language for them on every device. Both need a key issued for `agents:run`.
+with their own account, `PUT /api/v1/users/me/locale` sets the console's
+language for them on every device, and `PATCH /api/v1/users/me/agent-context`
+saves their role (`job_title`) and what they work on (`about`), which every
+agent is told. Each needs a key issued for `agents:run`.
 
 `POST /api/v1/agents` creates an agent from the spec in its body, and keeps an
 empty field empty. With `"from_starter": true` it fills what the spec leaves out -

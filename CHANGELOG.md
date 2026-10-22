@@ -121,6 +121,40 @@ Two things are versioned separately from this file and worth knowing about:
   deployment signs people in with Entra in the same tenant, a Teams account is
   linked to its member without a link. A trigger can post each answer to a Teams
   channel or group chat.
+- **AgenticOS gets to know you (#2301).** While your account says nothing about
+  your role, a greeting starts a three-question interview - what you do, what
+  fills your week, which tools you use - saved to your profile through the new
+  `set_my_profile` platform tool (`PATCH /users/me/agent-context` over the API,
+  never held for approval) and ended with up to three setup cards from the new
+  `propose_setup` tool: a routine, a service to connect or an agent of your own,
+  each one click. It offers the **Morning briefing** routine once, links to the
+  console with `?highlight=` so the page opens pointing at the control, and saves
+  a procedure as a skill with the new `create_skill` tool. A link the agent writes
+  opens in the console without a reload.
+- **The platform's own initiative, as background jobs.** Once a night, early in
+  each person's morning, one model call per person reads what they asked recently
+  and proposes a routine for a request they keep repeating, a profile, the first
+  messages their empty chat offers, and a role pack of agents. Proposals wait as
+  cards in the empty AgenticOS chat and in the bell (the new `suggestion` event);
+  a dismissed one is never made again, and nothing runs when nothing new
+  happened. Each call is a run from the new `proactive` surface, capped per
+  person per month by the organization's `proactive_limit_usd` ($1 by default, 0
+  switches it off, set beside the spending limit). **Working hours** in
+  Settings → Profile are told to every agent. Migration `0163_proactivity` adds
+  `suggestions`, `users.working_hours`, `users.personal_starters` and the limit.
+- **A welcome in the chat apps.** A new member - invited, joining the default
+  organization or synced from the directory - gets one direct message from each
+  of the organization's Slack, Mattermost and Teams bots that finds them by email.
+  **The Slack manifest gains `users:read.email`: reinstall an existing Slack app
+  from the new manifest** for its welcome; it keeps working without.
+- **Next steps in Slack, Telegram, Mattermost and Teams.** The steps an answer
+  offers arrive as a message of buttons, and a press is the presser's next
+  message, held to the link, the access policy and the rate limit. Migration
+  `0164_channel_next_steps` adds `channel_prompts.chat_type` and the `follow_up`
+  kind.
+- **Make a skill of this.** A button under an answer hands the Architect your
+  request and the answer to write a skill from, for whoever may write skills.
+  A chat link with `?agent=<slug>` opens the chat on that agent.
 
 ### Changed
 

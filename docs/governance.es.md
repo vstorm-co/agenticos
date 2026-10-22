@@ -1,5 +1,5 @@
 ---
-source_sha: "023fa6d893b4"
+source_sha: "39561a7d0018"
 ---
 
 # Governance { #governance }
@@ -500,6 +500,23 @@ una llamada no se puede comprobar antes de cada petición como un run de texto:
 Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
 registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere
 con su proceso.
+
+### Trabajo por iniciativa propia { #proactive-work }
+
+La plataforma hace un poco por iniciativa propia: una vez por noche, temprano en
+la mañana de cada persona, una tarea en segundo plano lee lo que pidió hace poco y
+propone una rutina para una petición que repite, un perfil o los primeros mensajes
+que ofrece su chat vacío ([Consola](console.md#chat)). Cada uno es una llamada al
+modelo, con el modelo del agent AgenticOS, registrada en el historial de runs
+como un run de la superficie **proactive** y contada contra el budget de la
+organización como cualquier otra.
+
+Además, los runs por iniciativa propia de cada persona en un mes natural los
+limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
+defecto, que se fija junto al límite de gasto de la organización en su página de
+miembros (`proactive_limit_usd`, que necesita `budgets:manage`), y 0 apaga el
+trabajo. Una persona a la que no le pasó nada nuevo no cuesta nada: la tarea solo
+llama al modelo cuando hay algo que leer.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 
@@ -1374,6 +1391,9 @@ ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Llegan también las propuestas que el [trabajo por iniciativa
+propia](#proactive-work) hizo para una persona.
 
 Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
 escribía una fila cada uno, lo que en el caso corriente — una carpeta de
