@@ -7,7 +7,9 @@ ends still owed, the settler bound to the kind, and the end marked settled.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import UUID
 
+import anyio
 import pytest
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -26,7 +28,7 @@ from tests.integration.test_eval_runs_repo import _setup
 pytestmark = pytest.mark.anyio
 
 
-async def _withdraw_and_settle(db: AsyncSession, job_id) -> str:
+async def _withdraw_and_settle(db: AsyncSession, job_id: UUID) -> str:
     """Cancel the queued job as an administrator does, then settle what the rescuer finds owed."""
     assert await job_repo.cancel_queued(db, job_id)
     await db.commit()
@@ -118,7 +120,7 @@ async def test_a_request_its_worker_still_holds_is_refused_at_once_not_waited_on
             worker, request=held, values={"status": AuthoringStatus.RUNNING.value}
         )
         async with sessions() as settler:
-            with pytest.raises(DBAPIError):
+            with anyio.fail_after(5), pytest.raises(DBAPIError) as refused:
                 await authoring_repo.fail_unfinished(
                     settler,
                     request.id,
@@ -126,3 +128,5 @@ async def test_a_request_its_worker_still_holds_is_refused_at_once_not_waited_on
                     error="Stopped.",
                     now=datetime.now(UTC),
                 )
+    # lock_not_available: refused for the lock, not for anything else the database disliked.
+    assert getattr(refused.value.orig, "sqlstate", None) == "55P03"
