@@ -106,6 +106,23 @@ export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | u
   return messages[at]?.usage;
 }
 
+/**
+ * What the person asked for, when the message at `index` is the answer that ends a turn.
+ *
+ * The nearest of their messages above it: a turn that parked on an approval is
+ * several assistant segments under one request, and only the last carries the
+ * "make a skill of this" shortcut, so the request it hands over is the one the
+ * whole turn answered.
+ */
+export function requestOf(messages: ChatMessage[], index: number): string | undefined {
+  if (messages[index]?.role !== "assistant" || !endsTurn(messages, index)) return undefined;
+  for (let at = index - 1; at >= 0; at--) {
+    const message = messages[at];
+    if (message?.role === "user") return message.content || undefined;
+  }
+  return undefined;
+}
+
 export function MessageList({ messages, onRegenerate, pins, onFollowUp }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -172,6 +189,7 @@ export function MessageList({ messages, onRegenerate, pins, onFollowUp }: Messag
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
+            request={pins ? undefined : requestOf(messages, index)}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? () => onRegenerate(message.id)

@@ -19,6 +19,7 @@ import { PersonFace } from "./person-face";
 import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
+import { SkillShortcut } from "./skill-shortcut";
 import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
@@ -96,6 +97,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
+  request?: string;
 }
 
 export function MessageItem({
@@ -109,6 +112,7 @@ export function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -439,6 +443,9 @@ export function MessageItem({
               >
                 <CornerUpLeft />
               </button>
+            )}
+            {!isUser && request && !message.isStreaming && message.content && (
+              <SkillShortcut request={request} answer={message.content} />
             )}
             {!isUser && onRegenerate && (
               <button

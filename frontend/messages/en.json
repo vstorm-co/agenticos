@@ -1977,7 +1977,9 @@
           "routine": "Set it up",
           "connection": "Connect it"
         }
-      }
+      },
+      "makeSkill": "Make a skill of this",
+      "makeSkillAsk": "Make a skill of this, so any agent can do it the same way next time.\n\nWhat I asked:\n{request}\n\nHow it was answered:\n{answer}"
     },
     "suggestions": {
       "label": "Suggestions for you",

@@ -147,6 +147,8 @@ export default defineConfig({
         "src/components/teams/org-proactive-limit.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-shortcuts.tsx",
+        "src/components/chat/setup-proposals.tsx",
+        "src/components/chat/skill-shortcut.tsx",
         "src/components/chat/chat-empty-state.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",

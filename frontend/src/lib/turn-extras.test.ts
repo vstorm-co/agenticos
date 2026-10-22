@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PROPOSE_SETUP,
   REQUEST_CAPABILITY,
   SUGGEST_NEXT_STEPS,
   capabilityCardsOf,
   drawnUnderTheAnswer,
   followUpsOf,
   memoryChangesOf,
+  setupProposalsOf,
 } from "./turn-extras";
 import type { ToolCall } from "@/types/chat";
 
@@ -23,6 +25,7 @@ describe("drawnUnderTheAnswer", () => {
   it("takes the next steps out of the run's steps, and leaves a real tool in them", () => {
     expect(drawnUnderTheAnswer(SUGGEST_NEXT_STEPS)).toBe(true);
     expect(drawnUnderTheAnswer(REQUEST_CAPABILITY)).toBe(true);
+    expect(drawnUnderTheAnswer(PROPOSE_SETUP)).toBe(true);
     expect(drawnUnderTheAnswer("web_search")).toBe(false);
     expect(drawnUnderTheAnswer("an_mcp_tool")).toBe(false);
   });
@@ -111,5 +114,57 @@ describe("memoryChangesOf", () => {
       ]),
     ).toEqual([]);
     expect(memoryChangesOf(undefined)).toEqual([]);
+  });
+});
+
+describe("setupProposalsOf", () => {
+  const routine = {
+    kind: "routine",
+    title: "Monday digest",
+    why: "You read tickets every Monday",
+    request: "Summarise last week's tickets",
+    cron: "0 7 * * 1",
+  };
+
+  it("draws the last proposal's cards, each keyed on its call", () => {
+    const calls = [
+      call(PROPOSE_SETUP, { id: "p-1", result: JSON.stringify({ proposals: [routine] }) }),
+      call(PROPOSE_SETUP, {
+        id: "p-2",
+        result: JSON.stringify({
+          proposals: [routine, { ...routine, kind: "connection", request: "Gmail", cron: null }],
+        }),
+      }),
+    ];
+
+    expect(setupProposalsOf(calls)).toEqual([
+      { key: "p-2-0", ...routine },
+      { key: "p-2-1", ...routine, kind: "connection", request: "Gmail", cron: null },
+    ]);
+  });
+
+  it("leaves out a card the console cannot draw", () => {
+    const result = JSON.stringify({
+      proposals: [
+        null,
+        "a routine",
+        { ...routine, kind: "webinar" },
+        { ...routine, title: 3 },
+        { ...routine, why: undefined },
+        { ...routine, request: ["x"] },
+        { ...routine, kind: "agent", cron: 7 },
+      ],
+    });
+
+    expect(setupProposalsOf([call(PROPOSE_SETUP, { id: "p", result })])).toEqual([
+      { key: "p-6", ...routine, kind: "agent", cron: null },
+    ]);
+  });
+
+  it("draws nothing for a call still running, a result of another shape, or none at all", () => {
+    expect(setupProposalsOf(undefined)).toEqual([]);
+    expect(setupProposalsOf([call(PROPOSE_SETUP, { status: "running" })])).toEqual([]);
+    expect(setupProposalsOf([call(PROPOSE_SETUP, { result: "not json" })])).toEqual([]);
+    expect(setupProposalsOf([call(PROPOSE_SETUP, { result: '{"proposals": {}}' })])).toEqual([]);
   });
 });

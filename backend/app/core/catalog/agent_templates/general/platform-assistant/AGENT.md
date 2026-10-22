@@ -125,6 +125,7 @@ When somebody asks for one of these, walk them through it as above, one question
 - **A chat widget for their website.** Build the agent as for an FAQ bot, publish it, then send them to its Availability tab, where the website widget is switched on and its snippet copied into their site.
 - **A Slack bot.** Build or pick the agent, then send them to `/channels` to add a Slack bot and choose which agent answers; say they will need a Slack administrator to install it.
 - **A weekly report.** Ask what the report should cover, who reads it and when. Build an agent whose instructions describe the report, test it once, publish it, and create a routine that runs it every week.
+- **A skill from a conversation.** "Make a skill of this" arrives with what the person asked and how it was answered. Write the procedure behind the answer as a skill with `create_skill`, as instructions for the next agent that meets the task: when to use it, the steps, what to check, what to hand back. Make it fit the next request of the same kind, and leave out what belonged only to this one - names, figures, the document itself. Show the steps in a few lines before you save it, then offer to add it to the agent that should use it.
 
 <example> Person: "I want a bot that answers questions about our holiday policy."
 

@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
+import {
+  MessageList,
+  continuesTurn,
+  endsTurn,
+  lastToolTurnIndex,
+  requestOf,
+  turnUsage,
+} from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -13,6 +20,7 @@ const state = vi.hoisted(() => ({
     continuesTurn: boolean;
     canRegenerate: boolean;
     openLastStep: boolean;
+    request?: string;
   }[],
 }));
 
@@ -52,6 +60,7 @@ vi.mock("./message-item", () => ({
     continuesTurn,
     openLastStep,
     onRegenerate,
+    request,
   }: {
     message: ChatMessage;
     agent?: { name: string };
@@ -59,6 +68,7 @@ vi.mock("./message-item", () => ({
     continuesTurn?: boolean;
     openLastStep?: boolean;
     onRegenerate?: () => void;
+    request?: string;
   }) => {
     state.rendered.push({
       id: message.id,
@@ -67,6 +77,7 @@ vi.mock("./message-item", () => ({
       continuesTurn: continuesTurn === true,
       canRegenerate: onRegenerate !== undefined,
       openLastStep: openLastStep === true,
+      request,
     });
     return (
       <div data-testid={`message-${message.id}`}>
@@ -579,5 +590,43 @@ describe("a console link an agent wrote", () => {
 
     expect(navigation.push).toHaveBeenCalledWith("/routines");
     expect(navigation.pointAt).not.toHaveBeenCalled();
+  });
+});
+
+describe("the request a skill can be made of", () => {
+  const asked = message({ id: "q", role: "user", content: "Compare the vendors" });
+
+  it("hands the answer that ends the turn what the person asked", () => {
+    const messages = [
+      asked,
+      message({ id: "a", runId: "r-1" }),
+      message({ id: "b", runId: "r-1" }),
+    ];
+
+    expect([0, 1, 2].map((i) => requestOf(messages, i))).toEqual([
+      undefined,
+      undefined,
+      "Compare the vendors",
+    ]);
+  });
+
+  it("has nothing to hand an answer with no request above it", () => {
+    expect(requestOf([message({ id: "a" })], 0)).toBeUndefined();
+  });
+
+  it("has nothing to hand when the request was only a file", () => {
+    const messages = [message({ id: "q", role: "user", content: "" }), message({ id: "a" })];
+
+    expect(requestOf(messages, 1)).toBeUndefined();
+  });
+
+  it("offers it in a chat but not in the test panel", () => {
+    const messages = [asked, message({ id: "a" })];
+    const { rerender } = render(<MessageList messages={messages} />);
+    expect(rendered("a")?.request).toBe("Compare the vendors");
+
+    state.rendered = [];
+    rerender(<MessageList messages={messages} pins={{ pinned: [], toggle: vi.fn() }} />);
+    expect(rendered("a")?.request).toBeUndefined();
   });
 });

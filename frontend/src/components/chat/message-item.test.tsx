@@ -50,6 +50,11 @@ vi.mock("./turn-shortcuts", () => ({
     <div data-testid="turn-shortcuts" data-agent={agentId ?? ""} data-request={request} />
   ),
 }));
+vi.mock("./skill-shortcut", () => ({
+  SkillShortcut: ({ request, answer }: { request: string; answer: string }) => (
+    <div data-testid="skill-shortcut" data-request={request} data-answer={answer} />
+  ),
+}));
 // Ratings own their own fetch; this file cares only that they are offered.
 vi.mock("./rating-buttons", () => ({
   RatingButtons: ({
@@ -242,6 +247,25 @@ describe("a turn in the transcript", () => {
       />,
     );
     expect(screen.queryByTestId("turn-shortcuts")).toBeNull();
+  });
+
+  it("offers to make a skill of a finished answer it was handed the request for", () => {
+    const { rerender } = render(
+      <MessageItem message={message({ content: "Here they are" })} request="Refunds?" />,
+    );
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-request", "Refunds?");
+    expect(screen.getByTestId("skill-shortcut")).toHaveAttribute("data-answer", "Here they are");
+
+    rerender(
+      <MessageItem
+        message={message({ content: "Here they", isStreaming: true })}
+        request="Refunds?"
+      />,
+    );
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
+
+    rerender(<MessageItem message={message({ content: "Here they are" })} />);
+    expect(screen.queryByTestId("skill-shortcut")).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {

@@ -6,6 +6,7 @@ rather than at publish, weeks later, in an organization that installed it.
 """
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -351,3 +352,23 @@ class TestShippedInstructions:
         }
 
         assert offenders == {}
+
+    def test_every_control_an_agent_points_at_is_one_the_console_has(self):
+        """A `?highlight=` naming an anchor nobody renders opens the page and points
+        at nothing, so an agent saying "here" shows the person the whole screen
+        (#2301)."""
+        console = Path(__file__).resolve().parents[2] / "frontend" / "src"
+        anchors = {
+            match
+            for source in console.rglob("*.tsx")
+            for match in re.findall(r'data-tour="([a-z-]+)"', source.read_text(encoding="utf-8"))
+        }
+        pointed_at = {
+            template.key: missing
+            for industry in agent_templates.catalog()
+            for template in industry.templates
+            if (missing := set(re.findall(r"highlight=([a-z-]+)", template.instructions)) - anchors)
+        }
+
+        assert anchors
+        assert pointed_at == {}
