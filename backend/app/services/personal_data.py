@@ -79,6 +79,8 @@ _NOTIFICATION_FIELDS = (
     "read_at",
     "created_at",
 )
+#: What an anonymised dataset case asks instead of the erased person's question.
+ANONYMISED_CASE_INPUT = "[Removed: the person this case was taken from was erased]"
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
 # Every field a draft can carry a person's words in, and every link back to them.
 _CASE_PROPOSAL_FIELDS = (
@@ -291,6 +293,14 @@ class PersonalDataService:
         - `knowledge_searches` of the runs they started, whose
           `agent_runs.user_id` is `SET NULL` and whose project chat outlives
           them, so the query an agent phrased from their question would too.
+        - text copied out of their conversations: dataset cases taken from
+          them, in every revision, are anonymised, and what eval runs recorded
+          while answering those cases goes; a case that kept their comment on
+          somebody else's answer loses only the comment. The authoring
+          assistant's quotes of them go from its proposals and reports, and a
+          knowledge-gap topic holding one of their searches loses its draft.
+          Draft overlays an eval arm will keep once knowledge drafts can be
+          tested (#2391) belong to this list too.
 
         Called from `UserService.delete`, inside the same transaction, so a
         deletion that fails afterwards takes this with it.
@@ -311,38 +321,38 @@ class PersonalDataService:
         workspaces = await personal_data_repo.purge_workspaces_of(
             self.db, person_owner_key(user_id)
         )
+        comments = await personal_data_repo.comments_of(self.db, user_id)
+        # Before the unlink below, which clears the links these are found by.
+        anonymised = await personal_data_repo.anonymise_dataset_cases_of(
+            self.db, user_id, placeholder=ANONYMISED_CASE_INPUT, at=datetime.now(UTC)
+        )
+        case_copies = await personal_data_repo.purge_case_copies(self.db, anonymised)
+        case_notes = await personal_data_repo.clear_case_notes_of(self.db, comments)
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
+        evidence_quotes = await personal_data_repo.purge_evidence_of(
+            self.db, user_id, comments=comments
+        )
+        # Before the searches go, since a topic is found through its members.
+        gap_drafts = await personal_data_repo.clear_gap_drafts_of(self.db, user_id)
         searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
         scored_answers = await personal_data_repo.purge_scored_answers_of(self.db, user_id)
         case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
-        if (
-            notes
-            or identities
-            or workspaces
-            or dataset_cases
-            or searches
-            or scored_answers
-            or case_proposals
-        ):
-            logger.info(
-                "personal_data_purged",
-                extra={
-                    "user_id": str(user_id),
-                    "notes": notes,
-                    "identities": identities,
-                    "workspaces": workspaces,
-                    "dataset_cases": dataset_cases,
-                    "knowledge_searches": searches,
-                    "scored_answers": scored_answers,
-                    "case_proposals": case_proposals,
-                },
-            )
-        return PersonalDataPurge(
+        purged = PersonalDataPurge(
             memory_notes=notes,
             channel_identities=identities,
             workspaces=workspaces,
             dataset_cases=dataset_cases,
+            anonymised_cases=len(anonymised),
+            case_copies=case_copies,
+            case_notes=case_notes,
+            evidence_quotes=evidence_quotes,
+            gap_drafts=gap_drafts,
             knowledge_searches=searches,
             scored_answers=scored_answers,
             case_proposals=case_proposals,
         )
+        if any(purged.model_dump().values()):
+            logger.info(
+                "personal_data_purged", extra={"user_id": str(user_id), **purged.model_dump()}
+            )
+        return purged

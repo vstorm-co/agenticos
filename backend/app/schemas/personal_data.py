@@ -111,6 +111,21 @@ class PersonalDataPurge(BaseModel):
     dataset_cases: int = Field(
         description="Dataset cases taken from their conversations, kept but unlinked from them."
     )
+    anonymised_cases: int = Field(
+        description="Dataset case revisions whose text, taken from them, was replaced."
+    )
+    case_copies: int = Field(
+        description="Eval attempts and scores of those revisions, cleared of what they recorded."
+    )
+    case_notes: int = Field(
+        description="Dataset cases that kept their comment on somebody else's answer as a note."
+    )
+    evidence_quotes: int = Field(
+        description="Quotes of them the authoring assistant kept as evidence, removed."
+    )
+    gap_drafts: int = Field(
+        description="Knowledge-gap drafts written from topics holding their searches, discarded."
+    )
     knowledge_searches: int = Field(
         description="Knowledge searches made while answering them, including API runs."
     )
