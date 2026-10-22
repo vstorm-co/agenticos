@@ -31,7 +31,7 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
-from app.repositories import table_view_repo, virtual_table_repo
+from app.repositories import table_view_repo
 from app.schemas.table_view import (
     TableViewConfig,
     TableViewCreate,
@@ -151,7 +151,7 @@ def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
 
 @dataclass(frozen=True)
 class BoundView:
-    """A saved view as a page binding reads it: the view, its table's schema and its live config."""
+    """A saved view as a page query copies it: the view, its table's schema and its live config."""
 
     view: TableView
     table_id: UUID
@@ -341,8 +341,8 @@ class TableViewOperations(Operations):
     ) -> BoundView:
         """A view by id alone, if `ctx` may see its table and either owns it or it is shared.
 
-        What a page binding and an agent tool name a view by: the table is the view's
-        own, not the caller's to give. A missing view, another organization's, someone
+        What a page binding names a view by: the table is the view's own, not the
+        caller's to give. A missing view, another organization's, someone
         else's private one and one on a table `ctx` may not reach all raise the same
         `NotFoundError("View not found")`, naming only the view id, so no refusal says
         a view or its table exists. Visibility is checked before archiving, so someone
@@ -370,34 +370,6 @@ class TableViewOperations(Operations):
             raise _view_not_found(view_id)
         self._ensure_live(table)
         return await self._bound(view, table, deadline=deadline)
-
-    async def view_for_binding(self, organization_id: UUID, view_id: UUID) -> BoundView:
-        """A view's definition and its table's columns, without a person and never its rows.
-
-        The one method of this class with no `AuthContext`: it checks no visibility and
-        no table access, only that the view is in `organization_id` and its table is
-        not archived. Only the artifact bindings check calls it, to carry a stored
-        binding forward, to compare a requested binding with the stored one and to
-        re-check a stored binding's columns on restore - none of which reads a record.
-        Its caller must already hold `organization_id` from an authenticated context;
-        anything that serves a view's rows goes through `find_view` as the person.
-
-        Raises:
-            NotFoundError: No such view in `organization_id`.
-            TableArchivedError: Its table is archived.
-        """
-        view = await table_view_repo.get(self.db, organization_id=organization_id, view_id=view_id)
-        table = (
-            None
-            if view is None
-            else await virtual_table_repo.get_table(
-                self.db, view.table_id, organization_id=organization_id
-            )
-        )
-        if view is None or table is None:
-            raise _view_not_found(view_id)
-        self._ensure_live(table)
-        return await self._bound(view, table)
 
     async def _bound(
         self, view: TableView, table: VirtualTable, *, deadline: ReadDeadline | None = None

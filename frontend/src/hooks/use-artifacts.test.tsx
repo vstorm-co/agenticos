@@ -270,38 +270,6 @@ describe("useArtifact", () => {
     expect(toastError).toHaveBeenCalled();
     expect(toastWarning).not.toHaveBeenCalled();
   });
-
-  it("warns after a restore that left a source unavailable", async () => {
-    const binding = (name: string, status: "ok" | "unavailable") => ({
-      name,
-      view_id: `vw-${name}`,
-      table_id: "t1",
-      fields: [],
-      status,
-      reason: status === "ok" ? null : "view_missing",
-    });
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      ...DETAIL,
-      live: true,
-      bindings: [binding("sales", "ok"), binding("stock", "unavailable")],
-    });
-    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
-    await waitFor(() => expect(result.current.artifact).not.toBeNull());
-
-    await act(() => result.current.restoreVersion.mutateAsync("v2"));
-    expect(toastSuccess).toHaveBeenCalledWith("Restored as version 0");
-    expect(toastWarning).toHaveBeenCalledWith("Restored, but 1 live source is unavailable: stock");
-
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      ...DETAIL,
-      live: true,
-      bindings: [binding("sales", "unavailable"), binding("stock", "unavailable")],
-    });
-    await act(() => result.current.restoreVersion.mutateAsync("v1"));
-    expect(toastWarning).toHaveBeenLastCalledWith(
-      "Restored, but 2 live sources are unavailable: sales, stock",
-    );
-  });
 });
 
 describe("usePublicArtifactUnlock", () => {

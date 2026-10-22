@@ -48,7 +48,6 @@ const UNAVAILABLE = {
   truncated: false,
   limit: null,
   count: 0,
-  filters_dropped: false,
 };
 
 const OK = {
@@ -58,7 +57,6 @@ const OK = {
   truncated: false,
   limit: null,
   count: 1,
-  filters_dropped: false,
 };
 
 function start(

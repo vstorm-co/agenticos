@@ -4,45 +4,132 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.schemas.base import BaseSchema
-from app.schemas.virtual_table import ColumnTypeName
+from app.schemas.virtual_table import (
+    MAX_FILTERS,
+    ColumnTypeName,
+    FilterOp,
+    FilterValue,
+    RecordFilter,
+    RecordSort,
+    SortDirection,
+)
 
 ArtifactMediaTypeLiteral = Literal["text/html", "text/markdown"]
 
 
-class BindingRequest(BaseSchema):
-    """A live-data binding as the model asks for it, before resolution."""
+class BindingFilter(BaseModel):
+    """One condition of a page query as the model writes it, before resolution."""
+
+    # Not `BaseSchema`: a filter's operand is a cell value, kept exactly as sent.
+    model_config = ConfigDict(extra="forbid")
+
+    column: str = Field(description="The column's id or label")
+    op: FilterOp
+    value: FilterValue = Field(
+        default=None,
+        description=(
+            "A value of the column's type; a list for `in`; true or false for `is_null`. "
+            "A choice by its label"
+        ),
+    )
+
+
+class BindingSort(BaseSchema):
+    """A page query's order as the model writes it."""
 
     model_config = ConfigDict(extra="forbid")
 
-    view: UUID | str = Field(description="The saved view's id from `list_views`, or its exact name")
+    by: str = Field(description="`created_at`, `updated_at`, or a column's id or label")
+    direction: SortDirection = "asc"
+
+
+class BindingRequest(BaseSchema):
+    """A page query as the model asks for it, before resolution.
+
+    The table is named by `view` or by `table`, never both. A view's filters and
+    sort are copied into the query when it is published: editing the view later
+    changes nothing on the page.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    view: UUID | str | None = Field(
+        default=None, description="A saved view's id from `list_views`, or its exact name"
+    )
+    table: UUID | str | None = Field(
+        default=None, description="A table's id from `list_tables`, or its exact name"
+    )
     fields: dict[str, str] = Field(
         description="Field name to the table column it reads, given as a column id or a label"
+    )
+    filters: list[BindingFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    sort: BindingSort | None = None
+    limit: int | None = Field(default=None, ge=1)
+
+
+class BindingReach(BaseSchema):
+    """Everything a page query reaches, as the tables stood when it was resolved.
+
+    What a page load compares with the tables now: a column whose revision moved or
+    that was archived, an archived table, or a linked table now labelling its records
+    by another column, and the binding is served nothing until it is published again.
+    """
+
+    tables: dict[UUID, dict[UUID, int]] = Field(
+        description=(
+            "Every table reached - the query's own and each linked one - to the revision "
+            "of each column reached there"
+        )
+    )
+    named_by: dict[UUID, UUID | None] = Field(
+        default_factory=dict,
+        description=(
+            "For each linked table a link field of the page labels records from, the "
+            "column it labels them by; null for one with no text column"
+        ),
     )
 
 
 class ArtifactBinding(BaseSchema):
-    """A binding as stored on a version, after its names were resolved to ids."""
+    """A page query as a version stores it, every name resolved to an id.
+
+    Read with the page owner's access on every load, the same records for everyone
+    who opens the page.
+    """
 
     name: str
-    view_id: UUID
     table_id: UUID
+    filters: list[RecordFilter] = Field(default_factory=list)
+    sort: RecordSort = Field(default_factory=RecordSort)
+    limit: int
     fields: dict[str, UUID]
-    status: Literal["ok", "unavailable"] = "ok"
-    reason: str | None = None
+    reach: BindingReach
 
 
 class ArtifactBindingRead(BaseSchema):
-    """A binding as an API client sees it: field names only, no column ids."""
+    """A binding as an API client sees it: its table and its field names, no column ids."""
 
     name: str
-    view_id: UUID
     table_id: UUID
     fields: list[str]
-    status: Literal["ok", "unavailable"] = "ok"
-    reason: str | None = None
+
+
+class BindingDisclosure(BaseSchema):
+    """A page query in words: what everyone who opens the page reads through it."""
+
+    table: str = Field(description="The table's name")
+    filters: list[str] = Field(description="Each condition a record meets, all of them together")
+    sort: str = Field(description="The order the records come in")
+    limit: int = Field(description="The most records served")
+    fields: dict[str, str] = Field(
+        description=(
+            "Each field and what it reads: `Status (single_select)`, or for a worked-out "
+            "column what it is worked out from, as `Pay band: formula over Salary, Level`"
+        )
+    )
 
 
 class BoundField(BaseSchema):
@@ -59,21 +146,25 @@ class BoundField(BaseSchema):
 
 
 class BindingData(BaseSchema):
-    """One binding's records for a page load, read with the viewer's own access."""
+    """One binding's records for a page load, its page query read with the owner's access."""
 
     status: Literal["ok", "unavailable"]
     reason: str | None = Field(
         default=None,
         description="Why the binding is unavailable. Only for a viewer who may edit the page",
     )
+    changed: str | None = Field(
+        default=None,
+        description=(
+            "With `source_changed`: the column, by its current label, or the table that "
+            "changed since the page was published. Only for a viewer who may edit the page"
+        ),
+    )
     truncated: bool = Field(description="Whether a limit left records out")
     limit: Literal["records", "bytes"] | None = Field(
         default=None, description="Which limit left records out"
     )
-    count: int = Field(description="How many records are served, not how many the view matches")
-    filters_dropped: bool = Field(
-        description="Whether a filter of the view named a column no longer live, so it matches more"
-    )
+    count: int = Field(description="How many records are served, not how many the query matches")
     fields: dict[str, BoundField]
     # Any: a cell is a string, number, boolean, list or link list, by its column's type.
     records: list[dict[str, Any]] = Field(
@@ -82,7 +173,7 @@ class BindingData(BaseSchema):
 
 
 class ArtifactData(BaseSchema):
-    """A page version's live data: every binding, each read as the viewer."""
+    """A page version's live data: every binding's page query, read with the owner's access."""
 
     bindings: dict[str, BindingData]
     current: bool = Field(
@@ -190,8 +281,8 @@ class ArtifactDetail(ArtifactRead):
     bindings: list[ArtifactBindingRead] = Field(
         default_factory=list,
         description=(
-            "The current version's bindings, each with its status and, when unavailable, "
-            "why. Only for a caller who may edit it; empty otherwise"
+            "The current version's bindings: each one's table and field names. Only for a "
+            "caller who may edit it; empty otherwise"
         ),
     )
 

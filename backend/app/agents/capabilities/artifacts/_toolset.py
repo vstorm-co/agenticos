@@ -43,7 +43,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.db.models.artifact import ArtifactMediaType
-from app.schemas.artifact import BindingData, BindingRequest
+from app.schemas.artifact import BindingData, BindingDisclosure, BindingRequest
 from app.services.artifact_lint import lint_page
 
 if TYPE_CHECKING:
@@ -187,9 +187,9 @@ class PublishedArtifactResult(BaseModel):
     unchanged: bool
     visibility: str
     public: bool
-    bindings: dict[str, dict[str, str]] = Field(
+    bindings: dict[str, BindingDisclosure | Literal["kept"]] = Field(
         default_factory=dict,
-        description="Each binding's fields and the column each reads, or `kept` when carried",
+        description="Each binding's page query in words, or `kept` when carried unchanged",
     )
     warning: str | None = Field(
         default=None,
@@ -316,19 +316,16 @@ def build_artifacts_toolset(
 
         The page is shown in an isolated frame with no network access: it cannot fetch
         anything, so images go in as `data:` URIs and scripts inline, and a CDN or an API
-        call will not load. For records that should stay current, bind the page to saved
-        table views with `bindings` instead of copying the records in: an HTML page then
+        call will not load. For records that should stay current, bind the page to table
+        queries with `bindings` instead of copying the records in: an HTML page then
         calls `agenticos.onData(render)`, and `render(data)` runs with
         `data.<binding>` = `{status: "ok" | "unavailable", records: [{id, <field>: value}],
-        fields: {<field>: {label, type, options, state}}, count, truncated, limit,
-        filters_dropped}` each time the person viewing it loads or refreshes it. Draw an
-        `unavailable` binding as "no data" - that viewer may not see the view, or it is
-        gone; when `truncated` is true, say the list is cut (`limit` is `records` or
-        `bytes`); when `filters_dropped` is true, a filter of the view named a column
-        that is gone, so the records match more than the view meant - say so. Write
-        record text with `textContent`, never `innerHTML`. Find a view's id and columns
-        with `list_views`; a private view serves only its owner, so share it first for
-        anyone else. Data you only need once still goes inline. The deployment serves a
+        fields: {<field>: {label, type, options, state}}, count, truncated, limit}` each
+        time the page is loaded or refreshed. Everyone who opens the page reads the same
+        records, read with its owner's access - bind only what all of them may see. Draw
+        an `unavailable` binding as "no data"; when `truncated` is true, say the list is
+        cut (`limit` is `records` or `bytes`). Write record text with `textContent`,
+        never `innerHTML`. Data you only need once still goes inline. The deployment serves a
         small library set the page may load by a relative address, which costs nothing
         to include:
         `<link rel="stylesheet" href="lib/agenticos-3.css">` (the product's look, light
@@ -362,27 +359,31 @@ def build_artifacts_toolset(
                 in order. Each `old` must appear exactly once.
             format: `html` or `markdown`. Inferred from `path`'s extension; for
                 `content` it defaults to `html`. An edit keeps the page's format.
-            bindings: Live data for an HTML page, as `{name: {view, fields}}`: `view` is a
-                saved view's id or its exact name, `fields` maps each name the page reads
-                to the column it is, by id or label, e.g.
-                `{"tickets": {"view": "Open tickets", "fields": {"status": "Status"}}}`.
-                Binding names are lower-case letters, digits and `_`; a field may be named
-                as its column is labelled (`Status`, `Created At`). Omit to keep the page's
-                current bindings - the usual case when changing a page's look. Never ask
-                the person for an id: `list_views` gives every view's. `{}` removes them.
+            bindings: Live data for an HTML page, as `{name: query}`. A query names a
+                `table` (id or exact name, from `list_tables`) or a saved `view` (id or
+                exact name, from `list_views`), whose filters and sort are copied - later
+                edits to the view change nothing. `fields` maps each name the page reads
+                to a column, by id or label. Optional: `filters` (`[{column, op, value}]`,
+                all must hold, added to the view's; a choice by its label), `sort`
+                (`{by, direction}`) and `limit` (at most and by default 1,000), which
+                replace the view's. E.g. `{"tickets": {"view": "Open tickets", "fields":
+                {"status": "Status"}, "limit": 50}}`. Binding names are lower-case letters,
+                digits and `_`; a field may be named as its column is labelled (`Status`,
+                `Created At`). Omit to keep the page's current bindings - the usual case
+                when changing a page's look. `{}` removes them.
 
         Returns:
             A JSON reference to the published page - its `url`, the `version` number,
             whether it was `created` or updated, `unchanged` when the content and
             bindings were identical to the current version (nothing new was stored), and
-            `bindings`: each field and the column it reads, as `Status (single_select)`,
-            or `kept` for one carried from the previous version. A `warning`, when
-            present, lists what looks wrong in the page, one problem per line: fix each
-            and publish again - except a binding to a private view, which is published
-            as it is and only told to the person. The interface
-            shows the user a card with the link; tell them in one line what you
-            published. New pages are private to the person this run is for until they
-            share it.
+            `bindings`: each query in words - its `table`, `filters`, `sort`, `limit` and
+            each field and what it reads (`Status (single_select)`, `Pay band: formula
+            over Salary, Level`) - or `kept` for one carried from the previous version.
+            Check it is what you meant: it is what everyone who opens the page reads. A
+            `warning`, when present, lists what looks wrong in the page, one problem per
+            line: fix each and publish again. The interface shows the user a card with
+            the link; tell them in one line what you published. New pages are private to
+            the person this run is for until they share it.
         """
         # Function-local: `app.services.artifact` imports virtual tables, which reach this
         # package through the factory (an import cycle).
@@ -497,7 +498,6 @@ def build_artifacts_toolset(
             return steer(ctx, fixable.message)
         if media_type == ArtifactMediaType.HTML:
             warnings = lint_page(data, bound=published.bindings) + warnings
-        warnings += published.warnings
         return PublishedArtifactResult(
             artifact_id=published.artifact_id,
             version_id=published.version_id,
@@ -630,8 +630,8 @@ def build_artifacts_toolset(
 
         Use after publishing or changing an HTML page, before telling the person it is
         done, and whenever they say it looks wrong. The page is drawn 1280 pixels wide,
-        with its live data read as the person this run is for (in a group chat,
-        without data), and checked as `publish_artifact` checks it. Fix what the
+        with the live data the person this run is for would be served (in a group
+        chat, without data), and checked as `publish_artifact` checks it. Fix what the
         report names, publish again and preview once more. Not for reading the page's
         source - that is `read_artifact`.
 
@@ -726,12 +726,13 @@ def _drawn_outcome(drawn: Rendered, *, screenshot: bool) -> str:
 
 def _binding_line(name: str, binding: BindingData) -> str:
     if binding.status != "ok":
-        return f"- {name}: unavailable" + (f" ({binding.reason})" if binding.reason else "")
+        cause = binding.reason
+        if cause is not None and binding.changed is not None:
+            cause += f": {binding.changed}"
+        return f"- {name}: unavailable" + (f" ({cause})" if cause else "")
     line = f"- {name}: {binding.count} record{'' if binding.count == 1 else 's'}"
     if binding.truncated:
         line += f", cut at the {binding.limit} limit"
-    if binding.filters_dropped:
-        line += ", and a filter of its view names a column that is gone"
     return line
 
 
@@ -761,7 +762,7 @@ def _preview_report(
     elif preview.data_note is not None:
         lines.append(f"Data: {preview.data_note}")
     else:
-        lines.append("Data, read as the person this run is for:")
+        lines.append("Data, as the person this run is for is served it:")
         lines.extend(_binding_line(name, binding) for name, binding in preview.bindings.items())
     findings: list[str] = []
     if drawn is not None and not drawn.timed_out:

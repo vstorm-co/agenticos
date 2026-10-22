@@ -795,7 +795,7 @@ async def test_a_surrogate_in_a_sort_or_a_select_value_is_a_typed_refusal(db):
         await service.create_record(ctx, table.id, RecordCreate(values={cid(table, "Tags"): [bad]}))
 
 
-# -- reading a view for a page -------------------------------------------------
+# -- reading a page query ------------------------------------------------------
 
 
 def _deadline() -> ReadDeadline:
@@ -805,7 +805,10 @@ def _deadline() -> ReadDeadline:
 async def _read(service, ctx, bound, named, **limits):
     return await service.read_bound(
         ctx,
-        bound,
+        table_id=bound.table_id,
+        columns=bound.columns,
+        filters=bound.config.filters,
+        sort=bound.config.sort,
         column_ids=named,
         shape=shaper(bound.columns, named),
         max_records=limits.get("max_records", 1_000),
@@ -950,7 +953,7 @@ async def test_read_bound_runs_the_view_query_once(db, monkeypatch):
     assert not [statement for statement in statements if "OFFSET" in statement.upper()]
 
 
-async def test_read_bound_applies_the_view_filters_search_and_sort(db):
+async def test_read_bound_applies_the_query_filters_and_sort(db):
     service, ctx, table, _org = await _setup(db)
     customer, quantity = (uuid.UUID(cid(table, label)) for label in ("Customer", "Quantity"))
     for name, count in (("Acme", 5), ("Beta", 9), ("Acorn", 3), ("Acme small", 1)):
@@ -960,15 +963,17 @@ async def test_read_bound_applies_the_view_filters_search_and_sort(db):
             RecordCreate(values={str(customer): name, str(quantity): count}),
         )
     config = TableViewConfig(
-        filters=[RecordFilter(column_id=quantity, op="gt", value=1)],
-        search="ac",
+        filters=[
+            RecordFilter(column_id=quantity, op="gt", value=1),
+            RecordFilter(column_id=customer, op="starts_with", value="Ac"),
+        ],
         sort=RecordSort(by=str(quantity), direction="desc"),
     )
     bound = await bound_view(db, ctx, table.id, config)
 
     read = await _read(service, ctx, bound, [customer, quantity])
     listed = await service.list_records(
-        ctx, table.id, RecordQuery(filters=config.filters, search="ac", sort=config.sort)
+        ctx, table.id, RecordQuery(filters=config.filters, sort=config.sort)
     )
 
     assert [(record["Customer"], record["Quantity"]) for record in read.records] == [
@@ -976,7 +981,8 @@ async def test_read_bound_applies_the_view_filters_search_and_sort(db):
         ("Acorn", 3),
     ]
     assert [record["id"] for record in read.records] == [str(item.id) for item in listed.items]
-    nothing = await bound_view(db, ctx, table.id, config.model_copy(update={"search": "zz"}))
+    none_match = [RecordFilter(column_id=customer, op="eq", value="zz")]
+    nothing = await bound_view(db, ctx, table.id, config.model_copy(update={"filters": none_match}))
     empty = await _read(service, ctx, nothing, [customer])
     assert (empty.records, empty.bytes, empty.stopped_by) == ([], 0, None)
 

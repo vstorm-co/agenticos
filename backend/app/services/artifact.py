@@ -41,8 +41,6 @@ from markdown_it import MarkdownIt
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.virtual_tables import table_grants_of
-from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -54,7 +52,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.security import (
     create_artifact_view_token,
     get_password_hash,
@@ -68,7 +66,6 @@ from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
-    agent_repo,
     agent_run_repo,
     artifact_repo,
     member_repo,
@@ -91,6 +88,7 @@ from app.schemas.artifact import (
     ArtifactVersionRead,
     ArtifactView,
     BindingData,
+    BindingDisclosure,
     BindingRequest,
     PublicArtifactRead,
 )
@@ -103,19 +101,20 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.artifact_bindings import (
+    KEPT,
     BindingRows,
+    Refused,
     Unavailable,
     check_bindings,
+    fingerprint,
     page_data,
+    page_source,
+    reresolve,
     shape_for,
 )
 from app.services.file_storage import get_file_storage
-from app.services.virtual_tables import ReadDeadline, TableViewService, VirtualTableService
-from app.services.virtual_tables.exceptions import (
-    DeadlineReached,
-    InvalidQueryError,
-    TableArchivedError,
-)
+from app.services.virtual_tables import ReadDeadline, VirtualTableService
+from app.services.virtual_tables.exceptions import DeadlineReached, InvalidQueryError
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +132,6 @@ _MARKDOWN_BINDINGS = (
     "Bindings need an HTML page; a Markdown page runs no scripts. A republish keeps the "
     "current version's bindings unless it passes others: pass `bindings: {}` to drop them."
 )
-
-KEPT = "kept"
-"""What the publish result says of a field kept from the previous version.
-
-Its column's label is not repeated: a binding carried forward is checked without
-the person behind the run, who may not see its view.
-"""
 
 _IN_FLIGHT = "Your previous data load is still running. Try again in a moment."
 _BUSY = "Too many pages are loading data right now. Try again in a moment."
@@ -479,12 +471,9 @@ class PublishedArtifact:
     was added."""
     visibility: str
     public: bool
-    bindings: dict[str, dict[str, str]] = field(default_factory=dict)
-    """Each binding's fields, as `Status (single_select)` for a field this publication
-    resolved, or :data:`KEPT` for one carried from the previous version."""
-    warnings: list[str] = field(default_factory=list)
-    """What the model should tell the person about the bindings, one line each: a newly
-    bound view private to them, whose records nobody else the page is shared with sees."""
+    bindings: dict[str, BindingDisclosure | str] = field(default_factory=dict)
+    """Each binding's page query in words, for one this publication resolved, or
+    :data:`~app.services.artifact_bindings.KEPT` for one carried from the previous version."""
 
 
 @dataclass(frozen=True)
@@ -660,20 +649,22 @@ async def publish_with(
     The caller has already checked :func:`publish_problem`; the size is enforced
     again here because this is the function that writes.
 
-    A version stores the bindings it reads live data through, and they are part of
-    what "unchanged" compares. They are checked by
+    A version stores the page queries it reads live data through, and they are part of
+    what "unchanged" compares. They are resolved by
     :func:`~app.services.artifact_bindings.check_bindings` as the member behind the
-    run, read again here. A page whose current version has bindings is changed only
+    run, read again here, who must read every table a query reaches; a query the
+    publish changes must also be readable by the page's owner, whose access every
+    viewer reads it with. A page whose current version has bindings is changed only
     by a run acting for a member: a run with none behind it - a widget visitor, an
-    outsider's webhook - must not swap the code that receives a member's records. It
-    may still republish the page unchanged, which takes the new title and
-    publication time.
+    outsider's webhook - must not swap the code that receives the owner's records, or
+    what they are. It may still republish the page unchanged, which takes the new
+    title and publication time.
 
     Args:
         expected_version: The version an edit was made against. When the current
             version is another one by the time the lock is held, nothing is
             written - the edits would silently undo whatever landed in between.
-        bindings: The bindings the model asked for, replacing the current ones
+        bindings: The page queries the model asked for, replacing the current ones
             whole; `None` keeps the current version's, `{}` clears them.
         run_person: The member the run acts for (`AgentDeps.run_person`), or `None`.
             One who has since left, or been deactivated, counts as none.
@@ -730,44 +721,38 @@ async def publish_with(
     previous = _bindings_of(latest)
     same_bytes = latest is not None and latest.sha256 == sha256 and latest.media_type == media_type
     # Before anything is checked: a run with nobody behind it hears this one text for
-    # every change to a bound page, never what is wrong with a binding it carried or
-    # whether its guesses resolve to the stored ones.
-    if person is None and previous and not same_bytes:
+    # every change to a bound page, never what is wrong with the bindings it sent.
+    if person is None and previous and (bindings is not None or not same_bytes):
         raise _live_page(name)
     checks = await check_bindings(
         db,
-        organization_id=organization_id,
         requested=bindings,
         previous=previous,
         person=person,
+        owner=await _owner(db, artifact, person) if person is not None and bindings else None,
         grants=table_grants or {},
     )
-    if person is None and previous and any(c.problem or c.changed for c in checks):
-        raise _live_page(name)
     problems = list(dict.fromkeys(c.problem for c in checks if c.problem is not None))
     if problems:
         raise BadRequestError(message=" ".join(problems), details={"name": name})
     # Every check without a problem carries its binding.
-    resolved = [(c.binding, c.changed) for c in checks if c.binding is not None]
-    effective = [binding for binding, _changed in resolved]
+    effective = [c.binding for c in checks if c.binding is not None]
     if effective and media_type == ArtifactMediaType.MARKDOWN:
         raise BadRequestError(message=_MARKDOWN_BINDINGS, details={"name": name})
     canonical = sorted(
         (binding.model_dump(mode="json") for binding in effective), key=lambda b: b["name"]
     )
     unchanged = same_bytes and latest is not None and latest.bindings == canonical
-    if person is None and previous and not unchanged:
-        raise _live_page(name)
-    echo, warnings = await _echo(db, person, resolved)
+    echo: dict[str, BindingDisclosure | str] = {
+        c.name: c.disclosure if c.disclosure is not None else KEPT for c in checks
+    }
 
     retitle = {"title": title} if title else {}
     if unchanged and latest is not None:
         artifact = await artifact_repo.update(
             db, artifact=artifact, update_data={**retitle, "published_at": datetime.now(UTC)}
         )
-        return _published(
-            artifact, latest, created=created, unchanged=True, bindings=echo, warnings=warnings
-        )
+        return _published(artifact, latest, created=created, unchanged=True, bindings=echo)
 
     path = _storage_path(artifact, sha256, media_type)
     await get_file_storage().save_at(path, data)
@@ -791,26 +776,36 @@ async def publish_with(
         action="artifact.published",
         target_type="artifact",
         target_id=str(artifact.id),
-        details={"name": name, "version": version.number, "agent_id": str(agent_id)},
+        details={
+            "name": name,
+            "version": version.number,
+            "agent_id": str(agent_id),
+            "query_fingerprint": fingerprint(effective),
+        },
     )
-    return _published(
-        artifact, version, created=created, unchanged=False, bindings=echo, warnings=warnings
-    )
+    return _published(artifact, version, created=created, unchanged=False, bindings=echo)
 
 
 def _binding_reads(version: ArtifactVersion | None) -> list[ArtifactBindingRead]:
     """A version's bindings as a client reads them: field names, never column ids."""
     return [
         ArtifactBindingRead(
-            name=binding.name,
-            view_id=binding.view_id,
-            table_id=binding.table_id,
-            fields=list(binding.fields),
-            status=binding.status,
-            reason=binding.reason,
+            name=binding.name, table_id=binding.table_id, fields=list(binding.fields)
         )
         for binding in _bindings_of(version)
     ]
+
+
+async def _owner(db: AsyncSession, artifact: Artifact, person: AuthContext) -> AuthContext | None:
+    """The page's owner as the member they are now: `person` when it is theirs, `None`
+    when nobody active owns it."""
+    if artifact.owner_user_id == person.user_id:
+        return person
+    if artifact.owner_user_id is None:
+        return None
+    return await member_context(
+        db, organization_id=artifact.organization_id, user_id=artifact.owner_user_id
+    )
 
 
 def _live_page(name: str) -> AuthorizationError:
@@ -832,46 +827,6 @@ def _archived_page(name: str) -> str:
 
 def _bindings_of(version: ArtifactVersion | None) -> list[ArtifactBinding]:
     return [] if version is None else [ArtifactBinding.model_validate(b) for b in version.bindings]
-
-
-async def _echo(
-    db: AsyncSession, person: AuthContext | None, resolved: Sequence[tuple[ArtifactBinding, bool]]
-) -> tuple[dict[str, dict[str, str]], list[str]]:
-    """What each binding's fields read, for the model to check against what it meant, and
-    a warning for each binding newly bound to a view private to `person`.
-
-    A binding the request named anew was checked as `person`, who sees its view, so
-    its columns are read as theirs. One carried from the previous version says only
-    that it was kept, and is not warned about again.
-
-    A private view is bound as it is: the page publishes, and only its owner sees
-    the view's records until it is shared. Whether someone the page is shared with
-    sees them is the Share dialog's to say, which knows who that is.
-    """
-    views = TableViewService(db)
-    echo: dict[str, dict[str, str]] = {}
-    warnings: list[str] = []
-    for binding, changed in resolved:
-        if changed and person is not None:
-            bound = await views.find_view(person, binding.view_id)
-            columns = {column.id: column for column in bound.columns}
-            echo[binding.name] = {
-                name: f"{columns[column_id].label} ({columns[column_id].type})"
-                for name, column_id in binding.fields.items()
-            }
-            if bound.view.visibility == "private":
-                warnings.append(_private_view(binding.name, bound.view.name))
-        else:
-            echo[binding.name] = dict.fromkeys(binding.fields, KEPT)
-    return echo, warnings
-
-
-def _private_view(binding: str, view: str) -> str:
-    return (
-        f"Binding {binding} reads your private view {view!r}: only you see its records "
-        "until the view is shared. Tell the person; the page's Share dialog shows what "
-        "anyone they share it with still needs."
-    )
 
 
 async def _append_version(
@@ -909,6 +864,18 @@ async def _append_version(
     )
     await _prune(db, artifact)
     return version
+
+
+def _served_data(ctx: AuthContext, artifact: Artifact) -> bool:
+    """Whether `ctx` is served the page's data while its owner has not consented to share it.
+
+    The owner, and the roles that read every table anyway (`tables:view` at scope
+    `ALL`: Owner, Admin, Builder, Operator). Until consent lands, everyone else who
+    opens a bound page sees it without its data.
+    """
+    if ctx.user_id is None:
+        return False
+    return ctx.user_id == artifact.owner_user_id or ctx.scope_for(Perm.TABLES_VIEW) is Scope.ALL
 
 
 def room_may_see(artifact: Artifact) -> bool:
@@ -1027,8 +994,8 @@ class ArtifactPreview:
     the browser reports in the page is this many past the line the agent wrote."""
     binding_names: list[str]
     bindings: dict[str, BindingData] | None
-    """Each binding read as the run's person, `{}` when no data could be read for
-    them, `None` for a page with no bindings - one that never asks."""
+    """Each binding as the run's person would be served it, `{}` when no data could be
+    read for them, `None` for a page with no bindings - one that never asks."""
     data_note: str | None
     """Why the bindings are `{}`, in a sentence for the model."""
 
@@ -1054,12 +1021,12 @@ async def preview_source(
     """The current version of this agent's page as a viewer's frame would be served it.
 
     Opened as :func:`read_source` opens it. The data is what the console would
-    post a viewer who is the run's person: each binding read by
-    :meth:`ArtifactService.data` as `reader_user_id`'s membership now. In a room
-    only a page :func:`room_may_see` opens at all, and it gets no data, since a
-    picture of one member's records would be read by the whole channel; nor does
-    a reader who is no longer an active member, or one whose data load is
-    refused for being busy.
+    post a viewer who is the run's person: :meth:`ArtifactService.data` asked as
+    `reader_user_id`'s membership now, which reads each binding's page query as the
+    page's owner, for a viewer it serves data at all. In a room only a page
+    :func:`room_may_see` opens at all, and it gets no data, since a picture of the
+    page's records would be read by the whole channel; nor does a reader who is no
+    longer an active member, or one whose data load is refused for being busy.
 
     Raises:
         NotFoundError: See :func:`_open_current`.
@@ -1364,8 +1331,7 @@ def _published(
     *,
     created: bool,
     unchanged: bool,
-    bindings: dict[str, dict[str, str]],
-    warnings: list[str],
+    bindings: dict[str, BindingDisclosure | str],
 ) -> PublishedArtifact:
     return PublishedArtifact(
         artifact_id=artifact.id,
@@ -1379,7 +1345,6 @@ def _published(
         visibility=artifact.visibility,
         public=artifact.public_key is not None,
         bindings=bindings,
-        warnings=warnings,
     )
 
 
@@ -1741,10 +1706,18 @@ class ArtifactService:
         so the history says which versions a person put back rather than a run
         wrote. Restoring the current version changes nothing.
 
+        A restored version's page queries are kept, and what they reach is read
+        again from the tables now (:func:`~app.services.artifact_bindings.reresolve`):
+        the caller and the page's owner must both read every table they reach.
+
         Raises:
             NotFoundError: The artifact is not the caller's to change, the version
                 is not one of its kept versions, or storage no longer has its
                 bytes - restored, it would be a current version that 404s.
+            AuthorizationError: The caller or the page's owner cannot read a table
+                the version's data reads.
+            BadRequestError: A table no longer answers a filter or the sort of the
+                version's data - a column converted since.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
         locked = await artifact_repo.lock(self.db, artifact.id)
@@ -1766,7 +1739,7 @@ class ArtifactService:
                 message="That version's content is gone from storage, so it cannot be restored",
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
-        bindings = await self._rechecked(ctx, locked, _bindings_of(source))
+        bindings = await self._reresolved(ctx, locked, _bindings_of(source))
         version = await _append_version(
             self.db,
             locked,
@@ -1789,67 +1762,33 @@ class ArtifactService:
             details={
                 "version": version.number,
                 "restored": source.number,
-                "bindings": {binding.name: binding.status for binding in bindings},
+                "bindings": [binding.name for binding in bindings],
             },
         )
         return await self._detail(locked, can_edit=True)
 
-    async def _rechecked(
+    async def _reresolved(
         self, ctx: AuthContext, artifact: Artifact, stored: list[ArtifactBinding]
     ) -> list[ArtifactBinding]:
-        """A restored version's bindings, checked again as the person restoring it.
-
-        Against the spec that runs the page's agent now, since that is what serves its
-        data. One that fails is kept, `unavailable` with the reason; with no agent, or
-        no published version of it, every one is.
-        """
+        """A restored version's page queries, each with its reach read again as `ctx`."""
         if not stored:
             return []
-        grants = await self._running_grants(artifact)
-        if grants is None:
-            return [
-                binding.model_copy(update={"status": "unavailable", "reason": "no_agent"})
-                for binding in stored
-            ]
-        checks = await check_bindings(
-            self.db,
-            organization_id=artifact.organization_id,
-            requested=None,
-            previous=stored,
-            person=ctx,
-            grants=grants,
-            recheck_person=True,
-        )
-        # A recheck returns every binding, failed ones marked.
-        return [check.binding for check in checks if check.binding is not None]
-
-    async def _running_grants(self, artifact: Artifact) -> dict[UUID, frozenset[str]] | None:
-        """The table grants of the spec the artifact's runs answer from, or `None` without one.
-
-        The named environment's version when the artifact belongs to one, else the
-        agent's current version.
-        """
-        if artifact.agent_id is None:
-            return None
-        organization_id = artifact.organization_id
-        if artifact.environment_id is not None:
-            environment = await agent_environment_repo.get(
-                self.db, artifact.environment_id, organization_id=organization_id
-            )
-            version_id = environment.version_id if environment is not None else None
-        else:
-            agent = await agent_repo.get(
-                self.db, artifact.agent_id, organization_id=organization_id
-            )
-            version_id = agent.current_version_id if agent is not None else None
-        version = (
-            await agent_repo.get_version(self.db, version_id, organization_id=organization_id)
-            if version_id is not None
-            else None
-        )
-        if version is None:
-            return None
-        return table_grants_of(AgentSpec.model_validate(version.spec))
+        owner = await _owner(self.db, artifact, ctx)
+        resolved: list[ArtifactBinding] = []
+        refused: list[Refused] = []
+        for binding in stored:
+            outcome = await reresolve(self.db, binding, person=ctx, owner=owner)
+            if isinstance(outcome, Refused):
+                refused.append(outcome)
+            else:
+                resolved.append(outcome)
+        if refused:
+            message = f"{' '.join(r.message for r in refused)} So this version can't be restored."
+            details = {"artifact_id": artifact.id}
+            if any(r.forbidden for r in refused):
+                raise AuthorizationError(message=message, details=details)
+            raise BadRequestError(message=message, details=details)
+        return resolved
 
     async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn on the "anyone with the link" address, or rotate it when it is on.
@@ -2076,15 +2015,23 @@ class ArtifactService:
         return _view(version, live=live)
 
     async def data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
-        """A page version's live data: every binding's records, each read as `ctx` alone.
+        """A page version's live data: every binding's page query, read as the page's owner.
 
-        A binding `ctx` may not read - its view gone, private to someone else or on a
-        table they cannot see, its table archived, its view no longer valid, or no
-        time left on the page's deadline - is `unavailable`, and only a caller who
-        may edit the page is told why. Only the current version is served; an older
-        one gets every binding `unavailable` with the reason `not_current`, and
-        `current` false - unlike `reason`, told to every viewer, so a console
-        showing the current version moves to the newer one.
+        Everyone allowed the data reads the same records, whatever their own access to
+        the tables: the owner's, as the member they are now. Until the owner consents
+        to sharing it, that is the owner and the roles that read every table
+        (`tables:view` at scope `ALL`); anyone else gets every binding `unavailable`,
+        `awaiting_consent`.
+
+        A binding is `unavailable` when the owner is no longer an active member
+        (`creator_gone`) or cannot read a table its query reaches
+        (`creator_lost_access`), when something it reaches changed since it was
+        published (`source_changed`, naming what in `changed`), or when the page's
+        deadline left no time for it (`timeout`); only a caller who may edit the page
+        is told why. Only the current version is served; an older one gets every
+        binding `unavailable` with the reason `not_current`, and `current` false -
+        unlike `reason`, told to every viewer, so a console showing the current
+        version moves to the newer one.
 
         Each binding reads in a savepoint of its own, so a query stopped by its
         `statement_timeout` costs that binding alone and the request still commits.
@@ -2126,14 +2073,24 @@ class ArtifactService:
             settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS,
             settings.ARTIFACT_DATA_STATEMENT_TIMEOUT_MS,
         )
+        bindings = sorted(_bindings_of(version), key=lambda item: item.name)
+        owner = (
+            await member_context(
+                self.db, organization_id=artifact.organization_id, user_id=artifact.owner_user_id
+            )
+            if bindings and artifact.owner_user_id is not None
+            else None
+        )
         reads: dict[str, BindingRows | Unavailable] = {}
-        for binding in sorted(_bindings_of(version), key=lambda item: item.name):
+        for binding in bindings:
             if not current:
                 reads[binding.name] = Unavailable("not_current")
-            elif binding.status == "unavailable":
-                reads[binding.name] = Unavailable(binding.reason)
+            elif not _served_data(ctx, artifact):
+                reads[binding.name] = Unavailable("awaiting_consent")
+            elif owner is None:
+                reads[binding.name] = self._unavailable(binding, Unavailable("creator_gone"))
             else:
-                reads[binding.name] = await self._read_binding(ctx, binding, deadline)
+                reads[binding.name] = await self._read_binding(owner, binding, deadline)
         return ArtifactData(
             bindings=page_data(
                 reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit
@@ -2143,55 +2100,61 @@ class ArtifactService:
         )
 
     async def _read_binding(
-        self, ctx: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
+        self, owner: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
     ) -> BindingRows | Unavailable:
-        """One binding's records as `ctx` may read them, or why it reads nothing."""
+        """One binding's page query read as the page's `owner`, or why it reads nothing."""
         if deadline.remaining_ms() <= 0:
-            return Unavailable("timeout")
+            return self._unavailable(binding, Unavailable("timeout"))
+        service = VirtualTableService(self.db)
+        table: str | None = None
         try:
             async with self.db.begin_nested():
                 prior = await virtual_table_repo.statement_timeout(self.db)
-                bound = await TableViewService(self.db).find_view(
-                    ctx, binding.view_id, deadline=deadline
-                )
-                live = {column.id for column in bound.columns if not column.archived}
-                rows = await VirtualTableService(self.db).read_bound(
-                    ctx,
-                    bound,
-                    column_ids=[
-                        column_id for column_id in binding.fields.values() if column_id in live
-                    ],
-                    shape=shape_for(bound.columns, binding.fields),
-                    max_records=settings.ARTIFACT_DATA_MAX_RECORDS,
+                source = await page_source(service, owner, binding, deadline=deadline)
+                if isinstance(source, Unavailable):
+                    await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
+                    return self._unavailable(binding, source)
+                table = source.name
+                rows = await service.read_bound(
+                    owner,
+                    table_id=source.id,
+                    columns=source.columns,
+                    filters=binding.filters,
+                    sort=binding.sort,
+                    column_ids=list(binding.fields.values()),
+                    shape=shape_for(source.columns, binding.fields),
+                    max_records=min(binding.limit, settings.ARTIFACT_DATA_MAX_RECORDS),
                     max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
                     deadline=deadline,
                 )
                 # Only on success: a statement stopped by its timeout aborts the
                 # savepoint, and rolling that back restores the setting by itself.
                 await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
-        except (NotFoundError, AuthorizationError):
-            return self._unavailable(binding, "no_access")
-        except TableArchivedError:
-            return self._unavailable(binding, "table_archived")
         except InvalidQueryError:
-            return self._unavailable(binding, "view_invalid")
+            # The revisions match, yet the table no longer answers a filter or the sort:
+            # a query restored before its columns were converted. One binding, never the page.
+            return self._unavailable(binding, Unavailable("source_changed", table))
         except DeadlineReached:
-            return self._unavailable(binding, "timeout")
+            return self._unavailable(binding, Unavailable("timeout"))
         except DBAPIError as failed:
             if getattr(failed.orig, "sqlstate", None) != _STATEMENT_TIMEOUT:
                 raise
-            return self._unavailable(binding, "timeout")
-        return BindingRows(fields=binding.fields, rows=rows, filters_dropped=bound.filters_dropped)
+            return self._unavailable(binding, Unavailable("timeout"))
+        return BindingRows(fields=binding.fields, rows=rows)
 
     @staticmethod
-    def _unavailable(binding: ArtifactBinding, reason: str) -> Unavailable:
+    def _unavailable(binding: ArtifactBinding, unavailable: Unavailable) -> Unavailable:
         # Never the exception: a database error carries its bound parameters, which
-        # are the view's filter values.
+        # are the query's filter values.
         logger.info(
             "artifact_data_binding_unavailable",
-            extra={"binding": binding.name, "view_id": str(binding.view_id), "reason": reason},
+            extra={
+                "binding": binding.name,
+                "table_id": str(binding.table_id),
+                "reason": unavailable.reason,
+            },
         )
-        return Unavailable(reason)
+        return unavailable
 
     async def _public(self, public_key: str) -> tuple[Artifact, ArtifactVersion]:
         """The artifact behind a public key and the version its link shows.

@@ -166,10 +166,10 @@ describe("deciding a parked call", () => {
         {
           ...PARKED,
           // Renamed by its binding: the sentence is found by the stable id.
-          tool_id: "share_saved_view",
-          capability_tool_id: "share_view",
-          tool_args: { view_id: "6f1c" },
-          context: { view: "Closed tickets", table: "Support" },
+          tool_id: "change_ticket",
+          capability_tool_id: "update_record",
+          tool_args: { table_id: "6f1c" },
+          context: { table: "Support" },
         },
         { ...PARKED, id: "ap-3" },
       ],
@@ -177,13 +177,9 @@ describe("deciding a parked call", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    expect(
-      await screen.findByText(
-        "Share the view Closed tickets of Support with everyone who may read the table",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText("Change a record in Support")).toBeVisible();
     expect(screen.getByText(/6f1c/)).toBeVisible();
-    expect(screen.getByText("share_saved_view")).toBeVisible();
+    expect(screen.getByText("change_ticket")).toBeVisible();
     // A call nobody described reads as it always did: the tool and its arguments.
     expect(screen.getByText("send_email")).toBeVisible();
   });

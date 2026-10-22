@@ -29,10 +29,10 @@ from app.core.security import create_artifact_view_token, get_password_hash
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import ArtifactPublicLinkUpdate
+from app.schemas.artifact import ArtifactBinding, ArtifactPublicLinkUpdate, BindingReach
 from app.services import artifact as artifacts
 from app.services.artifact import ArtifactService
-from app.services.artifact_bindings import BindingCheck
+from app.services.artifact_bindings import Refused
 from app.services.artifact_lint import KIT_CLASSES, lint_page
 
 pytestmark = pytest.mark.anyio
@@ -380,7 +380,7 @@ class TestRestore:
         assert append.await_args.kwargs["sha256"] == source.sha256
         assert append.await_args.kwargs["run_id"] is None
         assert audit.await_args.kwargs["action"] == "artifact.version_restored"
-        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2, "bindings": {}}
+        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2, "bindings": []}
         assert append.await_args.kwargs["bindings"] == []
 
     async def test_restoring_the_current_version_changes_nothing(self) -> None:
@@ -403,45 +403,29 @@ class TestRestore:
             await self._restore(artifact, None, None)
 
 
-def _stored_binding(**overrides: Any) -> dict[str, Any]:
-    values: dict[str, Any] = {
-        "name": "tickets",
-        "view_id": str(uuid.uuid4()),
-        "table_id": str(uuid.uuid4()),
-        "fields": {"status": str(uuid.uuid4())},
-        "status": "ok",
-        "reason": None,
-    }
-    values.update(overrides)
-    return values
+def _stored_binding(name: str = "tickets") -> ArtifactBinding:
+    table_id, status = uuid.uuid4(), uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"status": status},
+        reach=BindingReach(tables={table_id: {status: 0}}),
+    )
 
 
 class TestRestoringBindings:
-    """Which spec a restore checks a page's bindings against: the one that runs."""
+    """A restore keeps a version's page queries and reads what they reach again."""
 
     async def _restore(
-        self,
-        artifact: Artifact,
-        *,
-        environment: AgentEnvironment | None = None,
-        agent: Any = None,
-        spec: dict[str, Any] | None = None,
+        self, ctx: AuthContext, artifact: Artifact, outcome: Any, *, owner: Any = None
     ) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
-        ctx = _ctx()
         source = _version(artifact, number=2, sha="a")
-        source.bindings = [_stored_binding()]
+        stored = _stored_binding()
+        source.bindings = [stored.model_dump(mode="json")]
         storage = MagicMock()
         storage.exists = AsyncMock(return_value=True)
-        published = None
-        if spec is not None:
-            # Set after construction: `MagicMock(spec=...)` would read it as the mock's own spec.
-            published = MagicMock()
-            published.spec = spec
-        checked = AsyncMock(
-            side_effect=lambda _db, **kw: [
-                BindingCheck(b.name, b, None, False) for b in kw["previous"]
-            ]
-        )
+        reresolve = AsyncMock(return_value=outcome)
         with (
             patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
@@ -452,14 +436,8 @@ class TestRestoringBindings:
                 f"{PATH}.artifact_repo.latest_version",
                 new=AsyncMock(return_value=_version(artifact, number=8)),
             ),
-            patch(
-                f"{PATH}.agent_environment_repo.get", new=AsyncMock(return_value=environment)
-            ) as environments,
-            patch(f"{PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
-            patch(
-                f"{PATH}.agent_repo.get_version", new=AsyncMock(return_value=published)
-            ) as versions,
-            patch(f"{PATH}.check_bindings", new=checked),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)) as members,
+            patch(f"{PATH}.reresolve", new=reresolve),
             patch(f"{PATH}.artifact_repo.environment_names", new=AsyncMock(return_value={})),
             patch(
                 f"{PATH}._append_version",
@@ -468,60 +446,62 @@ class TestRestoringBindings:
             patch(f"{PATH}.record_audit", new=AsyncMock()),
         ):
             await _service().restore_version(ctx, artifact.id, uuid.uuid4())
-        assert environments.await_count == (1 if artifact.environment_id else 0)
-        return append, checked, versions
+        assert reresolve.await_args.args[1] == stored
+        return append, reresolve, members
 
-    async def test_a_named_environment_s_page_is_checked_against_that_environment_s_spec(
+    async def test_the_owner_restoring_is_checked_as_themselves(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        moved_on = _stored_binding()
+
+        append, reresolve, members = await self._restore(owner, artifact, moved_on)
+
+        assert reresolve.await_args.kwargs == {"person": owner, "owner": owner}
+        members.assert_not_awaited()
+        assert append.await_args.kwargs["bindings"] == [moved_on.model_dump(mode="json")]
+
+    async def test_another_editor_restoring_is_checked_with_the_owner_as_they_are_now(
         self,
     ) -> None:
-        table_id = uuid.uuid4()
-        artifact = _artifact(_ctx(), environment_id=uuid.uuid4())
-        environment = AgentEnvironment(id=artifact.environment_id, version_id=uuid.uuid4())
-        spec = {
-            "name": "Reporter",
-            "capabilities": [
-                {
-                    "id": "virtual_tables",
-                    "config": {"tables": [{"table_id": str(table_id), "operations": ["read"]}]},
-                }
-            ],
-        }
-
-        append, checked, versions = await self._restore(
-            artifact, environment=environment, spec=spec
-        )
-
-        assert versions.await_args.args[1] == environment.version_id
-        kwargs = checked.await_args.kwargs
-        assert kwargs["requested"] is None
-        assert kwargs["recheck_person"] is True
-        assert kwargs["grants"] == {table_id: frozenset({"read"})}
-        assert [b["status"] for b in append.await_args.kwargs["bindings"]] == ["ok"]
-
-    async def test_the_default_environment_s_page_is_checked_against_the_agent_s_current_spec(
-        self,
-    ) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
         artifact = _artifact(_ctx())
-        agent = MagicMock(current_version_id=uuid.uuid4())
+        owner_now = _ctx(OrgRoleName.MEMBER)
 
-        _append, checked, versions = await self._restore(
-            artifact, agent=agent, spec={"name": "Reporter"}
+        _append, reresolve, members = await self._restore(
+            admin, artifact, _stored_binding(), owner=owner_now
         )
 
-        assert versions.await_args.args[1] == agent.current_version_id
-        assert checked.await_args.kwargs["grants"] == {}
+        assert reresolve.await_args.kwargs == {"person": admin, "owner": owner_now}
+        assert members.await_args.kwargs["user_id"] == artifact.owner_user_id
 
-    @pytest.mark.parametrize("gone", ["environment", "agent"])
-    async def test_a_spec_that_cannot_be_found_marks_every_binding_unavailable(
-        self, gone: str
-    ) -> None:
-        artifact = _artifact(_ctx(), environment_id=uuid.uuid4() if gone == "environment" else None)
+    @pytest.mark.security
+    async def test_a_version_reading_what_someone_cannot_read_is_not_restored(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
 
-        append, checked, _versions = await self._restore(artifact)
+        with pytest.raises(AuthorizationError) as refused:
+            await self._restore(
+                owner,
+                artifact,
+                Refused("Binding tickets reads a table you can't read.", forbidden=True),
+            )
 
-        checked.assert_not_awaited()
-        [binding] = append.await_args.kwargs["bindings"]
-        assert (binding["status"], binding["reason"]) == ("unavailable", "no_agent")
+        assert refused.value.message == (
+            "Binding tickets reads a table you can't read. So this version can't be restored."
+        )
+
+    async def test_a_query_the_tables_no_longer_answer_is_a_bad_request(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._restore(
+                owner, artifact, Refused("Binding tickets: filter 1: Bad.", forbidden=False)
+            )
+
+        assert refused.value.message == (
+            "Binding tickets: filter 1: Bad. So this version can't be restored."
+        )
 
 
 class TestAppendingAVersion:

@@ -146,7 +146,12 @@ async def list_artifact_versions(artifact_id: UUID, service: ArtifactSvc, ctx: A
 async def restore_artifact_version(
     artifact_id: UUID, version_id: UUID, service: ArtifactSvc, ctx: Auth
 ) -> Any:
-    """Make a kept version current again, as a new version. History is never rewritten."""
+    """Make a kept version current again, as a new version. History is never rewritten.
+
+    The version's page queries are kept and what they reach is read again. A 403
+    when the caller or the page's owner cannot read a table they reach; a 400 when
+    a table no longer answers one of their filters or their sort.
+    """
     return await service.restore_version(ctx, artifact_id, version_id)
 
 
@@ -169,11 +174,15 @@ async def view_artifact(
 async def read_artifact_data(
     artifact_id: UUID, version_id: UUID, service: ArtifactSvc, ctx: Auth, response: Response
 ) -> Any:
-    """The records a live page's bindings read, each read with the caller's own access.
+    """The records a live page's bindings read: each page query, read with the owner's access.
 
-    A binding the caller may not read is `unavailable`; why is said only to a caller
-    who may edit the page. Only the current version is served data. Never cached:
-    what one viewer is served is not another's to see.
+    Everyone served the data reads the same records, whatever their own access to
+    the tables. Until the owner consents to sharing it, only the owner and the roles
+    that read every table are served it; anyone else gets every binding
+    `unavailable`. A binding is also `unavailable` when its owner is gone or can no
+    longer read a table it reaches, or when what it reaches changed since it was
+    published; why is said only to a caller who may edit the page. Only the current
+    version is served data. Never cached.
     """
     response.headers["Cache-Control"] = "private, no-store"
     return await service.data(ctx, artifact_id, version_id)

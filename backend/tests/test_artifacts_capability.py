@@ -49,7 +49,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.db.models.artifact import ArtifactMediaType
-from app.schemas.artifact import BindingData, BindingRequest
+from app.schemas.artifact import BindingData, BindingDisclosure, BindingRequest
 from app.services.artifact import (
     ARTIFACT_LIBRARY,
     ArtifactListing,
@@ -105,6 +105,15 @@ def _published(**overrides: Any) -> PublishedArtifact:
     }
     values.update(overrides)
     return PublishedArtifact(**values)
+
+
+_DISCLOSED = BindingDisclosure(
+    table="Support tickets",
+    filters=['Status is "Open"'],
+    sort="when created, descending",
+    limit=50,
+    fields={"status": "Status (single_select)", "band": "Pay band: formula over Salary, Level"},
+)
 
 
 def _page(body: str, *, kit: int = 3) -> str:
@@ -197,7 +206,10 @@ class TestPublishing:
         table_id, person = uuid.uuid4(), uuid.uuid4()
         grants = {table_id: frozenset({"read"})}
         requested = {"tickets": BindingRequest(view=uuid.uuid4(), fields={"status": "Status"})}
-        echo = {"tickets": {"status": "Status (single_select)"}}
+        echo: dict[str, BindingDisclosure | str] = {
+            "tickets": _DISCLOSED,
+            "kept_one": "kept",
+        }
         tool = build_artifacts_toolset(table_grants=grants).tools["publish_artifact"].function
         with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))) as publish:
             result = await tool(
@@ -210,6 +222,16 @@ class TestPublishing:
         parsed = parse_published_artifact(result)
         assert parsed is not None
         assert parsed.bindings == echo
+        assert json.loads(result)["bindings"]["tickets"] == {
+            "table": "Support tickets",
+            "filters": ['Status is "Open"'],
+            "sort": "when created, descending",
+            "limit": 50,
+            "fields": {
+                "status": "Status (single_select)",
+                "band": "Pay band: formula over Salary, Level",
+            },
+        }
 
     @pytest.mark.parametrize(
         ("script", "kit", "warned"),
@@ -227,7 +249,7 @@ class TestPublishing:
     async def test_a_bound_page_that_never_asks_for_its_data_is_warned(
         self, script: str, kit: int, warned: bool
     ) -> None:
-        echo = {"tickets": {"status": "Status (single_select)"}}
+        echo: dict[str, BindingDisclosure | str] = {"tickets": _DISCLOSED}
         with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))):
             result = await _tool()(
                 _ctx(_deps(run_person=uuid.uuid4())),
@@ -260,23 +282,6 @@ class TestPublishing:
         lines = parsed.warning.split("\n")
         assert lines == lint_page(page.encode())
         assert len(lines) == 4
-
-    async def test_a_private_view_is_a_line_of_the_warning_after_the_page_s_own(self) -> None:
-        private = "Binding tickets reads your private view 'Open': only you see its records."
-        page = "<h1>Tickets</h1>"
-        with patch(PUBLISH, new=AsyncMock(return_value=_published(warnings=[private]))):
-            result = await _tool()(_ctx(_deps()), name="r", content=page)
-        parsed = parse_published_artifact(result)
-        assert parsed is not None and parsed.warning is not None
-        assert parsed.warning.split("\n") == [*lint_page(page.encode()), private]
-
-    async def test_a_private_view_warns_a_markdown_page_too(self) -> None:
-        private = "Binding tickets reads your private view 'Open'."
-        with patch(PUBLISH, new=AsyncMock(return_value=_published(warnings=[private]))):
-            result = await _tool()(_ctx(_deps()), name="r", content="# x", format="markdown")
-        parsed = parse_published_artifact(result)
-        assert parsed is not None
-        assert parsed.warning == private
 
     async def test_a_markdown_page_is_not_linted(self) -> None:
         with patch(PUBLISH, new=AsyncMock(return_value=_published())):
@@ -890,7 +895,6 @@ def _binding_data(**overrides: Any) -> BindingData:
         "status": "ok",
         "truncated": False,
         "count": 2,
-        "filters_dropped": False,
         "fields": {},
         "records": [],
     }
@@ -1005,15 +1009,19 @@ class TestPreviewing:
     async def test_each_binding_says_what_it_was_served(self) -> None:
         bindings = {
             "one": _binding_data(count=1),
-            "cut": _binding_data(truncated=True, limit="records", filters_dropped=True),
-            "hidden": _binding_data(status="unavailable", reason="no_access", count=0),
+            "cut": _binding_data(truncated=True, limit="records"),
+            "hidden": _binding_data(status="unavailable", reason="creator_lost_access", count=0),
+            "moved": _binding_data(
+                status="unavailable", reason="source_changed", changed="Status", count=0
+            ),
             "gone": _binding_data(status="unavailable", count=0),
         }
         result, _, _ = await _previewed(_preview(bindings=bindings), _drawn())
         report = result.return_value
         assert "- one: 1 record\n" in report
-        assert "- cut: 2 records, cut at the records limit, and a filter" in report
-        assert "- hidden: unavailable (no_access)" in report
+        assert "- cut: 2 records, cut at the records limit\n" in report
+        assert "- hidden: unavailable (creator_lost_access)" in report
+        assert "- moved: unavailable (source_changed: Status)" in report
         assert "- gone: unavailable\n" in report
 
     async def test_data_that_was_not_read_says_why(self) -> None:

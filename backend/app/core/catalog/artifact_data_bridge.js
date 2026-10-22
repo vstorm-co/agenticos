@@ -27,7 +27,7 @@ function agenticosDataBridge(window, document, config) {
   function unavailable() {
     return {
       status: "unavailable", records: [], fields: {}, truncated: false,
-      limit: null, count: 0, filters_dropped: false
+      limit: null, count: 0
     };
   }
 

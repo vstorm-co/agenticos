@@ -130,10 +130,11 @@ dialogs, then the publish lint - and the picture as an image part beside it
 (`ToolReturn`), so the transcript and the chat step keep the text and not a
 megabyte of base64.
 
-The data is read as `member_context(audience.user_id)`. In a group chat only a
-page the list would show there - an organization-wide one - is opened at all
-(`room_may_see`), and it is drawn without data, since a picture of one member's records would be read by
-the whole channel. Without a renderer, or without the `browser` extra, the report
+The data is what `member_context(audience.user_id)` would be served: each page
+query read with the page owner's access, for a viewer the page serves data at all.
+In a group chat only a page the list would show there - an organization-wide one -
+is opened at all (`room_may_see`), and it is drawn without data, since a picture of
+the page's records would be read by the whole channel. Without a renderer, or without the `browser` extra, the report
 comes back alone and says so: every deployment gets the lint, and those running
 the browser get the picture. `preview_screenshot: false` keeps the picture from a
 model that cannot read images; the report still comes back, because a page that

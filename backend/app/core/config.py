@@ -128,13 +128,13 @@ class Settings(BaseSettings):
     # a separate registrable domain that routes to this API, it also puts the
     # page on another site, which a security review may ask for.
     ARTIFACT_ORIGIN: str | None = None
-    # How many saved table views one page version may bind. Each binding is a
-    # query run as the viewer every time the page is shown or refreshed, so the
+    # How many page queries one page version may bind. Each binding is a query
+    # run as the page's owner every time the page is shown or refreshed, so the
     # cap bounds what one open page costs the database, not what a page may say.
     ARTIFACT_DATA_MAX_BINDINGS: int = Field(default=5, ge=1)
-    # How many records one binding serves a page. Past it the binding is served
-    # truncated, with `limit: "records"`, and the view's own filters are how a
-    # page asks for fewer.
+    # How many records one binding serves a page, and the most its own `limit`
+    # may ask for. Past it the binding is served truncated, with `limit:
+    # "records"`; the query's filters and limit are how a page asks for fewer.
     ARTIFACT_DATA_MAX_RECORDS: int = Field(default=1000, ge=1)
     # How much data one page load is served, in bytes of the shaped payload as
     # sent, across every binding of the page. Shared max-min fairly: a small

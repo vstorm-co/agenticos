@@ -110,6 +110,8 @@ _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
+_TABLES_CAPABILITY = "virtual_tables"
+_WITHDRAWN_TABLE_TOOLS = frozenset({"share_view"})
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -269,6 +271,33 @@ class CapabilityBindingSpec(BaseModel):
                 ", ".join(sorted(withdrawn)),
             )
             migrated[key] = kept
+        return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_the_withdrawn_share_view(cls, data: Any) -> Any:
+        """Let a tables binding that gated or renamed `share_view` load without it.
+
+        `share_view` let an agent share a person's private view so a page bound to
+        it served others; a page now reads its own query with its owner's access, so
+        no view is shared for it and the tool is gone. It never reached a release, so
+        no stored spec version names it and none is migrated: this only keeps a spec
+        saved while it existed publishable, the way the skills tools version 12
+        withdrew are dropped, rather than refused as an unknown tool at publish.
+        """
+        if not isinstance(data, dict) or data.get("id") != _TABLES_CAPABILITY:
+            return data
+        migrated = dict(data)
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if not isinstance(stated, dict) or not _WITHDRAWN_TABLE_TOOLS & stated.keys():
+                continue
+            logger.warning("Dropping `%s` for share_view, which no longer exists.", key)
+            migrated[key] = {
+                tool_id: value
+                for tool_id, value in stated.items()
+                if tool_id not in _WITHDRAWN_TABLE_TOOLS
+            }
         return migrated
 
     def to_binding(self) -> CapabilityBinding:

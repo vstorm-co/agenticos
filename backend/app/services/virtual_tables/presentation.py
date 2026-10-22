@@ -83,12 +83,14 @@ def column_keyed(table: TableRead, values: Mapping[str, Any]) -> dict[str, Any]:
     return resolved
 
 
-def filters_by_label(table: TableRead, filters: list[RecordFilter]) -> list[RecordFilter]:
+def filters_by_label(
+    columns: Sequence[ColumnDef], filters: list[RecordFilter]
+) -> list[RecordFilter]:
     """`filters` with a select's operand named by option label as well as id, as ids."""
-    columns = {column.id: column for column in table.columns}
+    by_id = {column.id: column for column in columns}
     resolved: list[RecordFilter] = []
     for condition in filters:
-        column = columns.get(condition.column_id)
+        column = by_id.get(condition.column_id)
         if column is None or column.type not in _SELECTS or condition.op == "is_null":
             resolved.append(condition)
             continue

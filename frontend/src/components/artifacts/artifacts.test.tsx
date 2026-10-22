@@ -263,7 +263,6 @@ function bound(overrides: Partial<BindingData> = {}): BindingData {
     truncated: false,
     limit: null,
     count: 1,
-    filters_dropped: false,
     fields: {},
     records: [{ id: "r1", region: "North" }],
     ...overrides,

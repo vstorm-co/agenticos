@@ -142,7 +142,6 @@ function bound(overrides: Partial<BindingData> = {}): BindingData {
     truncated: false,
     limit: null,
     count: 1,
-    filters_dropped: false,
     fields: {},
     records: [],
     ...overrides,
@@ -706,41 +705,35 @@ describe("a live page in the viewer", () => {
     useArtifactDataMock.mockReturnValue(
       dataQuery({
         sales: bound(),
-        escalations: bound({ status: "unavailable", count: 0, reason: "view_missing" }),
+        escalations: bound({
+          status: "unavailable",
+          count: 0,
+          reason: "source_changed",
+          changed: "Priority",
+        }),
         stock: bound({ status: "unavailable", count: 0, reason: "timeout" }),
         orders: MISSING,
-        returns: bound({ status: "unavailable", count: 0, reason: "no_agent" }),
+        returns: bound({ status: "unavailable", count: 0, reason: "creator_lost_access" }),
       }),
     );
     open(
       livePage({
         can_edit: true,
-        bindings: [
-          {
-            name: "escalations",
-            view_id: "vw1",
-            table_id: "t1",
-            fields: ["subject"],
-            status: "unavailable",
-            reason: "view_missing",
-          },
-        ],
+        bindings: [{ name: "escalations", table_id: "t1", fields: ["subject"] }],
       }),
     );
     const line = screen.getByRole("status");
     expect(line).toHaveTextContent("4 of 5 sources unavailable to you.");
     expect(line).toHaveTextContent(
-      "escalations: its saved view is gone, or was not visible when this version was restored",
+      "escalations: Priority changed since it was published - publish the page again",
     );
     expect(line).toHaveTextContent("stock: it took too long to read");
     expect(line).toHaveTextContent("orders: it could not be read");
-    expect(line).toHaveTextContent(
-      "returns: the agent that publishes it is gone or has no published version",
-    );
+    expect(line).toHaveTextContent("returns: the page's owner can no longer read a table it reads");
     // Only a binding the page's detail names can be opened from here.
     const links = within(line).getAllByRole("link", { name: "Open the table" });
     expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute("href", "/tables/t1?viewId=vw1");
+    expect(links[0]).toHaveAttribute("href", "/tables/t1");
   });
 
   it("says live data is only on the current version, and opens it", async () => {

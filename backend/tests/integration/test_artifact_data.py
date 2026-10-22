@@ -1,48 +1,60 @@
-"""A page's live data against a real database: each binding read as the viewer, within the limits.
+"""A page's live data against a real database: each page query read as the page's owner.
 
-`ArtifactService.data` reads every binding of a page version with the viewer's own
-access, so what one viewer is served says nothing about what another may see. These
-prove the refusals (a binding the viewer may not read is `unavailable`, and only an
-editor hears why), the payload (named fields and the id, nothing else), the drift
-rules, the fair byte split and the deadline, which stops a slow page without ever
-cancelling a query from Python.
+`ArtifactService.data` reads every binding's page query with the access of the page's
+owner, as the member they are now, so everyone served the data reads the same records
+whatever their own access to the tables. These prove who is served it (until consent,
+the owner and the roles that read every table), that the owner is checked again on
+every load, that a query whose source changed since it was published reads nothing
+(and only that query), the payload (named fields and the id, nothing else), the fair
+byte split and the deadline, which stops a slow page without ever cancelling a query
+from Python.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel
-from app.repositories import artifact_repo, resource_grant_repo, table_view_repo, virtual_table_repo
-from app.schemas.artifact import ArtifactBinding, ArtifactData, BindingData, BoundField
-from app.schemas.table_view import TableViewConfig, TableViewCreate
+from app.repositories import artifact_repo, resource_grant_repo, virtual_table_repo
+from app.schemas.artifact import (
+    ArtifactBinding,
+    ArtifactData,
+    BindingData,
+    BindingFilter,
+    BindingRequest,
+    BoundField,
+)
+from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUpdate
 from app.schemas.virtual_table import (
     ColumnDef,
     ColumnInput,
     OptionInput,
     RecordFilter,
+    RecordQuery,
     SchemaUpdate,
     TableCreate,
     TableRead,
 )
+from app.services import artifact as artifacts
 from app.services.access import ARTIFACT, TABLE
 from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import check_bindings
 from app.services.virtual_tables import TableViewService, VirtualTableService
 from tests.integration.virtual_table_support import (
     cid,
@@ -58,6 +70,7 @@ from tests.integration.virtual_table_support import (
 pytestmark = pytest.mark.anyio
 
 FORBIDDEN_KEYS = {"external_id", "created_by", "updated_by", "revision", "values", "links"}
+READ = frozenset({"read"})
 
 
 def _kept(existing: ColumnDef, **changes: Any) -> ColumnInput:
@@ -86,49 +99,36 @@ class _Page:
     org: Organization
     owner: AuthContext
     tables: VirtualTableService
-    views: TableViewService
     table: TableRead
     artifact: Artifact
+    known: list[UUID] = field(default_factory=list)
     numbers: list[int] = field(default_factory=list)
-
-    def col(self, label: str, table: TableRead | None = None) -> UUID:
-        return next(c.id for c in (table or self.table).columns if c.label == label)
 
     def option(self, label: str, choice: str) -> str:
         column_def = next(c for c in self.table.columns if c.label == label)
         return str(next(o.id for o in column_def.options if o.label == choice))
 
-    async def view(
-        self,
-        *,
-        by: AuthContext | None = None,
-        table: TableRead | None = None,
-        visibility: Literal["private", "shared"] = "shared",
-        config: TableViewConfig | None = None,
-    ) -> UUID:
-        created = await self.views.create_view(
-            by or self.owner,
-            (table or self.table).id,
-            TableViewCreate(
-                name=f"View {uuid.uuid4().hex[:6]}",
-                kind="table",
-                visibility=visibility,
-                config=config or TableViewConfig(),
-            ),
-        )
-        return created.id
+    async def new_table(self, data: TableCreate) -> TableRead:
+        table = await self.tables.create_table(self.owner, data)
+        self.known.append(table.id)
+        return table
 
-    def bind(
-        self, name: str, view_id: UUID, *, table: TableRead | None = None, **fields: str
-    ) -> ArtifactBinding:
-        """A stored binding, its fields given by column label."""
-        table = table or self.table
-        return ArtifactBinding(
-            name=name,
-            view_id=view_id,
-            table_id=table.id,
-            fields={key: self.col(label, table) for key, label in fields.items()},
+    async def bind(self, name: str, request: BindingRequest) -> ArtifactBinding:
+        """The page query `request` resolves to, as the organization's owner publishes it."""
+        [check] = await check_bindings(
+            self.db,
+            requested={name: request},
+            previous=[],
+            person=self.owner,
+            owner=self.owner,
+            grants=dict.fromkeys(self.known, READ),
         )
+        assert check.problem is None, check.problem
+        assert check.binding is not None
+        return check.binding
+
+    def query(self, table: TableRead | None = None, **fields: str) -> BindingRequest:
+        return BindingRequest(table=(table or self.table).id, fields=fields)
 
     async def publish(self, *bindings: ArtifactBinding) -> ArtifactVersion:
         number = len(self.numbers) + 1
@@ -159,20 +159,18 @@ class _Page:
         self,
         *,
         role: str = "member",
-        table_grant: GrantLevel | None = None,
-        table: TableRead | None = None,
-        sees_page: bool = True,
-        is_app_admin: bool = False,
+        page: GrantLevel | None = GrantLevel.READ,
+        tables: tuple[TableRead, ...] = (),
     ) -> AuthContext:
-        """Another person in the organization, holding the grants asked for."""
+        """Another member of the organization, holding the grants asked for."""
         user = await make_user(self.db)
-        if sees_page:
-            await self._grant(user.id, ARTIFACT.key, self.artifact.id, GrantLevel.READ)
-        if table_grant is not None:
-            await self._grant(user.id, TABLE.key, (table or self.table).id, table_grant)
-        return AuthContext(
-            user_id=user.id, organization_id=self.org.id, role=role, is_app_admin=is_app_admin
-        )
+        self.db.add(OrganizationMember(organization_id=self.org.id, user_id=user.id, role=role))
+        await self.db.flush()
+        if page is not None:
+            await self._grant(user.id, ARTIFACT.key, self.artifact.id, page)
+        for table in tables:
+            await self._grant(user.id, TABLE.key, table.id, GrantLevel.READ)
+        return AuthContext(user_id=user.id, organization_id=self.org.id, role=role)
 
     async def _grant(
         self, user_id: UUID, resource_type: str, resource_id: UUID, level: GrantLevel
@@ -186,23 +184,28 @@ class _Page:
             level=level,
         )
 
+    async def give_to(self, owner: AuthContext) -> None:
+        self.artifact.owner_user_id = owner.user_id
+        await self.db.flush()
+
     async def reshape(
-        self,
-        by: AuthContext | None = None,
-        **changes: dict[str, Any] | None,
-    ) -> None:
-        """Change the table's schema: each label to its column's changes, `None` to archive it."""
-        current = await self.tables.describe_table(self.owner, self.table.id)
+        self, table: TableRead | None = None, **changes: dict[str, Any] | None
+    ) -> TableRead:
+        """Change a table's schema: each label to its column's changes, `None` to archive it."""
+        current = await self.tables.describe_table(self.owner, (table or self.table).id)
         columns = [
             _kept(c, **(changes.get(c.label) or {}))
             for c in current.columns
             if not c.archived and not (c.label in changes and changes[c.label] is None)
         ]
-        self.table = await self.tables.update_schema(
-            by or self.owner,
+        updated = await self.tables.update_schema(
+            self.owner,
             current.id,
             SchemaUpdate(expected_version=current.schema_version, columns=columns),
         )
+        if table is None:
+            self.table = updated
+        return updated
 
 
 async def _page(db: AsyncSession) -> _Page:
@@ -228,7 +231,7 @@ async def _page(db: AsyncSession) -> _Page:
         name="live-report",
         title="Live report",
     )
-    return _Page(db, org, owner, tables, TableViewService(db), table, artifact)
+    return _Page(db, org, owner, tables, table, artifact, known=[table.id])
 
 
 async def _orders(page: _Page) -> list[UUID]:
@@ -250,14 +253,58 @@ async def _orders(page: _Page) -> list[UUID]:
     )
 
 
-def _unavailable(reason: str | None) -> BindingData:
+def _open_only(page: _Page, **fields: str) -> BindingRequest:
+    return BindingRequest(
+        table=page.table.id,
+        fields=fields,
+        filters=[BindingFilter(column="Status", op="eq", value="Open")],
+    )
+
+
+async def _linked(page: _Page) -> tuple[TableRead, TableRead, UUID]:
+    """Products, orders linking to them with a lookup, and one widget ordered as A-1."""
+    products = await page.new_table(
+        TableCreate(name="Products", columns=[column("Code", "integer"), column("Name", "text")])
+    )
+    orders = await page.new_table(
+        TableCreate(
+            name="Linked orders",
+            columns=[column("Ref", "text"), column("Items", "link", link_table_id=products.id)],
+        )
+    )
+    orders = await page.tables.update_schema(
+        page.owner,
+        orders.id,
+        SchemaUpdate(
+            expected_version=orders.schema_version,
+            columns=[
+                *(_kept(c) for c in orders.columns),
+                column(
+                    "Names",
+                    "lookup",
+                    link_column_id=UUID(cid(orders, "Items")),
+                    target_column_id=UUID(cid(products, "Name")),
+                ),
+            ],
+        ),
+    )
+    [widget] = await insert_rows(
+        page.db, products, [{cid(products, "Code"): 7, cid(products, "Name"): "Widget"}]
+    )
+    await insert_rows(
+        page.db, orders, [{cid(orders, "Ref"): "A-1", cid(orders, "Items"): [str(widget)]}]
+    )
+    return products, orders, widget
+
+
+def _unavailable(reason: str | None, changed: str | None = None) -> BindingData:
     return BindingData(
         status="unavailable",
         reason=reason,
+        changed=changed,
         truncated=False,
         limit=None,
         count=0,
-        filters_dropped=False,
         fields={},
         records=[],
     )
@@ -265,88 +312,94 @@ def _unavailable(reason: str | None) -> BindingData:
 
 class TestWhoReads:
     @pytest.mark.security
-    async def test_a_member_without_the_table_gets_unavailable_and_no_reason(self, db):
+    async def test_an_admin_is_served_the_page_query_and_nothing_more(self, db):
         page = await _page(db)
-        await _orders(page)
-        await page.publish(page.bind("tickets", await page.view(), customer="Customer"))
+        ann, _bob = await _orders(page)
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
+        admin = await page.person(role="admin", page=None)
+
+        served = (await page.data(admin)).bindings["open"]
+
+        assert served.records == [{"id": str(ann), "customer": "Ann"}]
+
+    @pytest.mark.security
+    async def test_once_served_a_viewer_reads_the_query_whatever_their_own_access(
+        self, db, monkeypatch
+    ):
+        """Q1: the owner's access backs the data, so a member who reads no table at all is
+        served exactly the query's rows and columns - and still nothing through the tables."""
+        page = await _page(db)
+        ann, _bob = await _orders(page)
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
         member = await page.person()
+        monkeypatch.setattr(artifacts, "_served_data", lambda _ctx, _artifact: True)
 
-        data = await page.data(member)
+        served = (await page.data(member)).bindings["open"]
 
-        assert data.bindings == {"tickets": _unavailable(None)}
-
-    @pytest.mark.security
-    async def test_an_editor_sees_why_a_binding_is_unavailable(self, db):
-        page = await _page(db)
-        view_id = await page.view()
-        await page.publish(page.bind("tickets", view_id, customer="Customer"))
-        await page.views.delete_view(page.owner, page.table.id, view_id)
-        reader = await page.person(table_grant=GrantLevel.READ)
-
-        assert (await page.data()).bindings == {"tickets": _unavailable("no_access")}
-        assert (await page.data(reader)).bindings == {"tickets": _unavailable(None)}
+        assert served.records == [{"id": str(ann), "customer": "Ann"}]
+        assert set(served.fields) == {"customer"}
+        with pytest.raises(NotFoundError):
+            await page.tables.list_records(member, page.table.id, RecordQuery())
+        with pytest.raises(NotFoundError):
+            await page.tables.describe_table(member, page.table.id)
 
     @pytest.mark.security
-    async def test_another_member_s_private_view_is_unavailable_even_to_an_org_owner(self, db):
+    async def test_a_member_awaits_the_owner_s_consent(self, db):
+        """Until consent lands, a page's data reaches only its owner and the roles that
+        read every table; an editor among the rest is told why, a reader is not."""
         page = await _page(db)
         await _orders(page)
-        colleague = await page.person(role="admin")
-        view_id = await page.view(by=colleague, visibility="private")
-        await page.publish(page.bind("mine", view_id, customer="Customer"))
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
+        reader = await page.person(tables=(page.table,))
+        editor = await page.person(page=GrantLevel.EDIT, tables=(page.table,))
 
-        assert (await page.data()).bindings == {"mine": _unavailable("no_access")}
-        assert (await page.data(colleague)).bindings["mine"].count == 2
-
-    @pytest.mark.security
-    async def test_another_member_s_private_view_is_unavailable_to_a_member_app_admin(self, db):
-        page = await _page(db)
-        await _orders(page)
-        colleague = await page.person(role="admin")
-        view_id = await page.view(by=colleague, visibility="private")
-        await page.publish(page.bind("mine", view_id, customer="Customer"))
-        app_admin = await page.person(sees_page=False, is_app_admin=True)
-
-        assert (await page.data(app_admin)).bindings == {"mine": _unavailable("no_access")}
+        assert (await page.data(reader)).bindings == {"open": _unavailable(None)}
+        assert (await page.data(editor)).bindings == {"open": _unavailable("awaiting_consent")}
 
     @pytest.mark.security
-    async def test_impersonation_reads_as_the_impersonated_member(self, db):
-        """An impersonated session's context is the member's own, so is what it reads."""
+    @pytest.mark.parametrize("how", ["removed", "deactivated"])
+    async def test_an_owner_who_is_no_longer_a_member_backs_no_data(self, db, how):
         page = await _page(db)
         await _orders(page)
-        member = await page.person(role="admin")
-        own = await page.view(by=member, visibility="private")
-        await page.publish(page.bind("own", own, customer="Customer"))
-        impersonated = AuthContext(
-            user_id=member.user_id, organization_id=page.org.id, role=member.role
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
+        admin = await page.person(role="admin", page=None)
+        if how == "removed":
+            await db.execute(
+                delete(OrganizationMember).where(
+                    OrganizationMember.user_id == page.owner.user_id,
+                    OrganizationMember.organization_id == page.org.id,
+                )
+            )
+        else:
+            await db.execute(
+                text("UPDATE users SET is_active = false WHERE id = :id"),
+                {"id": page.owner.user_id},
+            )
+
+        assert (await page.data(admin)).bindings == {"open": _unavailable("creator_gone")}
+
+    @pytest.mark.security
+    async def test_an_owner_who_lost_read_on_a_table_backs_no_data(self, db):
+        page = await _page(db)
+        await _orders(page)
+        member = await page.person(page=None, tables=(page.table,))
+        await page.give_to(member)
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
+        assert (await page.data(member)).bindings["open"].count == 1
+        await resource_grant_repo.revoke(
+            db,
+            organization_id=page.org.id,
+            subject_user_id=member.user_id,
+            resource_type=TABLE.key,
+            resource_id=page.table.id,
         )
 
-        assert (await page.data(impersonated)).bindings["own"].status == "ok"
-        assert (await page.data()).bindings["own"].status == "unavailable"
-
-    @pytest.mark.security
-    async def test_a_view_in_another_org_never_answers(self, db):
-        page = await _page(db)
-        stranger = await make_user(db)
-        elsewhere = await make_org(db, owner=stranger)
-        theirs = ctx_for(stranger, elsewhere)
-        their_table = await orders_table(page.tables, theirs, name="Their orders")
-        await insert_rows(db, their_table, [{cid(their_table, "Customer"): "Secret"}])
-        their_view = await page.views.create_view(
-            theirs,
-            their_table.id,
-            TableViewCreate(name="All", kind="table", visibility="shared"),
-        )
-        await page.publish(page.bind("theirs", their_view.id, table=their_table, c="Customer"))
-
-        data = await page.data()
-
-        assert data.bindings == {"theirs": _unavailable("no_access")}
-        assert "Secret" not in data.model_dump_json()
+        assert (await page.data()).bindings == {"open": _unavailable("creator_lost_access")}
 
     async def test_an_older_version_gets_not_current(self, db):
         page = await _page(db)
         await _orders(page)
-        binding = page.bind("tickets", await page.view(), customer="Customer")
+        binding = await page.bind("tickets", page.query(customer="Customer"))
         first = await page.publish(binding)
         second = await page.publish(binding)
 
@@ -357,32 +410,27 @@ class TestWhoReads:
         assert newest.bindings["tickets"].count == 2
         assert newest.current is True
 
-    async def test_a_binding_restored_unavailable_keeps_its_stored_reason(self, db):
-        page = await _page(db)
-        binding = page.bind("tickets", await page.view(), customer="Customer")
-        await page.publish(
-            binding.model_copy(update={"status": "unavailable", "reason": "table_not_granted"})
-        )
-
-        assert (await page.data()).bindings == {"tickets": _unavailable("table_not_granted")}
-
 
 class TestThePayload:
     @pytest.mark.security
     async def test_only_named_fields_and_the_id_are_sent(self, db):
+        """The filter's column is read to filter by, and never served."""
         page = await _page(db)
-        ann, bob = await _orders(page)
+        ann, _bob = await _orders(page)
         await page.publish(
-            page.bind("tickets", await page.view(), customer="Customer", status="Status")
+            await page.bind(
+                "big",
+                BindingRequest(
+                    table=page.table.id,
+                    fields={"customer": "Customer", "status": "Status"},
+                    filters=[BindingFilter(column="Quantity", op="gt", value=2)],
+                ),
+            )
         )
 
-        served = (await page.data()).bindings["tickets"]
+        served = (await page.data()).bindings["big"]
 
-        assert served.status == "ok"
-        assert served.records == [
-            {"id": str(ann), "customer": "Ann", "status": "Open"},
-            {"id": str(bob), "customer": "Bob", "status": "Shipped"},
-        ]
+        assert served.records == [{"id": str(ann), "customer": "Ann", "status": "Open"}]
         for record in served.records:
             assert not FORBIDDEN_KEYS & set(record)
         assert served.fields == {
@@ -391,136 +439,192 @@ class TestThePayload:
                 label="Status", type="single_select", options=["Open", "Shipped"], state="ok"
             ),
         }
-        assert (served.truncated, served.limit, served.count) == (False, None, 2)
-        assert served.filters_dropped is False
+        assert (served.truncated, served.limit, served.count) == (False, None, 1)
 
     @pytest.mark.security
-    async def test_a_link_field_comes_from_links_not_raw_ids(self, db):
+    async def test_a_link_field_serves_labels_and_a_lookup_only_values(self, db):
         page = await _page(db)
-        products = await page.tables.create_table(
-            page.owner, TableCreate(name="Products", columns=[column("Name", "text")])
+        _products, orders, widget = await _linked(page)
+        await page.publish(
+            await page.bind("linked", page.query(orders, ref="Ref", items="Items")),
+            await page.bind("looked", page.query(orders, ref="Ref", names="Names")),
         )
-        orders = await page.tables.create_table(
-            page.owner,
-            TableCreate(
-                name="Linked orders",
-                columns=[column("Ref", "text"), column("Items", "link", link_table_id=products.id)],
-            ),
-        )
-        [widget] = await insert_rows(db, products, [{cid(products, "Name"): "Widget"}])
-        await insert_rows(
-            db, orders, [{cid(orders, "Ref"): "A-1", cid(orders, "Items"): [str(widget)]}]
-        )
-        view_id = await page.view(table=orders)
-        await page.publish(page.bind("orders", view_id, table=orders, ref="Ref", items="Items"))
-        reader = await page.person(table_grant=GrantLevel.READ, table=orders)
 
-        owned = (await page.data()).bindings["orders"]
-        read = (await page.data(reader)).bindings["orders"]
+        data = (await page.data()).bindings
 
-        assert owned.records[0]["items"] == [{"id": str(widget), "label": "Widget"}]
-        assert read.status == "ok"
-        assert read.records[0]["items"] == []
-        assert str(widget) not in json.dumps(read.records)
+        assert data["linked"].records[0]["items"] == [{"id": str(widget), "label": "Widget"}]
+        assert data["looked"].records[0]["names"] == ["Widget"]
+        assert str(widget) not in data["looked"].model_dump_json()
 
-
-class TestDrift:
-    async def test_a_renamed_column_keeps_its_field_name_with_the_new_label(self, db):
+    async def test_a_limit_serves_that_many_records(self, db):
         page = await _page(db)
         await _orders(page)
-        await page.publish(page.bind("tickets", await page.view(), customer="Customer"))
+        await page.publish(
+            await page.bind(
+                "one",
+                BindingRequest(table=page.table.id, fields={"customer": "Customer"}, limit=1),
+            )
+        )
+
+        served = (await page.data()).bindings["one"]
+
+        assert (served.count, served.truncated, served.limit) == (1, True, "records")
+
+    async def test_a_view_edited_after_publishing_changes_nothing(self, db):
+        """The view's filters were copied, never linked."""
+        page = await _page(db)
+        ann, _bob = await _orders(page)
+        views = TableViewService(db)
+        open_only = RecordFilter(
+            column_id=UUID(cid(page.table, "Status")), op="eq", value=page.option("Status", "Open")
+        )
+        view = await views.create_view(
+            page.owner,
+            page.table.id,
+            TableViewCreate(
+                name="Open",
+                kind="table",
+                visibility="shared",
+                config=TableViewConfig(filters=[open_only]),
+            ),
+        )
+        await page.publish(
+            await page.bind("open", BindingRequest(view=view.id, fields={"customer": "Customer"}))
+        )
+        await views.update_view(
+            page.owner, page.table.id, view.id, TableViewUpdate(config=TableViewConfig())
+        )
+        await views.delete_view(page.owner, page.table.id, view.id)
+
+        served = (await page.data()).bindings["open"]
+
+        assert served.records == [{"id": str(ann), "customer": "Ann"}]
+
+
+class TestSourceChanged:
+    """A query reads nothing once what it reaches changed, and only that query."""
+
+    async def _two(self, page: _Page) -> None:
+        await _orders(page)
+        await page.publish(
+            await page.bind("qty", page.query(customer="Customer", qty="Quantity")),
+            await page.bind("names", page.query(customer="Customer")),
+        )
+
+    async def test_a_column_that_changed_meaning_reads_nothing_naming_it(self, db):
+        page = await _page(db)
+        await self._two(page)
+        await page.reshape(Quantity={"type": "text"})
+
+        data = (await page.data()).bindings
+
+        assert data["qty"] == _unavailable("source_changed", "Quantity")
+        assert [record["customer"] for record in data["names"].records] == ["Ann", "Bob"]
+
+    async def test_an_archived_column_reads_nothing(self, db):
+        page = await _page(db)
+        await self._two(page)
+        await page.reshape(Quantity=None)
+
+        data = (await page.data()).bindings
+
+        assert data["qty"] == _unavailable("source_changed", "Quantity")
+        assert data["names"].count == 2
+
+    async def test_a_filter_column_that_changed_reads_nothing(self, db):
+        page = await _page(db)
+        await _orders(page)
+        await page.publish(await page.bind("open", _open_only(page, customer="Customer")))
+        await page.reshape(Status=None)
+
+        assert (await page.data()).bindings == {"open": _unavailable("source_changed", "Status")}
+
+    async def test_a_renamed_column_still_reads_with_its_new_label(self, db):
+        page = await _page(db)
+        await self._two(page)
         await page.reshape(Customer={"label": "Client"})
 
-        served = (await page.data()).bindings["tickets"]
+        served = (await page.data()).bindings["names"]
 
         assert served.fields["customer"].label == "Client"
         assert [record["customer"] for record in served.records] == ["Ann", "Bob"]
 
-    async def test_an_archived_field_is_null_with_state_archived(self, db):
+    async def test_an_archived_table_reads_nothing(self, db):
         page = await _page(db)
-        await _orders(page)
-        await page.publish(
-            page.bind("tickets", await page.view(), customer="Customer", qty="Quantity")
-        )
-        await page.reshape(Quantity=None)
-
-        served = (await page.data()).bindings["tickets"]
-
-        assert served.fields["qty"].state == "archived"
-        assert [record["qty"] for record in served.records] == [None, None]
-        assert [record["customer"] for record in served.records] == ["Ann", "Bob"]
-
-    async def test_a_missing_column_is_null_with_state_missing(self, db):
-        page = await _page(db)
-        await _orders(page)
-        binding = page.bind("tickets", await page.view(), customer="Customer")
-        gone = uuid.uuid4()
-        await page.publish(binding.model_copy(update={"fields": {**binding.fields, "gone": gone}}))
-
-        served = (await page.data()).bindings["tickets"]
-
-        assert served.fields["gone"] == BoundField(label="gone", type="text", state="missing")
-        assert [record["gone"] for record in served.records] == [None, None]
-
-    async def test_a_changed_type_is_served_in_the_new_type(self, db):
-        page = await _page(db)
-        await _orders(page)
-        await page.publish(page.bind("tickets", await page.view(), qty="Quantity"))
-        await page.reshape(Quantity={"type": "text"})
-
-        served = (await page.data()).bindings["tickets"]
-
-        assert served.fields["qty"].type == "text"
-        assert [record["qty"] for record in served.records] == ["3", "1"]
-
-    async def test_an_archived_table_is_unavailable(self, db):
-        page = await _page(db)
-        await page.publish(page.bind("tickets", await page.view(), customer="Customer"))
+        await self._two(page)
         await page.tables.archive_table(page.owner, page.table.id)
 
-        assert (await page.data()).bindings == {"tickets": _unavailable("table_archived")}
+        assert (await page.data()).bindings == {
+            "qty": _unavailable("source_changed", "Orders"),
+            "names": _unavailable("source_changed", "Orders"),
+        }
 
-    async def test_a_view_broken_by_a_retyped_column_is_unavailable_with_view_invalid(self, db):
+    async def test_an_archived_linked_table_reads_nothing(self, db):
+        """Archiving a linked table bumps no column, so the table itself is checked."""
         page = await _page(db)
         await _orders(page)
-        colleague = await page.person(role="admin")
-        quantity = page.col("Quantity")
-        view_id = await page.view(
-            by=colleague,
-            config=TableViewConfig(filters=[RecordFilter(column_id=quantity, op="gt", value=2)]),
+        products, orders, _widget = await _linked(page)
+        await page.publish(
+            await page.bind("linked", page.query(orders, ref="Ref", items="Items")),
+            await page.bind("plain", page.query(customer="Customer")),
         )
-        await page.publish(page.bind("big", view_id, customer="Customer"))
-        builder = await page.person(role="builder", table_grant=GrantLevel.EDIT)
-        await page.reshape(builder, Quantity={"type": "text"})
+        await page.tables.archive_table(page.owner, products.id)
 
-        assert (await page.data()).bindings == {"big": _unavailable("view_invalid")}
+        data = (await page.data()).bindings
 
-    async def test_a_filter_on_an_archived_column_is_dropped_and_reported(self, db):
+        assert data["linked"] == _unavailable("source_changed", "Products")
+        assert data["plain"].count == 2
+
+    async def test_a_link_naming_its_records_by_another_column_reads_nothing(self, db):
+        """`Code` turned to text comes before `Name`, so the links would be labelled by it."""
         page = await _page(db)
-        await _orders(page)
-        colleague = await page.person(role="admin")
-        status = page.col("Status")
-        open_only = TableViewConfig(
-            filters=[RecordFilter(column_id=status, op="eq", value=page.option("Status", "Open"))]
+        products, orders, _widget = await _linked(page)
+        await page.publish(await page.bind("linked", page.query(orders, ref="Ref", items="Items")))
+        await page.reshape(products, Code={"type": "text"})
+
+        assert (await page.data()).bindings == {
+            "linked": _unavailable("source_changed", "Products")
+        }
+
+    async def test_a_query_whose_filter_the_table_no_longer_answers_reads_nothing(self, db):
+        """Its reach matches - say a restore re-read it - but `Quantity gt 2` cannot be asked
+        of text: that one binding reads nothing, and the page load still answers."""
+        page = await _page(db)
+        await self._two(page)
+        stale = await page.bind(
+            "big",
+            BindingRequest(
+                table=page.table.id,
+                fields={"customer": "Customer", "qty": "Quantity"},
+                filters=[BindingFilter(column="Quantity", op="gt", value=2)],
+            ),
         )
-        view_id = await page.view(by=colleague, config=open_only)
-        await page.publish(page.bind("open", view_id, customer="Customer"))
-        assert (await page.data()).bindings["open"].count == 1
-        builder = await page.person(role="builder", table_grant=GrantLevel.EDIT)
-        await page.reshape(builder, Status=None)
+        await page.reshape(Quantity={"type": "text"})
+        fresh = await page.bind("big", page.query(customer="Customer", qty="Quantity"))
+        names = await page.bind("names", page.query(customer="Customer"))
+        await page.publish(stale.model_copy(update={"reach": fresh.reach}), names)
 
-        served = (await page.data()).bindings["open"]
+        data = (await page.data()).bindings
 
-        assert served.filters_dropped is True
-        assert [record["customer"] for record in served.records] == ["Ann", "Bob"]
+        assert data["big"] == _unavailable("source_changed", "Orders")
+        assert data["names"].count == 2
+
+    async def test_publishing_again_reads_again(self, db):
+        page = await _page(db)
+        await self._two(page)
+        await page.reshape(Quantity={"type": "text"})
+        await page.publish(await page.bind("qty", page.query(customer="Customer", qty="Quantity")))
+
+        served = (await page.data()).bindings["qty"]
+
+        assert [record["qty"] for record in served.records] == ["3", "1"]
 
 
 class TestTheByteCap:
     async def test_the_byte_cap_is_shared_fairly_whatever_the_order(self, db, monkeypatch):
         page = await _page(db)
-        notes = await page.tables.create_table(
-            page.owner,
-            TableCreate(name="Notes", columns=[column("Group", "text"), column("Body", "text")]),
+        notes = await page.new_table(
+            TableCreate(name="Notes", columns=[column("Group", "text"), column("Body", "text")])
         )
         group, body = cid(notes, "Group"), cid(notes, "Body")
         await insert_rows(
@@ -529,14 +633,14 @@ class TestTheByteCap:
             [{group: "small", body: "hi"} for _ in range(2)]
             + [{group: big, body: "x" * 200} for big in ("b1", "b2") for _ in range(30)],
         )
-        views = {}
-        for name in ("small", "b1", "b2"):
-            views[name] = await page.view(
-                table=notes,
-                config=TableViewConfig(
-                    filters=[RecordFilter(column_id=UUID(group), op="eq", value=name)]
-                ),
+
+        def notes_of(name: str) -> BindingRequest:
+            return BindingRequest(
+                table=notes.id,
+                fields={"body": "Body"},
+                filters=[BindingFilter(column="Group", op="eq", value=name)],
             )
+
         cap = 4_000
         monkeypatch.setattr(settings, "ARTIFACT_DATA_MAX_BYTES", cap)
 
@@ -546,10 +650,7 @@ class TestTheByteCap:
             {"small": "z_small", "b1": "m_big", "b2": "a_big"},
         ):
             await page.publish(
-                *(
-                    page.bind(names[key], views[key], table=notes, body="Body")
-                    for key in ("small", "b1", "b2")
-                )
+                *[await page.bind(names[key], notes_of(key)) for key in ("small", "b1", "b2")]
             )
             data = (await page.data()).bindings
             served.append({key: data[names[key]] for key in ("small", "b1", "b2")})
@@ -581,7 +682,7 @@ def _sleeping(seconds: float, calls: list[Any] | None = None) -> SleepFactory:
     def wrap(original: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         async def call(db: AsyncSession, *args: Any, **kwargs: Any) -> Any:
             if calls is not None:
-                calls.append(kwargs.get("view_id"))
+                calls.append(args[0] if args else kwargs.get("table_id"))
             await db.execute(text("SELECT pg_sleep(:seconds)"), {"seconds": seconds})
             return await original(db, *args, **kwargs)
 
@@ -598,11 +699,13 @@ class TestTheDeadline:
     async def test_one_slow_binding_times_out_alone(self, db, monkeypatch):
         page = await _page(db)
         await _orders(page)
-        slow_table = await orders_table(page.tables, page.owner, name="Slow orders")
+        slow_table = await page.new_table(
+            TableCreate(name="Slow orders", columns=[column("Customer", "text")])
+        )
         await insert_rows(db, slow_table, [{cid(slow_table, "Customer"): "Cy"}])
         await page.publish(
-            page.bind("a_slow", await page.view(table=slow_table), table=slow_table, c="Customer"),
-            page.bind("b_fast", await page.view(), customer="Customer"),
+            await page.bind("a_slow", page.query(slow_table, c="Customer")),
+            await page.bind("b_fast", page.query(customer="Customer")),
         )
         monkeypatch.setattr(settings, "ARTIFACT_DATA_STATEMENT_TIMEOUT_MS", 200)
         original = virtual_table_repo.list_record_sizes
@@ -624,38 +727,26 @@ class TestTheDeadline:
 
     async def test_a_page_past_its_budget_answers_timeout_and_commits(self, db, monkeypatch):
         page = await _page(db)
-        products = await page.tables.create_table(
-            page.owner, TableCreate(name="Products", columns=[column("Name", "text")])
-        )
-        orders = await page.tables.create_table(
-            page.owner,
-            TableCreate(
-                name="Linked orders",
-                columns=[column("Ref", "text"), column("Items", "link", link_table_id=products.id)],
-            ),
-        )
-        [widget] = await insert_rows(db, products, [{cid(products, "Name"): "Widget"}])
-        await insert_rows(
-            db, orders, [{cid(orders, "Ref"): "A-1", cid(orders, "Items"): [str(widget)]}]
-        )
-        first = await page.view(table=orders)
-        second, third = await page.view(), await page.view()
+        products, orders, _widget = await _linked(page)
         await page.publish(
-            page.bind("a_first", first, table=orders, ref="Ref", items="Items"),
-            page.bind("b_second", second, customer="Customer"),
-            page.bind("c_third", third, customer="Customer"),
+            await page.bind("a_first", page.query(orders, ref="Ref", items="Items")),
+            await page.bind("b_second", page.query(customer="Customer")),
+            await page.bind("c_third", page.query(customer="Customer")),
         )
         monkeypatch.setattr(settings, "ARTIFACT_DATA_READ_TIMEOUT_SECONDS", 1)
-        viewed: list[Any] = []
-        for module, name, calls in (
-            (table_view_repo, "get", viewed),
-            (virtual_table_repo, "get_table", None),
-            (virtual_table_repo, "get_schema_version", None),
-            (virtual_table_repo, "list_record_sizes", None),
-            (virtual_table_repo, "get_record_sizes_by_ids", None),
-            (virtual_table_repo, "get_record_cells_by_ids", None),
+        looked_up: list[Any] = []
+        for name, calls in (
+            ("get_table", looked_up),
+            ("get_schema_version", None),
+            ("list_record_sizes", None),
+            ("get_record_sizes_by_ids", None),
+            ("get_record_cells_by_ids", None),
         ):
-            monkeypatch.setattr(module, name, _sleeping(0.15, calls)(getattr(module, name)))
+            monkeypatch.setattr(
+                virtual_table_repo,
+                name,
+                _sleeping(0.15, calls)(getattr(virtual_table_repo, name)),
+            )
         prior = await _statement_timeout(db)
 
         started = time.monotonic()
@@ -667,9 +758,10 @@ class TestTheDeadline:
             "b_second": _unavailable("timeout"),
             "c_third": _unavailable("timeout"),
         }
-        # Only the first binding's view was looked up: the deadline ran out in it,
+        # Only the first binding's tables were looked up: the deadline ran out in it,
         # and the other two were answered without a query.
-        assert viewed == [first]
+        assert looked_up
+        assert set(looked_up) <= {orders.id, products.id}
         assert elapsed < settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS + 0.5
         assert await _statement_timeout(db) == prior
         await db.commit()
@@ -680,12 +772,16 @@ class TestTheDeadline:
         page = await _page(db)
         sentinel = f"needle-{uuid.uuid4().hex}"
         await insert_rows(db, page.table, [{cid(page.table, "Customer"): sentinel}])
-        view_id = await page.view(
-            config=TableViewConfig(
-                filters=[RecordFilter(column_id=page.col("Customer"), op="eq", value=sentinel)]
+        await page.publish(
+            await page.bind(
+                "needle",
+                BindingRequest(
+                    table=page.table.id,
+                    fields={"customer": "Customer"},
+                    filters=[BindingFilter(column="Customer", op="eq", value=sentinel)],
+                ),
             )
         )
-        await page.publish(page.bind("needle", view_id, customer="Customer"))
         monkeypatch.setattr(settings, "ARTIFACT_DATA_STATEMENT_TIMEOUT_MS", 200)
 
         async def sizes(db: AsyncSession, **kwargs: Any) -> Any:
@@ -702,9 +798,9 @@ class TestTheDeadline:
 
         assert data.bindings["needle"] == _unavailable("timeout")
         [logged] = [r for r in caplog.records if r.msg == "artifact_data_binding_unavailable"]
-        assert {key: vars(logged)[key] for key in ("binding", "view_id", "reason")} == {
+        assert {key: vars(logged)[key] for key in ("binding", "table_id", "reason")} == {
             "binding": "needle",
-            "view_id": str(view_id),
+            "table_id": str(page.table.id),
             "reason": "timeout",
         }
         for record in caplog.records:

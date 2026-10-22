@@ -26,10 +26,11 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import ArtifactUpdate
+from app.schemas.artifact import ArtifactBinding, ArtifactData, ArtifactUpdate, BindingReach
 from app.services import artifact as artifacts
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import Unavailable
 from app.services.virtual_tables.exceptions import DeadlineReached
 
 pytestmark = pytest.mark.anyio
@@ -83,15 +84,17 @@ def _service() -> ArtifactService:
     return ArtifactService(MagicMock())
 
 
-def _binding(name: str = "deals") -> dict[str, Any]:
-    return {
-        "name": name,
-        "view_id": str(uuid.uuid4()),
-        "table_id": str(uuid.uuid4()),
-        "fields": {"stage": str(uuid.uuid4())},
-        "status": "ok",
-        "reason": None,
-    }
+def _binding(name: str = "deals", table_id: uuid.UUID | None = None) -> dict[str, Any]:
+    """A page query as a version stores it."""
+    table_id = table_id or uuid.uuid4()
+    stage = uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"stage": stage},
+        reach=BindingReach(tables={table_id: {stage: 0}}),
+    ).model_dump(mode="json")
 
 
 def _claims(url: str) -> dict[str, Any]:
@@ -293,15 +296,15 @@ class TestRead:
     ) -> None:
         ctx = _ctx()
         artifact = _artifact(ctx)
-        view_id, table_id = uuid.uuid4(), uuid.uuid4()
-        binding = {
-            "name": "tickets",
-            "view_id": str(view_id),
-            "table_id": str(table_id),
-            "fields": {"status": str(uuid.uuid4()), "title": str(uuid.uuid4())},
-            "status": "unavailable",
-            "reason": "field_missing",
-        }
+        table_id = uuid.uuid4()
+        status, title = uuid.uuid4(), uuid.uuid4()
+        binding = ArtifactBinding(
+            name="tickets",
+            table_id=table_id,
+            limit=1000,
+            fields={"status": status, "title": title},
+            reach=BindingReach(tables={table_id: {status: 0, title: 2}}),
+        ).model_dump(mode="json")
         version = _version(artifact, bindings=[binding])
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
@@ -311,12 +314,11 @@ class TestRead:
             read = await _service().read(ctx, artifact.id)
         assert read.live is True
         [shown] = read.bindings
-        assert (shown.name, shown.view_id, shown.table_id) == ("tickets", view_id, table_id)
-        assert (shown.fields, shown.status, shown.reason) == (
-            ["status", "title"],
-            "unavailable",
-            "field_missing",
-        )
+        assert shown.model_dump() == {
+            "name": "tickets",
+            "table_id": table_id,
+            "fields": ["status", "title"],
+        }
 
     async def test_a_page_with_no_version_is_not_live(self) -> None:
         ctx = _ctx()
@@ -958,6 +960,7 @@ class TestData:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
             patch(
                 f"{PATH}.virtual_table_repo.statement_timeout",
                 new=AsyncMock(side_effect=stopped),
@@ -977,6 +980,7 @@ class TestData:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
             patch(
                 f"{PATH}.virtual_table_repo.statement_timeout",
                 new=AsyncMock(side_effect=broken),
@@ -984,3 +988,100 @@ class TestData:
             pytest.raises(DBAPIError),
         ):
             await service.data(ctx, artifact.id, version.id)
+
+    async def _served(
+        self,
+        viewer: AuthContext,
+        artifact: Artifact,
+        *,
+        owner: AuthContext | None,
+        source: Any,
+        can_edit: bool = True,
+    ) -> tuple[ArtifactData, AsyncMock]:
+        """One page load of a one-binding page, its owner's read stubbed at `page_source`."""
+        version = _version(artifact, bindings=[_binding()])
+        read = AsyncMock(return_value=source)
+
+        async def access(_db: Any, _ctx: Any, _row: Any, perm: Perm, **_kw: Any) -> bool:
+            return perm is Perm.ARTIFACTS_VIEW or can_edit
+
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.resolve_access", new=access),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)),
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.virtual_table_repo.restore_statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.page_source", new=read),
+        ):
+            data = await ArtifactService(_session()).data(viewer, artifact.id, version.id)
+        return data, read
+
+    @pytest.mark.security
+    async def test_a_member_who_is_not_the_owner_awaits_consent_and_nothing_is_read(
+        self,
+    ) -> None:
+        """Until the owner consents, a page's data reaches only them and the roles that
+        read every table: a Member opening a page shared with them sees it without."""
+        owner = _ctx()
+        artifact = _artifact(owner)
+        member = _ctx(OrgRoleName.MEMBER, org_id=owner.organization_id)
+
+        data, read = await self._served(member, artifact, owner=owner, source=None)
+
+        assert (data.bindings["deals"].status, data.bindings["deals"].reason) == (
+            "unavailable",
+            "awaiting_consent",
+        )
+        read.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "role", [OrgRoleName.ADMIN, OrgRoleName.BUILDER, OrgRoleName.OPERATOR, OrgRoleName.OWNER]
+    )
+    async def test_a_role_that_reads_every_table_reads_the_owner_s_query(self, role: str) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        viewer = _ctx(role, org_id=owner.organization_id)
+
+        data, read = await self._served(
+            viewer, artifact, owner=owner, source=Unavailable("creator_lost_access")
+        )
+
+        assert data.bindings["deals"].reason == "creator_lost_access"
+        assert read.await_args.args[1] is owner
+
+    @pytest.mark.security
+    async def test_an_owner_who_is_no_longer_a_member_backs_no_data(self) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
+        artifact = _artifact(admin)
+        artifact.owner_user_id = uuid.uuid4()
+
+        data, read = await self._served(admin, artifact, owner=None, source=None)
+
+        assert data.bindings["deals"].reason == "creator_gone"
+        read.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_an_owner_who_was_deleted_backs_no_data(self) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
+        artifact = _artifact(admin)
+        artifact.owner_user_id = None
+
+        data, _read = await self._served(admin, artifact, owner=admin, source=None)
+
+        assert data.bindings["deals"].reason == "creator_gone"
+
+    async def test_an_editor_is_told_what_changed_and_a_reader_is_not(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        changed = Unavailable("source_changed", "Status")
+
+        told, _ = await self._served(owner, artifact, owner=owner, source=changed)
+        untold, _ = await self._served(owner, artifact, owner=owner, source=changed, can_edit=False)
+
+        assert (told.bindings["deals"].reason, told.bindings["deals"].changed) == (
+            "source_changed",
+            "Status",
+        )
+        assert (untold.bindings["deals"].reason, untold.bindings["deals"].changed) == (None, None)

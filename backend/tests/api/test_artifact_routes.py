@@ -17,19 +17,23 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.schemas.artifact import ArtifactBinding, BindingReach
+from app.schemas.virtual_table import ColumnDef
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.virtual_tables import BoundRows, TableSource, VirtualTableService
 
 pytestmark = pytest.mark.anyio
 
@@ -270,15 +274,7 @@ class TestTheContentRoute:
         later, by message, from a console that checked the viewer."""
         app.dependency_overrides.pop(deps.get_auth_context)
         row = _artifact()
-        view_id, table_id, column_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        binding = {
-            "name": "open_deals",
-            "view_id": str(view_id),
-            "table_id": str(table_id),
-            "fields": {"stage": str(column_id)},
-            "status": "ok",
-            "reason": None,
-        }
+        binding = _binding("open_deals")
         version = _version(row, bindings=[binding])
         token = create_artifact_view_token(
             version.id, expires_in=timedelta(minutes=5), nonce="nonce-xyz", live=True
@@ -299,7 +295,8 @@ class TestTheContentRoute:
         assert '"names": ["open_deals"]' in body
         assert '"n": "nonce-xyz"' in body
         assert '"live": true' in body
-        for stored in (str(view_id), str(table_id), str(column_id), "stage"):
+        stage = binding["fields"]["stage"]
+        for stored in (binding["table_id"], stage, *binding["reach"]["tables"], "stage"):
             assert stored not in body
 
     @pytest.mark.security
@@ -581,6 +578,100 @@ class TestTheDataRoute:
         caller = counted.await_args.kwargs["caller"]
         assert caller.startswith(f"org:{_ORGANIZATION_ID}:user:")
         assert counted.await_args.kwargs["surface"] == "artifact_data"
+        read.assert_not_awaited()
+
+
+def _binding(name: str = "deals") -> dict[str, Any]:
+    """A page query as a version stores it: the stage of every record of one table."""
+    table_id, stage = uuid.uuid4(), uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"stage": stage},
+        reach=BindingReach(tables={table_id: {stage: 0}}),
+    ).model_dump(mode="json")
+
+
+class TestWhoIsServedAPagesData:
+    """Everyone served a page's data reads its query as the page's owner (#1974)."""
+
+    async def _load(
+        self, viewer: AuthContext, row: Artifact, owner: AuthContext, *, can_edit: bool
+    ) -> tuple[dict[str, Any], AsyncMock]:
+        version = _version(row, bindings=[_binding()])
+        stage = UUID(version.bindings[0]["fields"]["stage"])
+        source = TableSource(
+            id=UUID(version.bindings[0]["table_id"]),
+            name="Deals",
+            archived=False,
+            columns=[ColumnDef(id=stage, label="Stage", type="text")],
+        )
+        read = AsyncMock(
+            return_value=BoundRows(
+                records=[{"id": "r1", "stage": "Won"}],
+                sizes=[24],
+                bytes=24,
+                columns=source.columns,
+                stopped_by=None,
+            )
+        )
+
+        async def access(_db: Any, _ctx: Any, _row: Any, perm: Perm, **_kw: Any) -> bool:
+            return perm is Perm.ARTIFACTS_VIEW or can_edit
+
+        app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.resolve_access", new=access),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)),
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.virtual_table_repo.restore_statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.page_source", new=AsyncMock(return_value=source)),
+            patch.object(VirtualTableService, "read_bound", new=read),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                response = await http.get(_url(f"/{row.id}/versions/{version.id}/data"))
+        assert response.status_code == 200
+        return response.json()["bindings"]["deals"], read
+
+    @pytest.mark.security
+    async def test_an_admin_reads_the_owner_s_query_not_their_own_access(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        owner = AuthContext(
+            user_id=row.owner_user_id, organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+        admin = AuthContext(
+            user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.ADMIN
+        )
+
+        served, read = await self._load(admin, row, owner, can_edit=True)
+
+        assert (served["status"], served["records"]) == ("ok", [{"id": "r1", "stage": "Won"}])
+        assert read.await_args.args[0] is owner
+
+    @pytest.mark.security
+    async def test_a_member_is_served_the_page_without_its_data_until_consent(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        owner = AuthContext(
+            user_id=row.owner_user_id, organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+
+        served, read = await self._load(_member_context(), row, owner, can_edit=False)
+
+        assert (served["status"], served["reason"], served["records"]) == (
+            "unavailable",
+            None,
+            [],
+        )
         read.assert_not_awaited()
 
 

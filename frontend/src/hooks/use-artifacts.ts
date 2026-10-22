@@ -202,17 +202,6 @@ export function useArtifact(artifactId: string) {
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("versionRestored", { version: artifact.current_version?.number ?? 0 }));
-      // Restoring re-checks the version's bindings, and an editor - the only one
-      // who may restore - should hear at once which no longer read anything.
-      const unavailable = artifact.bindings.filter((binding) => binding.status === "unavailable");
-      if (unavailable.length > 0) {
-        toast.warning(
-          t("restoredUnavailable", {
-            count: unavailable.length,
-            names: unavailable.map((binding) => binding.name).join(", "),
-          }),
-        );
-      }
     },
     onError: fail,
   });

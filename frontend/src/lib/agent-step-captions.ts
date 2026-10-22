@@ -56,7 +56,7 @@ export function toolCaption(toolName: string, t: Translate): string {
  * The sentence an approval card leads with: what the parked call will do, in names.
  *
  * Looked up by the tool's stable id (`capability_tool_id`), not the name the model
- * called: a binding may rename `share_view`, and the renamed call is still that tool.
+ * called: a binding may rename `update_record`, and the renamed call is still that tool.
  * Null - and the card draws what it always drew - for a call with no stable id, a tool
  * with no sentence, a call parked without a `context`, or one whose context lacks a
  * name the sentence needs.

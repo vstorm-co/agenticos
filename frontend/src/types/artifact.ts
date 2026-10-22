@@ -66,14 +66,11 @@ export interface ArtifactPublicLink {
   embed_url: string | null;
 }
 
-/** A page's named link to a saved view, as an API client sees it: field names only. */
+/** A page's named query of a table, as an API client sees it: field names only. */
 export interface ArtifactBindingInfo {
   name: string;
-  view_id: string;
   table_id: string;
   fields: string[];
-  status: "ok" | "unavailable";
-  reason: string | null;
 }
 
 /** One artifact as its own page reads it: with what the caller may do, decided by the server. */
@@ -131,23 +128,23 @@ export interface BoundField {
   state: "ok" | "archived" | "missing";
 }
 
-/** One binding's records for a page load, read with the viewer's own access. */
+/** One binding's records for a page load, its query read with the page owner's access. */
 export interface BindingData {
   status: "ok" | "unavailable";
   /** Why it is unavailable; only sent to a viewer who may edit the page. */
   reason: string | null;
+  /** With `source_changed`: the column or table that changed; only for an editor. */
+  changed?: string | null;
   truncated: boolean;
   /** Which limit left records out. */
   limit: "records" | "bytes" | null;
   count: number;
-  /** A filter of the view named a column no longer live, so it matches more. */
-  filters_dropped: boolean;
   fields: Record<string, BoundField>;
   /** Each record as its `id` and every named field; `null` when empty. */
   records: Record<string, unknown>[];
 }
 
-/** A page version's live data: every binding, each read as the viewer. */
+/** A page version's live data: every binding's query, read as the page's owner. */
 export interface ArtifactData {
   bindings: Record<string, BindingData>;
   /**

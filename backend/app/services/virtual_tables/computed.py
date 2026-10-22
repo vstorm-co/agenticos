@@ -86,6 +86,15 @@ def reach(columns: Sequence[ColumnDef], named: Iterable[UUID]) -> Reach:
     )
 
 
+def named_by(columns: Sequence[ColumnDef]) -> ColumnDef | None:
+    """The column a table's records are named by through a link: its first live text-like one.
+
+    Positional, so archiving that column, restoring an earlier one or adding one
+    before it names the records by another column.
+    """
+    return next((c for c in columns if not c.archived and c.type in _NAMED_BY), None)
+
+
 @dataclass(frozen=True)
 class LinkedTable:
     """A linked table the reader may see: its current columns and the one its records are named by."""
@@ -123,8 +132,7 @@ async def linked_table_access(
         db, table_id=table.id, version=table.schema_version
     )
     columns = [ColumnDef.model_validate(column) for column in version.columns]
-    named_by = next((c for c in columns if not c.archived and c.type in _NAMED_BY), None)
-    return LinkedTable(table_id=table.id, columns=columns, named_by=named_by)
+    return LinkedTable(table_id=table.id, columns=columns, named_by=named_by(columns))
 
 
 def linked_cell_keys(linked: LinkedTable, targets: Iterable[UUID]) -> list[str]:

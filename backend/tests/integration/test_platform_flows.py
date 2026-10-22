@@ -2828,16 +2828,16 @@ class TestDecidingAnApproval:
             started_at=datetime.now(UTC),
         )
         approvals = ApprovalService(db)
-        view_id = str(uuid.uuid4())
+        table_id = str(uuid.uuid4())
         named = await approvals.request(
             approval_id=uuid.uuid4(),
             organization_id=tenant.organization.id,
             run_id=run.id,
             agent_id=agent.id,
-            tool_id="share_saved_view",
-            tool_args={"view_id": view_id},
-            capability_tool_id="share_view",
-            context={"view": "Closed tickets", "table": "Support"},
+            tool_id="change_ticket",
+            tool_args={"table_id": table_id},
+            capability_tool_id="update_record",
+            context={"table": "Support"},
         )
         await approvals.request(
             approval_id=uuid.uuid4(),
@@ -2852,12 +2852,12 @@ class TestDecidingAnApproval:
 
         assert {row.tool_id: (row.capability_tool_id, row.context) for row in queue} == {
             # Renamed by its binding, so the queue words it by the stable id.
-            "share_saved_view": ("share_view", {"view": "Closed tickets", "table": "Support"}),
+            "change_ticket": ("update_record", {"table": "Support"}),
             "send_email": (None, None),
         }
         stored = await db.get(ToolApproval, named.id)
-        assert stored.tool_args == {"view_id": view_id}
-        assert stored.capability_tool_id == "share_view"
+        assert stored.tool_args == {"table_id": table_id}
+        assert stored.capability_tool_id == "update_record"
 
 
 # -- money --------------------------------------------------------------------

@@ -222,7 +222,6 @@ def _binding(**overrides: Any) -> BindingData:
         "reason": None,
         "truncated": False,
         "count": 1,
-        "filters_dropped": False,
         "fields": {},
         "records": [{"id": "1", "title": "Open"}],
     }

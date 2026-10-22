@@ -97,36 +97,34 @@ describe("the tool approval dialog", () => {
   it("says why the agent asks before what it would run", () => {
     mount([
       action("a-1", {
-        tool_name: "share_view",
-        args: { view_id: "v-1", reason: "So everyone who opens the page sees its records." },
+        tool_name: "update_record",
+        args: { table_id: "t-1", reason: "So the order shows as shipped." },
       }),
     ]);
 
-    expect(screen.getByText("So everyone who opens the page sees its records.")).toBeVisible();
+    expect(screen.getByText("So the order shows as shipped.")).toBeVisible();
     // The reason is the sentence on top, not one more row.
     expect(screen.queryByText("reason", { selector: "dt" })).toBeNull();
-    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
   });
 
   it("says what the call will do in names, under the reason and over the ids", () => {
     mount([
       action("a-1", {
-        tool_name: "share_view",
-        args: { view_id: "v-1", reason: "So the page reads it." },
-        capability_tool_id: "share_view",
-        context: { view: "Closed tickets", table: "E2E Live Tickets" },
+        tool_name: "update_record",
+        args: { table_id: "t-1", reason: "So the order shows as shipped." },
+        capability_tool_id: "update_record",
+        context: { table: "E2E Live Tickets" },
       }),
     ]);
 
-    const sentence = screen.getByText(
-      "Share the view Closed tickets of E2E Live Tickets with everyone who may read the table",
-    );
+    const sentence = screen.getByText("Change a record in E2E Live Tickets");
     expect(sentence).toBeVisible();
     // After the agent's own reason, and the ids it names are still there below.
-    expect(screen.getByText("So the page reads it.").compareDocumentPosition(sentence)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
+    expect(
+      screen.getByText("So the order shows as shipped.").compareDocumentPosition(sentence),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
   });
 
   it("names the table a record is written to, never the record", () => {
@@ -152,47 +150,43 @@ describe("the tool approval dialog", () => {
   it("finds the sentence for a renamed tool by its stable id, not its name", () => {
     mount([
       action("a-1", {
-        tool_name: "publish_saved_view",
-        args: { view_id: "v-1" },
-        capability_tool_id: "share_view",
-        context: { view: "Closed tickets", table: "Orders" },
+        tool_name: "change_order",
+        args: { table_id: "t-1" },
+        capability_tool_id: "update_record",
+        context: { table: "Orders" },
       }),
       // The name of a described tool, with no stable id: an MCP server's tool under
       // "ask about everything" is not the capability's tool and gets no sentence.
       action("a-2", {
-        tool_name: "share_view",
-        args: { view_id: "v-2" },
-        context: { view: "Open tickets", table: "Orders" },
+        tool_name: "update_record",
+        args: { table_id: "t-2" },
+        context: { table: "Archive" },
       }),
     ]);
 
-    expect(
-      screen.getByText(
-        "Share the view Closed tickets of Orders with everyone who may read the table",
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(/Open tickets/)).toBeNull();
+    expect(screen.getByText("Change a record in Orders")).toBeVisible();
+    expect(screen.queryByText(/Archive/)).toBeNull();
   });
 
   it("draws the plain card when the call came with no names, or not the ones it needs", () => {
     mount([
       action("a-1", {
-        tool_name: "share_view",
-        args: { view_id: "v-1" },
-        capability_tool_id: "share_view",
+        tool_name: "update_record",
+        args: { table_id: "t-1" },
+        capability_tool_id: "update_record",
       }),
       action("a-2", {
-        tool_name: "share_view",
-        args: { view_id: "v-2" },
-        capability_tool_id: "share_view",
-        context: { table: "Orders" },
+        tool_name: "update_record",
+        args: { table_id: "t-2" },
+        capability_tool_id: "update_record",
+        context: { view: "Orders" },
       }),
       action("a-3", { context: { recipient: "Ops" } }),
     ]);
 
-    expect(screen.queryByText(/Share the view/)).toBeNull();
-    expect(screen.getByText("v-1", { selector: "dd" })).toBeVisible();
-    expect(screen.getByText("v-2", { selector: "dd" })).toBeVisible();
+    expect(screen.queryByText(/Change a record/)).toBeNull();
+    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText("t-2", { selector: "dd" })).toBeVisible();
   });
 
   it("approves every call it is showing", async () => {

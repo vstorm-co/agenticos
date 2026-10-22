@@ -214,8 +214,8 @@ export function ViewSelect({
             </button>
           )}
         </div>
-        {/* The owner's alone, as `share_view` decides it: an admin may manage anyone's
-            view, but sharing a person's own filters is theirs to choose. */}
+        {/* The owner's alone: an admin may manage anyone's view, but sharing a
+            person's own filters is theirs to choose. */}
         {active?.can_manage && active.owner_user_id === meId && (
           <Button
             type="button"

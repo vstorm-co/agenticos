@@ -38,9 +38,9 @@ different calls never collide.
 The five write tools are side-effecting per tool, so an approval policy gates
 them and not the reads.
 
-A parked `share_view` or record write names what its ids stand for
-(`_describe.py`): the view and table, or the table, resolved as the run's person
-so the card never names what they may not see. Never the record: its label is a
+A parked record write names what its ids stand for (`_describe.py`): the
+table, resolved as the run's person so the card never names what they may not
+see. Never the record: its label is a
 cell's text, and the context is stored on the approval row, where every approver
 reads it. Nothing here is required for the call to be asked about - a describer
 that fails parks it plain.

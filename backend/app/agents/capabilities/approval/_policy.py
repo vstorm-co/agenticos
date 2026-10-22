@@ -91,7 +91,7 @@ def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:
 
     Keyed like :func:`approval_required_tools` and for the same reason: the gate
     sees the effective name, while a capability declares its describer against the
-    stable id - so a renamed `share_view` is still described.
+    stable id - so a renamed `update_record` is still described.
     """
     describers: dict[str, ApprovalDescriber] = {}
     for binding in spec.capabilities:

@@ -97,7 +97,7 @@ def test_a_filter_names_a_choice_by_its_label():
         RecordFilter(column_id=NAME.id, op="eq", value="Won"),
         RecordFilter(column_id=unknown, op="eq", value="Won"),
     ]
-    assert [condition.value for condition in filters_by_label(TABLE, filters)] == [
+    assert [condition.value for condition in filters_by_label(TABLE.columns, filters)] == [
         str(WON),
         [str(LOST), str(WON)],
         True,

@@ -28,10 +28,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities._members import acting_member
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.schemas.virtual_table import TableRead
+from app.services.access import acting_member
 from app.services.virtual_tables.presentation import UnknownColumnError, column_keyed
 
 

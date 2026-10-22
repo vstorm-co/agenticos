@@ -225,16 +225,13 @@ export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
                 {t.rich("liveSourceCause", {
                   name,
                   reason: binding.reason ?? "",
+                  changed: binding.changed ?? "",
                   b: (chunks) => <span className="font-medium">{chunks}</span>,
                 })}
               </span>
               {bound !== undefined && (
                 <Button asChild size="sm" variant="outline" className="h-6 px-2">
-                  <Link
-                    href={`${ROUTES.TABLE_DETAIL(bound.table_id)}?viewId=${encodeURIComponent(bound.view_id)}`}
-                  >
-                    {t("openTable")}
-                  </Link>
+                  <Link href={ROUTES.TABLE_DETAIL(bound.table_id)}>{t("openTable")}</Link>
                 </Button>
               )}
             </span>

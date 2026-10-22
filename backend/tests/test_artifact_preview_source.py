@@ -42,7 +42,9 @@ def _version(artifact: Artifact, *, bound: bool = True) -> ArtifactVersion:
         artifact_id=artifact.id,
         number=3,
         media_type=ArtifactMediaType.HTML.value,
-        bindings=[{"name": "tickets", "view_id": str(uuid.uuid4()), "fields": {}}] if bound else [],
+        bindings=[{"name": "tickets", "table_id": str(uuid.uuid4()), "fields": {}}]
+        if bound
+        else [],
     )
 
 
@@ -57,9 +59,7 @@ def _read(binding: BindingData) -> ArtifactData:
     return ArtifactData(bindings={"tickets": binding}, current=True, read_at=datetime.now(UTC))
 
 
-_OK = BindingData(
-    status="ok", truncated=False, count=0, filters_dropped=False, fields={}, records=[]
-)
+_OK = BindingData(status="ok", truncated=False, count=0, fields={}, records=[])
 
 
 async def _preview(

@@ -247,10 +247,9 @@ type ApprovalDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict
 """How one tool describes a parked call of its own to the person deciding it.
 
 Given the run's deps and the call's validated arguments, it answers the ids in
-them as names - `{"view": "Closed tickets", "table": "Support"}` - which the
-approval card and the queue put into a sentence above the raw arguments. A
-`share_view` card that says only `view_id: 6f1c…` asks a person to approve
-something they cannot read.
+them as names - `{"table": "Support"}` - which the approval card and the queue
+put into a sentence above the raw arguments. An `update_record` card that says
+only `table_id: 6f1c…` asks a person to approve something they cannot read.
 
 Two rules the gate relies on. It resolves as `deps.run_person`, through the same
 service checks a console read takes, and answers `None` rather than a name that

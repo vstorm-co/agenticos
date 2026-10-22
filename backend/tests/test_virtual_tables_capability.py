@@ -15,7 +15,6 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBuildContext, get
-from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.capabilities.virtual_tables import (
     VirtualTables,
     VirtualTablesConfig,
@@ -32,6 +31,8 @@ from app.agents.capabilities.virtual_tables._toolset import _operation_key
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext
+from app.services.agent_registry import AgentRegistryService
 
 pytestmark = pytest.mark.anyio
 
@@ -118,27 +119,29 @@ def test_table_grants_of_reads_the_enabled_binding_only():
     assert table_grants_of(AgentSpec(name="Clerk")) == {}
 
 
-def _tool_info(tool_id: str):
-    return next(tool for tool in get("virtual_tables").tools if tool.id == tool_id)
+def test_no_tool_shares_a_view_any_more():
+    """A page reads its own query with its owner's access: nothing shares a view for it."""
+    built = _build(VirtualTablesConfig(allow_create=True))
+
+    assert "share_view" not in get("virtual_tables").tool_ids
+    assert built is not None and "share_view" not in built.get_toolset().tools
 
 
-@pytest.mark.security
-def test_share_view_is_gated_by_approval_by_default():
-    binding = CapabilityBindingSpec(id="virtual_tables")
+async def test_a_stored_spec_that_gated_share_view_still_publishes():
+    """Saved while `share_view` existed, as it was written: publishing it again must not
+    be refused for naming a tool that is gone, and what else it gated stays gated."""
+    stored = {
+        "id": "virtual_tables",
+        "config": {"allow_create": True},
+        "tool_approval": {"share_view": "required", "delete_record": "required"},
+        "tool_overrides": {"share_view": {"name": "share_saved_view"}},
+    }
 
-    assert tool_needs_approval(tool=_tool_info("share_view"), binding=binding, side_effecting=False)
-    assert not tool_needs_approval(
-        tool=_tool_info("list_views"), binding=binding, side_effecting=False
+    binding = CapabilityBindingSpec.model_validate(stored)
+    problems = await AgentRegistryService(MagicMock())._binding_problems(
+        AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner"), binding
     )
 
-
-@pytest.mark.security
-def test_share_view_follows_the_capability_wide_approval():
-    tool = _tool_info("share_view")
-    never = CapabilityBindingSpec(id="virtual_tables", approval="never")
-    pinned = CapabilityBindingSpec(
-        id="virtual_tables", approval="never", tool_approval={"share_view": "required"}
-    )
-
-    assert not tool_needs_approval(tool=tool, binding=never, side_effecting=False)
-    assert tool_needs_approval(tool=tool, binding=pinned, side_effecting=False)
+    assert binding.tool_approval == {"delete_record": "required"}
+    assert binding.tool_overrides == {}
+    assert (problems.messages, problems.fields) == ([], [])

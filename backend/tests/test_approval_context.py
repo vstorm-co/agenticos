@@ -1,6 +1,6 @@
 """Naming a parked call for the person deciding it - and never letting that block it.
 
-An approval card that says `view_id: 6f1c…` asks a person to approve something
+An approval card that says `table_id: 6f1c…` asks a person to approve something
 they cannot read, so a tool may describe its parked call: its ids as names. The
 description is a courtesy and the approval is not, which is what most of this
 file guards - a describer that fails, hangs or answers nothing leaves the call
@@ -43,7 +43,6 @@ from app.agents.capabilities.virtual_tables import _describe
 from app.agents.capabilities.virtual_tables._describe import (
     APPROVAL_DESCRIBERS,
     describe_record_write,
-    describe_share_view,
 )
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
@@ -53,7 +52,7 @@ from app.services.agent_runner import ApprovalChannel
 # What an approver is shown, and whether a held call is described: approval-gate behaviour.
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-NAMES = {"view": "Closed tickets", "table": "Support"}
+NAMES = {"table": "Support"}
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +60,7 @@ def _builtins_loaded() -> None:
     load_builtins()
 
 
-def _tool_def(name: str = "share_view", capability_id: str | None = "virtual_tables"):
+def _tool_def(name: str = "update_record", capability_id: str | None = "virtual_tables"):
     return ToolDefinition(
         name=name,
         parameters_json_schema={"type": "object", "properties": {}},
@@ -91,7 +90,7 @@ async def _park(gate: ApprovalGate, tool_def: ToolDefinition | None = None) -> A
             ctx,
             call=MagicMock(tool_call_id="call-1"),
             tool_def=tool_def,
-            args={"view_id": uuid.uuid4()},
+            args={"table_id": uuid.uuid4()},
             handler=AsyncMock(),
         )
     [request] = ctx.deps.request_approval.await_args.args
@@ -102,7 +101,7 @@ class TestTheGateDescribes:
     async def test_a_described_call_is_asked_about_with_its_names(self):
         describe = AsyncMock(return_value=NAMES)
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_view"}), describers={"share_view": describe}
+            required_tool_names=frozenset({"update_record"}), describers={"update_record": describe}
         )
 
         request = await _park(gate)
@@ -112,19 +111,19 @@ class TestTheGateDescribes:
         assert await _described(request) == NAMES
         # The describer reads the validated arguments, so an id is still a `UUID`.
         [deps, args] = describe.await_args.args
-        assert isinstance(args["view_id"], uuid.UUID)
+        assert isinstance(args["table_id"], uuid.UUID)
         assert isinstance(deps, AgentDeps)
 
     async def test_a_describer_that_fails_still_parks_the_call(self):
         describe = AsyncMock(side_effect=RuntimeError("database went away"))
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_view"}), describers={"share_view": describe}
+            required_tool_names=frozenset({"update_record"}), describers={"update_record": describe}
         )
 
         request = await _park(gate)
 
         assert await _described(request) is None
-        assert request.tool_name == "share_view"
+        assert request.tool_name == "update_record"
 
     async def test_a_describer_that_hangs_is_given_up_on(self):
         async def hang(_deps: AgentDeps, _args: Mapping[str, Any]) -> dict[str, str]:
@@ -132,7 +131,7 @@ class TestTheGateDescribes:
             return NAMES
 
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_view"}), describers={"share_view": hang}
+            required_tool_names=frozenset({"update_record"}), describers={"update_record": hang}
         )
 
         with patch.object(gate_module, "DESCRIBE_TIMEOUT_SECONDS", 0.01):
@@ -141,8 +140,8 @@ class TestTheGateDescribes:
 
     async def test_an_empty_description_is_no_context(self):
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_view"}),
-            describers={"share_view": AsyncMock(return_value={})},
+            required_tool_names=frozenset({"update_record"}),
+            describers={"update_record": AsyncMock(return_value={})},
         )
 
         assert await _described(await _park(gate)) is None
@@ -152,7 +151,7 @@ class TestTheGateDescribes:
         """Under `ASK_ALL` an MCP tool is gated too; a describer written for another
         tool of the same name must not run against its arguments."""
         describe = AsyncMock(return_value=NAMES)
-        gate = ApprovalGate(gate_every_tool=True, describers={"share_view": describe})
+        gate = ApprovalGate(gate_every_tool=True, describers={"update_record": describe})
 
         request = await _park(gate, _tool_def(capability_id=None))
 
@@ -160,22 +159,22 @@ class TestTheGateDescribes:
         describe.assert_not_awaited()
 
     async def test_a_tool_with_no_describer_is_asked_about_as_before(self):
-        request = await _park(ApprovalGate(required_tool_names=frozenset({"share_view"})))
+        request = await _park(ApprovalGate(required_tool_names=frozenset({"update_record"})))
 
         assert request.describe is None
 
     async def test_a_renamed_tool_is_asked_about_under_its_stable_id(self):
-        """The card words a call by tool; a renamed `share_view` must still find its words."""
+        """The card words a call by tool; a renamed `update_record` must still find its words."""
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_saved_view"}),
-            tool_ids={"share_saved_view": "share_view"},
+            required_tool_names=frozenset({"change_record"}),
+            tool_ids={"change_record": "update_record"},
         )
 
-        request = await _park(gate, _tool_def("share_saved_view"))
+        request = await _park(gate, _tool_def("change_record"))
 
         assert (request.tool_name, request.capability_tool_id) == (
-            "share_saved_view",
-            "share_view",
+            "change_record",
+            "update_record",
         )
 
 
@@ -188,10 +187,10 @@ def _channel(**kwargs: Any) -> ApprovalChannel:
 def _request(describe: AsyncMock) -> ApprovalRequest:
     return ApprovalRequest(
         capability_id="virtual_tables",
-        tool_name="share_saved_view",
+        tool_name="change_record",
         tool_call_id="call-1",
-        tool_args={"view_id": "6f1c"},
-        capability_tool_id="share_view",
+        tool_args={"table_id": "6f1c"},
+        capability_tool_id="update_record",
         describe=describe,
     )
 
@@ -203,8 +202,8 @@ class TestTheChannelKeepsTheNames:
         await channel(_request(AsyncMock(return_value=NAMES)))
 
         [parked] = channel.requested
-        assert (parked.tool_args, parked.context) == ({"view_id": "6f1c"}, NAMES)
-        assert (parked.tool_name, parked.capability_tool_id) == ("share_saved_view", "share_view")
+        assert (parked.tool_args, parked.context) == ({"table_id": "6f1c"}, NAMES)
+        assert (parked.tool_name, parked.capability_tool_id) == ("change_record", "update_record")
 
     async def test_a_call_granted_by_standing_consent_is_described_for_its_row(self):
         channel = _channel(standing_consent_by=uuid.uuid4())
@@ -219,24 +218,24 @@ class TestTheChannelKeepsTheNames:
         """A resumed run answers from its decisions; describing would cost a session
         and up to the timeout for a description nobody reads."""
         describe = AsyncMock(return_value=NAMES)
-        channel = _channel(decided={"call-1": ApprovalGranted({"view_id": "6f1c"})})
+        channel = _channel(decided={"call-1": ApprovalGranted({"table_id": "6f1c"})})
 
         decision = await channel(_request(describe))
 
-        assert decision == ApprovalGranted({"view_id": "6f1c"})
+        assert decision == ApprovalGranted({"table_id": "6f1c"})
         describe.assert_not_awaited()
         assert channel.requested == []
 
     async def test_the_gate_runs_a_pre_decided_call_without_describing_it(self):
         describe = AsyncMock(return_value=NAMES)
         gate = ApprovalGate(
-            required_tool_names=frozenset({"share_view"}), describers={"share_view": describe}
+            required_tool_names=frozenset({"update_record"}), describers={"update_record": describe}
         )
-        args = {"view_id": uuid.uuid4()}
-        channel = _channel(decided={"call-1": ApprovalGranted({"view_id": str(args["view_id"])})})
+        args = {"table_id": uuid.uuid4()}
+        channel = _channel(decided={"call-1": ApprovalGranted({"table_id": str(args["table_id"])})})
         ctx = MagicMock()
         ctx.deps = AgentDeps(run_id=uuid.uuid4(), request_approval=channel)
-        handler = AsyncMock(return_value="shared")
+        handler = AsyncMock(return_value="updated")
 
         result = await gate.wrap_tool_execute(
             ctx,
@@ -246,7 +245,7 @@ class TestTheChannelKeepsTheNames:
             handler=handler,
         )
 
-        assert result == "shared"
+        assert result == "updated"
         handler.assert_awaited_once_with(args)
         describe.assert_not_awaited()
 
@@ -258,7 +257,7 @@ class TestWhichToolsAreDescribed:
             capabilities=[
                 {
                     "id": "virtual_tables",
-                    "tool_overrides": {"share_view": {"name": "share_saved_view"}},
+                    "tool_overrides": {"update_record": {"name": "change_record"}},
                 },
                 # Bound, with no describer of its own: nothing of it is described.
                 {"id": "clock"},
@@ -268,10 +267,10 @@ class TestWhichToolsAreDescribed:
         describers = approval_describers(spec)
         tool_ids = approval_tool_ids(spec)
 
-        assert tool_ids["share_saved_view"] == "share_view"
-        assert "share_view" not in tool_ids
-        assert describers["share_saved_view"] is describe_share_view
-        assert "share_view" not in describers
+        assert tool_ids["change_record"] == "update_record"
+        assert "update_record" not in tool_ids
+        assert describers["change_record"] is describe_record_write
+        assert "update_record" not in describers
         assert describers["delete_record"] is describe_record_write
         # Reads are never parked by the spec, so nothing describes them.
         assert "list_records" not in describers
@@ -281,9 +280,8 @@ class TestWhichToolsAreDescribed:
 
         assert approval_describers(spec) == {}
 
-    def test_the_table_writes_and_sharing_are_the_described_tools(self):
+    def test_the_table_writes_are_the_described_tools(self):
         assert set(APPROVAL_DESCRIBERS) == {
-            "share_view",
             "create_record",
             "upsert_record",
             "update_record",
@@ -336,8 +334,8 @@ async def _session() -> AsyncIterator[MagicMock]:
     yield MagicMock()
 
 
-def _stubbed(*, table: Any = TABLE, record: Any = None, view: Any = None, member: Any = "member"):
-    """Patch the session, the member and both services the describers read through."""
+def _stubbed(*, table: Any = TABLE, record: Any = None, member: Any = "member"):
+    """Patch the session, the member and the service the describers read through."""
     tables = MagicMock()
     tables.describe_table = AsyncMock(
         side_effect=table if isinstance(table, Exception) else None, return_value=table
@@ -345,60 +343,20 @@ def _stubbed(*, table: Any = TABLE, record: Any = None, view: Any = None, member
     tables.get_record = AsyncMock(
         side_effect=record if isinstance(record, Exception) else None, return_value=record
     )
-    views = MagicMock()
-    views.find_view = AsyncMock(
-        side_effect=view if isinstance(view, Exception) else None, return_value=view
-    )
     return (
         patch.object(_describe, "get_db_context", _session),
         patch.object(_describe, "acting_member", AsyncMock(return_value=member)),
         patch.object(_describe, "VirtualTableService", MagicMock(return_value=tables)),
-        patch.object(_describe, "TableViewService", MagicMock(return_value=views)),
     )
 
 
 async def _with(patches: tuple[Any, ...], call: Any) -> Any:
-    with patches[0], patches[1], patches[2], patches[3]:
+    with patches[0], patches[1], patches[2]:
         return await call
 
 
 def _missing() -> NotFoundError:
     return NotFoundError(message="Not found", details={})
-
-
-class TestSharingAView:
-    async def test_the_view_and_its_table_are_named(self):
-        bound = SimpleNamespace(view=SimpleNamespace(name="Closed tickets"), table_id=TABLE.id)
-
-        context = await _with(
-            _stubbed(view=bound), describe_share_view(_deps(), {"view_id": str(uuid.uuid4())})
-        )
-
-        assert context == {"view": "Closed tickets", "table": "Orders"}
-
-    @pytest.mark.security
-    async def test_a_view_the_person_may_not_see_is_not_named(self):
-        context = await _with(
-            _stubbed(view=_missing()), describe_share_view(_deps(), {"view_id": uuid.uuid4()})
-        )
-
-        assert context is None
-
-    @pytest.mark.security
-    async def test_a_member_who_left_names_nothing(self):
-        context = await _with(
-            _stubbed(member=None), describe_share_view(_deps(), {"view_id": uuid.uuid4()})
-        )
-
-        assert context is None
-
-    @pytest.mark.security
-    async def test_a_run_for_nobody_names_nothing(self):
-        context = await _with(
-            _stubbed(), describe_share_view(_deps(None), {"view_id": uuid.uuid4()})
-        )
-
-        assert context is None
 
 
 class TestWritingARecord:

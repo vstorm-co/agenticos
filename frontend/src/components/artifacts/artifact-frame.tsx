@@ -76,11 +76,11 @@ export function readyFrom(
 }
 
 /** A binding as the page receives it. */
-type PageBinding = Omit<BindingData, "reason">;
+type PageBinding = Omit<BindingData, "reason" | "changed">;
 
 /**
- * The bindings without `reason`, which says why a source is unavailable to the
- * editor's strip and is never the page's to show.
+ * The bindings without `reason` and `changed`, which say why a source is
+ * unavailable to the editor's strip and are never the page's to show.
  *
  * Names are read only as own keys (`Object.entries`) and written back by
  * `Object.fromEntries`, which defines each one: a binding called `__proto__`
@@ -89,7 +89,10 @@ type PageBinding = Omit<BindingData, "reason">;
  */
 function forPage(bindings: Record<string, BindingData>): Record<string, PageBinding> {
   return Object.fromEntries(
-    Object.entries(bindings).map(([name, { reason: _reason, ...binding }]) => [name, binding]),
+    Object.entries(bindings).map(([name, { reason: _reason, changed: _changed, ...binding }]) => [
+      name,
+      binding,
+    ]),
   );
 }
 

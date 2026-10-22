@@ -11,9 +11,7 @@ class VirtualTableService(TableOperations, RecordOperations):
     The console, agent tools, workflow nodes and the public API all call this class
     with an `AuthContext`; none of them reaches the repository. The organization is
     always read from the context, never from an argument, so there is nowhere to
-    ask for another tenant's table. The one exception in this package is
-    `TableViewService.view_for_binding`, which takes an organization id and returns
-    a view's definition and columns, never its rows.
+    ask for another tenant's table.
 
     Example:
         ```python
@@ -47,10 +45,7 @@ class TableViewService(TableViewOperations):
     `app/services/virtual_tables/table_views.py` register its own `DependencyChecker`
     at import time without the table service needing to know views exist.
 
-    A view is also a data contract: a published page binds to one and an agent tool
-    names one, both through `find_view` as the person asking. `view_for_binding` is
-    the one method that takes no person. It returns a view's definition and its
-    table's columns but never rows, and only the artifact bindings check calls it:
-    to carry a stored binding forward, to compare a requested binding with the stored
-    one, and to re-check a stored binding's columns on restore.
+    A published page may name a view to start its query from, through `find_view`
+    as the person publishing: the view's filters and sort are copied into the page,
+    so a view is never a page's live dependency.
     """
