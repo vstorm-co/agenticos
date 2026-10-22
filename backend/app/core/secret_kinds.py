@@ -751,6 +751,19 @@ class SecretRequirement(BaseModel):
         """Whether a secret of `kind` satisfies this requirement."""
         return kind == self.kind.value or kind in {also.value for also in self.also_accepts}
 
+    def purpose_for(self, config: BaseModel | None) -> str | None:
+        """Which service a key for this configuration has to be for, or `None`.
+
+        The Builder's `purposeOf` reads the same two sources in the same order: a
+        capability offering several services gates its key on the choice, so the
+        conditional field *is* the service; one with a single service names it.
+        """
+        if self.required_when is not None and config is not None:
+            chosen = getattr(config, self.required_when.field, None)
+            if isinstance(chosen, str) and chosen:
+                return chosen
+        return self.purpose
+
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:
         if self.kind is SecretKind.NONE:

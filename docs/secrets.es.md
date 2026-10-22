@@ -1,5 +1,5 @@
 ---
-source_sha: "d4c56f79341c"
+source_sha: "2048c082178a"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -193,7 +193,11 @@ atender llamadas hasta que se elija otra.
 
 **Capabilities.** Una capability declara que necesita una credencial de un *kind*
 dado — nunca una instancia. El código dice «necesito una clave de API»; la
-`secret_id` de un binding dice cuál. Mira
+`secret_id` de un binding dice cuál. Donde el binding nombra el servicio para el
+que es la clave - el provider elegido, o el único servicio de la capability, como
+mem0 -, publicar rechaza una clave guardada para otro servicio, porque se enviaría
+al provider equivocado en cada llamada. Una clave `custom`, como lo es toda clave
+guardada antes de que existieran los propósitos, se acepta. Mira
 [el catálogo de capabilities](reference/capabilities.md#what-a-binding-may-change).
 
 **Conexiones MCP.** Bearer tokens y cargas útiles de OAuth, selladas a la

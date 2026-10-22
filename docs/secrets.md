@@ -173,7 +173,11 @@ chosen.
 
 **Capabilities.** A capability declares that it needs a credential of a given
 *kind* — never an instance. Code says "I need an API key"; a binding's `secret_id`
-says which one. See
+says which one. Where the binding names the service the key is for - the provider
+it chose, or the one service the capability uses, such as mem0 - publishing
+refuses a key stored for another service, since it would be sent to the wrong
+provider at every call. A `custom` key, which every key stored before purposes
+existed is, is accepted. See
 [the capability catalog](reference/capabilities.md#what-a-binding-may-change).
 
 **MCP connections.** Bearer tokens and OAuth payloads, sealed to the organization

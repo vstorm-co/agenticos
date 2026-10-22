@@ -1,5 +1,5 @@
 ---
-source_sha: "d4c56f79341c"
+source_sha: "2048c082178a"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -192,7 +192,11 @@ może odbierać rozmów, dopóki nie zostanie wybrany inny.
 
 **Capabilities.** Capability deklaruje, że potrzebuje poświadczenia danego
 *rodzaju* — nigdy konkretnej instancji. Kod mówi „potrzebuję klucza API";
-`secret_id` w bindingu mówi, którego. Zobacz
+`secret_id` w bindingu mówi, którego. Gdy binding wskazuje usługę, dla której jest
+klucz - wybranego providera albo jedyną usługę capability, na przykład mem0 -
+publikacja odrzuca klucz zapisany dla innej usługi, bo przy każdym wywołaniu
+trafiałby do niewłaściwego providera. Klucz `custom`, a takim jest każdy klucz
+zapisany przed wprowadzeniem przeznaczeń, jest akceptowany. Zobacz
 [katalog capabilities](reference/capabilities.md#what-a-binding-may-change).
 
 **Połączenia MCP.** Tokeny bearer i ładunki OAuth, pieczętowane dla organizacji

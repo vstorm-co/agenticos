@@ -155,6 +155,7 @@ def secret_row() -> MagicMock:
     row.id = uuid.uuid4()
     row.name = "Weather API"
     row.kind = SecretKind.API_KEY.value
+    row.purpose = "custom"
     return row
 
 
@@ -250,6 +251,50 @@ class TestPublishValidation:
 
         said = any("ChatGPT sign-in, which only Codex runs on" in problem for problem in problems)
         assert said is refused
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("capability", "config"),
+        [
+            ("image_generation", {"provider": "google", "model": "gemini-3-pro-image"}),
+            (
+                "text_to_speech",
+                {"provider": "google", "model": "gemini-3.8-flash-tts", "voice": "Kore"},
+            ),
+            ("video_generation", {"provider": "google"}),
+        ],
+    )
+    async def test_a_key_for_another_provider_is_refused(self, secret_row, capability, config):
+        """Same kind, wrong service: the key would be sent in Google's auth header
+        at every call (#2258)."""
+        secret_row.purpose = "openai"
+        secret_row.name = "OpenAI"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(id=capability, secret_id=secret_row.id, config=config),
+            secret=secret_row,
+        )
+
+        assert problems == [
+            f"Capability '{capability}' is set to use google, but 'OpenAI' is a key for openai"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("purpose", ["google", "custom"])
+    async def test_a_key_for_the_chosen_provider_or_a_custom_one_publishes(
+        self, secret_row, purpose
+    ):
+        """`custom` is every key stored before purposes existed; it stays accepted."""
+        secret_row.purpose = purpose
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(
+                id="video_generation", secret_id=secret_row.id, config={"provider": "google"}
+            ),
+            secret=secret_row,
+        )
+
+        assert problems == []
 
     @pytest.mark.anyio
     async def test_a_matching_secret_publishes(self, secret_row):

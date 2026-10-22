@@ -75,6 +75,11 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
+- **A key for another provider is refused at publish.** Image generation's key
+  picker now offers only the chosen provider's keys, as speech and video do. Publish
+  refuses a capability key stored for a different service than the binding
+  names, which before was sent to the wrong provider at every call; a `custom`
+  key is still accepted (#2258).
 
 ## [1.13.0] - 2026-10-22
 
