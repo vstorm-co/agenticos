@@ -1,5 +1,5 @@
 ---
-source_sha: "9297492302fc"
+source_sha: "e46be0dd54a7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1234,8 +1234,11 @@ Gemini), und entfallen bei den übrigen.
 verkauft, also hält der Katalog einen datierten Preis pro Million Zeichen, und die
 Kosten sind vor dem Aufruf bekannt. Ein Run, den der Clip über eine Grenze tragen
 würde, wird abgelehnt; danach werden die Kosten gebucht, und bei einem Fehler
-mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle haben
-einen Preis pro Zeichen typischer Sprache. Ein datierter Preis gilt ab seinem Tag
+mittendrin auch die bereits gesprochenen Stücke. Token-abgerechnete Modelle werden
+zu einem Preis pro Zeichen typischer Sprache geprüft. Gemini, das sein Audio als
+rohes PCM liefert, wird danach aus dem Audio gebucht, das jedes Stück zurückgab -
+Text-Tokens hinein und 25 Audio-Tokens pro Sekunde heraus -, sodass eine langsame
+Sprechweise kostet, was der Provider dafür abrechnet. Ein datierter Preis gilt ab seinem Tag
 - so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
 
 **Gebucht beim Sprechen, ein Clip nach dem anderen.** Jedes Stück eines langen

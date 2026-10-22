@@ -1,5 +1,5 @@
 ---
-source_sha: "9297492302fc"
+source_sha: "e46be0dd54a7"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1185,8 +1185,11 @@ omiten en los demás.
 así que el catálogo guarda un precio fechado por millón de caracteres y el coste
 se conoce antes de la llamada. Se rechaza un clip que llevaría el run más allá de
 un límite; después se registra el coste y, si falla a medias, también los trozos
-ya dichos. Los modelos que facturan por tokens tienen un precio por carácter de
-habla típica. Un precio fechado entra en vigor ese día: así queda registrada la
+ya dichos. Los modelos que facturan por tokens se comprueban con un precio por
+carácter de habla típica. Gemini, que devuelve su audio como PCM sin procesar, se
+contabiliza después a partir del audio que devolvió cada trozo - tokens de texto de
+entrada y 25 tokens de audio por segundo de salida -, así que una locución lenta
+cuesta lo que el provider factura por ella. Un precio fechado entra en vigor ese día: así queda registrada la
 duplicación de precios de Gemini el 01-01-2027.
 
 **Se registra mientras se dice, un clip cada vez.** Cada trozo de un texto largo

@@ -341,11 +341,17 @@
         "prices": [
           {
             "since": "2026-09-22",
-            "usd_per_million_characters": "15.1"
+            "usd_per_million_characters": "15.1",
+            "usd_per_million_input_tokens": "0.50",
+            "usd_per_million_audio_tokens": "9.00",
+            "audio_tokens_per_second": 25
           },
           {
             "since": "2027-01-01",
-            "usd_per_million_characters": "30.2"
+            "usd_per_million_characters": "30.2",
+            "usd_per_million_input_tokens": "1.00",
+            "usd_per_million_audio_tokens": "18.00",
+            "audio_tokens_per_second": 25
           }
         ]
       },
@@ -358,11 +364,17 @@
         "prices": [
           {
             "since": "2026-09-22",
-            "usd_per_million_characters": "10.1"
+            "usd_per_million_characters": "10.1",
+            "usd_per_million_input_tokens": "0.50",
+            "usd_per_million_audio_tokens": "6.00",
+            "audio_tokens_per_second": 25
           },
           {
             "since": "2027-01-01",
-            "usd_per_million_characters": "20.1"
+            "usd_per_million_characters": "20.1",
+            "usd_per_million_input_tokens": "1.00",
+            "usd_per_million_audio_tokens": "12.00",
+            "audio_tokens_per_second": 25
           }
         ]
       }

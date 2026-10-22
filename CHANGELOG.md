@@ -51,8 +51,10 @@ Two things are versioned separately from this file and worth knowing about:
   Gemini, chosen per agent with a model and a voice. The clip plays in the
   conversation, exactly where a generated image would be shown. Its cost is
   checked against the budget before the call, from a dated per-character
-  price, and booked as each piece is spoken. ElevenLabs voices are named by
-  id, because they belong to the account (#2259).
+  price, and booked as each piece is spoken - Gemini's from the audio it
+  returned, at its token rates, so a slow delivery is billed as the provider
+  bills it (#2351). ElevenLabs voices are named by id, because they belong to
+  the account (#2259).
 - **A catalog of text-to-speech providers.** `GET
   /providers/text-to-speech-models` lists the providers that can speak a text
   aloud - OpenAI, ElevenLabs and Gemini - with each model's voices, formats and

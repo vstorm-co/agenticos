@@ -1105,7 +1105,10 @@ end; WAV is requested as 24 kHz PCM from every provider and wrapped in one heade
 catalog holds a dated price per million characters and the cost is known before
 the call. A run is refused a clip that would carry it past a cap, then the cost is
 booked; on a failure partway through, the pieces already spoken are booked too.
-Token-billed models are priced per character of typical speech. A dated price
+Token-billed models are checked at a price per character of typical speech. Gemini,
+which reports its audio as raw PCM, is then booked from the audio each piece
+returned - text tokens in and 25 audio tokens a second out - so a slow delivery
+costs what the provider bills for it. A dated price
 takes effect on its day, which is how Gemini's doubling on 2027-01-01 is recorded.
 
 **Booked as it is spoken, one clip at a time.** Each piece of a long text is

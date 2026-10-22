@@ -1,5 +1,5 @@
 ---
-source_sha: "9297492302fc"
+source_sha: "e46be0dd54a7"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1165,7 +1165,10 @@ pomijane.
 katalog trzyma datowaną cenę za milion znaków i koszt jest znany przed
 wywołaniem. Run dostaje odmowę nagrania, które przekroczyłoby limit, a potem koszt
 jest księgowany; przy błędzie w połowie księgowane są też kawałki już
-wypowiedziane. Modele rozliczane w tokenach mają cenę za znak typowej mowy.
+wypowiedziane. Modele rozliczane w tokenach są sprawdzane po cenie za znak
+typowej mowy. Gemini, które zwraca dźwięk jako surowe PCM, jest potem księgowane z
+dźwięku, który zwrócił każdy kawałek - tokeny tekstu na wejściu i 25 tokenów audio
+na sekundę na wyjściu - więc wolne mówienie kosztuje tyle, ile nalicza provider.
 Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
 1.01.2027.
 

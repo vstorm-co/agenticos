@@ -48,7 +48,7 @@ from app.services.text_to_speech import (
     SpeechProviderError,
     synthesize,
 )
-from app.services.text_to_speech_models import by_provider, price_per_character
+from app.services.text_to_speech_models import by_provider, piece_cost, price_per_character
 
 MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 
@@ -185,7 +185,8 @@ def build_speech_toolset(
                 "Not spoken: this agent's speech model is no longer offered. Its author "
                 "needs to choose another in the agent's settings."
             )
-        price = price_per_character(chosen, on=datetime.now(UTC).date())
+        today = datetime.now(UTC).date()
+        price = price_per_character(chosen, on=today)
         estimate = _cost(price, len(spoken))
         if not await can_afford_ambient_call(estimate or Decimal(0)):
             if estimate is None:
@@ -206,9 +207,13 @@ def build_speech_toolset(
                 instructions=instructions,
                 # Booked piece by piece, as each one's audio arrives, so a failure
                 # or a cancelled run partway through a long text still books the
-                # pieces that came back.
-                on_spoken=lambda characters: record_ambient_cost(
-                    ledger_name, _cost(price, characters)
+                # pieces that came back - and from the audio itself where the
+                # model bills by it, since a slow delivery costs more (#2351).
+                on_spoken=lambda piece: record_ambient_cost(
+                    ledger_name,
+                    piece_cost(
+                        chosen, on=today, characters=piece.characters, seconds=piece.seconds
+                    ),
                 ),
             )
         except SpeechProviderError as exc:
