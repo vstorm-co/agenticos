@@ -5962,6 +5962,7 @@
       },
       "pools": {
         "agent": "Agent runs",
+        "eval": "Eval runs",
         "ingest": "Ingestion",
         "system": "System"
       },

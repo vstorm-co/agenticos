@@ -9,7 +9,7 @@ from pydantic import Field
 from app.db.models.background_job import JobStatus
 from app.schemas.base import BaseSchema
 
-JobPool = Literal["agent", "ingest", "system"]
+JobPool = Literal["agent", "eval", "ingest", "system"]
 ActivityWindow = Literal["day", "week"]
 
 

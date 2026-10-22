@@ -5731,6 +5731,7 @@
       },
       "pools": {
         "agent": "Runy agentów",
+        "eval": "Runy evali",
         "ingest": "Ingestion",
         "system": "Systemowe"
       },

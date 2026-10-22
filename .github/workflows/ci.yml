@@ -76,7 +76,9 @@ permissions:
 # since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
 # the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
 # `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
-# every step green. It has 45.
+# every step green. It has 45. `test-frontend` grew the same way: with a
+# thousand more tests its `next build` finished past 20 minutes on a pull request
+# in October 2026, every test file green. It has 30.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -366,7 +368,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

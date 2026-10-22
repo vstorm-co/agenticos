@@ -25,6 +25,8 @@ class Pool(enum.StrEnum):
 
     AGENT = "agent"
     """Agent runs: long, waiting on models, cheap in memory."""
+    EVAL = "eval"
+    """Eval runs: hours over a large dataset, so they never hold a slot an agent run needs."""
     INGEST = "ingest"
     """Parsing and embedding: CPU and memory heavy, each job in a child process."""
     SYSTEM = "system"
@@ -227,12 +229,14 @@ RUN_AGENT = Task(
 )
 # One attempt, for `RUN_AGENT`'s reason: the cases a dead worker answered were
 # paid for. The run is failed by `REAP_ABANDONED_EVALS` once its heartbeat stops,
-# which frees the organization's eval slots it held. Bulk, so a person's API run
-# never waits behind an eval of a large dataset.
+# which frees the organization's eval slots it held. A pool of its own, because a
+# run holds its slot for as long as it lasts - waiting on the organization's eval
+# slots included - and in a shared pool enough of them would leave a person's API
+# run and every trigger fire with no slot at all.
 RUN_EVAL = Task(
     kind="run-eval",
     payload_type=RunEval,
-    pool=Pool.AGENT,
+    pool=Pool.EVAL,
     max_attempts=1,
     timeout=timedelta(hours=12),
     priority=Priority.BULK,
