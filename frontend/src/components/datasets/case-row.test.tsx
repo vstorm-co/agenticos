@@ -70,7 +70,22 @@ describe("CaseRow", () => {
     expect(screen.queryByText(/earlier turn/)).toBeNull();
     expect(screen.queryByText(/check/)).toBeNull();
     expect(screen.queryByText("Note")).toBeNull();
+    expect(screen.queryByText("Anonymised after erasure")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onRemove).toHaveBeenCalled();
+  });
+
+  it("marks a case whose text was removed when its person was erased", () => {
+    render(
+      <CaseRow
+        item={{ ...CASE, anonymised_at: "2026-10-22T00:00:00Z" }}
+        onOpen={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Anonymised after erasure")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Eval runs leave it out"),
+    );
   });
 });

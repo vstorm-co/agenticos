@@ -7645,6 +7645,8 @@
     "importRowFieldProblem": "Zeile {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
     "hasNote": "Notiz",
+    "anonymised": "Nach Löschung anonymisiert",
+    "anonymisedHint": "Die Person, von der dieser Case stammt, wurde gelöscht, daher wurde sein Text entfernt. Eval-Läufe lassen ihn aus, bis du ihn neu schreibst oder entfernst.",
     "editDetails": "Details bearbeiten",
     "editDetailsBody": "Wie das Dataset heißt und wofür es da ist. Eine Änderung erzeugt keine neue Version, weil sich kein Fall ändert.",
     "saveDetails": "Speichern",
