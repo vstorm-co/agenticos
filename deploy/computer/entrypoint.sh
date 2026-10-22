@@ -2,10 +2,20 @@
 # Start the display, the desktop on it, an optional VNC view, then computerd.
 set -eu
 
+# A restarted container keeps its /tmp, and Xvfb refuses a display whose lock
+# survived the last one. Nothing else in this container serves the display.
+rm -f "/tmp/.X${DISPLAY#:}-lock" "/tmp/.X11-unix/X${DISPLAY#:}"
+
 Xvfb "$DISPLAY" -screen 0 "${SCREEN_SIZE}x24" -nolisten tcp &
 for _ in $(seq 50); do
     xdpyinfo >/dev/null 2>&1 && break || sleep 0.1
 done
+# Without a display every screenshot fails while /health still answers, so the
+# container exits and its restart policy tries again.
+if ! xdpyinfo >/dev/null 2>&1; then
+    echo "computerd: Xvfb did not start on $DISPLAY" >&2
+    exit 1
+fi
 
 dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &
 
