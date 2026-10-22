@@ -8126,7 +8126,8 @@
           "2": "Jestem tu.",
           "3": "Spokojnie dziś."
         }
-      }
+      },
+      "dropHere": "Upuść tutaj, a zacznę z tym czat."
     },
     "settings": {
       "onlyInApp": "Te ustawienia należą do aplikacji desktopowej AgenticOS.",

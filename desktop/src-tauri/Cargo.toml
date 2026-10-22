@@ -30,6 +30,9 @@ tauri-plugin-window-state = "2"
 # started it. Already in the tree through Tauri; declared because this code
 # calls it.
 uuid = { version = "1", features = ["v4"] }
+# What a dropped file is, from its first bytes. Already in the tree through
+# Tauri; declared because this code calls it.
+infer = "0.22"
 
 # Desktop only, which is what the plugin supports - and this shell is desktop
 # only anyway. On Windows and Linux a registered scheme starts the executable

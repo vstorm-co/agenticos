@@ -8341,7 +8341,8 @@
           "2": "I'm here.",
           "3": "All quiet."
         }
-      }
+      },
+      "dropHere": "Drop it here and I'll start a chat with it."
     },
     "settings": {
       "onlyInApp": "These settings belong to the AgenticOS desktop app.",

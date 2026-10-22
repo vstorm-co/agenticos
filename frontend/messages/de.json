@@ -8180,5 +8180,10 @@
     "share": {
       "notAttached": "Konnte nicht angehängt werden: {names}"
     }
+  },
+  "desktop": {
+    "blobby": {
+      "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
+    }
   }
 }

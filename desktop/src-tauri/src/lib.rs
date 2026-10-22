@@ -17,6 +17,7 @@ mod appearance;
 mod blobby;
 mod console;
 mod context;
+mod dropped;
 mod local_stack;
 mod managed;
 mod notify;
@@ -1151,13 +1152,15 @@ pub fn run() {
             quick_ask::resize_quick_ask,
             quick_ask::hide_quick_ask,
             context::take_context_files,
-            context::open_accessibility_settings
+            context::open_accessibility_settings,
+            dropped::take_shared
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())
         .manage(notify::Delivered::default())
         .manage(shortcuts::Bindings::default())
         .manage(context::CapturedFiles::default())
+        .manage(dropped::Dropped::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);
@@ -1240,6 +1243,14 @@ pub fn run() {
                 if let Err(e) = bring_console(_app) {
                     eprintln!("{e}");
                 }
+            }
+            // Files dropped on the Dock icon (or opened with the app): a new chat
+            // with them. `Info.plist` declares the app a viewer of any file, which
+            // is what lets the Dock take the drop at all.
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Opened { urls } = &_event {
+                let paths = urls.iter().filter_map(|url| url.to_file_path().ok()).collect();
+                dropped::receive(_app, paths);
             }
         });
 }

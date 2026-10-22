@@ -91,4 +91,16 @@ describe("BlobbyWindow", () => {
     act(() => env.listeners.get("desktop:say")?.(42));
     expect(env.props?.heard).toEqual({ text: "Allow screen recording.", id: 2 });
   });
+
+  it("says it will take a file dragged over it, and nothing for anything else", async () => {
+    mount();
+    await screen.findByText("blobby");
+    act(() => env.listeners.get("desktop:blobby-drop")?.("enter"));
+    expect(env.props?.heard).toEqual({
+      text: "Drop it here and I'll start a chat with it.",
+      id: 1,
+    });
+    act(() => env.listeners.get("desktop:blobby-drop")?.("leave"));
+    expect(env.props?.heard).toMatchObject({ id: 1 });
+  });
 });

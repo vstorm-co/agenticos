@@ -2,10 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Merged into the app's own by `tauri build`. Without the reason macOS
      refuses the console's microphone outright: dictation in the composer and
-     in quick ask, and voice calls. -->
+     in quick ask, and voice calls.
+
+     The document type lets the Dock icon take any file dropped on it, which
+     starts a chat with the file (#2305). `Alternate`: the app never becomes
+     what opens a file by default. -->
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>AgenticOS listens when you dictate a message or call an agent.</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Any file</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.item</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

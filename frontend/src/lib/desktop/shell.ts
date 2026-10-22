@@ -174,6 +174,10 @@ export const SHELL_EVENTS = {
   dictate: "desktop:dictate",
   /** What the console's chat should start: `"call"`. */
   start: "desktop:start",
+  /** Files were dropped on blobby or the Dock icon: they wait in `take_shared`. */
+  dropped: "desktop:dropped",
+  /** A file is being dragged over blobby: `"enter"`. */
+  blobbyDrop: "desktop:blobby-drop",
   /** The phone app: a live activity's button is waiting in `take_activity_action`. */
   activity: "mobile:activity",
 } as const;

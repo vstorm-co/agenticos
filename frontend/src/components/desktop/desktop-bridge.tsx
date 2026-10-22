@@ -9,6 +9,7 @@ import { useShellEvent } from "@/hooks/use-desktop";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useApprovals } from "@/hooks/use-runs";
+import { useOpenShared } from "@/hooks/use-open-shared";
 import { useShell } from "@/hooks/use-shell";
 import { notify, parseApprovalDecision, setBadge } from "@/lib/desktop/commands";
 import {
@@ -44,6 +45,7 @@ const APPROVALS_PATH = "/runs?tab=approvals";
  *   native notification; an approval carries Approve and Reject, and the choice
  *   comes back here to be made with this page's session, through the same
  *   request the queue's own buttons make.
+ * - Files dropped on blobby or the Dock icon open a new chat with them.
  *
  * Nothing on the first look: what was already waiting when the app opened is in
  * the badge, and a burst of notifications for old news is how an app gets its
@@ -63,6 +65,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   const unread = useUnreadNotificationCount();
   const { approvals, decide } = useApprovals({ enabled: canDecide });
   const requestIntent = useComposerIntentStore((state) => state.request);
+  const openShared = useOpenShared();
   // The newest inbox page, re-read whenever the unread count moves.
   const { data: inbox } = useQuery({
     queryKey: qk.desktop.inbox(unread.count),
@@ -132,6 +135,13 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     if (payload === "call") requestIntent("call");
     else reportShellFailure("an unknown thing to start", payload);
   });
+
+  // A file dropped on blobby or the Dock icon: a new chat with it - one dropped
+  // before this page was up waits for it to arrive.
+  useEffect(() => {
+    openShared();
+  }, [openShared]);
+  useShellEvent(SHELL_EVENTS.dropped, openShared);
 
   useShellEvent(SHELL_EVENTS.approval, (payload) => {
     try {

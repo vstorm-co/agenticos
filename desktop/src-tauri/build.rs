@@ -25,6 +25,7 @@ const COMMANDS: &[&str] = &[
     "hide_quick_ask",
     "take_context_files",
     "open_accessibility_settings",
+    "take_shared",
     "onboarding_state",
     "local_status",
     "set_up_local",

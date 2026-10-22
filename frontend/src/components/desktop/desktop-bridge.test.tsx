@@ -24,7 +24,11 @@ const env = vi.hoisted(() => ({
   report: vi.fn(),
   list: vi.fn(),
   recordApp: vi.fn(async (_shell: unknown) => {}),
+  takeShared: vi.fn(async (): Promise<unknown> => null),
+  warning: vi.fn(),
 }));
+vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
+vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
 vi.mock("@/hooks/use-assistant-signals", () => ({
@@ -96,6 +100,8 @@ beforeEach(() => {
   env.listeners.clear();
   vi.clearAllMocks();
   env.list.mockImplementation(async () => ({ items: env.inbox, next_cursor: null }));
+  env.takeShared.mockResolvedValue(null);
+  useComposerIntentStore.setState({ shared: null });
 });
 
 /**
@@ -247,6 +253,40 @@ describe("DesktopBridge", () => {
     );
     await waitFor(() =>
       expect(env.report).toHaveBeenCalledWith("could not notify", expect.any(Error)),
+    );
+  });
+
+  it("opens a chat with what was dropped on blobby or the Dock icon", async () => {
+    mount();
+    // On arrival: a drop on the Dock icon can come before the page does.
+    await waitFor(() => expect(env.takeShared).toHaveBeenCalledTimes(1));
+    expect(env.push).not.toHaveBeenCalled();
+
+    const file = new File(["hello"], "note.txt");
+    env.takeShared.mockResolvedValueOnce({ text: "", files: [file], refused: ["huge.mov"] });
+    act(() => env.listeners.get("desktop:dropped")?.(null));
+
+    await waitFor(() => expect(env.push).toHaveBeenCalledWith("/chat"));
+    expect(useComposerIntentStore.getState().shared?.files).toEqual([file]);
+    expect(env.warning).toHaveBeenCalledWith(expect.stringContaining("huge.mov"));
+  });
+
+  it("opens nothing when nothing that was dropped could be carried over, and says so", async () => {
+    mount();
+    await waitFor(() => expect(env.takeShared).toHaveBeenCalledTimes(1));
+    env.takeShared.mockResolvedValueOnce({ text: "", files: [], refused: ["huge.mov"] });
+    act(() => env.listeners.get("desktop:dropped")?.(null));
+
+    await waitFor(() => expect(env.warning).toHaveBeenCalled());
+    expect(env.push).not.toHaveBeenCalled();
+  });
+
+  it("reports a drop it could not read", async () => {
+    env.takeShared.mockRejectedValueOnce(new Error("refused"));
+    mount();
+
+    await waitFor(() =>
+      expect(env.report).toHaveBeenCalledWith("could not read what was shared", expect.any(Error)),
     );
   });
 });

@@ -42,6 +42,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-notify",
             "allow-set-badge",
             "allow-finish-onboarding",
+            "allow-take-shared",
             "allow-page-error",
             "core:event:allow-listen",
             "core:event:allow-unlisten",

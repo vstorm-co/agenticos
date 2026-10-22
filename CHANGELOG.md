@@ -107,6 +107,11 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **Drop a file on blobby or the Dock icon** (#2305) to start a chat with it:
+  up to ten files of 20 MB each are attached to a new message in the console,
+  and any that cannot be carried over are named. Blobby says it will take a
+  file dragged over it. The app registers as an alternate viewer of any file,
+  so it is never what opens a file by default.
 - **Gestures on the phone** (#2097): swipe a waiting approval right to approve
   it or left to reject it, and pull a page down to read it again - in the phone
   app and in AgenticOS installed to a touch screen - with a haptic tap when

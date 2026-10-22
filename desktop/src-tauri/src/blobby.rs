@@ -13,14 +13,18 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 use tauri::menu::{CheckMenuItem, IsMenuItem, MenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri::{
+    AppHandle, DragDropEvent, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
+};
 
-use crate::appearance;
+use crate::{appearance, dropped};
 
 pub const WINDOW: &str = "blobby";
 pub const PATH: &str = "desktop/blobby";
 pub const SETTINGS_EVENT: &str = "desktop:blobby";
 pub const SAY_EVENT: &str = "desktop:say";
+/// A file dragged over blobby (`"enter"`), for it to say it will take it.
+pub const DROP_EVENT: &str = "desktop:blobby-drop";
 pub const SHOW_MENU_ID: &str = "show-blobby";
 pub const CUSTOMIZE_MENU_ID: &str = "customize-blobby";
 const CAST_MENU_PREFIX: &str = "blobby-cast-";
@@ -327,7 +331,19 @@ pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Re
     {
         builder = builder.position(x, y);
     }
-    builder.build()
+    let window = builder.build()?;
+    // A file dropped on blobby starts a chat with it (#2305).
+    let handle = app.clone();
+    window.on_window_event(move |event| match event {
+        WindowEvent::DragDrop(DragDropEvent::Enter { .. }) => {
+            if let Err(e) = handle.emit_to(WINDOW, DROP_EVENT, "enter") {
+                eprintln!("{e}");
+            }
+        }
+        WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => dropped::receive(&handle, paths.clone()),
+        _ => {}
+    });
+    Ok(window)
 }
 
 /// Bring blobby's window in line with the settings: open, closed, or told who it is now.

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { Blobby, type Heard } from "@/components/desktop/blobby";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,6 +31,7 @@ export function BlobbyWindow() {
   const activity = useBlobbyActivity(signedIn);
   const reducedMotion = useReducedMotion();
   const [heard, setHeard] = useState<Heard | null>(null);
+  const t = useTranslations("desktop.blobby");
   useLiveUpdates();
 
   useShellEvent(SHELL_EVENTS.blobby, (payload) => {
@@ -41,6 +43,11 @@ export function BlobbyWindow() {
     } catch (error) {
       reportShellFailure("blobby's new settings could not be read", error);
     }
+  });
+  // A file dragged over blobby: it says it will take it, and the shell opens a
+  // chat with whatever is dropped.
+  useShellEvent(SHELL_EVENTS.blobbyDrop, (payload) => {
+    if (payload === "enter") setHeard((last) => ({ text: t("dropHere"), id: (last?.id ?? 0) + 1 }));
   });
   useShellEvent(SHELL_EVENTS.say, (payload) => {
     if (typeof payload === "string")

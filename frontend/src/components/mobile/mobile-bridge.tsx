@@ -2,12 +2,12 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { useShellEvent } from "@/hooks/use-desktop";
 import { useAgents } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useApprovals, useRuns } from "@/hooks/use-runs";
+import { useOpenShared } from "@/hooks/use-open-shared";
 import { useShell } from "@/hooks/use-shell";
 import { argumentsPreview } from "@/lib/desktop/notices";
 import {
@@ -24,7 +24,6 @@ import {
   takeActivityAction,
   type LiveActivity,
 } from "@/lib/mobile/live-activities";
-import { takeShared } from "@/lib/mobile/shared";
 import { updateWidget } from "@/lib/mobile/widget";
 import { phonePushStatus, syncPhonePush } from "@/lib/mobile/push";
 import { recordSessionApp } from "@/lib/session-app";
@@ -82,8 +81,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   });
   const { agents } = useAgents({ enabled: can(Perm.agentsView) });
   const requestIntent = useComposerIntentStore((state) => state.request);
-  const share = useComposerIntentStore((state) => state.share);
-  const tShare = useTranslations("mobile.share");
+  const openShared = useOpenShared();
 
   const live = useMemo<LiveActivity[]>(() => {
     const names = new Map(agents.map((agent) => [agent.id, agent.name]));
@@ -182,17 +180,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
         }
       })
       .catch((error: unknown) => reportShellFailure("could not read an activity's action", error));
-    takeShared()
-      .then((shared) => {
-        if (shared === null) return;
-        if (shared.refused.length > 0) {
-          toast.warning(tShare("notAttached", { names: shared.refused.join(", ") }));
-        }
-        if (shared.files.length === 0 && !shared.text) return;
-        share({ id: Date.now(), files: shared.files, text: shared.text || undefined });
-        router.push("/chat");
-      })
-      .catch((error: unknown) => reportShellFailure("could not read what was shared", error));
+    openShared();
   };
   // A button pressed, or something shared, while the app was closed waits for
   // this page to arrive; one shared while it was open arrives as the app comes
