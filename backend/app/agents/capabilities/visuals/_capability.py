@@ -1,7 +1,5 @@
 """Giving an agent a way to draw in the conversation, and to find what it drew before."""
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -14,10 +12,27 @@ from pydantic_ai.toolsets import AbstractToolset
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import VisualsToolset
 from app.agents.deps import AgentDeps
+from app.core.config import settings
 from app.services import visual as visuals
 
 LISTED = 20
 """How many earlier visuals the instructions name - the newest ones."""
+
+
+def maps_line() -> str:
+    """Whether a map drawn here has a background, so the model promises nothing it lacks."""
+    tiles = settings.map_tiles()
+    if tiles is None:
+        return (
+            "Maps in visuals: this deployment has no map tiles, so `AOMap.itinerary` draws "
+            "the stops as an outline - pins and the line between them, without streets or "
+            "terrain. Say so if the person expects a map."
+        )
+    return (
+        f"Maps in visuals: `AOMap.itinerary` draws on {tiles.name} tiles. Coordinates you "
+        "know from memory are approximate - say so, and never present the line between "
+        "stops as directions, a distance or a travel time you have not looked up."
+    )
 
 
 @dataclass
@@ -47,7 +62,11 @@ class Visuals(AbstractCapability[AgentDeps]):
 
     def get_instructions(self) -> Callable[[RunContext[AgentDeps]], Awaitable[str]]:
         """A callable, so a run is told about the visuals its conversation already holds."""
-        return self._earlier
+        return self._instructions
+
+    async def _instructions(self, ctx: RunContext[AgentDeps]) -> str:
+        earlier = await self._earlier(ctx)
+        return f"{maps_line()}\n\n{earlier}" if earlier else maps_line()
 
     async def _earlier(self, ctx: RunContext[AgentDeps]) -> str:
         """The conversation's earlier visuals by id, read once per run.

@@ -6,8 +6,6 @@ signature is something the model can choose - it would pick the expensive
 provider, or invent a key.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic_ai.tools import RunContext

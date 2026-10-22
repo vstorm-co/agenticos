@@ -11,8 +11,6 @@ reaches it, since the route delegates to the grant-aware service.
 The real service runs with the repository stubbed at the database edge.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

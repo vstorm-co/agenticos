@@ -12,8 +12,6 @@ month's bill is a sum over exactly the rows being removed. And the refusals: a
 period below the audit floor, and a member without `org:settings`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

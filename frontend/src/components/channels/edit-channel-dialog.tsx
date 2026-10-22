@@ -19,10 +19,11 @@ import {
   Input,
 } from "@/components/ui";
 import {
+  choiceOf,
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
-import { useCopySlackManifest } from "@/hooks/use-channel-bots";
+import { useChannelBot, useCopySlackManifest } from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -103,15 +104,39 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     }
   }
 
-  // Both halves whenever either moved, because the server pairs them against the
-  // stored row: sending a provider alone would be refused as a setting that
-  // cannot run, and clearing means clearing both.
-  const { provider, model } = draft.transcription;
-  if (provider !== bot.speech_to_text_provider || model !== bot.speech_to_text_model) {
+  Object.assign(patch, transcriptionPatch(bot, draft.transcription));
+  return patch;
+}
+
+/**
+ * The transcription half of the patch: the switch, and the pair with its key,
+ * each only where it moved.
+ *
+ * Off is the switch alone - the server clears the pair and the key with it.
+ * Inherit is the switch back on where it was off, and a null pair where the
+ * bot had its own; a null pair no longer means off (#1797), and the server
+ * clears the key with it. Choose is the switch on and both halves and the key
+ * whenever any of them moved, because the server checks them together against
+ * the stored row: a provider alone would be refused as a setting that cannot
+ * run, and a new provider without its key as a pair with nothing to pay with.
+ */
+function transcriptionPatch(bot: ChannelBot, choice: TranscriptionChoice): ChannelBotUpdate {
+  if (choice.mode === "off") {
+    return bot.transcribe_voice_notes ? { transcribe_voice_notes: false } : {};
+  }
+  const patch: ChannelBotUpdate = bot.transcribe_voice_notes
+    ? {}
+    : { transcribe_voice_notes: true };
+  const { provider, model, secretId } = choice;
+  if (
+    provider !== bot.speech_to_text_provider ||
+    model !== bot.speech_to_text_model ||
+    (choice.mode === "choose" && secretId !== bot.speech_to_text_secret_id)
+  ) {
     patch.speech_to_text_provider = provider;
     patch.speech_to_text_model = model;
+    if (choice.mode === "choose") patch.speech_to_text_secret_id = secretId;
   }
-
   return patch;
 }
 
@@ -152,11 +177,11 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
       step_display: bot.step_display,
       rate_answers: bot.rate_answers,
     },
-    transcription: {
-      provider: bot.speech_to_text_provider,
-      model: bot.speech_to_text_model,
-    },
+    transcription: choiceOf(bot),
   });
+  // The single-bot read carries what "inherit" resolves to; the row the list
+  // handed over does not, because resolving it reads the bot's agent.
+  const inherited = useChannelBot(bot.id)?.inherited_speech_to_text;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function set(
@@ -192,7 +217,17 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["name", "token", "api_base_url", "webhook_secret"], identifiedBy: "name" },
+        {
+          fields: [
+            "name",
+            "token",
+            "api_base_url",
+            "webhook_secret",
+            "transcribe_voice_notes",
+            "speech_to_text_secret_id",
+          ],
+          identifiedBy: "name",
+        },
         tErrors,
       );
       setErrors(failure.fields);
@@ -338,8 +373,11 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
         <TranscriptionFields
           idPrefix="edit-channel"
+          platform={bot.platform}
+          inherited={inherited}
           value={draft.transcription}
           onChange={(transcription) => setDraft((current) => ({ ...current, transcription }))}
+          keyError={errors.speech_to_text_secret_id}
         />
       </div>
 

@@ -9,15 +9,13 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
-from __future__ import annotations
-
 import io
 import logging
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from app.core.logging import PiiRedactionFilter, setup_logging
+from app.core.logging import PiiRedactionFilter, one_line, setup_logging
 
 # Built from fragments on purpose: the test proves the filter strips a credential
 # at runtime, so a static secret-scanner must not read a literal one flowing into
@@ -71,9 +69,8 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
 @pytest.mark.security
 def test_a_submitted_value_cannot_write_a_log_entry_of_its_own(root_stream):
     """One entry is one line, so a value carrying a newline writes a second one -
-    with a timestamp, a level and a message of the sender's choosing. The clearest
-    way in is the rate limiter's `caller`, which can be the address somebody typed
-    into a sign-in form (`py/log-injection`)."""
+    with a timestamp, a level and a message of the sender's choosing - an address
+    somebody typed into a sign-in form, say (`py/log-injection`)."""
     setup_logging()
 
     logging.getLogger("app.services.rate_limit").warning(
@@ -147,27 +144,6 @@ def test_an_unconfigured_process_redacts_through_last_resort(root_stream):
     assert any(isinstance(f, PiiRedactionFilter) for f in logging.lastResort.filters)
 
 
-def test_the_worker_sets_logging_up():
-    """The worker ran the ingestion and syncs in a process that never called
-    setup_logging, so even redactable lines were not redacted (#440)."""
-    from app.worker import prefect_app
-
-    with (
-        patch.object(prefect_app, "setup_logging") as configure,
-        patch.object(
-            prefect_app.ingest_document_flow,
-            "ato_deployment",
-            new=AsyncMock(side_effect=RuntimeError("stop after setup")),
-        ),
-        pytest.raises(RuntimeError),
-    ):
-        import anyio
-
-        anyio.run(prefect_app.main)
-
-    configure.assert_called_once()
-
-
 def test_the_cli_sets_logging_up():
     from cli import commands
 
@@ -179,3 +155,11 @@ def test_the_cli_sets_logging_up():
 
     configure.assert_called_once()
     cli.assert_called_once()
+
+
+def test_one_line_writes_a_line_break_out_and_leaves_none_alone():
+    """The call-site twin of the filter's escaping, for a value the static analyser
+    would otherwise report as reaching a log line unsanitised."""
+    assert one_line("https://a.example\r\nforged: entry") == "https://a.example\\r\\nforged: entry"
+    assert one_line("plain") == "plain"
+    assert one_line(None) is None

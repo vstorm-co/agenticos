@@ -12,8 +12,14 @@ import type { ChangeEvent, ChangeResource } from "@/types/change-events";
  */
 const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // An agent's environments live under it too: one moved by its eval suites
-  // passing is announced as a change to the agent.
-  agent: () => [qk.agents.all(), qk.sharing.all(), qk.environments.all()],
+  // passing is announced as a change to the agent. The Architect's bubble says
+  // whether there is an agent yet.
+  agent: (orgId) => [
+    qk.agents.all(),
+    qk.sharing.all(),
+    qk.environments.all(),
+    qk.runs.assistantSignals(orgId),
+  ],
   skill: () => [qk.skills.all(), qk.sharing.all()],
   context: () => [qk.context.all(), qk.sharing.all()],
   knowledge_base: () => [qk.kb.all(), qk.sharing.all()],

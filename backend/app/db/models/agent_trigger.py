@@ -94,6 +94,21 @@ class ScheduleKind(enum.StrEnum):
     CRON = "cron"
 
 
+class TriggerOverlap(enum.StrEnum):
+    """What a due *schedule* does while its previous fire is still running (#2219).
+
+    `SKIP` lets the occurrence pass and waits for the next one, so a run slower
+    than its interval runs as often as it can finish. `QUEUE` holds the schedule
+    until the previous run ends and fires once then, however many occurrences
+    went by. `ALLOW` fires on time regardless, into the same run log, so two runs
+    of one agent overlap and both are paid for.
+    """
+
+    SKIP = "skip"
+    QUEUE = "queue"
+    ALLOW = "allow"
+
+
 class EventSource(enum.StrEnum):
     """Where an *event* trigger's fire comes from.
 
@@ -195,6 +210,9 @@ class AgentTrigger(Base, TimestampMixin):
     )
     interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cron_expression: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    overlap: Mapped[str] = mapped_column(
+        String(8), nullable=False, default=TriggerOverlap.SKIP.value, server_default="skip"
+    )
 
     # An event trigger's source (`github`, `email`) and its per-source filter -
     # which repository, which sender - matched against the delivered payload
@@ -291,6 +309,7 @@ class AgentTrigger(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("trigger_type IN ('schedule', 'event')", name="ck_trigger_type"),
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
+        CheckConstraint("overlap IN ('skip', 'queue', 'allow')", name="ck_trigger_overlap"),
         CheckConstraint(
             "event_source IS NULL OR event_source IN ('github', 'gmail', 'webhook')",
             name="ck_trigger_event_source",

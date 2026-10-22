@@ -5,8 +5,6 @@ here is the HTTP layer - each route's status, and the 409 a blocked promotion
 answers with, whose `details.gate` is the contract the promotion dialog renders.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

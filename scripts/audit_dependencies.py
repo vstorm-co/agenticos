@@ -54,8 +54,6 @@ the network the rest of the run needs::
         -- -s osv --osv-url http://127.0.0.1:9/v1/query
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -145,7 +143,7 @@ def run_pip_audit(command: list[str], report: Path) -> Attempt:
 
     try:
         parsed = json.loads(report.read_text())
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return Attempt(completed.returncode, output, None)
     return Attempt(completed.returncode, output, parsed)
 

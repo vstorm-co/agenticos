@@ -1,7 +1,5 @@
 """The promotion gate - an environment's guarding eval suites, read for one version."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal
 from uuid import UUID

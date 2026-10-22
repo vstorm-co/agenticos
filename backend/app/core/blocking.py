@@ -12,8 +12,6 @@ The pool is created once, lazily, on first use and lives for the process the way
 the default executor does; its threads are joined at interpreter exit.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import weakref

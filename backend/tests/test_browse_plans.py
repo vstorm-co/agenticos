@@ -1,7 +1,5 @@
 """A person's replayable browse steps in Redis - kept, read back, dropped."""
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

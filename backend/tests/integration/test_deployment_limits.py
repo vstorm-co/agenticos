@@ -10,8 +10,6 @@ add another agent, and neither refusal is a surprise - each names the limit and
 the count it was measured against.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 

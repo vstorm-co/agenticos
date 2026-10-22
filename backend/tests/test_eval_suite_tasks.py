@@ -1,7 +1,5 @@
 """The eval suite sweep: four steps a tick, each in a transaction of its own."""
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 

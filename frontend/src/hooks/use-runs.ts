@@ -64,6 +64,8 @@ export function useRuns(
     surface?: string;
     /** A surface left out - the eval traffic, which outnumbers people. */
     excludeSurface?: string;
+    /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
+    modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
     modelLabel?: string;
     /** Who the run ran as. */
@@ -94,6 +96,7 @@ export function useRuns(
     statuses,
     surface,
     excludeSurface,
+    modality,
     modelLabel,
     userId,
     conversationId,
@@ -112,6 +115,7 @@ export function useRuns(
       statuses,
       surface,
       excludeSurface,
+      modality,
       modelLabel,
       userId,
       conversationId,
@@ -136,6 +140,7 @@ export function useRuns(
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
       if (excludeSurface) params.exclude_surface = excludeSurface;
+      if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;

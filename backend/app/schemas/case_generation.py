@@ -1,7 +1,5 @@
 """Schemas for generating dataset cases and deciding what was generated."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal

@@ -6,14 +6,14 @@
 # What it changes, and nothing else:
 #
 #   - the backend image is built from this tree rather than pulled, and tagged
-#     `agenticos_backend:dev` so `migrate` and `prefect-runner` run the same build;
+#     `agenticos_backend:dev` so `migrate` and `worker` run the same build;
 #   - the source is bind-mounted and the API runs under the reload supervisor, so
 #     an edit is live without a rebuild;
 #   - the console is built from `frontend/` and put behind the `console`
 #     profile, so `make dev` does not fight `bun dev` on the host for :3000 -
 #     `make dev-frontend` starts it;
-#   - Postgres, Redis and the Prefect server publish their ports, so psql, a GUI
-#     client and the test suite can reach them from the host.
+#   - Postgres and Redis publish their ports, so psql, a GUI client and the test
+#     suite can reach them from the host.
 #
 # There used to be a `docker-compose.dev.yml` whose header claimed it was
 # identical to the local file. It was not: it had drifted and lost
@@ -80,23 +80,18 @@ services:
     # 28 MB - inside a reloader that never serves a request.
     command: python -m cli.reload_supervisor --host 0.0.0.0 --port 8000
 
-  prefect-runner:
+  worker:
     image: agenticos_backend:dev
     pull_policy: never
     volumes:
       - ./backend/app:/app/app:ro
     environment:
       - DEBUG=true
-      # Four deployments tick every sixty seconds, and every run is a fresh
-      # Python process that imports the whole application before doing about
-      # two tenths of a second of work - roughly seven seconds of import per
-      # run, four at a time. On a server that is the cost of a schedule nobody
-      # has to trust; on the machine you are also writing code on it is a core
-      # and a half, permanently. Ten minutes is still far below the latency
-      # any of them is about, and a trigger that needs to fire now can be run
-      # from the Prefect UI on :4200. Override it to `0` here to get the
-      # production cadence back locally.
-      - WORKER_MIN_INTERVAL_SECONDS=${WORKER_MIN_INTERVAL_SECONDS:-600}
+      # One ingest child rather than two: each holds an imported application,
+      # and on the machine you are also writing code on that is memory better
+      # left to the editor. The worker does not reload; `docker compose restart
+      # worker` picks up an edit.
+      - WORKER_INGEST_CHILDREN=${WORKER_INGEST_CHILDREN:-1}
 
   frontend:
     build:
@@ -112,7 +107,3 @@ services:
   redis:
     ports:
       - "6379:6379"
-
-  prefect-server:
-    ports:
-      - "4200:4200"

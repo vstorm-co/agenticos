@@ -21,8 +21,6 @@ The claims a mocked session cannot make:
   search, and a topic whose searches are gone is removed;
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import Iterator

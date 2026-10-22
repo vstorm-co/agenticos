@@ -20,8 +20,6 @@ draft's, or a newer manual edit would be overwritten. A field hunk does the same
 with the value it read, through :mod:`app.services.authoring_fields`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any

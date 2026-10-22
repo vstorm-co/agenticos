@@ -11,8 +11,6 @@ in. So the two tools this capability used to publish for that, `list_skills` and
 `load_skill`, are gone, and `read_skill_resource` is the one that remains.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any

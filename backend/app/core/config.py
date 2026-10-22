@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
 
@@ -252,7 +254,12 @@ class Settings(BaseSettings):
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
-    DB_POOL_TIMEOUT: int = 30
+    # How long a caller waits for a free connection. Five seconds, not thirty:
+    # under a burst a request that waited thirty was lost anyway, and the queue
+    # of waiters held every connection long after the burst had passed - the
+    # load suite's recovery phase failed 65-78% at 30 s and 5-20% at 5 s (#2219).
+    # The handler answers the timeout `503` with `Retry-After`.
+    DB_POOL_TIMEOUT: int = 5
 
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
@@ -438,7 +445,7 @@ class Settings(BaseSettings):
     LDAP_KERBEROS_FILTER: str = "(userPrincipalName={principal})"
 
     @model_validator(mode="after")
-    def validate_directory_sign_in(self) -> "Settings":
+    def validate_directory_sign_in(self) -> Settings:
         """A directory configuration that would send a password in the clear, or find nobody, is refused.
 
         Checked at startup rather than at the first sign-in: a typo here would
@@ -503,7 +510,7 @@ class Settings(BaseSettings):
     VAULT_MASTER_KEYS: dict[int, str] = {}
 
     @model_validator(mode="after")
-    def validate_vault_master_keys(self) -> "Settings":
+    def validate_vault_master_keys(self) -> Settings:
         """A deployment holding real credentials must say which key seals them.
 
         An unset master key falls back to `SECRET_KEY`, whose default is a
@@ -625,38 +632,83 @@ class Settings(BaseSettings):
     # what one integration can do to the deployment; a run or an ML call is
     # additionally counted against its own, smaller limit.
     RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Voice previews per person per minute (#54): the Builder's ▶ beside a voice.
+    # Each uncached one is a short paid session on the organization's realtime
+    # provider, outside every model budget.
+    RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE: int = 6
+    # Dictations a visitor may send from a hosted page or a widget, per minute
+    # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
+    # by the token's subject. Each one is a paid call to the organization's
+    # speech-to-text provider, outside every model budget.
+    RATE_LIMIT_EMBED_DICTATION_PER_MINUTE: int = 6
+    # Dictations one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked or public link costs: this many
+    # recordings a minute, each at most the organization's longest dictation.
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
+    # Voice calls one address may start on a hosted page or a widget, per minute
+    # (#54). Each is a paid realtime session, so it is counted before the key is
+    # looked up, the way dictation is.
+    RATE_LIMIT_EMBED_VOICE_PER_MINUTE: int = 3
+    # Voice calls one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked link costs: this many calls a minute,
+    # each at most the organization's longest call, within its monthly minutes.
+    RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE: int = 6
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
     # image: behind a proxy every visitor arrives as the proxy and shares one
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
+    # Map tiles one address may fetch through this deployment in a minute (#2302).
+    # A map is a few dozen tiles and panning adds more; the bound is what keeps
+    # the deployment from being anybody's free proxy to its tile server.
+    RATE_LIMIT_MAP_TILES_PER_MINUTE: int = 600
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
+    # Concurrent voice calls one person may hold (#54). One by default: a second
+    # tab's call is almost always a mistake, and each is billed.
+    VOICE_MAX_CALLS_PER_USER: int = 1
+    # Concurrent voice calls one hosted page or widget may hold, from everybody
+    # together (#54). Visitors have no account to count against, so this is what
+    # stops a leaked link from spending the organization's monthly minutes - and
+    # with them every member's calls - in parallel.
+    VOICE_MAX_CALLS_PER_EMBED: int = 3
 
-    PREFECT_API_URL: str = "http://localhost:4200/api"
-    PREFECT_API_KEY: str | None = None
-    # How many flow runs the runner may execute at once. Each one is a separate
-    # Python process that imports the whole application, so the ceiling is memory
-    # rather than CPU: five of them is about 600 MB. It matters most after
-    # downtime, when the runner picks up a backlog of scheduled runs and would
-    # otherwise start all of them - see app/worker/prefect_app.py.
-    PREFECT_RUNNER_LIMIT: int = 5
-    # A floor under every Prefect schedule, for a machine that is not a server.
-    #
-    # Each Prefect flow run is a fresh Python process importing the application,
-    # measured at roughly seven seconds on a laptop and fourteen on the production
-    # host. The four minute-scale sweeps - the trigger heartbeat, the RAG sync
-    # check, the portal poll and notification delivery - used to be deployments
-    # paying that every minute; they now run inside the worker's process
-    # (`app/worker/sweeps.py`, #2213) and take no floor. What remains scheduled
-    # ticks every fifteen minutes or slower.
-    #
-    # `0` changes nothing and is the default, so a deployment keeps the
-    # intervals the code declares. Raising it lengthens only the schedules
-    # already faster than it, which is why this is a floor rather than a
-    # multiplier: hourly and daily sweeps are untouched by 600. `make dev` sets
-    # it; see `docs/configuration.md`.
-    WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
+    # The background workers (`python -m app.worker`, #2219). Each process serves
+    # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
+    # container runs two workers, one with `agent,system` and one with `ingest`.
+    WORKER_POOLS: str = "agent,ingest,system"
+    # Agent runs at once per worker process. They wait on models rather than
+    # compute, so this is bounded by the database pool and the providers' rate
+    # limits more than by CPU.
+    WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Sweeps, cleanups and reports at once per worker process.
+    WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
+    # Child processes of the ingest pool: one parse each at a time. Each holds an
+    # imported application (about 450 MB) plus what its parse needs.
+    WORKER_INGEST_CHILDREN: int = Field(default=2, ge=1)
+    # The memory one ingest child may hold, with whatever it started, before the
+    # watchdog stops it and the job is written down as over the limit. Below the
+    # container's own limit, so the watchdog - which says why - acts before the
+    # kernel does.
+    WORKER_INGEST_MEMORY_MB: int = Field(default=1536, ge=256)
+    # Jobs an ingest child runs before it is replaced, so a parser that leaks a
+    # little per document is bounded by the recycling.
+    WORKER_INGEST_MAX_JOBS: int = Field(default=100, ge=1)
+    # How long a claimed job is held without a heartbeat. A worker that dies
+    # gives its jobs back this long after it stopped, at the latest.
+    WORKER_LEASE_SECONDS: int = Field(default=60, ge=10)
+    # Worker deaths in a row, across a kind's jobs, that pause the kind and tell
+    # the deployment's owners. A single job's own attempts already stop it from
+    # looping; this stops a kind from killing workers job after job.
+    WORKER_BREAKER_DEATHS: int = Field(default=5, ge=2)
+    # The file the container's health check reads: touched after every heartbeat
+    # that reached the database. The compose probes read the same variable.
+    WORKER_HEALTH_FILE: str = "/tmp/agenticos-worker-alive"  # noqa: S108 - per-container
+    # Finished jobs kept for the panel; older ones are deleted daily.
+    BACKGROUND_JOB_RETENTION_DAYS: int = Field(default=14, ge=1)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local
@@ -793,6 +845,25 @@ class Settings(BaseSettings):
     # drawing's title instead of its picture.
     VISUAL_RENDER_CDP_URL: str = ""
 
+    # The tile server a drawing's map is drawn on (#2302): a preset -
+    # `openstreetmap`, `usgs-topo` - or a https URL template with {z}, {x} and
+    # {y}, which then needs VISUAL_MAP_TILES_ATTRIBUTION. Every visual and
+    # published page may then load images from that server's tile path, and
+    # nothing else remote. Empty draws a map as a plain outline. See
+    # `app/core/map_tiles.py`.
+    VISUAL_MAP_TILES: str = ""
+    VISUAL_MAP_TILES_ATTRIBUTION: str = ""
+
+    def map_tiles(self) -> MapTiles | None:
+        """The tile server a drawing's map uses, or `None` when the deployment names none."""
+        return resolve_map_tiles(self.VISUAL_MAP_TILES, self.VISUAL_MAP_TILES_ATTRIBUTION)
+
+    @model_validator(mode="after")
+    def validate_map_tiles(self) -> Settings:
+        """A tile setting that cannot be served is refused at startup, not at the first map."""
+        self.map_tiles()
+        return self
+
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
     # anything inside the deployment's network and connects to the address it
@@ -813,7 +884,7 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def rag(self) -> "RAGSettings":
+    def rag(self) -> RAGSettings:
         """The RAG settings with nothing of the deployment's in them.
 
         There is no deployment-level half any more: the embedding model, the

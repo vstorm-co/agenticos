@@ -1,8 +1,8 @@
 [project]
 name = "agenticos"
-version = "1.7.0"
+version = "1.12.1"
 description = "OS for your agents."
-requires-python = ">=3.12"
+requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "DEENUU1", email = "kacper.wlodarczyk@vstorm.co" },
@@ -22,7 +22,7 @@ dependencies = [
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.143.2",
     "uvicorn[standard]>=0.54.0",
-    "pydantic[email]>=2.13.5",
+    "pydantic[email]>=2.14.1",
     "pydantic-settings>=2.16.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.2.0",
@@ -31,7 +31,10 @@ dependencies = [
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
     # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
-    # `postgresql+psycopg2://`. Removing it breaks every migration (#155).
+    # `postgresql+psycopg2://`. Removing it breaks every migration (#155). Moving
+    # Alembic to asyncpg was tried for 9 MB of image (#2219) and dropped: asyncpg
+    # is strict about bind types where psycopg2 is not, and the backfills that
+    # would meet that run only against data no local check has.
     "psycopg2-binary>=2.9.13",
     "alembic>=1.19.2",
     "greenlet>=3.5.5",
@@ -48,7 +51,6 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.7",
     # The floor is ours as well as `pydantic-ai-harness`'s: the sandbox runs on
     # `pydantic_ai.workspaces` and passes `workspace=` to a run, both from 2.52,
     # and stating it keeps a resolver from picking a slim the harness cannot run
@@ -56,7 +58,7 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.57.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.57.0",
     "genai-prices>=0.1.10",
     "pydantic-ai-slim[mcp]>=2.57.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
@@ -101,8 +103,10 @@ dependencies = [
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
     "liteparse>=2.16.0",
-    "google-api-python-client>=2.201.0",
-    "google-auth>=2.62.0",
+    # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
+    # `google-auth` only signs the service account's token, over `requests`.
+    # `google-api-python-client` was 108 MB of discovery documents for four URLs.
+    "google-auth[requests]>=2.62.0",
     "boto3>=1.43.114",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
@@ -137,7 +141,7 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.36",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.37",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -199,6 +203,11 @@ dependencies = [
     "jsonschema>=4.26.0",
     "regex>=2026.9.10",
     "referencing>=0.37.0",
+    # The ingest pool's memory watchdog (#2219): the resident size of a job's child
+    # process and of whatever it starts - LibreOffice for a conversion - so a parse
+    # that grows past its limit is stopped and the parent says why. `/proc` alone
+    # would do on Linux and nowhere else.
+    "psutil>=7.0",
 ]
 
 [project.optional-dependencies]
@@ -372,8 +381,12 @@ DEP002 = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py315"
 line-length = 100
+# These run on the runner's own `python3` (3.12), before any toolchain is
+# installed - CI's first job, and the dependency-graph submission - so they keep
+# to syntax that interpreter parses.
+per-file-target-version = { "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
 # The rule set is deliberately wide. A linter that only catches formatting is a
@@ -504,19 +517,22 @@ ignore = [
 "app/services/channels/telegram.py" = ["TRY300", "S107"]
 "app/services/rag/ingestion.py" = ["TRY300", "PTH123"]
 "app/services/rag/documents.py" = ["PTH123"]
-"app/services/rag/sources/google_drive.py" = ["ASYNC230", "PTH123"]
 "app/worker/tasks/rag_tasks.py" = ["TRY300"]
 "app/clients/redis.py" = ["TRY300"]
 "app/core/security.py" = ["TRY300"]
 "app/commands/seed.py" = ["S311"]
-# A polling loop that exits on a flag rather than an Event, and one more
-# blocking read inside a Google SDK call. Same tracked debt as the rest of the
-# generator's channel and connector code.
+# A polling loop that exits on a flag rather than an Event. Same tracked debt as
+# the rest of the generator's channel code.
 "app/services/channels/slack.py" = ["ASYNC110"]
-"app/services/rag/connectors/google_drive.py" = ["PTH123"]
 # The CLI binds 0.0.0.0 because that is what a container needs, and its
 # command bodies read fine as try/except/return.
 "cli/**" = ["S104", "TRY300"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Annotations are evaluated lazily since Python 3.14 (PEP 649), so this import
+# changes nothing but turns every annotation into a string - which a library
+# reading annotations at runtime then has to resolve itself (#2229).
+"__future__.annotations".msg = "annotations are lazy on Python 3.14+; drop the import"
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "cli"]
@@ -534,7 +550,7 @@ known-first-party = ["app", "cli"]
 error-on-warning = true
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.15"
 
 [tool.ty.src]
 # `app/commands/` used to be here, which quietly took `app/commands/bootstrap.py`
@@ -724,14 +740,26 @@ include = [
     "app/repositories/collection_teardown.py",
     "app/repositories/pending_sandbox_destroy.py",
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
     "app/services/impersonation.py",
     "app/services/ws_auth.py",
     "app/services/health.py",
-    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
-    "app/services/worker_heartbeat.py",
+    # The job queue that replaced Prefect (#2219). The claim spends an attempt
+    # before the job runs and the worker never hot-loops, so a job that kills
+    # its process cannot loop and a database that is down cannot spin it.
+    "app/worker/*.py",
+    "app/worker/tasks/background_tasks.py",
+    "app/repositories/background_job.py",
+    "app/repositories/background_schedule.py",
+    "app/repositories/background_task_kind.py",
+    "app/repositories/background_worker.py",
+    "app/services/background_jobs.py",
+    "app/services/api_runs.py",
+    "app/api/routes/v1/admin_background_jobs.py",
+    "app/api/routes/v1/run_requests.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
@@ -774,12 +802,25 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
+    "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
+    "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -879,6 +920,8 @@ include = [
     "app/repositories/visual.py",
     "app/services/visual.py",
     "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
@@ -1003,6 +1046,8 @@ include = [
     "app/services/ml/pii.py",
     "app/services/ml/parsing.py",
     "app/services/ml/facade.py",
+    "app/services/ml/audio_duration.py",
+    "app/services/ml/pcm_wav.py",
     "app/db/models/ml_service_call.py",
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
@@ -1027,6 +1072,7 @@ include = [
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -1233,6 +1279,7 @@ include = [
     # unreachable `except BudgetExceeded` sat here for as long as it was
     # ungated, which is the failure this gate exists to name (#663).
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who
@@ -1251,8 +1298,19 @@ include = [
     # provider check. A probe nobody has watched fail is not a probe, which is
     # why this module is gated rather than reported.
     "app/services/health.py",
-    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
-    "app/services/worker_heartbeat.py",
+    # The job queue that replaced Prefect (#2219). The claim spends an attempt
+    # before the job runs and the worker never hot-loops, so a job that kills
+    # its process cannot loop and a database that is down cannot spin it.
+    "app/worker/*.py",
+    "app/worker/tasks/background_tasks.py",
+    "app/repositories/background_job.py",
+    "app/repositories/background_schedule.py",
+    "app/repositories/background_task_kind.py",
+    "app/repositories/background_worker.py",
+    "app/services/background_jobs.py",
+    "app/services/api_runs.py",
+    "app/api/routes/v1/admin_background_jobs.py",
+    "app/api/routes/v1/run_requests.py",
     # Template-inherited, gated anyway. Its fixed `emails/compiled` path pointed
     # at a directory that never existed, so every email raised
     # EmailTemplateError — and every caller logs and swallows that, so
@@ -1309,12 +1367,25 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
+    "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
+    "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # The Drive REST client that replaced Google's discovery SDK: written here,
+    # so held to the bar.
+    "app/services/rag/drive_api.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -1414,6 +1485,8 @@ include = [
     "app/repositories/visual.py",
     "app/services/visual.py",
     "app/services/visual_render.py",
+    "app/core/map_tiles.py",
+    "app/services/tile_proxy.py",
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
@@ -1538,6 +1611,8 @@ include = [
     "app/services/ml/pii.py",
     "app/services/ml/parsing.py",
     "app/services/ml/facade.py",
+    "app/services/ml/audio_duration.py",
+    "app/services/ml/pcm_wav.py",
     "app/db/models/ml_service_call.py",
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
@@ -1562,6 +1637,7 @@ include = [
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",
+    "app/services/redis_view.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
     "app/db/models/browser_sign_in.py",
@@ -1593,12 +1669,14 @@ exclude_also = [
 ]
 
 [tool.uv]
-# FastMCP asks for a beartype pre-release on Python 3.15, where no final
-# release supports it yet. Allowing that one pre-release, only there, is what
-# lets the lock resolve for every Python this project claims; 3.12 is unaffected.
-constraint-dependencies = ["beartype>=0.23.0rc2; python_full_version >= '3.15'"]
-# xai-sdk caps packaging below 26, and virtualenv (pre-commit's) fixes
+# aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
+# pydantic-core with no CPython 3.15 wheel, so without this the backend cannot
+# be installed on the Python it runs (#2229). aiogram raises that cap with each
+# pydantic minor release rather than for a break; the Telegram channel's tests
+# exercise it. Drop this once aiogram allows 2.14.
+#
+# xai-sdk 1.20 caps packaging below 26, and virtualenv (pre-commit's) fixes
 # CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
 # held a known advisory in the lock. xai-sdk reads versions with packaging's
 # stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
-override-dependencies = ["packaging>=26.3"]
+override-dependencies = ["pydantic[email]>=2.14.1", "packaging>=26.3"]

@@ -4,8 +4,6 @@ Shared by everything the minute sweeps schedule - agent triggers, which keep a
 schedule in UTC, and eval suites, which keep one in the zone their owner names.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from typing import cast
 from zoneinfo import ZoneInfo

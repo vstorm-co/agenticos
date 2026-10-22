@@ -8,8 +8,6 @@ a list of parameter dictionaries for a `text()` DML statement to asyncpg as one
 still behaves per row when it does. Both are asked here.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

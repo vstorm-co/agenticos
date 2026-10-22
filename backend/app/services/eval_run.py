@@ -27,8 +27,6 @@ assistant - start runs through :meth:`EvalRunService.start` with their own
 :meth:`EvalRunService.compare`.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import logging
@@ -48,7 +46,6 @@ from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
-from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -111,6 +108,7 @@ from app.services.agent_registry import (
     UnpublishedCandidate,
 )
 from app.services.ai_assistance import AiAssistanceService
+from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import (
     ArmSummary,
@@ -128,6 +126,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ungraded
 from app.services.spend import month_start, organization_monthly_spend
+from app.worker.jobs import RUN_EVAL, RunEval
 
 logger = logging.getLogger(__name__)
 
@@ -971,12 +970,11 @@ class EvalRunService:
                 for position, case in enumerate(plan.cases)
             ],
         )
-        from app.worker.tasks.eval_tasks import dispatch_eval_run
-
-        spawn_after_commit(
+        await enqueue(
             self.db,
-            dispatch_eval_run(str(run.id), str(ctx.organization_id)),
-            name=f"eval-run:{run.id}",
+            RUN_EVAL,
+            RunEval(eval_run_id=run.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
         )
         logger.info("Eval run %s queued: %d case(s), %d arm(s)", run.id, len(plan.cases), len(arms))
         return (await self._reads(ctx, [run]))[0]

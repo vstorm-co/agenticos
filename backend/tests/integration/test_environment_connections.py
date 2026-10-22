@@ -8,8 +8,6 @@ agree by `CHECK`, both tables are scoped by tenant, and an intercepted call's
 order survives a run being finished twice.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

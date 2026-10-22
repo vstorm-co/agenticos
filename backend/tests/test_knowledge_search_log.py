@@ -5,8 +5,6 @@ log once the run is over. These tests pin what a record holds, that only a
 search that ran is recorded, and that a lost write never fails the run.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

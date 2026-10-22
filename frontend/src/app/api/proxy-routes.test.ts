@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import * as adminBackgroundJobs from "./admin/background-jobs/[[...path]]/route";
 import * as adminConversations from "./admin/conversations/route";
 import * as adminOrganizations from "./admin/organizations/route";
 import * as adminOrganization from "./admin/organizations/[id]/route";
@@ -38,6 +39,7 @@ import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
@@ -87,6 +89,7 @@ import * as stats from "./stats/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as voice from "./voice/[[...path]]/route";
 
 /**
  * Every mount of the shared forwarder.
@@ -102,6 +105,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["admin/organizations", adminOrganizations],
   ["admin/organizations/[id]", adminOrganization],
   ["admin/ratings/summary", adminRatingsSummary],
+  ["admin/background-jobs", adminBackgroundJobs],
   ["admin/settings", adminSettings],
   ["admin/stats", adminStats],
   ["admin/system", adminSystem],
@@ -132,6 +136,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
   ["memory", memory],
+  ["ml/calls", mlCalls],
   ["me/channel-link", channelLink],
   ["me/mcp-connections", myMcpConnections],
   ["me/mcp-connections/[id]", myMcpConnection],
@@ -176,6 +181,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
   ["me/dashboard-layout/presets", dashboardPresets],

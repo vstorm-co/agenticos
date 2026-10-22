@@ -25,15 +25,13 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
 from collections.abc import Iterator
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from app.core.config import settings
 
@@ -214,3 +212,200 @@ class TestMigrations:
         assert "(head)" in result.stdout, (
             f"Current revision is not at head:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+
+class TestBotTranscriptionSwitch:
+    """`0151_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
+
+    A bot with no pair used to be a bot that did not transcribe, and a new bot
+    with no pair inherits one. The backfill is what keeps the first from turning
+    into the second underneath its operator - the acceptance criterion "a bot
+    that had no pair before the migration still does not transcribe" (#1797).
+    """
+
+    def test_a_pairless_bot_is_switched_off_and_a_paired_one_keeps_its_pair(self):
+        assert _alembic("downgrade", "base").returncode == 0
+        up = _alembic("upgrade", "0150_org_speech_settings")
+        assert up.returncode == 0, up.stderr
+
+        org = "00000000-0000-0000-0000-0000000000a1"
+        bots = {
+            "paired": ("00000000-0000-0000-0000-0000000000b1", "openai", "whisper-1"),
+            "pairless": ("00000000-0000-0000-0000-0000000000b2", None, None),
+            "half": ("00000000-0000-0000-0000-0000000000b3", "openai", None),
+        }
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # Rows written the way 0106's schema allowed, so the creator need
+                # not exist: replica mode skips the foreign-key triggers.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, "
+                        "created_by_user_id) VALUES (:id, 'Acme', 'acme', false, :id)"
+                    ),
+                    {"id": org},
+                )
+                for bot_id, provider, model in bots.values():
+                    connection.execute(
+                        text(
+                            "INSERT INTO channel_bots (id, organization_id, platform, name, "
+                            "token_encrypted, secret_key_version, is_active, webhook_mode, "
+                            "access_policy, speech_to_text_provider, speech_to_text_model) "
+                            "VALUES (:id, :org, 'telegram', 'bot', 'x', 1, true, false, '{}', "
+                            ":provider, :model)"
+                        ),
+                        {"id": bot_id, "org": org, "provider": provider, "model": model},
+                    )
+
+            up = _alembic("upgrade", "0151_bot_transcription_switch")
+            assert up.returncode == 0, up.stderr
+
+            with engine.connect() as connection:
+                rows = {
+                    str(row[0]): (row[1], row[2], row[3])
+                    for row in connection.execute(
+                        text(
+                            "SELECT id, transcribe_voice_notes, speech_to_text_provider, "
+                            "speech_to_text_model FROM channel_bots"
+                        )
+                    )
+                }
+        finally:
+            engine.dispose()
+
+        assert rows[bots["paired"][0]] == (True, "openai", "whisper-1")
+        assert rows[bots["pairless"][0]] == (False, None, None)
+        # Half a pair could not transcribe either, and the CHECK now refuses one.
+        assert rows[bots["half"][0]] == (False, None, None)
+
+        down = _alembic("downgrade", "0150_org_speech_settings")
+        assert down.returncode == 0, down.stderr
+
+    def test_a_paired_bot_is_given_the_key_its_profile_lookup_would_have_found(self):
+        """The profile lookup is gone, so 0107 writes down the key it would have
+        used - the first keyed profile by label for the bot's provider, with no
+        address of its own - but only a key a bot may now be saved with: an
+        organization-visible API key for that provider. Anything else leaves
+        the key null, which the form shows as "choose a key"."""
+        assert _alembic("downgrade", "base").returncode == 0
+        up = _alembic("upgrade", "0150_org_speech_settings")
+        assert up.returncode == 0, up.stderr
+
+        org, other_org = (
+            "00000000-0000-0000-0000-0000000000a1",
+            "00000000-0000-0000-0000-0000000000a2",
+        )
+        owner = "00000000-0000-0000-0000-0000000000c1"
+        secrets = {
+            # Each is its id, then its organization, purpose, kind and visibility.
+            "proxy": ("00000000-0000-0000-0000-0000000000d1", org, "openai", "api_key", "org"),
+            "real": ("00000000-0000-0000-0000-0000000000d2", org, "openai", "api_key", "org"),
+            "later": ("00000000-0000-0000-0000-0000000000d3", org, "openai", "api_key", "org"),
+            "private": ("00000000-0000-0000-0000-0000000000d4", org, "groq", "api_key", "private"),
+            "custom": ("00000000-0000-0000-0000-0000000000d5", org, "custom", "api_key", "org"),
+        }
+        profiles = [
+            # Each is a label, a provider, the secret it names and its own address.
+            ("a proxy", "openai", "proxy", "http://litellm.local/v1"),
+            ("b real", "openai", "real", None),
+            ("c later", "openai", "later", None),
+            ("d groq", "groq", "private", None),
+            ("e mistral", "mistral", "custom", None),
+        ]
+        bots = {
+            "openai": ("00000000-0000-0000-0000-0000000000b1", org, "openai", "whisper-1"),
+            "groq": ("00000000-0000-0000-0000-0000000000b2", org, "groq", "whisper-large-v3"),
+            "mistral": (
+                "00000000-0000-0000-0000-0000000000b3",
+                org,
+                "mistral",
+                "voxtral-mini-latest",
+            ),
+            "elsewhere": ("00000000-0000-0000-0000-0000000000b4", other_org, "openai", "whisper-1"),
+            "pairless": ("00000000-0000-0000-0000-0000000000b5", org, None, None),
+        }
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for org_id, slug in ((org, "acme"), (other_org, "other")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO organizations (id, name, slug, is_personal, "
+                            "created_by_user_id) VALUES (:id, :slug, :slug, false, :id)"
+                        ),
+                        {"id": org_id, "slug": slug},
+                    )
+                for name, (secret_id, org_id, purpose, kind, visibility) in secrets.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO organization_secrets (id, organization_id, name, kind, "
+                            "purpose, visibility, owner_user_id, sealed_secret, hint, "
+                            "key_version) VALUES (:id, :org, :name, :kind, :purpose, "
+                            ":visibility, :owner, 'sealed', 'abcd', 1)"
+                        ),
+                        {
+                            "id": secret_id,
+                            "org": org_id,
+                            "name": name,
+                            "kind": kind,
+                            "purpose": purpose,
+                            "visibility": visibility,
+                            "owner": owner,
+                        },
+                    )
+                for label, provider, secret, base_url in profiles:
+                    connection.execute(
+                        text(
+                            "INSERT INTO model_profiles (id, organization_id, label, provider, "
+                            "model, secret_id, base_url) VALUES (gen_random_uuid(), "
+                            ":org, :label, :provider, 'x', :secret, :base_url)"
+                        ),
+                        {
+                            "org": org,
+                            "label": label,
+                            "provider": provider,
+                            "secret": secrets[secret][0],
+                            "base_url": base_url,
+                        },
+                    )
+                for bot_id, org_id, provider, model in bots.values():
+                    connection.execute(
+                        text(
+                            "INSERT INTO channel_bots (id, organization_id, platform, name, "
+                            "token_encrypted, secret_key_version, is_active, webhook_mode, "
+                            "access_policy, speech_to_text_provider, speech_to_text_model) "
+                            "VALUES (:id, :org, 'telegram', 'bot', 'x', 1, true, false, '{}', "
+                            ":provider, :model)"
+                        ),
+                        {"id": bot_id, "org": org_id, "provider": provider, "model": model},
+                    )
+
+            up = _alembic("upgrade", "0151_bot_transcription_switch")
+            assert up.returncode == 0, up.stderr
+
+            with engine.connect() as connection:
+                keys = {
+                    str(row[0]): None if row[1] is None else str(row[1])
+                    for row in connection.execute(
+                        text("SELECT id, speech_to_text_secret_id FROM channel_bots")
+                    )
+                }
+        finally:
+            engine.dispose()
+
+        # The first by label with no address of its own - not the proxy, which
+        # sorts first, and not the one after it.
+        assert keys[bots["openai"][0]] == secrets["real"][0]
+        # A member's private key is never spent for everybody's voice notes.
+        assert keys[bots["groq"][0]] is None
+        # A key stored for another purpose is not this provider's.
+        assert keys[bots["mistral"][0]] is None
+        # Another organization's profiles are not this bot's.
+        assert keys[bots["elsewhere"][0]] is None
+        assert keys[bots["pairless"][0]] is None
+
+        down = _alembic("downgrade", "0150_org_speech_settings")
+        assert down.returncode == 0, down.stderr

@@ -4,8 +4,6 @@ The trajectory tests are the contract the issue states: every order mode, each
 with an extra call, a missing one and a reordered pair.
 """
 
-from __future__ import annotations
-
 import time
 import uuid
 from datetime import UTC, datetime

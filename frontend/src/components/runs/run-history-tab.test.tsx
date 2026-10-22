@@ -92,6 +92,8 @@ function aRun(): AgentRun {
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     down_rated: false,
     conversation_id: null,
     provider: null,
@@ -287,6 +289,15 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "Slack" }));
 
     expect(lastOptions()).toMatchObject({ surface: "slack" });
+  });
+
+  it("narrows to voice calls", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by kind" }));
+    await userEvent.click(screen.getByRole("option", { name: "Voice calls" }));
+
+    expect(lastOptions()).toMatchObject({ modality: "voice" });
   });
 
   it("asks for the runs people liked, not only the ones they did not", async () => {

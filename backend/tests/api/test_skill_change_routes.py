@@ -8,8 +8,6 @@ listing showing only a name would make the decision a coin flip with an audit
 trail.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager

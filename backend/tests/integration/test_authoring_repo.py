@@ -10,8 +10,6 @@ What only a database shows:
 - and nothing is read across organizations.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

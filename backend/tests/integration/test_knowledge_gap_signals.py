@@ -7,8 +7,6 @@ it is shown - only the organization's own people's answers, never an eval's -
 what is remembered, and who may ask for it at all.
 """
 
-from __future__ import annotations
-
 import dataclasses
 import re
 import uuid

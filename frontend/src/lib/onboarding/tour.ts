@@ -183,6 +183,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  // The call button sits in the composer whenever an agent is selected - offered
+  // or crossed out - but readiness loads after the page, so the stop is optional:
+  // a slow read must not pin the caption to nothing (#54).
+  { id: "chat-voice-call", page: ROUTES.CHAT, target: "chat-voice-call", optional: true },
   // Inside the same popover as the model, so the walk opens it - `activate` on a
   // popover's trigger clicks it - and the next stop finds it already open.
   // `optional` because the section renders only for someone who may change it.
@@ -253,6 +257,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-model",
     page: AGENT_BUILDER,
     target: "agent-model",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
+  // The Voice card, right under the model: dictation and, below it, the
+  // realtime model, key and voice the agent takes calls with (#54).
+  {
+    id: "agent-voice",
+    page: AGENT_BUILDER,
+    target: "agent-voice",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
@@ -712,6 +725,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The Voice card sits above the member list on the same page, so it comes
+  // before the list rather than doubling back from the roles matrix. Gated like
+  // the card, which is hidden from anybody who may not change settings.
+  {
+    id: "org-voice",
+    page: ORG_MEMBERS,
+    target: "org-voice",
+    permission: Perm.orgSettings,
+  },
   // The AI Architect's card: drawn only on the active organization's page, and
   // only for somebody who may change the organization's settings.
   {
@@ -889,6 +911,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  // The Appearance card - theme, voice glow, motion. On the profile tab only,
+  // so `optional`: help opened on another tab has no card to wait four seconds
+  // for. Ungated, like the tabs: these are every person's own preferences.
+  {
+    id: "settings-appearance",
+    page: SETTINGS_DETAIL,
+    target: "settings-appearance",
+    optional: true,
+  },
   // Optional, because the card it anchors on renders only where an agent has
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).

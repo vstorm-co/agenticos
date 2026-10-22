@@ -1,7 +1,5 @@
 """Rows in `intercepted_tool_calls` - what an isolated run did not execute."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from uuid import UUID
 

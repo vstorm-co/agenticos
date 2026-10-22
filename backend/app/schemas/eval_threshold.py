@@ -4,8 +4,6 @@ Apart from `app.schemas.eval_suite` because an eval run's own read carries the
 verdict of a check made on a suite, and the suite schemas read the run's.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 from uuid import UUID
 

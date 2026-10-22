@@ -192,6 +192,7 @@ TENANT_REQUIRED = [
 CROSS_TENANT_BY_DESIGN = [
     (channel_bot_repo, "get_for_inbound"),
     (channel_bot_repo, "get_active_polling_bots"),
+    (channel_bot_repo, "get_active_polling_bot_ids"),
     (conversation_repo, "get_conversation_by_id"),
     (personal_data_repo, "unlink_dataset_cases_of"),
     (personal_data_repo, "delete_case_proposals_of"),

@@ -6,8 +6,6 @@ directly rather than through mock calls. Who may watch is a join against the
 database and lives in `tests/integration/test_live_browse.py`.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator, Iterator
@@ -192,7 +190,7 @@ class TestConnecting:
     async def test_a_worker_connects_once_and_keeps_its_client(
         self, monkeypatch: pytest.MonkeyPatch, no_redis: None
     ) -> None:
-        """A routine's browse runs in a Prefect flow, which the API lifespan never
+        """A routine's browse runs in the worker, which the API lifespan never
         configured."""
         made: list[MagicMock] = []
 

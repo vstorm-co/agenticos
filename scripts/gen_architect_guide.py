@@ -13,8 +13,6 @@ Usage::
     python3 scripts/gen_architect_guide.py --check  # exit 1 if they are stale
 """
 
-from __future__ import annotations
-
 import argparse
 import sys
 from pathlib import Path

@@ -13,8 +13,6 @@ The claims a mocked session cannot make:
   by name.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

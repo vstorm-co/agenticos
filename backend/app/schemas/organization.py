@@ -80,6 +80,31 @@ class OrganizationUpdate(BaseSchema):
             "it needs 'org:settings'."
         ),
     )
+    speech_to_text_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description="A provider from the speech-to-text catalog; null clears it.",
+    )
+    speech_to_text_model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="A model that provider offers; null clears it. Set with the provider.",
+    )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with: an organization-visible API key "
+            "whose purpose is the provider. Required with a pair; null clears it."
+        ),
+    )
+    speech_to_text_language: str | None = Field(
+        default=None,
+        max_length=8,
+        description="ISO-639-1 code to pin recordings to, or null to auto-detect.",
+    )
+    dictation_max_seconds: int | None = Field(
+        default=None, ge=10, le=600, description="Longest dictation, in seconds (10-600)."
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -87,6 +112,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     name: str
     slug: str
     is_personal: bool
+    is_default: bool = Field(
+        default=False,
+        description=(
+            "Whether this is the deployment's default organization: the one every new "
+            "account joins, and where a request naming no organization acts."
+        ),
+    )
     avatar_url: str | None = None
     avatar_color: int | None = None
     member_count: int = 0
@@ -108,6 +140,17 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "and deterministic checks and a person's verdicts stay available."
         ),
     )
+    speech_to_text_provider: str | None = None
+    speech_to_text_model: str | None = None
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with, by id. Null with a pair means the "
+            "key was deleted, and dictation waits for another to be chosen."
+        ),
+    )
+    speech_to_text_language: str | None = None
+    dictation_max_seconds: int = 300
 
 
 class OrganizationList(BaseSchema):
@@ -262,6 +305,12 @@ class InvitationStageRequest(BaseSchema):
     """The token an invitee holds, offered for the server-side exchange (#1414)."""
 
     token: str = Field(min_length=1, max_length=64)
+
+
+class InvitationAccepted(BaseSchema):
+    """The organization an accepted invitation joined, for the console to switch to."""
+
+    organization_id: UUID
 
 
 class InvitationStaged(BaseSchema):

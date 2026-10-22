@@ -5,8 +5,6 @@ insert one. Only the database's unique key settles which insert stands, so only
 a real database shows the loser attaching to the winner's row.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

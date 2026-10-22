@@ -39,6 +39,13 @@ class Mentionable(MentionRef):
             "icon the console draws for it"
         ),
     )
+    host: str | None = Field(
+        default=None,
+        description=(
+            "An MCP server's host, which the console draws its brand logo from - the "
+            "host alone, because a connection's address can carry a credential"
+        ),
+    )
     slug: str | None = Field(default=None, description="An agent's handle, for its face")
     has_avatar: bool = False
     avatar_color: int | None = None

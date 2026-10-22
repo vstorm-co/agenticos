@@ -6,8 +6,6 @@ does against Postgres. What is left is the HTTP layer: the status each route
 answers with, and that a decision reaches the service as the client sent it.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

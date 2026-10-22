@@ -8,8 +8,6 @@ generation: `ready` with its drafts, or `failed` with a reason this platform
 wrote and, when there was one, the run to open in Activity.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from uuid import UUID

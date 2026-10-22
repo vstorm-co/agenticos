@@ -13,8 +13,6 @@ that keeps `link_message_to_run` from pulling another thread's turn into this
 run's transcript.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

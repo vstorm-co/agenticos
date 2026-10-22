@@ -73,9 +73,10 @@ permissions:
 # cold cache is a red build for a reason unrelated to the diff. Measured on run
 # 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
 # docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s (and the image build,
-# since moved to `images.yml`, 2m30s). `test` has since grown well past that: it
-# runs the suite twice (the gated run, then `coverage-all`), and at about 14,800
-# tests run 39624533670 spent 24m on the two and was cancelled at the old 25.
+# since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
+# the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
+# `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
+# every step green. It has 45.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -178,7 +179,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -232,7 +233,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -285,7 +286,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -489,7 +490,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install backend dependencies
         run: uv sync --directory backend --dev
@@ -676,7 +677,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -741,7 +742,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       # The runtime too, not just mkdocs: the reference pages are generated from
       # the application's own docstrings, so a build without it would either fail

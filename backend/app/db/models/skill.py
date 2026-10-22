@@ -73,7 +73,7 @@ class Skill(Base, TimestampMixin):
     # version may replace it; different means somebody did, and it is left alone.
     library_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    resources: Mapped[list["SkillResource"]] = relationship(
+    resources: Mapped[list[SkillResource]] = relationship(
         "SkillResource",
         back_populates="skill",
         cascade="all, delete-orphan",

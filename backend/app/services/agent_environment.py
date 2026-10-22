@@ -19,8 +19,6 @@ What this service refuses is as deliberate as what it allows:
   spec does not carry, so it is checked the way publish checks a binding.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from uuid import UUID

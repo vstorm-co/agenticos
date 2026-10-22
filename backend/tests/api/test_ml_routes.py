@@ -7,8 +7,6 @@ the service reaches them as this API's own error envelope rather than as
 whatever the engine underneath said.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,6 +19,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.ml_service_call import MLServiceCall
 from app.main import app
+from app.repositories.ml_service_call import AgentUsage, SurfaceUsage, UsageSummary
 from app.services.ml import parsing
 from app.services.ml.facade import MLService, Transcript
 
@@ -172,6 +171,22 @@ async def test_a_transcription_answers_with_the_text_and_the_engine_that_read_it
         "model": "whisper-1",
     }
     assert called.await_args.kwargs["mime_type"] == "audio/ogg"
+    assert called.await_args.kwargs["secret_id"] is None
+
+
+async def test_a_transcription_may_name_the_key_it_is_sent_with(client: AsyncClient) -> None:
+    key = uuid.uuid4()
+    transcript = Transcript(text="hi", provider="groq", model="whisper-large-v3")
+    with patch(f"{_FACADE}.transcribe", new=AsyncMock(return_value=transcript)) as called:
+        response = await client.post(
+            f"{_V1}/ml/audio/transcriptions",
+            files={"file": ("voice.ogg", b"audio", "audio/ogg")},
+            data={"provider": "groq", "secret_id": str(key)},
+        )
+
+    assert response.status_code == 200
+    assert called.await_args.kwargs["secret_id"] == key
+    assert called.await_args.kwargs["provider"] == "groq"
 
 
 async def test_a_scan_answers_with_the_counts_and_the_redacted_text(
@@ -231,7 +246,99 @@ async def test_the_call_log_pages_and_can_be_narrowed_to_one_service(
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["unit"] == "pages"
-    assert called.await_args.kwargs == {"service": "ocr", "skip": 0, "limit": 5}
+    assert called.await_args.kwargs == {
+        "service": "ocr",
+        "agent_id": None,
+        "channel_bot_id": None,
+        "surface": None,
+        "since": None,
+        "until": None,
+        "skip": 0,
+        "limit": 5,
+    }
+
+
+async def test_the_call_log_narrows_to_an_agent_a_bot_a_surface_and_a_window(
+    client: AsyncClient,
+) -> None:
+    agent_id, bot_id = uuid.uuid4(), uuid.uuid4()
+    row = _call_row(
+        service="speech_to_text",
+        units=3,
+        unit="seconds",
+        provider="groq",
+        model="whisper-large-v3-turbo",
+        surface="channel",
+        agent_id=agent_id,
+        channel_bot_id=bot_id,
+        audio_ms=2500,
+    )
+    with patch(f"{_FACADE}.call_records", new=AsyncMock(return_value=([row], 1))) as called:
+        response = await client.get(
+            f"{_V1}/ml/calls",
+            params={
+                "agent_id": str(agent_id),
+                "channel_bot_id": str(bot_id),
+                "surface": "channel",
+                "since": "2026-10-01T00:00:00Z",
+                "until": "2026-10-13T00:00:00Z",
+            },
+        )
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert (item["surface"], item["audio_ms"], item["unit"]) == ("channel", 2500, "seconds")
+    assert (item["agent_id"], item["channel_bot_id"]) == (str(agent_id), str(bot_id))
+    sent = called.await_args.kwargs
+    assert (sent["agent_id"], sent["channel_bot_id"], sent["surface"]) == (
+        agent_id,
+        bot_id,
+        "channel",
+    )
+    assert sent["since"] == datetime(2026, 10, 1, tzinfo=UTC)
+    assert sent["until"] == datetime(2026, 10, 13, tzinfo=UTC)
+
+
+async def test_a_surface_nobody_records_is_refused(client: AsyncClient) -> None:
+    response = await client.get(f"{_V1}/ml/calls", params={"surface": "fax"})
+
+    assert response.status_code == 422
+
+
+async def test_the_summary_is_routed_before_a_call_id_and_answers_in_seconds(
+    client: AsyncClient,
+) -> None:
+    """`/calls/summary` would otherwise be read as `/calls/{call_id}` and 422."""
+    agent_id, bot_id = uuid.uuid4(), uuid.uuid4()
+    summary = UsageSummary(
+        seconds=2520,
+        count=118,
+        count_unknown_length=30,
+        by_agent=[AgentUsage(id=agent_id, name="Support", seconds=2, count=2)],
+        by_channel=[AgentUsage(id=bot_id, name="Front desk", seconds=1, count=1)],
+        by_surface=[SurfaceUsage(surface="chat", seconds=1000, count=100)],
+    )
+    with patch(f"{_FACADE}.usage_summary", new=AsyncMock(return_value=summary)) as called:
+        response = await client.get(f"{_V1}/ml/calls/summary", params={"days": 7})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["service"], body["days"], body["seconds"]) == ("speech_to_text", 7, 2520)
+    assert (body["count"], body["count_unknown_length"]) == (118, 30)
+    assert body["by_agent"] == [
+        {"agent_id": str(agent_id), "name": "Support", "seconds": 2, "count": 2}
+    ]
+    assert body["by_channel"] == [
+        {"channel_bot_id": str(bot_id), "name": "Front desk", "seconds": 1, "count": 1}
+    ]
+    assert body["by_surface"] == [{"surface": "chat", "seconds": 1000, "count": 100}]
+    assert called.await_args.kwargs == {"service": "speech_to_text", "days": 7}
+
+
+async def test_the_summary_adds_up_transcription_only(client: AsyncClient) -> None:
+    response = await client.get(f"{_V1}/ml/calls/summary", params={"ml_service": "ocr"})
+
+    assert response.status_code == 422
 
 
 async def test_one_call_record_reads_back_without_any_of_what_was_submitted(
@@ -255,6 +362,12 @@ async def test_one_call_record_reads_back_without_any_of_what_was_submitted(
         "units",
         "unit",
         "duration_ms",
+        "provider",
+        "model",
+        "surface",
+        "agent_id",
+        "channel_bot_id",
+        "audio_ms",
         "created_at",
         "updated_at",
     }

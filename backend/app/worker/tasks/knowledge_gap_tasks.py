@@ -12,8 +12,6 @@ model, so it runs only when a person asks for it, as them.
 import logging
 from uuid import UUID
 
-from prefect import flow
-
 from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.session import get_worker_connection, get_worker_db_context
 from app.services import change_feed
@@ -26,8 +24,7 @@ from app.services.knowledge_gaps import (
 logger = logging.getLogger(__name__)
 
 
-@flow(name="group-knowledge-gaps")
-async def group_knowledge_gaps_flow(
+async def group_knowledge_gaps(
     organization_id: str | None = None, knowledge_base_id: str | None = None
 ) -> int:
     """Group the waiting misses of every knowledge base, or of the one named with its organization.
@@ -68,8 +65,7 @@ async def group_knowledge_gaps_flow(
     return grouped
 
 
-@flow(name="classify-knowledge-gaps")
-async def classify_knowledge_gaps_flow(
+async def classify_knowledge_gaps(
     organization_id: str, knowledge_base_id: str, user_id: str
 ) -> int:
     """Read a knowledge base's recent answers for knowledge gaps, as the person who asked.

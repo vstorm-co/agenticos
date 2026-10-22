@@ -1,5 +1,7 @@
 import { driver, type Driver } from "driver.js";
 
+import { prefersReducedMotion } from "@/lib/motion";
+
 /**
  * A driver.js instance configured for the tour, so the rest of the feature never
  * touches the library's config directly.
@@ -43,13 +45,9 @@ export function createTourDriver(): Driver {
   });
 }
 
-/** Whether the reader has asked the system for less motion. */
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
+// The reader's Motion preference resolved against the system's - the one answer
+// every surface reads (`lib/motion`), offered here for the tour that imports it.
+export { prefersReducedMotion };
 
 /**
  * Scroll `element` to the middle of its scroller when `cover` sits over it.

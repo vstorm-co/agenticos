@@ -6,8 +6,6 @@ Left here is the HTTP layer: each route's status, that the query parameters
 reach the service as the service names them, and that a budget refusal is a 402.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

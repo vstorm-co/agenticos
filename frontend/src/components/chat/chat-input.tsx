@@ -52,11 +52,31 @@ import {
 } from "@/lib/mentions";
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
-import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
+import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
+import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
+
+import { movesOn } from "./dictation-strip";
+
+/**
+ * Dictation for the selected agent, as the composer needs it.
+ *
+ * The recording itself lives in the page (`useDictation` beside the microphone),
+ * because the glow around the box reads its phase; this component only shows
+ * it, and inserts what comes back.
+ */
+export interface ComposerDictation {
+  /**
+   * `server` when the selected agent's Dictation switch sends recordings to a
+   * provider it can reach; `browser`, the browser's own recognition, otherwise.
+   */
+  engine: DictationEngine;
+  state: DictationState;
+  actions: DictationActions;
+}
 
 /**
  * Past this many characters, a paste is a file rather than a message.
@@ -147,6 +167,16 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
+   * The selected agent's dictation engine and, for `server`, the recording.
+   * Absent, the microphone is the browser's own speech recognition.
+   */
+  dictation?: ComposerDictation;
+  /**
+   * Hears when the browser's own recognition starts listening, with how to stop
+   * it, and when it stops - for the page's dictation pill (#54).
+   */
+  onListeningChange?: (stop: (() => void) | null) => void;
+  /**
    * Files handed in from outside the composer - the AI Architect's screenshot of
    * the page (#2063) - attached as if picked, once per `id`.
    */
@@ -186,6 +216,8 @@ export function ChatInput({
   controlsSlot,
   onProject,
   actionsSlot,
+  dictation,
+  onListeningChange,
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
@@ -200,6 +232,7 @@ export function ChatInput({
   const replyTo = useChatStore((state) => state.replyTo);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
+  const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
@@ -217,6 +250,69 @@ export function ChatInput({
   }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const server = dictation?.engine === "server" ? dictation : null;
+  const phase = server?.state.phase ?? "idle";
+  // The box is the recording's while it runs and while its text is on the way:
+  // nothing typed then would survive the insertion, and nothing may be sent.
+  const dictating = phase === "requesting" || phase === "recording" || phase === "transcribing";
+  // Where the person was in the text when they pressed the mic, and the text it
+  // points into; the transcript lands there, replacing a selection.
+  const [caret, setCaret] = useState<{ from: number; to: number; text: string } | null>(null);
+  const [placeCaret, setPlaceCaret] = useState<{ at: number } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  if (useChanged(phase)) {
+    if (phase === "recording") setAnnouncement(tDictation("announceRecording"));
+    else if (phase === "transcribing") setAnnouncement(tDictation("announceTranscribing"));
+  }
+  const remaining = phase === "recording" ? (server?.state.remaining ?? null) : null;
+  if (useChanged(remaining !== null) && remaining !== null) {
+    setAnnouncement(tDictation("announceLeft", { count: remaining }));
+  }
+  // Once per transcript: inserted during render, so the text and the caret
+  // never show a frame apart.
+  const transcript = server?.state.transcript ?? null;
+  if (useChanged(transcript?.id ?? null) && transcript !== null && caret !== null) {
+    // The box is writable while a failed recording waits for Retry, so the text
+    // can change between the press and the transcript. The saved offsets point
+    // into text that is gone then, and the transcript goes at the end instead.
+    const kept = message === caret.text;
+    const from = kept ? caret.from : message.length;
+    const to = kept ? caret.to : message.length;
+    const before = message.slice(0, from);
+    const after = message.slice(to);
+    const join = before.length > 0 && !/\s$/.test(before) ? " " : "";
+    const gap = after.length > 0 && !/^\s/.test(after) ? " " : "";
+    const inserted = join + transcript.text + gap;
+    setMessage(before + inserted + after);
+    setCaret(null);
+    setPlaceCaret({ at: from + inserted.length });
+    setAnnouncement(tDictation("announceInserted", { count: wordCount(transcript.text) }));
+  }
+
+  // After the render that holds the text: focus the box and put the caret
+  // after what was inserted, ready to edit it.
+  useEffect(() => {
+    if (placeCaret === null) return;
+    const frame = requestAnimationFrame(() => editorRef.current?.setCaret(placeCaret.at));
+    return () => cancelAnimationFrame(frame);
+  }, [placeCaret]);
+
+  // Focus went to <body> with the bar, which unmounts when dictation ends without
+  // a transcript; back to the box, beside the strip that says what happened.
+  const wasDictating = useRef(false);
+  useEffect(() => {
+    const ended = wasDictating.current && !dictating;
+    wasDictating.current = dictating;
+    if (ended && document.activeElement === document.body) editorRef.current?.focus();
+  }, [dictating]);
+
+  const startDictation = () => {
+    const end = { from: message.length, to: message.length };
+    setCaret({ ...(editorRef.current?.selection() ?? end), text: message });
+    void server?.actions.start();
+  };
 
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
   // `@`-mentions (#2189): what was picked, and the one being typed at the caret.
@@ -317,6 +413,7 @@ export function ChatInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (dictating) return;
     if (showPalette && filteredCommands[paletteIndex]) {
       runSlashCommand(filteredCommands[paletteIndex]);
       return;
@@ -339,6 +436,16 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // The note under the box saying the text landed goes with the next key.
+    if (server?.state.inserted && movesOn(e.key)) server.actions.dismissInserted();
+    if (dictating) {
+      // Enter finishes the recording rather than sending; Escape is the form's.
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (phase === "recording") server?.actions.stop();
+      }
+      return;
+    }
     if (mentionOpen) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -395,6 +502,22 @@ export function ChatInput({
       handleSubmit(e);
     }
   };
+
+  // Through a ref: `useMicrophone` answers a new object every render, and a stop
+  // that changed with it was handed to the page on every render while the browser
+  // listened - which re-rendered this, which handed it over again, without end.
+  const micRef = useRef(mic);
+  useLayoutEffect(() => {
+    micRef.current = mic;
+  });
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    micRef.current?.stop();
+    setIsListening(false);
+  }, []);
+  useEffect(() => {
+    onListeningChange?.(isListening ? stopListening : null);
+  }, [isListening, stopListening, onListeningChange]);
 
   const toggleMic = useCallback(() => {
     if (isListening) {
@@ -571,7 +694,20 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={(e) => {
+        // From the box or from the bar, wherever focus is while dictating.
+        if (dictating && e.key === "Escape") {
+          e.preventDefault();
+          server?.actions.cancel();
+        }
+      }}
+      className="relative"
+    >
+      <span role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </span>
       <FileDropOverlay
         active={isDragging}
         title={t("dropFilesAttach")}
@@ -642,6 +778,7 @@ export function ChatInput({
           ) : undefined
         }
         disabled={disabled}
+        readOnly={dictating}
         // What a phone's keyboard offers: a return key that reads as a line
         // break where Enter makes one. 16px text, never less: iOS zooms the
         // page into any field smaller than that when it is focused (#2066).
@@ -650,7 +787,10 @@ export function ChatInput({
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
-      <div className="flex items-center gap-1.5 pt-0.5 pb-1">
+      {/* Inert rather than hidden while dictating: the composer does not change
+          under the page's dictation pill, and the agent the recording goes to
+          must not change under it either. */}
+      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"
@@ -661,7 +801,9 @@ export function ChatInput({
         />
         <ComposerSheet
           onAttach={() => fileInputRef.current?.click()}
-          onVoice={toggleMic}
+          // The agent's engine: the browser's recogniser, or a recording sent
+          // to its provider.
+          onVoice={server ? startDictation : toggleMic}
           onCommand={
             slashContext
               ? () => {
@@ -680,14 +822,16 @@ export function ChatInput({
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
+          {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
+              server recording takes the box over with its own bar, so this
+              button only ever starts one. */}
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={toggleMic}
+            onClick={server ? startDictation : toggleMic}
             disabled={disabled}
-            // It starts from the `+`, and shows here only to stop.
-            className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
+            className="h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >

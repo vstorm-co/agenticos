@@ -17,6 +17,7 @@ import { BudgetHeadroomWidget } from "./budget-headroom";
 import { DepartmentQualityWidget } from "./department-quality";
 import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
+import { BackgroundJobsWidget } from "./background-jobs";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
 import { KnowledgeGapsWidget } from "./knowledge-gaps";
@@ -46,6 +47,7 @@ import { ReviewQueueWidget } from "./review-queue";
 import { EvalRunsWidget } from "./eval-runs";
 import { EvalSuitesWidget } from "./eval-suites";
 import { SuggestionsWidget } from "./suggestions";
+import { VoiceMinutesWidget } from "./voice-minutes";
 import { ProjectsWidget } from "./projects";
 import { RecentVisualsWidget } from "./recent-visuals";
 import { SpendWidget } from "./spend";
@@ -67,6 +69,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,
+  "background-jobs": BackgroundJobsWidget,
   "top-orgs": TopOrgsWidget,
   "platform-ratings": PlatformRatingsWidget,
   runs: RunsWidget,
@@ -102,6 +105,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "eval-runs": EvalRunsWidget,
   "eval-suites": EvalSuitesWidget,
   suggestions: SuggestionsWidget,
+  "voice-minutes": VoiceMinutesWidget,
   projects: ProjectsWidget,
   "recent-visuals": RecentVisualsWidget,
   "sandbox-capacity": SandboxCapacityWidget,

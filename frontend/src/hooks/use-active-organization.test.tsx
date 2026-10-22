@@ -55,7 +55,10 @@ function organizationRefused(orgId: string) {
 }
 
 /** `/orgs` still answers when the active organization does not - it is keyed on the caller. */
-function answerWith(orgs: Array<{ id: string; is_personal: boolean }>, permissions: unknown) {
+function answerWith(
+  orgs: Array<{ id: string; is_personal: boolean; is_default?: boolean }>,
+  permissions: unknown,
+) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === "/orgs") {
       return Promise.resolve({
@@ -292,6 +295,27 @@ describe("useActiveOrganizationRecovery", () => {
     client.setQueryData(["secrets", "list"], [{ id: "s-1" }]);
 
     useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    expect(client.getQueryData(["secrets", "list"])).toEqual([{ id: "s-1" }]);
+  });
+
+  it("treats no selection and the default organization as the same tenant (#2156)", async () => {
+    // With a default organization a request that names none acts there, not in
+    // the personal one - so selecting it is the page settling, not a switch.
+    answerWith(
+      [
+        { id: PERSONAL, is_personal: true },
+        { id: STALE, is_personal: false, is_default: true },
+      ],
+      { permissions: [] },
+    );
+    useOrgStore.setState({ activeOrgId: null });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    client.setQueryData(["secrets", "list"], [{ id: "s-1" }]);
+
+    useOrgStore.setState({ activeOrgId: STALE });
     rerender();
 
     expect(client.getQueryData(["secrets", "list"])).toEqual([{ id: "s-1" }]);

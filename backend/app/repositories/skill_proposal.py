@@ -1,7 +1,5 @@
 """Data access for agent-authored skill changes."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID

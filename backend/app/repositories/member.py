@@ -6,7 +6,12 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
+from app.db.models.organization import (
+    MembershipSource,
+    Organization,
+    OrganizationMember,
+    OrgRole,
+)
 from app.db.models.user import User
 
 
@@ -32,6 +37,22 @@ async def get(
         query = query.with_for_update()
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def get_with_organization(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> tuple[OrganizationMember, Organization] | None:
+    """The membership and its organization, in one query: what every request reads."""
+    result = await db.execute(
+        select(OrganizationMember, Organization)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    row = result.tuples().one_or_none()
+    return None if row is None else (row[0], row[1])
 
 
 async def get_active(

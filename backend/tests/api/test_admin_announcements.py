@@ -6,8 +6,6 @@ is the route itself: the app-admin gate, request validation, and that a
 refusal the service raises reaches the caller as the right status.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock

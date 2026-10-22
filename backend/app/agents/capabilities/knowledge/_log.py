@@ -1,7 +1,5 @@
 """What a run's knowledge searches found, kept for the run's terminal write."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from uuid import UUID

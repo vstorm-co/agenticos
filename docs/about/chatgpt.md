@@ -10,7 +10,7 @@ ChatGPT Business and Enterprise give employees OpenAI's assistant, and in 2026 a
 
 AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to eight surfaces. That includes a website widget and an API that returns the answer.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
 
 ## At a glance
 
@@ -21,17 +21,17 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Models | OpenAI only | 28 providers, OpenAI included, and local models |
 | Building agents | Workspace agents, in research preview, with versions and sharing | Published agents with versions, environments and YAML export |
 | Surfaces for an agent | ChatGPT, Slack, schedules, an API trigger | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost, schedules and event triggers |
-| API | The trigger returns `202 Accepted`, with no run ID and no answer | `POST /agents/{id}/run` returns the run and its answer |
+| API | The trigger returns `202 Accepted` and a conversation link; run status polling is in beta, and the answer cannot be retrieved | `POST /agents/{id}/run` returns the run and its answer |
 | Spend control | Credit pools and overage limits per workspace or group | A budget per agent and per organization, checked before each model request |
-| Identity | SSO on Business; SCIM and custom roles on Enterprise | OIDC SSO, LDAP and Kerberos with group mappings, and per-resource grants, in every deployment |
+| Identity | SAML SSO on Business; SCIM, role-based access controls and key management on Enterprise | OIDC SSO, LDAP and Kerberos with group mappings, and per-resource grants, in every deployment |
 | Audit | Compliance API on Enterprise and Edu, 30-day log window | Tamper-evident audit log, exported as CSV or JSONL, retention you set |
-| Pricing | Business $20 per seat per month annually, $25 monthly; Enterprise custom; agent work paid in credits | No licence fee; model usage at your provider's rates |
+| Pricing | Business: a Standard seat at $20 per month annually ($25 monthly), a Premium seat at $100 ($125); Enterprise custom; agent work paid in credits | No licence fee; model usage at your provider's rates |
 
 ## Where AgenticOS goes further
 
 ### An agent anyone can reach, with an answer that comes back
 
-OpenAI's help page says the workspace-agent API trigger "does not return a run ID, and the agent's response cannot currently be retrieved through the API". Its pages list no widget, Telegram or Mattermost surface for an agent.
+OpenAI's developer page says the workspace-agent API trigger "returns 202 Accepted with a link to the ChatGPT conversation", and that "the agent's response cannot currently be retrieved through the API". Polling a run's status is in beta. Its pages list no widget, Telegram or Mattermost surface for an agent.
 
 An AgenticOS agent answers through the [HTTP API](../channels.md#the-public-api) with the result, streams over a [WebSocket](../channels.md#the-raw-websocket), and embeds in your site as a [widget](../channels.md#the-website-widget). A [hosted page](../channels.md#a-hosted-page) is a link for anyone. [Slack, Telegram and Mattermost](../channels.md#slack) bots run as the linked person who asked.
 
@@ -45,7 +45,7 @@ OpenAI's limits apply to workspaces, groups and users, and OpenAI notes that an 
 
 ### Enterprise controls in every deployment
 
-On ChatGPT, SCIM, custom roles, the Compliance API and data residency are Enterprise-only. AgenticOS ships [directory group mappings](../directory.md#directory-group-mappings), six built-in [roles with per-resource grants](../permissions.md#layer-3-visibility-and-grants), a [tamper-evident audit log](../governance.md#audit) and [retention per data class](../governance.md#retention) in the Apache-2.0 product. Custom roles and SCIM are not there yet. Your data stays wherever you deploy it.
+On ChatGPT, SCIM, role-based access controls, the Compliance API and data residency are Enterprise-only. AgenticOS ships [directory group mappings](../directory.md#directory-group-mappings), six built-in [roles with per-resource grants](../permissions.md#layer-3-visibility-and-grants), a [tamper-evident audit log](../governance.md#audit) and [retention per data class](../governance.md#retention) in the Apache-2.0 product. Custom roles and SCIM are not there yet. Your data stays wherever you deploy it.
 
 ### A platform that does not move under you
 
@@ -54,13 +54,13 @@ In June 2026 OpenAI announced that Agent Builder, part of AgentKit, will shut do
 ## When ChatGPT is enough
 
 - You want the assistant, deep research, agent mode and Codex in one seat, with nothing to run.
-- Its plugin directory of more than 1,400 apps covers the systems you need.
+- Its plugin directory covers the systems you need.
 - You need OpenAI's certifications, key management or Compliance API partners.
 - You need SAML or SCIM today, which AgenticOS does not have yet.
 
 ## Use them together
 
-Keep ChatGPT for employees' own work. Use AgenticOS for agents that serve customers, run behind your API or need a budget and an approver. Add an OpenAI model profile and those agents run on the same models under your own controls.
+Keep ChatGPT for employees' own work. Use AgenticOS for agents that serve customers, run behind your API or need a budget and an approver. Add an OpenAI model profile and those agents run on the same models under your own controls. For your own agents, a profile can also [run on your ChatGPT subscription](../models.md#running-on-a-chatgpt-subscription) instead of an API key, and the [coding agent](../reference/capabilities.md#coding-agent) hands software work to Codex in a sandbox.
 
 ## Try one handbook question
 
@@ -78,7 +78,7 @@ Yes. Add a model profile for OpenAI or Azure OpenAI. You can move an agent to an
 
 ### How are ChatGPT workspace agents different from AgenticOS agents?
 
-Workspace agents run in OpenAI's cloud on OpenAI models, in ChatGPT, Slack, schedules and an API trigger that returns no answer. AgenticOS agents run on your infrastructure, on any model, and answer through an API that returns the result, a widget, a hosted page and chat bots.
+Workspace agents run in OpenAI's cloud on OpenAI models, in ChatGPT, Slack, schedules and an API trigger whose answer cannot be retrieved through the API. AgenticOS agents run on your infrastructure, on any model, and answer through an API that returns the result, a widget, a hosted page and chat bots.
 
 ### What replaces OpenAI's Agent Builder after it shuts down?
 
@@ -90,10 +90,11 @@ OpenAI points users to the Agents SDK or ChatGPT workspace agents. AgenticOS is 
 
 ## Sources
 
-- [ChatGPT Business pricing](https://openai.com/business/chatgpt-pricing/): seat prices and the Business versus Enterprise feature table.
-- [Workspace agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): builder, surfaces, approvals and the API trigger limitation.
+- [ChatGPT Business pricing](https://openai.com/business/pricing/): seat prices and the Business versus Enterprise feature table.
+- [Workspace agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): builder, surfaces, approvals and versions.
+- [Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs): the `202 Accepted` response, run status polling in beta, and no answer through the API.
 - [Introducing workspace agents](https://openai.com/index/introducing-workspace-agents-in-chatgpt/): research preview and credit pricing.
 - [Flexible pricing](https://help.openai.com/en/articles/11487671-flexible-pricing-for-the-enterprise-edu-and-business-plans): credit pools and overage limits.
 - [Data residency](https://help.openai.com/en/articles/9903489-data-residency-and-inference-residency-for-chatgpt): regions and exclusions.
-- [Compliance APIs](https://help.openai.com/en/articles/9261474-compliance-apis-for-enterprise-customers): Enterprise scope and 30-day window.
+- [Compliance Platform](https://help.openai.com/en/articles/9261474-openai-compliance-platform-for-enterprise-and-edu-customers): Enterprise and Edu scope and 30-day retention.
 - [Agent Builder](https://developers.openai.com/api/docs/guides/agent-builder) and [deprecations](https://developers.openai.com/api/docs/deprecations): the 30 November 2026 shutdown.

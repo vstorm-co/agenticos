@@ -6,8 +6,6 @@ does. What is left is the HTTP layer: each route's status, the arguments a
 query string becomes, and that a score's `outcome` reaches the wire.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

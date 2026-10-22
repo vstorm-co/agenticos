@@ -6,8 +6,6 @@ budget is enforced by the runner before the model is called, never by this
 number - which is shown so a person decides with a figure in front of them.
 """
 
-from __future__ import annotations
-
 import math
 from decimal import Decimal
 

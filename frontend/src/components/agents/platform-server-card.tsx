@@ -31,6 +31,7 @@ import type { McpApproval, PlatformMcpServerRef } from "@/types/agents";
 /** What a new binding starts as: every tool, and every one that changes something held. */
 export const NEW_PLATFORM_BINDING: PlatformMcpServerRef = {
   account: "platform",
+  allowed_tools: null,
   approval: "writes",
 };
 

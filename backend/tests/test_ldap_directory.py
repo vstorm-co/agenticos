@@ -8,8 +8,6 @@ locked account - is what `verified_tls_connections` and the result-code tests
 below pin by other means.
 """
 
-from __future__ import annotations
-
 import ssl
 import uuid
 

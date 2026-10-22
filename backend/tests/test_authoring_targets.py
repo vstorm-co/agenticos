@@ -7,8 +7,6 @@ spec it may address, is pinned here; a new target is a decision to make in
 review, not a field to slip in.
 """
 
-from __future__ import annotations
-
 import re
 
 import pytest

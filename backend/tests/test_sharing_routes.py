@@ -7,8 +7,6 @@ five, that they are wired to the right resource type, and that a row from
 another organization is refused before the sharing service is ever reached.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

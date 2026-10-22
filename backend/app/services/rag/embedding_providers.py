@@ -42,8 +42,6 @@ base stay on the deployment's own hardware (#1632), and the one way an app-scope
 collection, which has no vault to hold a key, can embed at all (#1631).
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from pydantic import TypeAdapter

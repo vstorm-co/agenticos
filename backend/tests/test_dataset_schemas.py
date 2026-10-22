@@ -1,7 +1,5 @@
 """What a case refuses before it reaches the service, and how its rows print."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

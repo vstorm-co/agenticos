@@ -135,10 +135,26 @@ describe("a turn in the transcript", () => {
     expect(screen.getByText("stopped")).toBeVisible();
   });
 
+  it("marks a turn spoken in a call, and an answer the caller talked over", () => {
+    item({
+      role: "assistant",
+      content: "Tomorrow in Warsaw",
+      turnId: "c1:2:assistant",
+      interrupted: true,
+    });
+
+    expect(screen.getByText("Voice")).toBeVisible();
+    expect(screen.getByText("Interrupted")).toHaveAttribute(
+      "title",
+      "Cut to roughly what was heard",
+    );
+  });
+
   it("says nothing about a turn that finished", () => {
     item({ role: "assistant", content: "Refunds run to thirty days." });
 
     expect(screen.queryByText("stopped")).toBeNull();
+    expect(screen.queryByText("Voice")).toBeNull();
   });
 
   it("marks a stopped ask-only turn, whose only body is the answered question", () => {
@@ -461,6 +477,23 @@ describe("the ordered timeline", () => {
     expect(container.querySelectorAll(".animate-pulse")).toHaveLength(1);
   });
 
+  it("gives the answer a little air after the thinking, and none after a plain line", () => {
+    const { getAllByTestId } = item({
+      isStreaming: true,
+      parts: [
+        { id: "p-1", type: "thinking", content: "Checking." },
+        { id: "p-2", type: "text", content: "Answer." },
+        { id: "p-3", type: "text", content: "More." },
+      ],
+    });
+
+    const [answer, more] = getAllByTestId("markdown")
+      .slice(-2)
+      .map((node) => node.parentElement!);
+    expect(answer!.className).toContain("pt-1");
+    expect(more!.className).not.toContain("pt-1");
+  });
+
   it("skips a part with nothing in it yet", () => {
     // The store creates a part before its first delta arrives.
     const { container } = item({
@@ -724,7 +757,9 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows a person's own picture beside their message", () => {
+  it("keeps a person's face beside their message while their picture loads, or if it fails", () => {
+    // jsdom never loads an image, which is what a missing file looks like: a
+    // bare <img> left an empty circle there (#2248).
     useAuthStore.setState({
       user: { id: "u-1", email: "k@example.com", avatar_url: "/api/users/avatar/u-1" } as never,
       avatarVersion: 2,
@@ -732,7 +767,7 @@ describe("what a person attached", () => {
 
     const { container } = item({ role: "user", content: "x" });
 
-    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
   });
 
   it("draws a person who uploaded nothing the face generated from their id", () => {

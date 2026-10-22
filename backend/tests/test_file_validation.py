@@ -7,8 +7,6 @@ in hand and refuses a forged signature — an OLE/ZIP/TIFF container that is not
 resolved format needs.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from app.services.file_upload import FileUploadService

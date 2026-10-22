@@ -1,5 +1,5 @@
 ---
-source_sha: "1253cba3b629"
+source_sha: "5f9addc0d109"
 ---
 
 # Konfiguracja { #configuration }
@@ -297,7 +297,7 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Szyfruj połączenie: `require`, `verify-ca` albo `verify-full`. Pusta wartość to plaintext. Zobacz [Szyfrowane połączenia](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Rozmiar puli połączeń |
 | `DB_MAX_OVERFLOW` | `10` | Maksymalna liczba połączeń ponad pulę |
-| `DB_POOL_TIMEOUT` | `30` | Timeout puli w sekundach |
+| `DB_POOL_TIMEOUT` | `5` | Ile sekund żądanie czeka na wolne połączenie, zanim dostanie `503` z `Retry-After`. Celowo krótko: żądanie, które czekało 30 s, i tak było stracone, a kolejka czekających trzymała pulę pełną jeszcze po burście |
 
 Właściwości wyliczane:
 - `DATABASE_URL` -- asynchroniczny connection string (`postgresql+asyncpg://...`)
@@ -359,7 +359,7 @@ samym URL-u, zamiast zostawiać jedno i drugie domyślnym ustawieniom redis-py.
 
 !!! note "Każda usługa, która otwiera połączenie do magazynu, potrzebuje tej zmiany"
 
-    `app`, `migrate` i `prefect-runner` łączą się z Postgresem i Redisem, a
+    `app`, `migrate` i `worker` łączą się z Postgresem i Redisem, a
     dostarczane pliki compose przypinają `POSTGRES_HOST=db` i `REDIS_HOST=redis` w
     `environment` każdej z nich, co wygrywa z plikiem env. Zarządzany magazyn to
     więc plik override sięgający wszystkich trzech, a nie linia w `.env`.
@@ -381,7 +381,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 Dołączone usługi `db` i `redis` dalej się uruchamiają, nieużywane; `agenticos cmd
@@ -425,40 +425,65 @@ się zatrzymuje i żaden z nich tego nie oznajmia:
     potrzebuje `SMTP_TLS_MODE=implicit`, bo `auto` zaproponowałoby mu handshake
     plaintext i każda wysyłka by zawiodła. `starttls` to przypadek odwrotny.
 
-## Praca w tle (Prefect) { #background-work-prefect }
+## Praca w tle { #background-work }
+
+Zadania czekają w kolejce w PostgreSQL i wykonują się w workerze,
+`python -m app.worker`, z tego samego obrazu co API. Nie ma serwera, na który
+trzeba go skierować, ani klucza: worker sięga do tej samej bazy co API. Każde
+ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | Self-hostowany serwer albo URL workspace'u Prefect Cloud |
-| `PREFECT_API_KEY` | (none) | Tylko Prefect Cloud |
-| `PREFECT_RUNNER_LIMIT` | `5` | Ile flow runów wykonuje się naraz; reszta czeka w kolejce |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` w compose | Interfejs, na którym runner serwuje własny endpoint zdrowia |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port do tego samego |
+| `WORKER_POOLS` | `agent,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | Ile może zająć jeden proces potomny razem z tym, co uruchomił, zanim zatrzyma go watchdog |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Zadania, które proces potomny wykona, zanim zostanie zastąpiony |
+| `WORKER_LEASE_SECONDS` | `60` | Jak długo pobrane zadanie jest trzymane bez heartbeatu |
+| `WORKER_BREAKER_DEATHS` | `5` | Śmierci workera z rzędu, w zadaniach jednego rodzaju, które wstrzymują ten rodzaj |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | Plik, który czyta sonda kontenera |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` w produkcyjnym compose | Własny limit pamięci kontenera - zmienna compose, nie ustawienie |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Zakończone zadania przechowywane dla strony Background jobs |
 
-`PREFECT_RUNNER_LIMIT` to sufit pamięci, a nie pokrętło przepustowości. Każdy run
-to osobny proces, który importuje całą aplikację — mniej więcej 120 MB — a liczbą,
-która ma znaczenie, nie jest stan ustalony, tylko restart: runner wstaje, znajduje
-każdy run zaplanowany w czasie, gdy go nie było, i startuje tyle, na ile pozwala
-limit. Bez limitu trzy dni przestoju to 71 procesów i 6 GiB. Podnieś go, jeśli
-ingestia kolejkuje się za synchronizacjami na maszynie z zapasem pamięci; obniż na
-małym hoście.
+**Pamięć planuj według procesów potomnych, a nie liczby zadań.** Worker trzyma
+około 450 MB na zaimportowaną aplikację, a każdy proces potomny ingestii drugie
+tyle plus dokument, który parsuje. `WORKER_INGEST_MEMORY_MB` celowo leży poniżej
+limitu kontenera: watchdog zatrzymuje proces potomny, który go przekroczy, i
+zapisuje powód przy zadaniu, podczas gdy OOM killer jądra zostawiłby tylko
+martwy proces. Na hoście z zapasem pamięci podnieś `WORKER_INGEST_CHILDREN`, a
+razem z nim limit kontenera.
 
-Zaplanowane sweepy niewiele do tej zaległości dokładają: każdy wykonuje jeden
-tick naraz, a resztę zaległych ticków serwer odrzuca, zanim runner uruchomi dla
-nich proces. Wyjątkiem są raporty użycia, bo każdy run obejmuje własny okres.
+**Zadanie, które zabija swój proces, nie może się zapętlić.** Jego próba jest
+liczona w chwili pobrania, więc proces potomny zabity przez jądro w trakcie
+parsowania zużył jedną, a po `max_attempts` zadanie jest martwe. Rodzaj, którego
+zadania zabijają swojego workera `WORKER_BREAKER_DEATHS` razy z rzędu, zostaje
+wstrzymany, a każdy właściciel wdrożenia dostaje powiadomienie; nic go nie
+pobiera, dopóki któryś z nich nie wznowi go na stronie Background jobs. Licznik
+jest prowadzony osobno dla każdej organizacji: tenant, którego zadania wciąż
+zabijają workera, wstrzymuje rodzaj tylko dla siebie, a zadania bez organizacji
+dzielą jeden licznik dla całego wdrożenia.
 
-Dwie zmienne `PREFECT_RUNNER_SERVER_*` należą do Prefecta, a pliki compose
-przypinają je, żeby kontener runnera miał status zdrowia, który coś znaczy. Runner
-startuje webserver runnera Prefecta, którego `GET /health` odpowiada 503, gdy
-przegapi dwa odpytania API Prefecta — więc proces, który żyje, ale nie podejmuje
-już pracy, czyta się jako `unhealthy`, a nie jako w porządku. Jest przypięty do
-loopbacku, bo ten sam webserver wystawia też `POST /shutdown`; próba działa
-wewnątrz kontenera i nic spoza niego nie sięgnie żadnego z nich. Przeniesienie
-portu oznacza przeniesienie razem z nim próby w plikach compose.
+**To, co zadanie zostawia, zostaje domknięte, nawet gdy raz się nie uda.**
+Zadanie, które kończy się na dobre, może zostawić dokument w stanie `processing`
+albo log synchronizacji w stanie `running`. Worker domyka je, gdy zadanie się
+kończy, a rescuer ponawia nieudane domknięcie - np. gdy baza była niedostępna -
+przez dobę.
 
-W `backend/Dockerfile` nie ma `HEALTHCHECK`. Obraz jest uruchamiany jako dwa różne
-procesy — API i ten runner — a próba dla jednego jest stałym fałszywym alarmem dla
-drugiego, więc każda definicja usługi nosi własną.
+Worker, który umrze, oddaje swoje zadania w ciągu `WORKER_LEASE_SECONDS`:
+ratowanie u innego workera przejmuje wygasłą dzierżawę i zapisuje zadanie jako
+śmierć workera. Deploy nie kosztuje zadania próby - worker przestaje pobierać,
+pozwala trwającym zadaniom skończyć się przez 30 sekund i oddaje resztę. Pliki
+compose dają mu 45 sekund, zanim go zabiją.
+
+Health check kontenera czyta `WORKER_HEALTH_FILE`, który heartbeat dotyka po
+każdym uderzeniu, które dotarło do bazy, więc worker żywy, ale odcięty od
+Postgresa, jest `unhealthy`. To plik, a nie endpoint HTTP, bo worker niczego nie
+serwuje.
+
+W `backend/Dockerfile` nie ma `HEALTHCHECK`. Obraz jest uruchamiany jako różne
+procesy - API, worker i migracje - a sonda dla jednego byłaby stałym fałszywym
+alarmem dla drugiego, więc każda definicja usługi niesie własną.
 
 ### Wygasanie zatwierdzeń { #approval-expiry }
 
@@ -526,8 +551,8 @@ Trzy rzeczy mogą skierować runy do projektu i nakładają się na siebie:
 
 - `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie, więc każdy run trafia
   do projektu samego wdrożenia. Konfigurują go dwa procesy: API przy starcie
-  (`app/main.py`) oraz odpalony run w workerze Prefect, który ustawia się sam, bo
-  każdy flow run dostaje własny podproces. Spany workera niosą
+  (`app/main.py`) oraz worker, raz przy starcie (`app/worker/__main__.py`), bo
+  nigdy nie wykonuje lifespanu API. Spany workera niosą
   `<nazwa usługi>-worker`, więc w jednym projekcie da się odróżnić wolny run
   zaplanowany od wolnej tury czatu.
 - [Środowisko](environments.md#tracing-per-environment) może nieść własny token
@@ -718,6 +743,17 @@ serwowane. Zobacz [Aplikacje](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
+
+**Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o
+`/api/v1/artifact-content/tiles/{z}/{x}/{y}`; API sprawdza liczby, pobiera kafelek
+z serwera, trzyma ostatnie 2048 w pamięci i odpowiada, więc klucz z szablonu nigdy
+nie opuszcza serwera. Trasa nie wymaga sesji - ładuje ją każda strona - więc ma
+limit na adres (`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Pilnuj warunków dostawcy:
+publiczne kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment
+powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy
+serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
@@ -1104,6 +1140,26 @@ usunięty), profile modeli mogą wskazywać na lokalne endpointy takie jak Ollam
 sandboksa dla `run_python` są konfiguracją capability per agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` zostały usunięte).
 
+## Rozmowy głosowe { #voice-calls }
+
+[Rozmowy głosowe](voice.md) włącza się w każdym agencie, a ogranicza je jego
+najdłuższa rozmowa i budżety. Dwa sufity należą do deploymentu:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem budżetu organizacji |
+
+Oba liczą rozmowy ze świeżym heartbeatem, więc rozmowa, której proces padł,
+przestaje się liczyć w ciągu 45 sekund. Rozpoczynanie rozmów w embedzie ma też
+rate limit (`RATE_LIMIT_EMBED_VOICE_*`, [niżej](#rate-limiting)). Własny
+`rate_limit_per_minute` embeda, ustawiany w Builderze, liczy **wiadomości**
+odwiedzającego, a nie rozpoczęcia rozmów, więc nie ogranicza rozmów.
+
+Reszta jest ustalona w kodzie, a nie konfigurowana: rozmowa nigdy nie trwa
+dłużej niż 50 minut, heartbeaty idą co 15 sekund, a sprzątanie rozmów
+głosowych działa co minutę, jako harmonogram workera `reap-voice-calls`.
+
 ## CORS { #cors }
 
 | Zmienna | Domyślnie | Opis |
@@ -1120,7 +1176,7 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
-powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
+powierzchni, configu i logo hostowanej strony oraz uploadu, dyktowania i rozmowy głosowej odwiedzającego. Własne
 trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
 osobna decyzja, nie ta.
 
@@ -1130,8 +1186,15 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Odsłuchanie głosu](voice.md#turn-it-on) w Builderze, na osobę. Każdy podgląd spoza cache to krótka płatna sesja u providera realtime agenta, poza wszystkimi budżetami modelu; raz odsłuchany głos jest trzymany w cache przez tydzień |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji. Zużywane dopiero po wpuszczeniu odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Adres jest liczony, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem, zużywane dopiero po wpuszczeniu odwiedzającego. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

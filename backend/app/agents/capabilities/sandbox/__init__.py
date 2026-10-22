@@ -17,8 +17,6 @@ whoever holds `edit` on an agent - one that could name a Docker image could name
 one whose entrypoint mounts the host.
 """
 
-from __future__ import annotations
-
 from typing import Any, Literal
 from uuid import UUID
 
@@ -138,6 +136,7 @@ class SandboxConfig(BaseModel):
 
 @register(
     id="sandbox",
+    voice="hand_off",
     name="Sandbox",
     category="analysis",
     description="Read, write and run things in a workspace that persists between turns.",

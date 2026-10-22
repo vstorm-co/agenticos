@@ -14,8 +14,6 @@ And what a pass must be: on that exact version, over the dataset version the
 suite reads now and under the threshold it holds now.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta

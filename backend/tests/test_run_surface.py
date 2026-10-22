@@ -14,8 +14,6 @@ value* per entry point rather than that a call was made - the code paths were
 already exercised by other tests, and none of them looked at what was written.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any

@@ -1,7 +1,5 @@
 """Schemas for datasets, their versions and their cases."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal, get_args
 from uuid import UUID

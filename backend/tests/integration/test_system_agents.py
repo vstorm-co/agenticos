@@ -5,8 +5,6 @@ per-organization uniqueness of a system key, a slug a person's own agent already
 holds, which profile is "the oldest" when two share a timestamp.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock

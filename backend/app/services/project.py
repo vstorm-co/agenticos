@@ -6,8 +6,6 @@ container in place of the agent's own, its instructions after the agent's - is
 the runner's, through :meth:`ProjectService.for_run`.
 """
 
-from __future__ import annotations
-
 import logging
 import posixpath
 from uuid import UUID

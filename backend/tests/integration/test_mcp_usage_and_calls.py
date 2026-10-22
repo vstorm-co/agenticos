@@ -1,7 +1,5 @@
 """Which agents use an MCP server, and what they asked it to do (#2072)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

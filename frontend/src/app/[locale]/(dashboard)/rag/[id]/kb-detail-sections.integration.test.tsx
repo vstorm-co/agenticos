@@ -105,10 +105,12 @@ function mockApi({
   failing,
   documents = [],
   syncSources = [],
+  connectors = [],
 }: {
   failing?: "sync-sources" | "connectors" | "documents";
   documents?: KBDocument[];
-  syncSources?: { id: string; name: string }[];
+  syncSources?: ({ id: string; name: string } & Record<string, unknown>)[];
+  connectors?: Record<string, unknown>[];
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
@@ -120,7 +122,7 @@ function mockApi({
     if (endpoint === `/kb/${KB_ID}/sync-sources/connectors`) {
       return failing === "connectors"
         ? Promise.reject(new Error("Bad gateway"))
-        : Promise.resolve({ items: [] });
+        : Promise.resolve({ items: connectors });
     }
     if (endpoint === `/kb/${KB_ID}/sync-sources/org-integrations`) {
       return Promise.resolve({ items: [], total: 0 });
@@ -316,4 +318,88 @@ describe("the three sections are tabs (#939)", () => {
   // `next/navigation` mock in `vitest.setup.ts` answers an empty one and wins:
   // a test written that way passed while the page was showing its default,
   // which is worse than not having it.
+});
+
+describe("editing a sync source", () => {
+  it("is not offered to a reader who cannot change the collection", async () => {
+    mockApi({ syncSources: [{ id: "src-1", name: "Drive folder" }] });
+
+    await renderPage();
+    await openTab("pages.kb.syncSources");
+
+    await screen.findByText("Drive folder");
+    expect(screen.queryByRole("button", { name: "pages.kb.editSource" })).toBeNull();
+  });
+
+  it("opens the wizard filled in from the source for an editor", async () => {
+    perms.add("collections:edit");
+    try {
+      mockApi({
+        syncSources: [
+          {
+            id: "src-1",
+            name: "Drive folder",
+            connector_type: "gdrive",
+            config: { folder_id: "1AbC" },
+          },
+        ],
+      });
+
+      await renderPage();
+      await openTab("pages.kb.syncSources");
+      await userEvent.click(await screen.findByRole("button", { name: "pages.kb.editSource" }));
+
+      expect(await screen.findByText("rag.editSyncSource")).toBeVisible();
+      expect(screen.getByLabelText("rag.sourceName")).toHaveValue("Drive folder");
+    } finally {
+      perms.delete("collections:edit");
+    }
+  });
+
+  it("a save finishing after the wizard was reopened leaves the new one open", async () => {
+    perms.add("collections:edit");
+    try {
+      const source = { connector_type: "gdrive", config: {}, collection_name: "handbook" };
+      mockApi({
+        syncSources: [
+          { id: "src-1", name: "Drive folder", ...source },
+          { id: "src-2", name: "Wiki folder", ...source },
+        ],
+        connectors: [
+          {
+            type: "gdrive",
+            name: "Google Drive",
+            enabled: true,
+            config_schema: {},
+            secret_kind: "none",
+          },
+        ],
+      });
+      let finishSave: (value: unknown) => void = () => {};
+      vi.mocked(apiClient.patch).mockReturnValue(
+        new Promise((resolve) => {
+          finishSave = resolve;
+        }),
+      );
+
+      await renderPage();
+      await openTab("pages.kb.syncSources");
+      const pencils = await screen.findAllByRole("button", { name: "pages.kb.editSource" });
+      await userEvent.click(pencils[0]!);
+      await userEvent.type(screen.getByLabelText("rag.sourceName"), " renamed");
+      for (let step = 0; step < 3; step++) {
+        await userEvent.click(screen.getByRole("button", { name: "rag.continue" }));
+      }
+      await userEvent.click(screen.getByRole("button", { name: "rag.saveChanges" }));
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByText("rag.editSyncSource")).toBeNull());
+
+      await userEvent.click(screen.getAllByRole("button", { name: "pages.kb.editSource" })[1]!);
+      await act(async () => finishSave({ id: "src-1", name: "Drive folder renamed", ...source }));
+
+      expect(screen.getByLabelText("rag.sourceName")).toHaveValue("Wiki folder");
+    } finally {
+      perms.delete("collections:edit");
+    }
+  });
 });

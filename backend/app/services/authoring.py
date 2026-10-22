@@ -25,8 +25,6 @@ pending hunk accepted - a projection, never stored - and leaves out the cases
 taken from the conversations the hunks were derived from.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -42,7 +40,6 @@ from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
 from app.core.audit import record_audit
-from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -96,6 +93,7 @@ from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
+from app.services.background_jobs import enqueue
 from app.services.context import ContextService
 from app.services.eval_run import EvalRunService
 from app.services.eval_suite import EvalSuiteService
@@ -103,6 +101,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
+from app.worker.jobs import RUN_AUTHORING, RunAuthoring
 
 logger = logging.getLogger(__name__)
 
@@ -436,12 +435,11 @@ class AuthoringService:
             target_id=str(agent_id or skill_id or context_id),
             details={"request_id": str(request.id), "estimate_usd": str(estimate.estimate_usd)},
         )
-        from app.worker.tasks.authoring_tasks import dispatch_authoring_request
-
-        spawn_after_commit(
+        await enqueue(
             self.db,
-            dispatch_authoring_request(str(request.id), str(ctx.organization_id)),
-            name=f"authoring:{request.id}",
+            RUN_AUTHORING,
+            RunAuthoring(request_id=request.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
         )
         return AuthoringRequestRead.model_validate(request)
 
@@ -611,7 +609,7 @@ class AuthoringService:
         for run_id in reversed(batch.check_eval_run_ids):
             try:
                 run = await evals.get(ctx, run_id)
-            except (AuthorizationError, NotFoundError):
+            except AuthorizationError, NotFoundError:
                 continue
             candidate = next((arm for arm in run.arms if arm.role == ArmRole.CANDIDATE), None)
             if run.status != EvalRunStatus.COMPLETED.value or candidate is None:

@@ -161,6 +161,17 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       ? { kind: "docker", runtimes: [], default_runtime: null, max_sessions_per_tenant: 8 }
       : { sessions: [], limit: null, open_limit: null, tenant_limit: 8 };
   }
+  // The call-minutes card asks with its window in the query string, so it is
+  // matched by prefix; what it renders is `widgets/voice-minutes.test.tsx`'s.
+  if (path.startsWith("/voice/usage?")) {
+    return {
+      start: "2026-07-07T00:00:00Z",
+      end: "2026-08-06T00:00:00Z",
+      seconds: 1260,
+      calls: 9,
+      by_agent: [{ agent_id: "a1", agent_name: "Front desk", seconds: 1260, calls: 9 }],
+    };
+  }
   switch (path) {
     case "/sandbox-connections":
       return {

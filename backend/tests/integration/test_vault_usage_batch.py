@@ -7,8 +7,6 @@ keeps `jsonb_array_elements` off a spec whose `capabilities` is not an array is
 exactly the kind of thing a mock cannot show.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

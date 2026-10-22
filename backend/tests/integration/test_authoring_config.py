@@ -7,8 +7,6 @@ see. A widened MCP binding says which newly reached tools write; a change of
 model is priced on recent runs, and says so when it cannot be.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

@@ -23,6 +23,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_run import (
@@ -41,6 +42,7 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
+from app.db.models.voice_call import VoiceCall
 
 
 async def create_run(
@@ -62,6 +64,7 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
@@ -80,6 +83,7 @@ async def create_run(
         exposure_id=exposure_id,
         environment_id=environment_id,
         surface=surface,
+        modality=modality,
         model_label=model_label,
         provider=provider,
         secret_id=secret_id,
@@ -131,6 +135,10 @@ async def finish_run(
         run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
     run.error = error
+    # Written even when unchanged in memory: another writer may have set it since
+    # the run was loaded - the voice sweep's error on a call whose teardown was
+    # still finishing - and an unchanged attribute is left out of the UPDATE.
+    flag_modified(run, "error")
     # Written on every finish, not only when parking: a run that ended must not
     # keep the state it was parked with, or it can be resumed a second time.
     run.paused_state = paused_state
@@ -166,6 +174,8 @@ async def record_delegated_run(
     parent_run_id: UUID,
     subagent_task_id: str,
     user_id: UUID | None,
+    initiated_by_publisher_fallback: bool,
+    channel_identity_id: UUID | None,
     conversation_id: UUID | None,
     exposure_id: UUID | None,
     surface: str,
@@ -211,6 +221,8 @@ async def record_delegated_run(
         parent_run_id=parent_run_id,
         subagent_task_id=subagent_task_id,
         user_id=user_id,
+        initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+        channel_identity_id=channel_identity_id,
         conversation_id=conversation_id,
         exposure_id=exposure_id,
         surface=surface,
@@ -409,6 +421,16 @@ class RunFilters:
             been renamed or deleted, and the dashboard's model card counts these
             same strings - so "the runs behind this bar" is the same set on both
             screens.
+        modality: Typed runs (`text`) or calls (`voice`) (#54).
+        one_row_per_call: Leave out the runs that continue a call after a
+            reconnect, so a call reads as one row on its first run - what the
+            Activity list asks for (#54). Every other filter and the sort then
+            read that first run alone: a continuation's own status, model or
+            cost neither surfaces the call under a filter nor moves it in a
+            sort, and the whole call's seconds and cost are the row's
+            `voice_chain`. Off by default, and off for the CSV export: a
+            continuation's run is still money spent, and an export that dropped
+            it would not add up to the bill.
         is_test: Only test runs from the Builder's panel, or only real ones
             (#2074). Unset lists both.
     """
@@ -425,6 +447,8 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     rated: RunRating | None = None
+    modality: str | None = None
+    one_row_per_call: bool = False
     is_test: bool | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
@@ -458,6 +482,14 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
+        if self.modality is not None:
+            clauses.append(AgentRun.modality == self.modality)
+        if self.one_row_per_call:
+            clauses.append(
+                ~select(VoiceCall.id)
+                .where(VoiceCall.run_id == AgentRun.id, VoiceCall.resume_of.is_not(None))
+                .exists()
+            )
         if self.is_test is not None:
             clauses.append(AgentRun.is_test.is_(self.is_test))
         return clauses
@@ -2313,12 +2345,17 @@ async def list_stale_approvals(
     several sweeps instead of one transaction holding every stale row in the
     deployment. Oldest first, so the ones that have waited longest go first and a
     backlog drains in the order it accumulated.
+
+    A voice run's approvals are the call's: decided through its socket, expired
+    by its own timeout, and by the voice reaper if the process died (#54).
     """
     result = await db.execute(
         select(ToolApproval)
+        .join(AgentRun, AgentRun.id == ToolApproval.run_id)
         .where(
             ToolApproval.status == ApprovalStatus.PENDING.value,
             ToolApproval.created_at < older_than,
+            AgentRun.modality != "voice",
         )
         .order_by(ToolApproval.created_at.asc())
         .limit(limit)
@@ -2366,6 +2403,65 @@ async def fail_stale_runs(
     )
     await db.flush()
     return [row[0] for row in result.all()]
+
+
+async def close_voice_run(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    status: str,
+    cost_usd: Decimal,
+    ended_at: datetime,
+    error: str | None,
+) -> bool:
+    """End a voice run no live process will finish, at the cost its call row recorded (#54).
+
+    The sweep's, for a call whose process died, and a reconnect's, for the
+    connection it took over (`close_orphaned`). Unscoped like `fail_stale_runs`:
+    the sweep has no tenant. Only a run still `running` is touched, so a run its
+    own `finish` closed is never rewritten.
+    """
+    result = await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(status=status, cost_usd=cost_usd, ended_at=ended_at, error=error)
+        .returning(AgentRun.id)
+    )
+    await db.flush()
+    return result.first() is not None
+
+
+async def record_live_cost(db: AsyncSession, *, run_id: UUID, cost_usd: Decimal) -> None:
+    """Write a live call's spend so far onto its run, for every other run's budget baseline (#54).
+
+    Baselines sum `agent_runs.cost_usd`, and a text run writes it only at its
+    end - seconds later. A call lasts up to fifty minutes, so its heartbeat
+    writes it as it goes. Only while the run is `running`: the run's `finish`
+    writes the final figure, and a heartbeat landing after it must not undo that.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(cost_usd=cost_usd)
+    )
+    await db.flush()
+
+
+async def expire_pending_approvals(db: AsyncSession, *, run_id: UUID, decided_at: datetime) -> int:
+    """Expire, with no decider, every approval an ended call left pending (#54).
+
+    The call's teardown, the sweep and a reconnect's takeover each call it once
+    nothing is left to decide them. Unscoped for the same reason as
+    :func:`close_voice_run`; `run_id` names one run.
+    """
+    result = await db.execute(
+        sql_update(ToolApproval)
+        .where(ToolApproval.run_id == run_id, ToolApproval.status == ApprovalStatus.PENDING.value)
+        .values(status=ApprovalStatus.EXPIRED.value, decided_by_user_id=None, decided_at=decided_at)
+        .returning(ToolApproval.id)
+    )
+    await db.flush()
+    return len(result.all())
 
 
 async def decide_approval(

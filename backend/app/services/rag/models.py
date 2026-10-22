@@ -91,7 +91,7 @@ class Document(BaseModel):
         return len(self.pages)
 
     @model_validator(mode="after")
-    def connect_pages(self) -> "Document":
+    def connect_pages(self) -> Document:
         for page in self.pages:
             page.parent_doc_id = self.id
         return self

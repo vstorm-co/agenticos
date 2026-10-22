@@ -7,8 +7,6 @@ the rule here means a surface never re-derives it from the registry and the spec
 and gets a different answer.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel
 
 from app.agents.capabilities import CapabilityDef, CapabilityToolInfo

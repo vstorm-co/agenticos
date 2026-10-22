@@ -30,8 +30,6 @@ person accepts. See `app/db/models/skill_proposal.py` for why that indirection
 is not ceremony.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field

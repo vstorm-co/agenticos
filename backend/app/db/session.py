@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from app.core.background import discard_deferred, start_deferred
+from app.core.background import discard_deferred, start_after_rollback, start_deferred
 from app.core.config import settings
 from app.core.exceptions import AppException
 
@@ -47,9 +47,9 @@ vector_engine = create_async_engine(
 # The knowledge capability's store, and pool-less on purpose. A pooled asyncpg
 # connection belongs to the event loop that opened it, and the capability is the
 # one vector caller that runs on a loop nobody here chose: an agent runs inside
-# a Prefect worker as well as inside the API, so a second flow run in one worker
-# process reaches this from a *different* loop and a pooled connection made on
-# the first breaks it (`InterfaceError: attached to a different loop`) (#1079).
+# the worker as well as inside the API, and a caller on a *different* loop from
+# the one that opened a pooled connection breaks on it (`InterfaceError:
+# attached to a different loop`) (#1079).
 # `NullPool` caches nothing, so there is no connection to hand to the wrong
 # loop, no second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool of the kind #948
 # removed, and no circular wait against a request that already holds a
@@ -71,7 +71,7 @@ async_session_maker = async_sessionmaker(
 @asynccontextmanager
 async def _managed_session(
     factory: async_sessionmaker[AsyncSession],
-) -> AsyncGenerator[AsyncSession, None]:
+) -> AsyncGenerator[AsyncSession]:
     """Shared session lifecycle: commit on success, rollback on error.
 
     Background work registered with `spawn_after_commit` starts here, in the
@@ -105,9 +105,13 @@ async def _managed_session(
             start_deferred(session)
         finally:
             discard_deferred(session)
+            # Here rather than beside the rollback above: a cancelled request
+            # skips that branch, and its transaction did not commit either.
+            # After a commit `start_deferred` has already emptied this queue.
+            start_after_rollback(session)
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_session() -> AsyncGenerator[AsyncSession]:
     """The request's session, for FastAPI dependency injection.
 
     **Depend on it through `app.api.deps.DBSession`, never through a bare
@@ -165,19 +169,19 @@ def on_the_pooled_loop() -> bool:
 
 
 @asynccontextmanager
-async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_context() -> AsyncGenerator[AsyncSession]:
     """A session for manual management: a WebSocket, a worker task, a command.
 
     Pooled on the loop that owns the pools, and a `NullPool` engine of its own
     anywhere else. The distinction is not decoration: this is reached from
-    Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+    background jobs (the report, MCP refresh, invitation and approval tasks, the
     channel loops) and from an agent's embedding resolver, each on a loop of its
     own, and a pooled connection made on one loop breaks whoever checks it out
     on the next - `InterfaceError: attached to a different loop`, intermittent,
     and invisible to any test with one loop in it (#1079). Off the owning loop
     it therefore does exactly what `get_worker_db_context` does, at one connect
     per call, which is the price the worker already pays deliberately for its
-    ingestion flows (#948).
+    ingestion jobs (#948).
     """
     if not on_the_pooled_loop():
         async with get_worker_db_context() as session:
@@ -189,7 +193,7 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
+async def get_worker_db_context() -> AsyncGenerator[AsyncSession]:
     """Get a short-lived async session for background workers (Celery/ARQ).
 
     Creates a fresh engine with NullPool on every call so there are no
@@ -219,7 +223,7 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_worker_connection() -> AsyncGenerator[AsyncConnection, None]:
+async def get_worker_connection() -> AsyncGenerator[AsyncConnection]:
     """One connection for a background worker, held until the block exits.
 
     For what lives on a *connection* rather than in a transaction - a

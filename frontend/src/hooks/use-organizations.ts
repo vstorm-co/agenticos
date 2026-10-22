@@ -5,9 +5,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
-import type { Organization, OrganizationList, CreateOrganizationInput } from "@/types";
+import type {
+  Organization,
+  OrganizationList,
+  CreateOrganizationInput,
+  VoiceSettingsUpdate,
+} from "@/types";
 
 /**
  * Whether AI assistance is on in the active organization: `null` until it is known.
@@ -52,19 +58,33 @@ export function useOrganizationList() {
  *
  * Not the same thing as the selection. `activeOrgId` is null until the list
  * loads and the default is picked, and a request sent meanwhile carries no
- * `X-Organization-Id` - which the backend reads as the caller's personal
- * organization, not as no organization at all. Anything comparing "has the
+ * `X-Organization-Id` - which the backend reads as its fallback organization
+ * (`serverFallbackOrg`), not as no organization at all. Anything comparing "has the
  * tenant changed?" has to compare this, or it reads a page finishing its first
  * render as somebody switching organizations.
  *
  * Still null while nothing can answer the question: no selection, and no list
- * to resolve the personal organization from. A caller deciding whether to throw
+ * to resolve the fallback from. A caller deciding whether to throw
  * work away should treat that as "cannot tell yet" and do nothing.
  */
 export function useTenantId(): string | null {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data: orgs } = useOrganizationList();
-  return activeOrgId ?? orgs?.find((org) => org.is_personal)?.id ?? null;
+  return activeOrgId ?? (orgs ? serverFallbackOrg(orgs)?.id : null) ?? null;
+}
+
+/**
+ * Where the backend acts for a request that names no organization: the default
+ * organization, then the personal one, then the only one. `null` when that leaves
+ * a choice, which the backend refuses rather than guesses (#2156). Mirrors
+ * `OrganizationService.fallback_for`.
+ */
+export function serverFallbackOrg(orgs: readonly Organization[]): Organization | null {
+  return (
+    orgs.find((o) => o.is_default) ??
+    orgs.find((o) => o.is_personal) ??
+    (orgs.length === 1 ? (orgs[0] ?? null) : null)
+  );
 }
 
 /**
@@ -87,9 +107,10 @@ export function useTenantGuard(): (startedIn: string | null) => boolean {
 }
 
 /**
- * The organization to select out of `orgs`: the caller's personal one, or
- * failing that whichever comes first. `null` when there is nothing to pick,
- * which leaves the header off and lets the server fall back for us.
+ * The organization to select out of `orgs`: the deployment's default one, then
+ * the caller's personal one, or failing that whichever comes first (#2156).
+ * `null` when there is nothing to pick, which leaves the header off and lets the
+ * server fall back for us.
  *
  * `refusedIds` are skipped. Selecting one back would undo a recovery that has
  * just moved off it, and the two would trade the selection indefinitely.
@@ -99,7 +120,7 @@ export function preferredOrg(
   refusedIds: readonly string[] = [],
 ): Organization | null {
   const usable = orgs.filter((o) => !refusedIds.includes(o.id));
-  return usable.find((o) => o.is_personal) ?? usable[0] ?? null;
+  return usable.find((o) => o.is_default) ?? usable.find((o) => o.is_personal) ?? usable[0] ?? null;
 }
 
 export function useOrganizations() {
@@ -224,6 +245,19 @@ export function useOrganizations() {
     [writeCache, queryClient],
   );
 
+  // Five fields in one request, because the server validates them together: a
+  // provider without its model, or `server` without either, is refused whole.
+  const setVoiceSettings = useCallback(
+    async (id: string, settings: VoiceSettingsUpdate): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, settings);
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      // Every agent's dictation readiness inherits from these settings.
+      await invalidateSpeechSettings(queryClient);
+      return updated;
+    },
+    [writeCache, queryClient],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -259,6 +293,7 @@ export function useOrganizations() {
     setMonthlyBudget,
     setChatApprovalWaiver,
     setAiAssistance,
+    setVoiceSettings,
     deleteOrg,
     switchOrg,
   };

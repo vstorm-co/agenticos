@@ -11,8 +11,6 @@
   both sides, the proposed body served on the candidate alone.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any

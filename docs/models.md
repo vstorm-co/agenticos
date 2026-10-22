@@ -467,6 +467,43 @@ The child run row a delegation writes names the model that answered it, so the c
 dashboard groups a delegated turn under the model that actually ran rather than
 under the parent's.
 
+## Realtime models
+
+A [voice call](voice.md) does not use a model profile. Its model is a pick from
+a catalog this deployment ships, `backend/app/core/catalog/realtime_models.json`,
+read by `backend/app/services/realtime_models.py` and served to the Builder at
+`GET /api/v1/providers/realtime-models`. The key is named on the agent's Voice
+section as a vault secret, not on a profile. That is the same shape speech to
+text uses: a catalog pick plus an explicit key.
+
+Each entry names a provider, its models, and for each model:
+
+| Field | What it decides |
+|---|---|
+| `transport` | `webrtc` (the browser talks to the provider; this deployment holds a sideband) or `relay` (the audio passes through this deployment's socket) |
+| `input_sample_rate`, `output_sample_rate` | The PCM rates the browser records and plays at, over the relay |
+| `voices`, `default_voice` | What the Voice section offers, and what an empty choice means |
+| `supports_thinking` | Whether the agent's thinking capability maps onto the model's own reasoning setting |
+| `context_window` | Where a reconnect switches from replaying the turns to a summary of the older ones |
+| `pricing` | `kind` (`tokens` or `per_minute`), `worst_case_usd_per_minute` for the check before a call, and `usd_per_minute` for a per-minute model |
+
+OpenAI's `gpt-realtime` family runs over WebRTC and is the only provider tested
+live. Azure OpenAI, Gemini Live and xAI run over the relay and are **not
+verified live**. GPT-Live is not in the catalog: it cannot take history after a
+session starts, so a reconnect could not continue a call.
+
+**Azure is a deployment plus a base model.** A deployment's name is chosen by
+its owner and says nothing about what it runs, so the Voice section takes the
+deployment name as free text and the catalog model it runs as `base_model`. The
+base model decides the voices and the price: an Azure call's tokens are priced
+as that model on OpenAI. The endpoint and API version come from the
+`azure_openai` secret.
+
+**Prices.** Token-priced models are priced per response from the same bundled
+snapshot as text runs. A per-minute model (xAI) is billed for connected time at
+the catalog's `usd_per_minute`. A token-priced model the snapshot cannot price
+is refused when a call starts, rather than run with a budget it cannot enforce.
+
 ## Recap
 
 - A **profile** is a named model plus a named key, and agents point at profiles so
@@ -478,6 +515,8 @@ under the parent's.
   about it in the direction that breaks a run.
 - **Cost** comes from a bundled snapshot, an unknown model is recorded as unpriced
   rather than free, and a keyless provider records no spend at all.
+- **Realtime models** for voice calls are a catalog pick plus a named key, with
+  no profile; only OpenAI's are verified live.
 
 ## Setting one up
 

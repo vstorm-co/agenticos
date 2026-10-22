@@ -1,7 +1,5 @@
 """When a change of model may be accepted: only once a check shows it pays off."""
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any

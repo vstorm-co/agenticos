@@ -18,8 +18,6 @@ definition over it. `agents.system_key` holds the definition's `key`, which is
 how the platform finds the row again whatever it has since been renamed to.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID

@@ -256,7 +256,7 @@ class ChatPerson(BaseSchema):
     avatar_color: int | None = None
 
     @classmethod
-    def of(cls, user: "User") -> "ChatPerson":
+    def of(cls, user: User) -> ChatPerson:
         return cls(
             user_id=user.id,
             name=user.full_name or user.email,
@@ -287,6 +287,16 @@ class MessageRead(MessageBase, TimestampSchema):
         description=(
             "The agent run that produced this turn. Null for a turn written outside a "
             "run, which is what lets a client say so rather than draw an empty panel."
+        ),
+    )
+    turn_id: str | None = Field(
+        default=None, description="A spoken turn's id within its call; null for typed turns"
+    )
+    interrupted: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller talked over this answer; its text is trimmed to roughly "
+            "what was heard"
         ),
     )
     model_name: str | None = None

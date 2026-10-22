@@ -179,6 +179,7 @@ export function RunHistoryTab({
           : [filters.status],
     surface: WIDE_SURFACES.has(filters.surface) ? undefined : filters.surface,
     excludeSurface: filters.surface === "all" ? EVAL_SURFACE : undefined,
+    modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
@@ -204,6 +205,7 @@ export function RunHistoryTab({
   }
   if (!WIDE_SURFACES.has(filters.surface)) exportParams.surface = filters.surface;
   if (filters.surface === "all") exportParams.exclude_surface = EVAL_SURFACE;
+  if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;

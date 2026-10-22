@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { EmbedVariables } from "@/components/agents/embed-variables";
-import { PageFields } from "@/components/agents/page-fields";
+import {
+  PageFields,
+  type EmbedVoiceChoice,
+  type ServerDictationChoice,
+} from "@/components/agents/page-fields";
 import { WidgetFields } from "@/components/agents/widget-fields";
 import {
   Button,
@@ -18,6 +22,8 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { useDictationStatus } from "@/hooks/use-dictation-status";
+import { useVoiceReadiness } from "@/hooks/use-voice-readiness";
 import {
   defaultConfigFor,
   type Embed,
@@ -91,6 +97,24 @@ export function EmbedForm({
   const [secret, setSecret] = useState("");
   const [context, setContext] = useState(embed?.context ?? "");
   const [variables, setVariables] = useState<EmbedVariable[]>(embed?.context_variables ?? []);
+  // Whether `server` dictation would be accepted - the engine-free half of the
+  // agent's readiness, since a page or a widget is not gated by `/chat`'s. A
+  // socket has no microphone, so it asks nothing.
+  const readiness = useDictationStatus(kind === "socket" ? null : agentId);
+  const stored = embed?.config;
+  const serverDictation: ServerDictationChoice = {
+    available: readiness.status === null ? null : readiness.status.server_available,
+    unchecked: readiness.failed,
+    wasServer: stored !== undefined && stored.kind !== "socket" && stored.dictation === "server",
+  };
+  // Whether a visitor's call would start: the agent's own setup, the same
+  // answer the chat gets.
+  const voice = useVoiceReadiness(kind === "socket" ? null : agentId);
+  const voiceCall: EmbedVoiceChoice = {
+    available: voice.readiness === null ? null : voice.readiness.available,
+    unchecked: voice.failed,
+    wasOn: stored !== undefined && stored.kind !== "socket" && stored.voice_conversation === true,
+  };
 
   const originList = parseOrigins(origins);
   const missingOrigins = needsOrigins && originList.length === 0;
@@ -118,7 +142,13 @@ export function EmbedForm({
       </div>
 
       {config.kind === "widget" && (
-        <WidgetFields config={config} disabled={pending} onChange={setConfig} />
+        <WidgetFields
+          config={config}
+          disabled={pending}
+          serverDictation={serverDictation}
+          voiceCall={voiceCall}
+          onChange={setConfig}
+        />
       )}
 
       {needsOrigins && (
@@ -197,6 +227,8 @@ export function EmbedForm({
           disabled={pending}
           hasCustomLogo={embed?.has_custom_logo ?? false}
           onUpload={embed && onUploadLogo ? onUploadLogo : undefined}
+          serverDictation={serverDictation}
+          voiceCall={voiceCall}
           onChange={setConfig}
         />
       )}

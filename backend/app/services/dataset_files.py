@@ -20,8 +20,6 @@ column naming which case a row was would describe something the import does not
 do.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import json

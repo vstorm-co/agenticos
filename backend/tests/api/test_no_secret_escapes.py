@@ -15,8 +15,6 @@ Adding a route that returns a credential should fail here. If it does, the fix
 is the route, not the allowlist.
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 
@@ -116,6 +114,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "embedding_secret_id": (
         "the same again: which vault key a collection embeds on - the id of a "
         "reference the organization can revoke, never the key itself"
+    ),
+    "speech_to_text_secret_id": (
+        "which organization vault key transcription is billed to, on the "
+        "organization and on a channel bot - the id of the key, never the key"
     ),
     "token_secret_id": (
         "the same, named for what it points at: an agent's Logfire write token "

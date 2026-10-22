@@ -1,7 +1,5 @@
 """Where one guard stands on a version: only a current pass lets it through."""
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock

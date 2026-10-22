@@ -1,7 +1,5 @@
 """Memory via mem0 - semantic recall kept outside this deployment."""
 
-from __future__ import annotations
-
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator

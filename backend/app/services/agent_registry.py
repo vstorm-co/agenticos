@@ -12,8 +12,6 @@ Rolling back publishes a *new* version copied from an old one. The alternative -
 moving a pointer backwards - would make run history lie about what was live.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import re
@@ -59,7 +57,9 @@ from app.agents.spec import (
     PersonalMcpServerRef,
     PlatformMcpServerRef,
     SpecialistSpec,
+    SpeechToTextSpec,
     SubagentRef,
+    VoiceSpec,
 )
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
@@ -111,7 +111,15 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
-from app.services import agent_templates, authoring_fields, mcp_catalog, skill_library
+from app.services import (
+    agent_templates,
+    authoring_fields,
+    mcp_catalog,
+    provider_keys,
+    realtime_models,
+    skill_library,
+    speech_to_text,
+)
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -136,6 +144,7 @@ from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -890,6 +899,19 @@ class AgentRegistryService:
         )
         return True, grant_ids
 
+    async def any_visible(self, ctx: AuthContext) -> bool:
+        """Whether the caller sees at least one agent: the listing's own scope, one row of it."""
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=False)
+        agents, _total = await agent_repo.list_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=grant_ids,
+            limit=1,
+        )
+        return bool(agents)
+
     async def list_labels(
         self,
         ctx: AuthContext,
@@ -1500,6 +1522,8 @@ class AgentRegistryService:
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
+        problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
+        problems.add(await self._voice_problems(ctx, spec.voice))
         problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
@@ -1896,6 +1920,107 @@ class AgentRegistryService:
                 f"'{secret.name}' is for {secret.purpose}"
             ]
         return []
+
+    async def _speech_to_text_problems(
+        self, ctx: AuthContext, override: SpeechToTextSpec | None
+    ) -> list[str]:
+        """Everything wrong with an agent's speech-to-text override.
+
+        Here rather than on `SpeechToTextSpec` itself, because the Builder saves a
+        draft on every change and a half-chosen pair - a provider picked, its model
+        or its key not yet - is a draft somebody is in the middle of, not a
+        mistake. Published, it is one: a provider with no model reads as
+        configured and transcribes nothing, a model outside the catalog is
+        refused by the provider while the person who sent the recording waits,
+        and a pair with no key has nothing to pay with. All are caught while
+        somebody is looking at the form, the same as every other reference a
+        spec makes.
+
+        The key follows the lending rule every key in a spec does - the
+        publisher must be able to view it - plus the kind and purpose checks
+        (`SpeechToTextSettingsService.key_problem`).
+        """
+        if override is None:
+            return []
+        problems: list[str] = []
+        provider, model, secret_id = override.provider, override.model, override.secret_id
+        if (provider is None) != (model is None):
+            problems.append(
+                "Speech to text needs a provider and a model together - choose both, or "
+                "inherit the organization's"
+            )
+        elif provider is not None and model is not None:
+            if not speech_to_text.is_offered(provider, model):
+                problems.append(
+                    f"Speech to text: '{model}' is not a transcription model this deployment "
+                    f"offers for {provider}"
+                )
+            elif secret_id is None:
+                problems.append(f"Speech to text: choose a key for {provider} to transcribe with")
+            else:
+                problem = await SpeechToTextSettingsService(self.db).key_problem(
+                    secret_id, organization_id=ctx.organization_id, provider=provider, ctx=ctx
+                )
+                if problem is not None:
+                    problems.append(f"Speech to text: {problem}")
+        elif secret_id is not None:
+            problems.append(
+                "Speech to text: a key goes with a provider and a model - choose those, "
+                "or clear the key to inherit the organization's"
+            )
+        if override.language is not None and override.language not in speech_to_text.LANGUAGES:
+            problems.append(
+                f"Speech to text: '{override.language}' is not a language transcription accepts"
+            )
+        return problems
+
+    async def _voice_problems(self, ctx: AuthContext, voice: VoiceSpec | None) -> list[str]:
+        """Everything wrong with an agent's Voice conversations section (#54).
+
+        Refused at publish so a broken voice section is a red field, never a
+        call that fails while somebody is talking: the pair is in the realtime
+        catalog, the voice is one of the model's, the key passes the shared
+        check (`provider_keys.key_problem`) with the kind its provider needs, and
+        the language is one calls accept. The longest call's 50-minute ceiling is
+        the field's own bound.
+        """
+        if voice is None:
+            return []
+        if voice.provider is None:
+            return ["Voice: choose a provider and a model, or remove the voice section"]
+        provider = realtime_models.by_provider(voice.provider)
+        if provider is None:
+            return [f"Voice: {voice.provider} cannot hold voice conversations on this deployment"]
+        problems: list[str] = []
+        catalog_model = voice.base_model if provider.deployment else voice.model
+        if catalog_model is None:
+            return [f"Voice: choose a model for {voice.provider}"]
+        entry = realtime_models.offered(voice.provider, catalog_model)
+        if entry is None:
+            return [
+                f"Voice: '{catalog_model}' is not a realtime model this deployment offers for {voice.provider}"
+            ]
+        if provider.deployment and not voice.deployment:
+            problems.append(f"Voice: name the Azure deployment that runs {catalog_model}")
+        if voice.voice is not None and voice.voice not in entry.voices:
+            problems.append(f"Voice: {catalog_model} has no voice called '{voice.voice}'")
+        if voice.secret_id is None:
+            problems.append(f"Voice: choose a key for {voice.provider} to hold calls with")
+        else:
+            problem = await provider_keys.key_problem(
+                self.db,
+                voice.secret_id,
+                organization_id=ctx.organization_id,
+                provider=voice.provider,
+                kind=provider.secret_kind,
+                feature="voice conversations",
+                ctx=ctx,
+            )
+            if problem is not None:
+                problems.append(f"Voice: {problem}")
+        if voice.language is not None and voice.language not in speech_to_text.LANGUAGES:
+            problems.append(f"Voice: '{voice.language}' is not a language code calls accept")
+        return problems
 
     async def _delegation_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None

@@ -7,8 +7,6 @@ a **score** - what each scorer found about one run's answer to one case, beside
 a person's verdict on it.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID

@@ -12,8 +12,6 @@ The checks and tags each origin carries are added here rather than asked of
 the model, so they hold whatever the model wrote.
 """
 
-from __future__ import annotations
-
 from collections import Counter
 from dataclasses import dataclass
 from typing import Literal

@@ -48,8 +48,6 @@ window, the filters that were applied and the row count - never the request body
 or a resolved row.
 """
 
-from __future__ import annotations
-
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -409,6 +407,7 @@ def _applied_run_filters(
         "exposure_id": filters.exposure_id is not None,
         "agent_version_id": filters.agent_version_id is not None,
         "rated": filters.rated is not None,
+        "modality": filters.modality is not None,
     }
     return sorted(name for name, present in named.items() if present)
 

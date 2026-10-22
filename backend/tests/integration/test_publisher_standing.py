@@ -11,8 +11,6 @@ Three rows, three answers, and the middle one is the defect: still a member, sti
 recorded, and no longer able to sign in.
 """
 
-from __future__ import annotations
-
 import re
 import uuid
 from pathlib import Path

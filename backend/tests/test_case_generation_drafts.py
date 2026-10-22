@@ -1,7 +1,5 @@
 """The rules a drafted case must keep, the prompt that asks for it, and what it costs."""
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 

@@ -1,4 +1,4 @@
-"""The 0156 revision: spec field hunks, context requests and context proposals.
+"""The 0171 revision: spec field hunks, context requests and context proposals.
 
 Upgraded, a hunk can change a field of the spec and the assistant can be asked
 about a context file. Downgraded, what the narrower checks would refuse is
@@ -6,8 +6,6 @@ deleted first - spec field hunks, context requests - while an instruction hunk
 stays, and upgrading again works over what is left. It owns a database of its
 own, as every migration test here does.
 """
-
-from __future__ import annotations
 
 import json
 import os
@@ -25,8 +23,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_authoring_parts_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0155_promotion_gate"
-_TARGET_REVISION = "0156_authoring_agent_parts"
+_BASE_REVISION = "0170_promotion_gate"
+_TARGET_REVISION = "0171_authoring_agent_parts"
 
 
 def _url(database: str) -> str:

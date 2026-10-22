@@ -25,10 +25,9 @@ from the origin the app runs on, and a stored name is what decides whether a
 browser treats it as a picture or as a script.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
@@ -41,9 +40,10 @@ from app.core.exceptions import BadRequestError
 from app.core.maintenance import publish as publish_maintenance
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.updates import writable
-from app.repositories import deployment_settings_repo
+from app.repositories import deployment_settings_repo, organization_repo
 from app.schemas.deployment_settings import (
     BrandingRead,
+    DefaultOrganizationRole,
     DeploymentLimits,
     DeploymentSettingsRead,
     DeploymentSettingsUpdate,
@@ -130,6 +130,12 @@ class DeploymentSettingsService:
             max_organizations_per_user=row.max_organizations_per_user if row else None,
             max_agents_per_organization=row.max_agents_per_organization if row else None,
             notify_impersonated_users=row.notify_impersonated_users if row else False,
+            personal_organizations=row.personal_organizations if row else True,
+            default_organization_id=row.default_organization_id if row else None,
+            default_organization_role=(
+                _default_role(row.default_organization_role) if row else "member"
+            ),
+            dictation_compressed_audio=row.dictation_compressed_audio if row else False,
             updated_at=row.updated_at if row else None,
         )
 
@@ -142,6 +148,16 @@ class DeploymentSettingsService:
         row = await deployment_settings_repo.get(self.db)
         return bool(row and row.notify_impersonated_users)
 
+    async def accepts_compressed_dictation(self) -> bool:
+        """Whether a dictation may be WebM, Ogg or MP4 rather than raw PCM alone (#1797).
+
+        No row is the unconfigured deployment, and the unconfigured answer is
+        no: raw PCM is the format whose length cannot lie, and accepting the
+        others is a risk somebody has to have taken on the settings page.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        return bool(row and row.dictation_compressed_audio)
+
     async def limits(self) -> DeploymentLimits:
         """The two ceilings, as whatever creates the thing they bound reads them.
 
@@ -153,6 +169,22 @@ class DeploymentSettingsService:
         return DeploymentLimits(
             organizations_per_user=row.max_organizations_per_user if row else None,
             agents_per_organization=row.max_agents_per_organization if row else None,
+        )
+
+    async def new_account_placement(self) -> NewAccountPlacement:
+        """Where an account created now starts: its own organization, the default one, or both.
+
+        No row is the unconfigured deployment, which gives every account a
+        personal organization and joins it to nothing else - what it did before
+        either setting existed.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        if row is None:
+            return NewAccountPlacement(personal=True, default_organization_id=None, role="member")
+        return NewAccountPlacement(
+            personal=row.personal_organizations,
+            default_organization_id=row.default_organization_id,
+            role=_default_role(row.default_organization_role),
         )
 
     async def update(
@@ -172,6 +204,8 @@ class DeploymentSettingsService:
         update_data = writable(data, over=DeploymentSettings)
         if not update_data:
             raise BadRequestError(message="Nothing to change")
+        if update_data.get("default_organization_id") is not None:
+            await self._check_default_organization(update_data["default_organization_id"])
         row = await deployment_settings_repo.upsert(self.db, update_data=update_data)
         # The middleware reads its verdict from a cache with a TTL, so a saved
         # change would otherwise take up to half a minute to close or reopen the
@@ -206,6 +240,25 @@ class DeploymentSettingsService:
         )
         await notifications.configuration_changed(entry, recipients=audience)
         return await self.read()
+
+    async def _check_default_organization(self, organization_id: UUID) -> None:
+        """Refuse an organization that does not exist, or one that is somebody's own.
+
+        A personal organization belongs to the person who signed up with it, and
+        joining every newcomer to it would make one colleague's private space the
+        company's front door.
+        """
+        organization = await organization_repo.get_by_id(self.db, organization_id)
+        if organization is None:
+            raise BadRequestError(
+                message="That organization does not exist",
+                details={"default_organization_id": str(organization_id)},
+            )
+        if organization.is_personal:
+            raise BadRequestError(
+                message="A personal organization cannot be the default for new accounts",
+                details={"default_organization_id": str(organization_id)},
+            )
 
     async def set_image(
         self,
@@ -379,6 +432,24 @@ _NOTICE_LEVELS: dict[str, NoticeLevel] = {
 }
 
 
+_DEFAULT_ROLES: dict[str, DefaultOrganizationRole] = {
+    "admin": "admin",
+    "builder": "builder",
+    "operator": "operator",
+    "member": "member",
+    "viewer": "viewer",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class NewAccountPlacement:
+    """Where a new account starts. See `DeploymentSettingsService.new_account_placement`."""
+
+    personal: bool
+    default_organization_id: UUID | None
+    role: DefaultOrganizationRole
+
+
 def _signup_mode(stored: str) -> SignupMode:
     """The stored mode, narrowed to the three the API publishes.
 
@@ -394,3 +465,8 @@ def _signup_mode(stored: str) -> SignupMode:
 def _notice_level(stored: str) -> NoticeLevel:
     """The stored level, narrowed the same way. An unknown level draws as `info`."""
     return _NOTICE_LEVELS.get(stored, "info")
+
+
+def _default_role(stored: str) -> DefaultOrganizationRole:
+    """The stored role, narrowed. An unknown one - `owner` written by hand - joins as `member`."""
+    return _DEFAULT_ROLES.get(stored, "member")

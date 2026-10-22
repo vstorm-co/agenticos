@@ -6,8 +6,6 @@ drafts. The check lives in the service rather than the client, so "off" holds fo
 a script, a stale tab and a trigger alike.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

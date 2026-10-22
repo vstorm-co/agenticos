@@ -13,8 +13,6 @@ this fix - skip anything starting with `rag_` - would have turned the gate off f
 one table this project ingests through, and nothing would have said so.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest

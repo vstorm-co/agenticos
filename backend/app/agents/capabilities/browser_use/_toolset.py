@@ -19,8 +19,6 @@ new `start_url`, which navigates the same tab. The toolset is entered for the ru
 and closes the tab when the run ends, whatever ended it.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import functools

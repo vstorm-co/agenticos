@@ -6,8 +6,6 @@ only when the visual's own call declared it; and the documents the frame and an
 app are built from are the same ones.
 """
 
-from __future__ import annotations
-
 import hashlib
 import uuid
 from contextlib import asynccontextmanager
@@ -581,6 +579,12 @@ class TestDocuments:
         page = visuals.visual_document("mermaid", "A --> B<br>", title="T")
         assert "A --&gt; B&lt;br&gt;" in page
         assert "lib/mermaid-12.1.0.min.js" in page
+
+    def test_a_map_tile_that_did_not_load_is_not_reported_as_a_broken_drawing(self) -> None:
+        # The map kit falls back to an outline; the model has nothing to fix.
+        runtime = visuals.VISUAL_RUNTIME
+        skip = runtime.index('classList.contains("leaflet-tile")) return;')
+        assert skip < runtime.index('fail("Could not load "')
 
     async def test_the_frame_carries_the_templates_and_is_read_once(self, monkeypatch) -> None:
         monkeypatch.setattr(visuals, "_frame", None)

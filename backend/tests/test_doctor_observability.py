@@ -6,8 +6,6 @@ a managed database may not preload the library, and tracing is a choice - but
 both must be said out loud rather than discovered during an incident.
 """
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock, patch
 
 import pytest

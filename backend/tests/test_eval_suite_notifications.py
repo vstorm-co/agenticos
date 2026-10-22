@@ -1,7 +1,5 @@
 """What the owner of a failing suite is told: which suite, on what, why, and which cases."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, patch

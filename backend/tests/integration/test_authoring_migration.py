@@ -1,4 +1,4 @@
-"""The 0152 revision: the authoring assistant's tables, and a downgrade that keeps the improver.
+"""The 0168 revision: the authoring assistant's tables, and a downgrade that keeps the improver.
 
 Upgraded, an improver agent and its proposals can be stored. Downgraded, the
 proposal tables go and the improver stays as an ordinary agent - its kind back
@@ -6,8 +6,6 @@ to `agent`, its system key cleared - so the narrower constraint holds and an
 edited agent is not deleted. Upgrading again works over that row. It owns a
 database of its own, as every migration test here does.
 """
-
-from __future__ import annotations
 
 import json
 import os
@@ -25,8 +23,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_authoring_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0153_knowledge_gap_signals"
-_TARGET_REVISION = "0152_authoring_proposals"
+_BASE_REVISION = "0167_knowledge_gap_signals"
+_TARGET_REVISION = "0168_authoring_proposals"
 
 
 def _url(database: str) -> str:
@@ -90,7 +88,7 @@ def migration_database() -> Iterator[None]:
 
 
 def _seed_improver() -> uuid.UUID:
-    """An organization at 0152 with a seeded improver and a request it answered."""
+    """An organization at 0168 with a seeded improver and a request it answered."""
     agent_id = uuid.uuid4()
     engine = create_engine(_url(MIGRATION_DATABASE), isolation_level="AUTOCOMMIT")
     try:

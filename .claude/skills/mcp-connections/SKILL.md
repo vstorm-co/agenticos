@@ -52,8 +52,11 @@ would make the token unreadable the moment they switched.
 probe before the turn; failures log a warning and the turn proceeds without those
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
-skipped server means the model answers *without* the tools. `/test` and `last_status`
-are how you find out.
+skipped server means the model answers *without* the tools. It is briefed, though:
+`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+server that answered within two minutes and fails on connect, both through
+`unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
+find out.
 
 **Tools are prefixed with the connection name.** `github-work` → `github_work_*`.
 Two servers exposing the same tool name make Pydantic AI raise on duplicates, which

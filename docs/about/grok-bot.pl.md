@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: współpracownik AI, którego hostujesz sam"
 description: "Grok Bot daje każdemu nazwanemu współpracownikowi komputer w chmurze na Groku. Porównaj z AgenticOS: dowolny model, log audytu, osobne logowania, twoje serwery."
-source_sha: "718df56557d9"
+source_sha: "2fd2c16c9165"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -11,7 +11,7 @@ Grok Bot od xAI i Cursora pozwala tworzyć nazwanych współpracowników AI. Ka�
 
 Jeśli chcesz w tym tygodniu wypróbować zespół współpracowników AI na modelach xAI, Grok Bot szybko wystartuje. Jeśli musisz pokazać, kto co zrobił, trzymać loginy każdej osoby osobno i wybierać model, AgenticOS jest zbudowany właśnie do tego.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja bazowa AgenticOS: v0.0.535. Zakres Grok Bot: publiczna beta ogłoszona 11 sierpnia 2026, opisana przez prasę i niezależne recenzje, a nie przetestowane konto. Jedna recenzja pochodzi od konkurencyjnego dostawcy i jest niżej tak oznaczona.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Grok Bot: publiczna beta ogłoszona 11 sierpnia 2026, opisana przez prasę i niezależne recenzje, a nie przetestowane konto. Jedna recenzja pochodzi od konkurencyjnego dostawcy i jest niżej tak oznaczona.
 
 ## W skrócie { #at-a-glance }
 
@@ -21,9 +21,9 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Gdzie działa | Chmura xAI | Twoja infrastruktura, z Docker Compose |
 | Kod źródłowy | Zamknięty | Apache-2.0 |
 | Modele | Tylko Grok, bez wyboru | 28 providerów, w tym modele lokalne |
-| Komputer | Stała maszyna wirtualna wspólna dla wszystkich botów konta | Sandbox na rozmowę; przeglądarka, której logowania są trzymane per osoba |
+| Komputer | Stała maszyna wirtualna wspólna dla wszystkich botów konta | Sandbox na rozmowę albo jeden wspólny dla czatów [projektu](../projects.md); przeglądarka, której logowania są trzymane per osoba |
 | Nauka zadania | Nagrywasz ekran do dziesięciu minut; wraca szkic skilla | Skille pisane albo instalowane z galerii, przypięte do każdego agenta |
-| Praca zespołowa | Czaty grupowe dwóch do sześciu botów, które przekazują sobie pracę | [Delegowanie](../reference/capabilities.md#delegation) do innych opublikowanych agentów, przypiętych do wersji |
+| Praca zespołowa | Czaty grupowe dwóch do sześciu botów, które przekazują sobie pracę | [Subagenci](../reference/capabilities.md#delegation): inni opublikowani agenci, przypięci do wersji; czaty projektów, w których pracuje kilka osób i agentów naraz |
 | Zgody | Opisane prozą; opcjonalna ocena przez model | Sprawdzane przez platformę, zanim narzędzie się uruchomi |
 | Audyt | Zapowiedziany | Log audytu odporny na manipulację i zapis każdego runu |
 | Cena | Płatne plany od 120 $ za miejsce do 200 $ miesięcznie | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |

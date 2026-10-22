@@ -10,8 +10,6 @@ so sharing a single agent with a Viewer works without promoting them, and a
 Builder's org-wide view is not taken away by the absence of a grant.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol

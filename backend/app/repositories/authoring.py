@@ -1,7 +1,5 @@
 """Data access for the authoring assistant's requests, proposals and evidence."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime

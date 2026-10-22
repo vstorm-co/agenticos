@@ -17,8 +17,6 @@ definition's budget, publishes the same way, and is isolated like the seeded one
 only the seeded one carries the key.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 
@@ -73,7 +71,7 @@ class SystemAgentService:
         for definition in SYSTEM_AGENTS:
             try:
                 await self._create(definition, organization_id=organization_id, owner_id=owner_id)
-            except (AlreadyExistsError, BadRequestError):
+            except AlreadyExistsError, BadRequestError:
                 logger.warning(
                     "System agent %r was not seeded into organization %s",
                     definition.key,

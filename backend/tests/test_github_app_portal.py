@@ -12,8 +12,6 @@ that replaces it - which grant a delivery belongs to, which triggers it fires,
 and what a delivery nobody claims is answered with.
 """
 
-from __future__ import annotations
-
 import contextlib
 import hashlib
 import hmac
@@ -113,6 +111,7 @@ def _trigger(
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
+        organization_id=ORG,
         portal_key=portal_key,
         provider_target=target,
         event_config={"actions": list(actions)},
@@ -200,6 +199,9 @@ class TestWhoseDeliveryItIs:
             decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
 
         assert [decision.trigger_id for decision in decisions] == [trigger.id]
+        # Queued under the trigger's own organization, so a fire that kept killing
+        # its worker pauses that tenant's fires and not everyone's (Codex, #2248).
+        assert [decision.organization_id for decision in decisions] == [ORG]
 
     async def test_an_installation_nobody_holds_a_grant_for_is_refused(self) -> None:
         """No candidate can have signed it, so it did not verify - and a 403 is
@@ -773,44 +775,3 @@ class TestWhatADisabledGrantDoes:
 
         compiled = str(statements[-1].compile(dialect=postgresql.dialect()))
         assert "is_enabled" in compiled
-
-
-class TestOneDeliveryThatFiresSeveralTriggers:
-    async def test_a_failed_submission_does_not_abandon_the_others(self) -> None:
-        """`prepare_app_fires` has already claimed the delivery for every decision.
-
-        So a raise part-way through the loop would lose the remaining triggers
-        *and* make GitHub's retry a no-op for the claim's fifteen minutes - one
-        Prefect hiccup silently dropping another organization's event.
-        """
-        from app.api.routes.v1 import trigger_webhooks
-
-        first, second, third = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        decisions = [
-            SimpleNamespace(trigger_id=trigger, event_context={})
-            for trigger in (first, second, third)
-        ]
-        submitted: list[str] = []
-
-        async def dispatch(trigger_id: str, *, event_context: dict) -> None:
-            del event_context
-            submitted.append(trigger_id)
-            if trigger_id == str(second):
-                raise RuntimeError("prefect said no")
-
-        service = MagicMock()
-        service.prepare_app_fires = AsyncMock(return_value=decisions)
-        request = MagicMock()
-        request.headers = {}
-        request.body = AsyncMock(return_value=b"{}")
-
-        with patch(
-            "app.worker.tasks.trigger_tasks.dispatch_trigger_fire",
-            new=AsyncMock(side_effect=dispatch),
-        ):
-            response = await trigger_webhooks.ingest_github_app_event(request, service)
-
-        assert submitted == [str(first), str(second), str(third)]
-        # And the provider is still told the delivery was taken, so its retry does
-        # not arrive against a claim that is already held.
-        assert response.status_code == 202

@@ -50,13 +50,11 @@ the middle of a tool call. What is left at run time is a closure that builds an
 agent already resolved, and a recorder that writes one row.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -66,6 +64,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.agent import AgentRealtime
 from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import (
     ModelMessage,
@@ -74,10 +73,18 @@ from pydantic_ai.messages import (
     ToolCallPart,
     UserContent,
 )
+from pydantic_ai.realtime import (
+    RealtimeModel,
+    RealtimeModelSettings,
+    RealtimeProviderSession,
+    RealtimeSession,
+    WebRTCAnswer,
+)
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.usage import UsageLimits
 from pydantic_ai.workspaces import Workspace
 from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
@@ -94,6 +101,7 @@ from app.agents.ask_user import (
 )
 from app.agents.audience import RunAudience, derive_audience
 from app.agents.cache_watch import tally
+from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -152,6 +160,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
@@ -164,6 +173,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
+from app.agents.hand_off import CallWorker, HandOffSpend
 from app.agents.isolation import (
     CallRow,
     RunIsolation,
@@ -174,7 +184,7 @@ from app.agents.isolation import (
 )
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
-from app.agents.mcp import PLATFORM_MCP_PREFIX
+from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -208,6 +218,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.system_agents import refuse_system_agent
+from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -229,7 +240,8 @@ from app.db.models.conversation import Message
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
-from app.db.session import get_worker_db_context
+from app.db.models.skill import Skill
+from app.db.session import get_db_context, get_worker_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -248,8 +260,10 @@ from app.repositories import (
     organization_repo,
     run_manifest_repo,
     user_repo,
+    voice_call_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
+from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -276,6 +290,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
@@ -1239,6 +1254,22 @@ class RecordedDelegation:
     cache_write_tokens: int = 0
 
 
+@dataclass(frozen=True)
+class VoiceRun:
+    """What makes a prepared run a voice call (#54).
+
+    The run row records the realtime model, provider and key, not the chat
+    profile's: those are what the call spends. The chat profile is still
+    resolved - it prices nothing in a call, but it writes the long-history
+    summary a reconnect may need.
+    """
+
+    options: VoiceOptions
+    model_label: str
+    provider: str
+    secret_id: UUID
+
+
 @dataclass
 class PreparedRun:
     """An agent ready to execute, with its run row already open.
@@ -1261,6 +1292,10 @@ class PreparedRun:
     :meth:`AgentRunnerService.finish`, and nothing else in the process knows the
     run is over.
     """
+
+    hand_off: CallWorker | None = None
+    """A call's text twin, when the call hands work off (#54): the session points
+    its steps at the call's event pump."""
 
     materialised_skills: MaterialisedSkills | None = None
     """The skill files written into that workspace, as they were written.
@@ -1430,7 +1465,7 @@ class PreparedRun:
         user_prompt: str | Sequence[UserContent] | None,
         *,
         message_history: Sequence[ModelMessage] | None,
-    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests], None]:
+    ) -> AsyncGenerator[AgentIteration[AgentDeps, str | DeferredToolRequests]]:
         """Iterate the agent's graph, metered, for a surface that streams.
 
         **The meter is here rather than at the call site because a surface that
@@ -1463,6 +1498,56 @@ class PreparedRun:
                 workspace=self._workspace(),
             ) as iteration:
                 yield iteration
+
+    def realtime(
+        self,
+        model: RealtimeModel,
+        *,
+        settings: RealtimeModelSettings,
+        message_history: Sequence[ModelMessage],
+        cost_limit: Decimal | None,
+    ) -> AgentRealtime[AgentDeps]:
+        """This run's agent as a realtime session factory (#54).
+
+        `request_limit=None`, never `built.usage_limits`: a session counts every
+        response, and a text run's 50-100 requests would end a call after a few
+        minutes of talking. The budget is the limit, as a cost.
+        """
+        return self.built.agent.realtime(
+            model,
+            deps=self.built.deps,
+            model_settings=settings,
+            usage_limits=UsageLimits(cost_limit=cost_limit, request_limit=None),
+            message_history=message_history,
+            run_id=str(self.run.id),
+            conversation_id=(
+                None if self.run.conversation_id is None else str(self.run.conversation_id)
+            ),
+        )
+
+    async def answer_offer(
+        self, realtime: AgentRealtime[AgentDeps], sdp_offer: str
+    ) -> WebRTCAnswer:
+        """Answer a browser's SDP offer, metered: it resolves the tools, MCP included, once."""
+        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+            return await realtime.answer_webrtc_offer(sdp_offer)
+
+    @asynccontextmanager
+    async def realtime_session(
+        self,
+        realtime: AgentRealtime[AgentDeps],
+        *,
+        provider_session: RealtimeProviderSession | None,
+    ) -> AsyncGenerator[RealtimeSession]:
+        """The call's session, metered and guarded like `iterate` (#54).
+
+        `transcript_only`: no audio is kept, in memory or anywhere else.
+        """
+        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+            async with realtime.session(
+                provider_session=provider_session, audio_retention="transcript_only"
+            ) as session:
+                yield session
 
     def _workspace(self) -> Workspace | None:
         """The workspace this run works in: the one the runner opened, if any.
@@ -1668,8 +1753,50 @@ _SKILLS_BRIEFING = (
     "text names a different directory is out of date; this is where the files are."
 )
 
+_DEFERRED_SKILLS_BRIEFING = (
+    f"Your skills are also written as files, under `{SKILLS_ROOT}/<name>/` - `SKILL.md` "
+    "and each of the skill's resources beside it - the first time you use the "
+    "workspace. Read and run them there. A skill whose own text names a different "
+    "directory is out of date. A file that is not there was refused by the workspace, "
+    "usually because it is full; the skill's own text is still yours to load."
+)
+"""What a sandbox's run is told, whose skills are written on its first use there.
 
-def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
+Said before the writes can have succeeded, so it does not claim they did."""
+
+
+def _start_turn_on_first_use(
+    workspace: RecordingWorkspace,
+    prepared: PreparedRun,
+    skills: list[Skill],
+    bodies: Mapping[UUID, SkillBody],
+) -> None:
+    """Write the run's skills and take its snapshot when the sandbox is first used.
+
+    The same two steps, in the same order, that a `state` workspace takes while the
+    run is prepared - deferred because on a sandbox they are what opens the
+    session. Both never raise, so the operation waiting behind them is never
+    failed by them; a snapshot that could not be taken stays `None`, which posts
+    nothing back.
+    """
+
+    async def start() -> None:
+        prepared.materialised_skills = await materialise_skills(workspace, skills, bodies)
+        prepared.workspace_at_start = await workspace_snapshot(workspace)
+
+    workspace.prepare_on_first_use(start)
+
+
+def _untouched(workspace: OpenWorkspace) -> bool:
+    """Whether the run never used its sandbox, so there is nothing in it to collect.
+
+    Listing it to find out would open the session the turn managed without.
+    """
+    recorder = workspace.workspace
+    return isinstance(recorder, RecordingWorkspace) and not recorder.touched
+
+
+def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
     """The spec told where this run's skills were written.
 
     Nothing else tells it. The path was only ever discoverable from a skill's own
@@ -1680,8 +1807,11 @@ def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
 
     Appended like the workspace briefing, and only when something was actually
     materialised: a run whose every write was refused has no files to point at.
+    A sandbox's skills are written later, on its first use, so `deferred` says
+    where they will be without claiming they are there.
     """
-    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{_SKILLS_BRIEFING}"})
+    briefing = _DEFERRED_SKILLS_BRIEFING if deferred else _SKILLS_BRIEFING
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
 
 
 class PersonalServiceGap(BaseModel):
@@ -1840,6 +1970,8 @@ def _binding_gap_briefing(
             f"in {gap.server}, say it is not available because two of this agent's servers collide "
             "under one name, which the agent's author resolves by renaming one connection."
         )
+    if isinstance(gap, UnavailableUnreachableServer):
+        return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
     return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
 
 
@@ -2053,6 +2185,14 @@ class _Delegation:
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
+    answering_call: VoiceOptions | None = None
+    """The call the tree works for, when a call's text twin delegates (#54).
+
+    A delegate in a call cannot park on an approval - nobody resumes a call - so
+    each one settles its own gated calls with the caller, as the twin does.
+    Parked instead, the delegate's approval would surface as one on the twin's
+    `task` call, which no approval row answers."""
+
     profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
     """The organization's model catalog, resolved at most once and only if asked for.
 
@@ -2161,6 +2301,7 @@ def _delegate_builder(
             shared_budget=delegation.budget.guard,
             isolation=delegation.isolation,
             test_bindings=test_bindings,
+            answering_call=delegation.answering_call,
         )
         # Kept so `finish` counts its cache busts on the row of the agent that hit them.
         delegation.recorders.append((agent_id, built.recorder))
@@ -2555,6 +2696,7 @@ class AgentRunnerService:
         request_connection: ConnectionCallback | None = None,
         isolation: RunIsolation | None = None,
         candidate: Candidate | None = None,
+        voice: VoiceRun | None = None,
         person_time_zone: str | None = None,
         draft: bool = False,
         test: bool = False,
@@ -2620,6 +2762,10 @@ class AgentRunnerService:
                 unpublished candidate is validated against the caller's access
                 and the run is attributed to no version, so a draft's answers
                 never count as a published version's.
+            voice: A voice call (#54). The spec is stripped of what a call
+                cannot run *before* assembly, so no sandbox opens and no
+                delegate resolves; the row is stamped `modality='voice'` with
+                the realtime model and its key.
             person_time_zone: The person's own IANA time zone, when the surface
                 knows it - what an agent whose `time_zone` is `user` tells the
                 time in (#2065).
@@ -2664,6 +2810,8 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
+        if voice is not None:
+            spec = without_voice_unavailable(spec)
         if aside:
             spec = _answer_only(spec)
         prepared = await self._assemble(
@@ -2692,6 +2840,7 @@ class AgentRunnerService:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
             isolation=isolation,
+            voice=voice,
             # And this one because preparing already opens the sandbox session.
             on_sandbox_wait=on_sandbox_wait,
             person_time_zone=person_time_zone,
@@ -2811,6 +2960,7 @@ class AgentRunnerService:
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
         isolation: RunIsolation | None = None,
+        voice: VoiceRun | None = None,
         person_time_zone: str | None = None,
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
@@ -3072,9 +3222,11 @@ class AgentRunnerService:
                 exposure_id=exposure.id if exposure else None,
                 channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
-                model_label=model_spec.label,
-                provider=model_spec.provider,
-                secret_id=model_spec.secret_id,
+                # A call spends on its realtime model and key, not the chat profile's.
+                model_label=voice.model_label if voice is not None else model_spec.label,
+                provider=voice.provider if voice is not None else model_spec.provider,
+                secret_id=voice.secret_id if voice is not None else model_spec.secret_id,
+                modality="voice" if voice is not None else "text",
                 started_at=datetime.now(UTC),
                 is_test=is_test,
                 test_spec=test_spec,
@@ -3091,11 +3243,12 @@ class AgentRunnerService:
         # that then sits `idle in transaction` for the rest of the run, holding
         # the very connection the opening commit in `_run` exists to hand back:
         # measured under 18 concurrent runs, the three past the pool waited 26
-        # seconds at this read (#12). The worker context and not the pooled one,
-        # because a trigger fires runs inside Prefect flows: a pooled connection
-        # made on one flow's event loop breaks whoever checks it out on the
-        # next, and this read happens on whatever loop the run is on. One
-        # connect per run, next to a model call.
+        # seconds at this read (#12). A session of its own from `get_db_context`:
+        # a pooled connection checked out for the read and handed straight back,
+        # on the loop that owns the pools, and a `NullPool` engine on any other -
+        # the case a trigger's run in the worker used to need this to be the
+        # worker context for. That was a new connection, a SCRAM handshake and
+        # four statements of dialect start-up, two or three times per run (#2248).
         # Both leave this run's own row out. A baseline is what *other* runs have
         # already spent; what this one spends is the ledger's, and on a resume
         # the two are the same money. A run that spent $6 and parked has
@@ -3105,8 +3258,24 @@ class AgentRunnerService:
         # against a $10 cap and refused a run with $4 of headroom (#15). On a
         # fresh run the row is there too, at zero, so this changes nothing and
         # needs no branch.
+        # A call reads them again at every heartbeat (#54), so those re-reads take
+        # the pooled session rather than an engine and connection of their own
+        # each time - a call runs on the API worker's own loop, where that pool
+        # lives, and a heartbeat reads them holding no other connection. Each
+        # lookup's first read stays on the worker context: it is the call's start
+        # check, made while the starter's own transaction holds a pooled
+        # connection, and a second checkout from the same pool there waits on a
+        # pool the concurrent starts themselves have taken.
+        read_before: set[str] = set()
+
+        def spend_session(lookup: str) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
+            if voice is None or lookup not in read_before:
+                read_before.add(lookup)
+                return get_worker_db_context
+            return get_db_context
+
         async def agent_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
@@ -3117,7 +3286,7 @@ class AgentRunnerService:
                 )
 
         async def org_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with spend_session("organization")() as db:
                 return await organization_monthly_spend(
                     db, ctx.organization_id, exclude_run_id=run.id
                 )
@@ -3175,6 +3344,9 @@ class AgentRunnerService:
             ),
             on_wait=on_sandbox_wait,
         )
+        # What a call's realtime model is told: the briefings below describe a
+        # workspace and skill files only its text twin can reach.
+        spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
@@ -3196,14 +3368,25 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(
-                workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
-            )
-            if materialised.written:
-                spec = _with_skills_briefing(spec)
-            # After the skills are written, so materialising them does not read as
-            # the turn's own output.
-            started_with = await workspace_snapshot(workspace.workspace)
+            #
+            # A sandbox's are written on its first use instead, by `_start_turn_on_first_use`
+            # once the prepared run exists: writing them here opened the session -
+            # a container start on a new conversation, a round trip per file on every
+            # turn - before the model saw a token, for a turn that may never touch
+            # the sandbox. The briefing cannot wait for the writes, so it is given
+            # whenever there are skills, worded so it does not claim they landed.
+            if isinstance(workspace.workspace, RecordingWorkspace):
+                if resources["skills"]:
+                    spec = _with_skills_briefing(spec, deferred=True)
+            else:
+                materialised = await materialise_skills(
+                    workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                )
+                if materialised.written:
+                    spec = _with_skills_briefing(spec)
+                # After the skills are written, so materialising them does not read as
+                # the turn's own output.
+                started_with = await workspace_snapshot(workspace.workspace)
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -3251,6 +3434,7 @@ class AgentRunnerService:
             stash=stash,
             test_connections=test_connections,
             isolation=isolation,
+            answering_call=None if voice is None else voice.options,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -3270,8 +3454,75 @@ class AgentRunnerService:
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
         )
+        hand_off: CallWorker | None = None
+        handed = [] if voice is None else handed_off(spec)
+        if voice is not None and handed:
+            call = voice.options
+            twin_spec = spec
+
+            def build_twin() -> BuiltAgent:
+                # The agent's own text run in every respect but its approvals,
+                # which the call settles: built like a delegate, on the run's
+                # guard, so its spend is the call's and the call's caps bind it.
+                return build_agent(
+                    twin_spec,
+                    model_spec,
+                    organization_id=ctx.organization_id,
+                    agent_id=agent.id,
+                    run_id=run.id,
+                    conversation_id=run.conversation_id,
+                    user_id=None if audience_user_id is None else str(audience_user_id),
+                    user_name=user_name,
+                    audience=audience,
+                    granted_scopes=DEFAULT_GRANTED_SCOPES,
+                    resources=resources,
+                    secrets=secrets,
+                    reviewer_models=reviewer_models,
+                    extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
+                    request_approval=channel,
+                    gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
+                    shared_budget=run_budget.guard,
+                    answering_call=call,
+                )
+
+            def report_hand_off(spent: HandOffSpend) -> None:
+                # A row of its own, as a delegation's: the twin spends on the text
+                # model and key, which the call's row - the realtime key's - would
+                # otherwise carry on the Spend card (Codex on #2204). A call runs a
+                # published version; without one the money stays on the call's row.
+                version_id = run.agent_version_id
+                if version_id is None:
+                    return
+                delegations.append(
+                    RecordedDelegation(
+                        id=uuid4(),
+                        agent_id=agent.id,
+                        agent_version_id=version_id,
+                        task_id=spent.task_id,
+                        status=RunStatus.FAILED if spent.error else RunStatus.COMPLETED,
+                        model_label=model_spec.label,
+                        provider=model_spec.provider,
+                        secret_id=model_spec.secret_id,
+                        input_tokens=spent.share.input_tokens,
+                        output_tokens=spent.share.output_tokens,
+                        cache_read_tokens=spent.share.cache_read_tokens,
+                        cache_write_tokens=spent.share.cache_write_tokens,
+                        cost_usd=spent.share.cost_usd,
+                        cost_is_partial=spent.share.has_unpriced_models,
+                        started_at=spent.started_at,
+                        ended_at=spent.ended_at,
+                        error=spent.error,
+                    )
+                )
+
+            hand_off = CallWorker(
+                build_twin,
+                workspace=None if workspace is None else workspace.workspace,
+                capability_names=[capability_def(capability_id).name for capability_id in handed],
+                report=report_hand_off,
+            )
         built = build_agent(
-            spec,
+            spoken_spec if voice is not None else spec,
             model_spec,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
@@ -3285,7 +3536,11 @@ class AgentRunnerService:
             resources=resources,
             secrets=secrets,
             reviewer_models=reviewer_models,
-            extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
+            extra_toolsets=[
+                *(extra_toolsets or []),
+                *spec_toolsets,
+                *(() if hand_off is None else (hand_off.toolset(),)),
+            ],
             extra_capabilities=() if on_use is None else (on_use,),
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
@@ -3302,6 +3557,7 @@ class AgentRunnerService:
             recorded_reminder_state=recorded.reminder_state,
             isolation=isolation,
             test_bindings=test_bindings,
+            voice=None if voice is None else voice.options,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3314,13 +3570,14 @@ class AgentRunnerService:
         for entry in runtimes:
             entry.ledger = built.ledger
 
-        return PreparedRun(
+        prepared = PreparedRun(
             run=run,
             agent=agent,
             spec=spec,
             built=built,
             approvals=channel,
             workspace=workspace,
+            hand_off=hand_off,
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
@@ -3352,6 +3609,14 @@ class AgentRunnerService:
             ),
             isolation=isolation,
         )
+        if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
+            _start_turn_on_first_use(
+                workspace.workspace,
+                prepared,
+                resources["skills"],
+                resources[SKILL_BODIES_RESOURCE],
+            )
+        return prepared
 
     async def _delegation_runtime(
         self,
@@ -3374,6 +3639,7 @@ class AgentRunnerService:
         stash: DelegationStash,
         test_connections: _TestConnections,
         isolation: RunIsolation | None,
+        answering_call: VoiceOptions | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -3406,6 +3672,8 @@ class AgentRunnerService:
             isolation: The run's isolation, shared by the whole tree, so a
                 delegate's write is held - and recorded in the run's one list -
                 exactly as its parent's is.
+            answering_call: The call the tree works for, when it is a call's
+                text twin that delegates (#54): see `_Delegation.answering_call`.
 
         Raises:
             BadRequestError: If a pin names a version that is gone, if a delegate
@@ -3443,6 +3711,7 @@ class AgentRunnerService:
             test_connections=test_connections,
             isolation=isolation,
             output_screen=_output_screen(spec),
+            answering_call=answering_call,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
@@ -3538,7 +3807,7 @@ class AgentRunnerService:
                     delegation.profiles[profile.label] = await self.models.resolve(
                         delegation.ctx, profile_id=profile.id
                     )
-                except (BadRequestError, NotFoundError):
+                except BadRequestError, NotFoundError:
                     logger.warning(
                         "model_profile_not_usable_for_dynamic_specialists",
                         extra={"profile_id": str(profile.id), "label": profile.label},
@@ -4157,6 +4426,11 @@ class AgentRunnerService:
                         # record: they describe the run, not the delegation, and two
                         # copies of one fact drift.
                         user_id=parent.user_id,
+                        # Whose turn it was: a delegation made for an unlinked
+                        # sender is theirs as much as the run that made it, and
+                        # without these it read as the publisher's own.
+                        initiated_by_publisher_fallback=parent.initiated_by_publisher_fallback,
+                        channel_identity_id=parent.channel_identity_id,
                         conversation_id=parent.conversation_id,
                         # The binding that admitted the run admitted this too, so "what
                         # has this Slack app spent" keeps a delegated turn.
@@ -4377,7 +4651,7 @@ class AgentRunnerService:
         already holding is cheaper than that plumbing. A surface with nowhere to
         put a file simply ignores the list.
         """
-        if prepared.workspace is None:
+        if prepared.workspace is None or _untouched(prepared.workspace):
             return
         delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
@@ -4398,7 +4672,7 @@ class AgentRunnerService:
         """
         workspace = prepared.workspace
         state = prepared.materialised_skills
-        if workspace is None or state is None or prepared.ctx is None:
+        if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
         try:
             changes = await collect_changes(workspace.workspace, state)
@@ -4704,7 +4978,7 @@ class AgentRunnerService:
 
         def period_spend(group_id: UUID) -> PeriodSpendLookup:
             async def lookup() -> Decimal:
-                async with get_worker_db_context() as db:
+                async with get_db_context() as db:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
@@ -5749,6 +6023,20 @@ class AgentRunnerService:
             chars=_PREVIEW_CHARS * 4,
         )
         return {run_id: _preview(text) for run_id, text in {**turns, **questions}.items()}
+
+    async def voice_chains(
+        self, ctx: AuthContext, run_ids: Sequence[UUID]
+    ) -> dict[UUID, VoiceChain]:
+        """Each listed call, every connection of it summed - Activity's one row per call (#54).
+
+        Nothing to ask for a page with no calls on it. Scoped to the caller's
+        organization like every read here.
+        """
+        if not run_ids:
+            return {}
+        return await voice_call_repo.chains_for_runs(
+            self.db, list(run_ids), organization_id=ctx.organization_id
+        )
 
     async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
         """One run in the caller's organization.

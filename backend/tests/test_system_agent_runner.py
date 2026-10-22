@@ -5,8 +5,6 @@ or a model is its own suite's subject. What is proven here is what the runner
 asks it for and what it makes of each answer.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

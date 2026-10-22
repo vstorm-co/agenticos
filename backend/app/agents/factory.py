@@ -11,8 +11,6 @@ chat, a Slack mention or the public API - which is what makes "the Builder is
 just another client" true rather than aspirational.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -21,7 +19,12 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.capabilities import AbstractCapability, ReinjectSystemPrompt, ToolSearch
+from pydantic_ai.capabilities import (
+    AbstractCapability,
+    HandleDeferredToolCalls,
+    ReinjectSystemPrompt,
+    ToolSearch,
+)
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -31,6 +34,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
 from app.agents.capabilities import build as build_capabilities
+from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.approval import (
     ApprovalGate,
     approval_required_tools,
@@ -80,6 +84,13 @@ from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
 from app.agents.tool_repair import CountedRepair, RepairTally
+from app.agents.voice import (
+    AnswerUnknownTools,
+    VoiceOptions,
+    WithoutApprovalTools,
+    voice_configured,
+    voice_instructions,
+)
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -189,6 +200,8 @@ def build_agent(
     recorded_reminder_state: dict[str, Any] | None = None,
     isolation: RunIsolation | None = None,
     test_bindings: frozenset[str] = frozenset(),
+    voice: VoiceOptions | None = None,
+    answering_call: VoiceOptions | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -255,6 +268,16 @@ def build_agent(
         test_bindings: The capability bindings whose vault key the run's
             environment swapped for a test one. Their tools may write in an
             isolated run only where the capability declares `test_key_isolates`.
+        voice: Build for a realtime call: see `app/agents/voice.py`. The
+            capabilities a call cannot carry are left out, approvals resolve
+            inline through `voice.on_deferred`, and the instructions go in as
+            `instructions=`. The caller sets usage limits itself - `usage_limits`
+            on the result is a text run's and must not be passed to a session.
+        answering_call: Build a text agent that works for a live call - the
+            agent's text twin the call hands a task to, and every delegate under
+            it (#54). A text run in every respect but two: a gated call is put to
+            the caller through `answering_call.on_deferred` rather than parked,
+            because nobody resumes a call, and a visitor's carries no gated tool.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -264,6 +287,12 @@ def build_agent(
     """
     refuse_ungateable_approvals(spec)
     bindings = spec.bindings()
+    if voice is not None:
+        # Only what runs on the realtime model. The runner strips what a call can
+        # never use; what it hands off stays on the spec for the text twin.
+        bindings = [
+            binding for binding in bindings if capability_def(binding.capability_id).voice == "live"
+        ]
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
@@ -311,11 +340,15 @@ def build_agent(
     # request from the run's history in its own: reminders appended before it
     # would be dropped (see `SystemReminders.before_model_request`).
     configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
+    if voice is not None:
+        configured = voice_configured(configured)
 
     # Which tools a human must approve before they act. Computed here, while the
     # registry metadata and the spec's overrides are both in hand, so a surface
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
+    # The call this agent answers to, as a realtime session or as text working for one.
+    call = voice or answering_call
 
     # Derived (or restored) by the caller, because only the runner knows whether
     # this is a fresh request or a resume - and a resume must not re-derive it from
@@ -413,6 +446,15 @@ def build_agent(
         gate,
         *configured,
         *extra_capabilities,
+        *(() if voice is None else (AnswerUnknownTools(),)),
+        *(
+            ()
+            if call is None
+            else (
+                HandleDeferredToolCalls(handler=call.on_deferred),
+                *((WithoutApprovalTools(names=approval_required),) if call.anonymous else ()),
+            )
+        ),
         # After the configured ones, so a compaction that rebuilds the request in
         # its own before hook cannot drop the loop warning.
         *(
@@ -473,13 +515,21 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        system_prompt=spec.instructions or "",
+        # A realtime session reads only `instructions=` (#54), so a call carries
+        # the spec's instructions there and no system prompt at all.
+        system_prompt="" if voice is not None else spec.instructions or "",
+        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
         # `str` first so the model answers in text; `DeferredToolRequests`
         # is not a shape the model can choose, it is what the run ends with when
         # the approval gate parks a call.
         output_type=[str, DeferredToolRequests],
         capabilities=capabilities,
-        toolsets=_defer_for_tool_search(configured, extra_toolsets or []),
+        # Undeferred in a call: tools are fixed at connect, and a deferred one is rejected.
+        toolsets=(
+            (extra_toolsets or [])
+            if voice is not None
+            else _defer_for_tool_search(configured, extra_toolsets or [])
+        ),
     )
 
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)

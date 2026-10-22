@@ -1,5 +1,5 @@
 ---
-source_sha: "1253cba3b629"
+source_sha: "5f9addc0d109"
 ---
 
 # Konfiguration { #configuration }
@@ -307,7 +307,7 @@ mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Die Verbindung verschlüsseln: `require`, `verify-ca` oder `verify-full`. Leer heißt Klartext. Siehe [Verschlüsselte Verbindungen](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Größe des Connection Pools |
 | `DB_MAX_OVERFLOW` | `10` | Maximale Overflow-Verbindungen |
-| `DB_POOL_TIMEOUT` | `30` | Pool-Timeout in Sekunden |
+| `DB_POOL_TIMEOUT` | `5` | Sekunden, die eine Anfrage auf eine freie Verbindung wartet, bevor sie mit `503` und `Retry-After` beantwortet wird. Absichtlich kurz: Eine Anfrage, die 30 s wartete, war ohnehin verloren, und die Schlange der Wartenden hielt den Pool nach einer Lastspitze voll |
 
 Berechnete Eigenschaften:
 - `DATABASE_URL` -- asynchroner Connection String (`postgresql+asyncpg://...`)
@@ -374,7 +374,7 @@ Hostnamen an der URL selbst, statt beides den Voreinstellungen von redis-py zu
 
 !!! note "Jeder Dienst, der eine Verbindung zu einem Store öffnet, braucht die Änderung"
 
-    `app`, `migrate` und `prefect-runner` verbinden sich jeweils mit Postgres und
+    `app`, `migrate` und `worker` verbinden sich jeweils mit Postgres und
     Redis, und die mitgelieferten Compose-Dateien pinnen `POSTGRES_HOST=db` und
     `REDIS_HOST=redis` in der `environment` jedes einzelnen, was eine Env-Datei
     übersteuert. Ein verwalteter Store ist deshalb eine Override-Datei, die alle
@@ -397,7 +397,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 Die mitgelieferten Dienste `db` und `redis` starten weiter, ungenutzt;
@@ -443,44 +443,68 @@ angewiesen ist, hört still auf, ohne dass einer davon es ankündigt:
     Handshake im Klartext an und jeder Versand würde scheitern. `starttls` ist der
     spiegelbildliche Fall.
 
-## Hintergrundarbeit (Prefect) { #background-work-prefect }
+## Hintergrundarbeit { #background-work }
+
+Jobs warten in PostgreSQL und laufen in einem Worker, `python -m app.worker`,
+aus demselben Image wie die API. Es gibt keinen Server, auf den er zeigen muss,
+und keinen Schlüssel: Der Worker erreicht dieselbe Datenbank wie die API. Jede
+Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | Der selbst gehostete Server oder die URL eines Workspace in Prefect Cloud |
-| `PREFECT_API_KEY` | (none) | Nur für Prefect Cloud |
-| `PREFECT_RUNNER_LIMIT` | `5` | Wie viele Flow Runs gleichzeitig laufen; der Rest wartet in der Warteschlange |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface, auf dem der Runner seinen eigenen Health-Endpunkt bedient |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port dafür |
+| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Jobs, die ein Kindprozess ausführt, bevor er ersetzt wird |
+| `WORKER_LEASE_SECONDS` | `60` | Wie lange ein abgeholter Job ohne Heartbeat gehalten wird |
+| `WORKER_BREAKER_DEATHS` | `5` | Tode des Workers in Folge, über die Jobs einer Art, die diese Art pausieren |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | Die Datei, die die Probe des Containers liest |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` im Produktions-Compose | Das eigene Speicherlimit des Containers - eine Compose-Variable, keine Einstellung |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Beendete Jobs, die für die Seite Background jobs aufbewahrt werden |
 
-`PREFECT_RUNNER_LIMIT` ist eine Speicherobergrenze, kein Regler für den
-Durchsatz. Jeder Run ist ein eigener Prozess, der die gesamte Anwendung
-importiert — rund 120 MB —, und die Zahl, auf die es ankommt, ist nicht der
-Normalbetrieb, sondern der Neustart: Der Runner kommt hoch, findet jeden Run, der
-während seiner Abwesenheit geplant wurde, und startet so viele, wie das Limit
-zulässt. Ohne Cap waren drei Tage Ausfall 71 Prozesse und 6 GiB. Heben Sie es an,
-wenn die Ingestion auf einer Maschine mit freiem Speicher hinter Syncs wartet;
-senken Sie es auf einem kleinen Host.
+**Planen Sie den Speicher nach den Kindprozessen, nicht nach der Zahl der
+Jobs.** Ein Worker hält etwa 450 MB für seine importierte Anwendung, jeder
+Ingestion-Kindprozess noch einmal so viel plus das Dokument, das er parst.
+`WORKER_INGEST_MEMORY_MB` liegt absichtlich unter dem Limit des Containers: Der
+Watchdog stoppt einen Kindprozess, der darüber wächst, und schreibt den Grund an
+den Job, wo der OOM-Killer des Kernels nur einen toten Prozess hinterließe. Auf
+einem Host mit freiem Speicher erhöhen Sie `WORKER_INGEST_CHILDREN` und das
+Limit des Containers mit.
 
-Geplante Sweeps tragen wenig zu diesem Rückstand bei: Jeder läuft mit einem
-Tick zur Zeit, und die übrigen überfälligen Ticks weist der Server ab, bevor der
-Runner einen Prozess dafür startet. Ausgenommen sind die Nutzungsberichte, weil
-jeder Run einen eigenen Zeitraum abdeckt.
+**Ein Job, der seinen Prozess umbringt, kann sich nicht im Kreis drehen.** Sein
+Versuch wird beim Abholen gezählt, ein Kindprozess, den der Kernel mitten im
+Parsen tötet, hat also einen verbraucht, und nach `max_attempts` ist der Job
+tot. Eine Art, deren Jobs ihren Worker `WORKER_BREAKER_DEATHS`-mal in Folge
+umbringen, wird pausiert, und jeder Eigentümer des Deployments erfährt es;
+nichts holt sie ab, bis einer von ihnen sie auf der Seite Background jobs
+fortsetzt. Gezählt wird je Organisation: Ein Mandant, dessen Jobs ihren Worker
+immer wieder umbringen, pausiert die Art nur für sich, und Jobs ohne Organisation
+teilen sich einen Zähler für das ganze Deployment.
 
-Die beiden `PREFECT_RUNNER_SERVER_*`-Variablen gehören Prefect, und die
-Compose-Dateien pinnen sie, damit der Container des Runners einen Health-Status
-hat, der etwas bedeutet. Der Runner startet den Runner-Webserver von Prefect,
-dessen `GET /health` mit 503 antwortet, sobald er zwei Abfragen der Prefect-API
-verpasst hat — ein Prozess, der lebt, aber keine Arbeit mehr annimmt, liest sich
-damit als `unhealthy` statt als in Ordnung. Er ist an das Loopback gebunden, weil
-derselbe Webserver auch `POST /shutdown` anbietet; die Probe läuft im Container,
-und nichts außerhalb erreicht eines von beiden. Den Port zu verschieben heißt,
-die Probe in den Compose-Dateien mitzuverschieben.
+**Was ein Job hinterlässt, wird geschlossen, auch wenn das einmal scheitert.**
+Ein Job, der endgültig endet, kann ein Dokument in `processing` oder ein
+Sync-Protokoll in `running` hinterlassen. Der Worker schließt sie, wenn der Job
+endet, und der Rescuer wiederholt ein gescheitertes Schließen - etwa bei
+unerreichbarer Datenbank - einen Tag lang.
 
-In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als zwei
-verschiedene Prozesse gestartet — die API und dieser Runner —, und eine Probe für
-den einen ist ein Dauerfehlalarm für den anderen, also trägt jede
-Service-Definition ihre eigene.
+Ein Worker, der stirbt, gibt seine Jobs innerhalb von `WORKER_LEASE_SECONDS`
+zurück: Die Rettung eines anderen Workers übernimmt den abgelaufenen Lease und
+schreibt den Job als Tod eines Workers auf. Ein Deploy kostet einen Job keinen
+Versuch - der Worker hört auf abzuholen, lässt laufende Jobs 30 Sekunden lang
+fertig werden und gibt den Rest zurück. Die Compose-Dateien geben ihm 45
+Sekunden, bevor sie ihn beenden.
+
+Der Health-Check des Containers liest `WORKER_HEALTH_FILE`, die der Heartbeat
+nach jedem Schlag berührt, der die Datenbank erreicht hat, sodass ein Worker,
+der lebt, aber von Postgres abgeschnitten ist, als `unhealthy` gilt. Es ist eine
+Datei und kein HTTP-Endpunkt, weil der Worker nichts bedient.
+
+In `backend/Dockerfile` gibt es kein `HEALTHCHECK`. Das Image wird als
+verschiedene Prozesse gestartet - die API, der Worker und die Migrationen -, und
+eine Probe für den einen wäre ein dauerhafter Fehlalarm für den anderen, also
+trägt jede Service-Definition ihre eigene.
 
 ### Ablauf einer Freigabe { #approval-expiry }
 
@@ -553,8 +577,8 @@ Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
 
 - `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global, jeder Run exportiert
   also in das Projekt des Deployments selbst. Zwei Prozesse konfigurieren es: die
-  API beim Start (`app/main.py`) und ein ausgelöster Run im Prefect-Worker, der
-  sich selbst einrichtet, weil jeder Flow-Run einen eigenen Subprozess bekommt.
+  API beim Start (`app/main.py`) und der Worker, einmal beim Start
+  (`app/worker/__main__.py`), da er den Lifespan der API nie durchläuft.
   Die Spans des Workers tragen `<Dienstname>-worker`, ein Projekt kann einen
   langsamen geplanten Run also von einer langsamen Chat-Runde unterscheiden.
 - Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes
@@ -757,6 +781,18 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
+
+**Kartenkacheln holt das Deployment, nicht der Browser des Lesers.** Eine Seite
+fragt `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; die API prüft die Zahlen, holt
+die Kachel vom Server, behält die letzten 2.048 im Speicher und antwortet, sodass
+ein Schlüssel in der Vorlage den Server nie verlässt. Die Route braucht keine
+Session - jede Seite lädt sie - und ist deshalb je Adresse begrenzt
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Beachten Sie die Bedingungen des Anbieters:
+die öffentlichen Kacheln von OpenStreetMap sind für leichte Nutzung, und ein viel
+genutztes Deployment sollte einen eigenen Server betreiben oder einen Anbieter
+bezahlen. *Admin → System* zeigt, ob der Server antwortet.
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
@@ -1178,6 +1214,29 @@ Profiles dürfen ohne jedes Flag auf lokale Endpunkte wie Ollama zeigen
 `run_python` sind Capability-Konfiguration je Agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` wurden entfernt).
 
+## Sprachanrufe { #voice-calls }
+
+[Sprachanrufe](voice.md) werden in jedem Agent eingeschaltet und durch seinen
+längsten Anruf und die Budgets begrenzt. Zwei Obergrenzen gehören dem
+Deployment:
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Anrufe, die eine Person gleichzeitig führen darf. Der Anruf eines zweiten Tabs ist fast immer ein Versehen, und jeder wird abgerechnet; ein zweiter Start wird als `busy` abgelehnt |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Anrufe, die ein Widget oder eine Hosted Page gleichzeitig führen darf, von allen Besuchenden zusammen; der nächste wird als `line_busy` abgelehnt. Besuchende haben kein Konto, auf das gezählt werden könnte, also ist das, was einen geleakten Link davon abhält, das Budget der Organisation parallel zu verbrauchen |
+
+Beide zählen Anrufe, deren Heartbeat frisch ist, sodass ein Anruf, dessen
+Prozess gestorben ist, innerhalb von 45 Sekunden nicht mehr zählt. Das Starten
+von Anrufen auf einem Embed ist außerdem rate-limitiert
+(`RATE_LIMIT_EMBED_VOICE_*`, [unten](#rate-limiting)). Das eigene
+`rate_limit_per_minute` eines Embeds, im Builder gesetzt, zählt die
+**Nachrichten** einer besuchenden Person, keine Anrufstarts, und begrenzt Anrufe
+deshalb nicht.
+
+Der Rest ist im Code festgelegt statt konfiguriert: Ein Anruf ist nie länger als
+50 Minuten, Heartbeats laufen alle 15 Sekunden, und der Voice-Sweep läuft jede
+Minute, als Zeitplan `reap-voice-calls` des Workers.
+
 ## CORS { #cors }
 
 | Variable | Standard | Beschreibung |
@@ -1194,8 +1253,8 @@ Prüfung für die Produktion: `CORS_ORIGINS` darf bei `ENVIRONMENT=production` k
 
 Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
-Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page und den
-Upload einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
+Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page sowie den
+Upload, das Diktat und den Sprachanruf einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
 Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
 sollte, ist eine eigene Entscheidung und nicht diese.
 
@@ -1205,8 +1264,15 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Jede Route in `auth.py` — Login, Registrierung, Refresh, die Anfrage- und Verifikationsrouten für Reset und Magic Link. Gezählt **je IP und, wo der Body eine trägt, je übermittelter Adresse**. Siehe unten |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kartenkacheln, die eine Adresse über den [Kachelpfad](artifacts.md#visuals) des Deployments holen darf, **je Adresse**. Eine Karte sind einige Dutzend Kacheln, Verschieben bringt mehr; die Grenze verhindert, dass das Deployment jedermanns kostenloser Proxy zum Kachelserver wird |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Eine Stimme anhören](voice.md#turn-it-on) im Builder, pro Person. Jede Vorschau außerhalb des Caches ist eine kurze kostenpflichtige Sitzung beim Realtime-Provider des Agents, außerhalb aller Modellbudgets; eine einmal gehörte Stimme bleibt eine Woche im Cache |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation. Erst verbraucht, wenn ein Besucher zugelassen ist |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Die Adresse wird gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen, erst verbraucht, wenn ein Besucher zugelassen ist. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

@@ -1,7 +1,5 @@
 """Storage for agent-generated images - roundtrip and tenant isolation."""
 
-from __future__ import annotations
-
 from uuid import uuid4
 
 import pytest

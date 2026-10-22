@@ -6,7 +6,10 @@ from the repository — read at build time rather than copied, so the file and t
 page cannot drift apart.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
-versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with
+one exception: AgenticOS stays on major version 1, so a change a deployment has
+to act on ships in a MINOR release. Read a minor release's notes before
+upgrading.
 
 Two things are versioned separately from the list below.
 

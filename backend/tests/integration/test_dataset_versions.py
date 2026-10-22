@@ -11,8 +11,6 @@ The claims a mocked session cannot make:
   holdings do not overlap.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 

@@ -20,6 +20,7 @@ import {
   KNOWLEDGE_ID,
   withSkills,
   withVisuals,
+  CHARTS_ID,
   VISUALS_ID,
 } from "./agent-spec";
 import type { AgentSpec, AgentVersion, CapabilityBindingSpec } from "@/types/agents";
@@ -374,12 +375,17 @@ describe("withResource", () => {
   });
 
   it("binds one of the organization's MCP servers once, with every tool it allows", () => {
-    const personal = { account: "personal" as const, catalog_key: "c1", allowed_tools: null };
+    const personal = {
+      account: "personal" as const,
+      catalog_key: "c1",
+      allowed_tools: null,
+      approval: "none" as const,
+    };
     const bound = withResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" });
 
     expect(bound.mcp_servers).toEqual([
       personal,
-      { account: "organization", connection_id: "c1", allowed_tools: null },
+      { account: "organization", connection_id: "c1", allowed_tools: null, approval: "none" },
     ]);
     expect(hasResource(bound, { kind: "mcp", id: "c1" })).toBe(true);
     expect(withResource(bound, { kind: "mcp", id: "c1" })).toBe(bound);
@@ -397,7 +403,11 @@ describe("withVisuals", () => {
     const updated = withVisuals(spec(), [{ id: "other", name: "code-review" }, design]);
 
     expect(updated.skill_ids).toEqual(["design"]);
-    expect(updated.capabilities.map((entry) => entry.id)).toEqual([VISUALS_ID, SKILLS_ID]);
+    expect(updated.capabilities.map((entry) => entry.id)).toEqual([
+      VISUALS_ID,
+      CHARTS_ID,
+      SKILLS_ID,
+    ]);
   });
 
   it("binds nothing twice", () => {
@@ -407,14 +417,25 @@ describe("withVisuals", () => {
     );
 
     expect(updated.skill_ids).toEqual(["design"]);
-    expect(updated.capabilities.map((entry) => entry.id)).toEqual([SKILLS_ID, VISUALS_ID]);
+    expect(updated.capabilities.map((entry) => entry.id)).toEqual([
+      SKILLS_ID,
+      VISUALS_ID,
+      CHARTS_ID,
+    ]);
+  });
+
+  it("leaves a charts binding the author switched off as it is", () => {
+    const off = { ...binding(CHARTS_ID), enabled: false };
+    const updated = withVisuals(spec({ capabilities: [off] }), []);
+
+    expect(updated.capabilities).toEqual([off, expect.objectContaining({ id: VISUALS_ID })]);
   });
 
   it("still switches drawing on where the organization has no such skill", () => {
     const updated = withVisuals(spec({ skill_ids: ["x"] }), []);
 
     expect(updated.skill_ids).toEqual(["x"]);
-    expect(updated.capabilities.map((entry) => entry.id)).toEqual([VISUALS_ID]);
+    expect(updated.capabilities.map((entry) => entry.id)).toEqual([VISUALS_ID, CHARTS_ID]);
   });
 
   it("switches the Skills capability back on for a skill already bound", () => {

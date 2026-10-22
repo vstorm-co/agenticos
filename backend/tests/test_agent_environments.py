@@ -6,8 +6,6 @@ unpinned, never collide on a name, never point at another agent's version, and
 that the default - the publish contract - cannot be renamed or removed here.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

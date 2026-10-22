@@ -12,8 +12,6 @@ Text from conversations and documents is redacted before it leaves for the
 model, the same way a case is redacted before it is stored.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import cast
 from uuid import UUID

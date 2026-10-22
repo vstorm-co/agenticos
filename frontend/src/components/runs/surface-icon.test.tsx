@@ -1,7 +1,7 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SurfaceIcon, surfaceLabel } from "./surface-icon";
+import { ModalityBadge, SurfaceIcon, surfaceLabel } from "./surface-icon";
 
 /**
  * One mark per surface, decorative beside its own name.
@@ -51,5 +51,18 @@ describe("surfaceLabel", () => {
 
   it("falls back to the raw value for a surface this build has no name for", () => {
     expect(surfaceLabel("carrier-pigeon", () => "unused")).toBe("carrier-pigeon");
+  });
+});
+
+describe("ModalityBadge", () => {
+  it("marks a voice run with a microphone and says so to screen readers", () => {
+    const { container } = render(<ModalityBadge modality="voice" />);
+    expect(screen.getByText("Voice call")).toHaveClass("sr-only");
+    expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("draws nothing for a text run", () => {
+    const { container } = render(<ModalityBadge modality="text" />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

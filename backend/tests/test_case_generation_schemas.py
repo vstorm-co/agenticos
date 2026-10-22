@@ -1,7 +1,5 @@
 """What a decision on drafted cases refuses before it reaches the service, and how rows print."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

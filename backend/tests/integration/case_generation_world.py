@@ -4,8 +4,6 @@ Shared by the tests of what the generator reads and of what it drafts, which
 need the same people, agents, conversations and collections.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

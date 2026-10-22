@@ -28,8 +28,10 @@ import {
   Bot,
   CornerUpLeft,
   FileText,
+  Mic,
   OctagonPause,
   Paperclip,
+  Pause,
   Pin,
   PinOff,
   RefreshCw,
@@ -210,8 +212,12 @@ export function MessageItem({
         // turn that ran three commands is three segments, each carrying one step,
         // so three steps of one run sat two message-gaps apart and looked like
         // three separate things the agent did.
-        continuesTurn ? "pt-0" : compact ? "pt-2" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
-        endsTurn ? (compact ? "pb-2" : isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
+        //
+        // 12px a side between messages, not 16: under every message sits its row of
+        // time and actions, 36px that is empty until hovered, so 32px on top of it
+        // left a 68px hole between a question and its answer (#2302).
+        continuesTurn ? "pt-0" : compact || isGrouped ? "pt-2" : "pt-3",
+        endsTurn ? (compact || isGrouped ? "pb-2" : "pb-3") : "pb-0",
         isUser && "items-end",
       )}
     >
@@ -359,6 +365,23 @@ export function MessageItem({
               <span className="text-muted-foreground flex items-center gap-1 text-xs">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
+              </span>
+            )}
+            {/* A turn spoken in a call (#54), and one the caller talked over -
+                whose text is cut to roughly what was heard. */}
+            {message.turnId !== undefined && (
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                <Mic className="h-3 w-3" aria-hidden />
+                {t("voice.view.voice")}
+              </span>
+            )}
+            {message.interrupted && (
+              <span
+                title={t("voice.view.interruptedTitle")}
+                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+              >
+                <Pause className="text-warning h-3 w-3" aria-hidden />
+                {t("voice.view.interrupted")}
               </span>
             )}
             {/* When and what it cost, as one quiet group before the actions. */}

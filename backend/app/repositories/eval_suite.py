@@ -1,7 +1,5 @@
 """Rows in `eval_suites` and `eval_suite_results`."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal

@@ -16,8 +16,6 @@ Usage::
     python3 scripts/gen_amigo_assets.py --check  # exit 1 if they are stale
 """
 
-from __future__ import annotations
-
 import argparse
 import re
 import sys

@@ -5,8 +5,6 @@ is read from, so both kinds are pinned here; a repr names a row by ids, never
 by anything a vault holds.
 """
 
-from __future__ import annotations
-
 import uuid
 
 from app.db.models.agent_environment import AgentEnvironmentConnection

@@ -13,8 +13,6 @@ an eval run is not obliged to have a conversation. Rather than a column on
 in the product and none of its listings ask this.
 """
 
-from __future__ import annotations
-
 import enum
 import uuid
 from typing import Any

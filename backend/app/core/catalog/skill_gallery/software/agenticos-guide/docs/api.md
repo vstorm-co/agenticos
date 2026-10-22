@@ -131,11 +131,15 @@ organization; naming another one answers `400` with
 **A session token takes the tenant from `X-Organization-Id`.** A caller who
 belongs to three organizations is a different principal in each, with a
 different role and different grants, so send the header on every request. When
-it is absent the request falls back to the caller's **personal organization** —
-a script that forgets it acts there, with whatever agents, grants and budget
-that organization has, and gets no error. Send the wrong one and you get a
-refusal that looks exactly like the resource not existing — deliberately, so ids
-stay unprobeable.
+it is absent the request falls back to the deployment's **default organization**
+if the caller belongs to it, then to their **personal organization**, then to
+their only one — a script that forgets the header acts there, with whatever
+agents, grants and budget that organization has, and gets no error. A caller who
+belongs to several and has neither gets a `400` with
+`details.header = "X-Organization-Id"` rather than a guess
+([where a new account starts](deployment.md#where-a-new-account-starts)). Send
+the wrong one and you get a refusal that looks exactly like the resource not
+existing — deliberately, so ids stay unprobeable.
 
 ## Running an agent
 
@@ -173,6 +177,39 @@ for a key holding `runs:view`.
 
     That is the point of one runner, and it is why there is no "fast path" that
     skips it.
+
+### Without holding the connection
+
+A run of minutes - a browse, a long tool chain - holds the request open the
+whole time, and a proxy's read timeout can cut it off while the run goes on.
+Send `Prefer: respond-async` and the call answers `202` at once instead, with a
+run request to poll:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: respond-async" \
+  -H "Idempotency-Key: ticket-4711" \
+  -d '{"prompt": "Summarise this quarter for the board"}'
+# 202, Location: /api/v1/run-requests/{id}, Preference-Applied: respond-async
+
+curl "$BASE/api/v1/run-requests/$REQUEST_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+The request reads `queued`, `running`, then `completed` with `result` - the
+same body the synchronous call answers - or `failed` with `error`. Its
+`conversation_id` is known from the first answer, so a follow-up can be sent
+before the run ends. A worker runs it through the same runner, budget and
+approvals as every other surface.
+
+What can be checked at once is checked at once: an unknown conversation or
+attachment is a `404` on the `POST`, not a failure to poll for. The key's
+authority is checked again when the run starts, so a key revoked while its run
+waited does not run it. Only the person who asked, or a key of theirs, can read
+a run request; anyone else's answers `404`. An asynchronous run gets one
+attempt - a run that failed is recorded with what it spent, and is not retried
+into spending it twice.
 
 The route carries a **rate limit rather than a permission gate**. Permission is
 decided inside the service, against that specific agent's grants — a role gate
@@ -341,6 +378,106 @@ the caller may read. Changes nobody wrote arrive the same way: `run` for a run
 moving through its states, and `system` for the platform's own scheduled work,
 such as a knowledge gaps grouping pass.
 
+## Voice calls
+
+A [voice call](voice.md) has a socket of its own, because a call is not a turn
+loop: **`/api/v1/ws/voice`** for a member, and
+**`/api/v1/embed/{public_key}/voice/ws`** for a visitor on a widget or a hosted
+page ([admission](channels.md#the-call-socket)). Both speak the same frames,
+defined in `backend/app/schemas/voice.py`.
+
+The console socket authenticates as `/ws/agent` does: the token as a
+`Sec-WebSocket-Protocol` entry `access_token.<JWT>` (or the same-origin cookie),
+never in the query string, and the organization as `?organization_id=`. It
+closes with `4001` without a valid session and `4003` when the caller is not a
+member or authenticated with an organization API key: a call is a person at the
+microphone, as a chat turn is a person at the keyboard.
+
+The embed socket closes with `4029` past a rate limit and `4003` for any
+refusal about the embed. Every heartbeat re-checks the session, so a call does
+not outlive a sign-out.
+
+**The client sends** JSON frames, and over the relay binary audio too:
+
+| Frame | Fields | When |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` and `resume_token` (a reconnect), `context` (an embed's variables) | First, within 10 seconds |
+| `approval` | `id`, `decision` (`approve` or `deny`) | Deciding an approval the call is waiting on |
+| `mute` | `muted` | The relay: the microphone muted |
+| `played` | `bytes` | The relay: how much of the agent's audio has been played |
+| `end` | - | Hanging up |
+| *binary* | 16-bit PCM at the model's input rate | The relay: the caller's audio |
+
+**The server sends:**
+
+| Frame | Fields | Means |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: the provider's answer for the browser's peer connection |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | The call is set up. `resume_token` is sent only here, to this caller; a reconnect sends it back |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Who is talking, or what the agent is doing |
+| `caption` | `role`, `turn_id`, `part`, and one of `delta` (append), `text` (replace with the screened text so far) or `final` | A live caption |
+| `turn_saved` | `message` | A finished turn, as the message it was saved as; it replaces the captions carrying its `turn_id` |
+| `tool` | `name`, `status` (`running` or `done`) | A tool the agent is running |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | An approval for the person on the call: the exact arguments, and what they were heard to say |
+| `approval_unavailable` | `tool`, `args` | A tool call this caller cannot approve by voice |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` or `expired`) | How an approval ended |
+| `notice` | `kind`, `message` (optional) | Something to say in words: a guardrail hit, a limit being reached |
+| `limit` | `seconds_left` | The call's time is nearly up |
+| `clear_playback` | - | The relay: drop the agent's queued audio |
+| `ended` | `reason`, `message` | The call is over |
+| *binary* | 16-bit PCM at the model's output rate | The relay: the agent's audio |
+
+**A visitor on a widget or a hosted page is told less.** `ready` leaves out
+`run_id`; its `cap_seconds` is the call's limit - the agent's longest call, or
+what is left of a call being resumed. The tool frames follow the
+embed's `show_tool_steps` and `show_tool_results` switches, as a typed reply's
+do. Without tool steps no `tool` frame is sent and `tool_running` is sent as
+`thinking`. Without tool results, `approval_unavailable` is sent with empty
+`args`. A visitor's `turn_saved` carries only the message's `id`, `role`,
+`content`, `interrupted` and `turn_id`, whatever the switches: never its run,
+agent or version ids, its cost or its tool calls.
+
+**A reconnect proves it holds the call.** A `start` with `resume_of` must also
+carry the `resume_token` from that connection's `ready`. Without it, or with a
+wrong one, the reconnect is refused as `resume_refused` and the call it names
+is not touched. The server keeps only a hash of the token. A call already made
+of 20 connections is not resumed again: its next reconnect is refused as
+`resume_refused` too.
+
+A socket that sends no `start` within 10 seconds gets `ended` with `no_start`.
+A call that will not start answers with `ended` and a stable `reason`:
+`no_agent`, `forbidden`, `not_configured`, `bad_offer`, `data_channel`,
+`resume_refused`, `call_limit`, `not_priced`, `budget`, `busy` or `line_busy`,
+with a `message` safe to show. `busy` is said only after a call the same person
+hung up a moment ago has had up to four seconds to finish ending. A start that
+fails for any other reason answers `ended` with `error`.
+
+A visitor refused as `not_configured`, `not_priced` or `budget`, or a visitor's
+call that ends as `budget`, gets `unavailable` instead,
+with the message "Calls are not available right now.": the code and the full
+message are the agent's operator's to know. A call into an archived
+conversation is refused as `forbidden`, as a typed message into one is refused.
+
+A call that ran ends with `user`, `time_limit`, `budget`, `disconnected`,
+`revoked`, `guardrail`, `shutdown` or `error`; `time_limit` when the agent's
+longest call was reached. A visitor's call ends as `revoked` when its embed is
+paused, has its calls
+switched off or is pointed at another agent. No frame ever carries a provider
+credential.
+
+Five HTTP routes go with it:
+
+| Route | Gate | Answers |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` on that agent, a grant included; `404` otherwise | Whether a call would start, why not (`no_voice`, `not_offered` or `no_key`), the transport and the longest call |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` on that agent, a grant included; `404` otherwise | A draft Voice section's voice saying one fixed sentence, as `audio/wav`. Cached per voice and language; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` per person |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | The realtime catalog the Voice section picks from |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Call seconds and calls for calls started at or after `start` and before `end`, by agent (a deleted agent's calls as one row with no id or name). An `end` not after `start` is refused with `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Calls only (`text` for typed runs only); a call that reconnected is one row carrying `voice_chain`, every connection summed |
+
+An approval that belongs to a live call is decided in the call:
+`POST /api/v1/approvals/{id}` refuses it with `400`.
+
 ## Errors
 
 One envelope, everywhere:
@@ -376,8 +513,9 @@ sending the request again starts a new run.
 
 ## Retries, idempotency and revisions
 
-v1 has no `Idempotency-Key` header and no revision preconditions: no `ETag`, no
-`If-Match`. A write is applied when it arrives, and the last one wins.
+v1 has no revision preconditions: no `ETag`, no `If-Match`. A write is applied
+when it arrives, and the last one wins. `Idempotency-Key` is honoured on one
+route, the asynchronous run.
 
 - **`GET`, `PUT` and `DELETE` are safe to repeat.** Reading twice reads twice;
   deleting what is already gone answers `404`, which a retry can treat as done.
@@ -388,6 +526,13 @@ v1 has no `Idempotency-Key` header and no revision preconditions: no `ETag`, no
   dropped connection, look before you retry: `GET /api/v1/runs?agent_id=…&surface=api`
   lists the runs newest first, and a list read finds a row the first attempt did
   create.
+- **An asynchronous run is, with an `Idempotency-Key`.** Send
+  `Prefer: respond-async` and a key of your choosing, at most 255 characters,
+  and a retry with the same key and the same body answers the same run request,
+  in whatever state it is in. The same key with a different body is a `409`,
+  never a second run. Keys are per organization. A synchronous call carrying
+  the header is refused with a `400` rather than letting a caller believe a
+  retry is safe.
 - **`429` is the one refusal to retry**, after the `Retry-After` it carries. Every
   other `4xx` is final for that request.
 
@@ -443,13 +588,15 @@ only moves forward.
 - A key carries its issuer's authority **narrowed to its permissions and to the
   issuer's current role**, is shown once, and works on the public API only.
 - **A key acts in its own organization; a session reads `X-Organization-Id`**
-  and falls back to the personal organization without it. The wrong one looks
-  like a missing resource.
+  and falls back to the default, personal or only organization without it. The
+  wrong one looks like a missing resource.
 - Running an agent over HTTP is the **same runner** — budget, approval and audit
   all apply.
 - A script gets its own key **without a browser** — sign in, issue, revoke — and
   `examples/public-api.sh` runs that round trip.
 - **Only `429` is worth retrying**; a `POST` is not idempotent, so look before
-  repeating one.
+  repeating one - except an asynchronous run sent with an `Idempotency-Key`.
+- **`Prefer: respond-async`** turns a run into a `202` and a run request to
+  poll, so a long run does not hold a connection open.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.

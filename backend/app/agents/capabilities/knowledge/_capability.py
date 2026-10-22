@@ -1,7 +1,5 @@
 """Knowledge search over the collections an agent is bound to."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Literal
 

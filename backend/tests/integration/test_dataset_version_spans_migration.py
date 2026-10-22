@@ -1,4 +1,4 @@
-"""The 0154 revision, exercised on datasets with history in them.
+"""The 0169 revision, exercised on datasets with history in them.
 
 `tests/test_migrations.py` runs the whole chain forwards and back on an empty
 database, where no version holds anything to rebuild. This writes datasets
@@ -11,8 +11,6 @@ version of the code writes and asserts the upgrade stops, naming where.
 It owns a database of its own - created here, dropped when the module is done -
 for the reason `test_migrations.py` does.
 """
-
-from __future__ import annotations
 
 import os
 import re
@@ -40,7 +38,7 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_dataset_spans_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_REVISION = "0154_dataset_version_spans"
+_REVISION = "0169_dataset_version_spans"
 _CSV = b"input,reference_answer,tags\nImported?,Yes,import\nAlso imported?,No,import\n"
 
 # A version as a reader sees it: its revisions in order, and what scoring counts.

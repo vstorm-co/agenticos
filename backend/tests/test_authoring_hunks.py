@@ -5,8 +5,6 @@ passage that occurs twice, an insertion with nothing to follow, a manual edit
 made since. Undo holds to the same rule on what Accept wrote.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from app.agents.capabilities import ToolOverride

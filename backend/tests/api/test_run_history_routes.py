@@ -12,8 +12,6 @@ columns, so an unvalidated `?status=complete` would return an empty page - and a
 empty page is what "nothing went wrong this week" looks like.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -54,6 +52,7 @@ def _service() -> MagicMock:
     service = MagicMock()
     service.list_runs = AsyncMock(return_value=([], 0))
     service.previews = AsyncMock(return_value={})
+    service.voice_chains = AsyncMock(return_value={})
     return service
 
 
@@ -221,6 +220,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
@@ -263,6 +263,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             is_test=False,
+            modality="text",
         )
         web = AgentRun(
             id=uuid4(),
@@ -278,6 +279,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             is_test=False,
+            modality="text",
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),
@@ -339,6 +341,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             cache_write_tokens=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            modality="text",
             is_test=False,
         )
         prev_id, next_id = uuid4(), uuid4()
@@ -371,6 +374,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             is_test=False,
+            modality="text",
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),

@@ -1,7 +1,5 @@
 """Every kind a department can be given, loaded and named the same way (#2072)."""
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

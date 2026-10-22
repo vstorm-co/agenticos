@@ -35,8 +35,6 @@ are, instead of remembered per compose file.
 organization from another, and how to change this file.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Annotated, Any, Literal
 

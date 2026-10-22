@@ -1,5 +1,5 @@
 ---
-source_sha: "b3749a3e45e0"
+source_sha: "ebf0345cff8e"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -142,9 +142,9 @@ Lassen Sie das Folgende genau so, wie es auf Englisch steht:
 | Berechtigungsnamen | `agents:edit` ist eine Zeichenkette, die das Produkt vergleicht |
 | Datei- und Verzeichnispfade | `backend/app/core/vault.py` |
 | Namen von Fehler- und Ausnahmeklassen | `AuthorizationError` |
-| Produktnamen | Docker Compose, PostgreSQL, Slack, Prefect |
+| Produktnamen | Docker Compose, PostgreSQL, Slack, Logfire |
 | Mermaid-Blöcke | Ein Label mit einer Klammer oder einem Anführungszeichen bricht den Graphen, und der Build kann es Ihnen nicht sagen - Mermaid rendert im Browser |
-| Eine Beschriftung der Konsole, die der Leser auf dem Bildschirm finden muss | Die Oberfläche ist englisch, `Admin → Response Ratings` ist also ein Orientierungspunkt und keine Formulierung |
+| Eine Beschriftung der Konsole, die der Leser auf dem Bildschirm finden muss | Wo die Oberfläche sie englisch zeigt, ist `Admin → Response Ratings` ein Orientierungspunkt und keine Formulierung. Wo der Katalog der Konsole selbst sie übersetzt (`frontend/messages/pl.json`, `de.json`), schreiben Sie die Beschriftung, die die Oberfläche des Lesers zeigt, mit der englischen in Klammern - „Stimme (Voice)“ -, damit sie in beiden Sprachen auffindbar ist |
 | Bildpfade | Ein Screenshot bedient alle vier Locales |
 
 Ein Kommentar innerhalb eines Codeblocks ist Prosa, die ein Leser liest statt

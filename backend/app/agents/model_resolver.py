@@ -42,8 +42,6 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID

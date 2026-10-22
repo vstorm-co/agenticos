@@ -11,8 +11,6 @@ The claims a mocked session cannot make:
   from them along.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import pytest

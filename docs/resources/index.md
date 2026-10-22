@@ -76,7 +76,6 @@ and it stands on:
 - [Pydantic AI](https://ai.pydantic.dev) — the agent runtime
 - [FastAPI](https://fastapi.tiangolo.com) and [Pydantic](https://docs.pydantic.dev) — the backend
 - [pgvector](https://github.com/pgvector/pgvector) — retrieval
-- [Prefect](https://www.prefect.io) — background work
 - [Next.js](https://nextjs.org) — the console
 - [Model Context Protocol](https://modelcontextprotocol.io) — every integration
 

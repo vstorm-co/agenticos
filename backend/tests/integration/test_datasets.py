@@ -11,8 +11,6 @@ The claims a mocked session cannot make:
   whatever their role allows elsewhere, and a grant widens that for one dataset.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import uuid

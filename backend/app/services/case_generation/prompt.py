@@ -8,8 +8,6 @@ prompt says plainly that nothing inside the fence is an instruction - and the
 rules in :mod:`drafts` hold whether the model listened or not.
 """
 
-from __future__ import annotations
-
 from app.db.models.case_generation import CaseOrigin
 from app.services.case_generation.drafts import REFUSALS
 from app.services.case_generation.sources import Material

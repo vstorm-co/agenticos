@@ -17,8 +17,6 @@ only as an argument to a client. Never a response, never a log line, never a
 `repr`.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -329,6 +327,53 @@ class TestEditing:
 
         assert refused.value.details == {"pending_destroys": 2}
         deleted.assert_not_awaited()
+
+    async def test_sandboxes_removed_by_hand_are_forgotten_and_the_connection_goes(
+        self, monkeypatch
+    ):
+        """#2250: with a revoked credential nothing could ever clear the tombstones."""
+        service = _service(monkeypatch)
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        deleted = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "delete", deleted)
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        forgot = AsyncMock(return_value=2)
+        monkeypatch.setattr(pending_destroy_repo, "remove_on_connection", forgot)
+        monkeypatch.setattr(pending_destroy_repo, "count_on_connection", AsyncMock(return_value=0))
+        audited = AsyncMock()
+        monkeypatch.setattr("app.services.sandbox_connection.record_audit", audited)
+
+        await service.delete(_ctx(), row.id, forget_pending_destroys=True)
+
+        forgot.assert_awaited_once_with(service.db, connection_id=row.id)
+        deleted.assert_awaited_once()
+        assert audited.await_args.kwargs["details"] == {
+            "name": row.name,
+            "forgotten_pending_destroys": 2,
+        }
+
+    async def test_a_tombstone_written_during_the_delete_refuses_it(self, monkeypatch):
+        """#2250: the foreign key keeps the tombstone a concurrent deletion wrote."""
+        from sqlalchemy.exc import IntegrityError
+
+        service = _service(monkeypatch)
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            sandbox_connection_repo,
+            "delete",
+            AsyncMock(side_effect=IntegrityError("DELETE", {}, Exception("fk"))),
+        )
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            pending_destroy_repo, "count_on_connection", AsyncMock(side_effect=[0, 1])
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.delete(_ctx(), row.id)
+
+        assert refused.value.details == {"pending_destroys": 1}
 
     @pytest.mark.security
     async def test_a_connection_a_project_keeps_its_files_on_is_not_deleted(self, monkeypatch):

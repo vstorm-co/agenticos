@@ -1,10 +1,11 @@
 "use client";
 
 import { Ban, CircleDashed, CircleDot, Loader2, OctagonAlert } from "lucide-react";
-import { motion, useReducedMotion, type Transition } from "motion/react";
+import { motion, type Transition } from "motion/react";
 import { useTranslations } from "next-intl";
 import type { ComponentType, CSSProperties } from "react";
 
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import type { PlanStep, PlanStepStatus } from "@/lib/plan-state";
 import { cn } from "@/lib/utils";
 
@@ -142,7 +143,7 @@ export function PlanChecklist({
   className?: string;
 }) {
   const t = useTranslations("chat.plan");
-  const reduced = useReducedMotion() ?? false;
+  const reduced = useReducedMotion();
   const timing = (transition: Transition) => (reduced ? INSTANT : transition);
 
   return (

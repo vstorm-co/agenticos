@@ -107,6 +107,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     ...overrides,
   };
 }

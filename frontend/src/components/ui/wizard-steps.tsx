@@ -1,16 +1,14 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export interface WizardStep {
   id: string;
-  /** Already translated; the stepper styles it, the caller words it. */
+  /** Already translated, in sentence case; the stepper styles it, the caller words it. */
   label: string;
-  icon: LucideIcon;
 }
 
 interface WizardStepsProps {
@@ -20,54 +18,53 @@ interface WizardStepsProps {
 }
 
 /**
- * The step timeline at the top of a wizard dialog.
+ * The progress at the top of a wizard dialog: one segment per step.
  *
- * A circle per step joined by hairlines: done steps filled and checked, the
- * active one on the brand color, the rest muted. Lifted from the KB
- * sync-source wizard so every stepped dialog draws the same timeline rather
- * than each inventing its own.
+ * A bar per step that fills as the wizard reaches it, and under it the step's
+ * number and name at the size of the form's own labels. It was a row of 24px
+ * circles holding icons, joined by hairlines and named in 12px uppercase
+ * monospace - which read as decoration rather than as where somebody was, and
+ * was the hardest text in the dialog to read. Done steps show a check; the one
+ * on screen is the only label in full ink. On a phone only its name is written
+ * out: four names do not fit a row there, and the bars still count the rest.
  */
 export function WizardSteps({ steps, current }: WizardStepsProps) {
   const currentIdx = steps.findIndex((step) => step.id === current);
   return (
-    <ol className="mt-3 flex items-center gap-2">
+    <ol className="mt-4 flex gap-3">
       {steps.map((step, i) => {
         const done = i < currentIdx;
-        const active = step.id === current;
+        const active = i === currentIdx;
         return (
-          <li key={step.id} className="flex flex-1 items-center gap-2">
-            <div
-              className={cn(
-                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-[background-color,color,box-shadow,transform] duration-300",
-                done && "bg-foreground text-background",
-                // The step on screen carries a soft halo, so it reads as "here"
-                // from across the dialog rather than as one more coloured dot.
-                active && "bg-brand text-brand-foreground ring-brand/15 scale-110 ring-4",
-                !done && !active && "bg-foreground/8 text-muted-foreground",
-              )}
-            >
-              {done ? <Check className="h-3 w-3" /> : <step.icon className="h-3 w-3" />}
-            </div>
-            <span
-              className={cn(
-                "hidden font-mono text-xs tracking-wider uppercase transition-colors duration-300 sm:inline",
-                active || done ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {step.label}
+          <li key={step.id} aria-current={active ? "step" : undefined} className="min-w-0 flex-1">
+            <span className="bg-muted block h-1 overflow-hidden rounded-full">
+              <span
+                className={cn(
+                  "bg-foreground block h-full origin-left rounded-full transition-transform duration-500 ease-[var(--ease-out)]",
+                  done || active ? "scale-x-100" : "scale-x-0",
+                )}
+              />
             </span>
-            {i < steps.length - 1 && (
-              // The rail fills toward the next step as the wizard advances, and
-              // drains when it goes back - progress drawn as motion, not a swap.
-              <span className="bg-foreground/15 relative h-px flex-1 overflow-hidden">
-                <span
-                  className={cn(
-                    "bg-foreground absolute inset-0 origin-left transition-transform duration-500 ease-[var(--ease-out)]",
-                    i < currentIdx ? "scale-x-100" : "scale-x-0",
-                  )}
-                />
+            <span className="mt-2 flex min-w-0 items-center gap-2">
+              <span
+                className={cn(
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums transition-colors duration-300",
+                  done || active
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="h-3 w-3" strokeWidth={3} /> : i + 1}
               </span>
-            )}
+              <span
+                className={cn(
+                  "truncate text-sm font-medium transition-colors duration-300",
+                  active ? "text-foreground" : "text-muted-foreground max-sm:hidden",
+                )}
+              >
+                {step.label}
+              </span>
+            </span>
           </li>
         );
       })}

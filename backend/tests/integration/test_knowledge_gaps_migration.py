@@ -14,8 +14,6 @@ that at the model-built integration database (or a developer's) is how a run
 empties something it should not.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -31,8 +29,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_knowledge_gaps_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_DRAFTERS = "0149_knowledge_gaps"
-_SIGNALS = "0153_knowledge_gap_signals"
+_DRAFTERS = "0164_knowledge_gaps"
+_SIGNALS = "0167_knowledge_gap_signals"
 
 
 def _url(database: str) -> str:

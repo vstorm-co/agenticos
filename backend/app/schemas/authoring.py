@@ -5,8 +5,6 @@ passage it quotes or replaces is part of the text, and stripping it would anchor
 a change somewhere it was not meant to go.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal

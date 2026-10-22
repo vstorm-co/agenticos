@@ -28,8 +28,6 @@ CSRF token in `oauth_state`) and only replaces `oauth_payload` once
 the callback brings back real tokens.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any

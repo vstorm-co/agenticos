@@ -19,8 +19,6 @@ recovers an old conversation's agents would list every delegate the orchestrator
 called as a participant the user never chose.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

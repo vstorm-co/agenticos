@@ -6,8 +6,6 @@ browser is allowed, what each of its requests is answered with, and which of a
 turn's calls becomes the picture.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -49,7 +47,10 @@ class TestWhichBrowser:
 class TestWhatTheBrowserIsGiven:
     def test_the_drawing_gets_the_runtime_after_its_doctype(self) -> None:
         page = visual_render.rendered_document("html", "<!doctype html><p>x</p>", title="T")
-        assert page.startswith('<!doctype html><script data-agenticos="visual">')
+        # The platform script first, so a drawing reading `agenticos.map` draws
+        # here as it does in the chat.
+        assert page.startswith('<!doctype html><script data-agenticos="platform">')
+        assert '<script data-agenticos="visual">' in page
         assert page.endswith("<p>x</p>")
 
     async def test_the_page_address_is_answered_with_the_drawing_under_the_sandbox(self) -> None:
@@ -57,6 +58,32 @@ class TestWhatTheBrowserIsGiven:
         assert reply.body == b"<p>x</p>"
         assert reply.policy is not None
         assert reply.policy.startswith("sandbox allow-scripts allow-modals;")
+
+    async def test_a_map_tile_is_served_from_the_tile_path_as_in_the_chat(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        png = b"\x89PNG\r\n\x1a\n"
+        fetched = AsyncMock(return_value=(png, "image/png"))
+        monkeypatch.setattr(visual_render.tile_proxy, "tile", fetched)
+        prefix = visual_render.artifacts.tile_source()
+
+        reply = await visual_render.answer(f"{prefix}3/4/5", b"")
+
+        assert reply.body == png
+        assert reply.content_type == "image/png"
+        fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_tile_that_cannot_be_had_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            visual_render.tile_proxy,
+            "tile",
+            AsyncMock(side_effect=visual_render.NotFoundError(message="none")),
+        )
+        prefix = visual_render.artifacts.tile_source()
+        assert (await visual_render.answer(f"{prefix}3/4/5", b"")).body is None
+        assert (await visual_render.answer(f"{prefix}3/4/not-a-number", b"")).body is None
 
     async def test_a_library_file_is_served_from_disk(self) -> None:
         reply = await visual_render.answer(

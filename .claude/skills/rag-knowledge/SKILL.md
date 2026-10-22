@@ -29,8 +29,10 @@ uv run agenticos cmd rag-source-sync --all
 uv run agenticos cmd rag-source-remove <id>
 ```
 
-Ingestion is parse → chunk → embed → upsert. Heavy ingestion runs as a Prefect flow,
-never inline in a request — see the `background-task` skill.
+Ingestion is parse → chunk → embed → upsert. It runs as an `ingest-document` job
+in a worker's child process, under a memory watchdog, never inline in a request -
+see the `background-task` skill. An upload queues the job in its own transaction;
+a document whose parse kills the child is retried once, then dead with why.
 
 ## The four traps
 

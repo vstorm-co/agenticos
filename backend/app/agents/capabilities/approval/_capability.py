@@ -22,8 +22,6 @@ come back to the model as tool output, so it can tell the user what did not
 happen instead of the run dying with a stack trace.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any

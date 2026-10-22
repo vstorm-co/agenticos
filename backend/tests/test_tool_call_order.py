@@ -5,8 +5,6 @@ is scored on, so the order matters wherever identical calls repeat. A turn
 writes every call with one `started_at`, so time alone cannot say it.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any

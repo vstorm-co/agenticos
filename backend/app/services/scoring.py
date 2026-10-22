@@ -16,8 +16,6 @@ passed or failed - and can be graded again, on the same answer, once the cause i
 fixed.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any

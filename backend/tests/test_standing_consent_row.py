@@ -12,8 +12,6 @@ worth pinning: `_write_approvals` is the one place rows are made, and a second
 writer for waived calls would be a second thing to keep in step.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

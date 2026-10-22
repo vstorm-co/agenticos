@@ -10,7 +10,7 @@ Wonderful sells a closed enterprise AI platform together with forward-deployed t
 
 The question is less which software is better and more what you want to own when the project ends: a contract with a platform vendor, or the platform itself.
 
-Maintained by the AgenticOS team at Vstorm. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Wonderful scope: its public AI OS, deployment, agents, gateway and safety pages and funding announcement, not a negotiated contract or tested account.
+Maintained by the AgenticOS team at Vstorm. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Wonderful scope: its public AI OS, deployment, agents, gateway and safety pages and funding announcement, not a negotiated contract or tested account.
 
 ## At a glance
 
@@ -20,10 +20,10 @@ Maintained by the AgenticOS team at Vstorm. Sources checked 25 September 2026. A
 | Source | Proprietary; export of agents and configuration through its UI or API | Apache-2.0; the whole platform is readable and forkable |
 | Where it runs | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Your infrastructure, with Docker Compose |
 | Pricing | Not published; sales-led | No licence fee; models, infrastructure and any agreed services |
-| Channels | Voice, chat, email, WhatsApp and SMS | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Channels | Voice, chat, email, documents and other channels | Web chat with voice calls, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Models | Routed per task by the platform | Your choice from 28 providers, set per model profile |
 | Governance | AI Gateway with budget caps per team and audit logs | Budgets per agent and per organization, approvals and a tamper-evident audit log |
-| Compliance claims | SOC 2 Type II, ISO 27001:2022, PCI DSS, GDPR | Your controls on your infrastructure; see [security](../security.md) |
+| Compliance claims | SOC 2 Type II, ISO 27001:2022, PCI DSS, GDPR, EU AI Act aligned | Your controls on your infrastructure; see [security](../security.md) |
 
 ## Where AgenticOS goes further
 
@@ -48,7 +48,7 @@ Wonderful's certifications cover its own service. With AgenticOS you inspect the
 ## When Wonderful is the better fit
 
 - You want a vendor to own delivery end to end, across many markets and languages.
-- Customer-facing voice, WhatsApp or SMS agents are the main use case. AgenticOS has none of these channels.
+- Customer-facing voice agents on the phone are the main use case. AgenticOS takes [voice calls](../voice.md) in the browser only, and has no phone, WhatsApp or SMS channel.
 - You need a vendor's own certifications, such as SOC 2 Type II and PCI DSS, rather than your own controls.
 
 ## Questions for the delivery agreement
@@ -79,7 +79,7 @@ Yes. It runs with Docker Compose on your own host. With a local model, the whole
 
 ### Does AgenticOS support voice or WhatsApp agents?
 
-Not yet. Its surfaces are web chat, a widget, a hosted page, the HTTP API, a WebSocket, Slack, Telegram and Mattermost.
+Voice, in part: since 1.10.0 a member or a visitor can [call an agent](../voice.md) from web chat, the widget or a hosted page, and voice notes sent to a channel bot are transcribed. There is no phone line, WhatsApp or SMS channel yet.
 
 ### What happens if we stop working with Vstorm?
 

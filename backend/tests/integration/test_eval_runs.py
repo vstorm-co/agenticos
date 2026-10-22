@@ -13,8 +13,6 @@ attribution - is covered where it lives. What only a database shows is here:
 - nothing crosses organizations, and access is the dataset's and the agent's.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import uuid
@@ -265,10 +263,6 @@ def _sessions(db: AsyncSession):
 @pytest.fixture(autouse=True)
 def _environment():
     """No real model, no dispatch, one drainer - the session is shared, so serial."""
-
-    def dropped(_db, coro, *, name):
-        coro.close()
-
     with (
         patch.object(
             ModelProfileService,
@@ -278,7 +272,6 @@ def _environment():
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
-        patch("app.services.eval_run.spawn_after_commit", side_effect=dropped),
         patch("app.services.eval_run_worker.settings.EVAL_RUN_CONCURRENCY", 1),
         patch("app.services.eval_run.settings.EVAL_FALLBACK_CASE_COST_USD", Decimal("0.05")),
     ):

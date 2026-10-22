@@ -1,7 +1,5 @@
 """The parts of the suite service that need no database: what a version binds, and how rows read."""
 
-from __future__ import annotations
-
 import uuid
 
 from app.agents.spec import AgentSpec

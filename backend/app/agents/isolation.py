@@ -32,8 +32,6 @@ resume rebuilds. A call the agent gates is held and recorded as one that needed
 an approval, even when the tool only reads - so it is in the trajectory too.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections import deque

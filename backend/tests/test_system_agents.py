@@ -7,8 +7,6 @@ and what a judge's settings become on the wire for a model that takes them and
 one that does not.
 """
 
-from __future__ import annotations
-
 import uuid
 import warnings
 from unittest.mock import AsyncMock, MagicMock

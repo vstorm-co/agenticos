@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "593e85034342"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -134,6 +134,11 @@ el listado de `rag-sources`.
 7. Usa el botón **"Sync Now"** para lanzar una sincronización inmediata, o
    espera a que el horario la dispare por sí solo.
 
+Para cambiar una fuente más adelante, pulsa el lápiz de su fila. Se abre el mismo
+asistente con los valores de la fuente ya rellenados. El connector no se puede
+cambiar, y **"Save Changes"** envía solo los campos que hayas cambiado. La fuente
+sigue en la base de conocimiento en la que está.
+
 La interfaz llama a la misma API REST que se documenta más abajo, así que todo
 lo que puedes hacer desde ella lo puedes hacer también con `curl` o con
 cualquier cliente HTTP.
@@ -214,13 +219,14 @@ por sí sola:
 | `120` | Cada 2 horas |
 | `1440` | Una vez al día |
 
-!!! warning "Un horario necesita el runner de Prefect"
+!!! warning "Un horario necesita el worker"
 
-    `check_scheduled_syncs_flow` es un deployment de Prefect que despierta cada
-    60 segundos y lanza lo que toque, así que `schedule_minutes` no hace nada sin
-    los contenedores `prefect-server` y `prefect-runner` que arranca `make dev`.
-    Si no hay ninguno de los dos en marcha, solo un disparo manual (CLI, API o la
-    interfaz) sincroniza algo.
+    La programación `dispatch-due-syncs` despierta cada 60 segundos y encola una
+    sincronización por cada fuente que toque, así que `schedule_minutes` no hace
+    nada sin el contenedor `worker` que arranca `make dev`. Sin él, un disparo
+    manual (CLI, API o la interfaz) también encola su sincronización, que
+    igualmente espera a un worker. Una fuente nunca tiene dos sincronizaciones a
+    la vez.
 
 ## Configurar Google Drive { #google-drive-setup }
 

@@ -6,8 +6,6 @@ service call, its caller and tenant, and that a thread the caller cannot see is
 missing.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
@@ -49,7 +47,7 @@ class _Organization:
 
 
 @pytest.fixture
-async def service() -> AsyncGenerator[AsyncMock, None]:
+async def service() -> AsyncGenerator[AsyncMock]:
     caller = _User()
     app.dependency_overrides[get_current_user] = lambda: caller
     organization = _Organization()

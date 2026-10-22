@@ -16,8 +16,6 @@ failed outright: such a result is inconclusive, never passed, until every case
 has a verdict.
 """
 
-from __future__ import annotations
-
 from decimal import Decimal
 
 from app.db.models.eval_suite import EvalSuiteResultStatus

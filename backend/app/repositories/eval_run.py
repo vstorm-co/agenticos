@@ -1,7 +1,5 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any

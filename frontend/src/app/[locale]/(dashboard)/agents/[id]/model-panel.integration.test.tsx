@@ -143,6 +143,7 @@ vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }))
 vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
   MarkdownModeToggle: () => null,

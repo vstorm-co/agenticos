@@ -6,8 +6,6 @@ a real Pydantic AI agent, because "blocked" means the tool function was never
 entered - a mock of the handler cannot say that.
 """
 
-from __future__ import annotations
-
 import dataclasses
 import datetime
 import json

@@ -12,8 +12,6 @@ two implementations of one rule is exactly how they come to disagree. It runs bo
 over the same rows and asserts they reach the same verdict.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

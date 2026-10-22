@@ -9,8 +9,6 @@ was written, and the API sent neither the link nor the task id. Nothing was
 broken enough to notice.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 
@@ -33,6 +31,8 @@ def _row(**overrides: object) -> AgentRun:
         "cache_write_tokens": 0,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
+        # Set explicitly: a column default is applied on flush, and this row never is.
+        "modality": "text",
         "is_test": False,
     }
     return AgentRun(**{**defaults, **overrides})

@@ -6,8 +6,6 @@ outage, and that a server failing check after check writes one notification
 per recipient rather than one per check.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

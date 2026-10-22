@@ -73,6 +73,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     ended_at: "2026-08-14T09:00:04Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     ...overrides,
   };
 }
@@ -321,6 +323,14 @@ describe("an eval run", () => {
     serve({ run: run({ surface: "eval" }) });
     renderRun();
     expect(screen.queryByRole("link", { name: /eval/i })).toBeNull();
+  });
+});
+
+describe("a voice call in focus", () => {
+  it("says it was a call beside its surface", () => {
+    serve({ run: run({ modality: "voice" }) });
+    renderRun();
+    expect(screen.getByText("Voice call")).toHaveClass("sr-only");
   });
 });
 

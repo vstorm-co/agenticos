@@ -13,8 +13,6 @@ the organization's to edit, and an edit may change how the agent judges but must
 not change whether its answer can be read.
 """
 
-from __future__ import annotations
-
 import json
 import re
 from dataclasses import dataclass

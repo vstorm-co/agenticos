@@ -1,7 +1,5 @@
 """The tools the knowledge capability exposes."""
 
-from __future__ import annotations
-
 import logging
 from datetime import date
 

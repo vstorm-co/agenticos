@@ -1,7 +1,5 @@
 """The API key routes: wired to the right permission and status codes."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

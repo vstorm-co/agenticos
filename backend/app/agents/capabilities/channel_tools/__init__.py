@@ -78,6 +78,9 @@ class ChannelToolsConfig(BaseModel):
     # five answers to "may it read what was said here", and a switch in the spec
     # has one. See `README.md`.
     selectable=False,
+    # A voice call is made from `/chat`, a widget or a hosted page, never on a
+    # channel, so there is no channel for these lookups to describe (#54).
+    voice="never",
     # Declared under the ids approval and renaming key on. All four are reads of
     # what the bot can already see, so none is side-effecting - but
     # `read_channel_history` is the one worth a `tool_approval` override on a

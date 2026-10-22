@@ -5,8 +5,6 @@ The judge runs for real: the seeded eval judge, through the runner's own
 its run row and its surface is what the platform does, not what a stub was told.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import re

@@ -17,8 +17,6 @@ Two things live here because both the frame and a saved app must agree on them:
   and the isolation comes from a response header rather than a `srcdoc` meta tag.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import hashlib
@@ -50,7 +48,7 @@ from app.repositories.conversation import ToolCallArgs
 from app.schemas.visual import VisualList, VisualListItem, VisualPublish, VisualPublished
 from app.services import artifact as artifacts
 from app.services.access import AGENT, resolve_access
-from app.services.artifact import PLATFORM_SCRIPT
+from app.services.artifact import platform_script
 from app.services.conversation import ConversationService
 from app.services.file_storage import get_file_storage
 
@@ -150,6 +148,9 @@ VISUAL_RUNTIME = """<script data-agenticos="visual">(function () {
   function fail(message) { post({ type: "agenticos:visual-error", message: String(message) }); }
   window.addEventListener("error", function (event) {
     var target = event.target;
+    // A map tile that did not load is the map kit's to handle - it falls back to
+    // an outline - not a broken drawing for the model to fix.
+    if (target && target.classList && target.classList.contains("leaflet-tile")) return;
     if (target && target !== window && (target.src || target.href)) {
       fail("Could not load " + (target.src || target.href));
       return;
@@ -857,7 +858,7 @@ def _composer() -> str:
         {
             "svg": _SVG_PAGE,
             "mermaid": _MERMAID_PAGE,
-            "runtime": PLATFORM_SCRIPT + VISUAL_RUNTIME,
+            "runtime": platform_script() + VISUAL_RUNTIME,
         }
     ).replace("</", "<\\/")
     return f"""<script>(function () {{

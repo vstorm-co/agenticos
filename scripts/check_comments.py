@@ -23,8 +23,6 @@ Usage::
 Exits 1 when a banner is found, 0 when clean.
 """
 
-from __future__ import annotations
-
 import os
 import re
 from collections.abc import Iterator

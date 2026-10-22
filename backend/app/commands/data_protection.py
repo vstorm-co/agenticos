@@ -18,8 +18,6 @@ the deployment needs them to sit, and exclude the traffic from training. Those
 are contracts, not rows, and the page names each as evidence to obtain.
 """
 
-from __future__ import annotations
-
 import asyncio
 import re
 from collections import Counter

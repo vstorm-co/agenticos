@@ -1,5 +1,5 @@
 ---
-source_sha: "c86fa0b502c9"
+source_sha: "d38d76061f82"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -210,7 +210,7 @@ samą treść, nawet jeśli ktoś dalej edytuje.
 
 ## Działanie i anulowanie { #running-and-cancelling }
 
-Run wykonuje się w tle, we własnym flow workera, więc przetrwa restart API.
+Run wykonuje się w tle, jako osobne zadanie workera, więc przetrwa restart API.
 Przypadki działają po kilka naraz: najwyżej `EVAL_RUN_CONCURRENCY` na run i
 najwyżej `EVAL_ORG_CONCURRENCY` we wszystkich eval runach organizacji, więc
 dataset z 500 przypadkami nie zajmie wszystkich żądań, na które provider
@@ -232,7 +232,7 @@ przypadki nie ruszyły się przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się b
 w sweepie, który worker uruchamia co minutę i który zwalnia też jego miejsca.
 Worker, któremu heartbeaty padają tak długo - na maszynie zbyt obciążonej, by
 sięgnąć bazy - kończy się tak samo, choć jeszcze pracuje, i run trzeba uruchomić
-ponownie. Run w kolejce nie ma jeszcze workera - czeka na wolny runner - więc
+ponownie. Run w kolejce nie ma jeszcze workera - czeka na wolnego workera - więc
 sweep rezygnuje z niego dopiero po `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które

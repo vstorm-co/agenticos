@@ -6,8 +6,6 @@ which organization a knowledge base belongs to - is pinned against Postgres in
 topics, and that a pass with nothing to do costs no embedding call.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import ExitStack
 from typing import Any
@@ -33,8 +31,8 @@ from app.services.knowledge_gaps import (
     _drafting_prompt,
 )
 from app.worker.tasks.knowledge_gap_tasks import (
-    classify_knowledge_gaps_flow,
-    group_knowledge_gaps_flow,
+    classify_knowledge_gaps,
+    group_knowledge_gaps,
 )
 
 pytestmark = pytest.mark.anyio
@@ -304,7 +302,7 @@ class TestTheFlow:
             ),
             patch.object(KnowledgeGapService, "group_pending", new=group),
         ):
-            grouped = await group_knowledge_gaps_flow.fn()
+            grouped = await group_knowledge_gaps()
 
         forget.assert_awaited_once()
         assert grouped == 4
@@ -323,7 +321,7 @@ class TestTheFlow:
                 KnowledgeGapService, "waiting_to_be_grouped", new=AsyncMock(return_value=[])
             ),
         ):
-            grouped = await group_knowledge_gaps_flow.fn()
+            grouped = await group_knowledge_gaps()
 
         assert grouped == 0
         assert "grouped" not in caplog.text
@@ -340,7 +338,7 @@ class TestTheFlow:
                 KnowledgeGapService, "group_pending", new=AsyncMock(return_value=1)
             ) as group,
         ):
-            await group_knowledge_gaps_flow.fn(organization_id=str(ORG), knowledge_base_id=str(KB))
+            await group_knowledge_gaps(organization_id=str(ORG), knowledge_base_id=str(KB))
 
         waiting.assert_not_awaited()
         assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
@@ -379,7 +377,7 @@ def _check_patches(*, held: bool = True, batches: list[Any], acting: Any = "ctx"
 
 
 async def _run_check() -> int:
-    return await classify_knowledge_gaps_flow.fn(
+    return await classify_knowledge_gaps(
         organization_id=str(ORG), knowledge_base_id=str(KB), user_id=str(_ASKER)
     )
 

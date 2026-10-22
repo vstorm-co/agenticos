@@ -11,9 +11,8 @@ What reaches the model is a short note naming each thing and how to use it, neve
 the thing's content.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -150,6 +149,7 @@ class MentionService:
                         name=connection.label or (entry.name if entry else connection.name),
                         detail=f"{tool_prefix(connection.name)}_*",
                         icon=(entry.icon or None) if entry else None,
+                        host=_host(connection.url),
                     )
                 )
             elif isinstance(ref, PersonalMcpServerRef):
@@ -161,6 +161,7 @@ class MentionService:
                         name=entry.name if entry else ref.catalog_key,
                         detail=f"{tool_prefix(ref.catalog_key)}_*",
                         icon=(entry.icon or None) if entry else None,
+                        host=_host(entry.url) if entry else None,
                     )
                 )
             else:
@@ -313,3 +314,8 @@ def _note(
     }
     lines = "\n".join(f"- {how[item.kind](item)}" for item in mentions)
     return f"The person pointed at these for this request; use them:\n{lines}"
+
+
+def _host(url: str) -> str | None:
+    """The host of an MCP server's address, or None for one without."""
+    return urlsplit(url).hostname or None

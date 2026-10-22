@@ -12,8 +12,6 @@ Startup's heavy collaborators are stubbed so the lifespan runs in-process; what
 is exercised is the real `background.drain()` wiring on the way out.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

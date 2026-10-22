@@ -42,13 +42,11 @@ Builder; `config_schema` is both validation and the source of the form.
 scope is rejected while someone is looking at a form, not mid-conversation.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -289,6 +287,10 @@ class ProviderExecuted(BaseModel):
         return frozenset(self.tools)
 
 
+VoiceSupport = Literal["live", "hand_off", "never"]
+"""How a capability takes part in a voice call: see `CapabilityDef.voice`."""
+
+
 @dataclass(frozen=True)
 class CapabilityDef:
     """A registered capability and everything needed to expose and build it."""
@@ -316,6 +318,19 @@ class CapabilityDef:
     differs: the runner assembles it for the run rather than reading it off the
     published spec, the way it already appends a binding's prompt to the
     instructions.
+    """
+
+    voice: VoiceSupport = "live"
+    """How the capability takes part in a voice call (#54).
+
+    `live` runs on the call's realtime model. `hand_off` runs in the agent's
+    text twin, which the call hands a task to (`app/agents/voice.py`): the
+    capabilities a realtime session cannot carry - `sandbox` (realtime sets an
+    unavailable workspace), `browser_use` (its loop drives the run's own model,
+    which in a call speaks), `subagents`, `coding_agent` (it works in the
+    sandbox), and `background_tools`, which only sends those away. The Builder's Voice card lists them. `never` is
+    `channel_tools`, which a call never has a channel to describe for; no spec
+    binds it.
     """
 
     tool_settings: bool = True
@@ -460,6 +475,7 @@ def register(
     config_schema: type[BaseModel] | None = None,
     side_effecting: bool = False,
     selectable: bool = True,
+    voice: VoiceSupport = "live",
     tool_settings: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
@@ -529,6 +545,7 @@ def register(
             config_schema=config_schema,
             side_effecting=side_effecting,
             selectable=selectable,
+            voice=voice,
             tool_settings=tool_settings,
             scopes=frozenset(scopes),
             secret=secret,

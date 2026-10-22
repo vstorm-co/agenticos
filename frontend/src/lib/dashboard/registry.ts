@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
   | "runs"
@@ -66,6 +67,7 @@ export type WidgetId =
   | "eval-runs"
   | "eval-suites"
   | "suggestions"
+  | "voice-minutes"
   | "projects"
   | "recent-visuals"
   | "knowledge-gaps";
@@ -299,6 +301,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     // these same figures a second time and now redirects here anyway (#922).
     seeAll: ROUTES.ADMIN_USERS,
   },
+  "background-jobs": {
+    id: "background-jobs",
+    gate: adminOnly,
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "platform",
+    seeAll: ROUTES.ADMIN_BACKGROUND_JOBS,
+  },
   health: {
     id: "health",
     gate: adminOnly,
@@ -404,6 +414,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
+  },
+  // Call minutes by agent, and the month against the organization's limit (#54).
+  // What `GET /voice/usage` asks, and nothing more.
+  "voice-minutes": {
+    id: "voice-minutes",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "usage",
+    options: { period: true },
+    seeAll: runsHref({ filters: { modality: "voice" } }),
   },
   "model-mix": {
     id: "model-mix",

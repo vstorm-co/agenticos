@@ -34,8 +34,6 @@ their approval - which the checks on one binding never see, so a specialist's
 description is the one part of them a proposal may change.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID

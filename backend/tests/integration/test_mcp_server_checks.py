@@ -1,7 +1,5 @@
 """What the catalog check recorded, as rows in a real Postgres (#2103)."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 
 import pytest

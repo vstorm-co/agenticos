@@ -1,4 +1,4 @@
-"""The 0150 revision's downgrade, exercised with a seeded case generator in place.
+"""The 0165 revision's downgrade, exercised with a seeded case generator in place.
 
 `tests/test_migrations.py` runs the whole chain forwards and back on an empty
 database, where no generator exists to violate the narrower `ck_agent_kind` the
@@ -8,8 +8,6 @@ a plain agent without its `system_key`, then upgrades again.
 It owns a database of its own - created here, dropped when the module is done -
 for the reason `test_migrations.py` does.
 """
-
-from __future__ import annotations
 
 import os
 import subprocess
@@ -26,7 +24,7 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_case_gen_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_REVISION = "0150_case_generation"
+_REVISION = "0165_case_generation"
 
 
 def _url(database: str) -> str:

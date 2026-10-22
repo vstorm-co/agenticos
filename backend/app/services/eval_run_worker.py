@@ -1,7 +1,7 @@
 """Executing an eval run: every case answered, scored and kept, then the flips confirmed.
 
-One worker per eval run, in its own Prefect flow run, so a run survives the API
-process that started it. Inside, a few drainers claim attempts one at a time:
+One worker per eval run, in a background job of its own, so a run survives the
+API process that started it. Inside, a few drainers claim attempts one at a time:
 each claim counts the organization's running cases under a lock first, so an
 organization never has more cases running than its limit however many runs and
 workers it has, and a cancelled run hands out nothing more.
@@ -15,8 +15,6 @@ without a conversation keeps no transcript.
 After the first answer of every case, the cases whose outcome flipped against
 the baseline are rerun, and the run ends.
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -475,7 +473,7 @@ class EvalRunWorker:
             return None
         try:
             return await AgentRunnerService(db).tool_recording(ctx, revision.source_run_id)
-        except (BadRequestError, NotFoundError):
+        except BadRequestError, NotFoundError:
             logger.info("No usable recording for eval case %s", revision.case_id)
             return None
 

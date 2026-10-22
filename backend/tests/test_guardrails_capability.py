@@ -11,8 +11,6 @@ block is shown before it has run, because every surface streams the answer and t
 harness guardrail only reads the finished one (agenticos#1900).
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator, Sequence
 from unittest.mock import MagicMock
 
@@ -53,7 +51,9 @@ from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, g
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
+    TranscriptScreens,
     build_guardrails,
+    transcript_screens,
 )
 from app.agents.capabilities.guardrails._capability import (
     WITHHELD_REASONING,
@@ -746,6 +746,20 @@ async def test_a_waited_for_answer_is_still_redacted():
     result = await agent.run("go")
 
     assert result.output == "Here it is: [redacted:anthropic_key]. Keep it safe."
+
+
+def test_transcripts_are_screened_by_the_input_and_output_edges():
+    """#54: a call has no model request to wrap, so the same detectors read its transcripts."""
+    screens = transcript_screens(
+        GuardrailsConfig(blocked_keywords_in="password", redact_secrets_out=True)
+    )
+    assert screens.caller is not None and screens.agent is not None
+    with pytest.raises(GuardrailBlocked):
+        screens.caller("my password is hunter2")
+
+
+def test_an_agent_with_no_edges_has_no_transcript_screens():
+    assert transcript_screens(GuardrailsConfig()) == TranscriptScreens(caller=None, agent=None)
 
 
 # Tool arguments (agenticos#2000): an edge of its own, off unless configured.

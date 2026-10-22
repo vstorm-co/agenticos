@@ -5,8 +5,6 @@ serves every tenant that registered a connection at its address, so a query with
 the organization would read another tenant's log.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID

@@ -8,8 +8,6 @@ as the bytes and name it was sent with, that `format` is the query parameter a
 client writes, and that an export downloads as a file of the right type.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

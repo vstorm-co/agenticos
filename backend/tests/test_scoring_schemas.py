@@ -5,8 +5,6 @@ does not compile, or one long enough to make matching expensive, would otherwise
 surface as an error on every score.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

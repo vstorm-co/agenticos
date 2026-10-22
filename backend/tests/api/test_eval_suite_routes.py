@@ -6,8 +6,6 @@ does. Left here is the HTTP layer: each route's status, that the paging reaches
 the service, and that a suite that cannot run now is a 409.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

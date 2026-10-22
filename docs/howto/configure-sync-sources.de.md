@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "593e85034342"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -135,6 +135,11 @@ in der Auflistung von `rag-sources` steht.
 7. Mit **"Sync Now"** lösen Sie einen sofortigen Sync aus, oder Sie warten, bis
    der Zeitplan von selbst greift.
 
+Um eine Source später zu ändern, klicken Sie auf den Stift in ihrer Zeile. Derselbe
+Assistent öffnet sich mit den Werten der Source. Der Connector lässt sich nicht
+ändern, und **"Save Changes"** sendet nur die Felder, die Sie geändert haben. Die
+Source bleibt der Wissensdatenbank zugeordnet, in der sie ist.
+
 Die Oberfläche ruft dieselbe REST-API auf, die unten dokumentiert ist: Was Sie in
 der Oberfläche tun können, können Sie auch mit `curl` oder einem beliebigen
 HTTP-Client tun.
@@ -216,13 +221,14 @@ synchronisiert:
 | `120` | Alle 2 Stunden |
 | `1440` | Einmal am Tag |
 
-!!! warning "Ein Zeitplan braucht den Prefect-Runner"
+!!! warning "Ein Zeitplan braucht den Worker"
 
-    `check_scheduled_syncs_flow` ist ein Prefect-Deployment, das alle 60 Sekunden
-    aufwacht und auslöst, was fällig ist. Ohne die Container `prefect-server` und
-    `prefect-runner`, die `make dev` startet, bewirkt `schedule_minutes` nichts.
-    Läuft keiner von beiden, synchronisiert nur ein manueller Auslöser (CLI, API
-    oder Oberfläche) überhaupt etwas.
+    Der Zeitplan `dispatch-due-syncs` wacht alle 60 Sekunden auf und reiht für
+    jede fällige Quelle einen Sync ein, ohne den Container `worker`, den
+    `make dev` startet, bewirkt `schedule_minutes` also nichts. Ohne ihn reiht
+    auch ein manueller Auslöser (CLI, API oder Oberfläche) seinen Sync ein, und
+    der wartet ebenso auf einen Worker. Eine Quelle hat nie zwei Syncs
+    gleichzeitig.
 
 ## Google Drive einrichten { #google-drive-setup }
 

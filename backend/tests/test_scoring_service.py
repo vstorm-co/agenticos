@@ -4,8 +4,6 @@ The integration suite scores with every scorer on; these are the switches that
 leave one out.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 

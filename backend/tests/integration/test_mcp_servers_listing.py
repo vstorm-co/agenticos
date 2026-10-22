@@ -6,8 +6,6 @@ into the catalog and page three starts one row in - so an off-by-one here skips 
 server or shows it twice, on a list where nobody would notice which.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 
 import pytest

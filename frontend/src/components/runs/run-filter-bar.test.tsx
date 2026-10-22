@@ -71,6 +71,7 @@ describe("the filter bar's gates", () => {
     for (const name of [
       "Filter by status",
       "Filter by surface",
+      "Filter by kind",
       "Filter by rating",
       "Filter by agent",
       "Filter by person",
@@ -149,6 +150,30 @@ describe("the model facet", () => {
 
     expect(await screen.findByRole("option", { name: "claude-sonnet-5" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Any model" })).toBeInTheDocument();
+  });
+});
+
+describe("the kind filter", () => {
+  it("narrows to voice calls", async () => {
+    perm.agentsView = true;
+    org.activeOrgId = "org-1";
+    const onChange = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RunFilterBar
+          filters={DEFAULT_RUN_FILTERS}
+          period={PERIOD}
+          onChange={onChange}
+          agentId={null}
+          onAgentChange={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by kind" }));
+    expect(screen.getByRole("option", { name: "Any kind" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Text" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: "Voice calls" }));
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUN_FILTERS, modality: "voice" });
   });
 });
 

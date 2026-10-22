@@ -1,7 +1,5 @@
 """Which agents use a skill, a context file or a knowledge base (#2075)."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

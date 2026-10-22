@@ -17,8 +17,6 @@ The connector here is a real `BaseSyncConnector` subclass, so the hooks it does
 not override are the base's own answers rather than a mock's.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

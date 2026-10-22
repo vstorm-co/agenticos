@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-five cards exist. You will not see all of them: **a card is gated on the
+Fifty cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -37,7 +37,7 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 |---|---|
 | *(untitled, at the top)* | The summary, runs over time and how they ended |
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
-| **Usage & cost** | Which agents are used, spend, when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+| **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
 
 Somebody who builds agents also sees **Get started** above the bands until each
 of its steps is done: create an agent, publish it, give it a knowledge base, add
@@ -341,6 +341,177 @@ you alone, before an agent needs it: sign in, hand it back with the box ticked, 
 is kept the same way. It needs the deployment's sign-in browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
+### Dictation
+
+The microphone sits beside Send for every agent, and in the `+` menu. It turns
+speech into text in the box and never sends it: what you said lands where the
+caret was when you pressed the microphone, ready to edit, and goes nowhere until
+you press Send. How it transcribes is the agent's choice, made on the Dictation
+tab of [its Voice card](#an-agents-voice-card):
+
+- **Transcribe with a provider** on — the browser records, and this deployment
+  sends the recording to the agent's provider or the organization's default. It
+  works in every browser that can record. See
+  [Dictation in chat](ml-services.md#dictation-in-chat) for the endpoint, its
+  limits and what is recorded.
+- Off, or with no key to send it with — the browser's own speech recognition, so
+  the audio goes to the browser vendor (Google, Apple) and costs nothing.
+  Firefox has none: its microphone says so when pressed. While it listens, a
+  note above the composer says the agent's Dictation is off, and links whoever
+  may edit the agent to its Dictation tab.
+
+With a provider, pressing the microphone floats a **recording pill** above the
+composer, which does not change: Cancel, the level, a timer and Stop. **Enter**
+stops and transcribes, **Escape** cancels, and nothing typed or pressed while a
+recording is running or being transcribed is sent. The recording stops by itself
+at the organization's longest dictation and is transcribed, and a microphone
+unplugged mid-way ends it the same way rather than discarding it. While the
+recording uploads, the pill shows how much has gone up, once that takes longer
+than a second; after that it says **Transcribing** until the text arrives. The
+browser's recognition has a pill of its own, with **Done**.
+
+Everything dictation has to say appears in a strip above the composer, beside
+the pill: the permission prompt, a blocked or missing microphone, the last 30
+seconds, five seconds without sound, a recording under a second (not sent), a
+recording that stopped at the limit, and every failure. How many words were
+inserted is announced to a screen reader rather than shown, since the words are
+in the box. A recording that failed to transcribe is kept until you press
+**Retry** or **Discard**.
+
+The glow around a hosted page's box while you speak follows **Voice glow** under
+**Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
+**Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
+decides how much the whole console moves: **System** (the default) follows the
+operating system's reduced-motion setting, **Reduce** turns motion down without
+it, and **Full** keeps it whatever the operating system says. While motion is
+reduced there is no glow at all, the strip appears without sliding, and the level
+is a five-step indicator.
+
+### The Voice card
+
+On the organization's **Members** page, for somebody holding `org:settings`. It
+holds the speech-to-text **default** agents and channel bots inherit, and how
+long a dictation may run; whether an agent dictates with a provider, or takes
+calls, is switched on in that agent's own Voice card. **Max recording length**
+is from 10 seconds to 10 minutes. **Default provider** is the provider and model
+from the speech-to-text catalog and a language (auto-detect, or one fixed
+language, which is more accurate). It is also what
+[channel bots](channels.md#what-every-channel-shares) set to inherit send their
+voice messages to; **None** clears it.
+
+**Key**, beside the provider, is the vault key the default is sent with. It
+lists the API keys whose purpose is that provider and that the whole
+organization can see - the platform spends this key for every member's
+dictation and every inheriting bot, so a member's private key is not offered and
+is refused if sent. With exactly one such key it is chosen for you, and saved by
+name either way; nothing picks a key at run time. A provider with no key is
+marked **no key for this provider** and the picker links to the vault to add
+one. Where the default cannot run - the model was withdrawn from the catalog, or
+the key was deleted or made private - the card says so, and asks to **choose a
+key** where that is what is missing.
+
+For somebody who also holds `runs:view`, the card opens with one line on what
+the organization transcribed in the last 30 days — "42 min · 118 recordings (30
+without a length)" — across dictation, channel voice messages and the API.
+**Show breakdown** lists it by agent and by channel bot. The minutes count only
+recordings whose length was reported, so the line says how many were not; it is
+hidden while nothing has been transcribed. The figures come from
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### An agent's Voice card
+
+An agent's **Build** tab has a **Voice** card after its model settings, with two
+tabs: **Voice calls** and **Dictation**.
+
+**Dictation** holds **Transcribe with a provider**. On, the chat microphone
+sends the recording to a provider: **This agent's own** (the default) picks a
+pair from the catalog and the key to send it with - an API key for that provider
+that you can view, since publishing lends it to everybody who can run the agent
+- and, until you choose one, the organization's default is used and named.
+**Organization's** keeps the organization's provider, model and key. Off, or
+with no key to send it with, the browser transcribes instead, which costs
+nothing.
+
+The language is chosen on its own: inherit the organization's, or fix one - so a
+Polish agent can keep the organization's provider and key. The card is part of
+the spec, saved with the draft and live once the agent is published, and it
+applies to [dictation](#dictation) into this agent and to voice messages its
+channel bots inherit. [The order](ml-services.md#which-engine-a-recording-reaches)
+has the rest.
+
+### Voice calls
+
+A [voice call](voice.md) is a spoken conversation with a published agent: you
+talk, it answers aloud, and you can interrupt it. Calls are switched on in the
+agent; the organization has no call settings.
+
+- **The agent's Voice card**, on its **Voice calls** tab: the call provider and
+  model (for Azure, the deployment name and its base model), the key, the voice
+  with a **play** button to hear it, the spoken language (or **Follow the
+  caller**), the **Longest call** (10 minutes when unset, at most 50) and
+  **Instructions for calls**. The card lists what the agent
+  [hands to its text model](voice.md#handing-work-off) in calls, says that
+  guardrails cannot filter spoken words before they are heard, and that calls
+  are recorded as text with no audio kept. It takes effect when the agent is
+  published.
+- **An embed's Voice calls switch**, in the widget and hosted page forms - see
+  [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Before offering a call, the console asks whether this agent can take one
+(`GET /agents/{id}/voice`), so nobody grants the microphone only to be refused.
+The answer names what is missing: no voice set up on the agent, the model no
+longer offered, or no key.
+
+The **call button** sits in the chat composer, beside the microphone, for every
+agent. Where this agent cannot take a call it is crossed out, and hovering,
+focusing or pressing it says why. Somebody who may edit the agent gets **Open in
+the Agent Builder**, which opens its Voice card on the Calls tab; anybody else is
+told to ask someone who can.
+
+During a call a **pill** floats above the composer, which stays as it was, a
+draft and attachments included: what the call is doing, its time, a waveform of
+both voices, push-to-talk, mute and **End**. Only End ends a call; opening
+another conversation or a new chat hangs it up. Talking is hands-free by
+default; **push-to-talk** (hold the button or Space) is a choice remembered in
+your browser. With reduced motion a stepped level meter replaces the waveform.
+
+A call moves through states the pill names: connecting, listening, you
+speaking, thinking, the agent speaking, interrupted, working on a tool, waiting
+for your approval, an approval you cannot give, almost out of time, and ended -
+by you, by a limit, a dropped connection or a failure.
+
+The call happens in the conversation: each turn is drawn as the message it
+becomes, growing word by word as it is spoken, a screen reader hears each line
+once it is final, and the saved message takes its place without anything
+moving, so the call is in your history afterwards and you can carry on typing.
+While the agent thinks or runs a tool, the conversation says so where its answer
+will appear.
+
+**Approvals** are decided in the call: a card in the conversation shows the
+tool, its exact arguments and what you were heard to say, with a 60-second
+countdown. Only its buttons decide; saying "yes" does not. Without
+`approvals:decide` the card says the tool needs an approval you cannot give by
+voice, and offers to end the call and continue in text. **Questions** the agent
+asks appear as the chat's question card, read aloud as well: tap an answer, or
+just say it. Work the agent [hands to its text model](voice.md#handing-work-off)
+shows each step while it runs, and the steps stay on the turn afterwards.
+**Limits** are spoken: a minute before the longest call ends you are warned, and
+when the time or the budget runs out the agent says one sentence and the call
+ends.
+
+A **strip above the composer** points to whatever needs you: the microphone
+prompt, an approval waiting (with **Show card**), the last minute, a limit
+ending the call, a reconnect, or how push-to-talk works. When the call ends, a
+card in the conversation says how long it ran and how many turns were saved, or
+which limit ended it, with **Call again**. A call that never started says why
+above the composer, with **Try again**.
+
+In **Activity**, a call is one row with a microphone badge, and the kind filter
+(**Text** or **Voice calls**) narrows to calls; a call that reconnected is still
+one row, with every connection's time and cost summed. The **Voice minutes**
+dashboard card, in the Usage band for a holder of `runs:view`, shows the
+period's call minutes and calls and the top three agents.
+
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
@@ -368,7 +539,7 @@ page inside it, and stays the way you left it.
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
-| **Admin** | The deployment itself: users, tenants, system, deployment settings | [The deployment](deployment.md) |
+| **Admin** | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md) |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
 organization-local labels shown on each agent's card. Each filter is a menu of the
@@ -403,7 +574,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-five widgets** you arrange yourself, saved per
+- The dashboard is **fifty widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

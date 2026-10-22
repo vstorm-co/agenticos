@@ -413,8 +413,6 @@
     "pageAllowFilesHint": "Jedyna rzecz tutaj, która pozwala obcej osobie coś przechować na tym wdrożeniu. Plik przechodzi przez te same kontrole i parser co przesłanie członka, przy mniejszym limicie i limicie na odwiedzającego - a agent czyta go tak, jak czyta każdy załącznik.",
     "pageAllowNewConversation": "Przycisk do rozpoczęcia nowego wątku",
     "pageAllowNewConversationHint": "Stary wątek nie jest usuwany. Przestaje być tym, który wznawia ta przeglądarka.",
-    "pageAllowVoice": "Mikrofon w polu tworzenia wiadomości",
-    "pageAllowVoiceHint": "Dyktowanie z użyciem przeglądarki samego odwiedzającego. Żaden dźwięk nie dociera do tego wdrożenia i nic nie jest tu transkrybowane - ale przeglądarka, która to oferuje, przekazuje dźwięk swojemu dostawcy, więc jest to wyłączone, dopóki tego nie włączysz.",
     "pageCapabilities": "Co oferuje strona",
     "pageShowThinking": "Rozumowanie agenta",
     "pageShowThinkingHint": "Co model mówi sam do siebie, zanim odpowie. Nie jest napisane, by ktokolwiek to czytał, i nie jest odpowiedzią, za którą możesz ręczyć.",
@@ -868,6 +866,74 @@
     "platformTools": "Narzędzia, które agent może wywołać",
     "platformWritesBadge": "zmienia coś",
     "platformRemove": "Usuń z tego agenta",
+    "voiceTitle": "Głos",
+    "voiceDescription": "Jak można rozmawiać z tym agentem: rozmowa głosowa na żywo albo dyktowanie, które zamienia mowę na tekst. Działa po opublikowaniu agenta.",
+    "voicePair": "Model transkrypcji",
+    "voicePairInherit": "Z organizacji",
+    "voicePairChoose": "Własny",
+    "voiceInherits": "Z organizacji: {pair}",
+    "voiceOrgPair": "{provider} · {model}",
+    "voiceOrgNoPair": "Organizacja nie ma ustawionego providera, więc nie ma czego dziedziczyć.",
+    "voiceProvider": "Provider",
+    "voiceProviderHint": "Z katalogu zamiany mowy na tekst. Korzysta z klucza wybranego poniżej.",
+    "voiceModel": "Model",
+    "voiceLanguage": "Język",
+    "voiceLanguageHint": "Stały język jest dokładniejszy niż automatyczne wykrywanie.",
+    "voiceLanguageInherit": "Dziedzicz ({language})",
+    "voiceLanguageAuto": "wykrywanie automatyczne",
+    "voiceLanguageOption": "{name} ({code})",
+    "voiceNoteChannelsOnly": "Dyktowanie w czacie do tego agenta rozpoznaje przeglądarka, więc provider poniżej zmienia tylko transkrypcję wiadomości głosowych wysyłanych do jego botów kanałowych.",
+    "voiceNoteNoProvider": "Ani organizacja, ani ten agent nie mają providera zamiany mowy na tekst, więc tekst rozpoznaje przeglądarka, dopóki nie wybierzesz go tutaj.",
+    "embedDictation": "Wprowadzanie głosowe",
+    "embedDictationOff": "Wyłączone",
+    "embedDictationOffHint": "Bez mikrofonu.",
+    "embedDictationBrowser": "Przeglądarka",
+    "embedDictationBrowserHint": "Transkrypcję wykonuje przeglądarka odwiedzającego, wysyłając dźwięk do swojego dostawcy (Google, Apple i innych). Nic nie trafia do tego wdrożenia i nie każda przeglądarka to oferuje.",
+    "embedDictationServer": "Serwer",
+    "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera zamiany mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
+    "embedDictationServerUnavailable": "Opcja Serwer wymaga providera zamiany mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
+    "embedDictationServerDrift": "Żaden provider zamiany mowy na tekst nie obsługuje teraz tego agenta, więc odwiedzający nie zobaczą mikrofonu, dopóki to się nie zmieni.",
+    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: nie udało się wczytać gotowości tego agenta do zamiany mowy na tekst. Odśwież stronę, aby spróbować ponownie.",
+    "embedVoice": "Rozmowy głosowe",
+    "embedVoiceHint": "Odwiedzający mogą dzwonić do agenta. Nie mogą niczego zatwierdzać, więc narzędzia wymagające zatwierdzenia są pomijane w ich rozmowach. Rozmowy wliczają się do budżetów.",
+    "embedVoiceUnavailable": "Rozmowy głosowe wymagają skonfigurowanego głosu na karcie Głos tego agenta.",
+    "embedVoiceDrift": "Odwiedzający nie widzą przycisku rozmowy, dopóki ten agent znów nie będzie mógł przyjmować rozmów.",
+    "embedVoiceUnchecked": "Nie można teraz sprawdzić rozmów głosowych: nie udało się wczytać gotowości tego agenta do rozmów. Odśwież stronę, aby spróbować ponownie.",
+    "voiceProviderNoKey": "{name} (brak klucza)",
+    "voiceConversationEnabled": "Zezwól na rozmowy głosowe",
+    "voiceConversationEnabledHint": "Wyłączone, dopóki ich nie włączysz. Działa po opublikowaniu agenta.",
+    "voiceConversationProvider": "Provider rozmów",
+    "voiceConversationModel": "Model rozmów",
+    "voiceConversationBaseModel": "Model bazowy",
+    "voiceConversationDeployment": "Nazwa wdrożenia",
+    "voiceConversationDeploymentHint": "Wdrożenie Azure OpenAI, do którego trafiają rozmowy. Endpoint pochodzi z klucza.",
+    "voiceConversationKeyName": "{provider}: rozmowy głosowe",
+    "voiceConversationVoice": "Głos",
+    "voiceConversationVoiceHint": "Jak agent brzmi w rozmowach.",
+    "voiceConversationVoiceDefault": "{voice} (domyślny)",
+    "voiceConversationLanguage": "Język mówiony",
+    "voiceConversationLanguageHint": "Język, w którym agent mówi w rozmowach.",
+    "voiceConversationFollowCaller": "Dopasuj do rozmówcy",
+    "voiceConversationMaxLength": "Najdłuższa rozmowa",
+    "voiceConversationMaxHint": "Rozmowa kończy się po tym czasie. Budżety nadal obowiązują.",
+    "voiceConversationNote": "Instrukcje do rozmów",
+    "voiceConversationNoteHint": "Dodawane do instrukcji agenta tylko w trakcie rozmów, po wbudowanym stylu mówienia: jak się przywitać, jak długo mówić, co powiedzieć przed uruchomieniem narzędzia.",
+    "voiceConversationGuardrails": "Guardraile sprawdzają transkrypcje w trakcie rozmowy i przerywają agentowi, gdy jego słowa trafią na regułę, ale wypowiedzianych słów nie da się odfiltrować, zanim zostaną usłyszane. Wynik narzędzia nadal jest sprawdzany, zanim agent go przeczyta; argumenty narzędzi nie są sprawdzane.",
+    "voiceConversationCatalogFailed": "Nie udało się wczytać listy modeli głosowych, więc nie można tu włączyć rozmów. Odśwież stronę, aby spróbować ponownie.",
+    "voiceTabCalls": "Rozmowy głosowe",
+    "voiceTabDictation": "Dyktowanie",
+    "voiceCallsLead": "Rozmowa na żywo w obie strony: agent słucha, odpowiada na głos i zachowuje swoje narzędzia. Można do niego zadzwonić z czatu, z widgetu na stronie i ze strony hostowanej. Działa na modelu głosowym czasu rzeczywistego.",
+    "voiceDictationLead": "Mowa zamieniona na tekst, który osoba czyta przed wysłaniem: mikrofon w czacie oraz wiadomości głosowe wysłane do botów kanałów tego agenta. Działa na modelu transkrypcji.",
+    "voiceConversationNotePlaceholder": "Przywitaj rozmówcę po imieniu. Odpowiadaj w dwóch zdaniach, a potem zapytaj, czy chce więcej szczegółów.",
+    "voiceConversationMaxMinutes": "{minutes} min",
+    "voiceDictationProvider": "Transkrybuj przez providera",
+    "voiceDictationProviderHint": "Mikrofon w czacie wysyła nagranie do providera poniżej: organizacji albo własnego providera tego agenta. Gdy przełącznik jest wyłączony albo brakuje klucza, tekst za darmo rozpoznaje przeglądarka.",
+    "voiceConversationMaxDefault": "{minutes} min (domyślnie)",
+    "voiceInheritsUntilChosen": "Dopóki go nie wybierzesz, używany jest provider organizacji: {pair}",
+    "voiceProviderChoose": "Wybierz providera",
+    "voicePreview": "Posłuchaj tego głosu",
+    "voicePreviewStop": "Zatrzymaj",
+    "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu",
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
     "guardsStarted": "{count, plural, =0 {Nie ma czego uruchamiać - każdy strażnik przeszedł albo już sprawdza} one {Uruchomiono 1 suitę evali} few {Uruchomiono # suity evali} other {Uruchomiono # suit evali}}",
@@ -1139,11 +1205,19 @@
       "docsTitle": "Podsumuj dokumenty",
       "greeting": "W czym mogę pomóc, {name}?",
       "greetingAnonymous": "W czym mogę dziś pomóc?",
-      "lead": "Pytaj o cokolwiek - odpowiedzi strumieniują się z wywołaniami narzędzi i cytatami z Twojej wiedzy.",
+      "lead": "Zapytaj o cokolwiek, dołącz plik albo zacznij od jednego z tych pomysłów.",
       "slashCommands": "komendy slash",
       "emailTitle": "Napisz e-mail",
       "emailPrompt": "Napisz krótki, uprzejmy e-mail z prośbą do klienta o potwierdzenie spotkania w przyszłym tygodniu.",
-      "unpin": "Odepnij {prompt}"
+      "unpin": "Odepnij {prompt}",
+      "visualExplainTitle": "Wyjaśnij to w 3D",
+      "visualExplainPrompt": "Pokaż mi w 3D, jak skręca samolot - z suwakami pochylenia, przechylenia i odchylenia, przyciskiem odtwarzania i resetem.",
+      "visualCompareTitle": "Porównaj, potem wykres",
+      "visualComparePrompt": "Porównaj w tabeli pięć największych gospodarek UE: ludność, PKB i PKB na osobę.",
+      "visualToolTitle": "Zrób kalkulator",
+      "visualToolPrompt": "Zrób mi kalkulator dzielenia rachunku: kwota, napiwek i liczba osób, przeliczane na bieżąco.",
+      "visualMapTitle": "Zaplanuj podróż na mapie",
+      "visualMapPrompt": "Zaplanuj pięć dni w Japonii na mapie: ponumerowane przystanki po kolei i co robić w każdym."
     },
     "failedArchiveConversation": "Nie udało się zarchiwizować rozmowy",
     "failedCreateConversation": "Nie udało się utworzyć rozmowy",
@@ -1168,7 +1242,8 @@
       "show": "Pokaż pliki",
       "showWithCount": "Pokaż pliki ({count})",
       "storedSuffix": "zapisano {size}",
-      "title": "Pliki"
+      "title": "Pliki",
+      "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie."
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
@@ -1518,7 +1593,9 @@
       "revisingVisual": "Poprawia wizual",
       "reviseVisual": "Poprawił wizual",
       "readingVisual": "Czyta wizual",
-      "readVisual": "Przeczytał wizual"
+      "readVisual": "Przeczytał wizual",
+      "workingInText": "Pracuje nad tym w trybie tekstowym",
+      "workedInText": "Popracował nad tym w trybie tekstowym"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1545,7 +1622,8 @@
       "threadTotalPartialDetail": "{input, number} na wejściu · {output, number} na wyjściu naliczone w tej rozmowie - wartość minimalna: któryś model nie miał ceny",
       "unmeasured": "w użyciu - ten host nie podał liczby",
       "workspace": "Workspace",
-      "workspaceUsed": "Wykorzystany workspace"
+      "workspaceUsed": "Wykorzystany workspace",
+      "empty": "Kontekst, koszt i budżety pojawią się tutaj po pierwszej odpowiedzi agenta."
     },
     "view": "Podgląd",
     "viewMeans": "View pozwala tylko czytać tę konwersację.",
@@ -1699,7 +1777,213 @@
       "savedUnchanged": "Aplikacja ma już dokładnie tę wersję",
       "savedBadge": "Zapisano · v{version}",
       "openApp": "Otwórz",
-      "openInConsole": "Widoczny w AgenticOS"
+      "openInConsole": "Widoczny w AgenticOS",
+      "followUpLabel": "Dalszy ciąg z wizualizacji",
+      "followUpAsks": "Wizualizacja prosi o wysłanie tego jako Twojej wiadomości:",
+      "followUpSend": "Wyślij",
+      "followUpEdit": "Edytuj",
+      "followUpDismiss": "Odrzuć"
+    },
+    "dictation": {
+      "cancel": "Anuluj dyktowanie",
+      "cancelTranscription": "Anuluj transkrypcję",
+      "cancelTitle": "Anuluj (Esc)",
+      "stop": "Zatrzymaj i przepisz",
+      "stopTitle": "Zatrzymaj i przepisz (Enter)",
+      "timerLabel": "Czas nagrania",
+      "transcribing": "Przepisywanie",
+      "ofAudio": "{duration} nagrania",
+      "uploading": "Wysyłanie {percent}%",
+      "dismiss": "Zamknij",
+      "discard": "Odrzuć",
+      "retry": "Ponów",
+      "retryCountdown": "Ponów za {seconds} s",
+      "tryAgain": "Spróbuj ponownie",
+      "recordAgain": "Nagraj ponownie",
+      "askAdmin": "Poproś administratora o konfigurację.",
+      "openVoiceSettings": "Otwórz ustawienia Głosu",
+      "setForAgent": "Ustaw dla tego agenta",
+      "announceRecording": "Nagrywanie",
+      "announceTranscribing": "Przepisywanie",
+      "announceLeft": "{count, plural, one {Została 1 sekunda} few {Zostały # sekundy} many {Zostało # sekund} other {Zostało # sekundy}}",
+      "announceInserted": "{count, plural, one {Wstawiono 1 słowo} few {Wstawiono # słowa} many {Wstawiono # słów} other {Wstawiono # słowa}}",
+      "hint": {
+        "requesting": "<strong>Zezwól na mikrofon</strong> w okienku przeglądarki, aby zacząć nagrywanie.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora o udostępnienie konsoli przez HTTPS.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Przeglądarka nie widzi żadnego urządzenia wejściowego, więc nie może o nie zapytać. Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać (w Windows: Ustawienia → Prywatność i zabezpieczenia → Mikrofon), i spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja albo system blokuje przeglądarkę. Zamknij tę aplikację lub sprawdź ustawienia mikrofonu w systemie i spróbuj ponownie.",
+        "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
+        "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
+        "stoppedAtLimit": "<strong>Nagranie osiągnęło limit {limit}.</strong> Całe dotychczasowe nagranie zostanie przepisane.",
+        "silent": "<strong>Nie słychać Cię — czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
+        "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
+        "empty": "<strong>W nagraniu nie wykryto mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
+        "tooLarge": "<strong>Nagranie jest za duże do przepisania.</strong> Dyktuj krócej, a długie nagrania dołączaj jako plik.",
+        "signedOut": "<strong>Twoja sesja wygasła.</strong> Zaloguj się ponownie i nagraj jeszcze raz.",
+        "forbidden": "<strong>Nie masz uprawnień, by dyktować temu agentowi.</strong> Poproś administratora o dostęp.",
+        "unsupported": "<strong>Nagranie z tej przeglądarki nie jest w formacie, który przyjmuje serwer.</strong> Zaktualizuj przeglądarkę albo użyj Chrome lub Firefoksa.",
+        "failedTitle": "Transkrypcja się nie zakończyła.",
+        "providerErrorBody": "Provider zamiany mowy na tekst zwrócił błąd.",
+        "timeoutBody": "Provider zamiany mowy na tekst nie odpowiedział na czas.",
+        "offlineBody": "Nie udało się połączyć z serwerem.",
+        "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
+        "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
+        "notSetUpTitle": "Dyktowanie nie jest skonfigurowane.",
+        "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza.",
+        "browserOff": "<strong>Dyktowanie nie jest włączone dla tego agenta,</strong> więc to, co mówisz, przepisuje przeglądarka. Włącz je, aby korzystać z dostawcy speech-to-text."
+      },
+      "pill": "Dyktowanie",
+      "listening": "Słucham",
+      "done": "Zakończ dyktowanie",
+      "openBuilder": "Otwórz w Agent Builderze"
+    },
+    "voice": {
+      "start": "Rozpocznij rozmowę głosową",
+      "unavailable": {
+        "notOffered": {
+          "title": "Model głosowy tego agenta nie jest już oferowany",
+          "body": "Wybierz inny model na jego karcie Głos."
+        },
+        "noKey": {
+          "title": "Głos tego agenta nie ma klucza",
+          "body": "Wybierz klucz na jego karcie Głos."
+        },
+        "unchecked": {
+          "title": "Nie udało się sprawdzić, czy ten agent może odebrać rozmowę",
+          "body": "Odśwież stronę, aby spróbować ponownie."
+        },
+        "noVoice": {
+          "title": "Rozmowy nie są włączone dla tego agenta",
+          "body": "Wybierz model głosowy na jego karcie Głos i opublikuj agenta, a będzie odbierać rozmowy."
+        }
+      },
+      "approval": {
+        "title": "Zatwierdzić {tool}?",
+        "youSaid": "Twoje słowa: <q>{said}</q>",
+        "countdown": "Czas na decyzję",
+        "approve": "Zatwierdź",
+        "deny": "Odrzuć",
+        "notByVoice": "Decydują tylko te przyciski. Odpowiedź „tak” w rozmowie z agentem niczego nie zatwierdza.",
+        "unavailable": "{tool} wymaga zatwierdzenia, którego nie możesz udzielić głosem. Poproś o to w czacie tekstowym – tam prośba zaczeka na kogoś, kto może ją zatwierdzić.",
+        "needed": "Wymagane zatwierdzenie",
+        "autoDeny": "Automatyczne odrzucenie za {time}",
+        "misheard": "Mowa może zostać źle rozpoznana. Przed zatwierdzeniem sprawdź wszystkie nazwy i liczby.",
+        "exactJson": "Dokładny JSON przekazany narzędziu",
+        "outcome": {
+          "approved": "Zatwierdzone przez Ciebie",
+          "denied": "Odrzucone przez Ciebie",
+          "expired": "{seconds, plural, one {Odrzucone automatycznie: brak decyzji w ciągu # sekundy} few {Odrzucone automatycznie: brak decyzji w ciągu # sekund} many {Odrzucone automatycznie: brak decyzji w ciągu # sekund} other {Odrzucone automatycznie: brak decyzji w ciągu # sekundy}}"
+        },
+        "unavailableTitle": "Wymaga zatwierdzenia, którego nie możesz tu udzielić",
+        "keepTalking": "Rozmawiaj dalej",
+        "continueInText": "Zakończ rozmowę i pisz dalej"
+      },
+      "captions": {
+        "you": "Ty: {text}",
+        "agent": "{agent}: {text}"
+      },
+      "controls": {
+        "mute": "Wycisz",
+        "unmute": "Wyłącz wyciszenie",
+        "hold": "Przytrzymaj, aby mówić",
+        "pushToTalk": "Naciśnij, aby mówić",
+        "end": "Zakończ rozmowę",
+        "endShort": "Zakończ"
+      },
+      "state": {
+        "connecting": "Łączenie…",
+        "listening": "Słucham",
+        "user": "Mówisz",
+        "thinking": "Myślę…",
+        "agent": "{agent} mówi",
+        "interrupted": "Przerwano",
+        "tool": "Pracuję…",
+        "approval": "Czekam na Twoje zatwierdzenie",
+        "noapproval": "To wymaga zatwierdzenia, którego nie możesz udzielić",
+        "limitwarn": "Czas prawie się skończył",
+        "limitend": "Rozmowę zakończył limit",
+        "ended": "Rozmowa zakończona",
+        "micblocked": "Mikrofon jest zablokowany",
+        "connfailed": "Nie udało się połączyć",
+        "reconnecting": "Ponowne łączenie…",
+        "dropped": "Połączenie przerwane"
+      },
+      "callAgain": "Zadzwoń ponownie",
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {Została 1 minuta rozmowy} one {Została # sekunda rozmowy} few {Zostały # sekundy rozmowy} many {Zostało # sekund rozmowy} other {Zostało # sekundy rozmowy}}",
+        "guardrail": "Guardrail przerwał agentowi.",
+        "providerError": "Provider głosu zgłosił błąd.",
+        "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
+        "budget": "Budżet się wyczerpał. Rozmowa się kończy.",
+        "unavailable": "Rozmowy są teraz niedostępne. Rozmowa się kończy."
+      },
+      "ended": {
+        "timeLimit": "Rozmowa zakończona: osiągnięto limit czasu",
+        "budget": "Rozmowa zakończona: budżet się wyczerpał",
+        "revoked": "Rozmowa zakończona: zmieniły się Twoje uprawnienia",
+        "guardrail": "Rozmowa zakończona: zatrzymał ją guardrail",
+        "shutdown": "Rozmowa zakończona: serwer został uruchomiony ponownie",
+        "busy": "Już prowadzisz rozmowę",
+        "lineBusy": "Trwa teraz zbyt wiele rozmów. Spróbuj ponownie za kilka minut.",
+        "forbidden": "Ten agent nie może odebrać Twojej rozmowy",
+        "notConfigured": "Ten agent nie jest skonfigurowany do rozmów",
+        "notPriced": "Cena tego modelu jest nieznana, więc rozmowy są wyłączone",
+        "resumeRefused": "Nie udało się wznowić rozmowy",
+        "generic": "Rozmowa została zakończona",
+        "unavailable": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość."
+      },
+      "failure": {
+        "micInsecure": "<strong>Ta strona nie może używać mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora, aby udostępnił konsolę przez HTTPS.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie. Nic nie zostało nagrane i nie zużyto żadnych minut.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz go albo sprawdź, czy system pozwala przeglądarce z niego korzystać, a potem spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może używa go inna aplikacja. Zamknij ją albo sprawdź ustawienia mikrofonu w systemie, a potem spróbuj ponownie.",
+        "connectionFailed": "<strong>Nie udało się połączyć.</strong> Nie zużyto żadnych minut. Sprawdź połączenie i spróbuj ponownie.",
+        "dropped": "Połączenie zostało przerwane i nie udało się go przywrócić. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
+      },
+      "view": {
+        "bar": "Rozmowa głosowa",
+        "live": "Na żywo",
+        "voice": "Głos",
+        "interrupted": "Przerwano",
+        "interruptedTitle": "Przycięte mniej więcej do tego, co było słychać",
+        "you": "Ty",
+        "micOff": "Mikrofon wyłączony",
+        "muted": "Wyciszono",
+        "talking": "Mówisz · puść, aby wysłać",
+        "settingUp": "Nawiązywanie bezpiecznego połączenia",
+        "announceApproval": "{seconds, plural, one {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundę nastąpi automatyczne odrzucenie.} few {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundy nastąpi automatyczne odrzucenie.} many {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekund nastąpi automatyczne odrzucenie.} other {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundy nastąpi automatyczne odrzucenie.}}",
+        "ending": {
+          "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
+          "budget": "Rozmowa się kończy: budżet się wyczerpał",
+          "unavailable": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne"
+        },
+        "strip": {
+          "allowMic": "<strong>Zezwól na mikrofon</strong> w oknie przeglądarki. Rozmowa zacznie się, gdy będzie włączony.",
+          "reconnecting": "<strong>Ponowne łączenie…</strong> Połączenie zostało przerwane; rozmowa zostanie wznowiona w miejscu, w którym się urwała.",
+          "approval": "<strong>Zatwierdź albo odrzuć prośbę powyżej.</strong> Automatyczne odrzucenie za {time}.",
+          "showCard": "Pokaż kartę",
+          "noApproval": "<strong>{tool} wymaga zatwierdzenia, którego nie możesz tu udzielić.</strong> Karta powyżej wyjaśnia, co możesz zrobić.",
+          "ending": {
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Agent zaraz o tym powie i zakończy rozmowę.",
+            "budget": "<strong>Budżet się wyczerpał.</strong> Agent zaraz o tym powie i zakończy rozmowę."
+          },
+          "limitWarning": "<strong>Do końca rozmowy zostało {remaining}.</strong> Po {limit} agent poinformuje o tym i się rozłączy. Potem możesz rozpocząć nową rozmowę.",
+          "pushToTalk": "<strong>Tryb „naciśnij, aby mówić” jest włączony.</strong> Przytrzymaj <kbd>Spacja</kbd> albo przycisk, gdy mówisz; puść, aby wysłać."
+        },
+        "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
+        "tryAgain": "Spróbuj ponownie",
+        "dismiss": "Zamknij",
+        "summary": {
+          "ended": "Rozmowa głosowa zakończona · {duration}",
+          "timeLimit": "{minutes, plural, one {Rozmowa zakończona po osiągnięciu limitu # minuty} few {Rozmowa zakończona po osiągnięciu limitu # minut} many {Rozmowa zakończona po osiągnięciu limitu # minut} other {Rozmowa zakończona po osiągnięciu limitu # minuty}}",
+          "turns": "{count, plural, =0 {Nie zapisano żadnej wypowiedzi. Pisz dalej albo zadzwoń ponownie.} one {Zapisano # wypowiedź jako wiadomość. Pisz dalej albo zadzwoń ponownie.} few {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} many {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} other {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.}}",
+          "newCall": "Zacznij nową rozmowę"
+        },
+        "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
+      },
+      "openBuilder": "Otwórz w Agent Builderze",
+      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
     }
   },
   "common": {
@@ -2417,6 +2701,25 @@
           "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
         }
       },
+      "background-jobs": {
+        "title": "Zadania w tle",
+        "description": "Co kolejka zadań zakończyła w ostatnich 24 godzinach i ile z tego zginęło.",
+        "empty": {
+          "title": "Jeszcze nic się nie zakończyło",
+          "description": "W ostatnich 24 godzinach nie zakończyło się żadne zadanie w tle."
+        }
+      },
+      "voice-minutes": {
+        "title": "Minuty rozmów",
+        "description": "Minuty rozmów w wybranym okresie i agenci, którzy je odebrali.",
+        "minutes": "{minutes} min",
+        "calls": "{count, plural, one {# rozmowa} few {# rozmowy} many {# rozmów} other {# rozmowy}}",
+        "empty": {
+          "title": "Jeszcze nie było rozmów głosowych",
+          "description": "Minuty pojawią się tutaj, gdy członkowie lub odwiedzający zadzwonią do agenta."
+        },
+        "deletedAgent": "Usunięty agent"
+      },
       "eval-suites": {
         "title": "Suity evali",
         "description": "Datasety, na których sprawdzane są agenty, i jak każdy wypadł ostatnio.",
@@ -2742,7 +3045,90 @@
     "attach": "Załącz plik",
     "removeAttachment": "Usuń {name}",
     "uploadFailed": "Nie udało się załączyć tego pliku.",
-    "uploading": "Załączam…"
+    "uploading": "Załączam…",
+    "dictation": {
+      "dismiss": "Zamknij",
+      "discard": "Odrzuć",
+      "retry": "Ponów",
+      "retryCountdown": "Ponów za {seconds} s",
+      "tryAgain": "Spróbuj ponownie",
+      "recordAgain": "Nagraj ponownie",
+      "announceInserted": "{count, plural, one {Wstawiono 1 słowo} few {Wstawiono # słowa} many {Wstawiono # słów} other {Wstawiono # słowa}}",
+      "hint": {
+        "requesting": "<strong>Zezwól na mikrofon</strong> w okienku przeglądarki, aby zacząć nagrywanie.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Zamiast tego napisz wiadomość.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
+        "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
+        "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
+        "stoppedAtLimit": "<strong>Nagranie osiągnęło limit {limit}.</strong> Całe dotychczasowe nagranie zostanie przepisane.",
+        "silent": "<strong>Nie słychać Cię - czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
+        "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
+        "empty": "<strong>W nagraniu nie wykryto mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
+        "tooLarge": "<strong>To nagranie jest za długie do przepisania.</strong> Nagraj krótszą wiadomość.",
+        "signedOut": "<strong>Sesja na tej stronie wygasła.</strong> Odśwież stronę i spróbuj ponownie.",
+        "forbidden": "<strong>Wprowadzanie głosowe nie jest tu dostępne.</strong> Zamiast tego napisz wiadomość.",
+        "unsupported": "<strong>Ta przeglądarka nagrywa dźwięk w formacie, którego nie przyjmujemy.</strong> Użyj aktualnej wersji Chrome'a albo Firefoksa.",
+        "failedTitle": "Transkrypcja się nie zakończyła.",
+        "providerErrorBody": "Usługa transkrypcji odpowiedziała błędem.",
+        "timeoutBody": "Usługa transkrypcji nie odpowiedziała na czas.",
+        "offlineBody": "Nie udało się połączyć z serwerem.",
+        "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
+        "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
+        "notSetUpTitle": "Wprowadzanie głosowe jest teraz niedostępne.",
+        "notSetUpBody": "Zamiast tego napisz wiadomość."
+      }
+    },
+    "voice": {
+      "view": {
+        "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej.",
+        "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
+        "tryAgain": "Spróbuj ponownie",
+        "dismiss": "Zamknij",
+        "ending": {
+          "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
+          "budget": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne",
+          "unavailable": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne"
+        },
+        "strip": {
+          "ending": {
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Asystent zaraz o tym powie i zakończy rozmowę.",
+            "budget": "<strong>Rozmowy są teraz niedostępne.</strong> Asystent zaraz o tym powie i zakończy rozmowę."
+          }
+        }
+      },
+      "failure": {
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Zamiast tego napisz wiadomość.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
+        "connectionFailed": "<strong>Nie udało się połączyć.</strong> Sprawdź połączenie i spróbuj ponownie."
+      },
+      "ended": {
+        "timeLimit": "Rozmowa osiągnęła limit czasu.",
+        "budget": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość.",
+        "revoked": "Rozmowy zostały tu wyłączone.",
+        "guardrail": "Rozmowę zakończyła reguła dotycząca treści.",
+        "shutdown": "Serwer został uruchomiony ponownie. Spróbuj jeszcze raz.",
+        "busy": "Z tej strony trwa już rozmowa.",
+        "lineBusy": "Wszystkie linie są zajęte. Spróbuj ponownie za kilka minut albo napisz wiadomość.",
+        "forbidden": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
+        "notConfigured": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
+        "notPriced": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
+        "resumeRefused": "Rozmowa została przerwana i nie udało się jej wznowić.",
+        "generic": "Rozmowa niespodziewanie się zakończyła. Spróbuj ponownie.",
+        "unavailable": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość."
+      },
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {Została 1 minuta rozmowy} one {Została # sekunda rozmowy} few {Zostały # sekundy rozmowy} many {Zostało # sekund rozmowy} other {Zostało # sekundy rozmowy}}",
+        "guardrail": "Reguła dotycząca treści przerwała odpowiedź.",
+        "providerError": "W rozmowie wystąpił problem.",
+        "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
+        "budget": "Rozmowy są teraz niedostępne. Rozmowa się kończy.",
+        "unavailable": "Rozmowy są teraz niedostępne. Rozmowa się kończy."
+      }
+    }
   },
   "invitations": {
     "acceptSuccess": "Dołączono do organizacji!",
@@ -2967,6 +3353,7 @@
     "scopePersonal": "Osobisty - tylko Ty",
     "syncSourceConnected": "Źródło synchronizacji podłączone",
     "syncSourceRemoved": "Źródło synchronizacji usunięte",
+    "syncSourceUpdated": "Źródło synchronizacji zaktualizowane",
     "syncStarted": "Synchronizacja ruszyła - dokumenty pojawią się w miarę ingestii",
     "title": "Bazy wiedzy",
     "updated": "Baza wiedzy zaktualizowana",
@@ -3278,7 +3665,9 @@
     "documents": "Dokumenty",
     "signIns": "Logowania",
     "projects": "Projekty",
-    "allProjects": "Wszystkie projekty"
+    "allProjects": "Wszystkie projekty",
+    "backgroundJobs": "Zadania w tle",
+    "loadingPage": "Otwieranie strony"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4055,6 +4444,22 @@
         "title": "Rysunki",
         "body": "Agent z Visuals rysuje tu diagramy, explainery i sceny 3D, na żywo, w trakcie pisania. Otwórz rysunek na pełnym ekranie, pobierz go, zapytaj o niego albo zapisz jako aplikację z linkiem do udostępnienia."
       },
+      "chat-voice-call": {
+        "title": "Porozmawiaj z agentem",
+        "body": "Rozpocznij rozmowę głosową. Agent odpowiada na głos, używa swoich narzędzi i pyta Cię, zanim coś zrobi; każda wypowiedź zostaje tu zapisana jako tekst."
+      },
+      "settings-appearance": {
+        "title": "Wygląd",
+        "body": "Wybierz motyw, animację pola czatu podczas dyktowania i natężenie animacji w konsoli. Każda zmiana działa od razu w tej przeglądarce."
+      },
+      "org-voice": {
+        "title": "Głos",
+        "body": "Wybierz providera zamiany mowy na tekst, klucz i język, które dziedziczą agenci i boty kanałowe. Dyktowanie i rozmowy głosowe włącza się w każdym agencie."
+      },
+      "agent-voice": {
+        "title": "Głos",
+        "body": "Na karcie Rozmowy głosowe ustaw model realtime i głos do rozmów, a na karcie Dyktowanie zdecyduj, czy mikrofon w czacie korzysta z providera, czy z przeglądarki."
+      },
       "agent-eval-suites": {
         "title": "Suity",
         "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla lub bazy wiedzy, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
@@ -4262,6 +4667,15 @@
       "maintenanceToggleHint": "API odrzuca każde żądanie poza logowaniem i tą sekcją, więc nadal możesz go wyłączyć.",
       "maintenanceMessage": "Komunikat o konserwacji",
       "maintenanceMessageHint": "Co ludzie widzą zamiast produktu. Zostaw puste, aby użyć domyślnej treści.",
+      "newAccountsTitle": "Nowe konta",
+      "newAccountsHint": "Gdzie zaczyna osoba, której konto właśnie powstało. Istniejące konta zachowują swoje organizacje.",
+      "personalOrganizations": "Organizacje osobiste",
+      "personalOrganizationsHint": "Każde nowe konto dostaje własną organizację. Wyłącz we wdrożeniu, w którym wszyscy pracują w jednej organizacji firmy.",
+      "defaultOrganization": "Domyślna organizacja",
+      "defaultOrganizationHint": "Dołącza do niej każde nowe konto, konsola otwiera ją, gdy nic innego nie jest wybrane, a żądanie bez wskazanej organizacji działa w niej.",
+      "defaultOrganizationNone": "Brak",
+      "defaultOrganizationRole": "Rola w domyślnej organizacji",
+      "defaultOrganizationRoleHint": "Zaproszenie do tej organizacji ma pierwszeństwo i nadaje rolę wskazaną w zaproszeniu.",
       "limitsTitle": "Limity",
       "limitsHint": "Ile tego wdrożenia może zająć jedno konto i jedna organizacja.",
       "limitsOrganizations": "Organizacje na konto",
@@ -4288,7 +4702,9 @@
       "monthlyBudgetUsd": "Miesięczny budget (USD)",
       "noBudget": "Bez budgetu",
       "noMembers": "Brak członków",
-      "membersTruncated": "Pokazano pierwszych {shown} z {total} członków"
+      "membersTruncated": "Pokazano pierwszych {shown} z {total} członków",
+      "serviceMapTiles": "Kafelki map",
+      "serviceMapTilesDetail": "Skąd mapy w wizualizacjach biorą tło"
     },
     "agentDetail": {
       "perMonth": "${amount} miesięcznie"
@@ -4523,9 +4939,9 @@
       "tokenTooShort": "Tak krótki token nie pochodzi od platformy",
       "transcriptionModel": "Model transkrypcji",
       "transcriptionModelHint": "Którego modelu tego providera użyć.",
-      "transcriptionOff": "Nie transkrybuj",
+      "transcriptionOff": "Wyłączona",
       "transcriptionProvider": "Transkrypcja głosu",
-      "transcriptionProviderHint": "Który provider zamienia wiadomość głosową na tekst, zanim przeczyta ją agent.",
+      "transcriptionProviderHint": "Własny provider tego bota, niezależnie od tego, czego używa jego agent albo organizacja.",
       "webhook": "Webhook",
       "webhookToken": "Brak tokenu webhooka",
       "slackManifestWhy": "Utwórz aplikację Slack z manifestu: w Slacku Create New App, From a manifest, i wklej. Przyciski, /agent, panel asystenta i App Home przychodzą razem z nim.",
@@ -4552,7 +4968,20 @@
       "mattermostCommandUrlCopied": "URL żądania skopiowany",
       "mattermostCommandToken": "Token komendy slash",
       "noReaction": "Bez reakcji",
-      "moreOptions": "Więcej opcji"
+      "moreOptions": "Więcej opcji",
+      "addFirstChannel": "Zarejestruj kanał",
+      "transcriptionInherit": "Dziedzicz",
+      "transcriptionChoose": "Wybierz",
+      "transcriptionOffHint": "Wiadomości głosowe nie są transkrybowane; nadawca dowiaduje się, że ten bot ich nie słucha.",
+      "transcriptionInheritHint": "Używa ustawień agenta obsługiwanego przez tego bota, a jeśli ich nie ma – ustawień organizacji.",
+      "transcriptionInheritsNothing": "Nie ma czego dziedziczyć: ani agent, ani organizacja nie mają providera, więc wiadomości głosowe nie są transkrybowane.",
+      "transcriptionInheritsFromAgent": "{pair}, od agenta {agent}",
+      "transcriptionInheritsFromOrg": "{pair}, od organizacji",
+      "transcriptionPair": "{provider} · {model}",
+      "transcriptionEngine": "Provider",
+      "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
+      "transcriptionProviderNoKey": "{name} (brak klucza)",
+      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -4592,6 +5021,7 @@
       "documents": "Dokumenty",
       "downloadFile": "Pobierz plik",
       "downloadFile2": "Pobierz plik",
+      "editSource": "Edytuj źródło",
       "dragFilesAnywherePage": "Przeciągnij pliki w dowolne miejsce tej strony albo wybierz z komputera.",
       "dragFilesToAdd": "przeciągnij pliki gdziekolwiek, aby dodać",
       "dropUpload": "Upuść, aby wgrać",
@@ -5039,7 +5469,13 @@
         "busts": "Busty",
         "expiries": "Wygaśnięcia",
         "missedTokens": "Tokeny z cache pominięte"
-      }
+      },
+      "modalityVoice": "Rozmowa głosowa",
+      "modalityFilter": "Filtruj według rodzaju",
+      "anyModality": "Dowolny rodzaj",
+      "modalityText": "Tekst",
+      "modalityVoiceCalls": "Rozmowy głosowe",
+      "reconnected": "{count, plural, one {Połączenie wznowiono raz} few {Połączenie wznowiono # razy} many {Połączenie wznowiono # razy} other {Połączenie wznowiono # razy}}"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -5050,7 +5486,11 @@
       "sandboxConnections": "Połączenia sandboxów",
       "sandboxes2": "Sandboxy",
       "tabConnections": "Połączenia",
-      "tabRunning": "Działające"
+      "tabRunning": "Działające",
+      "deleteFailed": "Nie udało się usunąć połączenia",
+      "strandedTitle": "{count, plural, one {Sandbox wciąż jest} few {# sandboxy wciąż są} many {# sandboxów wciąż jest} other {# sandboxa wciąż jest}} u dostawcy",
+      "strandedBody": "AgenticOS nie zdołał usunąć {count, plural, one {sandboxa} few {# sandboxów} many {# sandboxów} other {# sandboxa}} u dostawcy połączenia {name}, a dostawca może wciąż za nie naliczać opłaty. Najpierw usuń je w konsoli dostawcy, potem potwierdź tutaj, żeby o nich zapomnieć i usunąć połączenie.",
+      "strandedConfirm": "Są usunięte, usuń połączenie"
     },
     "settings": {
       "absencesWorthStatingBecause": "Braki warte wymienienia, bo strona ustawień sugeruje coś przeciwnego.",
@@ -5280,6 +5720,96 @@
       "siteLabel": "Strona",
       "sitePlaceholder": "linkedin.com/login",
       "title": "Logowania w przeglądarce"
+    },
+    "backgroundJobs": {
+      "status": {
+        "queued": "W kolejce",
+        "running": "W trakcie",
+        "succeeded": "Zakończone",
+        "dead": "Martwe",
+        "cancelled": "Anulowane"
+      },
+      "pools": {
+        "agent": "Runy agentów",
+        "ingest": "Ingestion",
+        "system": "Systemowe"
+      },
+      "kind": "Rodzaj",
+      "statusColumn": "Status",
+      "attempts": "Próby",
+      "attemptsOf": "{attempts} z {max}",
+      "pool": "Pula",
+      "queued": "Dodane",
+      "actions": "Akcje",
+      "retry": "Ponów",
+      "cancel": "Anuluj",
+      "jobs": "Zadania",
+      "newestFirst": "Od najnowszych",
+      "filterByPool": "Filtruj po puli",
+      "allPools": "Wszystkie pule",
+      "jobsCouldNotBeRead": "Nie udało się odczytać zadań.",
+      "noJobs": "Brak zadań.",
+      "loadMore": "Pokaż więcej",
+      "workers": "Workery",
+      "workersAlive": "{count, plural, =0 {żaden nie działa} one {1 działa} few {# działają} many {# działa} other {# działa}}",
+      "noWorkers": "Żaden worker nie odezwał się w ciągu ostatnich dwóch minut, więc nic z kolejki się nie wykonuje.",
+      "workerLine": "{pools} · widziany {beat}",
+      "schedules": "Harmonogramy",
+      "schedulesCount": "{count, plural, one {1 harmonogram} few {# harmonogramy} many {# harmonogramów} other {# harmonogramu}}",
+      "every": "{unit, select, day {{count, plural, =1 {codziennie} other {co # dni}}} hour {{count, plural, =1 {co godzinę} few {co # godziny} many {co # godzin} other {co # godziny}}} other {{count, plural, =1 {co minutę} few {co # minuty} many {co # minut} other {co # minuty}}}}",
+      "nextRun": "następne {time}",
+      "pausedTitle": "{count, plural, one {Jeden rodzaj zadań jest wstrzymany} few {# rodzaje zadań są wstrzymane} many {# rodzajów zadań jest wstrzymanych} other {# rodzaju zadań jest wstrzymane}}",
+      "pausedSince": "Wstrzymane od {time}",
+      "resume": "Wznów",
+      "retried": "Zadanie wróciło do kolejki.",
+      "cancelled": "Zadanie anulowane.",
+      "resumed": "Zadania tego rodzaju znów są pobierane.",
+      "actionFailed": "Nie udało się.",
+      "couldNotRead": "Nie udało się odczytać kolejki",
+      "couldNotReadBody": "Nie udało się pobrać zadań w tle. Baza danych może być niedostępna.",
+      "activity": "Aktywność",
+      "windowLabel": "Okres",
+      "window": {
+        "day": "24 godziny",
+        "week": "7 dni"
+      },
+      "finishedFigure": "Zakończone",
+      "finishedCaption": "{window, select, day {w ostatnich 24 godzinach} other {w ostatnich 7 dniach}}",
+      "deadFigure": "Martwe",
+      "deadShare": "{share} zakończonych",
+      "noneDead": "żadne",
+      "waitFigure": "Najdłużej czeka",
+      "waitCaption": "zadanie do wykonania, teraz",
+      "waitNone": "nic nie czeka",
+      "slowestFigure": "Najwolniejszy odbiór (p95)",
+      "byKind": "Według rodzaju",
+      "kindsCount": "{count, plural, =0 {brak rodzajów} one {1 rodzaj} few {# rodzaje} many {# rodzajów} other {# rodzaju}}",
+      "columns": {
+        "finished": "Zakończone",
+        "dead": "Martwe",
+        "run": "Czas p50 / p95",
+        "wait": "Czekanie p95"
+      },
+      "noActivity": "W tym okresie nic się nie zakończyło.",
+      "activityCouldNotBeRead": "Nie udało się odczytać aktywności.",
+      "perSlice": "{window, select, day {ok. {count} na godzinę} other {ok. {count} na sześć godzin}}",
+      "pausedEverywhere": "Wstrzymane dla wszystkich organizacji",
+      "pausedFor": "Wstrzymane dla {organization}"
+    },
+    "adminDictation": {
+      "title": "Dźwięk dyktowania",
+      "hint": "W jakim formacie można przesłać dyktowanie - w polu wiadomości każdej organizacji, na stronach hostowanych i w widżetach.",
+      "toggle": "Przyjmuj skompresowane nagrania (WebM, Ogg, MP4)",
+      "toggleHint": "Wyłączone: przeglądarki nagrywają WAV PCM 16 kHz mono. Rozmiar takiego pliku wynika wprost z długości, więc maksymalna długość dyktowania ogranicza koszt jednego nagrania. Włączone: przesyłane pliki są mniej więcej o połowę mniejsze, kosztem ryzyk opisanych przy włączaniu.",
+      "dialogTitle": "Przyjmować skompresowane nagrania?",
+      "dialogIntro": "Surowy PCM to jedyny format, którego długości nie da się sfałszować. Przeczytaj, co się zmieni, zanim to włączysz.",
+      "riskLength": "Długość skompresowanego nagrania jest odczytywana z nagłówka samego pliku. Spreparowany plik może ją zaniżyć, więc jedno dyktowanie może zawierać znacznie więcej dźwięku, niż pozwala maksymalna długość – w ramach limitu rozmiaru nawet około 40 razy więcej.",
+      "riskPublic": "W publicznych widżetach i na stronach hostowanych takie pliki może wysłać każdy, kto ma link. Transkrypcja obciąża konto providera organizacji i jest poza budżetami agentów, więc limit zapytań na link nie ogranicza już kosztu do opisanego najgorszego przypadku.",
+      "riskScope": "Dotyczy to każdej organizacji w tym wdrożeniu.",
+      "benefit": "Korzyść: przesyłane nagrania są mniej więcej ośmiokrotnie mniejsze. Ponowne wyłączenie nie wymaga potwierdzenia.",
+      "acknowledge": "Rozumiem, że w żadnej organizacji koszt dyktowania nie będzie już ograniczony jego maksymalną długością.",
+      "cancel": "Zostaw tylko PCM",
+      "confirm": "Przyjmuj skompresowane nagrania"
     }
   },
   "profile": {
@@ -5324,6 +5854,7 @@
     "credentialUnreadable": "Nie udało się odczytać vault, więc na razie nie ma z czego wybierać. Spróbuj ponownie albo przeładuj stronę.",
     "customMinutes": "Własne (minuty):",
     "dropFilesDetail": "Pliki zostaną dodane do aktywnej kolekcji",
+    "editSyncSource": "Edytuj źródło synchronizacji",
     "eGEngineeringDocs": "np. Dokumentacja inżynierska (S3)",
     "everyHour": "Co godzinę",
     "everySixHours": "Co 6 h",
@@ -5350,6 +5881,8 @@
     "orgIntegrationsLoadFailed": "Nie udało się wczytać integracji organizacji; nadal możesz utworzyć nowe źródło.",
     "pickExistingOrgIntegration": "Wybierz istniejącą integrację organizacji do użycia w tej bazie wiedzy. Jej poświadczenia są kopiowane niezależnie - harmonogram możesz dostosować osobno.",
     "removedCount": "{count} usuniętych",
+    "saveChanges": "Zapisz zmiany",
+    "saving": "Zapisywanie…",
     "schedule": "Harmonogram",
     "search": {
       "allBases": "Wszystkie bazy wiedzy",
@@ -5823,7 +6356,54 @@
     "waiverAllowed": "Rozmowy mogą teraz pomijać zatwierdzenia",
     "waiverFailed": "Nie udało się zmienić, czy czaty mogą pomijać zatwierdzenia",
     "waiverForbidden": "Rozmowy nie mogą już pomijać zatwierdzeń",
-    "you": "(Ty)"
+    "you": "(Ty)",
+    "voice": {
+      "title": "Głos",
+      "description": "Domyślne ustawienia zamiany mowy na tekst, które dziedziczą agenci i boty kanałowe. Dyktowanie i rozmowy głosowe włącza się na karcie Głos każdego agenta.",
+      "sttTitle": "Zamiana mowy na tekst",
+      "sttDescription": "Gdy agent ma włączony przełącznik Dyktowanie, mikrofon w czacie wysyła nagranie do providera; w przeciwnym razie tekst rozpoznaje przeglądarka. Tekst trafia do pola, gdzie można go poprawić; nic nie zostanie wysłane przed naciśnięciem Wyślij.",
+      "usage": {
+        "label": "Wykorzystanie transkrypcji",
+        "summary": "{days, plural, one {Ostatni dzień} few {Ostatnie # dni} many {Ostatnie # dni} other {Ostatnie # dnia}}: {duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
+        "unknown": "({count, plural, one {# o nieznanej długości} few {# o nieznanej długości} many {# o nieznanej długości} other {# o nieznanej długości}})",
+        "minutes": "{minutes} min",
+        "underMinute": "poniżej 1 min",
+        "show": "Pokaż podział",
+        "hide": "Ukryj podział",
+        "byAgent": "Według agenta",
+        "byChannel": "Według bota kanału",
+        "rowStats": "{duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
+        "unknownNote": "Minuty obejmują tylko nagrania o znanej długości. Modele transkrypcji GPT-4o i notatki głosowe z Mattermost jej nie podają."
+      },
+      "defaultTitle": "Domyślny provider",
+      "defaultDescription": "Używany przez agentów, którzy transkrybują przez providera, i przez wiadomości głosowe wysyłane do botów kanałowych, chyba że agent albo bot wybierze własny.",
+      "providerNone": "Brak",
+      "notReadyTitle": "Domyślny provider nie może transkrybować",
+      "notReadyWithdrawn": "Wybrany model, {model}, nie jest już oferowany. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz innego modelu.",
+      "provider": "Provider",
+      "providerHint": "Z katalogu zamiany mowy na tekst. Korzysta z klucza wybranego poniżej.",
+      "model": "Model",
+      "modelHint": "Modele providera {provider} z katalogu zamiany mowy na tekst.",
+      "language": "Język",
+      "languageAuto": "Wykrywaj automatycznie",
+      "languageHint": "Automatyczne wykrywanie sprawdza się w zespołach mówiących różnymi językami. Stały język daje dokładniejszy wynik.",
+      "languageHintMistral": "Mistral transkrybuje mniej języków, niż oferuje ta lista, i nie podaje, jakie formaty nagrań przyjmuje. Zostaw opcję „Wykrywaj automatycznie” i zrób próbne nagranie, zanim zaczniesz polegać na tym providerze.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Maksymalna długość nagrania",
+      "maxLengthHint": "Od 10 s do 10 min. Licznik w polu wiadomości odlicza do tej wartości i na niej się zatrzymuje.",
+      "maxLengthInvalid": "Podaj długość od 10 sekund do 10 minut.",
+      "unit": "Jednostka",
+      "seconds": "sekundy",
+      "minutes": "minuty",
+      "pathBrowser": "Przeglądarka",
+      "pathDeployment": "To wdrożenie",
+      "pathNote": "Używa klucza {provider} organizacji wybranego poniżej. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
+      "cancel": "Anuluj",
+      "save": "Zapisz zmiany",
+      "saved": "Zapisano ustawienia głosu",
+      "providerNoKey": "{name} (brak klucza)",
+      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
+    }
   },
   "theme": {
     "darkMode": "Tryb ciemny",
@@ -5971,7 +6551,20 @@
     "whoCanUse": "Kto może go używać",
     "yoursAloneYouCan": "Tylko Twój. Możesz go potem udostępnić wskazanym osobom.",
     "zendeskApiToken": "Token API Zendesk",
-    "moreOptions": "Więcej opcji"
+    "moreOptions": "Więcej opcji",
+    "speechKey": {
+      "label": "Klucz",
+      "choose": "Wybierz klucz",
+      "option": "{name} (…{hint})",
+      "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Korzystają z niego wszyscy, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
+      "agentHint": "Klucz API tego providera, który widzisz. Po publikacji będzie z niego korzystał każdy, kto może uruchomić tego agenta.",
+      "stale": "Wybrany klucz został usunięty albo nie można go już tu użyć. Wybierz klucz.",
+      "none": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz poniżej.",
+      "noneOrg": "W vaulcie nie ma jeszcze kluczy {provider} widocznych dla całej organizacji. Dodaj klucz poniżej albo udostępnij istniejący całej organizacji.",
+      "cannotList": "Nie możesz wyświetlić kluczy z vaulta, więc nie wybierzesz tu klucza. Poproś osobę, która zarządza połączeniami.",
+      "suggestedName": "{provider} – zamiana mowy na tekst",
+      "noneInVault": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz w vaulcie, a potem wybierz go tutaj."
+    }
   },
   "context": {
     "created": "Utworzono {name}",
@@ -6207,7 +6800,18 @@
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
     "sourceEmail": "Przychodzącym e-mailu",
-    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana."
+    "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana.",
+    "overlapLabel": "Jeśli poprzednie uruchomienie wciąż trwa",
+    "overlap": {
+      "skip": "Pomiń to uruchomienie",
+      "queue": "Uruchom, gdy się skończy",
+      "allow": "Uruchom mimo to"
+    },
+    "overlapHint": {
+      "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
+      "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
+      "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
+    }
   },
   "portals": {
     "title": "Portale",
@@ -6220,10 +6824,10 @@
     "reauthorizeAction": "Autoryzuj ponownie",
     "redirecting": "Przekierowanie…",
     "advancedWebhook": "Zaawansowane: wyzwalacz API",
-    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety GitHub OAuth App, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
+    "ambiguousOAuthApp": "Zapisane są dwa widoczne dla organizacji sekrety {credential}, więc łączenie nie wie, o który chodzi. Usuń jeden w vault.",
     "apiCategory": "Twój własny kod",
     "addCredentials": "Dodaj dane uwierzytelniające",
-    "needsOAuthApp": "Łączenie wymaga danych GitHub OAuth App Twojej organizacji. Dodaj je tutaj albo w vault.",
+    "needsOAuthApp": "Łączenie wymaga danych {credential} Twojej organizacji. Dodaj je tutaj albo w vault.",
     "oauthUnavailable": "Podłączenie skrzynki wymaga własnego klienta Google tego wdrożenia, a żaden nie jest skonfigurowany. Operator ustawia GOOGLE_CLIENT_ID i GOOGLE_CLIENT_SECRET; nic w vault tego nie naprawi.",
     "openVault": "Otwórz vault",
     "apiDescription": "Uruchom agenta podpisanym POST-em z czegokolwiek, co potrafi wysłać JSON.",
@@ -6256,7 +6860,8 @@
     "authorFilterLabel": "Autor zawiera",
     "authorFilterPlaceholder": "np. Jan Kowalski",
     "textFilterLabel": "Treść zawiera",
-    "textFilterPlaceholder": "np. rekrutacja"
+    "textFilterPlaceholder": "np. rekrutacja",
+    "oauthAppFallback": "aplikacji OAuth"
   },
   "agentTemplates": {
     "browse": "Szablony agentów",
@@ -8653,6 +9258,23 @@
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
     "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+  },
+  "voiceGlow": {
+    "title": "Animacja dyktowania",
+    "vivid": "Wyrazista",
+    "subtle": "Subtelna",
+    "off": "Wyłączona",
+    "reducedMotion": "Wyłączona, gdy animacje są ograniczone"
+  },
+  "appearance": {
+    "description": "Wygląd i animacje konsoli. Zapisywane w tej przeglądarce i stosowane od razu.",
+    "theme": "Motyw",
+    "voiceGlowHint": "Jak pole czatu reaguje na Twój głos podczas dyktowania",
+    "motion": "Animacje",
+    "system": "Systemowe",
+    "reduce": "Ograniczone",
+    "full": "Pełne",
+    "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
   },
   "authoring": {
     "strip": {

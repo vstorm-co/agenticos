@@ -20,10 +20,9 @@ Four callers, four entry points:
   allowed to be framed only by the origins the artifact names.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import secrets
@@ -106,12 +105,19 @@ makes the format honest: an agent that wants script writes an HTML artifact, and
 Markdown one renders as the document it reads as.
 """
 
-PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
+FOLLOW_UP_MAX_CHARS = 2000
+"""The longest follow-up a page may ask to send - a few selected values and a line
+about them, not a document. The console holds the same limit."""
+
+_PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
   "use strict";
-  function send(href) {
-    try { parent.postMessage({ type: "agenticos:open-link", href: String(href) }, "*"); }
+  var MAP = __MAP__;
+  var host = { followUp: false };
+  function post(message) {
+    try { parent.postMessage(message, "*"); }
     catch (error) { /* no parent to ask - the page was opened on its own */ }
   }
+  function send(href) { post({ type: "agenticos:open-link", href: String(href) }); }
   function external(raw) {
     try {
       var url = new URL(raw, location.href);
@@ -132,21 +138,72 @@ PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
     if (href !== null) send(href);
     return null;
   };
+  function followUp(text) {
+    var message = String(text == null ? "" : text).trim();
+    if (!host.followUp || message === "" || message.length > __FOLLOW_UP_MAX__) return false;
+    post({ type: "agenticos:follow-up", text: message });
+    return true;
+  }
+  window.agenticos = Object.freeze({
+    map: MAP,
+    followUp: followUp,
+    canFollowUp: function () { return host.followUp; }
+  });
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (event.source !== parent || !data || data.type !== "agenticos:host") return;
+    host.followUp = data.followUp === true;
+    document.documentElement.toggleAttribute("data-agenticos-follow-up", host.followUp);
+    window.dispatchEvent(new Event("agenticos:host"));
+  });
+  post({ type: "agenticos:hello" });
 })();</script>"""
-"""What every served page gets before its own markup: a link click becomes a request.
 
-The page has no `allow-popups`, so a link to another site cannot open, and a
-navigation inside the frame is refused by the console's `frame-src`. This turns the
-click into a message to the frame's parent, which shows the address and opens it
-only when a person agrees (#1969). The page could send the same message itself -
-its script runs - so the message is a request and never a permission: the person
-reading the address is what stands between a prompt-injected page and an address
-that carries what it shows. `*` as the target because an opaque origin cannot name
-its parent's; the message carries nothing but the address.
 
-Injected when served rather than when stored, so the stored bytes stay what the
-agent wrote - what `read_artifact` returns and what the digest is taken over.
-"""
+def platform_script() -> str:
+    """What every served page gets before its own markup: links, follow-ups and the map.
+
+    **A link click becomes a request.** The page has no `allow-popups`, so a link
+    to another site cannot open, and a navigation inside the frame is refused by
+    the console's `frame-src`. This turns the click into a message to the
+    frame's parent, which shows the address and opens it only when a person
+    agrees (#1969). The page could send the same message itself - its script
+    runs - so the message is a request and never a permission: the person
+    reading the address is what stands between a prompt-injected page and an
+    address that carries what it shows. `*` as the target because an opaque
+    origin cannot name its parent's; the message carries nothing but the address.
+
+    **`agenticos.followUp(text)` asks to continue the conversation (#2302)** - a
+    "plan this stop" button in a drawing. Only a parent that answered the page's
+    `agenticos:hello` with `followUp: true` takes one - the chat; anywhere else
+    the call does nothing and returns `false`, so a visual saved as an app keeps
+    working. Like a link, it is a request: the console shows the text and sends
+    it only when the person clicks Send there, so a page cannot speak for them.
+
+    **`agenticos.map`** is the deployment's map tiles (`VISUAL_MAP_TILES`), served
+    through its own tile path, or `null`, so a map knows whether it has a
+    background to load.
+
+    Injected when served rather than when stored, so the stored bytes stay what
+    the agent wrote - what `read_artifact` returns and what the digest is taken over.
+    """
+    tiles = settings.map_tiles()
+    config = (
+        {
+            # This deployment's own tile path, never the server's address: that
+            # may carry the operator's key, and this script is in a public page.
+            "url": f"{tile_source()}{{z}}/{{x}}/{{y}}",
+            "attribution": tiles.attribution,
+            "attributionUrl": tiles.attribution_url,
+            "maxZoom": tiles.max_zoom,
+        }
+        if tiles is not None
+        else None
+    )
+    return _PLATFORM_SCRIPT.replace("__MAP__", json.dumps(config).replace("</", "<\\/")).replace(
+        "__FOLLOW_UP_MAX__", str(FOLLOW_UP_MAX_CHARS)
+    )
+
 
 _MARKDOWN_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -192,6 +249,11 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "three-0.186.0/three.module.js": "text/javascript; charset=utf-8",
     "three-0.186.0/three.core.js": "text/javascript; charset=utf-8",
     "three-0.186.0/addons/controls/OrbitControls.js": "text/javascript; charset=utf-8",
+    # Leaflet and the map kit draw an itinerary on the deployment's tile server
+    # (`VISUAL_MAP_TILES`), or as an outline of its stops where there is none.
+    "leaflet-1.9.4/leaflet.js": "text/javascript; charset=utf-8",
+    "leaflet-1.9.4/leaflet.css": "text/css; charset=utf-8",
+    "agenticos-map-1.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 
@@ -226,6 +288,11 @@ def _library_source() -> str:
     return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/lib/"
 
 
+def tile_source() -> str:
+    """Where a page loads map tiles: this deployment's tile path, as a source expression."""
+    return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/tiles/"
+
+
 def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
     """The policy every content response carries.
 
@@ -239,6 +306,7 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
     if embed_origins:
         frame_ancestors = [*frame_ancestors, _content_origin(), *embed_origins]
     library = _library_source()
+    tiles = settings.map_tiles()
     return "; ".join(
         [
             # No `allow-same-origin`: the page gets an opaque origin, so it can read
@@ -247,7 +315,7 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             # `allow-popups` either: `connect-src` does not govern navigation, so a
             # popup is a channel to an address the page chooses - one click on a
             # prompt-injected report would carry its numbers out in a URL. A link
-            # asks its parent instead (`PLATFORM_SCRIPT`), and a person decides.
+            # asks its parent instead (`platform_script`), and a person decides.
             "sandbox allow-scripts allow-modals",
             # Self-contained by construction. `connect-src 'none'` and no remote
             # sources mean a page cannot load code from, or send what it shows to,
@@ -257,7 +325,9 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             "default-src 'none'",
             f"script-src 'unsafe-inline' 'unsafe-eval' data: blob: {library}",
             f"style-src 'unsafe-inline' data: {library}",
-            "img-src data: blob:",
+            # A map's tiles, through this deployment's own tile path, which takes
+            # three numbers and nothing else - see `app/services/tile_proxy.py`.
+            "img-src data: blob:" + (f" {tile_source()}" if tiles is not None else ""),
             f"font-src data: {library}",
             "media-src data: blob:",
             "worker-src blob:",
@@ -902,7 +972,7 @@ def _view(version: ArtifactVersion) -> ArtifactView:
 
 
 def with_platform_script(document: bytes) -> bytes:
-    """The document with :data:`PLATFORM_SCRIPT` first in it, after the doctype.
+    """The document with :func:`platform_script` first in it, after the doctype.
 
     First, because the script only listens on `document`, and a `<script>`
     before `<html>` is placed by the parser into the head it opens implicitly -
@@ -912,7 +982,7 @@ def with_platform_script(document: bytes) -> bytes:
     a `<!-- <head> -->` comment or the text of a script put it where it never ran.
     """
     lead = next(_DOCUMENT_LEAD.finditer(document)).end()
-    return document[:lead] + PLATFORM_SCRIPT.encode("utf-8") + document[lead:]
+    return document[:lead] + platform_script().encode("utf-8") + document[lead:]
 
 
 def render(version: ArtifactVersion, data: bytes, *, title: str) -> bytes:

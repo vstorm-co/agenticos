@@ -7,8 +7,6 @@ to. That makes the query itself worth an integration test - a mocked session
 would prove the mock.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

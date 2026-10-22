@@ -27,8 +27,6 @@ general assistant) or from the organization-scoped ones a published agent's
 spec names.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re
@@ -2097,11 +2095,36 @@ class UnavailablePlatformServer:
     """
 
 
+@dataclass(frozen=True)
+class UnavailableUnreachableServer:
+    """A bound server that did not answer its probe, so the turn runs without it.
+
+    Skipped rather than attached because a dead server aborts the whole turn once
+    pydantic-ai enters its toolset - but skipped silently it is invisible to the
+    model, which then answers as though the agent never had the service ("no data
+    available") instead of saying the service is down. A slow server is the usual
+    case, not a dead one: a bridge whose `tools/list` takes longer than
+    :data:`~app.agents.mcp.CONNECT_TIMEOUT_SECS` is left out of one turn and
+    attached on the next, and the person asking should hear that a retry may help.
+
+    `held_by` names another binding that answered under the same tool prefix:
+    those tools are attached, so the model is told whose they are rather than
+    that the prefix has none.
+    """
+
+    server: str
+    binding: str
+    held_by: str | None = None
+
+
 # A binding a turn could not honour: a personal one with nobody or nothing to
-# speak through, the platform's own with nobody to act as, or a server dropped
-# because its tool prefix collided.
+# speak through, the platform's own with nobody to act as, a server dropped
+# because its tool prefix collided, or one that did not answer its probe.
 UnavailableBinding = (
-    UnavailablePersonalService | UnavailablePlatformServer | UnavailablePrefixCollision
+    UnavailablePersonalService
+    | UnavailablePlatformServer
+    | UnavailablePrefixCollision
+    | UnavailableUnreachableServer
 )
 
 
@@ -2334,6 +2357,23 @@ async def build_toolsets_for_agent(
             )
     origins: dict[str, UUID] = {}
     attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
+    # A server whose probe failed is briefed, not left to the warning in the log.
+    # Where another binding answered under its prefix, those tools are present,
+    # so the briefing says whose they are: read as this binding's, the other
+    # account's results would pass for the one that is down. The same binding
+    # bound twice and answering once is not missing at all.
+    held = {tool_prefix(spec.name): bindings[id(spec)] for spec, _ in attached}
+    for spec, toolset in probed:
+        if toolset is not None:
+            continue
+        holder = held.get(tool_prefix(spec.name))
+        if holder == bindings[id(spec)]:
+            continue
+        unavailable.append(
+            UnavailableUnreachableServer(
+                server=spec.name, binding=bindings[id(spec)], held_by=holder
+            )
+        )
     return ResolvedMcpToolsets(
         toolsets=[
             toolset

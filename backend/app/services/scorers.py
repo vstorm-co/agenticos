@@ -6,8 +6,6 @@ that asks them, and how its grades become results. `ScoringService` runs the
 judge and keeps what these return.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re

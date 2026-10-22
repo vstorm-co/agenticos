@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -10,6 +10,16 @@ from pydantic import Field, model_validator
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
 from app.schemas.eval_run import EvalCaseLinkRead
+
+
+class VoiceChainRead(BaseSchema):
+    """One call as Activity shows it: every connection of it, summed (#54)."""
+
+    connections: int = Field(
+        description="How many connections the call took: 1, plus one per reconnect"
+    )
+    seconds: int
+    cost_usd: Decimal
 
 
 class AgentRunRead(BaseSchema):
@@ -140,6 +150,16 @@ class AgentRunRead(BaseSchema):
             "which does not compute it."
         ),
     )
+    modality: Literal["text", "voice"] = Field(
+        default="text", description="`voice` for a call, `text` for everything typed (#54)"
+    )
+    voice_chain: VoiceChainRead | None = Field(
+        default=None,
+        description=(
+            "For a voice run on the run list: every connection of the call, summed. "
+            "Null for text runs and on other reads"
+        ),
+    )
     started_at: datetime | None = None
     ended_at: datetime | None = None
     parent_run_id: UUID | None = Field(
@@ -164,7 +184,7 @@ class AgentRunRead(BaseSchema):
     )
 
     @model_validator(mode="after")
-    def _no_delegation_handle_without_a_delegation(self) -> "AgentRunRead":
+    def _no_delegation_handle_without_a_delegation(self) -> AgentRunRead:
         """Withhold the task id of a delegation that no longer has a parent.
 
         `agent_runs.parent_run_id` is `ON DELETE SET NULL`, which is the right

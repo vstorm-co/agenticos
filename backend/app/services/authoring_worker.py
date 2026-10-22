@@ -15,8 +15,6 @@ digests' and the proposal's, is checked against the runs before it is kept.
 to the open batch without replacing what is still waiting there.
 """
 
-from __future__ import annotations
-
 import difflib
 import json
 import logging

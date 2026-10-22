@@ -1,5 +1,5 @@
 ---
-source_sha: "c86fa0b502c9"
+source_sha: "d38d76061f82"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -223,7 +223,7 @@ Inhalt antwortet, auch wenn jemand weiter bearbeitet.
 
 ## Ausführen und abbrechen { #running-and-cancelling }
 
-Ein Run wird im Hintergrund ausgeführt, in einem eigenen Worker-Flow, und
+Ein Run wird im Hintergrund ausgeführt, als eigener Job im Worker, und
 übersteht daher einen Neustart der API. Fälle laufen zu wenigen gleichzeitig:
 höchstens `EVAL_RUN_CONCURRENCY` pro Run und höchstens `EVAL_ORG_CONCURRENCY`
 über alle Eval-Runs einer Organisation, sodass ein Dataset mit 500 Fällen nicht
@@ -248,7 +248,7 @@ der auch seine Plätze freigibt. Ein Worker, dessen Heartbeats so lange
 fehlschlagen - auf einem Host, der zu ausgelastet ist, um seine Datenbank zu
 erreichen -, wird ebenso beendet, obwohl er noch arbeitet, und sein Run muss neu
 gestartet werden. Ein Run in der Warteschlange hat noch keinen
-Worker - er wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
+Worker - er wartet auf einen freien Worker - daher gibt der Sweep ihn erst nach
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
 
 Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und

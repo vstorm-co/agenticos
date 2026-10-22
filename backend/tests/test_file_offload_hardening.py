@@ -8,8 +8,6 @@ work through a dedicated bounded pool and making the write clean up after itself
 when cancelled.
 """
 
-from __future__ import annotations
-
 import asyncio
 import threading
 from pathlib import Path

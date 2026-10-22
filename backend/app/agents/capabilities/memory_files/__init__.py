@@ -1,7 +1,5 @@
 """Memory files - an agent's own notes, indexed by a `MEMORY.md` it maintains."""
 
-from __future__ import annotations
-
 from pydantic import BaseModel, Field
 
 from app.agents.capabilities._registry import (

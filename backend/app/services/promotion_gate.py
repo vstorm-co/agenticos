@@ -16,8 +16,6 @@ publish: its guards are queued on the new version, and the sweep moves it once
 the last of them passes.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING
 from uuid import UUID

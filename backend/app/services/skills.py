@@ -6,8 +6,6 @@ This module owns storage and access; turning skills into something an agent can
 read is the skills *capability*.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from enum import StrEnum

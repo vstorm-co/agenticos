@@ -19,8 +19,6 @@ the origin the app's own pages run on, and a file that is not a picture must not
 out as whatever it looks like.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -101,7 +99,7 @@ def _wire(service: _Service, user: _User | None) -> None:
 
 
 @pytest.fixture
-async def anyone(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def anyone(service: _Service) -> AsyncGenerator[AsyncClient]:
     """No session at all - the state the sign-in page and the favicon fetch are in."""
     _wire(service, None)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -110,7 +108,7 @@ async def anyone(service: _Service) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def admin(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def admin(service: _Service) -> AsyncGenerator[AsyncClient]:
     _wire(service, _User(admin=True))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
@@ -118,7 +116,7 @@ async def admin(service: _Service) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def member(service: _Service) -> AsyncGenerator[AsyncClient, None]:
+async def member(service: _Service) -> AsyncGenerator[AsyncClient]:
     _wire(service, _User(admin=False))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
@@ -192,6 +190,40 @@ class TestTheAdminSurface:
         )
 
         assert response.status_code == 403
+        assert service.calls == []
+
+    async def test_an_administrator_may_accept_compressed_dictation(
+        self, admin: AsyncClient, service: _Service
+    ):
+        response = await admin.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": True}
+        )
+
+        assert response.status_code == 200
+        assert "dictation_compressed_audio" in response.json()
+        _name, kwargs = service.calls[0]
+        assert kwargs["data"].model_dump(exclude_unset=True) == {"dictation_compressed_audio": True}
+
+    @pytest.mark.security
+    async def test_a_member_cannot_accept_compressed_dictation(
+        self, member: AsyncClient, service: _Service
+    ):
+        """It changes what a stranger may send every organization's provider."""
+        response = await member.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": True}
+        )
+
+        assert response.status_code == 403
+        assert service.calls == []
+
+    async def test_accepting_compressed_dictation_takes_a_boolean(
+        self, admin: AsyncClient, service: _Service
+    ):
+        response = await admin.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": "maybe"}
+        )
+
+        assert response.status_code == 422
         assert service.calls == []
 
     async def test_an_image_path_is_not_something_a_caller_may_name(

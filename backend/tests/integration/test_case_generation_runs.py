@@ -19,8 +19,6 @@ The claims:
 - a credential the generator wrote is redacted before a proposal is stored.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal

@@ -5,4 +5,5 @@ export { InviteLinkDialog } from "./invite-link-dialog";
 export { OrgSpendingLimit } from "./org-spending-limit";
 export { OrgApprovalWaiver } from "./org-approval-waiver";
 export { OrgAiAssistance } from "./org-ai-assistance";
+export { OrgVoiceSettings } from "./org-voice-settings";
 export { OrgAssistant } from "./org-assistant";

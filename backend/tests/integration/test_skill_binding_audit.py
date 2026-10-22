@@ -10,8 +10,6 @@ a bad publish must not make the exposure disappear. The unit suite in
 scan, including the join that selects the running version, behaves that way.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

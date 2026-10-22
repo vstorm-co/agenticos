@@ -9,8 +9,6 @@
   grant is refused, and a change of model waits for a check that shows it pays off.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, patch

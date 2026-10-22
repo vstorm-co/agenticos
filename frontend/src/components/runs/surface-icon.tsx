@@ -4,9 +4,11 @@ import {
   FlaskConical,
   Globe,
   MessageSquare,
+  Mic,
   Network,
   Zap,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -93,4 +95,16 @@ export function SurfaceIcon({ surface, className }: { surface: string; className
  */
 export function surfaceIconComponent(surface: string) {
   return MARKS[surface as keyof typeof MARKS];
+}
+
+/** A microphone for a voice call (#54); nothing for text, which is every other run. */
+export function ModalityBadge({ modality }: { modality: "text" | "voice" }) {
+  const t = useTranslations("pages.runs");
+  if (modality !== "voice") return null;
+  return (
+    <span className="inline-flex items-center" title={t("modalityVoice")}>
+      <Mic className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="sr-only">{t("modalityVoice")}</span>
+    </span>
+  );
 }

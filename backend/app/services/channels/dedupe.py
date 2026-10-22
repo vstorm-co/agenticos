@@ -18,8 +18,6 @@ takes the claim at the top of `route`, the one point all six inbound paths
 cross, and gives it back if the run under it does not finish.
 """
 
-from __future__ import annotations
-
 import logging
 
 from app.clients.redis import RedisClient

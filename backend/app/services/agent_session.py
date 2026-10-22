@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
     QuestionChoice,
@@ -38,7 +39,7 @@ from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
 from app.schemas.conversation import ChatPerson, MessagePart
-from app.services import chat_room, live_turn
+from app.services import chat_room, live_turn, redis_view
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -359,7 +360,7 @@ class AgentSession:
         if msg_type == "unfollow":
             # Stop on a turn this socket only follows: it is somebody else's to
             # stop, so this tab stops drawing it and stays in the room.
-            self._stop_following()
+            await self._stop_following()
             return
 
         if msg_type == "typing":
@@ -384,7 +385,7 @@ class AgentSession:
         if not await self._reauthorize():
             return
         # Asking something here is watching this socket's own turn, not another's.
-        self._stop_following()
+        await self._stop_following()
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
@@ -458,12 +459,7 @@ class AgentSession:
 
     async def _cancel_turn(self) -> None:
         """Cancel the in-flight turn task and wait for it to unwind."""
-        task = self._turn_task
-        if task is None or task.done():
-            return
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        await _cancelled(self._turn_task)
 
     async def shutdown(self) -> None:
         """Let the in-flight turn finish without its socket, then stop it.
@@ -479,10 +475,14 @@ class AgentSession:
         because somebody asked.
         """
         self._closed = True
-        self._stop_following()
-        await self._leave_room()
+        # Read before leaving the room, which waits on its tasks and on Redis: a
+        # turn that ends meanwhile still ended with nobody watching it.
         task = self._turn_task
-        if task is None or task.done():
+        if task is not None and task.done():
+            task = None
+        await self._stop_following()
+        await self._leave_room()
+        if task is None:
             return
         # Released before the wait. A run paused on `ask_user` is waiting for an
         # answer from somebody who is no longer there and cannot reach its own
@@ -683,30 +683,33 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = await self._history(prompt.message_id)
-            # The files, not a prompt built from them. Where an attachment goes
-            # depends on whether the agent has a workspace, and only `prepare`
-            # knows that - so the routing happens one layer down.
-            # `prompt.message_id` may be None when `persist_user_turn` swallowed a
-            # transient write failure so the turn could still run. The load path
-            # keeps the caller's still-unlinked uploads in that case (a None message
-            # matches unlinked rows), so a lost prompt row does not silently drop
-            # the files the user submitted and paid for (#1654 review).
-            attachments = (
-                await self._attached_files(prompt.message_id, file_ids) if file_ids else []
-            )
-
-            frames = RunFrames(
-                emit=self._frame,
-                timeline=timeline,
-                tool_calls=collected_tool_calls,
-                prompt=user_message,
-            )
-
-            # One session for the whole turn: the run row, the approvals it
-            # parks and the cost it books are a single unit of work, and
-            # `finish` writes back to the row `prepare` opened.
+            # One session for the whole turn: the history and the files it is
+            # given, the run row, the approvals it parks and the cost it books.
+            # The two reads had a transaction each before, ahead of the first
+            # token for nothing (#2248). `finish` writes back to the row
+            # `prepare` opened.
             async with get_db_context() as db:
+                model_history = await self._history(db, prompt.message_id)
+                # The files, not a prompt built from them. Where an attachment
+                # goes depends on whether the agent has a workspace, and only
+                # `prepare` knows that - so the routing happens one layer down.
+                # `prompt.message_id` may be None when `persist_user_turn`
+                # swallowed a transient write failure so the turn could still run.
+                # The load path keeps the caller's still-unlinked uploads in that
+                # case (a None message matches unlinked rows), so a lost prompt row
+                # does not silently drop the files the user submitted and paid for
+                # (#1654 review).
+                attachments = (
+                    await self._attached_files(db, prompt.message_id, file_ids) if file_ids else []
+                )
+
+                frames = RunFrames(
+                    emit=self._frame,
+                    timeline=timeline,
+                    tool_calls=collected_tool_calls,
+                    prompt=user_message,
+                )
+
                 turn = await ChatAgentRunner(db).run(
                     user=self.user,
                     organization_id=self.organization_id,
@@ -1191,7 +1194,9 @@ class AgentSession:
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 
-    async def _history(self, prompt_message_id: UUID | None) -> list[ModelMessage]:
+    async def _history(
+        self, db: AsyncSession, prompt_message_id: UUID | None
+    ) -> list[ModelMessage]:
         """What has already been said in this thread, without the turn being run.
 
         **The summary counts as what was said.** Where one has run, the thread
@@ -1213,9 +1218,10 @@ class AgentSession:
         answers is still in the transcript. Handing it back as history *and* as
         the prompt would ask the model the same question twice.
 
-        Read on its own session, like `_attached_files`: the turn's session is
-        opened later and held for the run, and this is a lookup rather than part
-        of that unit of work.
+        Read on the turn's session, like `_attached_files`: a transaction of its
+        own was a `BEGIN` and a `COMMIT` ahead of the first token, and the run
+        commits before it asks the model anything, so the read holds nothing
+        (#2248).
 
         The repository call carries no tenant predicate, which is safe here for
         one reason only: `current_conversation_id` is what `persist_user_turn`
@@ -1226,28 +1232,26 @@ class AgentSession:
         """
         if self.current_conversation_id is None:
             return []
-        async with get_db_context() as db:
-            return await ConversationService(db).model_history(
-                UUID(self.current_conversation_id),
-                limit=HISTORY_MESSAGES,
-                exclude_message_id=prompt_message_id,
-            )
+        return await ConversationService(db).model_history(
+            UUID(self.current_conversation_id),
+            limit=HISTORY_MESSAGES,
+            exclude_message_id=prompt_message_id,
+        )
 
-    async def _attached_files(self, message_id: UUID | None, file_ids: list[Any]) -> list[ChatFile]:
+    async def _attached_files(
+        self, db: AsyncSession, message_id: UUID | None, file_ids: list[Any]
+    ) -> list[ChatFile]:
         """The rows for the files this turn attached (#1756).
 
-        Read on their own session: the turn's own session is opened later and
-        held for the run, and this is a lookup rather than part of that unit of
-        work. Read by id and kept where the row is linked to this turn's message
+        Read on the turn's session, as `_history` is. Read by id and kept where the row is linked to this turn's message
         or still unlinked: `persist_user_turn` has already linked the frame's ids
         (and enforced ownership, #706), so re-validating them as unlinked would
         reject the turn's own just-linked files - while a file its best-effort
         link left unlinked must still reach the model rather than be dropped.
         """
-        async with get_db_context() as file_db:
-            return await load_turn_attachments(
-                file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
-            )
+        return await load_turn_attachments(
+            db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+        )
 
     async def _emit(self, kind: str, payload: Any) -> bool:
         """Send one frame to this socket, and keep it for whoever follows the turn.
@@ -1272,7 +1276,7 @@ class AgentSession:
         read - which is answered as nothing rather than as a refusal, so it says
         nothing about a conversation they cannot see.
         """
-        self._stop_following()
+        await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
             await self._leave_room()
@@ -1330,12 +1334,15 @@ class AgentSession:
         self._room_task = asyncio.create_task(self._in_room(conversation_id))
 
     async def _leave_room(self) -> None:
-        # A turn followed in the room is the room's: leaving stops drawing it.
-        self._stop_following()
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
-        if task is not None and not task.done():
-            task.cancel()
+        # Wound down before anything else: its heartbeat, cancelled and not
+        # awaited, could count this socket back in after the leave below, and its
+        # listener, still running, could start a new follower for this room
+        # while the old one unwinds.
+        await _cancelled(task)
+        # A turn followed in the room is the room's: leaving stops drawing it.
+        await self._stop_following()
         if room is not None:
             await chat_room.leave(room, self.user.id, self._socket)
 
@@ -1356,16 +1363,16 @@ class AgentSession:
             while True:
                 try:
                     await self._hear_room(conversation_id)
-                except Exception:
+                except Exception as error:
                     # Redis went away under the subscription. The socket stays
                     # open and still in this room, so it listens again rather
                     # than stay deaf - and uncounted - until a reload.
-                    logger.warning("chat_room_listen_failed", exc_info=True)
+                    redis_view.failed(logger, "chat_room_listen_failed", error)
                     await asyncio.sleep(ROOM_RETRY_SECONDS)
                     # Asked again before going back in: access may have gone while
                     # Redis was away, and rejoining shows who is here at once.
                     if not await self._still_reads(conversation_id):
-                        self._stop_following()
+                        await self._stop_following()
                         self._room = self._room_task = None
                         with contextlib.suppress(Exception):
                             await chat_room.leave(conversation_id, self.user.id, self._socket)
@@ -1375,14 +1382,14 @@ class AgentSession:
                 else:
                     return
         finally:
-            heartbeat.cancel()
+            await _cancelled(heartbeat)
 
     async def _hear_room(self, conversation_id: str) -> None:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
             if not await self._reads_lately(conversation_id):
-                self._stop_following()
+                await self._stop_following()
                 self._room = self._room_task = None
                 await chat_room.leave(conversation_id, self.user.id, self._socket)
                 return
@@ -1463,8 +1470,13 @@ class AgentSession:
         if not here:
             # Not even this socket: no Redis to count anybody, so nothing to say.
             return
-        async with get_db_context() as db:
-            people = await conversation_repo.users_by_id(db, here)
+        # The socket's own person is known already, and alone in a room is the
+        # common case: no session, and no query, to name them (#2248).
+        people = {self.user.id: self.user} if self.user.id in here else {}
+        others = [person for person in here if person != self.user.id]
+        if others:
+            async with get_db_context() as db:
+                people |= await conversation_repo.users_by_id(db, others)
         await send_event(
             self.websocket,
             "presence",
@@ -1527,11 +1539,16 @@ class AgentSession:
             )
         return True
 
-    def _stop_following(self) -> None:
+    async def _stop_following(self) -> None:
+        """Stop drawing the followed turn, once its task has wound down.
+
+        Awaited rather than only cancelled: the follower's own `finally` closes
+        its subscription, and left to run later it did so after the next room
+        was joined and the next turn followed.
+        """
         follower = self._follower
         self._follower = None
-        if follower is not None and not follower.done():
-            follower.cancel()
+        await _cancelled(follower)
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.
@@ -1541,6 +1558,15 @@ class AgentSession:
         exactly the decision a public surface makes differently.
         """
         await self._emit(kind, payload)
+
+
+async def _cancelled(task: asyncio.Task[None] | None) -> None:
+    """Cancel a task and wait for it to unwind, so its cleanup runs before what follows."""
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 def _conversation_id(raw: object) -> str | None:

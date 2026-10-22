@@ -13,8 +13,6 @@
   evidence and no budget each refuse before anything is written.
 """
 
-from __future__ import annotations
-
 import json
 import re
 import uuid
@@ -316,10 +314,6 @@ def _sessions(db: AsyncSession):
 @pytest.fixture(autouse=True)
 def _environment():
     """No real model or dispatch; the improver's model check always passes."""
-
-    def dropped(_db, coro, *, name):
-        coro.close()
-
     with (
         patch.object(SystemAgentRunner, "_require_model", new=AsyncMock()),
         patch.object(
@@ -330,8 +324,6 @@ def _environment():
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
-        patch("app.services.authoring.spawn_after_commit", side_effect=dropped),
-        patch("app.services.eval_run.spawn_after_commit", side_effect=dropped),
     ):
         yield
 

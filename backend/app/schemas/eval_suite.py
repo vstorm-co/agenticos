@@ -1,7 +1,5 @@
 """Schemas for eval suites: what a suite is, when it runs, and how each run came out."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal

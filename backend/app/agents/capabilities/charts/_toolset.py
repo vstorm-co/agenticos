@@ -4,8 +4,6 @@ The public method below is the tool, and its docstring is the only description
 of it the model ever reads. Anything else here is a private helper.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError

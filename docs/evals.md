@@ -197,7 +197,7 @@ content even if somebody keeps editing.
 
 ## Running and cancelling { #running-and-cancelling }
 
-A run is executed in the background, in a worker flow of its own, so it
+A run is executed in the background, as a job of its own in the worker, so it
 survives the API restarting. Cases run a few at a time: at most
 `EVAL_RUN_CONCURRENCY` per run, and at most `EVAL_ORG_CONCURRENCY` across all of
 an organization's eval runs, so a 500-case dataset cannot take every request a
@@ -217,7 +217,7 @@ moved, for `EVAL_ABANDONED_AFTER_MINUTES` is failed by a sweep the worker runs
 every minute, which also frees its slots. A worker whose heartbeats fail that
 long - on a host too loaded to reach its database - is failed the same way while
 it still works, and its run has to be started again. A queued run has no worker
-yet - it waits for a runner slot - so the sweep gives up on it only after
+yet - it waits for a free worker - so the sweep gives up on it only after
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 While a run is queued or running, the environment it names and the model profile

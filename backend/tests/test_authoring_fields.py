@@ -1,7 +1,5 @@
 """Which fields of a spec the assistant may change, and when a change still fits the draft."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

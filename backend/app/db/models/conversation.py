@@ -17,6 +17,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -140,7 +141,7 @@ class Conversation(Base, TimestampMixin):
     conversation whose agent has none is for ever.
     """
 
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list[Message]] = relationship(
         "Message",
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -170,6 +171,15 @@ class Message(Base, TimestampMixin):
     __table_args__ = (
         Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),
         Index("messages_search_vector_idx", "search_vector", postgresql_using="gin"),
+        # A spoken turn lands once per conversation (#54). Partial: typed turns have
+        # no `turn_id`, and the index would otherwise cover the whole table.
+        Index(
+            "uq_messages_conversation_turn",
+            "conversation_id",
+            "turn_id",
+            unique=True,
+            postgresql_where=text("turn_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -274,6 +284,14 @@ class Message(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # A spoken turn's identity within its call (#54): `<call id>:<n>:<role>`. A
+    # reconnect replays nothing, and a retried write must not double a turn, so
+    # (conversation_id, turn_id) is unique. Null for everything typed.
+    turn_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # An answer the caller talked over, trimmed to roughly what was heard.
+    interrupted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     # The turn's timeline, in the order it happened: reasoning, the text the model
     # wrote, and the tools it called, interleaved as they occurred. See
     # `app.schemas.conversation.MessagePart` for the entry shape and why this is
@@ -361,14 +379,14 @@ class Message(Base, TimestampMixin):
 
     Null on every message that carried no attachment."""
 
-    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
-    tool_calls: Mapped[list["ToolCall"]] = relationship(
+    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
+    tool_calls: Mapped[list[ToolCall]] = relationship(
         "ToolCall",
         back_populates="message",
         cascade="all, delete-orphan",
         order_by="ToolCall.started_at",
     )
-    files: Mapped[list["ChatFile"]] = relationship(
+    files: Mapped[list[ChatFile]] = relationship(
         "ChatFile",
         foreign_keys="ChatFile.message_id",
         cascade="all, delete-orphan",
@@ -424,7 +442,7 @@ class ToolCall(Base):
         index=True,
     )
 
-    message: Mapped["Message"] = relationship("Message", back_populates="tool_calls")
+    message: Mapped[Message] = relationship("Message", back_populates="tool_calls")
 
     def __repr__(self) -> str:
         return f"<ToolCall(id={self.id}, tool_name={self.tool_name}, status={self.status})>"

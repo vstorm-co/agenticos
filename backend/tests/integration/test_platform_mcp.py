@@ -5,8 +5,6 @@ asserted here is the join: the MCP handshake admits a key, the tools reach the
 API as that key, and the key's narrowing and revocation hold through it.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncIterator

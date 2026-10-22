@@ -1,8 +1,6 @@
 """A suite's threshold: quality decides, efficiency only when asked, and an invalid
 comparison decides nothing."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

@@ -16,7 +16,7 @@ import pytest
 from app.repositories import agent_run_repo, eval_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
-from app.worker.tasks.run_tasks import reap_abandoned_evals, stale_run_sweep_flow
+from app.worker.tasks.run_tasks import reap_abandoned_evals, reap_stale_runs
 
 pytestmark = pytest.mark.anyio
 
@@ -85,10 +85,10 @@ class TestTheFlow:
         ):
             ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            assert await stale_run_sweep_flow() == reaped
+            assert await reap_stale_runs() == reaped
 
         service.reap_stale.assert_awaited_once()
-        # Evals hold their organization's slots, so they are not left to an hourly flow.
+        # Evals hold their organization's slots, so they are not left to an hourly sweep.
         service.reap_abandoned_evals.assert_not_awaited()
 
     @pytest.mark.parametrize(("failed", "logged"), [(2, True), (0, False)])

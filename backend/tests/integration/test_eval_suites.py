@@ -14,8 +14,6 @@ administrator acting as somebody, the budget, the cost ceiling, AI assistance
 off, and an owner who has left.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -241,7 +239,6 @@ def _environment():
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
-        patch("app.services.eval_run.spawn_after_commit", side_effect=dropped),
         patch("app.services.eval_suite.spawn_after_commit", side_effect=dropped),
         patch("app.services.eval_run_worker.settings.EVAL_RUN_CONCURRENCY", 1),
         patch("app.services.eval_run.settings.EVAL_FALLBACK_CASE_COST_USD", Decimal("0.05")),

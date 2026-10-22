@@ -24,8 +24,6 @@ two ways, and the assertion in `TestTheMarkerIsLive` fails loudly if that stops
 being true.
 """
 
-from __future__ import annotations
-
 import ast
 import tomllib
 from pathlib import Path
@@ -44,6 +42,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
     "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
+    "tests/test_agent_realtime.py::test_azure_builds_from_the_azure_secret_with_the_deployment_name": "builds a client from a secret of the right kind, no refusal",
+    "tests/test_agent_voice.py::test_a_voice_agent_resolves_approvals_inline": "assembly wiring of the inline approval handler, no refusal",
     "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
     "tests/test_ask_user.py::test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval": "the stored step status a parked call reads, no refusal",
     "tests/test_channel_prompts.py::TestOffering::test_each_approval_and_each_question_is_its_own_message": "what a chat is offered, display, no refusal",
@@ -124,7 +124,6 @@ EXEMPT: dict[str, str] = {
     "tests/test_stats.py::TestTheComposedAnswer::test_org_scope_carries_active_users_and_no_approvals_count": "org-scope stats carry active users, not the approvals count, reporting, no refusal",
     "tests/test_stats.py::TestTheComposedAnswer::test_own_scope_carries_the_approvals_count_and_no_member_table": "own-scope stats carry the approvals count, reporting, no refusal",
     "tests/test_subagent_nested_resume.py::TestWhatADelegateSpentBeforeItParked::test_an_unpriced_segment_before_the_approval_still_marks_the_row": "cost accounting marks a partial floor when a delegate parked at an approval, accounting precision, no refusal",
-    "tests/test_transcription.py::TestEveryFailureIsHarmless::test_a_profile_whose_secret_is_gone_is_skipped_for_the_next": "a profile with a missing secret is skipped and the next tried, failover, no refusal",
     "tests/test_usage_report.py::TestHowMuchOfTheMonthIsGone::test_the_share_of_the_budget_spent": "computes the budget percent for the report, reporting, no refusal",
     "tests/test_usage_report.py::TestTheFrameAChatReads::test_the_budget_share_travels_with_it": "the usage frame carries the budget percent, display, no refusal",
     "tests/test_usage_report.py::TestTheLineAChannelCarries::test_no_cap_means_no_budget_clause_rather_than_a_zero": "no cap means no budget clause in the footer, display, no refusal",

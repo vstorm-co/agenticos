@@ -23,8 +23,6 @@ The rules are the ones a gate can trust:
   tolerance, and never folded into it.
 """
 
-from __future__ import annotations
-
 import enum
 import math
 from collections.abc import Iterable, Sequence

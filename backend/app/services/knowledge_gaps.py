@@ -17,8 +17,6 @@ thumbs-down comments on them - for the questions it could not answer, which
 retrieval alone does not see.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re
@@ -775,12 +773,12 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
-        # Imported here: the flow module imports this service.
-        from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
+        # Imported here: the task module imports this service.
+        from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps
 
         spawn_after_commit(
             self.db,
-            group_knowledge_gaps_flow(
+            group_knowledge_gaps(
                 organization_id=str(ctx.organization_id), knowledge_base_id=str(kb.id)
             ),
             name=f"group-knowledge-gaps-{kb.id}",
@@ -817,12 +815,12 @@ class KnowledgeGapService:
             )
         kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
         await SystemAgentRunner(self.db).require_runnable(ctx, key=KNOWLEDGE_GAP_CLASSIFIER.key)
-        # Imported here: the flow module imports this service.
-        from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps_flow
+        # Imported here: the task module imports this service.
+        from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps
 
         spawn_after_commit(
             self.db,
-            classify_knowledge_gaps_flow(
+            classify_knowledge_gaps(
                 organization_id=str(ctx.organization_id),
                 knowledge_base_id=str(kb.id),
                 user_id=str(ctx.user_id),

@@ -6,8 +6,6 @@ cannot reach another tenant's chunk. This file pins the per-mode behaviour, the
 bounded fan-out and the fusion, none of which need a database.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 
 import pytest
@@ -117,12 +115,12 @@ def _hit(content: str, doc: str) -> SearchResult:
 class TestFuseOverQueries:
     async def test_a_single_query_is_returned_untouched(self):
         """Analysis off must retrieve exactly as before: no fusion pass."""
-        sentinel = [_hit("only", "d1")]
+        marker = [_hit("only", "d1")]
 
         async def retrieve_one(_: str) -> list[SearchResult]:
-            return sentinel
+            return marker
 
-        assert await fuse_over_queries(["q"], retrieve_one, limit=5) is sentinel
+        assert await fuse_over_queries(["q"], retrieve_one, limit=5) is marker
 
     async def test_a_chunk_found_by_several_variants_ranks_above_one_found_by_one(self):
         async def retrieve_one(query: str) -> list[SearchResult]:

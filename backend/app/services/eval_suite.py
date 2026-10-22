@@ -26,8 +26,6 @@ changing what it does takes it over, and it stops - paused, with the reason - wh
 its owner leaves or loses what running it takes.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta

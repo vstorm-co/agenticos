@@ -1,7 +1,5 @@
 """Thumbs under a channel answer become the presser's rating of it (#2084)."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

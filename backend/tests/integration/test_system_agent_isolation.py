@@ -6,8 +6,6 @@ service, and the runner refuses any run of it outside the eval surface. Its own
 runner still reaches it.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

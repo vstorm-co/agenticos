@@ -4,11 +4,9 @@ Four steps a tick, each its own transaction, so what one commits the next can
 read: queue a run of every suite whose schedule came due; start every result
 that is due, as an eval run of its suite's owner; settle every result whose
 eval run has ended; and move a guarded environment that follows publishes once
-its guards all pass on the newest version. An eval run itself is a flow run of its own
-(:mod:`app.worker.tasks.eval_tasks`), so a tick only writes rows and submits.
+its guards all pass on the newest version. An eval run itself is a job of its own
+(:mod:`app.worker.tasks.eval_tasks`), so a tick only writes rows and queues them.
 """
-
-from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable

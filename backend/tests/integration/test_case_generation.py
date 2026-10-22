@@ -13,8 +13,6 @@ The claims a mocked session cannot make:
 - a draft from chats is read and decided only by a member who may view runs.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 

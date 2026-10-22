@@ -8,8 +8,6 @@ somebody is looking back at, which in FastAPI is a 500 on the whole response
 rather than a gap in one panel.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID

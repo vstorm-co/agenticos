@@ -17,8 +17,9 @@ import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-store";
 
 /**
- * The two preferences that belong to the person rather than to the page:
- * which theme, and which language.
+ * The preferences that belong to the person rather than to the page: which
+ * theme and which language. The rest of them - the voice glow and motion - live
+ * with the theme under Settings → Profile → Appearance.
  *
  * They used to be two icon buttons in a strip at the foot of the column,
  * beside search and the bell. That strip mixed two things a person does
@@ -32,9 +33,9 @@ import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-stor
  * current value on the trigger, so the menu answers "what language is this in"
  * without a second click.
  *
- * Submenus rather than a flat list of seven rows: the account menu's own
- * entries are the organization, the profile and signing out, and burying those
- * under three themes and three languages inverts what it is for.
+ * Submenus rather than a flat list of rows: the account menu's own entries are
+ * the organization, the profile and signing out, and burying those under three
+ * themes and three languages inverts what it is for.
  *
  * Each choice is a Radix `RadioItem`, not a `<button role="menuitemradio">`.
  * The hand-rolled version looked identical and was unreachable: Radix builds a

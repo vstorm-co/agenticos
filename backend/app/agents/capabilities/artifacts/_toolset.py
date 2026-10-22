@@ -15,8 +15,6 @@ that reaches an existing page only when the run's person may open it (to read)
 or edit it (to publish).
 """
 
-from __future__ import annotations
-
 from pathlib import PurePosixPath
 from typing import Literal
 from uuid import UUID
@@ -170,6 +168,9 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         (`"three": "./lib/three-0.186.0/three.module.js"`, with
         `lib/three-0.186.0/three.core.js` beside it and
         `lib/three-0.186.0/addons/controls/OrbitControls.js` under `three/addons/`);
+        a map through `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js`
+        and `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, on the
+        deployment's map tiles or as an outline without them);
         `lib/agenticos-1.css` stays served for pages published against it. Keep to the product's look: graphite,
         no accent colour, green and red only for better and worse, icons rather than
         emoji unless the person asked for emoji. Before building a page, load the
@@ -252,7 +253,7 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
                     data = await ctx.workspace.read_bytes(path)
                 except PermissionError as exc:
                     return f"Reading {path!r} was refused: {exc}"
-                except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                except FileNotFoundError, IsADirectoryError, NotADirectoryError:
                     data = b""
                 except WorkspaceError as exc:
                     # A container's shell could not produce the file - the

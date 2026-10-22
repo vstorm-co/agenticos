@@ -22,8 +22,6 @@ for five minutes and no provider documents a rate limit for these routes, so an
 hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
@@ -264,10 +262,10 @@ def _client() -> httpx.AsyncClient:
 
     **Rebuilt when the event loop changes, and that is not tidiness.** An
     `AsyncClient` holds connections bound to the loop that opened them, so one
-    built by a request and reused by a Prefect flow - or closed at shutdown from
-    a different loop - raises `RuntimeError: Event loop is closed` rather than
+    built on one loop and reused on another - or closed at shutdown from a
+    different loop - raises `RuntimeError: Event loop is closed` rather than
     answering. It is the same hazard `rag_tasks._ingestion_service` builds
-    per-flow engines for (#948); one process here runs several loops, and this
+    per-job engines for (#948); one process here runs several loops, and this
     is the one client shared across all of them.
     """
     global _listing_client, _listing_loop

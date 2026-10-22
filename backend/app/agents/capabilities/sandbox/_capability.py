@@ -12,8 +12,6 @@ approval and the model deciding when to call one should be looking at the same
 sentence; two copies in two repositories drift, and nothing reports it.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic_ai.capabilities import CombinedCapability

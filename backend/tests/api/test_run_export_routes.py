@@ -9,8 +9,6 @@ success comes back as a downloadable `text/csv`, and that the query parameters
 arrive at the service as the filter they name.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
@@ -138,6 +136,20 @@ class TestTheFiltersReachTheService:
         assert kwargs["filters"].surface == "slack"
         assert kwargs["filters"].agent_version_id == version_id
         assert kwargs["filters"].started_from.isoformat() == "2026-08-01T00:00:00+00:00"
+
+    async def test_a_voice_export_holds_calls_and_every_run_of_each(self):
+        """Every connection's run stays in the file: `one_row_per_call` is the list's alone (#54)."""
+        service = _service()
+        async with _client(OrgRoleName.OWNER.value, service) as client:
+            response = await client.get(f"/api/v1/runs/export?{_RANGE}&modality=voice")
+        assert response.status_code == 200
+        filters = service.export_runs.await_args.kwargs["filters"]
+        assert (filters.modality, filters.one_row_per_call) == ("voice", False)
+
+    async def test_an_unknown_modality_is_refused(self):
+        async with _client(OrgRoleName.OWNER.value, _service()) as client:
+            response = await client.get(f"/api/v1/runs/export?{_RANGE}&modality=video")
+        assert response.status_code == 422
 
     async def test_approval_filters_arrive_as_named(self):
         service = _service()

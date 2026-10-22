@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "6b3fe7395da4"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -33,6 +33,23 @@ webhook, co musi zawierać dostarczenie i jak przetestować całość z laptopa.
     sensowną kadencję. Szablon zdarzeniowy — „posegreguj nowe issue”, „napisz
     szkic odpowiedzi na maila” — wypełnia z góry prompt na kroku wiadomości
     swojego własnego źródła. Żaden nie zaczyna od pustego pola.
+
+## Harmonogram, którego ostatni run wciąż trwa { #a-schedule-whose-last-run-is-still-going }
+
+Termin harmonogramu może nadejść, gdy run odpalony poprzednim razem wciąż
+trwa - nocna synchronizacja, która trwa dłużej niż noc, albo run zaparkowany na
+zatwierdzeniu, którego nikt nie rozstrzygnął. O tym, co się wtedy dzieje,
+decyduje **If the previous run is still going** w formularzu harmonogramu,
+`overlap` w API:
+
+| Opcja | `overlap` | Co robi |
+|---|---|---|
+| Skip this run | `skip` (domyślnie) | Wystąpienie przepada, a harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć |
+| Run when it finishes | `queue` | Odpala raz po zakończeniu poprzedniego runu, niezależnie od tego, ile wystąpień minęło |
+| Run anyway | `allow` | Odpala o czasie, do tego samego logu runów, więc dwa runy nachodzą na siebie i płaci się za oba |
+
+Trigger zdarzeniowy nie ma takiego ustawienia: każde dostarczenie to osobne
+odpalenie.
 
 Wszystko poniżej dotyczy przypadku zdarzeniowego.
 
@@ -76,7 +93,7 @@ flowchart TD
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
     F -->|no| R202["202 - nothing to do"]
-    F -->|yes| SUB["submit a capped Prefect flow"]
+    F -->|yes| SUB["queue a fire-trigger job"]
     SUB --> R202b["202 - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
@@ -125,9 +142,9 @@ runner zostanie w ogóle osiągnięty; sekret jest zapieczętowany w
 
 !!! info "`202` znaczy przyjęte, a nie zakończone"
 
-    Dopasowane dostarczenie jest zgłaszane jako własny flow
-    `run-scheduled-trigger`, a agent działa w workerze, więc provider dostaje
-    swoją odpowiedź w jednym szybkim wywołaniu Prefect, zamiast czekać na model.
+    Dopasowane dostarczenie jest kolejkowane jako zadanie `fire-trigger` we
+    własnej transakcji żądania, a agent działa w workerze, więc provider dostaje
+    swoją odpowiedź po jednym insercie, zamiast czekać na model.
     Nie czytaj `202` jako „agent odpowiedział” - od tego jest przeczytanie runa w
     Activity.
 

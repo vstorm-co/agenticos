@@ -56,8 +56,6 @@ which is why :data:`_ENTRY_POINTS` is a table rather than a comparison against
 one name.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 
@@ -220,7 +218,7 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
                 return await self.wrapped.call_tool(
                     name, {**tool_args, "mode": delegation.mode}, ctx, tool
                 )
-        except (ApprovalRequired, CallDeferred):
+        except ApprovalRequired, CallDeferred:
             # A delegate that stopped for a person, on its way to parking the
             # parent's own call. Stashed and re-raised unchanged: the signal is how
             # Pydantic AI suspends a run, and swallowing it would report unfinished

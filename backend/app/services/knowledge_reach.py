@@ -7,8 +7,6 @@ the binding is allowed, and the agent reads them with its publisher's access,
 so nothing refuses it. This makes that visible in the Builder instead.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID

@@ -12,8 +12,6 @@ A change of model also says what it would cost: the agent's recent runs, their
 tokens priced on both models. A handful of runs is a rough estimate and says so.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import Sequence

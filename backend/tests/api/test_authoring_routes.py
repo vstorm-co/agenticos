@@ -6,8 +6,6 @@ Left here is the HTTP layer: each route's status, and that its body and path
 reach the service.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

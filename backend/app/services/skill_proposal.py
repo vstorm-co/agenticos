@@ -18,8 +18,6 @@ otherwise a full workspace or a name collision replaces whatever actually
 happened to the run.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

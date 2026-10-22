@@ -1,7 +1,5 @@
 """Running small Python programs in a restricted sandbox."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 

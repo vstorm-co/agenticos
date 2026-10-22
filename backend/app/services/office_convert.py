@@ -13,8 +13,6 @@ degradation RAG documents. It never raises for a conversion failure; a caller
 cancellation still propagates, with the subprocess group killed and reaped first.
 """
 
-from __future__ import annotations
-
 import logging
 import shutil
 import tempfile

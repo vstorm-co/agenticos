@@ -21,8 +21,6 @@ approval panel, `ask_user`. A frame that needs somebody to answer it needs a
 somebody, and only the surface knows whether it has one.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any

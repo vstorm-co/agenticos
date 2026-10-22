@@ -30,8 +30,6 @@ acceptances, acceptance needs a session, and registration does not - so one
 is created, atomically, which is what makes the ceiling mean both (#914).
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -512,7 +510,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(UserCreate(email="new@acme.com", password="password123"))
 
@@ -559,7 +557,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.get_or_create_oauth_user(
                 provider="google", provider_id="g1", email="new@acme.com"
@@ -590,7 +588,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.get_or_create_oauth_user(
                 provider="google",
@@ -786,7 +784,7 @@ class TestTheTokenReachesThePolicyFromTheRequest:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(
                 UserCreate(email="new@acme.com", password="password123", invitation_token="tok")
@@ -820,8 +818,67 @@ class TestTheTokenReachesThePolicyFromTheRequest:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(UserCreate(email="new@acme.com", password="password123"))
 
         assert seen[0]["invitation_token"] is None
+
+
+@pytest.mark.security
+class TestWhatAdmittedTheAccount:
+    """The deployment's own rule, or an organization's word for it (#2156).
+
+    Only the first may join the default organization: an invitation or directory
+    mapping vouches for the person to the organization that issued it, and to no
+    other.
+    """
+
+    async def test_the_first_account_and_an_unconfigured_deployment_are_policy(
+        self, mock_db_session, repos
+    ):
+        assert (
+            await check_may_register(mock_db_session, email="a@acme.com", is_first_user=True)
+            == "policy"
+        )
+        assert (
+            await check_may_register(mock_db_session, email="a@acme.com", is_first_user=False)
+            == "policy"
+        )
+
+    @pytest.mark.parametrize("domains", [[], ["acme.com"]])
+    async def test_an_open_deployment_that_admits_the_address_is_policy(
+        self, mock_db_session, repos, domains
+    ):
+        repos.settings.get.return_value = a_row(signup_mode="open", allowed_email_domains=domains)
+        admitted = await check_may_register(
+            mock_db_session, email="ada@acme.com", is_first_user=False
+        )
+        assert admitted == "policy"
+
+    async def test_an_invite_only_deployment_admits_by_invitation(self, mock_db_session, repos):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.first_pending_admitting.return_value = a_link()
+        admitted = await check_may_register(
+            mock_db_session, email="ada@acme.com", is_first_user=False
+        )
+        assert admitted == "invitation"
+
+    async def test_an_address_outside_the_domains_is_admitted_only_by_its_invitation(
+        self, mock_db_session, repos
+    ):
+        repos.settings.get.return_value = a_row(
+            signup_mode="open", allowed_email_domains=["acme.com"]
+        )
+        repos.invitations.first_pending_admitting.return_value = a_link()
+        admitted = await check_may_register(
+            mock_db_session, email="contractor@gmail.com", is_first_user=False
+        )
+        assert admitted == "invitation"
+
+    async def test_a_directory_mapping_is_an_organizations_word_too(self, mock_db_session, repos):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        admitted = await check_may_register(
+            mock_db_session, email="ada@acme.com", is_first_user=False, admitted_by_directory=True
+        )
+        assert admitted == "invitation"

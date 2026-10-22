@@ -6,8 +6,6 @@ listing that showed only a name would make the decision a coin flip with an
 audit trail.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

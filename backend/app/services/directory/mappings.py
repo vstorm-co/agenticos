@@ -11,8 +11,6 @@ reach the organization, which is the membership policy, not something every
 member needs.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError

@@ -7,8 +7,6 @@ dataset: a proposal drafted from a conversation is text the caller's dataset
 viewers have not been shown, and deciding it changes the dataset.
 """
 
-from __future__ import annotations
-
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal

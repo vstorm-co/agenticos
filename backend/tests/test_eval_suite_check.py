@@ -5,8 +5,6 @@ threshold kept when the check started; these pin what reaches the judge and
 what a run that did not complete, or a suite that went, reads as.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -1,5 +1,5 @@
 ---
-source_sha: "c86fa0b502c9"
+source_sha: "d38d76061f82"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -209,7 +209,7 @@ contenido aunque alguien siga editando.
 
 ## Ejecución y cancelación { #running-and-cancelling }
 
-Un run se ejecuta en segundo plano, en un flow de worker propio, así que
+Un run se ejecuta en segundo plano, como un job propio en el worker, así que
 sobrevive a un reinicio de la API. Los casos se ejecutan de pocos en pocos: como
 mucho `EVAL_RUN_CONCURRENCY` por run y como mucho `EVAL_ORG_CONCURRENCY` entre
 todos los eval runs de una organización, para que un dataset de 500 casos no
@@ -231,7 +231,7 @@ un barrido que el worker ejecuta cada minuto, que además libera sus plazas. Un
 worker cuyos heartbeats fallan durante ese tiempo - en una máquina demasiado
 cargada para llegar a su base de datos - se da por fallido igual aunque siga
 trabajando, y hay que lanzar su run de nuevo. Un run en cola aún no tiene worker -
-espera un runner libre - así que el barrido lo abandona solo tras
+espera un worker libre - así que el barrido lo abandona solo tras
 `EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que

@@ -10,8 +10,6 @@ then exported and handed to models. A credential in it is redacted before the
 case is stored, on every way in.
 """
 
-from __future__ import annotations
-
 import logging
 import uuid
 from dataclasses import dataclass
@@ -1183,7 +1181,7 @@ class DatasetService:
         for message_id in message_ids:
             try:
                 case = await self._case_from_message(ctx, current, message_id, answer_as)
-            except (NotFoundError, BadRequestError, AlreadyExistsError):
+            except NotFoundError, BadRequestError, AlreadyExistsError:
                 continue
             if case[1]["source_message_id"] in replies:
                 continue

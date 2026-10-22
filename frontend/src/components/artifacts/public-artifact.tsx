@@ -13,12 +13,17 @@ import type { OpenPublicArtifact, PublicArtifact as PublicArtifactData } from "@
 /**
  * What a stranger holding the link sees: the page, its title, and when it was
  * last published. Nothing about who made it or which organization it is from.
+ *
+ * The window's height, not at least it: the frame fills what is left below the
+ * header, which only resolves against a definite height. Under `min-h-dvh` the
+ * frame fell back to its own minimum and the page scrolled inside a box half
+ * the window tall.
  */
 export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
   const t = useTranslations("artifacts");
   const format = useFormatter();
   return (
-    <main className="bg-background flex min-h-dvh flex-col gap-3 p-4">
+    <main className="bg-background flex h-dvh flex-col gap-3 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-foreground text-lg font-semibold">{artifact.title}</h1>
         <p className="text-muted-foreground text-xs">
@@ -31,7 +36,9 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
         </p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col">
-        <ArtifactFrameView url={artifact.view.url} title={artifact.title} />
+        {/* No minimum: on a short window the frame shrinks with it rather than
+            pushing the page into a scroll. */}
+        <ArtifactFrameView url={artifact.view.url} title={artifact.title} className="min-h-0" />
       </div>
     </main>
   );

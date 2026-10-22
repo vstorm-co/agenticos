@@ -1,7 +1,5 @@
 """Whether an agent reaches people its knowledge does not (#2072)."""
 
-from __future__ import annotations
-
 import uuid
 
 from app.services.knowledge_reach import _Reach

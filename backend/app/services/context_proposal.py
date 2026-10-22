@@ -10,8 +10,6 @@ the proposal was written: the reviewer compares the two versions themselves
 rather than have somebody's edit thrown away. Both decisions are final.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

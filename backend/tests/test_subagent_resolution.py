@@ -19,8 +19,6 @@ isolation:
   towards the organization's.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from dataclasses import dataclass
@@ -55,6 +53,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
+from app.agents.voice import VoiceOptions
 from app.core.exceptions import BadRequestError, SystemAgentRestrictedError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
@@ -64,6 +63,7 @@ from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
     AgentRunnerService,
     RecordedDelegation,
+    VoiceRun,
     month_start,
 )
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
@@ -262,6 +262,7 @@ async def _prepare(
     profiles: list[MagicMock] | None = None,
     environment_connections: list[AgentEnvironmentConnection] | None = None,
     isolation: RunIsolation | None = None,
+    voice: VoiceRun | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -362,6 +363,7 @@ async def _prepare(
             agent.id,
             environment_id=None if environment_connections is None else uuid.uuid4(),
             isolation=isolation,
+            voice=voice,
         )
 
     return _Prepared(prepared, build, fetch_version, list_profiles)
@@ -431,6 +433,22 @@ class TestTheRuntimeARunIsHanded:
         prepared = await _prepare(_delegating(inline=[_specialist()]))
 
         assert prepared.built("summariser")["shared_budget"] is prepared.build.return_value.budget
+
+    @pytest.mark.security
+    async def test_a_delegate_in_a_call_settles_its_approvals_with_the_caller(self):
+        """Parked, a delegate's approval would surface on the twin's `task` call,
+        which no approval row answers - and nobody resumes a call (#54)."""
+        voice = VoiceRun(
+            options=VoiceOptions(on_deferred=AsyncMock()),
+            model_label="GPT Realtime",
+            provider="openai",
+            secret_id=uuid.uuid4(),
+        )
+        in_call = await _prepare(_delegating(inline=[_specialist()]), voice=voice)
+        in_text = await _prepare(_delegating(inline=[_specialist()]))
+
+        assert in_call.built("summariser")["answering_call"] is voice.options
+        assert in_text.built("summariser")["answering_call"] is None
 
     @pytest.mark.security
     async def test_a_delegate_reaches_the_approval_queue_the_parent_is_waiting_on(self):

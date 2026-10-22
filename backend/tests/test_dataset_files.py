@@ -4,8 +4,6 @@ An import is all or nothing and names the rows it refused; an export imports
 back unchanged, which is why the spreadsheet formula guard has to be reversible.
 """
 
-from __future__ import annotations
-
 import csv
 import json
 import uuid
