@@ -116,6 +116,13 @@ class RunEval(Payload):
     organization_id: UUID
 
 
+class GenerateCases(Payload):
+    """One case generation, drafted by the case generator."""
+
+    generation_id: UUID
+    organization_id: UUID
+
+
 class RunAuthoring(Payload):
     """One Improve or Verify the authoring assistant was asked for."""
 
@@ -251,6 +258,18 @@ RUN_AUTHORING = Task(
     timeout=timedelta(hours=1),
     priority=Priority.INTERACTIVE,
 )
+# One attempt: the generator's call is billed. A job that ends without the
+# handler finishing the generation - its worker killed - fails the generation
+# through its settler, so nothing waits on it for ever.
+GENERATE_CASES = Task(
+    kind="generate-cases",
+    payload_type=GenerateCases,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
@@ -295,6 +314,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AGENT,
         RUN_EVAL,
         RUN_AUTHORING,
+        GENERATE_CASES,
         CLEANUP_EXTERNAL_STATE,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,

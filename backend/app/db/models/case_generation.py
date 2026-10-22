@@ -17,7 +17,16 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -81,6 +90,11 @@ class CaseGeneration(Base):
     )
     sources: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     requested_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Set only for an agent's test set built without a person at each step: its
+    # drafts become a version as soon as they are ready, for review afterwards.
+    auto_accept: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=GenerationStatus.RUNNING.value
     )

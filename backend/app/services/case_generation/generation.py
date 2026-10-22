@@ -1,4 +1,4 @@
-"""One generation, run after the request that started it has answered.
+"""One generation, run by its job after the request that started it has answered.
 
 The generator is a system agent, so it runs through `SystemAgentRunner` as the
 person who asked - which checks the organization's AI switch, the agent's state
@@ -19,9 +19,7 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationStatus
-from app.db.session import get_db_context
 from app.repositories import case_generation_repo, user_repo
-from app.services import change_feed
 from app.services.case_generation.drafts import Draft, DraftedCases, keep
 from app.services.case_generation.sources import Material
 from app.services.dataset import redacted_case
@@ -36,35 +34,7 @@ NOTHING_KEPT = (
 _ERROR_LIMIT = 500
 
 
-async def run_generation(
-    *,
-    generation_id: UUID,
-    dataset_id: UUID,
-    ctx: AuthContext,
-    prompt: str,
-    material: Material,
-    quotas: dict[CaseOrigin, int],
-) -> None:
-    """Run one generation on a session of its own. Started after the request commits.
-
-    Its end is announced once the session has committed it, so an open dataset
-    page that refetches reads the drafts.
-    """
-    async with get_db_context() as db:
-        await generate(
-            db,
-            generation_id=generation_id,
-            ctx=ctx,
-            prompt=prompt,
-            material=material,
-            quotas=quotas,
-        )
-    await change_feed.publish_dataset(
-        organization_id=ctx.organization_id, dataset_id=dataset_id, actor_user_id=ctx.user_id
-    )
-
-
-async def _finish(
+async def finish(
     db: AsyncSession,
     generation_id: UUID,
     ctx: AuthContext,
@@ -121,7 +91,7 @@ async def generate(
             ctx, key=CASE_GENERATOR.key, prompt=prompt, output_type=DraftedCases
         )
     except AppException as exc:
-        await _finish(
+        await finish(
             db,
             generation_id,
             ctx,
@@ -133,7 +103,7 @@ async def generate(
     except Exception:
         logger.exception("case_generation_failed", extra={"generation_id": str(generation_id)})
         await db.rollback()
-        await _finish(db, generation_id, ctx, status=GenerationStatus.FAILED, error=FAILED)
+        await finish(db, generation_id, ctx, status=GenerationStatus.FAILED, error=FAILED)
         return
 
     # Read before a rollback expires the row it is on.
@@ -143,7 +113,7 @@ async def generate(
     except Exception:
         logger.exception("case_generation_failed", extra={"generation_id": str(generation_id)})
         await db.rollback()
-        await _finish(
+        await finish(
             db, generation_id, ctx, status=GenerationStatus.FAILED, error=FAILED, run_id=run_id
         )
 
@@ -218,7 +188,7 @@ async def _record(
         },
     )
     if not proposals:
-        await _finish(
+        await finish(
             db,
             generation_id,
             ctx,
@@ -230,7 +200,7 @@ async def _record(
         )
         return
     await case_generation_repo.add_proposals(db, proposals)
-    await _finish(
+    await finish(
         db,
         generation_id,
         ctx,

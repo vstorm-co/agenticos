@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import CASE_GENERATOR
 from app.core.audit import record_audit
-from app.core.background import spawn_after_commit
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.case_generation import (
@@ -28,6 +27,7 @@ from app.db.models.case_generation import (
 )
 from app.repositories import agent_repo, case_generation_repo, credential_repo
 from app.schemas.case_generation import (
+    MAX_GENERATED,
     CaseGenerationEstimate,
     CaseGenerationList,
     CaseGenerationRead,
@@ -40,18 +40,19 @@ from app.schemas.case_generation import (
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
 from app.services.ai_assistance import AiAssistanceService
+from app.services.background_jobs import enqueue
 from app.services.case_generation.drafts import split
 from app.services.case_generation.estimate import estimate_cost
-from app.services.case_generation.generation import run_generation
 from app.services.case_generation.prompt import build_prompt
 from app.services.case_generation.sources import Material, SourceGatherer
 from app.services.dataset import DatasetService, GeneratedCase, proposals_hidden_from
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.system_agent_runner import SystemAgentRunner
+from app.worker.jobs import GENERATE_CASES, GenerateCases
 
-# A restart loses a generation mid-run: it runs in the process that answered the
-# request. Past any real run's length, a running one is reported as interrupted.
-INTERRUPTED_AFTER = timedelta(minutes=30)
+# A generation's job settles it however the job ends; one still running past any
+# queue wait and run was left by a worker that never did, and is reported so.
+INTERRUPTED_AFTER = timedelta(hours=6)
 INTERRUPTED = "The generation was interrupted before it finished. Start it again."
 
 
@@ -91,7 +92,7 @@ class CaseGenerationService:
         self.datasets = DatasetService(db)
         self.sources = SourceGatherer(db, vector_store)
 
-    async def _plan(
+    async def plan(
         self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
     ) -> tuple[UUID, Material, dict[CaseOrigin, int], str]:
         """The dataset, the material, each source's quota and the prompt for one request.
@@ -151,7 +152,7 @@ class CaseGenerationService:
         Reads the same material a generation would, under the same gates, and
         calls no model: the estimate is what a person decides with.
         """
-        _, material, quotas, prompt = await self._plan(ctx, dataset_id, data)
+        _, material, quotas, prompt = await self.plan(ctx, dataset_id, data)
         return CaseGenerationEstimate(
             count=data.count,
             sources=[
@@ -163,16 +164,26 @@ class CaseGenerationService:
         )
 
     async def start(
-        self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
+        self,
+        ctx: AuthContext,
+        dataset_id: UUID,
+        data: CaseGenerationRequest,
+        *,
+        auto_accept: bool = False,
     ) -> CaseGenerationRead:
-        """Start drafting cases. Answers at once; the generator runs after the commit.
+        """Start drafting cases. Answers at once; the generator runs as a job.
+
+        The job is queued in this transaction, so it exists only if the
+        generation does, and the worker gathers the material again under the
+        requester's access as it is then. `auto_accept` is for an agent's test
+        set, whose drafts become a version once ready rather than wait for a person.
 
         Raises:
             NotFoundError, AiAssistanceDisabledError, BadRequestError: As
                 :meth:`estimate` does.
             SystemAgentUnavailableError: When the generator cannot run for this caller.
         """
-        dataset_id, material, quotas, prompt = await self._plan(ctx, dataset_id, data)
+        dataset_id, _, _, _ = await self.plan(ctx, dataset_id, data)
         # Refused here with the reason, rather than queued to fail at once; the run
         # checks the same again when it starts.
         await SystemAgentRunner(self.db).require_runnable(ctx, key=CASE_GENERATOR.key)
@@ -184,6 +195,7 @@ class CaseGenerationService:
             requested_by_user_id=ctx.subject_id,
             sources=list(data.sources),
             requested_count=data.count,
+            auto_accept=auto_accept,
         )
         await record_audit(
             self.db,
@@ -196,19 +208,14 @@ class CaseGenerationService:
                 "agent_id": str(data.agent_id),
                 "sources": list(data.sources),
                 "count": data.count,
+                "auto_accept": auto_accept,
             },
         )
-        spawn_after_commit(
+        await enqueue(
             self.db,
-            run_generation(
-                generation_id=generation.id,
-                dataset_id=dataset_id,
-                ctx=ctx,
-                prompt=prompt,
-                material=material,
-                quotas=quotas,
-            ),
-            name=f"case-generation-{generation.id}",
+            GENERATE_CASES,
+            GenerateCases(generation_id=generation.id, organization_id=ctx.organization_id),
+            organization_id=ctx.organization_id,
         )
         return _generation_read(generation, now=datetime.now(UTC))
 
@@ -326,6 +333,61 @@ class CaseGenerationService:
         ]
         version = await self.datasets.add_generated(ctx, dataset, cases)
         await self._count(ctx, taken, accepted=True)
+        return version
+
+    async def accept_drafted(
+        self, ctx: AuthContext, generation: CaseGeneration
+    ) -> DatasetVersionRead | None:
+        """Accept every draft of one generation into one version, as drafted.
+
+        For a generation started with `auto_accept`, once it is ready: no person
+        decides each draft, so the version is recorded as accepted on the
+        requester's behalf, and the drafts are theirs to review and remove
+        afterwards. `None` when none was left waiting.
+        """
+        dataset = await self.datasets.lock_for_edit(ctx, generation.dataset_id)
+        waiting, _ = await case_generation_repo.list_proposals(
+            self.db,
+            dataset.id,
+            organization_id=ctx.organization_id,
+            generation_id=generation.id,
+            limit=MAX_GENERATED,
+        )
+        taken = await case_generation_repo.take_proposals(
+            self.db,
+            dataset.id,
+            [proposal.id for proposal in waiting],
+            organization_id=ctx.organization_id,
+            without_origin=proposals_hidden_from(ctx),
+        )
+        if not taken:
+            return None
+        cases = [
+            GeneratedCase(
+                content=_drafted(proposal),
+                source_document_id=proposal.source_document_id,
+                source_run_id=proposal.source_run_id,
+                source_conversation_id=proposal.source_conversation_id,
+                source_message_id=proposal.source_message_id,
+            )
+            for proposal in taken
+        ]
+        version = await self.datasets.add_generated(ctx, dataset, cases)
+        await self._count(ctx, taken, accepted=True)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="dataset.proposals_auto_accepted",
+            target_type="dataset",
+            target_id=str(dataset.id),
+            details={
+                "name": dataset.name,
+                "generation_id": str(generation.id),
+                "accepted": len(taken),
+                "version": version.number,
+            },
+        )
         return version
 
     async def dismiss(self, ctx: AuthContext, dataset_id: UUID, data: CaseProposalDismiss) -> None:
