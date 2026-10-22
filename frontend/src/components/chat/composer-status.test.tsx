@@ -27,12 +27,10 @@ describe("ComposerStatus", () => {
     expect(screen.getByText("Offline").className).toContain("text-destructive");
   });
 
-  it("carries the disclaimer and the page help", () => {
+  it("carries the page help and no disclaimer (#2301)", () => {
     render(<ComposerStatus isConnected />);
 
-    expect(
-      screen.getByText("AI can make mistakes. Verify important information."),
-    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "page help" })).toBeVisible();
+    expect(screen.queryByText(/AI can make mistakes/)).not.toBeInTheDocument();
   });
 });

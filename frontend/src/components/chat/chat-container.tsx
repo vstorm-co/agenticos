@@ -1423,7 +1423,7 @@ function ChatUI({
                     <div
                       data-tour="chat-composer"
                       className={cn(
-                        "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
+                        "panel composer-box focus-within:border-foreground/30 rounded-2xl transition-colors",
                         !compact && "composer-glass",
                         composerStrip !== null && "rounded-t-none",
                       )}

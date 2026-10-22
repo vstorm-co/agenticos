@@ -1034,7 +1034,6 @@
       "unsetDefault": "Unset {name} as default agent",
       "whoAnswers": "Who answers this conversation."
     },
-    "aiCanMakeMistakes": "AI can make mistakes. Verify important information.",
     "analyzeFiles": "Analyze the attached file(s)",
     "approve": "Approve",
     "archive": "Archive",
