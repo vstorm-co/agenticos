@@ -185,14 +185,23 @@ async def draft_runs(
     organization_id: UUID,
     dataset_ids: Sequence[UUID],
     spec_hash: str,
+    earlier: bool = False,
+    since: datetime | None = None,
 ) -> list[EvalRun]:
-    """An agent's runs that tested one draft, by the hash of its spec, newest first."""
+    """An agent's runs that tested one draft, by the hash of its spec, newest first.
+
+    A check of the authoring assistant's suggestions tested the draft they
+    would make, so its candidate counts as a draft once they are accepted.
+    `earlier` turns it round: the runs that tested some other draft, made at
+    `since` or later - a test the draft has since moved away from.
+    """
     tested = select(EvalRunArm.eval_run_id).where(
         EvalRunArm.organization_id == organization_id,
-        EvalRunArm.source == ArmSource.DRAFT.value,
+        EvalRunArm.source.in_([ArmSource.DRAFT.value, ArmSource.EXPLICIT.value]),
         EvalRunArm.role == ArmRole.CANDIDATE.value,
-        EvalRunArm.spec_hash == spec_hash,
+        EvalRunArm.spec_hash != spec_hash if earlier else EvalRunArm.spec_hash == spec_hash,
     )
+    after = [EvalRun.created_at >= since] if since is not None else []
     result = await db.execute(
         select(EvalRun)
         .where(
@@ -200,6 +209,7 @@ async def draft_runs(
             EvalRun.agent_id == agent_id,
             EvalRun.dataset_id.in_(dataset_ids),
             EvalRun.id.in_(tested),
+            *after,
         )
         .order_by(EvalRun.created_at.desc(), EvalRun.id)
     )
