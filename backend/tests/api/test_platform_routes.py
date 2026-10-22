@@ -1761,6 +1761,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
         # A widget's agent picture, on the same terms as a page's logo (#2006).
         ("GET", f"{V1}/embed/{{public_key}}/avatar"),
+        # A file an agent generated for a hosted page's visitor, who has no
+        # session (#2309). An `<img>` or `<video>` cannot send a header, so the
+        # credential is a short-lived link signed for that one file on that one
+        # page, minted only for a file the visitor's own run stored, and counted
+        # per link by its rate bucket.
+        ("GET", f"{V1}/embed/{{public_key}}/generated/{{filename}}"),
         # The one open route on this surface that *writes*, and the only one whose
         # exemption is about more than a read. It exists because a page whose
         # operator ticked "a visitor may attach a file" has to accept bytes from

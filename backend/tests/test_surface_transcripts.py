@@ -37,6 +37,7 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -47,6 +48,7 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.system_reminders import ReminderState
+from app.agents.deps import AgentDeps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.repositories.conversation import Attributed
@@ -111,6 +113,8 @@ class _Iteration:
         self._outcome = outcome
         self._started = False
         self.result: Any = None
+        # The run's own deps, which a hosted page reads its stored files from.
+        self.ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=AgentDeps()))
 
     def __aiter__(self) -> _Iteration:
         return self
