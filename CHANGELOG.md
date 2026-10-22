@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-22
+
 ### Added
 
 - **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
