@@ -9,7 +9,7 @@ import { FileCard, FileViewer } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { ConversationFile } from "@/lib/conversation-workspace-api";
@@ -34,6 +34,12 @@ interface WorkspaceFilesProps {
   attachments: ChatMessageFile[];
   /** Where the closed panel's button is drawn - among the composer's controls. */
   buttonSlot: HTMLElement | null;
+  /**
+   * Lie over the conversation rather than beside it - in a narrow window (the
+   * Architect's, the test panel), where a column of its own squeezed the
+   * composer until its buttons fell out of it.
+   */
+  overlay?: boolean;
 }
 
 /**
@@ -60,6 +66,7 @@ export function WorkspaceFiles({
   revision,
   attachments,
   buttonSlot,
+  overlay = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
   const { workspace, error, refresh } = useConversationWorkspace(conversationId);
@@ -144,7 +151,13 @@ export function WorkspaceFiles({
     );
 
   return (
-    <aside className="border-border w-72 shrink-0 space-y-3 border-l p-4">
+    <aside
+      className={cn(
+        "border-border w-72 shrink-0 space-y-3 border-l p-4",
+        overlay &&
+          "bg-background absolute inset-y-0 right-0 z-20 max-w-[85%] scrollbar-thin overflow-y-auto shadow-xl",
+      )}
+    >
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-medium">

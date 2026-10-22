@@ -1568,6 +1568,7 @@ function ChatUI({
           revision={turns}
           attachments={attachments}
           buttonSlot={filesSlot}
+          overlay={compact}
         />
       </div>
     </div>
