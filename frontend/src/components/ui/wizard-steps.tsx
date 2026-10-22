@@ -38,12 +38,12 @@ export function WizardSteps({ steps, current, compact = false }: WizardStepsProp
   const currentIdx = steps.findIndex((step) => step.id === current);
   if (compact) {
     return (
-      <div className="mt-3 flex items-center gap-2.5">
-        <ol className="flex items-center gap-1.5">
+      <div className="mt-3 flex items-center justify-center gap-2.5">
+        <ol className="flex h-5 items-center gap-1.5">
           {steps.map((step, i) => {
             const active = i === currentIdx;
             return (
-              <li key={step.id} aria-current={active ? "step" : undefined}>
+              <li key={step.id} aria-current={active ? "step" : undefined} className="flex">
                 <span
                   aria-hidden
                   className={cn(
@@ -57,7 +57,7 @@ export function WizardSteps({ steps, current, compact = false }: WizardStepsProp
             );
           })}
         </ol>
-        <span aria-hidden className="text-sm font-medium">
+        <span aria-hidden className="text-sm leading-5 font-medium">
           {steps[currentIdx]?.label}
         </span>
       </div>

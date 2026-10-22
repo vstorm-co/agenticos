@@ -6872,7 +6872,9 @@
     "choiceWeekly": "Weekly",
     "choiceCustom": "Custom",
     "moreOptions": "More options",
-    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved."
+    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved.",
+    "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
+    "templatesFewer": "Show fewer"
   },
   "portals": {
     "title": "Portals",

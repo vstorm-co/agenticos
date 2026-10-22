@@ -6755,7 +6755,9 @@
     "choiceWeekly": "Wöchentlich",
     "choiceCustom": "Eigener",
     "moreOptions": "Weitere Optionen",
-    "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern."
+    "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern.",
+    "templatesMore": "{count, plural, =1 {1 weitere zeigen} other {# weitere zeigen}}",
+    "templatesFewer": "Weniger zeigen"
   },
   "portals": {
     "title": "Portale",
