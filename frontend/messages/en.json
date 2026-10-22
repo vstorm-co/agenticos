@@ -9219,8 +9219,7 @@
       "description": "Datasets this agent is held to, run on their own: on a schedule, when a version is published or promoted, or when a skill or knowledge base it reads changes.",
       "new": "New suite",
       "empty": {
-        "title": "No suites yet",
-        "body": "A suite runs a dataset against the agent without anyone remembering to - every night, on every publish, or when a skill it reads changes - and tells you when a case breaks."
+        "line": "No suites yet, so this agent is checked only when somebody starts a run."
       },
       "created": "Suite created",
       "saved": "Suite saved",
@@ -9363,6 +9362,10 @@
         "cancel": "Cancel",
         "save": "Save",
         "create": "Create suite"
+      },
+      "threshold": {
+        "minPassRate": "≥{rate}",
+        "regressions": "{count, plural, =0 {0 regressions} one {≤# regression} other {≤# regressions}}"
       }
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",

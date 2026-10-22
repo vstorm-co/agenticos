@@ -7,6 +7,7 @@ import {
   scheduleCron,
   scheduleText,
   skipText,
+  thresholdText,
   whenLabels,
 } from "./suite-format";
 
@@ -66,6 +67,27 @@ describe("whenLabels", () => {
       "when.dependency",
     ]);
     expect(whenLabels(evalSuite({ schedule: null, on_publish: false }), t, t)).toEqual([]);
+  });
+});
+
+describe("thresholdText", () => {
+  const threshold = {
+    min_pass_rate: 0.7,
+    max_confirmed_regressions: 2,
+    max_cost_per_pass_rise: null,
+    max_p95_rise: null,
+  };
+
+  it("reads the minimum pass rate in the reader's locale, then the regressions allowed", () => {
+    expect(thresholdText(threshold, t, "en")).toBe(
+      "threshold.minPassRate(70%) · threshold.regressions(2)",
+    );
+  });
+
+  it("names only the regressions when there is no minimum pass rate", () => {
+    expect(thresholdText({ ...threshold, min_pass_rate: null }, t, "en")).toBe(
+      "threshold.regressions(2)",
+    );
   });
 });
 

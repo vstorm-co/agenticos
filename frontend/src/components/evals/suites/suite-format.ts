@@ -5,8 +5,10 @@ import type {
   EvalSuiteResult,
   EvalSuiteResultStatus,
   EvalSuiteSchedule,
+  EvalSuiteThreshold,
   ThresholdReason,
 } from "@/types/eval-suites";
+import { percent } from "../format";
 
 /** The colour of a result, in the verdict's own: red breaks, green passes, amber says nothing. */
 export const RESULT_TONE: Record<
@@ -91,6 +93,16 @@ export function whenLabels(suite: EvalSuite, t: Translate, days: Translate): str
   if (suite.on_promotion) labels.push(t("when.promotion"));
   if (suite.on_dependency_change) labels.push(t("when.dependency"));
   return labels;
+}
+
+/** What a result must meet, as its row shows it - "≥70% · 0 regressions". */
+export function thresholdText(threshold: EvalSuiteThreshold, t: Translate, locale: string): string {
+  const parts: string[] = [];
+  if (threshold.min_pass_rate !== null) {
+    parts.push(t("threshold.minPassRate", { rate: percent(threshold.min_pass_rate, locale) }));
+  }
+  parts.push(t("threshold.regressions", { count: threshold.max_confirmed_regressions }));
+  return parts.join(" · ");
 }
 
 /** One way a result fell short, in words, with its numbers in the reader's locale. */
