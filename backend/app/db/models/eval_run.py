@@ -343,8 +343,7 @@ class EvalRunCase(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Set on a failed attempt only. A failed attempt without one predates the
-    # column and is read as the infrastructure's, which can never pass a gate.
+    # Set on a failed attempt only; one without it reads as the infrastructure's.
     fault: Mapped[str | None] = mapped_column(String(16), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

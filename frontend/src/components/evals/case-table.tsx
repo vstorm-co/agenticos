@@ -78,7 +78,6 @@ function dotState(attempt: EvalAttempt | undefined): DotState {
   if (attempt === undefined || attempt.status === "pending" || attempt.status === "running") {
     return "pending";
   }
-  // A run the agent crashed on failed the case; one the provider or a scorer failed on did not finish.
   if (attempt.state === "failed") return "failed";
   if (attempt.status === "failed" || attempt.status === "skipped") return "incomplete";
   if (attempt.outcome === null) return "undecided";

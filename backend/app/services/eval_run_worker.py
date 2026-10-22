@@ -420,7 +420,6 @@ class EvalRunWorker:
                     attempt,
                     agent_run.error or f"The run ended {agent_run.status}",
                     agent_run,
-                    # Cancelled from outside; looping, a guardrail or a parked call is the agent.
                     fault=(
                         AttemptFault.INFRASTRUCTURE
                         if agent_run.status == RunStatus.CANCELLED.value

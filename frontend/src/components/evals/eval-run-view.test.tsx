@@ -902,7 +902,6 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: did not finish" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: undecided" })).toBeInTheDocument();
-    // A run the agent crashed on failed its case.
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: failed" })).toBeInTheDocument();
   });
 

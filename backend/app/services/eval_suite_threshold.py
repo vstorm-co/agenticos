@@ -48,7 +48,6 @@ def judge(
             ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate)
         ]
     reasons: list[ThresholdReason] = []
-    # Why it may yet pass once every case is decided.
     open_cases: list[ThresholdReason] = []
     if threshold.min_pass_rate is not None and summary.pass_rate < threshold.min_pass_rate:
         below = ThresholdReason(
