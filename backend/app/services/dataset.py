@@ -12,6 +12,7 @@ case is stored, on every way in.
 
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import takewhile
@@ -232,6 +233,7 @@ def _dataset_read(
         description=dataset.description,
         visibility=as_visibility(dataset.visibility),
         owner_user_id=dataset.owner_user_id,
+        agent_id=dataset.agent_id,
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
@@ -454,8 +456,14 @@ class DatasetService:
         if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
             raise _name_taken(name)
 
-    async def create(self, ctx: AuthContext, data: DatasetCreate) -> DatasetRead:
-        """An empty dataset, visible to the whole organization unless `data` says otherwise."""
+    async def create(
+        self, ctx: AuthContext, data: DatasetCreate, *, agent_id: UUID | None = None
+    ) -> DatasetRead:
+        """An empty dataset, visible to the whole organization unless `data` says otherwise.
+
+        `agent_id` names the agent it is made to test, for the caller that made it
+        for one; the caller has checked that agent is theirs to see.
+        """
         await self._refuse_taken_name(ctx, data.name)
         try:
             # A savepoint, because the check above is a read two requests can both
@@ -469,6 +477,7 @@ class DatasetService:
                     name=data.name,
                     description=data.description,
                     visibility=data.visibility,
+                    agent_id=agent_id,
                 )
         except IntegrityError:
             raise _name_taken(data.name) from None
@@ -1180,9 +1189,16 @@ class DatasetService:
         dataset_id: UUID,
         message_ids: list[UUID],
         *,
-        answer_as: AnswerAs = "counter_example",
+        answer_as: AnswerAs | Mapping[UUID, AnswerAs] = "counter_example",
+        with_history: bool = True,
     ) -> tuple[DatasetVersionRead | None, int]:
         """Add several agents' answers as cases, in one new version.
+
+        `answer_as` is one for every answer, or each answer's own by its id - a
+        good answer kept as the reference beside a bad one kept as the
+        counter-example, still in one version; an id it does not name is kept
+        as a counter-example. `with_history` false leaves out the turns before
+        each question.
 
         Each answer is built and checked as :meth:`add_from_message` builds and
         checks one. An answer the caller may not read - absent, in another
@@ -1204,8 +1220,15 @@ class DatasetService:
         built: list[tuple[DatasetCaseContent, dict[str, UUID | None]]] = []
         replies: set[UUID | None] = set()
         for message_id in message_ids:
+            kept_as = (
+                answer_as.get(message_id, "counter_example")
+                if isinstance(answer_as, Mapping)
+                else answer_as
+            )
             try:
-                case = await self._case_from_message(ctx, current, message_id, answer_as)
+                case = await self._case_from_message(
+                    ctx, current, message_id, kept_as, with_history=with_history
+                )
             except NotFoundError, BadRequestError, AlreadyExistsError:
                 continue
             if case[1]["source_message_id"] in replies:

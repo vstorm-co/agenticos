@@ -199,6 +199,7 @@ async def create(
     name: str,
     description: str | None,
     visibility: str,
+    agent_id: UUID | None = None,
 ) -> Dataset:
     dataset = Dataset(
         organization_id=organization_id,
@@ -206,11 +207,22 @@ async def create(
         name=name,
         description=description,
         visibility=visibility,
+        agent_id=agent_id,
     )
     db.add(dataset)
     await db.flush()
     await db.refresh(dataset)
     return dataset
+
+
+async def for_agent(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> list[Dataset]:
+    """The datasets made to test this agent, the most recently changed first."""
+    result = await db.execute(
+        select(Dataset)
+        .where(Dataset.organization_id == organization_id, Dataset.agent_id == agent_id)
+        .order_by(func.coalesce(Dataset.updated_at, Dataset.created_at).desc(), Dataset.id)
+    )
+    return list(result.scalars().all())
 
 
 async def update(db: AsyncSession, *, dataset: Dataset, update_data: dict[str, Any]) -> Dataset:

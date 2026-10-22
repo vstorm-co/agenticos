@@ -882,3 +882,20 @@ async def test_the_job_hands_its_generation_to_the_worker(monkeypatch) -> None:
     await case_generation_tasks.generate_cases(job)
 
     assert ran == [(job.generation_id, job.organization_id)]
+
+
+async def test_a_worker_reads_knowledge_through_the_process_s_vector_store(monkeypatch) -> None:
+    store = _Chunks()
+    made: list[object] = []
+
+    def process_vector_store(rag, embedder) -> _Chunks:
+        made.append((rag, embedder))
+        return store
+
+    monkeypatch.setattr(worker, "process_vector_store", process_vector_store)
+    monkeypatch.setattr(worker, "EmbeddingService", lambda rag: "embedder")
+    job = CaseGenerationWorker(uuid.uuid4(), uuid.uuid4())
+
+    assert job._store() is store
+    assert job._store() is store
+    assert len(made) == 1

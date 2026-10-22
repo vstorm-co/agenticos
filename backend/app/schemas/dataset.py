@@ -291,6 +291,9 @@ class DatasetRead(BaseSchema):
     description: str | None = None
     visibility: VisibilityLiteral
     owner_user_id: UUID | None = None
+    agent_id: UUID | None = Field(
+        default=None, description="The agent this dataset was made to test, when it names one"
+    )
     latest_version: int
     case_count: int
     can_edit: bool = Field(

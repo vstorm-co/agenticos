@@ -304,7 +304,7 @@ async def test_a_generation_left_running_too_long_reads_as_interrupted(db) -> No
     owner, org, agent, dataset = await _setup(db)
     stuck, _ = await world.proposals(db, org, dataset, agent, 1)
     fresh, _ = await world.proposals(db, org, dataset, agent, 1)
-    stuck.created_at = datetime.now(UTC) - timedelta(hours=2)
+    stuck.created_at = datetime.now(UTC) - timedelta(hours=7)
     await db.flush()
 
     listed = {

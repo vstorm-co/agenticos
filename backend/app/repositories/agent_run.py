@@ -761,6 +761,63 @@ async def questions_asked(
     ]
 
 
+@dataclass(frozen=True)
+class RatedAnswer:
+    """An agent's answer somebody rated, and how."""
+
+    message_id: UUID
+    conversation_id: UUID
+    rated_down: bool
+    """Rated down by anyone: one person's thumbs-down outweighs another's thumbs-up."""
+    conversation_owner: UUID | None
+
+
+async def rated_answers(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    since: datetime | None,
+    limit: int,
+) -> list[RatedAnswer]:
+    """This agent's rated answers, rated down first, then by the newest rating.
+
+    `since` keeps the answers rated at or after it. The traffic is what
+    :func:`questions_asked` reads - production only, the tenant held on both the
+    run and the conversation - for the reason it gives.
+    """
+    rated_down = func.bool_or(MessageRating.rating < 0)
+    where = [
+        Message.role == "assistant",
+        AgentRun.agent_id == agent_id,
+        AgentRun.organization_id == organization_id,
+        AgentRun.surface != RunSurface.EVAL.value,
+        ~select(InterceptedToolCall.id).where(InterceptedToolCall.run_id == AgentRun.id).exists(),
+        Conversation.organization_id == organization_id,
+    ]
+    if since is not None:
+        where.append(MessageRating.created_at >= since)
+    result = await db.execute(
+        select(Message.id, Message.conversation_id, rated_down, Conversation.user_id)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*where)
+        .group_by(Message.id, Message.conversation_id, Conversation.user_id)
+        .order_by(rated_down.desc(), func.max(MessageRating.created_at).desc(), Message.id)
+        .limit(limit)
+    )
+    return [
+        RatedAnswer(
+            message_id=message_id,
+            conversation_id=conversation_id,
+            rated_down=bool(down),
+            conversation_owner=owner,
+        )
+        for message_id, conversation_id, down, owner in result.all()
+    ]
+
+
 def _counts_for_a_department() -> list[ColumnElement[bool]]:
     """The runs a department's cap holds: its members' own, not a routine's.
 

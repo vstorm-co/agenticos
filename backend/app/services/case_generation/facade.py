@@ -105,11 +105,33 @@ class CaseGenerationService:
                 may not use or that has nothing to draft from.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        material, quotas, prompt = await self._draft(ctx, data)
+        return dataset.id, material, quotas, prompt
+
+    async def _draft(
+        self, ctx: AuthContext, data: CaseGenerationRequest
+    ) -> tuple[Material, dict[CaseOrigin, int], str]:
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         sources = [CaseOrigin(source) for source in data.sources]
         quotas = split(data.count, sources)
         material = await self.sources.gather(ctx, data.agent_id, sources)
-        return dataset.id, material, quotas, build_prompt(material, quotas)
+        return material, quotas, build_prompt(material, quotas)
+
+    async def price_for_agent(
+        self, ctx: AuthContext, data: CaseGenerationRequest
+    ) -> Decimal | None:
+        """What drafting `data` would cost before any dataset holds the cases.
+
+        For an agent's test set, which is created only when it is built. The
+        material is read under the same gates as :meth:`estimate`; `None` for a
+        generator's model with no price.
+
+        Raises:
+            NotFoundError, AiAssistanceDisabledError, BadRequestError: As
+                :meth:`plan` does, but for the dataset.
+        """
+        _, _, prompt = await self._draft(ctx, data)
+        return await self._price(ctx, prompt, data.count)
 
     async def _price(self, ctx: AuthContext, prompt: str, count: int) -> Decimal | None:
         """The estimated cost on the generator's model, or `None` when it has no price.

@@ -1604,6 +1604,16 @@ def get_case_generation_service(
 
 CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
 
+from app.services.agent_test_set import AgentTestSetService
+
+
+def get_agent_test_set_service(db: DBSession, vector_store: VectorStoreSvc) -> AgentTestSetService:
+    """Create AgentTestSetService instance with database session."""
+    return AgentTestSetService(db, vector_store=vector_store)
+
+
+AgentTestSetSvc = Annotated[AgentTestSetService, Depends(get_agent_test_set_service)]
+
 
 def get_organization_teardown_service(
     db: DBSession, vector_store: VectorStoreSvc
