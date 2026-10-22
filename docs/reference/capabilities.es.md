@@ -1,5 +1,5 @@
 ---
-source_sha: "30c0824bee69"
+source_sha: "1cdbf74d7e0e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1266,8 +1266,9 @@ dibujo y lo envía solo cuando la persona hace clic en *Enviar*; una petición s
 clic detrás se descarta. Consulte
 [mensajes de seguimiento](../artifacts.md#visuals).
 
-**Mapas.** `lib/agenticos-map-1.js` dibuja un itinerario - chinchetas numeradas que
-caen en orden, la línea entre ellas, pausa y repetición, y una tarjeta por parada -
+**Mapas.** `lib/agenticos-map-2.js` dibuja un itinerario - chinchetas numeradas en
+orden y la línea entre ellas, mostradas a la vez y que caen una a una cuando se pide,
+sobre un mapa 16:9 del ancho de la página, y una tarjeta por parada -
 sobre el servidor de teselas que nombra `VISUAL_MAP_TILES`, o como un contorno de
 las paradas en un despliegue que no nombra ninguno. Las instrucciones de la
 capability le dicen al modelo cuál es el caso, para que no prometa calles que no

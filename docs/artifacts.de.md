@@ -1,5 +1,5 @@
 ---
-source_sha: "343d37ab9728"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Apps { #artifacts }
@@ -143,6 +143,7 @@ später auf einen anderen Origin verlegt:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, als `window.L` - zeichnet auf den [Kartenkacheln](#visuals) des Deployments, wenn es welche hat |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gezeigt und auf Wunsch einzeln gesetzt, eine Karte im Verhältnis 16:9 zur Breite der Seite, eine Linie zwischen ihnen und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps. `lib/agenticos-map-1.js`, das die Pins beim Laden setzt und eine feste Höhe hat, wird für die Seiten, die es nennen, weiter ausgeliefert |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gesetzt, eine Linie zwischen ihnen, Pause und Wiederholung und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt

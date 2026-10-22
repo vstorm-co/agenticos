@@ -1,5 +1,5 @@
 ---
-source_sha: "30c0824bee69"
+source_sha: "1cdbf74d7e0e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1324,8 +1324,9 @@ der Zeichnung und sendet ihn erst, wenn die Person auf *Senden* klickt; eine Bit
 ohne Klick dahinter wird verworfen. Siehe
 [Folgenachrichten](../artifacts.md#visuals).
 
-**Karten.** `lib/agenticos-map-1.js` zeichnet eine Reiseroute - nummerierte Pins,
-der Reihe nach gesetzt, die Linie dazwischen, Pause und Wiederholung und eine Karte
+**Karten.** `lib/agenticos-map-2.js` zeichnet eine Reiseroute - nummerierte Pins
+der Reihe nach und die Linie dazwischen, sofort alle gezeigt und auf Wunsch einzeln
+gesetzt, auf einer Karte im Verhältnis 16:9 zur Breite der Seite, und eine Karte
 pro Stopp - auf dem Kachelserver, den `VISUAL_MAP_TILES` nennt, oder auf einem
 Deployment ohne einen als Umriss der Stopps. Die Anweisungen der Capability sagen
 dem Modell, welcher Fall vorliegt, damit es keine Straßen verspricht, die es nicht

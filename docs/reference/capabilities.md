@@ -1186,8 +1186,9 @@ stop*, *Use these numbers*. The console shows the text under the drawing and
 sends it only when the person clicks *Send*; a request with no click behind it
 is dropped. See [Follow-ups](../artifacts.md#visuals).
 
-**Maps.** `lib/agenticos-map-1.js` draws an itinerary - numbered pins dropped in
-order, the line between them, pause and replay, and a card per stop - on the
+**Maps.** `lib/agenticos-map-2.js` draws an itinerary - numbered pins in order, the
+line between them, all shown at once and dropped one by one on request, on a map
+16:9 of the page's width, and a card per stop - on the
 tile server `VISUAL_MAP_TILES` names, or as an outline of the stops on a
 deployment that names none. The capability's instructions tell the model which,
 so it does not promise streets it cannot show.

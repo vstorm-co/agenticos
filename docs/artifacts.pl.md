@@ -1,5 +1,5 @@
 ---
-source_sha: "343d37ab9728"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Aplikacje { #artifacts }
@@ -131,6 +131,7 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, jako `window.L` - rysuje na [kafelkach map](#visuals) deploymentu, jeśli je ma |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: ponumerowane pinezki pokazane po kolei i wbijane jedna po drugiej na życzenie, mapa w proporcji 16:9 do szerokości strony, linia między nimi oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków. `lib/agenticos-map-1.js`, który wbija pinezki przy ładowaniu i ma jedną wysokość, jest dalej serwowany stronom, które go wskazują |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: ponumerowane pinezki wbijane po kolei, linia między nimi, pauza i powtórka oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje

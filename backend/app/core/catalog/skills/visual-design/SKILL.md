@@ -283,7 +283,7 @@ Load Leaflet and the map kit, then hand it the stops:
 ```html
 <link rel="stylesheet" href="lib/leaflet-1.9.4/leaflet.css">
 <script src="lib/leaflet-1.9.4/leaflet.js"></script>
-<script src="lib/agenticos-map-1.js"></script>
+<script src="lib/agenticos-map-2.js"></script>
 <div id="trip"></div>
 <script>
   AOMap.itinerary("#trip", {
@@ -294,8 +294,9 @@ Load Leaflet and the map kit, then hand it the stops:
 </script>
 ```
 
-It drops numbered pins in order, joins them with a dashed line, offers Pause and
-Replay, and lays the stops out as cards under the map; clicking a pin or a card
+It shows numbered pins joined in order by a dashed line, replays them dropping
+one by one on request (`autoplay: true` plays them on load), and lays the stops
+out as cards under the map; clicking a pin or a card
 jumps to it. Your instructions say whether this deployment has map tiles: with
 them it is a real map with its credit under it, without them an outline of the
 stops. Without tiles, say so in your answer - not as a note inside the drawing -
@@ -304,8 +305,8 @@ language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
 and the photo's `credit` and `creditUrl` - show the author and the licence for
 every photo you did not make. Two to twelve stops read best.
 
-The itinerary is a whole layout - map, controls and stop cards - sized by its own
-`height`. Put its element straight on the page: no border, background or
+The itinerary is a whole layout - map, controls and stop cards - 16:9 of the
+page's width and never lower than its `height`. Put its element straight on the page: no border, background or
 `min-height` around it, and no second list of the same stops beside it - the
 cards are that list, and a framed box with a fixed height leaves the map touching
 its edges over a band of empty space. Put any day-by-day detail in the stops'

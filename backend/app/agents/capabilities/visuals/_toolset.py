@@ -224,7 +224,7 @@ class VisualsToolset:
           `import * as THREE from "three"` and
           `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
         - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
-          `lib/agenticos-map-1.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
+          `lib/agenticos-map-2.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
           cards for the stops. It draws on the deployment's map tiles, or as an outline
           of the stops where there are none; your instructions say which. It is its

@@ -152,6 +152,13 @@ Two things are versioned separately from this file and worth knowing about:
   the "?" that replays the chat's tips moved into the chat settings, and the
   composer takes a card's light shadow instead of a dark drop. What stays under
   it is the connection, and only when it is offline.
+- **Map kit version 2, `lib/agenticos-map-2.js`.** An itinerary shows its whole
+  route on load and drops the pins one by one only on request (`autoplay: true`
+  plays them on load); the map is 16:9 of the page's width, never lower than its
+  `height`, so it grows in a wide window and in full screen; and a frame a page
+  draws around it no longer leaves everything touching its edge. The skills and
+  tools name version 2; `agenticos-map-1.js` stays served for the pages that
+  name it.
 - **A map drawn without tiles is explained.** The agent says in its answer that
   no map server is connected and that an administrator turns real maps on with
   `VISUAL_MAP_TILES`, instead of a note inside the drawing. Tiles stay off by

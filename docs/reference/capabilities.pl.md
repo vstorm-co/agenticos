@@ -1,5 +1,5 @@
 ---
-source_sha: "30c0824bee69"
+source_sha: "1cdbf74d7e0e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1246,8 +1246,9 @@ wysłanie wyboru osoby jako jej następnej wiadomości - *Zaplanuj ten przystane
 osoba kliknie *Wyślij*; prośba, za którą nie stoi kliknięcie, jest odrzucana. Zobacz
 [follow-upy](../artifacts.md#visuals).
 
-**Mapy.** `lib/agenticos-map-1.js` rysuje trasę - ponumerowane pinezki wbijane po
-kolei, linię między nimi, pauzę i powtórkę oraz kartę dla każdego przystanku - na
+**Mapy.** `lib/agenticos-map-2.js` rysuje trasę - ponumerowane pinezki po kolei i
+linię między nimi, pokazane od razu i wbijane jedna po drugiej na życzenie, na mapie
+w proporcji 16:9 do szerokości strony, oraz kartę dla każdego przystanku - na
 serwerze kafelków wskazanym przez `VISUAL_MAP_TILES`, a na deploymencie, który
 żadnego nie wskazuje, jako zarys przystanków. Instrukcje capability mówią modelowi,
 który to przypadek, żeby nie obiecywał ulic, których nie pokaże.
