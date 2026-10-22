@@ -35,4 +35,15 @@ describe("ComposerStatus", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "page help" })).toBeVisible();
   });
+
+  it("leaves a phone's chat ending at the composer unless the connection is gone", () => {
+    const { container, rerender } = render(<ComposerStatus isConnected />);
+    expect(container.firstElementChild).toHaveClass("max-md:hidden");
+    expect(screen.getByText("AI can make mistakes. Verify important information.")).toHaveClass(
+      "max-md:hidden",
+    );
+
+    rerender(<ComposerStatus isConnected={false} />);
+    expect(container.firstElementChild).not.toHaveClass("max-md:hidden");
+  });
 });

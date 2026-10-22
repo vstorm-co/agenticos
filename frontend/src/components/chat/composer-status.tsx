@@ -37,6 +37,9 @@ export function ComposerStatus({
       className={cn(
         "text-muted-foreground/80 flex items-center justify-center gap-1.5 px-1 leading-none",
         compact ? "mt-1 h-4 text-[10px]" : "mt-1 h-5 text-[11px]",
+        // A phone's chat ends at the composer, as a messenger's does: the line
+        // under it is there only to say the connection is gone.
+        isConnected && "max-md:hidden",
       )}
     >
       <span role="status" className={isConnected ? "sr-only" : "contents"}>
@@ -49,14 +52,14 @@ export function ComposerStatus({
           </span>
         )}
       </span>
-      <span className="bg-background min-w-0 truncate rounded-sm px-1 py-0.5">
+      <span className="bg-background min-w-0 truncate rounded-sm px-1 py-0.5 max-md:hidden">
         {t("aiCanMakeMistakes")}
       </span>
       {/* Chat is the one surface with no PageHeader, so the "?" that replays a
           page's tips lives here - beside the disclaimer rather than among the
           controls, where it was the one button that did not act on the message
           being written. */}
-      <span className="[&_button]:text-muted-foreground/80 contents [&_button]:size-5 [&_svg]:size-3">
+      <span className="[&_button]:text-muted-foreground/80 contents max-md:hidden [&_button]:size-5 [&_svg]:size-3">
         <RestartTourButton />
       </span>
     </div>
