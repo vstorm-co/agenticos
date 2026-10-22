@@ -1409,19 +1409,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </TabsTrigger>
             )}
             {canViewRuns && !isSystem && (
-              <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                {t("evals")}
-              </TabsTrigger>
+              <>
+                <TabsTrigger value="evals" data-tour="agent-tab-evals">
+                  {t("evals")}
+                </TabsTrigger>
+                <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                  {tGaps("tab")}
+                </TabsTrigger>
+              </>
             )}
+            {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
             <TabsTrigger value="history" data-tour="agent-tab-history">
               {t("history")}
             </TabsTrigger>
-            {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
-            {canViewRuns && !isSystem && (
-              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                {tGaps("tab")}
-              </TabsTrigger>
-            )}
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
@@ -1926,8 +1926,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
-              <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
               <EvalsPanel agentId={id} canStart={canStartEvals} />
+              <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
             </TabsContent>
           )}
           {isJudge && (
