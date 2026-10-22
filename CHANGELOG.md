@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-10-22
+
 ### Fixed
 
 - **A dead job's ending is settled once (#2334).** When a job died for good,
