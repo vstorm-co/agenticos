@@ -54,6 +54,7 @@ from app.services.channels.base import (
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.teams_auth import TeamsAuth, TeamsCredentials, is_connector_url
+from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,16 @@ def _chunks(text: str) -> list[str]:
         rest = rest[cut:]
     pieces.append(rest)
     return pieces
+
+
+def _download_ceiling() -> int:
+    """The most a fetched attachment may hold: the larger of what either caller takes.
+
+    A file goes to chat storage and a voice message to transcription, and each
+    caller checks the bytes against its own limit afterwards; this only stops
+    the download from outgrowing both.
+    """
+    return max(settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024, TRANSCRIPTION_MAX_BYTES)
 
 
 def _card(text: str, choices: list[ChannelChoice]) -> dict[str, Any]:
@@ -658,15 +669,31 @@ class TeamsAdapter(ChannelAdapter):
         A file in a personal chat arrives with a pre-authorised download URL; a
         picture pasted into a message is held by the Connector and needs the
         bot's token - which is sent nowhere but a Connector address.
+
+        Read in chunks and abandoned past `_download_ceiling()`: a pasted
+        picture states no size, so the callers' check against the claim passes
+        it, and buffering the whole body before their check on the bytes would
+        let one large file take a worker's memory.
+
+        Raises:
+            ValueError: For an address that is not HTTPS, or a body past the ceiling.
         """
         if not attachment.handle.startswith("https://"):
             raise ValueError("A Teams attachment is fetched over HTTPS only")
         headers: dict[str, str] = {}
         if is_connector_url(attachment.handle):
             headers = await self._headers(TeamsCredentials.decode(bot_token))
-        response = await self._client.get(attachment.handle, headers=headers)
-        response.raise_for_status()
-        return response.content
+        ceiling = _download_ceiling()
+        received = bytearray()
+        async with self._client.stream("GET", attachment.handle, headers=headers) as response:
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                received.extend(chunk)
+                if len(received) > ceiling:
+                    raise ValueError(
+                        f"A Teams attachment is larger than {ceiling // (1024 * 1024)} MB"
+                    )
+        return bytes(received)
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Teams has nothing to poll: it posts every activity to the bot's endpoint."""

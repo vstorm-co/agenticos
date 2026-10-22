@@ -686,6 +686,25 @@ class TestDownloadingWhatWasSent:
         )
         assert connector.calls[-1].headers["authorization"] == "Bearer bot-token"
 
+    @pytest.mark.security
+    async def test_a_file_stating_no_size_is_abandoned_past_the_ceiling(
+        self, adapter: TeamsAdapter, connector: _Connector, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A pasted picture states no size, so only the download itself can bound it (Codex on #2324)."""
+        monkeypatch.setattr(teams, "_download_ceiling", lambda: 1024)
+        connector.answers["/v3/attachments/big"] = httpx.Response(200, content=b"x" * 4096)
+        with pytest.raises(ValueError, match="larger than"):
+            await adapter.download_attachment(
+                TOKEN, IncomingAttachment("p.png", "image/png", 0, f"{SERVICE}v3/attachments/big")
+            )
+
+    def test_the_ceiling_admits_whatever_either_caller_would_keep(self) -> None:
+        from app.core.config import settings
+        from app.services.transcription import MAX_BYTES
+
+        assert teams._download_ceiling() >= MAX_BYTES
+        assert teams._download_ceiling() >= settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
     async def test_only_https_is_fetched(self, adapter: TeamsAdapter) -> None:
         with pytest.raises(ValueError, match="HTTPS"):
             await adapter.download_attachment(
