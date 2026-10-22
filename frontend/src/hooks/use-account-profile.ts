@@ -31,3 +31,19 @@ export function useSaveAgentContext(): (changes: AgentContext) => Promise<User> 
     [setUser],
   );
 }
+
+/**
+ * Leave the signed-in person out of the organization's nightly look, or let it
+ * reach them again (#2301), keeping the session's copy of the account in step.
+ */
+export function useSaveProactiveOptOut(): (optOut: boolean) => Promise<User> {
+  const setUser = useAuthStore((state) => state.setUser);
+  return useCallback(
+    async (optOut: boolean) => {
+      const updated = await apiClient.patch<User>("/users/me", { proactive_opt_out: optOut });
+      setUser(updated);
+      return updated;
+    },
+    [setUser],
+  );
+}

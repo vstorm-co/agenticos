@@ -469,19 +469,30 @@ heartbeat recorded, unlike a text run, whose spend dies with its process.
 
 ### Proactive work { #proactive-work }
 
-The platform does a little on its own initiative: once a night, early in each
-person's morning, a background job reads what they asked recently and proposes a
-routine for a request they keep repeating, a profile, or the first messages their
-empty chat offers ([Console](console.md#chat)). Each is one model call, on the
-AgenticOS agent's model, recorded in run history as a run from the **proactive**
-surface and counted against the organization's budget like any other.
+The platform can do a little on its own initiative, and does nothing of the kind
+until an organization turns it on: the **Proactivity** card on its members page
+(`budgets:manage`). Turned on, a background job looks at each person's recent
+requests on the days and at the hour the organization chose - in each person's
+time zone, or an hour before the working hours their profile states - and
+proposes a routine for a request they keep repeating, a profile, or the first
+messages their empty chat offers ([Console](console.md#chat)).
+
+Each is one model
+call, on the model the organization chose when it turned this on (there is no
+default: `proactive_model_profile_id` is required), recorded in run history as a
+run from the **proactive** surface and counted against the organization's budget
+like any other. A person can leave themselves out under **Settings → Assistant**.
 
 On top of that, each person's proactive runs in a calendar month are capped by
-the organization's **proactive limit** - $1 by default, set beside the
-organization's spending limit on its members page (`proactive_limit_usd`, which
-needs `budgets:manage`), and 0 to switch the work off. A person nothing new
-happened to costs nothing: the job only calls the model when there is something
-to read.
+the organization's **proactive limit** - $1 by default, set on the same card
+(`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
+only calls the model when there is something to read.
+
+The same card holds the **welcome message**, off by default and gated on
+`org:settings`: a new member's direct message from the organization's Slack,
+Teams and Mattermost bots, in the organization's own words when it wrote some
+(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
+their language.
 
 ### What run history shows
 

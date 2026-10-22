@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import member_repo
+from app.repositories.member import SweepCandidate
+from app.schemas.user import WorkingHours
 from app.services.background_jobs import enqueue
 from app.worker.jobs import (
     INSTALL_ROLE_PACK,
@@ -26,9 +28,24 @@ from app.worker.jobs import (
 # stays light (below).
 _STARTER_SLUG = "agenticos"
 
-# Early in the person's own morning, so what the night proposes is waiting when
-# they start. Three hours wide, so an hourly sweep that misses one still lands.
-_NIGHT = range(4, 7)
+# From the hour the organization chose, three hours wide: the sweep is hourly,
+# and one that misses a tick still lands. `NightlyLook.due` keeps it to once.
+_WINDOW_HOURS = 3
+
+
+def _its_time(candidate: SweepCandidate, now: datetime) -> bool:
+    """Whether it is this person's hour, on one of the organization's days, where they are.
+
+    `before_work` aims an hour before the working hours their profile states and
+    falls back to the organization's hour for a profile that states none.
+    """
+    local = now.astimezone(ZoneInfo(candidate.time_zone or "UTC"))
+    if local.isoweekday() not in candidate.days:
+        return False
+    hour = candidate.hour
+    if candidate.timing == "before_work" and candidate.working_hours is not None:
+        hour = (WorkingHours.model_validate(candidate.working_hours).start_hour - 1) % 24
+    return (local.hour - hour) % 24 < _WINDOW_HOURS
 
 
 class ProactiveService:
@@ -45,7 +62,7 @@ class ProactiveService:
         self.db = db
 
     async def sweep(self, *, now: datetime) -> int:
-        """Queue the nightly look for everybody whose morning it is and who is due.
+        """Queue the nightly look for everybody whose hour it is and who is due.
 
         Returns how many were queued. The look itself decides whether there is
         anything to read; this only decides whose turn it is.
@@ -54,18 +71,18 @@ class ProactiveService:
 
         nightly = NightlyLook(self.db)
         queued = 0
-        for organization_id, user_id, zone in await member_repo.sweep_candidates(
-            self.db, agent_slug=_STARTER_SLUG
-        ):
-            if now.astimezone(ZoneInfo(zone or "UTC")).hour not in _NIGHT:
+        for candidate in await member_repo.sweep_candidates(self.db, agent_slug=_STARTER_SLUG):
+            if not _its_time(candidate, now):
                 continue
-            if not await nightly.due(organization_id, user_id, now=now):
+            if not await nightly.due(candidate.organization_id, candidate.user_id, now=now):
                 continue
             await enqueue(
                 self.db,
                 THINK_FOR_PERSON,
-                ThinkForPerson(organization_id=organization_id, user_id=user_id),
-                organization_id=organization_id,
+                ThinkForPerson(
+                    organization_id=candidate.organization_id, user_id=candidate.user_id
+                ),
+                organization_id=candidate.organization_id,
             )
             queued += 1
         return queued

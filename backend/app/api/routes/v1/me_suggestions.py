@@ -7,7 +7,7 @@ anybody else's. Console only - a card in the chat is the one place they are read
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.deps import Auth, SuggestionSvc
 from app.schemas.suggestion import SuggestionList, SuggestionRead
@@ -16,9 +16,15 @@ router = APIRouter()
 
 
 @router.get("", response_model=SuggestionList)
-async def list_my_suggestions(service: SuggestionSvc, ctx: Auth) -> Any:
+async def list_my_suggestions(
+    service: SuggestionSvc,
+    ctx: Auth,
+    decided: bool = Query(
+        False, description="Include the ones already accepted or dismissed, newest first."
+    ),
+) -> Any:
     """The person's open suggestions in this organization, newest first."""
-    items = await service.list_mine(ctx)
+    items = await service.list_mine(ctx, decided=decided)
     return SuggestionList(
         items=[SuggestionRead.model_validate(item) for item in items], total=len(items)
     )
@@ -34,3 +40,9 @@ async def accept_suggestion(suggestion_id: UUID, service: SuggestionSvc, ctx: Au
 async def dismiss_suggestion(suggestion_id: UUID, service: SuggestionSvc, ctx: Auth) -> Any:
     """Decline a suggestion; the same one is not proposed again."""
     return await service.dismiss(ctx, suggestion_id)
+
+
+@router.post("/{suggestion_id}/restore", response_model=SuggestionRead)
+async def restore_suggestion(suggestion_id: UUID, service: SuggestionSvc, ctx: Auth) -> Any:
+    """Bring back a dismissed suggestion, to answer again."""
+    return await service.restore(ctx, suggestion_id)

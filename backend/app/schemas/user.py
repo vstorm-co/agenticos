@@ -36,6 +36,11 @@ class WorkingHours(BaseSchema):
             raise ValueError("Weekdays run from 1 (Monday) to 7 (Sunday)")
         return sorted(set(days))
 
+    @property
+    def start_hour(self) -> int:
+        """The hour the working day starts in, its minutes dropped."""
+        return int(self.start.split(":", 1)[0])
+
     @model_validator(mode="after")
     def _ends_after_it_starts(self) -> WorkingHours:
         if self.end <= self.start:
@@ -124,6 +129,13 @@ class UserUpdate(BaseSchema):
     working_hours: WorkingHours | None = Field(
         default=None, description="When I work, as every agent is told it; null clears it."
     )
+    proactive_opt_out: bool | None = Field(
+        default=None,
+        description=(
+            "Leave me out of the organization's nightly look at my week, whatever the "
+            "organization has turned on."
+        ),
+    )
 
     @field_validator("email")
     @classmethod
@@ -171,6 +183,7 @@ class UserRead(UserBase, TimestampSchema):
     # The first messages an empty chat with the starter agent offers this person,
     # written for them in the background; null until the first sweep reaches them.
     personal_starters: list[str] | None = None
+    proactive_opt_out: bool = False
 
 
 class UserAgentContext(BaseSchema):

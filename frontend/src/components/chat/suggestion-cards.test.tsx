@@ -54,6 +54,7 @@ function suggestion(kind: Suggestion["kind"], payload: Record<string, unknown>):
   return {
     id: `s-${kind}`,
     kind,
+    status: "open",
     title: `Title ${kind}`,
     detail: `Detail ${kind}`,
     payload,

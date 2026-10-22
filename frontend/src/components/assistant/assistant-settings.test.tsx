@@ -25,6 +25,10 @@ vi.mock("@/stores", () => ({
   useOrgStore: (pick: (store: { activeOrgId: string | null }) => unknown) =>
     pick({ activeOrgId: state.orgId }),
 }));
+// The person's suggestions are tested on their own; here only that they are offered.
+vi.mock("./your-suggestions", () => ({
+  YourSuggestions: () => <section aria-label="Suggestions for you" />,
+}));
 
 function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
   return {

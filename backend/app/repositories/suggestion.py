@@ -65,6 +65,28 @@ async def list_open(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -
     return list(result.scalars().all())
 
 
+async def list_all(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, limit: int
+) -> list[Suggestion]:
+    """Every proposal this person was made here, whatever they answered, newest first."""
+    result = await db.execute(
+        select(Suggestion)
+        .where(Suggestion.organization_id == organization_id, Suggestion.user_id == user_id)
+        .order_by(Suggestion.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def reopen(db: AsyncSession, *, suggestion: Suggestion) -> Suggestion:
+    """Take a decision back: the proposal waits again."""
+    suggestion.status = SuggestionStatus.OPEN.value
+    suggestion.decided_at = None
+    await db.flush()
+    await db.refresh(suggestion)
+    return suggestion
+
+
 async def keys_for(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> set[str]:
     """Every proposal key this person was ever offered here - what a sweep must not repeat."""
     result = await db.execute(

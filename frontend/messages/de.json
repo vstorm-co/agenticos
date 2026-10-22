@@ -2703,6 +2703,15 @@
             "body": "Der Architect baut ihn mit Ihnen."
           }
         }
+      },
+      "suggestions": {
+        "title": "Vorschläge für Sie",
+        "description": "Was der nächtliche Blick auf Ihre Woche vorgeschlagen hat: eine Routine, einen Agent, Ihr Profil.",
+        "empty": {
+          "title": "Noch nichts vorgeschlagen",
+          "description": "Vorschläge erscheinen hier nach dem nächtlichen Blick auf Ihre Woche.",
+          "descriptionOff": "Ihre Organisation hat nächtliche Vorschläge ausgeschaltet."
+        }
       }
     },
     "edit": {
@@ -6336,13 +6345,32 @@
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen."
     },
     "proactive": {
-      "title": "Hintergrundarbeit pro Person",
-      "description": "Was die Plattform pro Mitglied und Monat für Arbeit aus eigener Initiative ausgeben darf - wiederholte Anfragen erkennen, die ersten Nachrichten schreiben. Zählt zum Monatslimit oben. 0 schaltet sie ab.",
-      "label": "Limit pro Person (USD)",
+      "title": "Proaktivität",
+      "description": "Arbeit, die die Plattform von sich aus im Hintergrund für Menschen erledigt. Aus, bis Sie sie einschalten.",
+      "nightly": "Nächtliche Vorschläge",
+      "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
+      "model": "Modell",
+      "modelHint": "Worauf der nächtliche Blick läuft. Ein kleines, günstiges Modell genügt.",
+      "modelPlaceholder": "Modell wählen",
+      "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
+      "label": "Limit pro Person (USD im Monat)",
+      "days": "Tage",
+      "timing": "Wann",
+      "timingFixed": "Zu einer festen Stunde",
+      "timingBeforeWork": "Eine Stunde vor ihrer Arbeitszeit",
+      "hour": "Stunde",
+      "hourHint": "In der Zeitzone jeder Person.",
+      "hourFallbackHint": "Für Personen ohne Arbeitszeit im Profil, in ihrer eigenen Zeitzone.",
       "save": "Speichern",
-      "saved": "Limit pro Person aktualisiert",
-      "off": "Hintergrundarbeit ist aus",
-      "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr."
+      "saved": "Nächtliche Vorschläge gespeichert",
+      "off": "Nächtliche Vorschläge sind aus",
+      "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr.",
+      "welcome": "Willkommensnachricht in Chat-Apps",
+      "welcomeHint": "Ein neues Mitglied erhält eine Direktnachricht von Ihren Slack-, Teams- und Mattermost-Bots.",
+      "welcomeText": "Nachricht",
+      "welcomeTextHint": "Leer lassen für die eingebaute Begrüßung in der Sprache der Person. '{organization}', '{bot}' und '{url}' werden ausgefüllt.",
+      "welcomeTextPlaceholder": "Willkommen bei '{organization}'! Fragen Sie mich hier alles.",
+      "welcomeSaved": "Willkommensnachricht gespeichert"
     }
   },
   "theme": {
@@ -7343,7 +7371,23 @@
     "organization": "Für die Organisation",
     "organizationDescription": "Der AI Architect ist ein Agent wie jeder andere: Name, Modell und Wissen ändern Sie im Agent Builder. Ausschalten und Begrüßung finden Sie auf der Seite der Organisation.",
     "openBuilder": "Im Agent Builder öffnen",
-    "openOrganization": "Einstellungen der Organisation"
+    "openOrganization": "Einstellungen der Organisation",
+    "suggestions": {
+      "title": "Vorschläge für Sie",
+      "description": "Was der nächtliche Blick auf Ihre Woche vorgeschlagen hat, und ob er überhaupt stattfindet.",
+      "forMe": "Nächtliche Vorschläge für mich",
+      "orgOff": "Ihre Organisation hat nächtliche Vorschläge ausgeschaltet, daher entstehen noch keine.",
+      "turnedOn": "Nächtliche Vorschläge sind für Sie an",
+      "turnedOff": "Nächtliche Vorschläge sind für Sie aus",
+      "none": "Noch nichts vorgeschlagen.",
+      "restore": "Zurückholen",
+      "restored": "Wieder unter Ihren Vorschlägen",
+      "status": {
+        "open": "Offen",
+        "accepted": "Angenommen",
+        "dismissed": "Abgelehnt"
+      }
+    }
   },
   "orgAssistant": {
     "title": "AI Architect",

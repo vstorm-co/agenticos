@@ -1,6 +1,6 @@
 """OrganizationMember repository (PostgreSQL async)."""
 
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
@@ -12,6 +12,7 @@ from app.db.models.organization import (
     Organization,
     OrganizationMember,
     OrgRole,
+    ProactiveTiming,
 )
 from app.db.models.user import User
 
@@ -87,14 +88,33 @@ async def get_active(
     return result.scalar_one_or_none()
 
 
-async def sweep_candidates(
-    db: AsyncSession, *, agent_slug: str
-) -> list[tuple[UUID, UUID, str | None]]:
-    """`(organization, person, time zone)` for every active member of an organization
-    whose starter agent is published - who the platform's nightly look may reach (#2301)."""
+class SweepCandidate(NamedTuple):
+    """A person the nightly look may reach, with what decides when it does (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    time_zone: str | None
+    working_hours: dict[str, Any] | None
+    days: list[int]
+    hour: int
+    timing: ProactiveTiming
+
+
+async def sweep_candidates(db: AsyncSession, *, agent_slug: str) -> list[SweepCandidate]:
+    """Every active member of an organization that turned proactivity on, with a model
+    to run it on and a published starter agent, who has not opted out (#2301)."""
     result = await db.execute(
-        select(OrganizationMember.organization_id, OrganizationMember.user_id, User.time_zone)
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
         .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
         .join(
             Agent,
             and_(
@@ -103,9 +123,14 @@ async def sweep_candidates(
                 Agent.current_version_id.is_not(None),
             ),
         )
-        .where(User.is_active.is_(True))
+        .where(
+            User.is_active.is_(True),
+            User.proactive_opt_out.is_(False),
+            Organization.proactive_enabled.is_(True),
+            Organization.proactive_model_profile_id.is_not(None),
+        )
     )
-    return [(row[0], row[1], row[2]) for row in result.all()]
+    return [SweepCandidate(*row) for row in result.all()]
 
 
 async def list_for_org(

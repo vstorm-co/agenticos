@@ -324,6 +324,8 @@ const ME_SECTIONS: SectionDef[] = [
       // What to try next, first: a person new here sees the way in before the
       // figures of work they have not done yet (#2301).
       { widget: "getting-started", span: "s12", rows: "r2" },
+      // What the nightly look proposed, beside the way in (#2301).
+      { widget: "suggestions", span: "s12", rows: "r3" },
       { widget: "my-summary", span: "s12", rows: "r2" },
       // Then what a person acts on: the calls waiting on them beside the
       // conversations they left open. The queue sat at the foot of the page,

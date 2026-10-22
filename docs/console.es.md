@@ -1,5 +1,5 @@
 ---
-source_sha: "03f4d67793b1"
+source_sha: "dc38cd692704"
 ---
 
 # La consola { #the-console }
@@ -326,12 +326,14 @@ entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
 configurar - una rutina, un servicio que conectar, un agent propio - cada una con
 un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
 
-**Lo que notó durante la noche.** Una vez por noche, temprano en tu mañana, la
-plataforma lee tus conversaciones recientes en una tarea en segundo plano: una
+**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
+día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
+tarea en segundo plano: una
 petición que repites se convierte en una rutina propuesta, lo que un agent supo
 de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
 mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
-chat vacío y en la campana; acepta una y queda configurada, descártala y la misma
+chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
+todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
 propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
 que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
 Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.

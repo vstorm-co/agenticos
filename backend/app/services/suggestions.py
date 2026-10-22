@@ -20,6 +20,9 @@ from app.repositories import suggestion_repo, user_repo
 from app.schemas.user import UserUpdate
 from app.services.proactive import ProactiveService
 
+# How far back Settings shows the proposals a person already answered.
+HISTORY_LIMIT = 100
+
 
 class SuggestionService:
     def __init__(self, db: AsyncSession) -> None:
@@ -31,10 +34,36 @@ class SuggestionService:
             raise AuthenticationError(message="Suggestions are made to a signed-in person")
         return ctx.user_id
 
-    async def list_mine(self, ctx: AuthContext) -> list[Suggestion]:
+    async def list_mine(self, ctx: AuthContext, *, decided: bool = False) -> list[Suggestion]:
+        """The person's open proposals - or, with `decided`, every one, answered or not."""
+        if decided:
+            return await suggestion_repo.list_all(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=self._person(ctx),
+                limit=HISTORY_LIMIT,
+            )
         return await suggestion_repo.list_open(
             self.db, organization_id=ctx.organization_id, user_id=self._person(ctx)
         )
+
+    async def restore(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
+        """Bring back one the person dismissed, to answer again.
+
+        Only a dismissed one: an accepted proposal has been acted on - a profile
+        saved, a pack installed - and offering it again would do it twice.
+        """
+        suggestion = await suggestion_repo.get_own(
+            self.db,
+            suggestion_id,
+            organization_id=ctx.organization_id,
+            user_id=self._person(ctx),
+        )
+        if suggestion is None or suggestion.status != SuggestionStatus.DISMISSED.value:
+            raise NotFoundError(
+                message="No such dismissed suggestion", details={"suggestion_id": suggestion_id}
+            )
+        return await suggestion_repo.reopen(self.db, suggestion=suggestion)
 
     async def _own_open(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
         suggestion = await suggestion_repo.get_own(

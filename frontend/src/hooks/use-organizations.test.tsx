@@ -269,15 +269,36 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Capped"));
   });
 
-  it("sets the per-person proactive limit and keeps it in the list (#2301)", async () => {
-    // Zero is a value - it switches the work off - not an omitted field.
+  it("saves the proactivity settings as named and keeps the answer in the list (#2301)", async () => {
+    // Zero is a value - a limit of nothing - not an omitted field.
     const result = await hook();
     vi.mocked(apiClient.patch).mockResolvedValue(org({ name: "Quiet" }));
 
-    await result.current.setProactiveLimit("org-1", 0);
+    await result.current.setProactivity("org-1", {
+      proactive_enabled: true,
+      proactive_model_profile_id: "mp-1",
+      proactive_limit_usd: 0,
+    });
 
-    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { proactive_limit_usd: 0 });
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      proactive_enabled: true,
+      proactive_model_profile_id: "mp-1",
+      proactive_limit_usd: 0,
+    });
     await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Quiet"));
+  });
+
+  it("saves the welcome message, where null is the built-in greeting (#2301)", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ name: "Greeting" }));
+
+    await result.current.setWelcomeDm("org-1", { welcome_dm_enabled: true, welcome_dm_text: null });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      welcome_dm_enabled: true,
+      welcome_dm_text: null,
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Greeting"));
   });
 
   it("sends the approval waiver as the boolean it is", async () => {

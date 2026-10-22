@@ -2703,6 +2703,15 @@
             "body": "Architect zbuduje go razem z tobą."
           }
         }
+      },
+      "suggestions": {
+        "title": "Propozycje dla Ciebie",
+        "description": "Co zaproponował nocny przegląd Twojego tygodnia: rutynę, agenta, Twój profil.",
+        "empty": {
+          "title": "Na razie nic nie zaproponowano",
+          "description": "Propozycje pojawią się tu po nocnym przeglądzie Twojego tygodnia.",
+          "descriptionOff": "Twoja organizacja ma nocne propozycje wyłączone."
+        }
       }
     },
     "edit": {
@@ -6224,13 +6233,32 @@
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
     },
     "proactive": {
-      "title": "Praca w tle na osobę",
-      "description": "Ile platforma może miesięcznie wydać na każdego członka na pracę z własnej inicjatywy - zauważanie powtarzanych próśb, pisanie jego pierwszych wiadomości. Wlicza się w miesięczny limit powyżej. 0 ją wyłącza.",
-      "label": "Limit na osobę (USD)",
+      "title": "Proaktywność",
+      "description": "Praca, którą platforma wykonuje dla ludzi sama, w tle. Wyłączona, dopóki jej nie włączysz.",
+      "nightly": "Nocne propozycje",
+      "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
+      "model": "Model",
+      "modelHint": "Na czym działa nocny przegląd. Wystarczy mały, tani model.",
+      "modelPlaceholder": "Wybierz model",
+      "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
+      "label": "Limit na osobę (USD miesięcznie)",
+      "days": "Dni",
+      "timing": "Kiedy",
+      "timingFixed": "O ustalonej godzinie",
+      "timingBeforeWork": "Godzinę przed godzinami pracy",
+      "hour": "Godzina",
+      "hourHint": "W strefie czasowej każdej osoby.",
+      "hourFallbackHint": "Dla osób, których profil nie podaje godzin pracy, w ich strefie czasowej.",
       "save": "Zapisz",
-      "saved": "Limit na osobę zaktualizowany",
-      "off": "Praca w tle wyłączona",
-      "invalid": "Wpisz kwotę w dolarach, 0 lub więcej."
+      "saved": "Nocne propozycje zapisane",
+      "off": "Nocne propozycje są wyłączone",
+      "invalid": "Podaj kwotę w dolarach, 0 lub więcej.",
+      "welcome": "Wiadomość powitalna w aplikacjach czatu",
+      "welcomeHint": "Nowa osoba dostaje wiadomość prywatną od Twoich botów w Slacku, Teams i Mattermost.",
+      "welcomeText": "Treść",
+      "welcomeTextHint": "Zostaw puste, by wysłać wbudowane powitanie w języku danej osoby. '{organization}', '{bot}' i '{url}' zostaną uzupełnione.",
+      "welcomeTextPlaceholder": "Witaj w '{organization}'! Pytaj mnie o cokolwiek tutaj.",
+      "welcomeSaved": "Wiadomość powitalna zapisana"
     }
   },
   "theme": {
@@ -7235,7 +7263,23 @@
     "organization": "Dla organizacji",
     "organizationDescription": "AI Architect to agent jak każdy inny: nazwę, model i wiedzę zmienisz w Agent Builderze. Wyłączenie go i powitanie są na stronie organizacji.",
     "openBuilder": "Otwórz w Agent Builderze",
-    "openOrganization": "Ustawienia organizacji"
+    "openOrganization": "Ustawienia organizacji",
+    "suggestions": {
+      "title": "Propozycje dla Ciebie",
+      "description": "Co zaproponował nocny przegląd Twojego tygodnia i czy w ogóle ma go robić.",
+      "forMe": "Nocne propozycje dla mnie",
+      "orgOff": "Twoja organizacja ma nocne propozycje wyłączone, więc na razie żadne nie powstają.",
+      "turnedOn": "Nocne propozycje są dla Ciebie włączone",
+      "turnedOff": "Nocne propozycje są dla Ciebie wyłączone",
+      "none": "Na razie nic nie zaproponowano.",
+      "restore": "Przywróć",
+      "restored": "Wróciło do Twoich propozycji",
+      "status": {
+        "open": "Czeka",
+        "accepted": "Przyjęta",
+        "dismissed": "Odrzucona"
+      }
+    }
   },
   "orgAssistant": {
     "title": "AI Architect",

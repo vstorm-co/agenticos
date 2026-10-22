@@ -1,5 +1,5 @@
 ---
-source_sha: "328cd9f889c1"
+source_sha: "d8ef6e925387"
 ---
 
 # Governance { #governance }
@@ -545,20 +545,33 @@ dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
 
-Die Plattform tut ein wenig aus eigener Initiative: Einmal pro Nacht, früh am
-Morgen jeder Person, liest ein Hintergrundjob, worum sie zuletzt gebeten hat, und
-schlägt eine Routine für eine Anfrage vor, die sie immer wiederholt, ein Profil
-oder die ersten Nachrichten, die ihr leerer Chat anbietet
-([Konsole](console.md#chat)). Jeder ist ein Modellaufruf, auf dem Modell des
-AgenticOS-Agents, in der Run-Historie als Run der Oberfläche **proactive**
-festgehalten und wie jeder andere auf das Budget der Organisation angerechnet.
+Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
+bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
+Mitgliederseite (`budgets:manage`). Eingeschaltet liest ein Hintergrundjob die
+letzten Anfragen jeder Person an den Tagen und zu der Stunde, die die
+Organisation gewählt hat - in der Zeitzone jeder Person oder eine Stunde vor der
+Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
+vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
+leerer Chat anbietet ([Konsole](console.md#chat)).
+
+Jeder ist ein Modellaufruf,
+auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen
+Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
+der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
+Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
+Assistent** ausnehmen.
 
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
-eingestellt neben dem Ausgabenlimit der Organisation auf ihrer Mitgliederseite
-(`proactive_limit_usd`, braucht `budgets:manage`), und 0 schaltet die Arbeit ab.
-Eine Person, bei der nichts Neues passiert ist, kostet nichts: Der Job ruft das
-Modell nur, wenn es etwas zu lesen gibt.
+auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
+nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
+etwas zu lesen gibt.
+
+Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
+an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
+Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
+Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
+`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 

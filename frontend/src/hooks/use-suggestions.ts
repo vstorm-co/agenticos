@@ -6,7 +6,9 @@ import { qk } from "@/lib/query-keys";
 import {
   acceptSuggestion,
   dismissSuggestion,
+  listSuggestionHistory,
   listSuggestions,
+  restoreSuggestion,
   type Suggestion,
 } from "@/lib/suggestions-api";
 
@@ -31,5 +33,26 @@ export function useSuggestions() {
     suggestions: data ?? ([] as Suggestion[]),
     accept: accept.mutateAsync,
     dismiss: dismiss.mutateAsync,
+  };
+}
+
+/**
+ * Every proposal the person was made, for Settings (#2301): what they took,
+ * what they declined, and the way to bring a declined one back.
+ */
+export function useSuggestionHistory() {
+  const client = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: qk.suggestions.history(),
+    queryFn: listSuggestionHistory,
+  });
+  const restore = useMutation({
+    mutationFn: (id: string) => restoreSuggestion(id),
+    onSettled: () => client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+  });
+  return {
+    history: data ?? ([] as Suggestion[]),
+    isLoading,
+    restore: restore.mutateAsync,
   };
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "03f4d67793b1"
+source_sha: "dc38cd692704"
 ---
 
 # Die Konsole { #the-console }
@@ -349,12 +349,15 @@ zu drei Karten zum Einrichten - einer Routine, einem Dienst zum Verbinden, einem
 eigenen Agent - jede mit einem Klick. Überspringen Sie eine Frage oder bitten Sie
 um etwas Echtes, und er erledigt stattdessen die Arbeit.
 
-**Was über Nacht auffiel.** Einmal pro Nacht, früh an Ihrem Morgen, liest die
-Plattform in einem Hintergrundjob Ihre letzten Unterhaltungen: Eine Anfrage, die
+**Was über Nacht auffiel.** Wo Ihre Organisation es eingeschaltet hat, liest die
+Plattform einmal am Tag, früh an Ihrem Morgen, in einem Hintergrundjob Ihre
+letzten Unterhaltungen: Eine Anfrage, die
 Sie immer wiederholen, wird eine vorgeschlagene Routine, was ein Agent über Ihre
 Rolle erfahren hat, ein vorgeschlagenes Profil, und Ihr leerer AgenticOS-Chat
 bekommt erste Nachrichten, die für Ihre Arbeit geschrieben sind. Vorschläge
-warten als Karten in diesem leeren Chat und in der Glocke; nehmen Sie einen an,
+warten als Karten in diesem leeren Chat, auf Ihrem Dashboard und in der Glocke,
+und **Einstellungen → Assistent** listet sie alle - dort holen Sie einen
+verworfenen zurück oder nehmen sich aus; nehmen Sie einen an,
 wird er eingerichtet, verwerfen Sie ihn, wird derselbe Vorschlag nie wieder
 gemacht. Nichts läuft, wenn nichts Neues passiert ist, und was das kosten darf,
 ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit

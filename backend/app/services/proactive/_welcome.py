@@ -1,9 +1,10 @@
 """Greeting somebody who just joined, in the chat apps their organization connected (#2301).
 
 A new member's first contact with the organization's agents should not wait for
-them to find the console. Each active Slack, Mattermost and Teams bot looks them
-up by address and, where it finds them, sends one direct message: who it is,
-that they can ask here, and where the console is.
+them to find the console. Where the organization turned it on, each active Slack,
+Mattermost and Teams bot looks them up by address and, where it finds them, sends
+one direct message: the organization's own words, or who it is, that they can
+ask here, and where the console is.
 
 Best-effort by contract, and so one attempt: a platform that cannot find them,
 or is down, is logged and the next one still tries. Retrying the whole greeting
@@ -84,7 +85,12 @@ async def welcome(db: AsyncSession, organization_id: UUID, user_id: UUID) -> int
     """Greet one new member on every connected platform that knows them. Returns how many did."""
     user = await user_repo.get_by_id(db, user_id)
     organization = await organization_repo.get_by_id(db, organization_id)
-    if user is None or organization is None or not user.is_active:
+    if (
+        user is None
+        or organization is None
+        or not user.is_active
+        or not organization.welcome_dm_enabled
+    ):
         return 0
     bots = [
         bot
@@ -96,17 +102,29 @@ async def welcome(db: AsyncSession, organization_id: UUID, user_id: UUID) -> int
     ]
     if not bots:
         return 0
-    template = GREETING.get(user.locale or "", GREETING["en"])
+    template = organization.welcome_dm_text or GREETING.get(user.locale or "", GREETING["en"])
     shared = await teams_conversation_repo.list_shared(db, organization_id=organization_id)
     greeted = 0
     for bot in bots:
-        text = template.format(
-            organization=organization.name, bot=bot.name, url=settings.FRONTEND_URL
+        text = _fill(
+            template, organization=organization.name, bot=bot.name, url=settings.FRONTEND_URL
         )
         places = [row.key for row in shared if row.bot_id == bot.id]
         if await _greet(bot, user.email, text, places):
             greeted += 1
     return greeted
+
+
+def _fill(template: str, **values: str) -> str:
+    """The template with its `{name}` placeholders filled, and nothing else read from it.
+
+    Not `str.format`: an organization writes its own greeting, and format would
+    fail on a stray brace in it - or read attributes off the values for a
+    placeholder like `{bot.__class__}`.
+    """
+    for name, value in values.items():
+        template = template.replace(f"{{{name}}}", value)
+    return template
 
 
 async def _greet(bot: ChannelBot, email: str, text: str, places: list[str]) -> bool:

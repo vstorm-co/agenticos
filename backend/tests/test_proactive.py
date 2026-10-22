@@ -24,6 +24,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.suggestion import SuggestionKind
+from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.proactive import _role_pack, _thinker, _welcome
 from app.services.proactive._nightly import (
@@ -47,6 +48,7 @@ PACK = "app.services.proactive._role_pack"
 
 ORG = uuid.uuid4()
 USER = uuid.uuid4()
+MODEL = uuid.uuid4()
 
 
 def _ctx() -> AuthContext:
@@ -57,8 +59,16 @@ def _agent(*, published: bool = True) -> MagicMock:
     return MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4() if published else None)
 
 
-def _organization(limit: str = "1", cap: str | None = None) -> MagicMock:
+def _organization(
+    limit: str = "1",
+    cap: str | None = None,
+    *,
+    enabled: bool = True,
+    model: uuid.UUID | None = MODEL,
+) -> MagicMock:
     return MagicMock(
+        proactive_enabled=enabled,
+        proactive_model_profile_id=model,
         proactive_limit_usd=Decimal(limit),
         monthly_budget_usd=None if cap is None else Decimal(cap),
     )
@@ -83,14 +93,24 @@ class TestTheLimits:
         ("organization", "org_spent", "mine", "allowed"),
         [
             (None, "0", "0", False),
+            (_organization(enabled=False), "0", "0", False),
+            (_organization(model=None), "0", "0", False),
             (_organization(limit="0"), "0", "0", False),
             (_organization(cap="10"), "10", "0", False),
             (_organization(), "0", "1", False),
             (_organization(cap="10"), "9", "0.99", True),
         ],
-        ids=["no-organization", "switched-off", "org-cap-reached", "person-limit-reached", "room"],
+        ids=[
+            "no-organization",
+            "turned-off",
+            "no-model-chosen",
+            "zero-limit",
+            "org-cap-reached",
+            "person-limit-reached",
+            "room",
+        ],
     )
-    async def test_background_work_spends_only_inside_both_limits(
+    async def test_background_work_spends_only_where_turned_on_and_inside_both_limits(
         self, organization, org_spent, mine, allowed
     ):
         with (
@@ -106,14 +126,17 @@ class TestTheLimits:
                 new=AsyncMock(return_value=Decimal(mine)),
             ),
         ):
-            assert await ProactiveThinker(MagicMock()).within_limits(_ctx()) is allowed
+            # Room is the organization's chosen model; anything else is nothing.
+            assert await ProactiveThinker(MagicMock()).allowance(_ctx()) == (
+                MODEL if allowed else None
+            )
 
     async def test_nobody_signed_in_has_no_limit_to_spend_against(self):
         ctx = AuthContext(user_id=None, organization_id=ORG, role=OrgRoleName.MEMBER)
         with patch(
             f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=_organization())
         ):
-            assert await ProactiveThinker(MagicMock()).within_limits(ctx) is False
+            assert await ProactiveThinker(MagicMock()).allowance(ctx) is None
 
 
 class TestThinking:
@@ -136,7 +159,7 @@ class TestThinking:
         stored.spec = {"name": "AgenticOS"}
         return (
             patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=_agent())),
-            patch.object(ProactiveThinker, "within_limits", new=AsyncMock(return_value=True)),
+            patch.object(ProactiveThinker, "allowance", new=AsyncMock(return_value=MODEL)),
             patch(
                 f"{THINKER}.agent_repo.get_version",
                 new=AsyncMock(return_value=stored if version else None),
@@ -148,12 +171,21 @@ class TestThinking:
 
     async def test_an_answer_is_returned_and_the_run_is_written_down(self):
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
-        with get_slug, limits, version, profiles, create as create_run, finish as finish_run:
+        with (
+            get_slug,
+            limits,
+            version,
+            profiles as service,
+            create as create_run,
+            finish as finish_run,
+        ):
             answer = await ProactiveThinker(MagicMock()).think(
                 _ctx(), output_type=NightlyReading, instructions="Read.", prompt="{}"
             )
 
         assert isinstance(answer, NightlyReading)
+        # On the model the organization chose for it, not the agent's own.
+        assert service.return_value.resolve.await_args.kwargs == {"profile_id": MODEL}
         assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
         assert create_run.await_args.kwargs["user_id"] == USER
         finished = finish_run.await_args.kwargs
@@ -212,7 +244,7 @@ class TestThinking:
 
         with (
             patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=_agent())),
-            patch.object(ProactiveThinker, "within_limits", new=AsyncMock(return_value=False)),
+            patch.object(ProactiveThinker, "allowance", new=AsyncMock(return_value=None)),
         ):
             assert (
                 await ProactiveThinker(MagicMock()).think(
@@ -425,15 +457,43 @@ class TestTheNightlyLook:
 
 
 class TestTheSweep:
-    async def test_each_person_is_queued_early_in_their_own_morning_and_only_when_due(self):
-        # 03:30 UTC: 05:30 in Warsaw (summer), 23:30 in New York, 03:30 in UTC.
+    async def test_each_person_is_queued_at_the_organizations_hour_in_their_own_zone(self):
+        # Wednesday 03:30 UTC: 05:30 in Warsaw (summer), 23:30 Tuesday in New York,
+        # 03:30 in UTC.
         now = datetime(2026, 7, 1, 3, 30, tzinfo=UTC)
-        warsaw, new_york, utc, rested = (uuid.uuid4() for _ in range(4))
+        warsaw, new_york, utc, rested, weekend, early, late = (uuid.uuid4() for _ in range(7))
+
+        def candidate(user_id, zone, *, days=(1, 2, 3, 4, 5), timing="fixed", hours=None):
+            return SweepCandidate(
+                organization_id=ORG,
+                user_id=user_id,
+                time_zone=zone,
+                working_hours=hours,
+                days=list(days),
+                hour=5,
+                timing=timing,
+            )
+
         candidates = [
-            (ORG, warsaw, "Europe/Warsaw"),
-            (ORG, new_york, "America/New_York"),
-            (ORG, utc, None),
-            (ORG, rested, "Europe/Warsaw"),
+            candidate(warsaw, "Europe/Warsaw"),
+            candidate(new_york, "America/New_York"),
+            candidate(utc, None),
+            candidate(rested, "Europe/Warsaw"),
+            # Not one of the organization's days.
+            candidate(weekend, "Europe/Warsaw", days=(6, 7)),
+            # An hour before a 06:30 start is the 05:00 hour; before a 10:00 one, 09:00.
+            candidate(
+                early,
+                "Europe/Warsaw",
+                timing="before_work",
+                hours={"days": [1, 2, 3, 4, 5], "start": "06:30", "end": "15:00"},
+            ),
+            candidate(
+                late,
+                "Europe/Warsaw",
+                timing="before_work",
+                hours={"days": [1, 2, 3, 4, 5], "start": "10:00", "end": "18:00"},
+            ),
         ]
         enqueue = AsyncMock()
 
@@ -447,10 +507,9 @@ class TestTheSweep:
         ):
             queued = await ProactiveService(MagicMock()).sweep(now=now)
 
-        assert queued == 1
-        task, payload = enqueue.await_args.args[1], enqueue.await_args.args[2]
-        assert task is THINK_FOR_PERSON
-        assert payload.user_id == warsaw
+        assert queued == 2
+        assert {call.args[1] for call in enqueue.await_args_list} == {THINK_FOR_PERSON}
+        assert {call.args[2].user_id for call in enqueue.await_args_list} == {warsaw, early}
 
     async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
         enqueue = AsyncMock()
@@ -536,11 +595,13 @@ def _bot(platform: str, *, active: bool = True) -> MagicMock:
 
 
 class TestTheWelcome:
-    async def _welcome(self, bots_by_platform, adapters, *, user=None, shared=()):
+    async def _welcome(
+        self, bots_by_platform, adapters, *, user=None, shared=(), enabled=True, words=None
+    ):
         async def by_platform(_db, platform, *, organization_id):
             return bots_by_platform.get(platform, [])
 
-        organization = MagicMock()
+        organization = MagicMock(welcome_dm_enabled=enabled, welcome_dm_text=words)
         organization.name = "Acme"
 
         class Fake:
@@ -594,6 +655,26 @@ class TestTheWelcome:
         assert args.args[2].startswith("Willkommen bei Acme! Ich bin slack bot")
         # Teams looks people up only in the conversations its own bot is in.
         assert adapters["teams"].welcome.await_args.kwargs["places"] == ["k1"]
+
+    async def test_nobody_is_greeted_where_the_organization_has_not_turned_it_on(self):
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+
+        assert await self._welcome({"slack": [_bot("slack")]}, adapters, enabled=False) == 0
+        adapters["slack"].welcome.assert_not_awaited()
+
+    async def test_the_organizations_own_words_are_said_with_only_its_names_filled_in(self):
+        """An administrator's text is not a format string: a stray brace in it, or
+        a placeholder reaching for an attribute, is said as written."""
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+
+        await self._welcome(
+            {"slack": [_bot("slack")]},
+            adapters,
+            words="Hi from {bot} at {organization} {braces} {bot.__class__}: {url}",
+        )
+
+        said = adapters["slack"].welcome.await_args.args[2]
+        assert said.startswith("Hi from slack bot at Acme {braces} {bot.__class__}: http")
 
     async def test_one_platform_failing_does_not_cost_the_others_their_greeting(self):
         adapters = {

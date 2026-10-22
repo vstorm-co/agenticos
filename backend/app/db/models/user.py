@@ -100,6 +100,10 @@ class User(Base, TimestampMixin):
     # written for them in the background from their role, connections and recent
     # conversations. Null until the first sweep, which the fixed four stand in for.
     personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    # This person said no to the organization's nightly look at their week.
+    proactive_opt_out: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     personal_starters_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

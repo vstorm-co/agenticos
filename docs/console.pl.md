@@ -1,5 +1,5 @@
 ---
-source_sha: "03f4d67793b1"
+source_sha: "dc38cd692704"
 ---
 
 # Konsola { #the-console }
@@ -319,12 +319,14 @@ każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
 rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
 Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
 
-**Co zauważyła w nocy.** Raz na noc, wcześnie rano twojego czasu, platforma
-przegląda w zadaniu w tle twoje ostatnie rozmowy: prośba, którą powtarzasz,
+**Co zauważyła w nocy.** Tam, gdzie organizacja to włączyła, raz dziennie,
+wcześnie rano twojego czasu, platforma przegląda w zadaniu w tle twoje ostatnie
+rozmowy: prośba, którą powtarzasz,
 staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
 propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
-napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie i w
-dzwonku; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
+napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie, na
+twoim dashboardzie i w dzwonku, a **Ustawienia → Asystent** pokazują wszystkie -
+tam przywrócisz odrzuconą albo wyłączysz to dla siebie; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
 wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
 kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
 `?agent=<slug>` otwiera czat na tym agencie.

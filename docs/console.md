@@ -308,12 +308,14 @@ from then on, and the interview ends with up to three cards to set up - a
 routine, a service to connect, an agent of your own - each one click. Skip a
 question, or ask for something real, and it does the work instead.
 
-**What it noticed overnight.** Once a night, early in your morning, the platform
-looks at your recent conversations in a background job: a request you keep
+**What it noticed overnight.** Where your organization turned it on, once a day,
+early in your morning, the platform looks at your recent conversations in a
+background job: a request you keep
 repeating becomes a proposed routine, what an agent learnt about your role
 becomes a proposed profile, and your empty AgenticOS chat gets first messages
-written for your work. Proposals wait as cards in that empty chat and in the
-bell; accept one and it is set up, dismiss it and the same proposal is never
+written for your work. Proposals wait as cards in that empty chat, on your
+dashboard and in the bell, and **Settings → Assistant** lists them all - bring a
+dismissed one back there, or leave yourself out; accept one and it is set up, dismiss it and the same proposal is never
 made again. Nothing runs when nothing new happened, and what this may spend is
 [capped per person](governance.md#proactive-work). A chat link with
 `?agent=<slug>` opens the chat on that agent.

@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/settings/settings-section";
 import { Button, Label, Switch } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { useAssistant } from "@/hooks/use-assistant";
+import { YourSuggestions } from "./your-suggestions";
 import { readPreferences, resetSilenced, setBubblesOff } from "@/lib/assistant-bubbles";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
@@ -44,6 +45,9 @@ export function AssistantSettings() {
       ) : (
         <p className="text-muted-foreground text-sm">{t("notForYou")}</p>
       )}
+      {/* Not the Architect's: the platform's own look at the person's week, and
+          theirs to switch off whoever runs the assistant (#2301). */}
+      <YourSuggestions />
       {assistant.can_configure && assistant.agent_id && (
         <WhereTheRestLives agentId={assistant.agent_id} />
       )}

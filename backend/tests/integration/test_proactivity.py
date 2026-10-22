@@ -55,6 +55,25 @@ async def _organization(db, owner: User) -> Organization:
     return org
 
 
+async def _turned_on(db, org: Organization) -> None:
+    """Proactivity on, on a model of the organization's own, as the settings save it."""
+    from app.db.models.credential import ModelProfile
+    from app.repositories import organization_repo
+
+    profile = ModelProfile(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        label="Haiku",
+        provider="anthropic",
+        model="claude-haiku-5-5",
+    )
+    db.add(profile)
+    await db.flush()
+    await organization_repo.set_proactivity(
+        db, org, enabled=True, model_profile_id=profile.id, days=[1, 2, 3], hour=6, timing="fixed"
+    )
+
+
 async def _join(db, org: Organization, user: User) -> None:
     db.add(
         OrganizationMember(id=uuid.uuid4(), organization_id=org.id, user_id=user.id, role="member")
@@ -248,25 +267,41 @@ class TestAPersonsRequests:
 
 
 class TestWhoTheNightlySweepReaches:
-    async def test_active_members_of_organizations_with_a_published_starter(self, db) -> None:
+    async def test_active_members_of_organizations_that_turned_it_on(self, db) -> None:
+        """Off is the default: an organization reaches nobody until it turns the
+        look on, with a model; and a person who opted out is never reached."""
         owner = await _person(db, time_zone="Europe/Warsaw")
         suspended = await _person(db, active=False)
+        declined = await _person(db)
+        declined.proactive_opt_out = True
         org = await _organization(db, owner)
         await _join(db, org, suspended)
+        await _join(db, org, declined)
         await _agent(db, org)
+        await _turned_on(db, org)
         unpublished_owner = await _person(db)
         unpublished = await _organization(db, unpublished_owner)
         await _agent(db, unpublished, published=False)
+        await _turned_on(db, unpublished)
         other_owner = await _person(db)
         other = await _organization(db, other_owner)
         await _agent(db, other, slug="support")
+        await _turned_on(db, other)
+        off_owner = await _person(db)
+        off = await _organization(db, off_owner)
+        await _agent(db, off)
+        await db.flush()
 
         candidates = await member_repo.sweep_candidates(db, agent_slug="agenticos")
 
-        assert (org.id, owner.id, "Europe/Warsaw") in candidates
+        (reached,) = [candidate for candidate in candidates if candidate.user_id == owner.id]
+        assert reached.organization_id == org.id
+        assert reached.time_zone == "Europe/Warsaw"
+        assert (reached.days, reached.hour, reached.timing) == ([1, 2, 3], 6, "fixed")
         assert all(
-            user_id not in {suspended.id, unpublished_owner.id, other_owner.id}
-            for _, user_id, _ in candidates
+            candidate.user_id
+            not in {suspended.id, declined.id, unpublished_owner.id, other_owner.id, off_owner.id}
+            for candidate in candidates
         )
 
 
@@ -313,3 +348,87 @@ class TestTheProactivityLimit:
 
         with pytest.raises(IntegrityError):
             await organization_repo.set_proactive_limit(db, org, limit_usd=Decimal("-1"))
+
+
+class TestTheProactivitySettings:
+    async def test_they_start_off_on_weekdays_at_five_with_no_greeting(self, db) -> None:
+        owner = await _person(db)
+        org = await _organization(db, owner)
+        await db.refresh(org)
+
+        assert org.proactive_enabled is False
+        assert org.proactive_model_profile_id is None
+        assert (org.proactive_days, org.proactive_hour, org.proactive_timing) == (
+            [1, 2, 3, 4, 5],
+            5,
+            "fixed",
+        )
+        assert (org.welcome_dm_enabled, org.welcome_dm_text) == (False, None)
+
+    async def test_an_hour_past_the_day_or_an_unknown_timing_is_refused(self, db) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        from app.repositories import organization_repo
+
+        owner = await _person(db)
+        org = await _organization(db, owner)
+        for hour, timing in ((24, "fixed"), (5, "whenever")):
+            async with db.begin_nested():
+                with pytest.raises(IntegrityError):
+                    await organization_repo.set_proactivity(
+                        db,
+                        org,
+                        enabled=False,
+                        model_profile_id=None,
+                        days=[1],
+                        hour=hour,
+                        timing=timing,  # ty: ignore[invalid-argument-type] - the database's refusal is the subject
+                    )
+
+    async def test_the_greeting_is_written_as_given(self, db) -> None:
+        from app.repositories import organization_repo
+
+        owner = await _person(db)
+        org = await _organization(db, owner)
+
+        await organization_repo.set_welcome_dm(db, org, enabled=True, text="Hi from {bot}")
+
+        assert (org.welcome_dm_enabled, org.welcome_dm_text) == (True, "Hi from {bot}")
+
+
+class TestTheSuggestionHistory:
+    async def test_every_proposal_newest_first_and_a_dismissed_one_waits_again(self, db) -> None:
+        from app.db.models.suggestion import SuggestionStatus
+
+        owner = await _person(db)
+        other = await _person(db)
+        org = await _organization(db, owner)
+        made = []
+        for index, (person, key) in enumerate(((owner, "a"), (owner, "b"), (other, "c"))):
+            suggestion = await suggestion_repo.propose(
+                db,
+                organization_id=org.id,
+                user_id=person.id,
+                kind="routine",
+                title=f"Routine {index}",
+                detail=None,
+                payload={},
+                dedupe_key=f"routine:{key}",
+            )
+            assert suggestion is not None
+            suggestion.created_at = _NOW + timedelta(minutes=index)
+            made.append(suggestion)
+        await db.flush()
+        first, second, _ = made
+        await suggestion_repo.decide(db, suggestion=first, status=SuggestionStatus.DISMISSED)
+
+        history = await suggestion_repo.list_all(
+            db, organization_id=org.id, user_id=owner.id, limit=10
+        )
+        assert [s.id for s in history] == [second.id, first.id]
+        assert await suggestion_repo.list_all(
+            db, organization_id=org.id, user_id=owner.id, limit=1
+        ) == [second]
+
+        reopened = await suggestion_repo.reopen(db, suggestion=first)
+        assert (reopened.status, reopened.decided_at) == (SuggestionStatus.OPEN.value, None)

@@ -65,7 +65,8 @@ export type WidgetId =
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
-  | "getting-started";
+  | "getting-started"
+  | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -542,6 +543,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.agentsRun),
     defaultSpan: "s12",
     defaultRows: "r2",
+    category: "workspace",
+  },
+  // What the nightly look proposed to the person (#2301) - their own, so anybody
+  // who may talk to an agent may see it.
+  suggestions: {
+    id: "suggestions",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
     category: "workspace",
   },
   "my-summary": {

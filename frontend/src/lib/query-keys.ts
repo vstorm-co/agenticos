@@ -473,6 +473,8 @@ export const qk = {
   // What the platform proposed to the signed-in person overnight (#2301).
   suggestions: {
     mine: () => ["suggestions"] as const,
+    // Under `mine`'s prefix, so an answer anywhere refreshes the history too.
+    history: () => ["suggestions", "history"] as const,
   },
   notifications: {
     all: () => ["notifications"] as const,

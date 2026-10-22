@@ -2703,6 +2703,15 @@
             "body": "The Architect builds one with you."
           }
         }
+      },
+      "suggestions": {
+        "title": "Suggestions for you",
+        "description": "What the nightly look at your week proposed: a routine, an agent, your profile.",
+        "empty": {
+          "title": "Nothing proposed yet",
+          "description": "Suggestions appear here after the nightly look at your week.",
+          "descriptionOff": "Your organization has nightly suggestions off."
+        }
       }
     },
     "edit": {
@@ -6453,13 +6462,32 @@
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
     "proactive": {
-      "title": "Background work per person",
-      "description": "What the platform may spend on each member a month on work it does on its own - noticing requests they repeat, writing their first messages. It counts toward the monthly limit above. 0 switches it off.",
-      "label": "Limit per person (USD)",
+      "title": "Proactivity",
+      "description": "Work the platform does for people on its own, in the background. Off until you turn it on.",
+      "nightly": "Nightly suggestions",
+      "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
+      "model": "Model",
+      "modelHint": "What the nightly look runs on. A small, inexpensive model is enough.",
+      "modelPlaceholder": "Choose a model",
+      "modelRequired": "Choose the model it runs on before turning it on.",
+      "label": "Limit per person (USD a month)",
+      "days": "Days",
+      "timing": "When",
+      "timingFixed": "At a set hour",
+      "timingBeforeWork": "An hour before their working hours",
+      "hour": "Hour",
+      "hourHint": "In each person's own time zone.",
+      "hourFallbackHint": "For people whose profile states no working hours, in their own time zone.",
       "save": "Save",
-      "saved": "Limit per person updated",
-      "off": "Background work is off",
-      "invalid": "Enter an amount in dollars, 0 or more."
+      "saved": "Nightly suggestions saved",
+      "off": "Nightly suggestions are off",
+      "invalid": "Enter an amount in dollars, 0 or more.",
+      "welcome": "Welcome message in chat apps",
+      "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
+      "welcomeText": "Message",
+      "welcomeTextHint": "Leave it empty for the built-in greeting in each person's language. '{organization}', '{bot}' and '{url}' are filled in.",
+      "welcomeTextPlaceholder": "Welcome to '{organization}'! Ask me anything right here.",
+      "welcomeSaved": "Welcome message saved"
     }
   },
   "theme": {
@@ -7460,7 +7488,23 @@
     "organization": "For the organization",
     "organizationDescription": "The AI Architect is an agent like any other: change its name, model and knowledge in the Agent Builder. Switching it off and its greeting are on the organization's page.",
     "openBuilder": "Open in Agent Builder",
-    "openOrganization": "Organization settings"
+    "openOrganization": "Organization settings",
+    "suggestions": {
+      "title": "Suggestions for you",
+      "description": "What the nightly look at your week proposed, and whether it looks at all.",
+      "forMe": "Nightly suggestions for me",
+      "orgOff": "Your organization has nightly suggestions off, so none are made yet.",
+      "turnedOn": "Nightly suggestions are on for you",
+      "turnedOff": "Nightly suggestions are off for you",
+      "none": "Nothing proposed yet.",
+      "restore": "Bring back",
+      "restored": "Back among your suggestions",
+      "status": {
+        "open": "Waiting",
+        "accepted": "Taken",
+        "dismissed": "Declined"
+      }
+    }
   },
   "orgAssistant": {
     "title": "AI Architect",

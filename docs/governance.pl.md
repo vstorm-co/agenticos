@@ -1,5 +1,5 @@
 ---
-source_sha: "328cd9f889c1"
+source_sha: "d8ef6e925387"
 ---
 
 # Governance { #governance }
@@ -506,19 +506,30 @@ wydatki umierają razem z jego procesem.
 
 ### Praca z własnej inicjatywy { #proactive-work }
 
-Platforma robi trochę z własnej inicjatywy: raz na noc, wcześnie rano czasu
-każdej osoby, zadanie w tle czyta, o co ostatnio prosiła, i proponuje rutynę dla
-prośby, którą powtarza, profil albo pierwsze wiadomości, które oferuje jej pusty
-czat ([Konsola](console.md#chat)). Każde to jedno wywołanie modelu, na modelu
-agenta AgenticOS, zapisane w historii runów jako run z powierzchni **proactive** i
-liczone do budżetu organizacji jak każde inne.
+Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
+dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej
+członków (`budgets:manage`). Po włączeniu zadanie w tle przegląda ostatnie
+prośby każdej osoby w dni i o godzinie, które wybrała organizacja - w strefie
+czasowej każdej osoby albo godzinę przed godzinami pracy podanymi w jej profilu -
+i proponuje rutynę dla prośby, którą powtarza, profil albo pierwsze wiadomości,
+które oferuje jej pusty czat ([Konsola](console.md#chat)).
+
+Każde to jedno
+wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie ma
+domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
+runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
+każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
 Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
-**limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany obok
-limitu wydatków organizacji na stronie jej członków (`proactive_limit_usd`,
-wymaga `budgets:manage`), a 0 wyłącza tę pracę. Osoba, u której nic nowego się
-nie wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co
-czytać.
+**limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej
+samej karcie (`proactive_limit_usd`). Osoba, u której nic nowego się nie
+wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czytać.
+
+Na tej samej karcie jest **wiadomość powitalna**, domyślnie wyłączona i
+wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
+organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
+(`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
+powitaniem w jej języku.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 

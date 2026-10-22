@@ -64,6 +64,8 @@ export default defineConfig({
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
         "src/components/dashboard/widgets/getting-started.tsx",
+        // What the nightly look proposed (#2301).
+        "src/components/dashboard/widgets/suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).

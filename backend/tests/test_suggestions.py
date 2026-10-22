@@ -170,6 +170,44 @@ class TestDeciding:
 
         assert listed.await_args.kwargs == {"organization_id": ORG, "user_id": USER}
 
+    async def test_with_the_decided_ones_it_is_every_proposal_this_person_had_here(self):
+        """What Settings lists, so a dismissed one can be found and brought back."""
+        listed = AsyncMock(return_value=[])
+        with patch(f"{SERVICE}.suggestion_repo.list_all", new=listed):
+            await SuggestionService(MagicMock()).list_mine(CTX, decided=True)
+
+        assert listed.await_args.kwargs == {"organization_id": ORG, "user_id": USER, "limit": 100}
+
+
+class TestRestoring:
+    async def test_a_dismissed_one_waits_again(self):
+        suggestion = _suggestion("routine", {}, status="dismissed")
+        reopened = AsyncMock(side_effect=lambda _db, *, suggestion: suggestion)
+        with (
+            patch(f"{SERVICE}.suggestion_repo.get_own", new=AsyncMock(return_value=suggestion)),
+            patch(f"{SERVICE}.suggestion_repo.reopen", new=reopened),
+        ):
+            assert await SuggestionService(MagicMock()).restore(CTX, suggestion.id) is suggestion
+
+        reopened.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "found",
+        [
+            None,
+            _suggestion("routine", {}),
+            # Acted on already - a profile saved, a pack installed; twice would repeat it.
+            _suggestion("role_pack", {"pack": "sales"}, status="accepted"),
+        ],
+        ids=["not-theirs", "still-open", "accepted"],
+    )
+    async def test_only_a_dismissed_one_of_theirs_comes_back(self, found):
+        with (
+            patch(f"{SERVICE}.suggestion_repo.get_own", new=AsyncMock(return_value=found)),
+            pytest.raises(NotFoundError),
+        ):
+            await SuggestionService(MagicMock()).restore(CTX, uuid.uuid4())
+
 
 class TestTheRoutes:
     @pytest.fixture
@@ -204,3 +242,17 @@ class TestTheRoutes:
         assert accepted.status_code == 200 and dismissed.status_code == 200
         service.accept.assert_awaited_once_with(CTX, open_one.id)
         service.dismiss.assert_awaited_once_with(CTX, open_one.id)
+        assert service.list_mine.await_args.kwargs == {"decided": False}
+
+    async def test_the_history_and_bringing_one_back(self, service):
+        dismissed = _suggestion("routine", {}, status="dismissed")
+        service.list_mine = AsyncMock(return_value=[dismissed])
+        service.restore = AsyncMock(return_value=_suggestion("routine", {}))
+
+        listed = await self._call("GET", "?decided=true")
+        restored = await self._call("POST", f"/{dismissed.id}/restore")
+
+        assert listed.json()["items"][0]["status"] == "dismissed"
+        assert service.list_mine.await_args.kwargs == {"decided": True}
+        assert restored.status_code == 200 and restored.json()["status"] == "open"
+        service.restore.assert_awaited_once_with(CTX, dismissed.id)

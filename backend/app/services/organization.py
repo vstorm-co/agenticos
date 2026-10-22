@@ -20,6 +20,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
     collection_teardown_repo,
+    credential_repo,
     invitation_repo,
     knowledge_base_repo,
     member_repo,
@@ -45,6 +46,18 @@ if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+# The platform's own initiative: spending, so gated like a budget (#2301).
+_PROACTIVE_FIELDS = frozenset(
+    {
+        "proactive_enabled",
+        "proactive_model_profile_id",
+        "proactive_days",
+        "proactive_hour",
+        "proactive_timing",
+    }
+)
+_WELCOME_FIELDS = frozenset({"welcome_dm_enabled", "welcome_dm_text"})
 
 _SPEECH_FIELDS = frozenset(
     {
@@ -80,6 +93,13 @@ def _org_read(
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         proactive_limit_usd=org.proactive_limit_usd,
+        proactive_enabled=org.proactive_enabled,
+        proactive_model_profile_id=org.proactive_model_profile_id,
+        proactive_days=org.proactive_days,
+        proactive_hour=org.proactive_hour,
+        proactive_timing=org.proactive_timing,
+        welcome_dm_enabled=org.welcome_dm_enabled,
+        welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
@@ -430,12 +450,15 @@ class OrganizationService:
             return role_has(membership.role, perm) and (key_scopes is None or perm in key_scopes)
 
         wants_budget = "monthly_budget_usd" in data.model_fields_set
-        wants_proactive = data.proactive_limit_usd is not None
+        wants_proactive = data.proactive_limit_usd is not None or bool(
+            data.model_fields_set & _PROACTIVE_FIELDS
+        )
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
         wants_metadata = bool(
             data.model_fields_set
             - {"monthly_budget_usd", "proactive_limit_usd", "chat_may_waive_approvals"}
+            - _PROACTIVE_FIELDS
         )
         if wants_metadata and not holds(Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -459,6 +482,25 @@ class OrganizationService:
                 self.db, org, limit_usd=data.proactive_limit_usd
             )
 
+        if data.model_fields_set & _PROACTIVE_FIELDS:
+            org = await self._apply_proactivity(org, data)
+
+        if data.model_fields_set & _WELCOME_FIELDS:
+            org = await organization_repo.set_welcome_dm(
+                self.db,
+                org,
+                enabled=(
+                    org.welcome_dm_enabled
+                    if data.welcome_dm_enabled is None
+                    else data.welcome_dm_enabled
+                ),
+                text=(
+                    (data.welcome_dm_text or "").strip() or None
+                    if "welcome_dm_text" in data.model_fields_set
+                    else org.welcome_dm_text
+                ),
+            )
+
         if wants_color:
             # Same field-named-not-valued rule: `null` resets the colour to auto.
             org = await organization_repo.set_avatar_color(self.db, org, color=data.avatar_color)
@@ -476,6 +518,47 @@ class OrganizationService:
             org,
             name=data.name,
             avatar_url=data.avatar_url,
+        )
+
+    async def _apply_proactivity(self, org: Organization, data: OrganizationUpdate) -> Organization:
+        """Merge the named proactivity fields over the stored ones, check, and write.
+
+        The model is chosen, never defaulted (#2301): the work spends money nobody
+        asked for in the moment, so turning it on without one - or clearing the
+        one it runs on while it is on - is refused, naming the model field. A
+        profile named must be one of this organization's.
+        """
+        named = data.model_fields_set
+        enabled = (
+            org.proactive_enabled if data.proactive_enabled is None else data.proactive_enabled
+        )
+        profile_id = (
+            data.proactive_model_profile_id
+            if "proactive_model_profile_id" in named
+            else org.proactive_model_profile_id
+        )
+        if (
+            "proactive_model_profile_id" in named
+            and profile_id is not None
+            and await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
+            is None
+        ):
+            raise refused_field(
+                "proactive_model_profile_id", "That model is not one of this organization's"
+            )
+        if enabled and profile_id is None:
+            raise refused_field(
+                "proactive_model_profile_id",
+                "Choose the model the proactive work runs on before turning it on",
+            )
+        return await organization_repo.set_proactivity(
+            self.db,
+            org,
+            enabled=enabled,
+            model_profile_id=profile_id,
+            days=org.proactive_days if data.proactive_days is None else data.proactive_days,
+            hour=org.proactive_hour if data.proactive_hour is None else data.proactive_hour,
+            timing=org.proactive_timing if data.proactive_timing is None else data.proactive_timing,
         )
 
     async def _apply_speech_settings(

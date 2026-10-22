@@ -1,5 +1,5 @@
 ---
-source_sha: "328cd9f889c1"
+source_sha: "d8ef6e925387"
 ---
 
 # Governance { #governance }
@@ -503,20 +503,33 @@ con su proceso.
 
 ### Trabajo por iniciativa propia { #proactive-work }
 
-La plataforma hace un poco por iniciativa propia: una vez por noche, temprano en
-la mañana de cada persona, una tarea en segundo plano lee lo que pidió hace poco y
-propone una rutina para una petición que repite, un perfil o los primeros mensajes
-que ofrece su chat vacío ([Consola](console.md#chat)). Cada uno es una llamada al
-modelo, con el modelo del agent AgenticOS, registrada en el historial de runs
+La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
+hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
+miembros (`budgets:manage`). Activada, una tarea en segundo plano lee las
+peticiones recientes de cada persona los días y a la hora que eligió la
+organización - en la zona horaria de cada persona, o una hora antes del horario
+laboral que indica su perfil - y propone una rutina para una petición que repite,
+un perfil o los primeros mensajes que ofrece su chat vacío
+([Consola](console.md#chat)).
+
+Cada uno es una llamada al modelo, con el modelo
+que la organización eligió al activarla (no hay uno por defecto:
+`proactive_model_profile_id` es obligatorio), registrada en el historial de runs
 como un run de la superficie **proactive** y contada contra el budget de la
-organización como cualquier otra.
+organización como cualquier otra. Una persona puede excluirse en **Ajustes →
+Asistente**.
 
 Además, los runs por iniciativa propia de cada persona en un mes natural los
 limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
-defecto, que se fija junto al límite de gasto de la organización en su página de
-miembros (`proactive_limit_usd`, que necesita `budgets:manage`), y 0 apaga el
-trabajo. Una persona a la que no le pasó nada nuevo no cuesta nada: la tarea solo
-llama al modelo cuando hay algo que leer.
+defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a la
+que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
+algo que leer.
+
+La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
+sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
+Mattermost de la organización a un miembro nuevo, con las palabras de la
+organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
+el saludo incorporado en su idioma.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 

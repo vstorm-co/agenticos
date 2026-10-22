@@ -147,6 +147,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Proactivity is an organization's choice, off until it turns it on.** The
+  organization page's **Proactivity** card turns on the nightly suggestions
+  with the model they run on (required, never defaulted), the limit per person,
+  the days and the hour - fixed, or an hour before each person's working hours
+  - and, apart, the welcome message in Slack, Teams and Mattermost with its own
+  words. A person can leave themselves out under **Settings → Assistant**, which
+  also lists every suggestion and brings a dismissed one back
+  (`GET /me/suggestions?decided=true`, `POST /me/suggestions/{id}/restore`), and
+  a new **Suggestions for you** dashboard card shows them beside the chat's.
+  Migration `0166_proactivity_settings`.
 - **A turn whose server died ends in two minutes, not six hours.** The process
   executing a run stamps it alive every `RUN_HEARTBEAT_SECONDS` (new
   `agent_runs.heartbeat_at`, migration `0165_run_heartbeat`), and the stale-run

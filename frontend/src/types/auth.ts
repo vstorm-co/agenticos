@@ -45,6 +45,8 @@ export interface User {
   working_hours?: WorkingHours | null;
   /** The first messages an empty chat with the starter agent offers them, written for them. */
   personal_starters?: string[] | null;
+  /** This person left themselves out of the organization's nightly look (#2301). */
+  proactive_opt_out?: boolean;
   /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates

@@ -15,6 +15,7 @@ from app.db.models.organization import (
     Organization,
     OrganizationMember,
     OrgRole,
+    ProactiveTiming,
 )
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -219,6 +220,38 @@ async def set_proactive_limit(
 ) -> Organization:
     """Set what background work may spend per person per month; zero switches it off (#2301)."""
     org.proactive_limit_usd = limit_usd
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_proactivity(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    model_profile_id: UUID | None,
+    days: list[int],
+    hour: int,
+    timing: ProactiveTiming,
+) -> Organization:
+    """Write whether the platform works on its own initiative here, on what and when (#2301)."""
+    org.proactive_enabled = enabled
+    org.proactive_model_profile_id = model_profile_id
+    org.proactive_days = days
+    org.proactive_hour = hour
+    org.proactive_timing = timing
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_welcome_dm(
+    db: AsyncSession, org: Organization, *, enabled: bool, text: str | None
+) -> Organization:
+    """Write whether new members are greeted in the chat apps, and with what (#2301)."""
+    org.welcome_dm_enabled = enabled
+    org.welcome_dm_text = text
     await db.flush()
     await db.refresh(org)
     return org

@@ -8,10 +8,12 @@
 import { apiClient } from "./api-client";
 
 export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack";
+export type SuggestionStatus = "open" | "accepted" | "dismissed";
 
 export interface Suggestion {
   id: string;
   kind: SuggestionKind;
+  status: SuggestionStatus;
   title: string;
   detail: string | null;
   /**
@@ -29,6 +31,16 @@ interface SuggestionList {
 
 export async function listSuggestions(): Promise<Suggestion[]> {
   return (await apiClient.get<SuggestionList>("/me/suggestions")).items;
+}
+
+/** Every proposal the person was made here, answered or not, newest first. */
+export async function listSuggestionHistory(): Promise<Suggestion[]> {
+  return (await apiClient.get<SuggestionList>("/me/suggestions?decided=true")).items;
+}
+
+/** Bring back one the person dismissed, to answer again. */
+export async function restoreSuggestion(id: string): Promise<Suggestion> {
+  return apiClient.post<Suggestion>(`/me/suggestions/${id}/restore`);
 }
 
 export async function acceptSuggestion(id: string): Promise<Suggestion> {

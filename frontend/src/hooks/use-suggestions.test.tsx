@@ -7,10 +7,12 @@ const api = vi.hoisted(() => ({
   listSuggestions: vi.fn(),
   acceptSuggestion: vi.fn(),
   dismissSuggestion: vi.fn(),
+  listSuggestionHistory: vi.fn(),
+  restoreSuggestion: vi.fn(),
 }));
 vi.mock("@/lib/suggestions-api", () => api);
 
-import { useSuggestions } from "./use-suggestions";
+import { useSuggestionHistory, useSuggestions } from "./use-suggestions";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -31,5 +33,22 @@ describe("useSuggestions", () => {
     await waitFor(() => expect(api.listSuggestions).toHaveBeenCalledTimes(3));
     expect(api.acceptSuggestion).toHaveBeenCalledWith("s1");
     expect(api.dismissSuggestion).toHaveBeenCalledWith("s1");
+  });
+});
+
+describe("useSuggestionHistory", () => {
+  it("reads every proposal, and brings a declined one back to the open ones", async () => {
+    api.listSuggestionHistory.mockResolvedValue([{ id: "s1", status: "dismissed" }]);
+    api.restoreSuggestion.mockResolvedValue({ id: "s1", status: "open" });
+    const { result } = renderHook(() => useSuggestionHistory(), { wrapper });
+
+    await waitFor(() =>
+      expect(result.current.history).toEqual([{ id: "s1", status: "dismissed" }]),
+    );
+    await result.current.restore("s1");
+
+    expect(api.restoreSuggestion).toHaveBeenCalledWith("s1");
+    // The history sits under the open list's key, so both are read again.
+    await waitFor(() => expect(api.listSuggestionHistory).toHaveBeenCalledTimes(2));
   });
 });

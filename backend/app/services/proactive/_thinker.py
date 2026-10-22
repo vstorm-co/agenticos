@@ -5,9 +5,11 @@ keep asking for - is not an agent run: it has no tools, no conversation and
 nobody watching. It still has to be paid for the way everything else is, so it
 gets what a run gets where it matters:
 
-- **The starter agent's model.** The organization chose it for its general
-  assistant; the platform thinking for a person on that assistant's behalf uses
-  the same one, and an organization without the starter agent gets nothing.
+- **The model the organization chose for it.** Proactivity is off until an
+  organization turns it on, and turning it on names the model profile it runs
+  on (`Organization.proactive_model_profile_id`) - never the agent's by default,
+  because this spends money nobody asked for in the moment. An organization
+  without the starter agent gets nothing either.
 - **A run row**, `surface=proactive`, under the starter agent and the person -
   so the cost is in run history, the spend views and the organization's monthly
   total, and a failure is written down rather than lost.
@@ -29,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
 from app.agents.failures import run_failure_summary
-from app.agents.spec import AgentSpec
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent as AgentRow
@@ -58,22 +59,34 @@ class ProactiveThinker:
         agent = await agent_repo.get_by_slug(self.db, STARTER_SLUG, organization_id=organization_id)
         return agent if agent is not None and agent.current_version_id is not None else None
 
-    async def within_limits(self, ctx: AuthContext) -> bool:
-        """Whether this person's background work may spend this month."""
+    async def allowance(self, ctx: AuthContext) -> UUID | None:
+        """The model this person's background work may run on now, or `None` when it may not.
+
+        `None` where the organization has proactivity off or no model for it,
+        and where this month's spending is at either limit.
+        """
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
-        if organization is None or organization.proactive_limit_usd <= 0 or ctx.user_id is None:
-            return False
+        if (
+            organization is None
+            or not organization.proactive_enabled
+            or organization.proactive_model_profile_id is None
+            or organization.proactive_limit_usd <= 0
+            or ctx.user_id is None
+        ):
+            return None
         if organization.monthly_budget_usd is not None:
             spent = await organization_monthly_spend(self.db, ctx.organization_id)
             if spent >= organization.monthly_budget_usd:
-                return False
+                return None
         mine = await agent_run_repo.proactive_spend_since(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
             since=month_start(),
         )
-        return mine < organization.proactive_limit_usd
+        if mine >= organization.proactive_limit_usd:
+            return None
+        return organization.proactive_model_profile_id
 
     async def think[OutputT](
         self,
@@ -93,18 +106,16 @@ class ProactiveThinker:
         agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
-        if not await self.within_limits(ctx):
+        profile_id = await self.allowance(ctx)
+        if profile_id is None:
             return None
         version = await agent_repo.get_version(
             self.db, agent.current_version_id, organization_id=ctx.organization_id
         )
         if version is None:
             return None
-        spec = AgentSpec.model_validate(version.spec)
         try:
-            request = await ModelProfileService(self.db).resolve(
-                ctx, profile_id=spec.model_profile_id
-            )
+            request = await ModelProfileService(self.db).resolve(ctx, profile_id=profile_id)
         except AppException:
             logger.info(
                 "proactive_model_unavailable",

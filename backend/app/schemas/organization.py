@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import MembershipSourceLiteral
+from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -75,6 +75,66 @@ class OrganizationUpdate(BaseSchema):
             "'budgets:manage'."
         ),
     )
+    proactive_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the platform looks at each person's week on its own initiative and "
+            "proposes what would save them time. Turning it on needs a "
+            "`proactive_model_profile_id`. Needs 'budgets:manage'."
+        ),
+    )
+    proactive_model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model profile that work runs on, one of this organization's. Send null "
+            "to clear it, which only an organization with the work off may do."
+        ),
+    )
+    proactive_days: list[int] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=7,
+        description="The ISO weekdays it runs on, in each person's time zone; 1 is Monday.",
+    )
+    proactive_hour: int | None = Field(
+        default=None,
+        ge=0,
+        le=23,
+        description="The hour it runs at, in each person's time zone.",
+    )
+    proactive_timing: ProactiveTiming | None = Field(
+        default=None,
+        description=(
+            "`fixed`: at `proactive_hour`. `before_work`: an hour before the working "
+            "hours a person's profile states, and at `proactive_hour` for anyone whose "
+            "profile states none."
+        ),
+    )
+    welcome_dm_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a new member gets a direct message from the organization's Slack, "
+            "Teams and Mattermost bots. Needs 'org:settings'."
+        ),
+    )
+    welcome_dm_text: str | None = Field(
+        default=None,
+        max_length=1000,
+        description=(
+            "What that message says; `{organization}`, `{bot}` and `{url}` are filled "
+            "in. Null for the built-in greeting in the member's language."
+        ),
+    )
+
+    @field_validator("proactive_days")
+    @classmethod
+    def _weekdays(cls, days: list[int] | None) -> list[int] | None:
+        if days is None:
+            return None
+        if any(day < 1 or day > 7 for day in days):
+            raise ValueError("Weekdays run from 1 (Monday) to 7 (Sunday)")
+        return sorted(set(days))
+
     chat_may_waive_approvals: bool | None = Field(
         default=None,
         description=(
@@ -132,6 +192,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
         default=Decimal("1"),
         description="What background work may spend per person per month; zero is off.",
     )
+    proactive_enabled: bool = False
+    proactive_model_profile_id: UUID | None = None
+    proactive_days: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5])
+    proactive_hour: int = 5
+    proactive_timing: ProactiveTiming = "fixed"
+    welcome_dm_enabled: bool = False
+    welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(
         default=False,
         description=(
