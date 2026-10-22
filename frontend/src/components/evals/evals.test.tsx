@@ -175,7 +175,6 @@ describe("passRateLines", () => {
       [0, true, "var(--color-success)"],
       [2, false, "var(--color-destructive)"],
     ]);
-    // Each point names its run: a run from before today by its date, one from today by its time.
     expect(refunds?.points.map((p) => p.tick)).toEqual([
       "trend.tick:draft|Oct 14",
       expect.stringMatching(/^trend\.tick:version:7\|\d{2}:\d{2}/),
