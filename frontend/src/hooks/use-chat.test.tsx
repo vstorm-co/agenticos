@@ -2573,6 +2573,29 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(result.current.interrupted).toBe(true);
   });
 
+  it("re-reads a turn the chat page left streaming when it comes back (#2301)", () => {
+    // Leaving the chat unmounts this hook and its socket, but the store keeps
+    // the half-drawn turn: back on the page its timer ran on, and a question it
+    // parked on never returned as a card.
+    const first = renderHook(() => useChat(), { wrapper });
+    act(() => first.result.current.sendMessage("hej"));
+    receive("model_request_start", {});
+    first.unmount();
+
+    const onTurnInterrupted = vi.fn();
+    renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads nothing on a page opened with no turn left streaming", () => {
+    const onTurnInterrupted = vi.fn();
+    const { rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    rerender();
+
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
   it("says nothing about a socket that came back with no turn in flight", () => {
     const onTurnInterrupted = vi.fn();
     const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
