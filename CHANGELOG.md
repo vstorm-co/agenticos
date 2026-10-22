@@ -95,7 +95,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **uvicorn's access and error logs are redacted.** The filter that scrubs
   credentials from the application's logs now also covers the server's own
   loggers, so a signed `?token=` in a request line is no longer written in
-  clear.
+  clear. The shipped `nginx/nginx.conf` now logs request paths without their
+  query string for the same reason; a deployment with its own copy of that file
+  should add the `without_query` log format to it.
 
 ## [1.13.0] - 2026-10-22
 

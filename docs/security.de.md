@@ -1,5 +1,5 @@
 ---
-source_sha: "de4bd5729da0"
+source_sha: "2f77c53d4db7"
 ---
 
 # Sicherheit { #security }
@@ -247,7 +247,7 @@ SOC 2 CC6–CC8.
 |---|---|---|
 | Kein Secret im Klartext in einer API-Antwort oder einem Audit-Eintrag | `SealedStr`/`CredentialStr` maskieren jedes repr; Hinweise sind nur die letzten 4 Zeichen (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (durchkämmt die gesamte OpenAPI-Oberfläche), `test_capability_secrets.py::TestInjection` |
 | Logs sind nicht Teil dieser Zusage | Eine fehlerhafte MCP-OAuth-Token-Antwort erreicht die Logs über einen Pydantic-`ValidationError`, der seine Eingabe wiedergibt — eine bekannte Lücke, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (hält fest, dass das Token in `caplog` landet) |
-| Signierte Links in Access-Logs | Der Redaktionsfilter deckt neben den Logs der Anwendung auch die Access- und Error-Logs von uvicorn ab (`app/core/logging.py`), sodass ein signiertes `?token=` - das eines Embed-Sockets oder eines Links zu generierten Medien - dort geschwärzt geschrieben wird; das Access-Log eines Reverse-Proxys oder des Frontend-Servers liegt außerhalb der Anwendung, hält diese Query-Tokens im Klartext fest und sollte wie ein Log aufbewahrt und weitergegeben werden, das gültige, kurzlebige Zugangsdaten enthält | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
+| Signierte Links in Access-Logs | Der Redaktionsfilter deckt neben den Logs der Anwendung auch die Access- und Error-Logs von uvicorn ab (`app/core/logging.py`), sodass ein signiertes `?token=` - das eines Embed-Sockets oder eines Links zu generierten Medien - dort geschwärzt geschrieben wird; das mitgelieferte `nginx/nginx.conf` protokolliert Pfade ohne Query-String; das Access-Log von Traefik (`traefik/traefik.yml`), eines anderen Reverse-Proxys oder des Frontend-Servers liegt außerhalb der Anwendung, hält diese Query-Tokens im Klartext fest und sollte wie ein Log aufbewahrt und weitergegeben werden, das gültige, kurzlebige Zugangsdaten enthält | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Kein Credential des Providers erreicht den Browser eines Sprachanrufs | Der Server beantwortet das SDP-Angebot und hält die Sideband-Verbindung; ein Angebot mit einem Datenkanal wird abgelehnt; Client-Secrets werden nie ausgestellt; der Schlüssel wird für einen Anruf entsiegelt, und für ein Auflegen nur über `OrganizationSecretService.voice_call_key`, dessen Klartext an den Auflege-Endpunkt des Providers geht und nirgendwohin sonst (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Ein Credential ist im Ruhezustand an seine Organisation gebunden | HKDF-Umschlag pro Eigentümer (`app/core/vault.py`); der Geltungsbereich sind Konnektor- und API-Credentials — zu den Bearer-Token, die er nicht abdeckt, siehe „Was wo verschlüsselt ist“ | `test_secret_tenant_isolation.py`, `test_vault.py` |
 

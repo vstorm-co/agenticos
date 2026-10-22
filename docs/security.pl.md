@@ -1,5 +1,5 @@
 ---
-source_sha: "de4bd5729da0"
+source_sha: "2f77c53d4db7"
 ---
 
 # Bezpieczeństwo { #security }
@@ -234,7 +234,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 |---|---|---|
 | Żaden sekret otwartym tekstem w odpowiedzi API ani we wpisie audytowym | `SealedStr`/`CredentialStr` maskują każdy repr; podpowiedzi to wyłącznie ostatnie 4 znaki (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (przemiata całą powierzchnię OpenAPI), `test_capability_secrets.py::TestInjection` |
 | Logi nie są częścią tej gwarancji | Zniekształcona odpowiedź tokena MCP OAuth trafia do logów przez `ValidationError` Pydantica, który powtarza swoje wejście — znana luka, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (dokumentuje, że token ląduje w `caplog`) |
-| Podpisane linki w logach dostępu | Filtr redakcji obejmuje poza logami aplikacji także logi dostępu i błędów uvicorna (`app/core/logging.py`), więc podpisany `?token=` - gniazda embed czy linku do wygenerowanych mediów - jest tam zapisywany zredagowany; log dostępu reverse proxy lub serwera frontendu leży poza aplikacją, zapisuje te tokeny z zapytania jawnym tekstem i należy go przechowywać i udostępniać jak log zawierający aktywne, krótko żyjące poświadczenia | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
+| Podpisane linki w logach dostępu | Filtr redakcji obejmuje poza logami aplikacji także logi dostępu i błędów uvicorna (`app/core/logging.py`), więc podpisany `?token=` - gniazda embed czy linku do wygenerowanych mediów - jest tam zapisywany zredagowany; dostarczony `nginx/nginx.conf` loguje ścieżki bez query stringa; log dostępu Traefika (`traefik/traefik.yml`), innego reverse proxy lub serwera frontendu leży poza aplikacją, zapisuje te tokeny z zapytania jawnym tekstem i należy go przechowywać i udostępniać jak log zawierający aktywne, krótko żyjące poświadczenia | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Żadne poświadczenie providera nie trafia do przeglądarki rozmowy głosowej | Serwer odpowiada na ofertę SDP i trzyma połączenie sideband; oferta z kanałem danych jest odrzucana; sekrety klienta nigdy nie są wydawane; klucz jest odpieczętowywany na rozmowę, a na rozłączenie tylko przez `OrganizationSecretService.voice_call_key`, którego otwarty tekst trafia do endpointu rozłączania providera i nigdzie indziej (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Poświadczenie jest w spoczynku związane ze swoją organizacją | Koperta HKDF per właściciel (`app/core/vault.py`); zakres to poświadczenia konektorów i API — o tokenach bearer, których nie obejmuje, mówi „Co jest gdzie szyfrowane” | `test_secret_tenant_isolation.py`, `test_vault.py` |
 
