@@ -1,5 +1,5 @@
 ---
-source_sha: "e3d2d8bbc68f"
+source_sha: "dce04e2d4523"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -68,7 +68,7 @@ haben, und entscheidet eines von drei Dingen:
 |---|---|
 | Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
-| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler |
+| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
@@ -107,6 +107,13 @@ in das nächste Thema dieser Wissensbasis oder beginnt ein neues. Ein Lauf bette
 höchstens 500 Fehltreffer pro Wissensbasis ein; der Rest wartet auf den
 nächsten. Eine Wissensbasis ohne neue Fehltreffer kostet keinen
 Embedding-Aufruf.
+
+Ein Fehltreffer kommt nur dann in das nächste Thema, wenn er ihm mindestens so
+ähnlich ist wie `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; sonst beginnt er ein neues.
+
+| Einstellung | Standard | Was sie entscheidet |
+|---|---|---|
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Die Kosinus-Ähnlichkeit, die ein Fehltreffer zu einem Thema braucht, um ihm beizutreten. Welchen Wert Fragen zu einer Sache erreichen, hängt vom Embedding-Modell ab: bei OpenAIs `text-embedding-3`-Modellen etwa 0,5 bis 0,7. Erhöhe sie, wenn nicht zusammengehörige Fragen ein Thema teilen, senke sie, wenn eine Sache immer neue beginnt. Der Standard ist auf diese Modelle abgestimmt; ein Embedding-Modell hinter einem OpenAI-kompatiblen Endpunkt, etwa bge oder e5, bewertet selbst nicht zusammengehörige Fragen hoch, also erhöhe ihn dort |
 
 - Eine Suche über zwei Wissensdatenbanken wird zu einer Frage in einem Thema jeder der
   beiden.

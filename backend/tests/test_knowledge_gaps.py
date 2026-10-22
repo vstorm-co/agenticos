@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
+from app.core.config import settings
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
     KnowledgeGapMember,
@@ -22,9 +23,9 @@ from app.db.models.knowledge_gap import (
 )
 from app.repositories import knowledge_gap_repo
 from app.repositories.knowledge_gap import DraftingRow
+from app.schemas.knowledge_gap import ClassifiedAnswer
 from app.services import change_feed
 from app.services.knowledge_gaps import (
-    TOPIC_SIMILARITY,
     KnowledgeGapService,
     _assign,
     _Cluster,
@@ -42,9 +43,17 @@ ORG = uuid.uuid4()
 KB = uuid.uuid4()
 
 
+TOPIC_SIMILARITY = settings.KNOWLEDGE_GAP_TOPIC_SIMILARITY
+
+
 def _vec(*values: float) -> np.ndarray:
     vector = np.asarray(values, dtype=np.float64)
     return vector / np.linalg.norm(vector)
+
+
+def _at(cosine: float) -> np.ndarray:
+    """A unit vector this similar to `_vec(1, 0)`."""
+    return _vec(cosine, (1 - cosine**2) ** 0.5)
 
 
 class TestAssign:
@@ -79,6 +88,19 @@ class TestAssign:
         )
 
         assert [c.searches for c in clusters] == [[first, second]]
+
+    def test_questions_about_one_subject_share_a_topic_at_the_default_threshold(self):
+        """Asked about shipping to Canada and to Germany, an embedding model puts the two
+        about 0.6 apart; a bar at 0.8 gave each its own topic, so nothing ever grouped."""
+        canada, germany, wrapping = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+        clusters = _assign(
+            [(canada, _vec(1, 0)), (germany, _at(0.62)), (wrapping, _at(-0.1))],
+            [],
+            threshold=TOPIC_SIMILARITY,
+        )
+
+        assert [c.searches for c in clusters] == [[canada, germany], [wrapping]]
 
     def test_the_nearest_topic_wins(self):
         far = _Cluster(centroid=_vec(1, 0.6), size=1, topic=MagicMock(), searches=[])
@@ -455,6 +477,22 @@ class TestTheCheck:
 
         group.assert_not_awaited()
         told.assert_awaited_once_with(ORG)
+
+
+class TestClassifierLabels:
+    @pytest.mark.parametrize(
+        ("label", "read_as"),
+        [
+            ("answer", "did_not_know"),
+            ("rating", "missing_information"),
+            ("none", "no_gap"),
+            ("did_not_know", "did_not_know"),
+        ],
+    )
+    def test_a_classifier_still_on_the_old_labels_is_read_as_the_new_ones(self, label, read_as):
+        """A classifier seeded before the labels changed keeps its published
+        instructions, which name the old ones; its answer must still be read."""
+        assert ClassifiedAnswer(number=1, signal=label).signal == read_as
 
 
 class TestTheRepository:

@@ -69,9 +69,6 @@ from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
 
-TOPIC_SIMILARITY = 0.80
-"""How similar a miss must be to a topic's centroid to join it, rather than start one."""
-
 GROUPING_BATCH = 500
 """The most misses one knowledge base embeds in one pass; the rest wait for the next."""
 
@@ -219,10 +216,24 @@ def _drafting_prompt(
 
 
 def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) -> str:
-    """The answers a classifying model reads, each numbered."""
+    """The answers a classifying model reads, each numbered, and how to label each.
+
+    The rules are here rather than only in the classifier's instructions, which
+    the organization may edit: they decide what is stored as a gap.
+    """
     parts = [
-        f'These answers were given from the knowledge base "{knowledge_base}". Classify '
-        "every one of them, citing it by its number.",
+        f'An agent answered these questions; the knowledge base "{knowledge_base}" is '
+        "one of the places it looks things up. Find the answers that show this knowledge "
+        "base is missing content. Label every answer, citing it by its number:\n"
+        "- `did_not_know`: the answer says, in any words or language, that the agent "
+        "does not know, could not find the information, or has nothing on it.\n"
+        "- `missing_information`: the answer does not say so, but a reader's comment "
+        "says the information it needed was missing, outdated or incomplete - content "
+        "to add or bring up to date.\n"
+        "- `no_gap`: anything else. An answer that applied a policy or a rule wrongly is "
+        "`no_gap`: the rule was there and the agent misused it. So is a comment about "
+        "that, about tone, length or format, or saying the answer should have refused, "
+        "and so is a refusal of a question the agent is not for.",
     ]
     for number, candidate in enumerate(candidates, start=1):
         comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)
@@ -233,6 +244,14 @@ def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) 
             f"Comments of readers who rated it down:\n{comments or '(none)'}"
         )
     return "\n\n".join(parts)
+
+
+_SIGNALS: dict[str, GapSignal | None] = {
+    "did_not_know": GapSignal.ANSWER,
+    "missing_information": GapSignal.RATING,
+    "no_gap": None,
+}
+"""What each of the classifying model's labels records."""
 
 
 def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -> list[Verdict]:
@@ -249,7 +268,7 @@ def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -
     return [
         Verdict(
             candidate=candidates[number - 1],
-            signal=None if answer.signal == "none" else GapSignal(answer.signal),
+            signal=_SIGNALS[answer.signal],
             query=(candidates[number - 1].question or candidates[number - 1].answer)[
                 :MAX_QUERY_CHARS
             ],
@@ -962,7 +981,7 @@ class KnowledgeGapService:
                 # A model whose width changed under the same name is another space.
                 if len(topic.centroid) == width
             ],
-            threshold=TOPIC_SIMILARITY,
+            threshold=settings.KNOWLEDGE_GAP_TOPIC_SIMILARITY,
         )
 
         placements: list[tuple[UUID, UUID]] = []
