@@ -402,7 +402,7 @@
     "orphanedContext": "Ten agent odwołuje się także do {count, plural, =1 {1 pliku kontekstu, którego ta organizacja już nie ma} few {# plików kontekstu, których ta organizacja już nie ma} many {# plików kontekstu, których ta organizacja już nie ma} other {# plików kontekstu, których ta organizacja już nie ma}}. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
     "orphanedServers": "Ten agent odwołuje się także do {count, plural, =1 {1 serwera, którego ta organizacja nie oferuje} few {# serwerów, których ta organizacja nie oferuje} many {# serwerów, których ta organizacja nie oferuje} other {# serwerów, których ta organizacja nie oferuje}} - usuniętych od tego czasu albo przeniesionych z zaimportowanej spec. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
     "orphanedSkills": "Ten agent odwołuje się także do {count, plural, =1 {1 skilla, którego ta organizacja już nie ma} few {# skilli, których ta organizacja już nie ma} many {# skilli, których ta organizacja już nie ma} other {# skilli, których ta organizacja już nie ma}}. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
-    "staleReferences": "Ten szkic wciąż odwołuje się do: {list}, których ta organizacja już nie ma. Publikacja jest odrzucana, dopóki ich nie usuniesz.",
+    "staleReferences": "Ta wersja robocza wciąż odwołuje się do: {list}, których ta organizacja już nie ma. Publikacja jest odrzucana, dopóki ich nie usuniesz.",
     "staleCollections": "{count, plural, one {1 kolekcję wiedzy} few {# kolekcje wiedzy} many {# kolekcji wiedzy} other {# kolekcji wiedzy}}",
     "staleContext": "{count, plural, one {1 plik kontekstu} few {# pliki kontekstu} many {# plików kontekstu} other {# pliku kontekstu}}",
     "staleSkills": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilla}}",
@@ -663,7 +663,7 @@
     "zoom": "Powiększ",
     "zoomOut": "Pomniejsz",
     "testConnectionsFor": "Połączenia testowe dla {name}",
-    "testConnectionsHint": "Runy w tym środowisku, łącznie z evalami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
+    "testConnectionsHint": "Runy w tym środowisku, łącznie z ewaluacjami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
     "testConnectionKindLabel": "Co zastąpić",
     "testConnectionKindMcp": "Serwer MCP",
     "testConnectionKindSecret": "Klucz z vault",
@@ -732,12 +732,12 @@
     "capabilityNeeds": "Wymaga",
     "capabilityNever": "Nigdy",
     "addToAgent": "Dodaj do agenta",
-    "addToAgentHint": "Wybierz agenta. Zmienia się jego szkic; opublikuj go w Builderze, żeby zmiana zaczęła działać.",
+    "addToAgentHint": "Wybierz agenta. Zmienia się jego wersja robocza; opublikuj ją w Builderze, żeby zmiana zaczęła działać.",
     "loadingAgents": "Wczytywanie agentów…",
     "noAgentToAddTo": "Nie ma jeszcze agenta, do którego można to dodać.",
     "createAnAgent": "Utwórz agenta",
     "openInBuilder": "Otwórz w Builderze",
-    "addedToAgent": "Dodano {name} do szkicu agenta {agent}.",
+    "addedToAgent": "Dodano {name} do wersji roboczej agenta {agent}.",
     "alreadyOnAgent": "Agent {agent} ma już {name}.",
     "usedByNobody": "Nie używa tego jeszcze żaden agent",
     "usedBy": "{more, plural, =0 {Używa: {names}} other {Używa: {names} i jeszcze #}}",
@@ -753,7 +753,7 @@
     "testStarterIdentityTitle": "Za kogo się podaje",
     "testStarterIdentityPrompt": "Kim jesteś i kto cię zbudował?",
     "testPanelClose": "Zamknij panel testowy",
-    "testPanelDraft": "Szkic",
+    "testPanelDraft": "Wersja robocza",
     "testPanelDraftSaving": "Zapisywanie ostatniej zmiany - wyślij po zapisaniu, żeby ją przetestować.",
     "testPanelEnvironment": "{name} (wersja {version})",
     "testPanelNew": "Nowa rozmowa",
@@ -766,9 +766,9 @@
     "testPanelCompare": "Porównaj dwa obok siebie",
     "testPanelComparedWith": "Porównywany z",
     "testPanelCompareHint": "Dwa czaty odpowiadają obok siebie. Pytaj oba z pola poniżej, żeby dostały te same słowa.",
-    "testPanelChanges": "Co zmienia szkic",
-    "testPanelChangesTitle": "Co zmienia szkic",
-    "testPanelChangesWhy": "Testowany szkic na tle wersji {version}, tej opublikowanej.",
+    "testPanelChanges": "Co zmienia wersja robocza",
+    "testPanelChangesTitle": "Co zmienia wersja robocza",
+    "testPanelChangesWhy": "Testowana wersja robocza na tle wersji {version}, tej opublikowanej.",
     "testPanelPrompt": "Prompt",
     "testPanelAsk": "Zapytaj",
     "testPanelAskBoth": "Zapytaj oba",
@@ -3781,7 +3781,7 @@
       },
       "agent-publish": {
         "title": "Opublikuj, żeby go wypuścić",
-        "body": "Nic nie działa, dopóki nie opublikujesz. Publikacja zamraża bieżący szkic jako wersję, i to ta wersja odpowiada wszędzie tam, gdzie agent jest dostępny."
+        "body": "Nic nie działa, dopóki nie opublikujesz. Publikacja zamraża bieżącą wersję roboczą jako wersję, i to ta wersja odpowiada wszędzie tam, gdzie agent jest dostępny."
       },
       "agent-skills": {
         "title": "Daj mu instrukcję działania",
@@ -3925,7 +3925,7 @@
       },
       "flow-agent-publish": {
         "title": "Opublikuj go",
-        "body": "Agent musi być opublikowany, żeby dało się z nim pisać - szkic nie przyjmuje wiadomości. Kliknij Publish, aby udostępnić tę wersję; przejdziemy dalej w chwili, gdy się opublikuje."
+        "body": "Agent musi być opublikowany, żeby dało się z nim pisać - wersja robocza nie przyjmuje wiadomości. Kliknij Opublikuj, aby udostępnić tę wersję; przejdziemy dalej w chwili, gdy się opublikuje."
       },
       "flow-agent-run-pick": {
         "title": "Wybierz swojego agenta",
@@ -4205,7 +4205,7 @@
       },
       "agents-templates": {
         "title": "Zacznij od szablonu",
-        "body": "Dwadzieścia osiem gotowych agentów według branż. Instalacja tworzy szkic z już podpiętymi skillami."
+        "body": "Dwadzieścia osiem gotowych agentów według branż. Instalacja tworzy wersję roboczą z już podpiętymi skillami."
       },
       "knowledge-local-services": {
         "title": "Usługi lokalne",
@@ -4277,7 +4277,7 @@
       },
       "flow-dataset-case-answers": {
         "title": "Dobra odpowiedź i zła",
-        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; judge porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
+        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; sędzia porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
       },
       "flow-dataset-case-tools": {
         "title": "Narzędzia, które powinien wywołać",
@@ -4374,7 +4374,7 @@
       },
       "agent-test": {
         "title": "Testuj w trakcie budowania",
-        "body": "Otwiera obok Buildera czat, który odpowiada jako nieopublikowany szkic albo dowolne środowisko. Runy testowe są liczone i rozliczane w budżecie, a w Aktywności są oznaczone."
+        "body": "Otwiera obok Buildera czat, który odpowiada jako nieopublikowana wersja robocza albo dowolne środowisko. Runy testowe są liczone i rozliczane w budżecie, a w Aktywności są oznaczone."
       },
       "group-members": {
         "title": "Kto w nim jest",
@@ -4733,7 +4733,7 @@
       "delete": "Usuń",
       "delete2": "Usuń",
       "deletePermanently": "Usuń na stałe",
-      "draftAsStandsWhat": "Szkic w obecnej postaci: co dociera do tego agenta i po co on sięga. Przerywana ramka to coś, do czego nic nie jest podpięte.",
+      "draftAsStandsWhat": "Wersja robocza w obecnej postaci: co dociera do tego agenta i po co on sięga. Przerywana ramka to coś, do czego nic nie jest podpięte.",
       "duplicate": "Duplikuj",
       "eachPublishFreezesSpec": "Każda publikacja zamraża spec. Runy zapisują wersję, więc to, co agent zrobił w zeszły wtorek, da się wyjaśnić po tuzinie edycji. Przywrócenie publikuje nową wersję skopiowaną ze starej - oś czasu pokazuje, że nastąpił rollback, zamiast udawać, że złej wersji nigdy nie było.",
       "environments": "Środowiska",
@@ -4850,7 +4850,7 @@
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
       "identity": "Nazwa i opis",
-      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
+      "identityHelp": "Zapisywane razem z wersją roboczą. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
       "draftAsTested": "Wersja robocza z chwili testu",
       "evals": "Ewaluacje",
       "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
@@ -5250,7 +5250,7 @@
       "anyPerson": "Ktokolwiek",
       "anyRating": "Dowolna ocena",
       "anyStatus": "Dowolny status",
-      "anySurface": "Każde źródło poza evalami",
+      "anySurface": "Każde źródło poza ewaluacjami",
       "anyVersion": "Dowolna wersja",
       "approvalCount": "{count, plural, one {1 prośba} few {# prośby} many {# próśb} other {# prośby}}",
       "approvals": "Zatwierdzenia",
@@ -5273,7 +5273,7 @@
       "cost": "Koszt",
       "currentVersion": "Bieżąca",
       "dearestAgent": "Wydaje najwięcej",
-      "everySurface": "Każde źródło, z evalami",
+      "everySurface": "Każde źródło, z ewaluacjami",
       "evalCase": "Przypadek ewaluacji: {dataset} · {input}",
       "evalCaseTitle": "Przypadek z runu ewaluacji",
       "evalCaseBody": "Ten run odpowiadał na jeden przypadek runu ewaluacji, który nie zapisuje rozmowy. Odpowiedź i jej ocena są w runie ewaluacji.",
@@ -7377,7 +7377,7 @@
       "changeJudgeModel": "Zmień model sędziego",
       "willBeGradedByHint": "Każda z tych zmian dotyczy wszystkich odpowiedzi ocenianych później, nie tylko tej.",
       "judgeModelOnItsPage": "Jego model zmienia się na jego własnej stronie.",
-      "judgeNoModelYet": "Organizacja nie ma jeszcze modelu, więc sędzia zostanie utworzony jako szkic. Dodaj model, a potem opublikuj sędziego na jego stronie.",
+      "judgeNoModelYet": "Organizacja nie ma jeszcze modelu, więc sędzia zostanie utworzony jako wersja robocza. Dodaj model, a potem opublikuj sędziego na jego stronie.",
       "judgeSameModel": "Sędzia oceniał na {model}, tym samym modelu, który odpowiadał, i może faworyzować odpowiedzi podobne do własnych. Daj sędziemu inny model na jego stronie.",
       "noteToCriterion": "Zamień tę notatkę w kryterium sędziego:",
       "noteForCase": "dla tego przypadku",
@@ -7387,7 +7387,7 @@
       "rule": "Reguła: {rule}",
       "judgeSaid": "Sędzia odpowiedział: „{said}”",
       "unverifiedGrade": "Niezweryfikowane: żaden cytat z odpowiedzi nie popiera tej oceny.",
-      "agentDraft": "{name} · szkic"
+      "agentDraft": "{name} · wersja robocza"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -8239,7 +8239,7 @@
       "noEnvironment": "Brak",
       "environmentHint": "Narzędzia łączą się z testowymi połączeniami tego środowiska. Narzędzie, które bez nich zapisałoby dane, nie jest wykonywane.",
       "fromRecordings": "Odtwórz wyniki narzędzi z oryginalnej rozmowy",
-      "fromRecordingsHint": "Case wzięty z rozmowy dostaje te same wyniki narzędzi co tamta rozmowa, zamiast wywoływać narzędzia ponownie.",
+      "fromRecordingsHint": "Przypadek wzięty z rozmowy dostaje te same wyniki narzędzi co tamta rozmowa, zamiast wywoływać narzędzia ponownie.",
       "agent": "Agent",
       "agentPlaceholder": "Wybierz agenta",
       "target": "Co testujesz",
@@ -8258,7 +8258,7 @@
       "reruns": "Powtórki potwierdzające",
       "rerunsDefault": "Domyślnie",
       "rerunsCount": "{count, plural, =0 {Brak} one {# powtórka} few {# powtórki} many {# powtórek} other {# powtórki}}",
-      "rerunsHint": "Case, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie."
+      "rerunsHint": "Przypadek, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie."
     },
     "comparison": {
       "title": "Jak wypadają obie strony",
@@ -8384,7 +8384,7 @@
       "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany."
     },
     "live": {
-      "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
+      "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Przypadki, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
       "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą.",
       "confirming": "Wszystkie pierwsze odpowiedzi są już gotowe. Potwierdzam przypadki, które się zmieniły: {done} z {total} powtórek gotowe."
     },
@@ -8393,7 +8393,7 @@
       "whatChanged": "Zobacz, co się zmieniło",
       "showBroken": "{count, plural, one {Pokaż przypadek, który się zepsuł} few {Pokaż # przypadki, które się zepsuły} many {Pokaż # przypadków, które się zepsuły} other {Pokaż # przypadku, które się zepsuły}}",
       "backToBuild": "Wróć do Budowy",
-      "publish": "Publish",
+      "publish": "Opublikuj",
       "testAgain": "Testuj ponownie",
       "showBrokenOnce": "{count, plural, one {Pokaż przypadek, który zepsuł się przynajmniej raz} few {Pokaż # przypadki, które zepsuły się przynajmniej raz} many {Pokaż # przypadków, które zepsuły się przynajmniej raz} other {Pokaż # przypadku, które zepsuły się przynajmniej raz}}"
     },
@@ -8502,7 +8502,7 @@
         "skipped": "Nie uruchomiona",
         "error": "Błąd"
       },
-      "checkVerdict": "Tak oceniłaby to suita <suite>{name}</suite> według progu z chwili startu sprawdzenia. Sprawdzenie evalami nie jest runem suity, więc nie trafia do jej historii.",
+      "checkVerdict": "Tak oceniłaby to suita <suite>{name}</suite> według progu z chwili startu sprawdzenia. Sprawdzenie ewaluacją nie jest runem suity, więc nie trafia do jej historii.",
       "lastResult": "{status} · {rate}",
       "paused": {
         "byPerson": "Wstrzymana",
