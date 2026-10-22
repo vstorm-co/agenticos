@@ -8,8 +8,8 @@ import pl from "./pl.json";
  *
  * The words are the glossary in `docs/howto/translate.md`, and they are the ones
  * the tabs already wear, so a sentence naming a tab names it as the tab does. Each
- * pattern is a mixed term the eval screens shipped with: "case'ów" beside
- * "przypadków", "Evale" beside "Ewaluacje", "Draft" beside "Entwurf". The product's
+ * pattern is a form that reads as a second word for a glossary term - "case'ów"
+ * for "przypadków", "Evale" for "Ewaluacje", "Draft" for "Entwurf". The product's
  * own nouns - agent, dataset, run, skill - stay English and are not matched.
  */
 
