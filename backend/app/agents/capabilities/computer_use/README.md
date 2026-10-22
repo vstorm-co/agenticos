@@ -8,24 +8,26 @@ Unlike `browser_use`, the desktop can run any application, not only a web page.
 
 ## Where the desktop is
 
-The settings ask `desktop` first: `local` or `cloud`. A cloud desktop then
-names its `cloud_provider`, and only that provider's settings are shown. E2B
-is the one provider so far; another is a value in that `Literal`, a backend
-in `_backends.py` and a branch in `ComputerUse._open`.
+The settings ask `desktop` first: `sandbox` or `daemon`.
 
-- **`local`**: a `computerd` process the operator runs. It can serve a Linux
-  desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen.
-  The deployment reaches it over HTTP with `COMPUTER_DAEMON_TOKEN`. Its host
-  must be on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and publish checks that.
-  `daemon_url` is in the spec, so it is under tenant control; this works the
-  same way as `BROWSER_CDP_ALLOWED_HOSTS`.
+- **`sandbox`**, the default: a desktop inside the agent's own sandbox, the
+  container the `sandbox` capability opens on one of the organization's
+  connections. A click is an `xdotool` command run there and a screenshot is a
+  `scrot` file read back, both through the run's `ctx.workspace`, so computer
+  use has no address, token or provider of its own. The shell, the files and
+  the desktop are one machine: the agent can write a file with its file tools
+  and open it on the screen. The sandbox needs the `desktop` runtime (Xvfb,
+  XFCE, Firefox, xdotool, scrot), and publish refuses an agent whose desktop is
+  in a sandbox it does not have. `open_sandbox_desktop` starts the display on
+  each run's first use, because a sandbox that hibernated between turns kept
+  its files and lost its processes.
+- **`daemon`**: a `computerd` process the operator runs, on their own Linux
+  desktop (X11), on a Mac's own screen or in a container
+  (`deploy/computer/Dockerfile`). The deployment reaches it over HTTP with
+  `COMPUTER_DAEMON_TOKEN`. Its host must be on `COMPUTER_DAEMON_ALLOWED_HOSTS`,
+  and publish checks that. `daemon_url` is in the spec, so it is under tenant
+  control; this works the same way as `BROWSER_CDP_ALLOWED_HOSTS`.
   One daemon is one desktop: every run pointed at it shares the machine.
-- **`cloud` on `e2b`**: an E2B sandbox (`desktop` template), one per conversation. It is
-  found again on the next turn through the metadata key `agenticos_session`,
-  which holds the organization and the conversation. The organization is
-  included so that two tenants sharing one E2B key can never land on the same
-  sandbox. The key is a vault secret with purpose `e2b`, required only for this
-  provider. The SDK ships as the `computer` extra.
 
 ## Decisions
 
@@ -80,3 +82,7 @@ action carries at most 2000 characters.
   the chat records it as a line, as it does a resumed `browser_use` run.
 - Per-organization daemons in the vault, as `sandbox_connections` does for the
   sandbox. For now the daemon token belongs to the deployment.
+- A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
+  sandbox connection kind, and its desktop would come with it.
+- A sandbox desktop is not hidden from the shell: an agent with `execute` can
+  run `xdotool` itself, past an approval held on `computer_act`.

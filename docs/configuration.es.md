@@ -1,5 +1,5 @@
 ---
-source_sha: "497b7ff159f0"
+source_sha: "956b07a28585"
 ---
 
 # Configuración { #configuration }
@@ -60,7 +60,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Cuántos documentos parsea a la vez un worker para los [servicios de ML](ml-services.md). Un límite de tasa cuenta arranques y no ve lo que sigue en marcha, así que sin esto la asignación de un minuto de llamadas OCR son otros tantos reconocimientos en vuelo. Por encima, el llamante recibe un rechazo con `Retry-After` en lugar de una cola |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la misma forma para la que existe `MEM0_ALLOWED_HOSTS`, y la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones *públicas*, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
-| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent con [computer use](reference/capabilities.md#computer-use) puede dirigir un escritorio `computerd`. `daemon_url` está en el spec del agent y este despliegue envía `COMPUTER_DAEMON_TOKEN` a la dirección que nombra, así que es la misma allowlist que `BROWSER_CDP_ALLOWED_HOSTS`: exacta y sin distinguir mayúsculas, sin globs. Vacía rechaza el backend daemon; los escritorios de E2B no necesitan entrada |
+| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent con [computer use](reference/capabilities.md#computer-use) puede dirigir un escritorio `computerd`. `daemon_url` está en el spec del agent y este despliegue envía `COMPUTER_DAEMON_TOKEN` a la dirección que nombra, así que es la misma allowlist que `BROWSER_CDP_ALLOWED_HOSTS`: exacta y sin distinguir mayúsculas, sin globs. Vacía rechaza el backend daemon; un escritorio en la sandbox del agent no necesita entrada |
 | `COMPUTER_DAEMON_TOKEN` | empty | El token bearer con el que se arrancó cada `computerd` que dirige este despliegue (`COMPUTERD_TOKEN` en el daemon). Vacío hace que un agent con computer use en el backend daemon responda que no puede alcanzar ningún escritorio |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
 | `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
@@ -864,9 +864,10 @@ en una red con APIs internas sin autenticar debería decirlo en la red y no aqu�
 
 ### Qué entornos puede pedir un agent { #which-environments-an-agent-may-ask-for }
 
-Se distribuye un runtime — `workbench` (1,93 GB): Python 3.12, Node 24, LibreOffice y
+Se distribuyen dos runtimes. `workbench` (1,93 GB) tiene Python 3.12, Node 24, LibreOffice y
 las bibliotecas que un agent necesita para leer, escribir, convertir y graficar los
-archivos de los que trata una conversación, incluido liteparse con OCR. Está definido
+archivos de los que trata una conversación, incluido liteparse con OCR. `desktop` es
+un escritorio Linux, XFCE y Firefox, para computer use. Ambos están definidos
 en `backend/app/core/catalog/sandbox_runtimes.json`. Añadir uno es una edición ahí y
 `make sandbox-runtimes`, que escribe `SANDBOXD_RUNTIMES` en los tres archivos
 compose; esa variable es el único canal por el que el servicio acepta runtimes, y

@@ -7,22 +7,19 @@ different size.
 """
 
 import io
-import sys
-import types
-from collections.abc import MutableSequence, Sequence
 from dataclasses import replace
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from PIL import Image
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 from pydantic_ai import BinaryContent, ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from pydantic_ai.workspaces import Workspace
+from pydantic_ai.workspaces import CommandResult, Workspace, WorkspaceError
 from pydantic_ai_backends import StateBackend
 
 from app.agents.browser_events import BrowserEvent
@@ -32,7 +29,6 @@ from app.agents.capabilities.computer_use import (
     ComputerUse,
     ComputerUseConfig,
     _daemon_url_form,
-    _session,
     validate_daemon_url,
 )
 from app.agents.capabilities.computer_use._actions import (
@@ -49,13 +45,11 @@ from app.agents.capabilities.computer_use._actions import (
     to_native,
 )
 from app.agents.capabilities.computer_use._backends import (
-    MISSING_EXTRA,
     Capture,
     ComputerError,
     DaemonComputer,
-    E2BComputer,
-    E2BSettings,
-    open_e2b,
+    SandboxComputer,
+    open_sandbox_desktop,
     png_size,
     x11_keys,
     xdotool,
@@ -68,13 +62,15 @@ from app.agents.capabilities.computer_use._toolset import (
     build_toolset,
     fit,
 )
-from app.agents.capabilities.media import CONVERSATION_RESOURCE, ORGANIZATION_RESOURCE
 from app.agents.deps import AgentDeps
-from app.agents.spec import CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import ApiKeySecret
-from app.services.agent_registry import DEFAULT_GRANTED_SCOPES, _computer_use_problems
+from app.services.agent_registry import (
+    DEFAULT_GRANTED_SCOPES,
+    _computer_use_problems,
+    _computer_use_sandbox_problems,
+)
 from app.services.generated_media import load_generated_image
 from tests.workspaces import ShellFailing, document_workspace
 
@@ -142,7 +138,7 @@ def _ctx(frames: _Frames | None = None, *, retries: int = 0) -> RunContext[Agent
 
 
 def _toolset(desktop: Any, policy: ToolPolicy | None = None) -> ComputerToolset:
-    async def factory() -> Any:
+    async def factory(workspace: Workspace) -> Any:
         if isinstance(desktop, Exception):
             raise desktop
         return desktop
@@ -242,17 +238,17 @@ class TestX11:
                 "xdotool mousemove --sync 1 2 click --repeat 4 6",
             ),
             (Key(keys="alt+f4"), "xdotool key -- alt+f4"),
-            (Wait(), None),
         ],
     )
-    def test_each_action_becomes_one_command(self, action: Any, command: str | None):
-        assert xdotool(action) == command
+    def test_each_action_becomes_one_command(self, action: Any, command: str):
+        assert xdotool(action) == command.split()
 
-    def test_typed_text_cannot_escape_into_the_shell(self):
-        assert (
-            xdotool(TypeText(text="a'; rm -rf / #"))
-            == "xdotool type --delay 12 -- 'a'\"'\"'; rm -rf / #'"
-        )
+    def test_a_wait_is_no_command_at_all(self):
+        assert xdotool(Wait()) is None
+
+    def test_typed_text_is_one_argument_whatever_it_holds(self):
+        text = "a'; rm -rf / #"
+        assert xdotool(TypeText(text=text)) == ["xdotool", "type", "--delay", "12", "--", text]
 
 
 def _daemon(handler: Any) -> DaemonComputer:
@@ -327,156 +323,124 @@ class TestTheDaemon:
         assert DaemonComputer("http://desk", "tok")._client is not None
 
 
-class _Result:
-    def __init__(self, stdout: str = "") -> None:
-        self.stdout = stdout
+class _Box:
+    """A sandbox's shell: what it was asked to run, and what each command answers.
 
+    Only the members the desktop touches - `run` makes it a `SupportsCommands`
+    backend, and the screenshot comes back through `read_bytes`.
+    """
 
-class _Sandbox:
-    """The two halves of an E2B sandbox the backend touches."""
-
-    def __init__(self, *, fails: bool = False) -> None:
-        self.commands = self
-        self.files = self
-        self.ran: list[tuple[str, dict[str, str]]] = []
+    def __init__(
+        self, *, exit_code: int = 0, stderr: str = "", fails: bool = False, attached: bool = True
+    ) -> None:
+        self.ran: list[tuple[Any, bool, dict[str, str]]] = []
+        self.exit_code = exit_code
+        self.stderr = stderr
         self.fails = fails
-        self.killed = False
-        self.sandbox_id = "sbx-1"
+        self.attached = attached
+        self.backend = self
+        self.unreadable = False
 
-    def run(self, cmd: str, *, envs: dict[str, str] | None = None, timeout: float) -> _Result:
+    async def run(
+        self,
+        command: Any,
+        *,
+        shell: bool = False,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult:
         if self.fails:
-            raise RuntimeError("sandbox gone")
-        self.ran.append((cmd, envs or {}))
-        return _Result()
+            raise WorkspaceError("sandbox gone")
+        self.ran.append((command, shell, dict(env or {})))
+        return CommandResult(exit_code=self.exit_code, stdout="", stderr=self.stderr)
 
-    def kill(self) -> None:
-        self.killed = True
+    async def read_bytes(self, path: str) -> bytes:
+        if self.unreadable:
+            raise WorkspaceError(f"shell filesystem read failed for {path!r}")
+        return _png(1024, 768)
 
-    def read(self, path: str, format: Literal["bytes"]) -> bytearray:
-        return bytearray(_png(1024, 768))
+
+def _on(box: _Box) -> SandboxComputer:
+    return SandboxComputer(box)  # ty: ignore[invalid-argument-type] - the members it uses
 
 
-class TestE2BDesktop:
-    async def test_a_screenshot_is_taken_on_the_sandboxes_display(self):
-        sandbox = _Sandbox()
-        capture = await E2BComputer(sandbox).capture()
+class TestTheSandboxDesktop:
+    async def test_a_screenshot_is_taken_on_the_sandboxes_display_and_read_back(self):
+        box = _Box()
+        capture = await _on(box).capture()
 
         assert (capture.width, capture.height) == (1024, 768)
-        assert sandbox.ran[0][0].startswith("scrot --overwrite --pointer ")
-        assert sandbox.ran[0][1] == {"DISPLAY": ":0"}
+        [(argv, shell, env)] = box.ran
+        assert argv[:3] == ["scrot", "--overwrite", "--pointer"]
+        assert argv[3].startswith("/tmp/agenticos-screen-")  # noqa: S108 - a path in the sandbox
+        assert (shell, env) == (False, {"DISPLAY": ":0"})
+
+    async def test_two_desktops_on_one_sandbox_do_not_share_a_screenshot(self):
+        box = _Box()
+        await _on(box).capture()
+        await _on(box).capture()
+        assert box.ran[0][0][3] != box.ran[1][0][3]
 
     async def test_an_action_runs_xdotool_and_a_wait_runs_nothing(self):
-        sandbox = _Sandbox()
-        desktop = E2BComputer(sandbox)
+        box = _Box()
+        desktop = _on(box)
         await desktop.perform(Click(x=5, y=6))
         await desktop.perform(Wait(seconds=0.01))
 
-        assert [cmd for cmd, _ in sandbox.ran] == [
-            "xdotool mousemove --sync 5 6 click --repeat 1 1"
+        assert [argv for argv, _, _ in box.ran] == [
+            ["xdotool", "mousemove", "--sync", "5", "6", "click", "--repeat", "1", "1"]
         ]
 
-    async def test_a_failing_sandbox_is_a_sentence_for_the_model(self):
-        desktop = E2BComputer(_Sandbox(fails=True))
-        with pytest.raises(ComputerError, match="did not return a screenshot"):
-            await desktop.capture()
-        with pytest.raises(ComputerError, match="refused the click action"):
-            await desktop.perform(Click(x=1, y=1))
+    async def test_a_refused_command_tells_the_model_what_the_desktop_said(self):
+        with pytest.raises(ComputerError, match="refused to run the click action: no display"):
+            await _on(_Box(exit_code=1, stderr="no display\n")).perform(Click(x=1, y=1))
+        with pytest.raises(ComputerError, match="refused to take a screenshot: exit 2"):
+            await _on(_Box(exit_code=2)).capture()
+
+    async def test_a_sandbox_that_is_gone_is_a_sentence_for_the_model(self):
+        with pytest.raises(ComputerError, match="could not take a screenshot"):
+            await _on(_Box(fails=True)).capture()
+
+    async def test_a_screenshot_that_cannot_be_read_back_is_a_sentence(self):
+        box = _Box()
+        box.unreadable = True
+        with pytest.raises(ComputerError, match="did not return the screenshot it took"):
+            await _on(box).capture()
 
 
-class _SandboxClass:
-    """Stands in for `e2b.Sandbox`: what was asked of it, and the sandboxes it handed out."""
+class TestOpeningTheSandboxDesktop:
+    @staticmethod
+    async def _open(workspace: Any) -> SandboxComputer:
+        return await open_sandbox_desktop(workspace, width=1024, height=768)
 
-    existing: Sequence[Any] = ()
-    calls: MutableSequence[tuple[str, dict[str, Any]]] = []
-    made: MutableSequence[_Sandbox] = []
-    boot_fails = False
+    async def test_the_desktop_is_started_at_the_policys_size_unless_it_runs(self):
+        box = _Box()
+        assert isinstance(await self._open(box), SandboxComputer)
 
-    class _Page:
-        def __init__(self, items: Sequence[Any]) -> None:
-            self.has_next = bool(items)
-            self._items = items
+        [(script, shell, _)] = box.ran
+        assert shell
+        assert script.startswith("xdpyinfo -display :0 >/dev/null 2>&1 && exit 0\n")
+        assert "Xvfb :0 -ac -screen 0 1024x768x24" in script
+        assert "startxfce4" in script
 
-        def next_items(self) -> Sequence[Any]:
-            return self._items
-
-    @classmethod
-    def list(cls, **kwargs: Any) -> Any:
-        cls.calls.append(("list", kwargs))
-        return cls._Page(cls.existing)
-
-    @classmethod
-    def connect(cls, sandbox_id: str, **kwargs: Any) -> _Sandbox:
-        cls.calls.append(("connect", {"sandbox_id": sandbox_id, **kwargs}))
-        return _Sandbox()
-
-    @classmethod
-    def create(cls, **kwargs: Any) -> _Sandbox:
-        cls.calls.append(("create", kwargs))
-        cls.made.append(_Sandbox(fails=cls.boot_fails))
-        return cls.made[-1]
-
-
-@pytest.fixture
-def e2b_sdk(monkeypatch: pytest.MonkeyPatch) -> type[_SandboxClass]:
-    _SandboxClass.existing = ()
-    _SandboxClass.calls = []
-    _SandboxClass.made = []
-    _SandboxClass.boot_fails = False
-    monkeypatch.setitem(
-        sys.modules,
-        "e2b",
-        types.SimpleNamespace(Sandbox=_SandboxClass, SandboxQuery=lambda metadata: metadata),
-    )
-    return _SandboxClass
-
-
-class TestOpeningAnE2BDesktop:
-    SETTINGS = E2BSettings(api_key="e2b_key", session="org:conv", timeout_seconds=600)
-
-    async def test_the_first_turn_creates_a_desktop_tagged_with_its_session(self, e2b_sdk: Any):
-        await open_e2b(self.SETTINGS)
-
-        kind, kwargs = e2b_sdk.calls[-1]
-        assert kind == "create"
-        assert kwargs["metadata"] == {"agenticos_session": "org:conv"}
-        assert (kwargs["timeout"], kwargs["template"]) == (600, "desktop")
-        [(boot, _)] = e2b_sdk.made[0].ran
-        assert "Xvfb :0 -ac -screen 0 1280x800x24" in boot
-        assert "startxfce4" in boot
-
-    async def test_a_desktop_that_does_not_come_up_is_killed_not_left_running(self, e2b_sdk: Any):
-        e2b_sdk.boot_fails = True
-        with pytest.raises(ComputerError, match="could not be started"):
-            await open_e2b(self.SETTINGS)
-        assert e2b_sdk.made[0].killed
-
-    async def test_the_next_turn_finds_the_same_desktop(self, e2b_sdk: Any):
-        e2b_sdk.existing = [types.SimpleNamespace(sandbox_id="sbx-7")]
-        await open_e2b(self.SETTINGS)
-
-        assert e2b_sdk.calls[0][1]["query"] == {"agenticos_session": "org:conv"}
-        assert e2b_sdk.calls[-1] == (
-            "connect",
-            {"sandbox_id": "sbx-7", "timeout": 600, "api_key": "e2b_key"},
-        )
-
-    async def test_without_the_extra_the_model_is_told_what_to_install(
-        self, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize("workspace", [_Box(attached=False), document_workspace()])
+    async def test_a_run_without_a_sandbox_that_runs_commands_says_what_to_add(
+        self, workspace: Any
     ):
-        monkeypatch.setitem(sys.modules, "e2b", None)
-        with pytest.raises(ComputerError, match="computer"):
-            await open_e2b(self.SETTINGS)
-        assert "--extra computer" in MISSING_EXTRA
+        with pytest.raises(ComputerError, match="Add the Sandbox capability"):
+            await self._open(workspace)
 
-    async def test_a_refusal_from_e2b_names_the_key_and_the_limits(self, e2b_sdk: Any, monkeypatch):
-        def refuse(**kwargs: Any) -> Any:
-            raise RuntimeError("401 invalid api key e2b_key")
-
-        monkeypatch.setattr(e2b_sdk, "list", staticmethod(refuse))
-        with pytest.raises(ComputerError) as raised:
-            await open_e2b(self.SETTINGS)
-        assert "e2b_key" not in str(raised.value)
-        assert "Check the E2B key" in str(raised.value)
+    @pytest.mark.parametrize(
+        ("box", "message"),
+        [
+            (_Box(exit_code=3), "Run the agent's sandbox on the `desktop` runtime"),
+            (_Box(exit_code=1), "did not start"),
+            (_Box(fails=True), "could not be reached to start its desktop"),
+        ],
+    )
+    async def test_a_desktop_that_does_not_come_up_says_why(self, box: _Box, message: str):
+        with pytest.raises(ComputerError, match=message):
+            await self._open(box)
 
 
 class TestFit:
@@ -748,44 +712,42 @@ class TestSavingAScreenshot:
 class TestTheCapability:
     async def test_without_a_url_the_daemon_backend_says_what_to_set(self):
         with pytest.raises(ComputerError, match="daemon_url"):
-            await ComputerUse(daemon_token="t")._open()
+            await ComputerUse(backend="daemon", daemon_token="t")._open(document_workspace())
 
     async def test_without_a_token_the_deployment_says_it_cannot_reach_a_desktop(self):
         with pytest.raises(ComputerError, match="COMPUTER_DAEMON_TOKEN"):
-            await ComputerUse(daemon_url="http://desk:8765")._open()
+            await ComputerUse(backend="daemon", daemon_url="http://desk:8765")._open(
+                document_workspace()
+            )
 
     async def test_a_configured_daemon_is_reached_with_the_token(self):
-        desktop = await ComputerUse(daemon_url="http://desk:8765", daemon_token="t")._open()
+        desktop = await ComputerUse(
+            backend="daemon", daemon_url="http://desk:8765", daemon_token="t"
+        )._open(document_workspace())
         assert isinstance(desktop, DaemonComputer)
         assert desktop._headers == {"Authorization": "Bearer t"}
 
-    async def test_e2b_without_a_key_says_to_bind_one(self):
-        with pytest.raises(ComputerError, match="no E2B key"):
-            await ComputerUse(backend="e2b")._open()
+    async def test_the_sandbox_desktop_is_opened_in_the_runs_workspace_at_the_policys_size(self):
+        box = _Box()
+        capability = ComputerUse(policy=ToolPolicy(max_width=1024, max_height=768))
+        desktop = await capability._open(box)  # ty: ignore[invalid-argument-type] - the members it uses
 
-    async def test_e2b_opens_the_sessions_desktop_at_the_policys_size(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
-        opened: list[E2BSettings] = []
+        assert isinstance(desktop, SandboxComputer)
+        assert "Xvfb :0 -ac -screen 0 1024x768x24" in box.ran[0][0]
 
-        async def fake_open(settings: E2BSettings) -> Any:
-            opened.append(settings)
-            return "desktop"
+    async def test_the_toolset_hands_the_runs_workspace_to_the_desktop(self):
+        frames = _Frames()
+        box = _Box()
+        toolset = ComputerUse().get_toolset()
+        ctx = _ctx(frames)
+        ctx.workspace = box  # ty: ignore[invalid-assignment] - the members it uses
+        await toolset.tools["computer_screenshot"].function(ctx)  # ty: ignore[unresolved-attribute] - a ComputerToolset
+        await toolset.session.close_view()  # ty: ignore[unresolved-attribute] - a ComputerToolset
 
-        monkeypatch.setattr("app.agents.capabilities.computer_use._capability.open_e2b", fake_open)
-        capability = ComputerUse(
-            backend="e2b",
-            e2b_key="k",
-            e2b_session="org:conv",
-            e2b_template="custom",
-            e2b_timeout_seconds=120,
-            policy=ToolPolicy(max_width=1024, max_height=768),
-        )
-        assert await capability._open() == "desktop"
-        assert opened == [E2BSettings("k", "org:conv", "custom", 1024, 768, 120)]
+        assert [argv[0] for argv, _, _ in box.ran[1:]] == ["scrot"]
 
     def test_the_toolset_is_built_once_and_the_instructions_distrust_the_screen(self):
-        capability = ComputerUse(factory=lambda: None)  # ty: ignore[invalid-argument-type] - never awaited here
+        capability = ComputerUse(factory=lambda workspace: None)  # ty: ignore[invalid-argument-type] - never awaited here
         assert capability.get_toolset() is capability.get_toolset()
         assert "untrusted" in capability.get_instructions()
 
@@ -837,86 +799,41 @@ class TestRegistration:
         gated = CapabilityBindingSpec(id="computer_use", tool_approval={"computer_act": "required"})
         assert held(gated) == {"computer_act"}
 
-    def test_an_e2b_key_is_asked_for_only_by_an_e2b_desktop(self):
-        requirement = get("computer_use").secret
-        assert requirement is not None
-        assert requirement.required_when is not None
-        assert (requirement.purpose, requirement.required_when.field) == ("e2b", "cloud_provider")
-        assert requirement.required_when.equals == ("e2b",)
-        assert requirement.required_when.is_met(
-            ComputerUseConfig(desktop="cloud", cloud_provider="e2b")
-        )
-        assert not requirement.required_when.is_met(ComputerUseConfig())
+    def test_the_sandbox_is_the_default_and_nothing_is_asked_of_the_vault(self):
+        definition = get("computer_use")
+        assert definition.secret is None
+        assert ComputerUseConfig().desktop == "sandbox"
 
-    def test_local_or_cloud_is_asked_first_and_each_shows_only_its_own_fields(self):
+    def test_where_the_desktop_is_is_asked_first_and_only_a_daemon_has_a_url(self):
         properties = ComputerUseConfig.model_json_schema()["properties"]
         assert next(iter(properties)) == "desktop"
+        assert properties["desktop"]["enum"] == ["sandbox", "daemon"]
         assert properties["daemon_url"]["x-visible-when"] == {
             "field": "desktop",
-            "equals": ["local"],
+            "equals": ["daemon"],
         }
-        provider = properties["cloud_provider"]
-        assert provider["x-visible-when"] == {"field": "desktop", "equals": ["cloud"]}
-        assert provider["anyOf"][0] == {"enum": ["e2b"], "type": "string"}
-        assert provider["x-enum-when"]["choices"]["local"] == []
-        template = properties["e2b_template"]
-        assert (template["enum"], "const" in template) == (["desktop"], False)
-        assert template["x-enum-labels"] == {"desktop": "Desktop (Ubuntu with XFCE)"}
-        for field in ("e2b_template", "e2b_timeout_seconds"):
-            assert properties[field]["x-visible-when"] == {
-                "field": "cloud_provider",
-                "equals": ["e2b"],
-            }
 
-    def test_a_template_that_cannot_run_a_desktop_is_refused(self):
-        with pytest.raises(ValidationError, match="e2b_template"):
-            ComputerUseConfig(desktop="cloud", cloud_provider="e2b", e2b_template="base")
-
-    def test_a_cloud_desktop_needs_a_provider(self):
-        with pytest.raises(ValidationError, match="needs a cloud_provider"):
-            ComputerUseConfig(desktop="cloud")
-
-    def test_a_local_desktop_drops_a_provider_left_from_a_cloud_one(self):
-        assert ComputerUseConfig(desktop="local", cloud_provider="e2b").cloud_provider is None
-
-    def test_the_builder_hands_over_the_key_the_token_and_the_limits(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_the_builder_hands_over_the_token_and_the_limits(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_TOKEN", "deployment-token")
-        org, conversation = uuid4(), uuid4()
         capability = _build(
             {
-                "desktop": "cloud",
-                "cloud_provider": "e2b",
+                "desktop": "daemon",
+                "daemon_url": "http://desk:8765",
                 "max_actions": 50,
                 "max_actions_per_call": 5,
                 "preview": False,
-            },
-            secret=ApiKeySecret(api_key=SecretStr("e2b_" + "k" * 36)),
-            resources={ORGANIZATION_RESOURCE: org, CONVERSATION_RESOURCE: conversation},
+            }
         )
 
-        assert (capability.backend, capability.daemon_token) == ("e2b", "deployment-token")
-        assert capability.e2b_key == "e2b_" + "k" * 36
-        assert capability.e2b_session == f"{org}:{conversation}"
+        assert (capability.backend, capability.daemon_url) == ("daemon", "http://desk:8765")
+        assert capability.daemon_token == "deployment-token"
         assert capability.policy == ToolPolicy(
             max_actions=50, max_actions_per_call=5, preview=False
         )
 
-    def test_an_empty_config_still_builds_and_has_no_key(self):
+    def test_an_empty_config_builds_a_desktop_in_the_sandbox(self):
         capability = _build({})
-        assert (capability.backend, capability.e2b_key, capability.daemon_url) == (
-            "daemon",
-            None,
-            "",
-        )
-
-    @pytest.mark.security
-    def test_two_tenants_never_share_a_desktop_and_a_run_without_a_thread_gets_its_own(self):
-        conversation = uuid4()
-        assert _session(uuid4(), conversation) != _session(uuid4(), conversation)
-        assert _session(None, None).startswith("none:run-")
-        assert _session(None, None) != _session(None, None)
+        assert (capability.backend, capability.daemon_url) == ("sandbox", "")
 
     def test_a_batch_larger_than_the_run_is_refused(self):
         with pytest.raises(ValidationError, match="cannot be larger than max_actions"):
@@ -928,7 +845,9 @@ class TestTheDaemonAllowlist:
 
     def test_an_allowed_host_passes_case_folded(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [" Desk.Internal "])
-        validate_daemon_url(ComputerUseConfig(daemon_url="http://desk.internal:8765"))
+        validate_daemon_url(
+            ComputerUseConfig(desktop="daemon", daemon_url="http://desk.internal:8765")
+        )
 
     @pytest.mark.security
     @pytest.mark.parametrize(
@@ -948,16 +867,18 @@ class TestTheDaemonAllowlist:
     ):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["desk.internal"])
         with pytest.raises(UrlRefusedError, match=message):
-            validate_daemon_url(ComputerUseConfig(daemon_url=url))
+            validate_daemon_url(ComputerUseConfig(desktop="daemon", daemon_url=url))
 
-    def test_e2b_has_no_url_to_check(self, monkeypatch: pytest.MonkeyPatch):
+    def test_the_sandbox_has_no_url_to_check(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
-        validate_daemon_url(ComputerUseConfig(desktop="cloud", cloud_provider="e2b"))
+        validate_daemon_url(ComputerUseConfig(desktop="sandbox", daemon_url="http://anything"))
 
     @pytest.mark.security
     def test_publish_names_an_unvetted_daemon(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
-        problems = _computer_use_problems(ComputerUseConfig(daemon_url="http://desk:8765"))
+        problems = _computer_use_problems(
+            ComputerUseConfig(desktop="daemon", daemon_url="http://desk:8765")
+        )
 
         assert len(problems) == 1
         assert problems[0].startswith(
@@ -968,7 +889,12 @@ class TestTheDaemonAllowlist:
         self, monkeypatch: pytest.MonkeyPatch
     ):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["desk"])
-        assert _computer_use_problems(ComputerUseConfig(daemon_url="http://desk:8765")) == []
+        assert (
+            _computer_use_problems(
+                ComputerUseConfig(desktop="daemon", daemon_url="http://desk:8765")
+            )
+            == []
+        )
         assert _computer_use_problems(None) == []
 
     def test_the_form_suggests_the_first_allowed_host(self, monkeypatch: pytest.MonkeyPatch):
@@ -980,3 +906,44 @@ class TestTheDaemonAllowlist:
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
         _daemon_url_form(schema)
         assert schema["x-placeholder"] == "Set COMPUTER_DAEMON_ALLOWED_HOSTS first"
+
+
+class TestPublishingADesktopInTheSandbox:
+    @staticmethod
+    def _spec(*bindings: dict[str, Any]) -> AgentSpec:
+        return AgentSpec.model_validate(
+            {"name": "operator", "model_profile_id": str(uuid4()), "capabilities": list(bindings)}
+        )
+
+    @pytest.mark.parametrize(
+        "sandbox",
+        [None, {"id": "sandbox", "config": {"backend": "state"}}],
+    )
+    def test_a_desktop_in_a_sandbox_the_agent_does_not_have_is_refused(
+        self, sandbox: dict[str, Any] | None
+    ):
+        bindings = [{"id": "computer_use"}] + ([sandbox] if sandbox else [])
+        assert _computer_use_sandbox_problems(self._spec(*bindings)) == [
+            "Computer use's desktop runs in the agent's sandbox, so it needs the Sandbox "
+            "capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+
+    def test_a_sandbox_connection_without_a_shell_tool_is_enough(self):
+        spec = self._spec(
+            {"id": "computer_use"},
+            {"id": "sandbox", "config": {"backend": "service", "include_execute": False}},
+        )
+        assert _computer_use_sandbox_problems(spec) == []
+
+    @pytest.mark.parametrize(
+        "binding",
+        [
+            {"id": "computer_use", "config": {"desktop": "daemon"}},
+            {"id": "computer_use", "enabled": False},
+            {"id": "computer_use", "config": {"desktop": "cloud"}},
+        ],
+    )
+    def test_a_daemon_a_disabled_binding_or_a_broken_config_is_not_asked(
+        self, binding: dict[str, Any]
+    ):
+        assert _computer_use_sandbox_problems(self._spec(binding)) == []

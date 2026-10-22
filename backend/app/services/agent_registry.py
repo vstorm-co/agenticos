@@ -42,7 +42,11 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
-from app.agents.capabilities.computer_use import ComputerUseConfig, validate_daemon_url
+from app.agents.capabilities.computer_use import (
+    COMPUTER_USE_ID,
+    ComputerUseConfig,
+    validate_daemon_url,
+)
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -282,6 +286,33 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     return []
 
 
+def _computer_use_sandbox_problems(spec: AgentSpec) -> list[str]:
+    """A desktop in the sandbox, on an agent with no sandbox to put it in.
+
+    The desktop's clicks and screenshots are commands run in the agent's
+    workspace, the coding agent's arrangement, so it needs a container-backed
+    one. The shell tool is not required: the desktop runs its commands itself.
+    A configuration that does not validate is left to the binding's own check,
+    which names the field.
+    """
+    desktops: list[str] = []
+    for binding in spec.capabilities:
+        if binding.id == COMPUTER_USE_ID and binding.enabled:
+            try:
+                desktops.append(ComputerUseConfig.model_validate(binding.config).desktop)
+            except ValidationError:
+                continue
+    if "sandbox" not in desktops:
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service":
+        return [
+            "Computer use's desktop runs in the agent's sandbox, so it needs the "
+            "Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+    return []
+
+
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
 """What `get` may be asked for on the assistant by anyone who reaches it."""
 
@@ -319,7 +350,7 @@ def _computer_use_problems(config: BaseModel | None) -> list[str]:
     """A daemon desktop this deployment's operator has not vetted, or none at all.
 
     The same exact-match allowlist as the browser's `cdp_url`, against
-    `COMPUTER_DAEMON_ALLOWED_HOSTS`; a cloud desktop has no URL to check.
+    `COMPUTER_DAEMON_ALLOWED_HOSTS`; the sandbox's desktop has no URL to check.
     """
     if not isinstance(config, ComputerUseConfig):
         return []
@@ -1486,6 +1517,7 @@ class AgentRegistryService:
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.add(_coding_agent_problems(spec))
+        problems.add(_computer_use_sandbox_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
         if problems.messages:

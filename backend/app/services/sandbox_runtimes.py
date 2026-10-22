@@ -12,9 +12,12 @@ is a file in this repository.
 `prewarm` builds every entry of the allowlist when the service starts, so each
 one is a `pip install` at start-up and an image on the host for as long as it is
 cached, and an agent asked to open a PDF got whichever alias its spec happened to
-name. `workbench` is the one image worth building - two languages, the tools to
-navigate a repository, the libraries to read what a user attaches, and a network -
-and a deployment that wants a second one adds it here.
+name. `workbench` is the image worth building for nearly everything - two
+languages, the tools to navigate a repository, the libraries to read what a user
+attaches, and a network - and it stays first, because the first entry is what an
+agent naming no runtime gets. `desktop` is the second, and the one other thing an
+agent cannot get from `workbench`: a display, XFCE and Firefox for `computer_use`
+to drive. A deployment that wants a third adds it here.
 
 One catalogue, two readers, and that is the point:
 

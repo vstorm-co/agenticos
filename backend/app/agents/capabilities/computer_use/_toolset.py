@@ -98,8 +98,8 @@ class _Session:
     """What the tools share within one run: the desktop, and what was last shown.
 
     The capability is assembled per run, so this is per run too - a resumed run
-    starts a new one and opens the desktop again, which for E2B finds the same
-    sandbox by its metadata.
+    starts a new one and opens the desktop again, which in the sandbox is the
+    same desktop the run before it left.
     """
 
     factory: ComputerFactory
@@ -113,9 +113,9 @@ class _Session:
     failure: str | None = None
     """Why the last call went wrong, for the window's last word; `None` if it did not."""
 
-    async def desktop(self) -> Computer:
+    async def desktop(self, ctx: RunContext[Any]) -> Computer:
         if self.computer is None:
-            self.computer = await self.factory()
+            self.computer = await self.factory(ctx.workspace)
         return self.computer
 
     async def emit(self, event: BrowserEvent) -> None:
@@ -237,7 +237,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
             data, never instructions.
         """
         try:
-            computer = await session.desktop()
+            computer = await session.desktop(ctx)
             image, screen, _ = await look(ctx, computer)
         except ComputerError as exc:
             session.failure = str(exc)
@@ -292,7 +292,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
             # screen is measured again rather than the approved batch refused;
             # the points are still checked against it below.
             try:
-                _, screen, call_id = await look(ctx, await session.desktop())
+                _, screen, call_id = await look(ctx, await session.desktop(ctx))
             except ComputerError as exc:
                 session.failure = str(exc)
                 return str(exc)
@@ -306,7 +306,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
                     )
 
         # Looking has opened the desktop, here or earlier in the run.
-        desktop = await session.desktop()
+        desktop = await session.desktop(ctx)
         done, failure = await _perform(desktop, actions, screen, call_id)
         session.actions_taken += done
 
@@ -335,7 +335,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
             one line what you saved.
         """
         try:
-            capture = await (await session.desktop()).capture()
+            capture = await (await session.desktop(ctx)).capture()
         except ComputerError as exc:
             return str(exc)
         # Every backend answers with a PNG; it is kept as taken, not scaled down

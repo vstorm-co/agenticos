@@ -7260,7 +7260,7 @@
       "does": "Pozwala agentowi obsługiwać cały pulpit - dowolną aplikację, nie tylko strony WWW - patrząc na zrzuty ekranu i używając myszy i klawiatury. Oglądasz to na żywo w czacie.",
       "example1": "Wypełnij formularz w aplikacji desktopowej",
       "example2": "Wyeksportuj raport ze starego narzędzia bez API",
-      "needs": "Pulpit przygotowany przez administratora (kontener Linux lub Mac z computerd) albo klucz E2B. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
+      "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
       "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
     },
     "context": {
@@ -7894,23 +7894,11 @@
     "computer_use": {
       "desktop": {
         "title": "Pulpit",
-        "description": "Komputer, który uruchamiasz sam, albo pulpit, który dostawca chmurowy uruchamia dla każdej rozmowy."
+        "description": "Własny sandbox agenta z pulpitem albo komputer, który uruchamiasz sam. Sandbox wymaga możliwości Sandbox na połączeniu z sandboxem."
       },
       "daemon_url": {
         "title": "Adres daemona",
         "description": "Punkt końcowy computerd twojego pulpitu. Jego host musi być na liście COMPUTER_DAEMON_ALLOWED_HOSTS."
-      },
-      "cloud_provider": {
-        "title": "Dostawca chmurowy",
-        "description": "Kto uruchamia pulpit w chmurze."
-      },
-      "e2b_template": {
-        "title": "Szablon E2B",
-        "description": "Szablon E2B, z którego startuje pulpit."
-      },
-      "e2b_timeout_seconds": {
-        "title": "Czas bezczynności E2B (sekundy)",
-        "description": "Jak długo bezczynny pulpit E2B żyje po ostatnim użyciu. Plan Hobby w E2B ogranicza to do godziny."
       },
       "screen_width": {
         "title": "Szerokość zrzutu ekranu",

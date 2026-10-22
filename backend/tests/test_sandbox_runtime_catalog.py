@@ -157,16 +157,17 @@ def test_generating_the_line_leaves_the_prose_around_it_alone() -> None:
 
 
 def test_the_catalogue_file_is_what_the_product_offers() -> None:
-    """One runtime, and the file is the reason.
+    """Two runtimes, and the file is the reason.
 
     Not a style assertion: `prewarm` builds every entry as the service starts, so
     a catalogue that grew back to eight aliases is eight `pip install`s in a
-    start-up nobody is watching. A deployment adding a second runtime is expected
-    to change this number deliberately.
+    start-up nobody is watching. `workbench` stays first because the first entry
+    is what an agent naming no runtime gets; `desktop` is the one `computer_use`
+    needs. A deployment adding a third is expected to change this deliberately.
     """
     path = Path(__file__).parents[1] / "app" / "core" / "catalog" / "sandbox_runtimes.json"
-    assert len(json.loads(path.read_text())) == len(CATALOG) == 1
-    assert CATALOG[0].alias == "workbench"
+    assert len(json.loads(path.read_text())) == len(CATALOG) == 2
+    assert [runtime.alias for runtime in CATALOG] == ["workbench", "desktop"]
 
 
 def _definition(**overrides: Any) -> SandboxRuntimeDefinition:

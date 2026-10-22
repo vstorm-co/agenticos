@@ -7485,7 +7485,7 @@
       "does": "Lets the agent operate a whole desktop - any application, not only web pages - by looking at screenshots and using the mouse and keyboard. You watch it live in the chat.",
       "example1": "Fill in a form in a desktop application",
       "example2": "Export a report from a legacy tool with no API",
-      "needs": "A desktop set up by an administrator (a Linux container or a Mac running computerd) or an E2B key. Each step is one model request with a screenshot.",
+      "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
     },
     "context": {
@@ -8109,23 +8109,11 @@
     "computer_use": {
       "desktop": {
         "title": "Desktop",
-        "description": "A computer you run, or one a cloud provider starts for each conversation."
+        "description": "The agent's own sandbox, with a desktop in it, or a computer you run. The sandbox needs the Sandbox capability on a sandbox connection."
       },
       "daemon_url": {
         "title": "Daemon URL",
         "description": "The computerd endpoint of your desktop. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS."
-      },
-      "cloud_provider": {
-        "title": "Cloud provider",
-        "description": "Who runs the cloud desktop."
-      },
-      "e2b_template": {
-        "title": "E2B template",
-        "description": "The E2B template the desktop starts from."
-      },
-      "e2b_timeout_seconds": {
-        "title": "E2B idle timeout (seconds)",
-        "description": "How long an idle E2B desktop lives after its last use. E2B's Hobby plan caps this at an hour."
       },
       "screen_width": {
         "title": "Screenshot width",

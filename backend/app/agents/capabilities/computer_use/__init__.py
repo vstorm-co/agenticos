@@ -1,8 +1,7 @@
 """Computer use - an agent operating a desktop through screenshots, mouse and keyboard."""
 
-from typing import Literal, get_args
+from typing import Literal
 from urllib.parse import urlsplit
-from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 from pydantic_ai.capabilities import AbstractCapability
@@ -14,19 +13,19 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.computer_use._capability import ComputerUse
 from app.agents.capabilities.computer_use._toolset import ToolPolicy
-from app.agents.capabilities.media import CONVERSATION_RESOURCE, ORGANIZATION_RESOURCE
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 
-__all__ = ["ComputerUse", "ComputerUseConfig", "validate_daemon_url"]
+__all__ = ["COMPUTER_USE_ID", "ComputerUse", "ComputerUseConfig", "validate_daemon_url"]
+
+COMPUTER_USE_ID = "computer_use"
 
 _DEFAULT_DAEMON_PORT = 8765
 
 
 def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
     """Hint the daemon from what the operator allowed, as the web browser does for its `cdp_url`."""
-    schema["x-visible-when"] = {"field": "desktop", "equals": ["local"]}
+    schema["x-visible-when"] = {"field": "desktop", "equals": ["daemon"]}
     hosts = [host.strip() for host in settings.COMPUTER_DAEMON_ALLOWED_HOSTS if host.strip()]
     if not hosts:
         schema["x-placeholder"] = "Set COMPUTER_DAEMON_ALLOWED_HOSTS first"
@@ -34,58 +33,20 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
     schema["x-placeholder"] = f"http://{hosts[0]}:{_DEFAULT_DAEMON_PORT}"
 
 
-_ON_E2B: dict[str, JsonValue] = {"x-visible-when": {"field": "cloud_provider", "equals": ["e2b"]}}
-
-E2BTemplate = Literal["desktop"]
-"""The E2B templates a computer use desktop starts from.
-
-Only a template with Xvfb, XFCE and xdotool installed can be driven, because
-that is what `_desktop_start` runs. A team's own template built on E2B's
-`desktop` one belongs here when it is added.
-"""
-
-_E2B_TEMPLATE_NAMES: dict[str, JsonValue] = {"desktop": "Desktop (Ubuntu with XFCE)"}
-
-
-def _e2b_template_form(schema: dict[str, JsonValue]) -> None:
-    """Offer the templates as choices, for an E2B desktop only.
-
-    Rewritten from `const` for the same reason as the provider: while one
-    template is listed, Pydantic writes the field as a value with nothing to
-    choose, and the Builder hides it.
-    """
-    schema.pop("const", None)
-    schema["enum"] = list(get_args(E2BTemplate))
-    schema["x-enum-labels"] = _E2B_TEMPLATE_NAMES
-    schema["x-advanced"] = True
-    schema.update(_ON_E2B)
-
-
-def _cloud_provider_form(schema: dict[str, JsonValue]) -> None:
-    """Offer the providers as choices, shown only for a cloud desktop.
-
-    Pydantic writes a one-value `Literal` as `const`, which the Builder takes for a
-    field with nothing to choose and hides; the choices it renders are an `enum`.
-    A provider stops being allowed when the desktop turns local, so the form
-    clears it rather than keep a choice it no longer shows.
-    """
-    schema["anyOf"] = [{"enum": ["e2b"], "type": "string"}, {"type": "null"}]
-    schema["x-enum-labels"] = {"e2b": "E2B"}
-    schema["x-visible-when"] = {"field": "desktop", "equals": ["cloud"]}
-    schema["x-enum-when"] = {"field": "desktop", "choices": {"local": [], "cloud": ["e2b"]}}
-
-
 class ComputerUseConfig(BaseModel):
     """Which desktop this agent works, and how much of it per run."""
 
-    desktop: Literal["local", "cloud"] = Field(
-        default="local",
+    desktop: Literal["sandbox", "daemon"] = Field(
+        default="sandbox",
         title="Desktop",
-        description="A computer you run, or one a cloud provider starts for each conversation.",
+        description=(
+            "The agent's own sandbox, with a desktop in it, or a computer you run. "
+            "The sandbox needs the Sandbox capability on a sandbox connection."
+        ),
         json_schema_extra={
             "x-enum-labels": {
-                "local": "A computer you run (computerd: a Linux container or a Mac)",
-                "cloud": "A cloud desktop, one per conversation",
+                "sandbox": "The agent's sandbox (a Linux desktop in its container)",
+                "daemon": "A computer you run (computerd: your Linux desktop or a Mac)",
             }
         },
     )
@@ -94,26 +55,6 @@ class ComputerUseConfig(BaseModel):
         title="Daemon URL",
         json_schema_extra=_daemon_url_form,
         description="The computerd endpoint of your desktop. Its host must be on COMPUTER_DAEMON_ALLOWED_HOSTS.",
-    )
-    cloud_provider: Literal["e2b"] | None = Field(
-        default=None,
-        title="Cloud provider",
-        description="Who runs the cloud desktop.",
-        json_schema_extra=_cloud_provider_form,
-    )
-    e2b_template: E2BTemplate = Field(
-        default="desktop",
-        title="E2B template",
-        description="The E2B template the desktop starts from.",
-        json_schema_extra=_e2b_template_form,
-    )
-    e2b_timeout_seconds: int = Field(
-        default=900,
-        title="E2B idle timeout (seconds)",
-        ge=60,
-        le=86_400,
-        description="How long an idle E2B desktop lives after its last use. E2B's Hobby plan caps this at an hour.",
-        json_schema_extra={"x-advanced": True, **_ON_E2B},
     )
     screen_width: int = Field(
         default=1280,
@@ -150,16 +91,6 @@ class ComputerUseConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _a_cloud_desktop_has_a_provider(self) -> ComputerUseConfig:
-        # Dropped rather than refused for a local desktop: the field is hidden
-        # there, so a provider left from a cloud one is a value nobody can see.
-        if self.desktop == "local":
-            self.cloud_provider = None
-        elif self.cloud_provider is None:
-            raise ValueError("A cloud desktop needs a cloud_provider")
-        return self
-
-    @model_validator(mode="after")
     def _a_call_fits_in_a_run(self) -> ComputerUseConfig:
         if self.max_actions_per_call > self.max_actions:
             raise ValueError("max_actions_per_call cannot be larger than max_actions")
@@ -172,13 +103,13 @@ def validate_daemon_url(config: ComputerUseConfig) -> None:
     The same control as `BROWSER_CDP_ALLOWED_HOSTS`, for the same reason: the URL
     is in a spec an agent's editor writes, and this deployment sends its daemon
     token to whatever it names. Exact, case-folded host matching; an empty list
-    refuses a local desktop outright. A cloud desktop needs no URL.
+    refuses a daemon outright. The sandbox's desktop needs no URL.
 
     Raises:
         UrlRefusedError: The URL is missing, malformed, or names a host that is
             not allowed.
     """
-    if config.desktop != "local":
+    if config.desktop != "daemon":
         return
     if not config.daemon_url:
         raise UrlRefusedError(
@@ -199,19 +130,8 @@ def validate_daemon_url(config: ComputerUseConfig) -> None:
         )
 
 
-def _session(organization: object, conversation: object) -> str:
-    """Which E2B desktop a run gets: its conversation's, or one of its own.
-
-    The organization is part of the key so two tenants sharing one E2B account
-    can never be handed each other's desktop, whatever their conversation ids.
-    """
-    org = str(organization) if isinstance(organization, UUID) else "none"
-    thread = str(conversation) if isinstance(conversation, UUID) else f"run-{uuid4()}"
-    return f"{org}:{thread}"
-
-
 @register(
-    id="computer_use",
+    id=COMPUTER_USE_ID,
     voice="hand_off",
     name="Computer use",
     category="research",
@@ -235,27 +155,17 @@ def _session(organization: object, conversation: object) -> str:
     config_schema=ComputerUseConfig,
     side_effecting=True,
     scopes=("computer:use",),
-    secret=SecretRequirement(
-        kind=SecretKind.API_KEY,
-        description="The E2B API key that starts this agent's cloud desktops",
-        purpose="e2b",
-        required_when=SecretCondition(field="cloud_provider", equals=("e2b",)),
-    ),
+    # No `secret=`, as for `sandbox`: a desktop in the sandbox runs on a
+    # connection, which carries its own credential, and a daemon's token is the
+    # deployment's.
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
-    """Build the capability; a missing URL or key is refused by the tool, in a sentence."""
+    """Build the capability; a missing sandbox, URL or token is refused by the tool, in a sentence."""
     config = ctx.config if isinstance(ctx.config, ComputerUseConfig) else ComputerUseConfig()
-    key = ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     return ComputerUse(
-        backend=config.cloud_provider or "daemon",
+        backend=config.desktop,
         daemon_url=config.daemon_url,
         daemon_token=settings.COMPUTER_DAEMON_TOKEN,
-        e2b_key=key,
-        e2b_session=_session(
-            ctx.resources.get(ORGANIZATION_RESOURCE), ctx.resources.get(CONVERSATION_RESOURCE)
-        ),
-        e2b_template=config.e2b_template,
-        e2b_timeout_seconds=config.e2b_timeout_seconds,
         policy=ToolPolicy(
             max_width=config.screen_width,
             max_height=config.screen_height,

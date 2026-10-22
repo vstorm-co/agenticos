@@ -7364,7 +7364,7 @@
       "does": "Lässt den Agenten einen ganzen Desktop bedienen - jede Anwendung, nicht nur Webseiten - anhand von Screenshots, mit Maus und Tastatur. Sie sehen live im Chat zu.",
       "example1": "Ein Formular in einer Desktop-Anwendung ausfüllen",
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
-      "needs": "Ein von einem Administrator eingerichteter Desktop (ein Linux-Container oder ein Mac mit computerd) oder ein E2B-Schlüssel. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
+      "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
     },
     "context": {
@@ -7988,23 +7988,11 @@
     "computer_use": {
       "desktop": {
         "title": "Desktop",
-        "description": "Ein Computer, den Sie selbst betreiben, oder einer, den ein Cloud-Anbieter für jede Unterhaltung startet."
+        "description": "Die eigene Sandbox des Agenten mit einem Desktop darin, oder ein Computer, den Sie selbst betreiben. Die Sandbox braucht die Sandbox-Fähigkeit auf einer Sandbox-Verbindung."
       },
       "daemon_url": {
         "title": "Daemon-URL",
         "description": "Der computerd-Endpunkt Ihres Desktops. Sein Host muss in COMPUTER_DAEMON_ALLOWED_HOSTS stehen."
-      },
-      "cloud_provider": {
-        "title": "Cloud-Anbieter",
-        "description": "Wer den Cloud-Desktop betreibt."
-      },
-      "e2b_template": {
-        "title": "E2B-Vorlage",
-        "description": "Die E2B-Vorlage, aus der der Desktop startet."
-      },
-      "e2b_timeout_seconds": {
-        "title": "E2B-Leerlaufzeit (Sekunden)",
-        "description": "Wie lange ein ungenutzter E2B-Desktop nach der letzten Nutzung bestehen bleibt. Der Hobby-Plan von E2B begrenzt das auf eine Stunde."
       },
       "screen_width": {
         "title": "Screenshot-Breite",

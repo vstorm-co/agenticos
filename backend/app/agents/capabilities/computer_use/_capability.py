@@ -6,14 +6,14 @@ from typing import Any, Literal
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.workspaces import Workspace
 
 from app.agents.capabilities.computer_use._backends import (
     Computer,
     ComputerError,
     ComputerFactory,
     DaemonComputer,
-    E2BSettings,
-    open_e2b,
+    open_sandbox_desktop,
 )
 from app.agents.capabilities.computer_use._toolset import ToolPolicy, build_toolset
 
@@ -33,18 +33,14 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     """A desktop the agent operates, watched live in the chat's browse panel.
 
     Adds `computer_screenshot`, `computer_act` and `computer_save_screenshot`.
-    The desktop is a `computerd` daemon the operator runs - a Linux container or
-    a Mac - or an E2B sandbox per conversation. Nothing is opened until the first
+    The desktop is the agent's own sandbox, or a `computerd` daemon the operator
+    runs on their own Linux desktop or Mac. Nothing is opened until the first
     call, so binding the capability to an agent that never uses it costs nothing.
     """
 
-    backend: Literal["daemon", "e2b"] = "daemon"
+    backend: Literal["sandbox", "daemon"] = "sandbox"
     daemon_url: str = ""
     daemon_token: str = field(default="", repr=False)
-    e2b_key: str | None = field(default=None, repr=False)
-    e2b_session: str = ""
-    e2b_template: str = "desktop"
-    e2b_timeout_seconds: int = 900
     policy: ToolPolicy = field(default_factory=ToolPolicy)
     factory: ComputerFactory | None = field(default=None, repr=False, compare=False)
     """The seam a test replaces; `None` reaches the configured backend."""
@@ -53,21 +49,10 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
         default=None, init=False, repr=False, compare=False
     )
 
-    async def _open(self) -> Computer:
-        if self.backend == "e2b":
-            if not self.e2b_key:
-                raise ComputerError(
-                    "Computer use is set to E2B but no E2B key is bound to this agent. Add one to the capability."
-                )
-            return await open_e2b(
-                E2BSettings(
-                    api_key=self.e2b_key,
-                    session=self.e2b_session,
-                    template=self.e2b_template,
-                    width=self.policy.max_width,
-                    height=self.policy.max_height,
-                    timeout_seconds=self.e2b_timeout_seconds,
-                )
+    async def _open(self, workspace: Workspace) -> Computer:
+        if self.backend == "sandbox":
+            return await open_sandbox_desktop(
+                workspace, width=self.policy.max_width, height=self.policy.max_height
             )
         if not self.daemon_url:
             raise ComputerError(

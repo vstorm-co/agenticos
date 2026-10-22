@@ -1,5 +1,5 @@
 ---
-source_sha: "2084a096c686"
+source_sha: "ce04b4e9501a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -60,7 +60,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
-| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla E2B, przez dodatek `computer` | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
@@ -863,22 +863,29 @@ odrzucić.
 
 | `desktop` | Pulpit | Wymaga |
 |---|---|---|
-| `local` | `computerd` uruchomiony przez operatora: pulpit Linux w kontenerze (`deploy/computer/Dockerfile`) albo własny ekran Maca (`uv run deploy/computer/computerd.py`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
-| `cloud`, z `cloud_provider: e2b` | Pulpit w sandboksie [E2B](https://e2b.dev), jeden na rozmowę, odnajdywany ponownie w następnej turze | Klucza E2B z vaulta oraz dodatku `computer` |
+| `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
+| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
+
+Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
+providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
+na agenta, według `session_scope` capability Sandbox, a plik, który agent
+zapisze narzędziami plikowymi, jest plikiem, który może otworzyć na ekranie.
+Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa; sandbox
+na innym runtime'ie mówi modelowi przy pierwszym zrzucie ekranu, że nie ma
+zainstalowanego pulpitu.
+
+Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
+pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić
+`xdotool` z powłoki.
 
 Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
 wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
-czyjąś sesję roboczą. Pulpit E2B jest kluczowany organizacją i rozmową, więc dwie
-organizacje dzielące jeden klucz E2B nigdy nie dzielą pulpitu. Wygasa po czasie
-bezczynności ustawionym w samym E2B.
+czyjąś sesję roboczą.
 
 | Ustawienie | Domyślnie | Zakres |
 |---|---|---|
-| `desktop` | `local` | `local`, `cloud` |
-| `daemon_url` | puste, odrzucane przy publikacji dla `local` | dozwolony host |
-| `cloud_provider` | puste, odrzucane dla `cloud` | `e2b` |
-| `e2b_template` | `desktop` | `desktop`: szablon musi mieć X, XFCE i xdotool |
-| `e2b_timeout_seconds` | 900 | 60–86400; plan Hobby w E2B ogranicza do 3600 |
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
 | `max_actions` | 200 | 1–2000 na run |

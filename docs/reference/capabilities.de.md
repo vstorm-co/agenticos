@@ -1,5 +1,5 @@
 ---
-source_sha: "2084a096c686"
+source_sha: "ce04b4e9501a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -60,7 +60,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
-| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für E2B, über das Extra `computer` | übergeben |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
@@ -915,23 +915,29 @@ Handeln neu vermisst, statt ihn zu verweigern.
 
 | `desktop` | Der Desktop | Braucht |
 |---|---|---|
-| `local` | Ein `computerd`, den der Betreiber betreibt: ein Linux-Desktop in einem Container (`deploy/computer/Dockerfile`) oder der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
-| `cloud`, mit `cloud_provider: e2b` | Eine [E2B](https://e2b.dev)-Desktop-Sandbox pro Gespräch, im nächsten Zug wiedergefunden | Einen E2B-Schlüssel aus dem Vault und das Extra `computer` |
+| `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
+| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
+
+Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
+Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
+Agent nach dem `session_scope` der Sandbox-Capability, und eine Datei, die der
+Agent mit seinen Datei-Tools schreibt, ist eine Datei, die er auf dem Bildschirm
+öffnen kann. Das Veröffentlichen verweigert einen `sandbox`-Desktop bei einem
+Agent ohne Sandbox-Verbindung; eine Sandbox auf einer anderen Runtime teilt dem
+Modell beim ersten Screenshot mit, dass kein Desktop installiert ist.
+
+Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
+auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann
+der Agent `xdotool` aus der Shell aufrufen.
 
 Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
 Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
-Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen. Ein
-E2B-Desktop ist an Organisation und Gespräch gebunden, daher teilen zwei
-Organisationen mit einem gemeinsamen E2B-Schlüssel nie einen Desktop. Er läuft
-nach dem Leerlauf-Timeout von E2B selbst ab.
+Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen.
 
 | Einstellung | Standard | Bereich |
 |---|---|---|
-| `desktop` | `local` | `local`, `cloud` |
-| `daemon_url` | leer, bei `local` beim Veröffentlichen verweigert | ein erlaubter Host |
-| `cloud_provider` | leer, bei `cloud` verweigert | `e2b` |
-| `e2b_template` | `desktop` | `desktop`: eine Vorlage braucht X, XFCE und xdotool |
-| `e2b_timeout_seconds` | 900 | 60–86400; der Hobby-Plan von E2B begrenzt auf 3600 |
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
 | `max_actions` | 200 | 1–2000 pro Run |

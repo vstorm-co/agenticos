@@ -53,7 +53,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for E2B, via the `computer` extra | handed off |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
@@ -817,22 +817,29 @@ rather than refuse it.
 
 | `desktop` | The desktop | Needs |
 |---|---|---|
-| `local` | A `computerd` the operator runs: a Linux desktop in a container (`deploy/computer/Dockerfile`) or a Mac's own screen (`uv run deploy/computer/computerd.py`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
-| `cloud`, with `cloud_provider: e2b` | An [E2B](https://e2b.dev) desktop sandbox per conversation, found again on the next turn | An E2B key from the vault, and the `computer` extra |
+| `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
+| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
+
+A sandbox desktop needs nothing of its own: no address, no token and no
+provider. It lives and is shared exactly as the sandbox is, per conversation or
+per agent by the Sandbox capability's `session_scope`, and a file the agent
+writes with its file tools is a file it can open on the screen. Publish refuses
+a `sandbox` desktop on an agent without a sandbox connection; a sandbox on
+another runtime tells the model at its first screenshot that it has no desktop
+installed.
+
+The `execute` tool is not needed, and leaving it off keeps the desktop's actions
+behind `computer_act` and its approval: with `execute`, the agent can run
+`xdotool` from the shell.
 
 One daemon is one desktop: every run pointed at it shares the machine and
 whatever is signed in on it. Give it a dedicated machine or account, not
-somebody's working session. An E2B desktop is keyed on the organization and the
-conversation, so two tenants sharing one E2B key never share a desktop. It
-expires on E2B's own idle timeout.
+somebody's working session.
 
 | Config | Default | Range |
 |---|---|---|
-| `desktop` | `local` | `local`, `cloud` |
-| `daemon_url` | empty, refused at publish for `local` | an allowed host |
-| `cloud_provider` | empty, refused for `cloud` | `e2b` |
-| `e2b_template` | `desktop` | `desktop`: a template must have X, XFCE and xdotool |
-| `e2b_timeout_seconds` | 900 | 60–86400; E2B's Hobby plan caps it at 3600 |
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
 | `max_actions` | 200 | 1–2000 per run |

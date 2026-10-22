@@ -1,5 +1,5 @@
 ---
-source_sha: "2084a096c686"
+source_sha: "ce04b4e9501a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -60,7 +60,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | para E2B, mediante el extra `computer` | delegada |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
@@ -876,23 +876,29 @@ propio, que vuelve a medir la pantalla antes de actuar en lugar de rechazarlo.
 
 | `desktop` | El escritorio | Necesita |
 |---|---|---|
-| `local` | Un `computerd` que ejecuta el operador: un escritorio Linux en un contenedor (`deploy/computer/Dockerfile`) o la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
-| `cloud`, con `cloud_provider: e2b` | Una sandbox de escritorio de [E2B](https://e2b.dev) por conversación, que se vuelve a encontrar en el siguiente turno | Una clave de E2B del vault, y el extra `computer` |
+| `sandbox` | Un escritorio Linux (XFCE y Firefox) dentro de la propia [sandbox](#files-shell) del agent, la misma máquina en la que trabajan su shell y sus tools de archivos | La capability [Sandbox](#files-shell) sobre una conexión de sandbox, con el runtime `desktop` |
+| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
+
+Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
+proveedor. Vive y se comparte exactamente como la sandbox, por conversación o
+por agent según el `session_scope` de la capability Sandbox, y un archivo que el
+agent escribe con sus tools de archivos es un archivo que puede abrir en la
+pantalla. Publicar rechaza un escritorio `sandbox` en un agent sin conexión de
+sandbox; una sandbox con otro runtime le dice al modelo, en su primera captura,
+que no tiene ningún escritorio instalado.
+
+La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
+escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent
+puede ejecutar `xdotool` desde la shell.
 
 Un daemon es un escritorio: cada run que apunta a él comparte la máquina y todo
 lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
-no la sesión de trabajo de alguien. Un escritorio de E2B se identifica por la
-organización y la conversación, así que dos organizaciones que comparten una
-clave de E2B nunca comparten escritorio. Caduca con el tiempo de inactividad del
-propio E2B.
+no la sesión de trabajo de alguien.
 
 | Ajuste | Por defecto | Rango |
 |---|---|---|
-| `desktop` | `local` | `local`, `cloud` |
-| `daemon_url` | vacío, rechazado al publicar con `local` | un host permitido |
-| `cloud_provider` | vacío, rechazado con `cloud` | `e2b` |
-| `e2b_template` | `desktop` | `desktop`: una plantilla necesita X, XFCE y xdotool |
-| `e2b_timeout_seconds` | 900 | 60–86400; el plan Hobby de E2B lo limita a 3600 |
+| `desktop` | `sandbox` | `sandbox`, `daemon` |
+| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
 | `max_actions` | 200 | 1–2000 por run |

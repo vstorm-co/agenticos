@@ -1,32 +1,36 @@
-"""Where the desktop is: a `computerd` daemon the operator runs, or an E2B sandbox.
+"""Where the desktop is: the agent's own sandbox, or a `computerd` daemon the operator runs.
 
 Both answer the same two questions - what is on the screen, and do this - and
 neither is told how the model's screenshot was scaled; `_actions.to_native` has
 already moved every point into the backend's own input space by the time an
 action arrives here.
 
-**A daemon** is the operator's machine: a Linux desktop in a container, or a Mac.
-It is reached over HTTP with `COMPUTER_DAEMON_TOKEN`, and its host has to be on
-`COMPUTER_DAEMON_ALLOWED_HOSTS` - the same reasoning as `BROWSER_CDP_ALLOWED_HOSTS`,
-since the URL is in a spec an agent's editor writes. One daemon is one desktop:
-every run pointed at it shares it, which is why it suits a dedicated machine and
-not a tenant-per-desktop deployment.
+**The sandbox** is the run's workspace - the container or cloud sandbox the
+`sandbox` capability opened on one of the organization's connections. A click is
+an `xdotool` command run there and a screenshot is a `scrot` file read back, so
+the desktop needs nothing of its own: no address, no token, no provider. It is
+the same machine the agent's shell and file tools work on, shared by whoever
+shares the workspace, and it is put away with it.
 
-**E2B** is a Firecracker microVM per conversation, created on first use and found
-again by its metadata on the next turn, so the desktop a person was watching is
-the one the follow-up question acts on. It dies on E2B's own timeout, refreshed on
-every connect - nothing here has to remember to delete it.
+**A daemon** is the operator's machine: their own Linux desktop or Mac, or a
+desktop container they keep running. It is reached over HTTP with
+`COMPUTER_DAEMON_TOKEN`, and its host has to be on `COMPUTER_DAEMON_ALLOWED_HOSTS`
+- the same reasoning as `BROWSER_CDP_ALLOWED_HOSTS`, since the URL is in a spec
+an agent's editor writes. One daemon is one desktop: every run pointed at it
+shares it, which is why it suits a dedicated machine and not a tenant-per-desktop
+deployment.
 """
 
 import logging
-import shlex
 import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol, cast
+from typing import Protocol
+from uuid import uuid4
 
 import anyio
 import httpx
+from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
 from app.agents.capabilities.computer_use._actions import (
     Click,
@@ -42,16 +46,11 @@ logger = logging.getLogger(__name__)
 
 NativeAction = Click | Move | Drag | Scroll | TypeText | Key | Wait
 
-MISSING_EXTRA = (
-    "E2B desktops are not installed in this deployment. Build the backend with the "
-    '`computer` extra (BACKEND_EXTRAS="--extra computer").'
-)
-
 DISPLAY = ":0"
 """The X display a sandbox's desktop runs on."""
 
-E2B_SESSION_KEY = "agenticos_session"
-"""The metadata key a sandbox is found again by on the next turn."""
+NO_DESKTOP = 3
+"""The start script's exit code for a sandbox without the desktop's programs."""
 
 
 class ComputerError(Exception):
@@ -93,32 +92,8 @@ class Computer(Protocol):
         ...
 
 
-ComputerFactory = Callable[[], Awaitable[Computer]]
-
-
-class _CommandResult(Protocol):
-    stdout: str
-
-
-class _Commands(Protocol):
-    def run(self, cmd: str, *, envs: dict[str, str], timeout: float) -> _CommandResult: ...
-
-
-class _Files(Protocol):
-    def read(self, path: str, format: Literal["bytes"]) -> bytearray: ...  # noqa: A002 - the SDK's keyword
-
-
-class E2BSandbox(Protocol):
-    """The part of the E2B SDK's sandbox this module uses.
-
-    Declared rather than imported because the SDK is an optional extra, and a
-    test hands in a fake with exactly these two attributes.
-    """
-
-    @property
-    def commands(self) -> _Commands: ...
-    @property
-    def files(self) -> _Files: ...
+ComputerFactory = Callable[[Workspace], Awaitable[Computer]]
+"""Opens the run's desktop; handed the run's workspace, which only the sandbox uses."""
 
 
 def png_size(data: bytes) -> tuple[int, int]:
@@ -174,34 +149,35 @@ def x11_keys(chord: str) -> str:
     return "+".join(_X11_KEYS.get(part.lower(), part) for part in parts)
 
 
-def xdotool(action: NativeAction) -> str | None:
-    """The shell command that carries out an action on an X11 display.
+def xdotool(action: NativeAction) -> list[str] | None:
+    """The `xdotool` command that carries out an action on an X11 display.
 
     `None` for a wait, which is a sleep here rather than a process on the desktop.
-    Every value reaching the shell is either an int or `shlex.quote`d.
+    An argv rather than a shell line, so typed text reaches `xdotool` as one
+    argument whatever it holds.
     """
     match action:
         case Click():
-            return (
-                f"xdotool mousemove --sync {action.x} {action.y} "
-                f"click --repeat {action.count} {_MOUSE_BUTTONS[action.button]}"
-            )
+            return [
+                *("xdotool", "mousemove", "--sync", str(action.x), str(action.y)),
+                *("click", "--repeat", str(action.count), str(_MOUSE_BUTTONS[action.button])),
+            ]
         case Move():
-            return f"xdotool mousemove --sync {action.x} {action.y}"
+            return ["xdotool", "mousemove", "--sync", str(action.x), str(action.y)]
         case Drag():
-            return (
-                f"xdotool mousemove --sync {action.x} {action.y} mousedown 1 "
-                f"mousemove --sync {action.to_x} {action.to_y} mouseup 1"
-            )
+            return [
+                *("xdotool", "mousemove", "--sync", str(action.x), str(action.y), "mousedown", "1"),
+                *("mousemove", "--sync", str(action.to_x), str(action.to_y), "mouseup", "1"),
+            ]
         case Scroll():
-            return (
-                f"xdotool mousemove --sync {action.x} {action.y} "
-                f"click --repeat {action.amount} {_SCROLL_BUTTONS[action.direction]}"
-            )
+            return [
+                *("xdotool", "mousemove", "--sync", str(action.x), str(action.y)),
+                *("click", "--repeat", str(action.amount), str(_SCROLL_BUTTONS[action.direction])),
+            ]
         case TypeText():
-            return f"xdotool type --delay 12 -- {shlex.quote(action.text)}"
+            return ["xdotool", "type", "--delay", "12", "--", action.text]
         case Key():
-            return f"xdotool key -- {shlex.quote(x11_keys(action.keys))}"
+            return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
             return None
 
@@ -264,123 +240,98 @@ def _error_text(response: httpx.Response) -> str:
     return str(error)[:200] if error else f"HTTP {response.status_code}"
 
 
-class E2BComputer:
-    """A desktop in an E2B sandbox, one per session key.
-
-    The SDK is synchronous, so every call runs in a worker thread; a click is one
-    command round trip to the sandbox, which is what E2B's own desktop SDK does.
-    """
-
-    label = "Linux (E2B)"
-
-    def __init__(self, sandbox: E2BSandbox) -> None:
-        self._sandbox = sandbox
-
-    def _run(self, command: str) -> str:
-        return self._sandbox.commands.run(command, envs={"DISPLAY": DISPLAY}, timeout=60).stdout
-
-    def _shoot(self) -> bytes:
-        path = "/tmp/agenticos-screenshot.png"  # noqa: S108 - inside the sandbox, which is the session's alone
-        self._run(f"scrot --overwrite --pointer {path}")
-        return bytes(self._sandbox.files.read(path, format="bytes"))
-
-    async def capture(self) -> Capture:
-        """Take a screenshot; on X11 the picture and the pointer share one space."""
-        try:
-            image = await anyio.to_thread.run_sync(self._shoot)
-        except Exception as exc:
-            logger.warning("E2B screenshot failed: %s", type(exc).__name__)
-            raise ComputerError("The E2B desktop did not return a screenshot.") from exc
-        width, height = png_size(image)
-        return Capture(image=image, width=width, height=height)
-
-    async def perform(self, action: NativeAction) -> None:
-        """Carry out one action with `xdotool` inside the sandbox."""
-        if isinstance(action, Wait):
-            await anyio.sleep(action.seconds)
-            return
-        command = xdotool(action)
-        assert command is not None
-        try:
-            await anyio.to_thread.run_sync(self._run, command)
-        except Exception as exc:
-            logger.warning("E2B action failed: %s", type(exc).__name__)
-            raise ComputerError(f"The E2B desktop refused the {action.action} action.") from exc
-
-
-@dataclass(frozen=True)
-class E2BSettings:
-    """How a sandbox is created, and how long it outlives its last use."""
-
-    api_key: str
-    session: str
-    template: str = "desktop"
-    width: int = 1280
-    height: int = 800
-    timeout_seconds: int = 900
-
-
 def _desktop_start(width: int, height: int) -> str:
-    """The script that starts a new sandbox's display and desktop, and waits for both.
+    """The script that starts the sandbox's display and desktop, unless they already run.
 
-    E2B's `desktop` template has the X server and XFCE installed but not running.
-    This is what the `e2b-desktop` package does on create, done here so the extra
-    needs only `e2b`: that package pins `pillow<13`, and an extra's pin moves the
-    whole lock. Both are started with `nohup`, so they outlive the command.
+    Run on every run's first use rather than once per sandbox: a sandbox that
+    hibernated or restarted between turns kept its files and lost its processes.
+    A restarted container keeps its `/tmp` too, and Xvfb refuses a display whose
+    lock survived the last one. Both are started with `setsid nohup`, so they
+    outlive the command that started them.
     """
     return (
-        f"nohup Xvfb {DISPLAY} -ac -screen 0 {width}x{height}x24 -nolisten tcp >/dev/null 2>&1 &\n"
+        f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1 && exit 0\n"
+        f"for tool in Xvfb xdpyinfo startxfce4 xdotool scrot; do command -v $tool >/dev/null || exit {NO_DESKTOP}; done\n"
+        f"rm -f /tmp/.X{DISPLAY[1:]}-lock /tmp/.X11-unix/X{DISPLAY[1:]}\n"
+        f"setsid nohup Xvfb {DISPLAY} -ac -screen 0 {width}x{height}x24 -nolisten tcp >/dev/null 2>&1 &\n"
         f"for _ in $(seq 100); do xdpyinfo -display {DISPLAY} >/dev/null 2>&1 && break; sleep 0.1; done\n"
-        f"DISPLAY={DISPLAY} nohup startxfce4 >/dev/null 2>&1 &\n"
+        f"DISPLAY={DISPLAY} setsid nohup dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &\n"
         "for _ in $(seq 600); do pgrep -x xfwm4 >/dev/null && pgrep -x xfdesktop >/dev/null && exit 0; sleep 0.1; done\n"
         "exit 1\n"
     )
 
 
-def _open_e2b(settings: E2BSettings) -> E2BSandbox:
-    """Find this session's sandbox, or create it. Blocking - run in a thread."""
-    try:
-        from e2b import Sandbox, SandboxQuery  # ty: ignore[unresolved-import] - the `computer` extra
-    except ImportError as exc:
-        raise ComputerError(MISSING_EXTRA) from exc
+class SandboxComputer:
+    """The desktop in the run's sandbox, driven by commands run there.
 
-    query = SandboxQuery(metadata={E2B_SESSION_KEY: settings.session})
-    paginator = Sandbox.list(query=query, limit=1, api_key=settings.api_key)
-    existing = paginator.next_items() if paginator.has_next else []
-    if existing:
-        sandbox = Sandbox.connect(
-            existing[0].sandbox_id, timeout=settings.timeout_seconds, api_key=settings.api_key
-        )
-    else:
-        sandbox = Sandbox.create(
-            template=settings.template,
-            timeout=settings.timeout_seconds,
-            metadata={E2B_SESSION_KEY: settings.session},
-            api_key=settings.api_key,
-        )
+    A click is one command round trip, which is what E2B's own desktop SDK does
+    too. The screenshot is written under `/tmp` rather than the working directory,
+    so it never shows up among the files the agent and the person see.
+    """
+
+    label = "Linux"
+
+    def __init__(self, workspace: Workspace) -> None:
+        self._workspace = workspace
+        # One file per run's desktop: runs sharing a workspace share its `/tmp`.
+        self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
+
+    async def _run(self, argv: list[str], what: str) -> None:
         try:
-            sandbox.commands.run(_desktop_start(settings.width, settings.height), timeout=90)
-        except Exception:
-            sandbox.kill()
-            raise
-    return cast(E2BSandbox, sandbox)
+            result = await self._workspace.run(argv, env={"DISPLAY": DISPLAY}, timeout=60)
+        except (WorkspaceError, OSError) as exc:
+            logger.warning("sandbox desktop %s failed: %s", what, type(exc).__name__)
+            raise ComputerError(
+                f"The sandbox could not {what}. It may be stopped or restarting."
+            ) from exc
+        if result.exit_code != 0:
+            said = (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
+            raise ComputerError(f"The desktop refused to {what}: {said}")
+
+    async def capture(self) -> Capture:
+        """Take a screenshot; on X11 the picture and the pointer share one space."""
+        await self._run(["scrot", "--overwrite", "--pointer", self._shot], "take a screenshot")
+        try:
+            image = await self._workspace.read_bytes(self._shot)
+        except (WorkspaceError, OSError) as exc:
+            logger.warning("sandbox screenshot unreadable: %s", type(exc).__name__)
+            raise ComputerError("The sandbox did not return the screenshot it took.") from exc
+        width, height = png_size(image)
+        return Capture(image=image, width=width, height=height)
+
+    async def perform(self, action: NativeAction) -> None:
+        """Carry out one action with `xdotool` inside the sandbox."""
+        argv = xdotool(action)
+        if argv is None:
+            assert isinstance(action, Wait)
+            await anyio.sleep(action.seconds)
+            return
+        await self._run(argv, f"run the {action.action} action")
 
 
-async def open_e2b(settings: E2BSettings) -> E2BComputer:
-    """This session's E2B desktop, created on first use.
+async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:
+    """The desktop in the run's sandbox, started if it is not running.
 
     Raises:
-        ComputerError: The extra is missing, or E2B refused - a bad key, a plan
-            limit, an outage. The model is told which of the first two it was.
+        ComputerError: The run has no sandbox that runs commands, its runtime has
+            no desktop installed, or the desktop did not come up. The model is
+            told which.
     """
-    try:
-        sandbox = await anyio.to_thread.run_sync(_open_e2b, settings)
-    except ComputerError:
-        raise
-    except Exception as exc:
-        logger.warning("E2B sandbox could not be opened: %s", type(exc).__name__)
+    if not workspace.attached or not isinstance(workspace.backend, SupportsCommands):
         raise ComputerError(
-            "The E2B desktop could not be started. Check the E2B key bound to this "
-            "capability and the account's sandbox limits."
-        ) from exc
-    return E2BComputer(sandbox)
+            "Computer use works on the agent's sandbox, and this run has none that runs "
+            "commands. Add the Sandbox capability on a sandbox connection."
+        )
+    try:
+        result = await workspace.run(_desktop_start(width, height), shell=True, timeout=90)  # noqa: S604
+    except (WorkspaceError, OSError) as exc:
+        logger.warning("sandbox desktop could not start: %s", type(exc).__name__)
+        raise ComputerError("The sandbox could not be reached to start its desktop.") from exc
+    if result.exit_code == NO_DESKTOP:
+        raise ComputerError(
+            "This sandbox has no desktop installed. Run the agent's sandbox on the "
+            "`desktop` runtime."
+        )
+    if result.exit_code != 0:
+        raise ComputerError("The desktop in the sandbox did not start.")
+    return SandboxComputer(workspace)

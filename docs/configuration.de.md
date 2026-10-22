@@ -1,5 +1,5 @@
 ---
-source_sha: "497b7ff159f0"
+source_sha: "956b07a28585"
 ---
 
 # Konfiguration { #configuration }
@@ -59,7 +59,7 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
-| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und dieses Deployment sendet `COMPUTER_DAEMON_TOKEN` an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Leer verweigert das Daemon-Backend; E2B-Desktops brauchen keinen Eintrag |
+| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und dieses Deployment sendet `COMPUTER_DAEMON_TOKEN` an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Leer verweigert das Daemon-Backend; ein Desktop in der Sandbox des Agents braucht keinen Eintrag |
 | `COMPUTER_DAEMON_TOKEN` | empty | Das Bearer-Token, mit dem jeder `computerd` gestartet wurde, den dieses Deployment steuert (`COMPUTERD_TOKEN` auf der Daemon-Seite). Leer lässt einen Agent mit Computer-Bedienung auf dem Daemon-Backend antworten, dass er keinen Desktop erreichen kann |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
 | `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
@@ -895,10 +895,11 @@ unauthentifizierten internen APIs sollte das im Netz sagen und nicht hier.
 
 ### Welche Umgebungen ein Agent anfordern darf { #which-environments-an-agent-may-ask-for }
 
-Eine Runtime wird ausgeliefert — `workbench` (1,93 GB): Python 3.12, Node 24,
+Zwei Runtimes werden ausgeliefert. `workbench` (1,93 GB) hat Python 3.12, Node 24,
 LibreOffice und die Bibliotheken, die ein Agent braucht, um die Dateien zu lesen,
 zu schreiben, zu konvertieren und zu plotten, um die es in einer Unterhaltung
-geht, liteparse mit OCR eingeschlossen. Sie ist in
+geht, liteparse mit OCR eingeschlossen. `desktop` ist ein Linux-Desktop, XFCE und
+Firefox, für die Computer-Bedienung. Beide sind in
 `backend/app/core/catalog/sandbox_runtimes.json` definiert. Eine hinzuzufügen ist
 eine Änderung dort plus `make sandbox-runtimes`, was `SANDBOXD_RUNTIMES` in alle
 drei Compose-Dateien schreibt; diese Variable ist der einzige Kanal, über den der

@@ -113,7 +113,7 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     ),
     # Screenshots of the desktop go to the agent's own model; the actions, and the
     # text the model types, go to the desktop.
-    "computer_use": "the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS, or E2B for a cloud desktop",
+    "computer_use": "the agent's sandbox connection, or the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
