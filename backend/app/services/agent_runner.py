@@ -140,6 +140,11 @@ from app.agents.capabilities.guardrails import (
     output_screen,
 )
 from app.agents.capabilities.media import offloaded_history
+from app.agents.capabilities.mirage import (
+    MIRAGE_CAPABILITY_ID,
+    MIRAGE_MOUNTS_RESOURCE,
+    MirageConfig,
+)
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -274,6 +279,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.mirage_mounts import MirageMountService
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -2387,6 +2393,14 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     return None
 
 
+def _mirage_config(spec: AgentSpec) -> MirageConfig | None:
+    """The agent's virtual terminal, when it binds one."""
+    for binding in spec.capabilities:
+        if binding.id == MIRAGE_CAPABILITY_ID and binding.enabled:
+            return MirageConfig.model_validate(binding.config)
+    return None
+
+
 def _key_may_continue(ctx: AuthContext, run: AgentRun) -> bool:
     """Whether an organization key may read and answer the questions of its issuer's run.
 
@@ -3054,6 +3068,7 @@ class AgentRunnerService:
         )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
+        await self._add_mirage_terminal(resources, ctx, spec, person_id=personal_mcp_user_id)
 
         run = existing_run
         if run is None:
@@ -3791,7 +3806,11 @@ class AgentRunnerService:
             )
         )
         own_resources = await self._delegate_resources(
-            ctx, spec, shared=shared, parent_resources=resources
+            ctx,
+            spec,
+            shared=shared,
+            parent_resources=resources,
+            person_id=delegation.personal_mcp_user_id,
         )
         return ResolvedSubagent(
             name=specialist.name,
@@ -3911,7 +3930,11 @@ class AgentRunnerService:
 
         pinned = _with_shared(AgentSpec.model_validate(version.spec), shared)
         delegate_resources = await self._delegate_resources(
-            ctx, pinned, shared=shared, parent_resources=resources
+            ctx,
+            pinned,
+            shared=shared,
+            parent_resources=resources,
+            person_id=delegation.personal_mcp_user_id,
         )
         runnable = pinned
         nested_config = _delegation_config(pinned)
@@ -4024,6 +4047,7 @@ class AgentRunnerService:
         *,
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
+        person_id: UUID | None,
     ) -> dict[str, Any]:
         """A resource dict of the delegate's own, resolved from the delegate's spec.
 
@@ -4062,7 +4086,29 @@ class AgentRunnerService:
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
             resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
+        await self._add_mirage_terminal(resources, ctx, spec, person_id=person_id)
         return resources
+
+    async def _add_mirage_terminal(
+        self,
+        resources: dict[str, Any],
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        person_id: UUID | None,
+    ) -> None:
+        """The virtual terminal's folders, when the spec binds one.
+
+        Resolved here for the reason collection names are: which secret and which
+        account a folder reaches is the server's decision, made before the model
+        is called. Every credential arrives as a `SecretStr`, which a log line
+        that prints the resource shows as asterisks.
+        """
+        config = _mirage_config(spec)
+        if config is not None:
+            resources[MIRAGE_MOUNTS_RESOURCE] = await MirageMountService(self.db).resolve(
+                ctx, config, person_id=person_id
+            )
 
     async def _workspace_shared(
         self, ctx: AuthContext, scope: str, conversation_id: UUID | None

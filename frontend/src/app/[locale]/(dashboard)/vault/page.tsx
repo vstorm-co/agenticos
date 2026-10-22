@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ConnectedAccountsCard } from "@/components/vault/connected-accounts-card";
 import { SecretsTable } from "@/components/vault/secrets-table";
 import {
   Button,
@@ -19,7 +20,7 @@ import {
 import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { AddSecretDialog, RotateSecretDialog } from "@/components/vault/secret-dialog";
-import { usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
+import { useMcpOAuthOutcome, usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
@@ -51,6 +52,8 @@ export default function VaultPage() {
   // Member holds it at OWN scope, so the "Add key" button must not vanish
   // for them.
   const canManage = can(Perm.secretsEdit);
+  // A connected account's consent comes back here, through the MCP callback.
+  useMcpOAuthOutcome();
 
   const [secretOpen, setSecretOpen] = useState(false);
   const [rotating, setRotating] = useState<Secret | null>(null);
@@ -136,6 +139,14 @@ export default function VaultPage() {
           />
         )}
       </ListCard>
+
+      {/* The Google accounts a virtual terminal's folder reads as (#2191): a
+          person connects their own; the organization's take mcp:manage, and
+          reading them connections:view - the same gates as its MCP servers. */}
+      <ConnectedAccountsCard owner="personal" canManage />
+      {can(Perm.connectionsView) && (
+        <ConnectedAccountsCard owner="organization" canManage={can(Perm.mcpManage)} />
+      )}
 
       <AddSecretDialog
         open={secretOpen}

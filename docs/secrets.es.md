@@ -1,5 +1,5 @@
 ---
-source_sha: "64b487154003"
+source_sha: "39262f89eb46"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -198,6 +198,20 @@ dado — nunca una instancia. El código dice «necesito una clave de API»; la
 
 **Conexiones MCP.** Bearer tokens y cargas útiles de OAuth, selladas a la
 organización o al miembro. Mira [MCP](mcp.md#authentication).
+
+<a id="connected-accounts"></a>
+
+**Cuentas conectadas.** Una cuenta de Google como la que lee una carpeta del
+[terminal virtual](reference/capabilities.md#mirage), conectada desde la página del
+vault. Una persona conecta sus propias cuentas, y un agent que monta «las cuentas
+propias de cada persona» las encuentra cuando esa persona habla con él. Las cuentas
+de la organización requieren `mcp:manage` para conectar o desconectar y
+`connections:view` para listarlas, y una carpeta nombra una por su id. El
+consentimiento usa el secreto `google_oauth_app` de la organización y pide Drive,
+Gmail, Calendar, Docs, Sheets y Slides a la vez. Google permite negar cualquiera de
+ellos, y una carpeta que necesita uno negado lo dice. La concesión es un payload de
+OAuth sellado como el de una conexión MCP, y una respuesta da la dirección de la
+cuenta y los scopes concedidos, nunca un token.
 
 **Bots de canal.** Todas las credenciales de la fila, selladas a la organización
 del bot bajo una misma `key_version`: el token del bot, el signing secret y el app

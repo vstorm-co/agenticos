@@ -33,6 +33,22 @@ logger = logging.getLogger(__name__)
 PROVIDER = "google"
 AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+
+DRIVE = "https://www.googleapis.com/auth/drive"
+GMAIL = "https://www.googleapis.com/auth/gmail.modify"
+CALENDAR = "https://www.googleapis.com/auth/calendar"
+DOCS = "https://www.googleapis.com/auth/documents"
+SHEETS = "https://www.googleapis.com/auth/spreadsheets"
+SLIDES = "https://www.googleapis.com/auth/presentations"
+
+ACCOUNT_SCOPES: tuple[str, ...] = ("openid", "email", DRIVE, GMAIL, CALENDAR, DOCS, SHEETS, SLIDES)
+"""What a connected Google account is asked for: every service a terminal can mount.
+
+Asked for at once rather than per service, so one consent covers a person's Drive,
+mail and calendar. Google's consent is granular, so a person can withhold any of
+them; what they granted is stored, and a mount needing a scope they withheld says so.
+"""
 _TIMEOUT = httpx.Timeout(10.0)
 
 
@@ -134,3 +150,29 @@ async def exchange_code(
         expires_in=expires if isinstance(expires, int) else None,
         granted_scopes=str(payload.get("scope") or "").split(),
     )
+
+
+async def account_email(access_token: str) -> str | None:
+    """The address of the account a token was granted on, or `None` if Google will not say.
+
+    It is the account's label: a person with two Google accounts tells them apart
+    by it, and a re-consent on the same address replaces the grant rather than
+    adding a second.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.get(
+                USERINFO_ENDPOINT, headers={"Authorization": f"Bearer {access_token}"}
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("google_userinfo_unreachable", extra={"error": exc.__class__.__name__})
+        return None
+    if response.status_code >= 400:
+        logger.warning("google_userinfo_refused", extra={"status": response.status_code})
+        return None
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    email = payload.get("email") if isinstance(payload, dict) else None
+    return email if isinstance(email, str) and email else None

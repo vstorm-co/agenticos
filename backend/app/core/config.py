@@ -792,6 +792,17 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
+    # Hosts a virtual terminal (`mirage`) may mount by an address its author typed:
+    # an SSH server, a Postgres or MongoDB DSN, an IMAP server, a self-hosted
+    # Nextcloud or Dify. The address is in an agent's spec, which whoever holds
+    # `edit` on the agent writes, so for the reason `BROWSER_CDP_ALLOWED_HOSTS` is
+    # an allowlist the SSRF guard is the wrong control here: it refuses the
+    # company's own database, which is the point of mounting one, and admits any
+    # public host, which is the address an author could otherwise exfiltrate a
+    # bound secret to. Exact host names. Empty allows no typed address at all;
+    # SaaS backends (Drive, GitHub, Notion...) reach their fixed APIs regardless.
+    MIRAGE_ALLOWED_HOSTS: list[str] = []
+
     # The browser a person signs in to a site with from Settings (#2129). An
     # agent's browser is named in its spec; signing in from Settings involves no
     # agent, so the deployment names the one it runs - the compose `browser`

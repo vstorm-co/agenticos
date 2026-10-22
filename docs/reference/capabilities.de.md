@@ -1,5 +1,5 @@
 ---
-source_sha: "8bdf39c42a5d"
+source_sha: "9833e468f549"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -62,6 +62,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
@@ -1064,6 +1065,73 @@ Diese Dateien sind beschreibbar, und was der Agent schreibt, wird **nicht** zu
 einem Skill. Ein Skill sind Instruktionen, denen jeder daran gebundene Agent bei
 jedem Run folgt, deshalb wird eine Änderung als Vorschlag festgehalten und jemand
 mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md).
+
+## Virtuelles Terminal { #mirage }
+
+Die sieben Werkzeuge der `sandbox`, mit dem Präfix `mirage_`, über den Diensten,
+die ein Autor einbindet: ein Google Drive, ein GitHub-Repository, Notion, eine
+Postgres-Datenbank, ein SSH-Server, ein Postfach.
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) bindet jeden Dienst als
+Ordner ein und führt die Shell darüber über die eigene API des Dienstes aus. Der
+Agent beantwortet „welche Verträge erwähnen Acme?“ also mit einem `grep` über einen
+Drive-Ordner. Kein Container startet. Ein Agent kann diese Capability und eine
+Sandbox zugleich haben: Die Werkzeuge des Terminals erreichen immer das Terminal,
+und `execute` erreicht weiterhin die Sandbox.
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `mounts` | erforderlich | Ein bis zehn Ordner, jeder wie unten beschrieben |
+| `allowed_commands` | jeder Befehl | Befehlsnamen, die die Shell ausführen darf, etwa `ls`, `cat`, `grep` |
+| `hidden_paths` | keine | Absolute Pfade, die der Agent überhaupt nicht sieht, etwa `/drive/HR/` |
+
+**Ein Ordner ist ein Pfad, ein Dienst und eine Anmeldung.** Der Pfad ist ein
+kleingeschriebener Name zwischen Schrägstrichen (`/drive/`). Der Dienst ist eines
+der Backends, die das Deployment einbinden kann, mit dessen eigenen Optionen: ein
+Repository, eine Ordner-ID, ein Host. Ein Ordner ist schreibgeschützt, außer der
+Autor erlaubt das Schreiben. Ein beschreibbarer Ordner lässt jeden
+Schreibvorgang von einer Person freigeben, außer der Autor schaltet das ab. Der
+Builder listet jeden Dienst, den Mirage mitbringt, und nennt den Grund für jeden,
+den dieses Deployment nicht einbinden kann.
+
+**Wie ein Ordner sich anmeldet, hängt vom Dienst ab:**
+
+| Zugangsdaten | Dienste | Was der Spec enthält |
+|---|---|---|
+| Vault-Schlüssel | GitHub, Notion, Linear, Slack, Postgres, SSH, IMAP-Mail und die übrigen | Ein `api_key`-Secret pro Zugangsfeld (`token`, `dsn`, `password`) |
+| Eine Entra-App | OneDrive, SharePoint | Ein `entra_app`-Secret, als das sich der Run für ein Microsoft-Graph-Token anmeldet |
+| Ein Google-Konto | Drive, Docs, Sheets, Slides, Gmail, Kalender | Eines der [verbundenen Konten](../secrets.md#connected-accounts) der Organisation oder die eigenen jeder Person |
+| Keine | Arbeitsbereich (`ram`) | Nichts |
+
+**Die eigenen Konten einer Person werden gefunden, wenn sie mit dem Agenten
+spricht.** Wer zwei Google-Konten hat, bekommt unter dem Einhängepunkt zwei
+Ordner, je einen nach jeder Adresse benannt. Wer keines hat, etwa ein API-Schlüssel
+oder ein Zeitplan, bekommt keinen Ordner, und der Agent erfährt das. Ein Konto der
+Organisation antwortet für alle, die mit dem Agenten sprechen.
+
+**Ein Spec enthält nie Zugangsdaten, einen überschriebenen Endpunkt oder einen
+Pfad auf dem API-Host.** Die Veröffentlichung lehnt ein Secret ab, das der
+Veröffentlichende nicht verleihen darf, ein Secret der falschen Art und ein Konto,
+das die Organisation nicht hat. Ein Host, den der Autor eintippt, muss in
+[`MIRAGE_ALLOWED_HOSTS`](../configuration.md) stehen, etwa ein SSH-Server oder der
+Host in einem DSN. Die Veröffentlichung prüft den eingetippten Host, und der Run
+prüft die Hosts in den Secrets.
+
+**Freigabe gilt pro Ordner, nicht pro Werkzeug.** `mirage_execute ls` und
+`mirage_execute rm /drive/q3.pdf` sind dasselbe Werkzeug, also würde eine Freigabe
+auf dem Werkzeug nach beidem fragen. Stattdessen geht ein Aufruf, der in einen
+Ordner mit „Jeden Schreibvorgang freigeben“ schreiben würde, vor seiner Ausführung
+an die [Freigabe](../governance.md). Bei `mirage_write_file` und `mirage_edit_file`
+entscheidet der `path` des Aufrufs. Bei `mirage_execute` führt Mirage die
+Befehlszeile zuerst als Probelauf aus, sodass eine Umleitung, `cp`, `tee` und `rm`
+alle erkannt werden. Ein Schreibvorgang, den kein Probelauf vorhergesehen hat,
+etwa `echo x > $TARGET`, wird abgelehnt, außer der Aufruf wurde freigegeben.
+
+**Die Installation ist optional.** Ein Deployment installiert das Terminal mit dem
+Extra `mirage` (`EXTRAS="--extra mirage"`), und der Build installiert dann einen
+Compiler für den Shell-Parser. Ohne das Extra meldet der Builder, dass das Terminal
+nicht installiert ist, und die Veröffentlichung lehnt einen Spec ab, der es bindet.
+Die Backends der S3-Familie, Box, LanceDB, Qdrant und Langfuse lassen sich in
+diesem Release nicht einbinden; der Builder nennt jeweils den Grund.
 
 ## Diagramme { #charts }
 
