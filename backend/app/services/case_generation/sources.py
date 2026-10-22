@@ -94,6 +94,8 @@ class Question:
     text: str
     rated_down: bool
     comment: str | None
+    askers: tuple[UUID, ...] = ()
+    """Whose question it is, as an erasure counts it (`AskedQuestion.askers`)."""
 
 
 @dataclass
@@ -279,6 +281,7 @@ class SourceGatherer:
                 text=_redacted(_clip(question.content, MAX_QUESTION)),
                 rated_down=question.rated_down,
                 comment=_redacted(question.comment) if question.comment else None,
+                askers=question.askers,
             )
             for index, question in enumerate(asked, start=1)
         ]

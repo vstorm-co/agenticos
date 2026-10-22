@@ -679,6 +679,10 @@ class AskedQuestion:
     content: str
     rated_down: bool
     comment: str | None
+    askers: tuple[UUID, ...] = ()
+    """Whose question an erasure counts it as: who typed it, who started the run
+    (not a publisher standing in for a visitor), and who owns the thread when it
+    is not a project's, which its members continue."""
 
 
 async def questions_asked(
@@ -723,6 +727,9 @@ async def questions_asked(
             Message.content,
             rated_down.label("rated_down"),
             comment.label("comment"),
+            Message.author_user_id,
+            case((AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id)),
+            case((Conversation.project_id.is_(None), Conversation.user_id)),
         )
         .join(AgentRun, AgentRun.id == Message.run_id)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -748,8 +755,9 @@ async def questions_asked(
             content=content,
             rated_down=bool(down),
             comment=note,
+            askers=tuple(sorted({person for person in people if person is not None})),
         )
-        for message_id, conversation_id, run_id, content, down, note in result.all()
+        for message_id, conversation_id, run_id, content, down, note, *people in result.all()
     ]
 
 

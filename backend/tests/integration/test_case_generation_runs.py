@@ -25,7 +25,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -43,7 +43,8 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
-from app.repositories import agent_run_repo
+from app.db.models.user import User
+from app.repositories import agent_run_repo, project_repo
 from app.schemas.case_generation import CaseGenerationRequest
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset import DatasetCreate
@@ -443,6 +444,61 @@ async def test_a_source_deleted_while_the_generator_ran_fails_the_generation(
     await db.refresh(row)
     assert (row.status, row.error, row.run_id) == ("failed", FAILED, run_id)
     assert await db.scalar(select(func.count(CaseProposal.id))) == 0
+
+
+@pytest.mark.security
+async def test_a_question_whose_asker_was_erased_meanwhile_drafts_nothing(db, monkeypatch) -> None:
+    """The chat, the message and the run outlive an erased account with no link back
+    to it, so a draft written after the purge would be found by no later one."""
+    owner, org, agent, dataset, _ = await _setup(db)
+    project = await project_repo.create(
+        db,
+        organization_id=org.id,
+        owner_user_id=owner.user_id,
+        name="Support",
+        description="",
+        instructions="",
+        default_agent_id=None,
+        backend="state",
+        visibility="org",
+    )
+    erased, kept = await world.user(db), await world.user(db)
+    for person, minutes in ((erased, 1), (kept, 2)):
+        run, chat, _ = await world.asked(
+            db, org, agent, kept, f"{person.email}?", minutes=minutes, author=person
+        )
+        chat.project_id, run.user_id = project.id, person.id
+    await db.flush()
+    row, material, quotas = await _generation(
+        db, owner, dataset, agent, [CaseOrigin.CONVERSATION], 2
+    )
+    erased_id = erased.id
+    await db.execute(delete(User).where(User.id == erased_id))
+    await db.commit()
+    _answer(
+        monkeypatch,
+        DraftedCases(
+            cases=[
+                DraftedCase(
+                    origin="conversation",
+                    input=f"A variant of {question.ref}",
+                    reference_answer="An answer.",
+                    question=question.ref,
+                )
+                for question in material.questions
+            ]
+        ),
+        run=await _run_row(db, owner, agent),
+    )
+
+    await generate(
+        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
+    )
+
+    asked_by = {question.ref: question.askers for question in material.questions}
+    proposals = (await db.execute(select(CaseProposal))).scalars().all()
+    assert [asked_by[p.input.removeprefix("A variant of ")] for p in proposals] == [(kept.id,)]
+    assert sorted(asked_by.values()) == sorted([(erased_id,), (kept.id,)])
 
 
 async def test_a_credential_the_generator_wrote_is_redacted_before_it_is_stored(

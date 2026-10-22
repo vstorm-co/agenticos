@@ -17,11 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.system_agents import CASE_GENERATOR
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationStatus
 from app.db.session import get_db_context
-from app.repositories import case_generation_repo
+from app.repositories import case_generation_repo, user_repo
 from app.services import change_feed
-from app.services.case_generation.drafts import DraftedCases, keep
+from app.services.case_generation.drafts import Draft, DraftedCases, keep
 from app.services.case_generation.sources import Material
 from app.services.dataset import redacted_case
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
@@ -142,6 +143,31 @@ async def generate(
         )
 
 
+async def _still_asked(db: AsyncSession, drafts: list[Draft], material: Material) -> list[Draft]:
+    """The drafts whose askers still have an account, with each asker's erasure held off.
+
+    The generator ran for minutes after the questions were read. An erasure in
+    that time purged the drafts that existed then, and the chats, messages and
+    runs these come from outlive the account with no link back to it - so a
+    draft written now from a deleted person's question would be found by no
+    later purge. The lock is the one the purge holds to its commit, taken in one
+    order and before reading the accounts, and held to this commit: an erasure
+    either finished first, and its person's drafts are dropped here, or waits and
+    removes them.
+    """
+    askers = {question.message_id: question.askers for question in material.questions}
+
+    def of(draft: Draft) -> tuple[UUID, ...]:
+        message_id = draft.case.source_message_id
+        return () if message_id is None else askers.get(message_id, ())
+
+    people = sorted({person for draft in drafts for person in of(draft)})
+    for person in people:
+        await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person)
+    present = await user_repo.existing_ids(db, people)
+    return [draft for draft in drafts if set(of(draft)) <= present]
+
+
 async def _record(
     db: AsyncSession,
     generation_id: UUID,
@@ -157,6 +183,9 @@ async def _record(
     if generation is None:
         return
     drafts, dropped = keep(result.output, material, quotas=quotas)
+    kept = await _still_asked(db, drafts, material)
+    dropped += len(drafts) - len(kept)
+    drafts = kept
     proposals: list[CaseProposal] = []
     for position, draft in enumerate(drafts):
         fields, _ = redacted_case(draft.case.content)
