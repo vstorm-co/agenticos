@@ -40,7 +40,7 @@ export function TurnExtras({ message, agentName }: TurnExtrasProps) {
   const proposals = setupProposalsOf(message.toolCalls);
   if (!changes.length && !cards.length && !proposals.length) return null;
   return (
-    <div className="space-y-2 pb-3">
+    <div className="mt-1 space-y-2">
       {changes.length > 0 && <MemoryLine labels={changes} />}
       {cards.map((card) => (
         <CapabilityRequestCard key={card.callId} card={card} agentName={agentName} />

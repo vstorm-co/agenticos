@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CalendarClock, Check, Plug } from "lucide-react";
+import { Bot, CalendarClock, Plug } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
@@ -117,7 +117,8 @@ function ProposalCard({ proposal, onTake }: { proposal: SetupProposal; onTake: (
 /**
  * A service to connect, as the service: its logo, and the same Connect the MCP
  * servers page has - straight to the provider's sign-in for one that signs in.
- * Once the person's own account is on it, the card says so instead.
+ * Once the person's own account is on it the card has done its job and leaves
+ * the conversation, rather than standing in it saying so.
  */
 function ConnectionProposal({
   proposal,
@@ -134,7 +135,7 @@ function ConnectionProposal({
   if (!isLoading && entry === null) {
     return <ProposalCard proposal={proposal} onTake={onFallback} />;
   }
-  const connected = ownAccountStatus(server, connections) === "connected";
+  if (ownAccountStatus(server, connections) === "connected") return null;
   return (
     <div role="group" aria-label={proposal.title} className={CARD}>
       {/* A white tile in both themes, as on the servers page: the logos are drawn for a light ground. */}
@@ -148,12 +149,7 @@ function ConnectionProposal({
       </span>
       <p className="text-sm font-medium">{proposal.title}</p>
       <p className="text-muted-foreground flex-1 text-xs">{proposal.why}</p>
-      {connected ? (
-        <p role="status" className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <Check className="text-success h-3.5 w-3.5" aria-hidden />
-          {t("connected")}
-        </p>
-      ) : entry === null ? (
+      {entry === null ? (
         <Button type="button" size="sm" variant="outline" disabled>
           {t("take.connection")}
         </Button>

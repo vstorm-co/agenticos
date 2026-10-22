@@ -48,6 +48,7 @@ import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -355,6 +356,10 @@ export function MessageItem({
             <MessageSources sources={sources} onOpen={(index) => openSources(sources, index)} />
           </div>
         )}
+
+        {/* Under what the turn said and above its time and actions: a card the
+            answer introduces belongs with the answer, not after its receipt. */}
+        <TurnExtras message={message} agentName={agent?.name} />
 
         {!message.isStreaming && hasBody && endsTurn && (
           // The time and the cost surface on hover with the actions beside them:

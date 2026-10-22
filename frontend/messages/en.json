@@ -1977,8 +1977,7 @@
           "agent": "Build it with the Architect",
           "routine": "Set it up",
           "connection": "Connect it"
-        },
-        "connected": "Connected"
+        }
       },
       "makeSkill": "Make a skill of this",
       "makeSkillAsk": "Make a skill of this, so any agent can do it the same way next time.\n\nWhat I asked:\n{request}\n\nHow it was answered:\n{answer}",

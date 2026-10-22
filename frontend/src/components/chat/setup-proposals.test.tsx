@@ -193,13 +193,13 @@ describe("SetupProposals", () => {
       expect(push).not.toHaveBeenCalled();
     });
 
-    it("says it is connected once the person's own account is on it", () => {
+    it("leaves the conversation once the person's own account is on it", () => {
       servers.entry = GMAIL;
       servers.connections = [{ catalog_key: GMAIL.key, is_enabled: true, authorized: true }];
-      render(<SetupProposals agentId="a-1" proposals={[gmail()]} />);
+      render(<SetupProposals agentId="a-1" proposals={[gmail(), proposal({ key: "p-1" })]} />);
 
-      expect(screen.getByRole("status")).toHaveTextContent("Connected");
-      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Connect Gmail" })).toBeNull();
+      expect(screen.getByRole("group", { name: "Monday digest" })).toBeInTheDocument();
     });
 
     it("waits, unclickable, while the server is looked up", () => {

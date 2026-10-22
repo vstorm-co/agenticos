@@ -10,7 +10,6 @@ import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
-import { TurnExtras } from "./turn-extras";
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -193,10 +192,6 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
                 ? () => onRegenerate(message.id)
                 : undefined
             }
-          />
-          <TurnExtras
-            message={message}
-            agentName={message.agentId ? byId.get(message.agentId)?.name : undefined}
           />
         </Fragment>
       ))}

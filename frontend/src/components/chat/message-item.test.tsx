@@ -50,6 +50,14 @@ vi.mock("./turn-shortcuts", () => ({
     <div data-testid="turn-shortcuts" data-agent={agentId ?? ""} data-request={request} />
   ),
 }));
+// What a turn left - memory notes, cards - is tested on its own; here only that
+// it sits above the time and actions, named by the agent that answered.
+vi.mock("./turn-extras", () => ({
+  // Nothing for an unnamed agent, as the real one draws nothing for a turn that
+  // left nothing - so the tests about the answer's own parts are not about it.
+  TurnExtras: ({ agentName }: { agentName?: string }) =>
+    agentName ? <div data-testid="turn-extras" data-agent={agentName} /> : null,
+}));
 vi.mock("./skill-shortcut", () => ({
   SkillShortcut: ({ request, answer }: { request: string; answer: string }) => (
     <div data-testid="skill-shortcut" data-request={request} data-answer={answer} />
@@ -227,6 +235,19 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("puts what the turn left under the answer and above its time and actions", () => {
+    item(
+      { content: "Here they are", timestamp: new Date() },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+
+    const extras = screen.getByTestId("turn-extras");
+    expect(extras).toHaveAttribute("data-agent", "Support");
+    const time = screen.getByRole("button", { name: "rate" });
+    // Before the footer in the document: read with the answer, not after its receipt.
+    expect(extras.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("offers to keep a person's request, but not an answer, nor in the test panel", () => {
