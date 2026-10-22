@@ -1,5 +1,5 @@
 ---
-source_sha: "2d16b5486721"
+source_sha: "c86fa0b502c9"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -491,6 +491,10 @@ Drift; eine Veröffentlichung oder Promotion lässt ihre Baseline im selben Run
 laufen. Nach einem Ergebnis, das sich mit diesem Lauf nicht vergleichen ließ,
 hat der nächste keine Baseline: Er wird an seinen eigenen Zahlen gemessen und
 ist, wenn er besteht, der Lauf, mit dem die folgenden verglichen werden.
+
+Eine [Prüfung der Vorschläge des Authoring-Assistenten](authoring.md#check-with-evals)
+auf einer Suite wird am selben Schwellenwert gemessen, ist aber kein Ergebnis der
+Suite: Sie steht in keinem ihrer Verläufe und benachrichtigt niemanden.
 
 ### Als wer sie läuft, und wer benachrichtigt wird { #who-it-runs-as-and-who-is-told }
 

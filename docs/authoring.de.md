@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2d6d57c080"
+source_sha: "380a4039d089"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tool-Beschreibungen und Skills vor. Über jede entscheidet ein Mensch."
 ---
@@ -96,9 +96,17 @@ Prüfung abgelehnt, bis er angenommen oder verworfen ist: Der Run misst genau da
 was wartet.
 
 Statt eines Datasets kann die Prüfung eine der [Suites](evals.md#suites) des
-Agents ausführen: ihr Dataset, in ihrer Umgebung. Der Schwellenwert der Suite wird
-nicht angewendet; der Run vergleicht den Draft wie jede Prüfung mit der
-veröffentlichten Version.
+Agents ausführen: ihr Dataset, in ihrer Umgebung. Der Run vergleicht den Draft wie
+jede Prüfung mit der veröffentlichten Version und sagt, sobald er abgeschlossen
+ist, auch, wie die Suite geurteilt hätte: bestanden, nicht bestanden oder ohne
+Ergebnis, und warum, nach dem Schwellenwert, den die Suite beim Start der Prüfung
+hatte. Das steht am Run und neben der Prüfung in der Leiste, so formuliert wie die
+eigenen Ergebnisse der Suite.
+
+Die Prüfung ist keiner der Runs der Suite: Sie steht in keinem Verlauf,
+benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
+selbst. Eine Skill- oder Kontextänderung, die auf einer Suite des Agents geprüft
+wird, auf dem sie läuft, bekommt dasselbe.
 
 Die Fälle aus den Gesprächen, aus denen die Vorschläge abgeleitet wurden, werden
 weggelassen, und der Run nennt ihre Zahl: Eine Änderung wird nie an den Daten

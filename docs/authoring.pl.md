@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2d6d57c080"
+source_sha: "380a4039d089"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, opisach narzędzi i skillach. O każdej decyduje człowiek."
 ---
@@ -90,8 +90,15 @@ już do draftu albo koliduje z inną, sprawdzenia nie da się uruchomić, dopók
 nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
 
 Zamiast datasetu sprawdzenie może uruchomić jedną z [suit](evals.md#suites)
-agenta: jej dataset, w jej środowisku. Próg suity nie jest stosowany; run
-porównuje draft z opublikowaną wersją tak jak każde sprawdzenie.
+agenta: jej dataset, w jej środowisku. Run porównuje draft z opublikowaną
+wersją tak jak każde sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go
+suita: zaliczona, niezaliczona albo bez rozstrzygnięcia, i dlaczego, według
+progu, jaki suita miała w chwili startu sprawdzenia. Widać to na runie i przy
+sprawdzeniu w pasku, w tym samym brzmieniu co wyniki suity.
+
+Sprawdzenie nie jest runem suity: nie trafia do żadnej historii suity, nikogo
+nie powiadamia, a Przyjmij kieruje się werdyktem samego runu. Zmiana skilla albo
+pliku kontekstu sprawdzana na suicie agenta, na którym działa, dostaje to samo.
 
 Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją

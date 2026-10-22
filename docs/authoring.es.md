@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2d6d57c080"
+source_sha: "380a4039d089"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las descripciones de herramientas y los skills de un agent. Una persona decide cada uno."
 ---
@@ -92,9 +92,17 @@ encaje en el draft, o choque con otra, la comprobación se rechaza hasta que se
 acepte o se descarte: el run mide exactamente lo que espera.
 
 En lugar de un dataset, la comprobación puede ejecutar una de las
-[suites](evals.md#suites) del agente: su dataset, en su entorno. El umbral de la
-suite no se aplica; el run compara el draft con la versión publicada como
-cualquier comprobación.
+[suites](evals.md#suites) del agente: su dataset, en su entorno. El run compara
+el draft con la versión publicada como cualquier comprobación y, cuando termina,
+también dice qué habría dicho la suite: aprobado, suspendido o sin conclusión, y
+por qué, según el umbral que la suite tenía al empezar la comprobación. Se ve en
+el run y junto a la comprobación en la franja, con la misma redacción que los
+resultados de la propia suite.
+
+La comprobación no es uno de los runs de la suite: no está en ningún historial
+de suite, no avisa a nadie, y Aceptar se guía por el veredicto del propio run.
+Un cambio de skill o de contexto comprobado en una suite del agente en el que
+funciona recibe lo mismo.
 
 Los casos tomados de las conversaciones de las que salieron las sugerencias
 quedan fuera, y el run dice cuántos: un cambio nunca se mide con los datos a los
