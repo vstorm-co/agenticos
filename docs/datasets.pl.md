@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "6840121845c6"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -108,7 +108,10 @@ oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądan
 jako jedną nową wersję. Import jest typu „wszystko albo nic”: jeśli jeden
 wiersz jest błędny, nie zostaje dodany żaden, a odmowa wymienia każdy błędny
 wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB,
-a dataset mieści najwyżej 10 000 przypadków.
+a dataset mieści najwyżej 10 000 przypadków. W konsoli **Import** najpierw
+wymienia kolumny i proponuje **Pobierz szablon** - plik CSV z każdą kolumną i
+jednym przypadkiem, który importuje się bez zmian; **Wybierz plik** otwiera
+wybór pliku.
 
 Oba formaty używają tych samych dziewięciu nazw pól:
 
@@ -144,10 +147,12 @@ Są dwie drogi i obie tworzą taki sam przypadek:
 
 - **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
   Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
-  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
-  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
-  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
-  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa;
+  potwierdzenie zostaje na ekranie dziesięć sekund, wystarczająco długo, żeby
+  po nie sięgnąć. Po łapce w dół okno, które pyta, co poszło źle, proponuje też
+  **Dodaj tę odpowiedź do datasetu**: zaznacz to, wybierz dataset i wyślij, a
+  odpowiedź zostanie zachowana jako kontrprzykład - odpowiedź, której agent nie
+  powinien dawać, jak mówi okno. Najpierw zapisuje się ocena, a przypadek jest
   dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
   osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
   mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
@@ -163,7 +168,13 @@ Są dwie drogi i obie tworzą taki sam przypadek:
 
 W obu przypadkach przypadek powstaje z tej tury:
 
-- pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
+- pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem, chyba
+  że wybierzesz **Tylko to pytanie**. Okno pyta o to, gdy przed pytaniem jest
+  rozmowa, i najpierw proponuje rozmowę przy pytaniu, które brzmi jak jej
+  ciąg dalszy: krótkim albo zaczynającym się od „a”, „a co z” albo zaimka.
+  Pytanie, które stoi samo, jest proponowane bez niej, więc czat, który zaczął
+  się od innego tematu, nie przychodzi razem z nim (`with_history: false` w
+  `POST /datasets/{id}/cases/from-message`);
 - odpowiedzią jest cała odpowiedź agenta na pytanie - każdy krok, który napisał
   przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt
   nie ocenił jej łapką w dół, domyślnie jest proponowana jako odpowiedź
@@ -179,14 +190,17 @@ Wiadomość musi należeć do twojej organizacji i musisz móc ją przeczytać: 
 masz `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo
 możesz otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak,
 jakby nie istniała, a odpowiedź, która już jest przypadkiem najnowszej wersji
-datasetu, jest odrzucana, zamiast zostać dodana drugi raz.
+datasetu, jest odrzucana, zamiast zostać dodana drugi raz. **Dodano do** podaje
+nazwę datasetu i go otwiera.
 
 ### Z generatora przypadków { #generating-cases }
 
 Napisanie stu dobrych przypadków ręcznie to powód, dla którego większość
 zespołów nie ma żadnych. Zakładka **Wygenerowane** na stronie datasetu,
 widoczna dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
-datasetu. Wybierz agenta, którego przypadki testują, źródła i liczbę
+datasetu. Wybierz agenta, którego przypadki testują - tego, z którego
+instrukcji, narzędzi i czatów są pisane; nic nie jest na nim uruchamiane -
+źródła i liczbę
 przypadków - najwyżej 50 i co najmniej jeden na źródło, dzielonych po równo
 między źródła:
 
@@ -198,8 +212,9 @@ między źródła:
 | Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, te jego skille, które możesz zobaczyć, i jego narzędzia |
 
 **Najpierw szacowany koszt.** Okno pokazuje, o ile przypadków zostanie
-poproszone każde źródło, z ilu materiałów każde korzysta, i szacunek kosztu,
-zanim cokolwiek zostanie wydane. To szacunek: budżet generatora jest sprawdzany
+poproszone każde źródło, z ilu materiałów każde korzysta, i szacunek kosztu na
+własnym modelu generatora, zanim cokolwiek zostanie wydane - płatny poniżej
+centa mówi o tym, zamiast pokazać $0.00. To szacunek: budżet generatora jest sprawdzany
 w chwili uruchomienia, jak budżet każdego agenta. Zmiana agenta, źródeł albo
 liczby unieważnia szacunek.
 
@@ -224,7 +239,11 @@ propozycji, którą przeglądasz. Propozycja, która nie spełnia reguły swojeg
 rozmów bez pytania, które dostał, przypadek red team bez kategorii, przypadek,
 który niczego nie oczekuje, przypadek, którego odpowiedź wzorcowa powtarza
 kontrprzykład i przez to sama by nie zaliczyła - jest odrzucana, zanim ją
-zobaczysz.
+zobaczysz. Tak samo przypadek zapisany w postaci, której nie da się odczytać:
+reszta odpowiedzi nadal staje się propozycjami, a nie udaje się tylko
+odpowiedź bez żadnego czytelnego przypadku. Zakończone generowanie mówi, ile
+przypadków pominęło, osobno te, których nie dało się odczytać, i te, które
+złamały regułę.
 
 **Każde źródło ma własną bramkę**, a źródło, którego nie możesz użyć, jest
 odrzucane z nazwy, a nie pomijane po cichu:
@@ -269,7 +288,7 @@ z nich włącza się albo wyłącza i oznacza jako **Musi przejść** albo nie:
 |---|---|---|
 | Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które dataset nadaje każdemu przypadkowi | Nic |
 | Oczekiwane wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
-| Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego datasetu | Jeden run sędziego |
+| Sędzia (**Twoje kryteria** na karcie Sędzia) | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego datasetu | Jeden run sędziego |
 | Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego datasetu | Ten sam run sędziego |
 
 Każdy oceniacz zwraca zaliczenie albo niezaliczenie, wynik od 0 do 1 i
@@ -377,7 +396,12 @@ informacją, czy izolowany run je zablokował - oraz odpowiedź.
 
 Przypadek z kontrprzykładem jest zawsze oceniany także według wymaganego
 kryterium **counter-example**: odpowiedź nie może powtarzać znanej złej
-odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zaliczenie
+odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Jest
+oceniane zawsze, gdy włączone są **Twoje kryteria** albo odpowiedź wzorcowa,
+więc nie ma własnego przełącznika; karta Sędzia pokazuje, ile przypadków ma
+kontrprzykład.
+
+Zaliczenie kryterium counter-example
 jest błędem, gdy cytuje tylko to, co obie mówią, albo nie cytuje niczego z
 odpowiedzi, która kopiuje kontrprzykład; każde inne bez cytatu zostaje,
 oznaczone jako niezweryfikowane. Odpowiedź, która zachowuje kontrprzykład i
@@ -512,7 +536,9 @@ przypadku**. Okno dialogowe otwiera się na datasecie z przypadkiem, który zada
 to samo pytanie co run, i wybiera ten przypadek; gdy takich datasetów jest kilka,
 mówi o tym i pokazuje je na początku listy. Gdy wybrany dataset takiego
 przypadku nie ma, okno dialogowe proponuje dodanie odpowiedzi runa jako
-przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
+przypadku, dopóki nie wybierzesz któregoś, i pokazuje najpierw przypadki
+najbliższe pytaniu runa - te, które dzielą z nim najwięcej słów, na widocznej
+stronie. Odpowiedź i wywołania narzędzi runa są oceniane każdym
 oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "6840121845c6"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -117,7 +117,10 @@ Zugriffsprotokollen landet.
 als eine neue Version hinzu. Der Import gilt ganz oder gar nicht: Ist eine Zeile
 ungültig, wird keine hinzugefügt, und die Ablehnung nennt jede ungültige Zeile,
 damit Sie die Datei korrigieren und es erneut versuchen können. Eine Datei ist
-höchstens 10 MB groß, und ein Dataset enthält höchstens 10.000 Fälle.
+höchstens 10 MB groß, und ein Dataset enthält höchstens 10.000 Fälle. In der
+Konsole listet **Importieren** zuerst die Spalten auf und bietet **Vorlage
+herunterladen** an, eine CSV-Datei mit jeder Spalte und einem Fall, der sich
+unverändert importieren lässt; **Datei wählen** öffnet die Dateiauswahl.
 
 Beide Formate verwenden dieselben neun Feldnamen:
 
@@ -155,10 +158,12 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
 - **Im Chat** bewerten Sie die Antwort, und die Bewertung entscheidet, als was
   sie behalten wird. Nach einem Daumen nach oben bietet die Bestätigung **Zum
   Dataset hinzufügen** an: Dataset wählen, und die Antwort wird als
-  Referenzantwort behalten. Nach einem Daumen nach unten bietet der Dialog, der
-  fragt, was schiefging, auch **Diese Antwort zu einem Dataset hinzufügen** an:
-  Haken setzen, Dataset wählen und absenden, und die Antwort wird als
-  Gegenbeispiel behalten. Zuerst wird die Bewertung gespeichert, danach der Fall
+  Referenzantwort behalten; die Bestätigung bleibt zehn Sekunden stehen, lange
+  genug, um danach zu greifen. Nach einem Daumen nach unten bietet der Dialog,
+  der fragt, was schiefging, auch **Diese Antwort zu einem Dataset hinzufügen**
+  an: Haken setzen, Dataset wählen und absenden, und die Antwort wird als
+  Gegenbeispiel behalten - eine Antwort, die der Agent nicht geben sollte, wie
+  der Dialog sagt. Zuerst wird die Bewertung gespeichert, danach der Fall
   angelegt, sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei
   getrennte Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die
   Bewertung, und die Meldung sagt, welcher Teil fehlschlug. Wird die Bewertung
@@ -177,7 +182,13 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
 In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
-  Eingabe;
+  Eingabe - es sei denn, Sie wählen **Nur diese Frage**. Der Dialog fragt
+  danach, wenn der Frage ein Gespräch vorausgeht, und bietet das Gespräch
+  zuerst an, wenn die Frage wie seine Fortsetzung klingt: eine kurze Frage oder
+  eine, die mit „und“, „was ist mit“ oder einem Pronomen beginnt. Eine Frage,
+  die für sich steht, wird allein angeboten, damit ein Chat, der mit einem
+  anderen Thema begann, nicht mitkommt (`with_history: false` auf
+  `POST /datasets/{id}/cases/from-message`);
 - die ganze Antwort des Agents auf die Frage - jeder Schritt, den er vor der
   nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.
   Hat niemand sie negativ bewertet, wird sie stattdessen als Referenzantwort
@@ -194,14 +205,17 @@ Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus
 einer anderen Organisation wird abgelehnt, als gäbe es sie nicht, und eine
 Antwort, die bereits ein Fall der neuesten Version des Datasets ist, wird
-abgelehnt, statt ein zweites Mal hinzugefügt zu werden.
+abgelehnt, statt ein zweites Mal hinzugefügt zu werden. **Zu … hinzugefügt**
+nennt das Dataset und öffnet es.
 
 ### Vom Fallgenerator { #generating-cases }
 
 Hundert gute Fälle von Hand zu schreiben ist der Grund, warum die meisten Teams
 keine haben. Der Tab **Generiert** auf der Seite eines Datasets, sichtbar für
 Mitglieder, die das Dataset bearbeiten dürfen, bittet den Fallgenerator, sie zu entwerfen, und Sie entscheiden, welche das Dataset behält.
-Wählen Sie den Agent, den die Fälle testen, die Quellen und wie viele Fälle Sie
+Wählen Sie den Agent, den die Fälle testen - den, aus dessen Anweisungen, Tools
+und Chats sie geschrieben werden; gegen ihn läuft nichts -, die Quellen und wie
+viele Fälle Sie
 möchten - höchstens 50 und mindestens einen je Quelle, gleichmäßig auf die
 Quellen verteilt:
 
@@ -213,8 +227,9 @@ Quellen verteilt:
 | Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, die seiner Skills, die Sie sehen dürfen, und seine Tools |
 
 **Zuerst die geschätzten Kosten.** Der Dialog zeigt, wie viele Fälle jede Quelle
-liefern soll, woraus jede schöpft und eine Schätzung der Kosten, bevor etwas
-ausgegeben wird. Es ist eine Schätzung: Das Budget des Generators wird beim Lauf
+liefern soll, woraus jede schöpft und eine Schätzung der Kosten auf dem eigenen
+Modell des Generators, bevor etwas ausgegeben wird - ein bezahltes Modell unter
+einem Cent sagt das, statt $0.00 zu zeigen. Es ist eine Schätzung: Das Budget des Generators wird beim Lauf
 geprüft, wie das jedes Agents. Wer den Agent, die Quellen oder die Anzahl
 ändert, verwirft die Schätzung.
 
@@ -240,7 +255,11 @@ Entwurf, der die Regel seiner Quelle nicht einhält - ein Wissensfall ohne einen
 Abschnitt, den der Generator bekam, ein Gesprächsfall ohne eine Frage, die er
 bekam, ein Red-Team-Fall ohne Kategorie, ein Fall, der nichts erwartet, ein
 Fall, dessen Referenzantwort sein Gegenbeispiel wiederholt und damit selbst
-durchfallen würde -, wird verworfen, bevor Sie ihn sehen.
+durchfallen würde -, wird verworfen, bevor Sie ihn sehen. Ebenso ein Fall in
+einer Form, die sich nicht lesen lässt: Der Rest der Antwort wird trotzdem zu
+Entwürfen, und nur eine Antwort ohne einen lesbaren Fall schlägt fehl. Eine
+abgeschlossene Generierung sagt, wie viele Fälle sie ausgelassen hat, die nicht
+lesbaren getrennt von denen, die eine Regel verletzten.
 
 **Jede Quelle hat ihre eigene Schranke**, und eine Quelle, die Sie nicht nutzen
 dürfen, wird mit Namen abgelehnt statt stillschweigend ausgelassen:
@@ -288,7 +307,7 @@ einen Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als
 |---|---|---|
 | Prüfungen | Die Antwort mit den Regeln des Falls und mit Standardregeln, die das Dataset jedem Fall mitgibt | Keine |
 | Erwartete Tool-Aufrufe | Die Tools, die der Agent aufgerufen hat, mit den erwarteten Aufrufen des Falls | Keine |
-| Bewerter | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Bewerter des Datasets | Ein Run des Bewerters |
+| Bewerter (**Ihre Kriterien** auf der Karte Bewerter) | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Bewerter des Datasets | Ein Run des Bewerters |
 | Referenzantwort | Die Antwort mit der Referenzantwort des Falls, bewertet vom Bewerter des Datasets | Derselbe Run des Bewerters |
 
 Jeder Scorer liefert bestanden oder nicht bestanden, einen Score von 0 bis 1
@@ -404,7 +423,12 @@ isolierter Run ihn blockiert hat - und die Antwort.
 Ein Fall mit Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
 nicht wiederholen, und der Bewerter soll zitieren, was die Antwort von ihr
-unterscheidet. Ein Bestehen ist ein Fehler, wenn es nur zitiert, was beide
+unterscheidet. Es wird bewertet, sobald **Ihre Kriterien** oder die
+Referenzantwort eingeschaltet ist, und hat daher keinen eigenen Schalter; die
+Karte Bewerter zeigt, wie viele Fälle ein Gegenbeispiel haben.
+
+Ein Bestehen des Kriteriums counter-example ist
+ein Fehler, wenn es nur zitiert, was beide
 sagen, oder nichts aus einer Antwort zitiert, die das Gegenbeispiel kopiert;
 jedes andere ohne Zitat bleibt stehen, als nicht belegt markiert. Eine Antwort,
 die das Gegenbeispiel behält und ergänzt, was ihm fehlte, besteht mit einem
@@ -547,8 +571,11 @@ und der Score wartet dann wieder auf eine Prüfung.
 einem Fall, der die Frage des Runs selbst stellt, und wählt diesen Fall aus;
 haben mehrere Datasets einen, sagt er das und führt sie zuerst auf. Hat das
 gewählte Dataset keinen, bietet der Dialog an, die Antwort des Runs als Fall
-hinzuzufügen. Die Antwort und die Tool-Aufrufe des
-Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
+hinzuzufügen, bis Sie einen Fall wählen, und führt die Fälle, die der Frage des
+Runs am nächsten sind, zuerst auf - die, die die meisten ihrer Wörter teilen,
+auf der angezeigten Seite.
+
+Die Antwort und die Tool-Aufrufe des Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
 ohne Transkript hat keine Antwort, die sich bewerten ließe.
 
 Der Dialog nennt den Bewerter, der bewerten wird, und das Modell, auf dem er
