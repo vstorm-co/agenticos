@@ -1,5 +1,6 @@
 """Agent-generated media: storage, tenant isolation, the record, the quota and the sweep."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -22,8 +23,9 @@ from app.services.generated_media import (
     open_generated_media,
     organization_directory,
     save_generated_media,
+    sweep_expired_generated_media,
 )
-from app.worker.tasks import generated_media_tasks
+from app.worker.tasks import generated_media_tasks, teardown_tasks
 
 pytestmark = pytest.mark.anyio
 
@@ -135,6 +137,26 @@ class TestKeeping:
         directory = settings.MEDIA_DIR / organization_directory(organization_id)
         assert list(directory.iterdir()) == []
 
+    async def test_a_call_cancelled_before_its_record_does_not_keep_the_file(
+        self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+    ):
+        """Stop, or a run timing out, cancels the tool call; `CancelledError` is not
+        an `Exception`, and the file it would leave is just as unrecorded."""
+        organization_id = uuid4()
+        monkeypatch.setattr(
+            generated_media.generated_media_repo,
+            "create",
+            AsyncMock(side_effect=asyncio.CancelledError()),
+        )
+
+        with pytest.raises(asyncio.CancelledError):
+            await keep_generated_media(
+                organization_id, b"clip", filename="video.mp4", conversation_id=uuid4()
+            )
+
+        directory = settings.MEDIA_DIR / organization_directory(organization_id)
+        assert list(directory.iterdir()) == []
+
 
 class TestTheQuota:
     async def test_an_organization_under_its_quota_may_generate(
@@ -176,14 +198,25 @@ class TestTheQuota:
         assert not await generated_media_quota_reached(uuid4())
 
 
-def _row() -> SimpleNamespace:
+def _row(created_at: datetime | None = None) -> SimpleNamespace:
     return SimpleNamespace(
-        id=uuid4(), organization_id=uuid4(), storage_path=f"generated_{uuid4()}/x_image.png"
+        id=uuid4(),
+        organization_id=uuid4(),
+        storage_path=f"generated_{uuid4()}/x_image.png",
+        created_at=created_at or datetime(2026, 1, 1, tzinfo=UTC),
     )
 
 
-class TestForgettingAConversation:
-    async def test_the_rows_go_and_the_paths_come_back_for_the_unlink(
+class TestForgetting:
+    """The rows go in the delete's transaction; the bytes in a job queued in it."""
+
+    @staticmethod
+    def _queue(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        queued = AsyncMock()
+        monkeypatch.setattr(teardown_tasks, "queue_external_state_cleanup", queued)
+        return queued
+
+    async def test_a_conversations_rows_go_and_its_bytes_are_queued_for_the_unlink(
         self, monkeypatch: pytest.MonkeyPatch
     ):
         organization_id, conversation_id = uuid4(), uuid4()
@@ -197,15 +230,72 @@ class TestForgettingAConversation:
         monkeypatch.setattr(
             generated_media.generated_media_repo, "delete_in_conversations", deleted
         )
+        queued = self._queue(monkeypatch)
 
-        paths = await GeneratedMediaService(db).forget_conversations(
-            organization_id, [conversation_id]
-        )
+        await GeneratedMediaService(db).forget_conversations(organization_id, [conversation_id])
 
-        assert paths == ["generated_x/a_video.mp4"]
         deleted.assert_awaited_once_with(
             db, organization_id=organization_id, conversation_ids=[conversation_id]
         )
+        queued.assert_awaited_once_with(
+            db, ["generated_x/a_video.mp4"], [], organization_id=organization_id
+        )
+
+    async def test_a_conversation_that_generated_nothing_queues_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            generated_media.generated_media_repo,
+            "paths_in_conversations",
+            AsyncMock(return_value=[]),
+        )
+        monkeypatch.setattr(
+            generated_media.generated_media_repo, "delete_in_conversations", AsyncMock()
+        )
+        queued = self._queue(monkeypatch)
+
+        await GeneratedMediaService(MagicMock()).forget_conversations(uuid4(), [uuid4()])
+
+        queued.assert_not_awaited()
+
+    async def test_an_accounts_conversations_take_their_generated_media(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Account deletion: the cascade would leave the rows conversation-less and
+        the bytes readable by the organization (#2310)."""
+        user_id = uuid4()
+        db = MagicMock()
+        deleted = AsyncMock(return_value=["generated_a/x_image.png", "generated_b/y_speech.mp3"])
+        monkeypatch.setattr(
+            generated_media.generated_media_repo, "delete_in_conversations_of_user", deleted
+        )
+        queued = self._queue(monkeypatch)
+
+        await GeneratedMediaService(db).forget_user(user_id)
+
+        deleted.assert_awaited_once_with(db, user_id=user_id)
+        queued.assert_awaited_once_with(
+            db,
+            ["generated_a/x_image.png", "generated_b/y_speech.mp3"],
+            [],
+            organization_id=None,
+        )
+
+
+class _Sessions:
+    """A stand-in for `get_worker_db_context` that records how each session ended."""
+
+    def __init__(self) -> None:
+        self.ended: list[str] = []
+
+    @asynccontextmanager
+    async def __call__(self) -> AsyncGenerator[MagicMock]:
+        try:
+            yield MagicMock()
+        except BaseException:
+            self.ended.append("rollback")
+            raise
+        self.ended.append("commit")
 
 
 class TestTheRetentionSweep:
@@ -237,6 +327,12 @@ class TestTheRetentionSweep:
         monkeypatch.setattr(generated_media.generated_media_repo, "delete_by_ids", deleted)
         return deleted
 
+    @staticmethod
+    def _sessions(monkeypatch: pytest.MonkeyPatch) -> _Sessions:
+        sessions = _Sessions()
+        monkeypatch.setattr(generated_media, "get_worker_db_context", sessions)
+        return sessions
+
     async def test_files_past_the_period_go_bytes_first_then_rows(
         self, monkeypatch: pytest.MonkeyPatch
     ):
@@ -245,45 +341,74 @@ class TestTheRetentionSweep:
         expired = AsyncMock(return_value=rows)
         deleted = self._repo(monkeypatch, expired)
         storage = self._storage(monkeypatch)
-        db = MagicMock()
+        self._sessions(monkeypatch)
 
-        removed = await GeneratedMediaService(db).sweep_expired(now=self.NOW)
+        removed = await sweep_expired_generated_media(now=self.NOW)
 
         assert removed == 2
         assert expired.await_args is not None
         assert expired.await_args.kwargs["cutoff"] == self.NOW - timedelta(days=30)
+        assert expired.await_args.kwargs["after"] is None
         assert [call.args[0] for call in storage.delete.await_args_list] == [
             row.storage_path for row in rows
         ]
-        deleted.assert_awaited_once_with(db, ids=[row.id for row in rows])
+        assert deleted.await_args is not None
+        assert deleted.await_args.kwargs["ids"] == [row.id for row in rows]
 
-    async def test_a_file_the_store_would_not_delete_keeps_its_row_and_ends_the_sweep(
+    async def test_each_batch_commits_before_the_next_so_a_timeout_keeps_its_work(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """The next batch would read the same rows again; the next sweep retries."""
-        monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 30)
-        monkeypatch.setattr(generated_media, "SWEEP_BATCH", 2)
-        stuck, fine = _row(), _row()
-        expired = AsyncMock(return_value=[stuck, fine])
-        deleted = self._repo(monkeypatch, expired)
-        self._storage(monkeypatch, refuses=frozenset({stuck.storage_path}))
-
-        removed = await GeneratedMediaService(MagicMock()).sweep_expired(now=self.NOW)
-
-        assert removed == 1
-        assert expired.await_count == 1
-        assert deleted.await_args is not None
-        assert deleted.await_args.kwargs["ids"] == [fine.id]
-
-    async def test_a_full_batch_is_followed_by_another(self, monkeypatch: pytest.MonkeyPatch):
+        """One transaction for the run let the job's timeout roll back every row
+        whose bytes were already gone, and a backlog then never committed at all."""
         monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 30)
         monkeypatch.setattr(generated_media, "SWEEP_BATCH", 1)
-        expired = AsyncMock(side_effect=[[_row()], []])
-        self._repo(monkeypatch, expired)
+        first = _row()
+        expired = AsyncMock(side_effect=[[first], asyncio.CancelledError()])
+        deleted = self._repo(monkeypatch, expired)
         self._storage(monkeypatch)
+        sessions = self._sessions(monkeypatch)
 
-        assert await GeneratedMediaService(MagicMock()).sweep_expired() == 1
-        assert expired.await_count == 2
+        with pytest.raises(asyncio.CancelledError):
+            await sweep_expired_generated_media(now=self.NOW)
+
+        assert sessions.ended == ["commit", "rollback"]
+        assert deleted.await_args_list[0].kwargs["ids"] == [first.id]
+
+    async def test_a_stuck_file_keeps_its_row_and_the_sweep_reads_past_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """One undeletable oldest file used to end every run at its first batch."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 30)
+        monkeypatch.setattr(generated_media, "SWEEP_BATCH", 2)
+        stuck, fine = _row(datetime(2026, 1, 1, tzinfo=UTC)), _row(datetime(2026, 1, 2, tzinfo=UTC))
+        later = _row(datetime(2026, 1, 3, tzinfo=UTC))
+        expired = AsyncMock(side_effect=[[stuck, fine], [later]])
+        deleted = self._repo(monkeypatch, expired)
+        self._storage(monkeypatch, refuses=frozenset({stuck.storage_path}))
+        self._sessions(monkeypatch)
+
+        removed = await sweep_expired_generated_media(now=self.NOW)
+
+        assert removed == 2
+        assert expired.await_args_list[1].kwargs["after"] == (fine.created_at, fine.id)
+        assert [call.kwargs["ids"] for call in deleted.await_args_list] == [[fine.id], [later.id]]
+
+    async def test_a_whole_batch_of_stuck_files_does_not_stop_the_sweep(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A batch's worth of undeletable files used to stop retention for every
+        organization; the next batch now starts after them."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 30)
+        monkeypatch.setattr(generated_media, "SWEEP_BATCH", 2)
+        stuck = [_row(), _row()]
+        fine = _row()
+        expired = AsyncMock(side_effect=[stuck, [fine]])
+        self._repo(monkeypatch, expired)
+        self._storage(monkeypatch, refuses=frozenset(row.storage_path for row in stuck))
+        self._sessions(monkeypatch)
+
+        assert await sweep_expired_generated_media(now=self.NOW) == 1
+        assert expired.await_args_list[1].kwargs["after"] == (stuck[1].created_at, stuck[1].id)
 
     async def test_a_backlog_is_worked_off_over_several_sweeps(
         self, monkeypatch: pytest.MonkeyPatch
@@ -294,32 +419,48 @@ class TestTheRetentionSweep:
         expired = AsyncMock(side_effect=lambda *_args, **_kwargs: [_row()])
         self._repo(monkeypatch, expired)
         self._storage(monkeypatch)
+        sessions = self._sessions(monkeypatch)
 
-        assert await GeneratedMediaService(MagicMock()).sweep_expired(now=self.NOW) == 3
+        assert await sweep_expired_generated_media(now=self.NOW) == 3
         assert expired.await_count == 3
+        assert sessions.ended == ["commit"] * 3
+
+    async def test_no_batch_starts_once_the_time_budget_is_spent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The run ends between batches, under the job's timeout, not inside one."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 30)
+        monkeypatch.setattr(generated_media, "SWEEP_BATCH", 1)
+        monkeypatch.setattr(generated_media, "SWEEP_TIME_BUDGET", timedelta(0))
+        expired = AsyncMock(side_effect=lambda *_args, **_kwargs: [_row()])
+        self._repo(monkeypatch, expired)
+        self._storage(monkeypatch)
+        self._sessions(monkeypatch)
+
+        assert await sweep_expired_generated_media() == 1
+        assert expired.await_count == 1
 
     async def test_a_period_of_zero_keeps_everything(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "GENERATED_MEDIA_RETENTION_DAYS", 0)
         expired = AsyncMock()
         monkeypatch.setattr(generated_media.generated_media_repo, "expired", expired)
+        sessions = self._sessions(monkeypatch)
 
-        assert await GeneratedMediaService(MagicMock()).sweep_expired(now=self.NOW) == 0
+        assert await sweep_expired_generated_media(now=self.NOW) == 0
         expired.assert_not_awaited()
+        assert sessions.ended == []
 
-    async def test_the_worker_task_runs_the_sweep_in_a_session_of_its_own(
-        self, monkeypatch: pytest.MonkeyPatch
+    async def test_the_worker_task_runs_the_sweep_and_logs_what_went(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ):
-        sessions: list[MagicMock] = []
+        monkeypatch.setattr(
+            generated_media_tasks,
+            "sweep_expired_generated_media",
+            AsyncMock(side_effect=[3, 0]),
+        )
 
-        @asynccontextmanager
-        async def session() -> AsyncGenerator[MagicMock]:
-            db = MagicMock()
-            sessions.append(db)
-            yield db
+        with caplog.at_level("INFO", logger=generated_media_tasks.__name__):
+            assert await generated_media_tasks.sweep_generated_media() == 3
+            assert await generated_media_tasks.sweep_generated_media() == 0
 
-        monkeypatch.setattr(generated_media_tasks, "get_worker_db_context", session)
-        monkeypatch.setattr(GeneratedMediaService, "sweep_expired", AsyncMock(side_effect=[3, 0]))
-
-        assert await generated_media_tasks.sweep_generated_media() == 3
-        assert await generated_media_tasks.sweep_generated_media() == 0
-        assert len(sessions) == 2
+        assert [record.message for record in caplog.records] == ["generated_media_swept"]

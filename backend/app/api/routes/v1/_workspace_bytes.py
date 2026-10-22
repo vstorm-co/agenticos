@@ -143,6 +143,9 @@ async def streamed_file_response(
         FileNotFoundError: The backend no longer holds the file. Raised before
             the response starts, so the caller can still answer 404.
     """
+    # Not `FileResponse`, even for the local backend: its own Range handling
+    # answers a multi-range request and a bad range differently from
+    # `file_response`, and the two routes must give the same answers.
     media_type, headers = _served_as(path, download=download)
     span = _byte_range(byte_range, size)
     if span is False:

@@ -784,7 +784,7 @@ class TestParticipationDoesNotCarryTheWrite:
             ),
             patch(
                 "app.services.conversation.GeneratedMediaService.forget_conversations",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(),
             ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
@@ -1255,7 +1255,7 @@ class TestConversationServiceDelete:
             ),
             patch(
                 "app.services.conversation.GeneratedMediaService.forget_conversations",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(),
             ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
@@ -1270,11 +1270,12 @@ class TestConversationServiceDelete:
             )
 
     @pytest.mark.anyio
-    async def test_deleting_a_conversation_unlinks_what_its_agents_generated(
+    async def test_deleting_a_conversation_forgets_what_its_agents_generated(
         self, service: ConversationService, monkeypatch: pytest.MonkeyPatch
     ):
-        """Images, speech and video generated in a thread go with it (#2310): their
-        rows in this transaction, their bytes after the commit with the attachments'."""
+        """Images, speech and video generated in a thread go with it (#2310): the
+        service drops their rows and queues their unlink as a job in this
+        transaction; the attachments keep their after-commit unlink."""
         conv_id = uuid4()
         unlinked: list[list[str]] = []
 
@@ -1291,7 +1292,7 @@ class TestConversationServiceDelete:
             ),
             patch(
                 "app.services.conversation.GeneratedMediaService.forget_conversations",
-                new=AsyncMock(return_value=[f"generated_{TEST_ORG_ID}/x_video.mp4"]),
+                new=AsyncMock(),
             ) as forgot,
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
@@ -1307,7 +1308,7 @@ class TestConversationServiceDelete:
                 coroutine.close()
 
         forgot.assert_awaited_once_with(TEST_ORG_ID, [conv_id])
-        assert unlinked == [["user/a.pdf", f"generated_{TEST_ORG_ID}/x_video.mp4"]]
+        assert unlinked == [["user/a.pdf"]]
 
     @pytest.mark.anyio
     async def test_delete_nonexistent_conversation_raises(self, service: ConversationService):

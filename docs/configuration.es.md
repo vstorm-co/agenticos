@@ -1,5 +1,5 @@
 ---
-source_sha: "42077a1e3d41"
+source_sha: "6ed00e8ed193"
 ---
 
 # Configuración { #configuration }
@@ -738,7 +738,7 @@ se borra y cuándo.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Medios generados que puede conservar una organización, en MiB. Se comprueba antes de cada llamada de generación de pago: superada, la herramienta responde que la organización ha agotado su almacenamiento y no gasta nada. Una llamada admitida justo por debajo puede terminar con un archivo de más. `0` es sin cuota |
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Medios generados que puede conservar una organización, en MiB. Solo cuentan los archivos creados en una conversación; uno de una vista previa o de una ejecución de prueba lo limita solo el periodo de retención. Se comprueba antes de cada llamada de generación de pago: superada, la herramienta responde que la organización ha agotado su almacenamiento y no gasta nada. No se reserva nada, así que las llamadas admitidas justo por debajo pueden superarla en hasta un archivo por cada llamada en curso: ejecuciones simultáneas o llamadas paralelas en una misma respuesta. `0` es sin cuota |
 | `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Antigüedad a la que la tarea diaria `sweep-generated-media` borra un archivo generado y su registro, siga o no su conversación. `0` los conserva hasta que se borra su conversación u organización |
 
 Un archivo se sirve en streaming, solo el rango de bytes que pide un reproductor

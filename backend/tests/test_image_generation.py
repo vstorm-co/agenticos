@@ -176,6 +176,8 @@ async def test_an_organization_past_its_quota_is_told_so_before_anything_is_draw
     answer = await _generate(toolset, _ctx(organization_id))
 
     assert answer.startswith("Not made: this organization has used its storage")
+    # An org administrator cannot raise a deployment setting; the answer names who can.
+    assert "operator can raise GENERATED_MEDIA_QUOTA_MB" in answer
 
 
 async def test_a_quota_of_zero_never_refuses(

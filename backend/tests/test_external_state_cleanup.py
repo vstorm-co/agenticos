@@ -80,6 +80,21 @@ class TestQueueing:
         assert len(first.restamps) == teardown_tasks._MAX_RESTAMPS_PER_JOB
         assert second.restamps == [restamps[-1]]
 
+    async def test_prefixes_ride_the_first_job_only(self) -> None:
+        """An organization's generated media goes by prefix, in the purge's own
+        transaction, rather than in a task the commit could outlive (#2310)."""
+        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_JOB + 1)]
+        first, second = (
+            call[2] for call in await self._queued(paths, [], prefixes=["generated_org"])
+        )
+        assert (first.prefixes, second.prefixes) == (["generated_org"], [])
+
+    async def test_a_job_queued_before_prefixes_existed_still_parses(self) -> None:
+        payload = CleanupExternalState.model_validate(
+            {"storage_paths": ["u/a.txt"], "collections": [], "restamps": []}
+        )
+        assert payload.prefixes == []
+
 
 @asynccontextmanager
 async def _db_ctx() -> Any:
@@ -252,6 +267,39 @@ class TestTheCleanup:
         engine.dispose.assert_awaited_once()
 
 
+class TestPrefixes:
+    async def test_each_prefix_is_removed_whole_without_a_vector_store(self) -> None:
+        storage, _store, _engine, _release, patches = _patch_cleanup()
+        storage.delete_prefix = AsyncMock(return_value=3)
+        with (
+            patches[0],
+            patch.object(teardown_tasks, "create_async_engine") as make_engine,
+            patches[4],
+        ):
+            result = await cleanup_external_state([], [], [], ["generated_a", "generated_b"])
+
+        assert [call.args[0] for call in storage.delete_prefix.await_args_list] == [
+            "generated_a",
+            "generated_b",
+        ]
+        make_engine.assert_not_called()
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
+
+    async def test_a_prefix_the_store_refuses_fails_the_job_after_the_rest(self) -> None:
+        """Its rows are gone, so the job's retries are the only thing that will ever
+        try again - raised, after every other prefix and file was attempted."""
+        from app.core.exceptions import ExternalServiceError
+
+        storage, _store, _engine, _release, patches = _patch_cleanup()
+        storage.delete_prefix = AsyncMock(side_effect=[OSError("denied"), 1])
+        with patches[0], patches[4], pytest.raises(ExternalServiceError) as failed:
+            await cleanup_external_state(["u/a.txt"], [], [], ["generated_a", "generated_b"])
+
+        assert failed.value.details == {"prefixes": ["generated_a"]}
+        assert storage.delete_prefix.await_count == 2
+        storage.delete.assert_awaited_once_with("u/a.txt")
+
+
 class TestTheJob:
     async def test_it_runs_the_cleanup_with_what_the_job_carries(self) -> None:
         impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1, "restamped": 1})
@@ -261,7 +309,7 @@ class TestTheJob:
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
             result = await run_external_state_cleanup(job)
 
-        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()])
+        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()], [])
         assert result == {"unlinked": 1, "dropped": 1, "restamped": 1}
 
 

@@ -1204,10 +1204,10 @@ class ConversationService:
             for path in await personal_data_repo.attachment_paths_in(self.db, conversation_id)
         ]
         # And the images, speech and video its agents generated (#2310). Their
-        # rows go now, in this transaction; the bytes with the attachments'.
-        attachments += await GeneratedMediaService(self.db).forget_conversations(
-            organization_id, conversation_ids
-        )
+        # rows go now, in this transaction, with a job queued beside them for
+        # the bytes - the rows are their only record, so the unlink must not be
+        # lost to a restart the way a spawned task can be.
+        await GeneratedMediaService(self.db).forget_conversations(organization_id, conversation_ids)
         if attachments:
             spawn_after_commit(
                 self.db,

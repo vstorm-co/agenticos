@@ -56,6 +56,22 @@ Two things are versioned separately from this file and worth knowing about:
   aloud - OpenAI, ElevenLabs and Gemini - with each model's voices, formats and
   per-request limit, gated like the image catalog. ElevenLabs joins the vault
   as a purpose (#2259).
+- **What agents generate is bounded: a per-organization quota and a
+  retention period.** Each generated image, speech clip and video is now
+  recorded in a new `generated_media` table and counted against
+  `GENERATED_MEDIA_QUOTA_MB` (default 5120) per organization - files made in
+  a conversation only - which a generation tool checks before spending
+  anything; past it, the tool answers that the organization has used its
+  storage. A daily `sweep-generated-media` job deletes files older than
+  `GENERATED_MEDIA_RETENTION_DAYS` (default 90), whether or not their
+  conversation is still there. Generated files are also deleted with their
+  conversation, with the account whose conversations they were, and with
+  their organization, by a job queued in the same transaction. **Operators:**
+  both are on by default; set `GENERATED_MEDIA_RETENTION_DAYS=0` and
+  `GENERATED_MEDIA_QUOTA_MB=0` to keep the previous behaviour - no deletion by
+  age and no limit (a deleted conversation's files still go with it). Files
+  generated before this release have no record: they are still served, but
+  are neither counted nor swept, and go only with their organization (#2310).
 
 ### Changed
 
@@ -75,18 +91,11 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
-- **Generated media is streamed, and what is kept is bounded.** Reading a
-  generated image, clip or video loaded the whole file into the API and again
-  into the console's server, a player's range request included, so a member
-  who knew a long clip's name could make every request hold all of it. Both
-  now stream, reading only the range asked for - from disk, or by a ranged
-  `GetObject` on S3. Each generated file is now recorded in a new
-  `generated_media` table, deleted with the conversation it was made in, after
-  `GENERATED_MEDIA_RETENTION_DAYS` (90) by a daily `sweep-generated-media`
-  job, and with its organization, and counted against
-  `GENERATED_MEDIA_QUOTA_MB` (5120) per organization, which a generation tool
-  checks before spending anything. Files generated before this release have
-  no record: they are still served but are neither counted nor swept (#2310).
+- **Generated media is streamed.** Reading a generated image, clip or video
+  loaded the whole file into the API and again into the console's server, a
+  player's range request included, so a member who knew a long clip's name
+  could make every request hold all of it. Both now stream, reading only the
+  range asked for - from disk, or by a ranged `GetObject` on S3 (#2310).
 
 ## [1.13.0] - 2026-10-22
 

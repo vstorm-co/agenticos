@@ -1,5 +1,5 @@
 ---
-source_sha: "42077a1e3d41"
+source_sha: "6ed00e8ed193"
 ---
 
 # Konfiguration { #configuration }
@@ -759,7 +759,7 @@ Was wann gelöscht wird, steht unter
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Wie viel erzeugte Medien eine Organisation behalten darf, in MiB. Geprüft vor jedem bezahlten Erzeugungsaufruf: darüber antwortet das Tool, dass die Organisation ihren Speicher aufgebraucht hat, und gibt nichts aus. Ein knapp darunter zugelassener Aufruf kann mit einer Datei darüber enden. `0` ist kein Kontingent |
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Wie viel erzeugte Medien eine Organisation behalten darf, in MiB. Es zählen nur Dateien, die in einer Unterhaltung entstanden sind; eine aus einer Vorschau oder einem Testlauf wird allein durch die Aufbewahrungsfrist begrenzt. Geprüft vor jedem bezahlten Erzeugungsaufruf: darüber antwortet das Tool, dass die Organisation ihren Speicher aufgebraucht hat, und gibt nichts aus. Nichts wird reserviert, daher können knapp darunter zugelassene Aufrufe es um bis zu eine Datei je laufendem Aufruf überschreiten - gleichzeitige Läufe oder parallele Aufrufe in einer Antwort. `0` ist kein Kontingent |
 | `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Alter, ab dem der tägliche Job `sweep-generated-media` eine erzeugte Datei und ihren Eintrag löscht, ob ihre Conversation noch existiert oder nicht. `0` behält sie, bis ihre Conversation oder Organisation gelöscht wird |
 
 Eine Datei wird gestreamt ausgeliefert, nur im Bytebereich, den ein Player

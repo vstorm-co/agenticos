@@ -99,14 +99,47 @@ async def test_a_conversation_that_is_not_this_organizations_is_not_linked(db, w
 
 async def test_the_quota_sums_this_organizations_files_alone(db):
     organization, other = await _org(db), await _org(db)
-    await _media(db, organization, size=3 * 1024**3)
-    await _media(db, organization, size=7)
-    await _media(db, other, size=1000)
+    thread, theirs = await _conversation(db, organization), await _conversation(db, other)
+    await _media(db, organization, conversation_id=thread.id, size=3 * 1024**3)
+    await _media(db, organization, conversation_id=thread.id, size=7)
+    await _media(db, other, conversation_id=theirs.id, size=1000)
 
     assert await generated_media_repo.bytes_used(db, organization_id=organization.id) == (
         3 * 1024**3 + 7
     )
     assert await generated_media_repo.bytes_used(db, organization_id=(await _org(db)).id) == 0
+
+
+async def test_the_quota_leaves_out_what_no_member_could_delete(db):
+    """A preview's or a test run's file has no conversation to delete; counting it
+    would refuse the organization until the sweep reached it (#2310)."""
+    organization = await _org(db)
+    thread = await _conversation(db, organization)
+    await _media(db, organization, conversation_id=thread.id, size=7)
+    await _media(db, organization, size=1000)
+
+    assert await generated_media_repo.bytes_used(db, organization_id=organization.id) == 7
+
+
+async def test_an_accounts_conversations_give_up_their_media_in_every_organization(db):
+    first, second = await _org(db), await _org(db)
+    person = await _user(db)
+    mine = [
+        Conversation(id=uuid.uuid4(), user_id=person.id, organization_id=org.id, title="Mine")
+        for org in (first, second)
+    ]
+    db.add_all(mine)
+    await db.flush()
+    ours = await _conversation(db, first)
+    gone = [await _media(db, org, conversation_id=c.id) for org, c in zip((first, second), mine)]
+    kept = await _media(db, first, conversation_id=ours.id)
+    unlinked = await _media(db, first)
+
+    paths = await generated_media_repo.delete_in_conversations_of_user(db, user_id=person.id)
+
+    assert sorted(paths) == sorted(row.storage_path for row in gone)
+    remaining = set((await db.execute(select(GeneratedMedia.id))).scalars().all())
+    assert remaining == {kept.id, unlinked.id}
 
 
 async def test_forgetting_conversations_reaches_only_theirs_in_this_tenant(db):
@@ -209,7 +242,34 @@ async def test_the_sweep_reads_the_oldest_first_across_organizations(db):
         for row in await generated_media_repo.expired(db, cutoff=now - timedelta(days=30), limit=1)
     ] == [older.id]
     assert await generated_media_repo.expired(db, cutoff=now - timedelta(days=200), limit=10) == []
+    assert [
+        row.id
+        for row in await generated_media_repo.expired(
+            db,
+            cutoff=now - timedelta(days=30),
+            limit=10,
+            after=(now - timedelta(days=100), older.id),
+        )
+    ] == [newer.id]
     assert await generated_media_repo.delete_by_ids(db, ids=[older.id]) == 1
+
+
+async def test_the_sweep_reads_past_a_row_with_its_own_timestamp_by_id(db):
+    """Rows created in one transaction share `created_at`; the id breaks the tie,
+    so a batch boundary inside them neither repeats nor skips one."""
+    organization = await _org(db)
+    rows = [await _media(db, organization) for _ in range(3)]
+    stamp = datetime.now(UTC) - timedelta(days=100)
+    await db.execute(GeneratedMedia.__table__.update().values(created_at=stamp))
+    ordered = sorted(row.id for row in rows)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+
+    first = await generated_media_repo.expired(db, cutoff=cutoff, limit=2)
+    rest = await generated_media_repo.expired(
+        db, cutoff=cutoff, limit=2, after=(stamp, first[-1].id)
+    )
+
+    assert [row.id for row in first + rest] == ordered
 
 
 async def test_a_deleted_conversation_leaves_its_rows_for_the_sweep(db):

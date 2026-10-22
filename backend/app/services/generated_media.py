@@ -22,11 +22,21 @@ in `generated_media` - its organization, the conversation it was made in where
 the run had one, and its size. That record is what bounds it:
 
 - a per-organization byte quota (`GENERATED_MEDIA_QUOTA_MB`), checked before each
-  paid generation call, so a tenant past it is told so before anything is spent;
-- deletion with the conversation it was generated in;
+  paid generation call, so a tenant past it is told so before anything is spent.
+  Only files made in a conversation count: one from a run with none - a
+  preview, a test run - is nothing a member could delete to free space, so it
+  is bounded by the retention period alone;
+- deletion with the conversation it was generated in, and with the account
+  whose conversations they were;
 - deletion after `GENERATED_MEDIA_RETENTION_DAYS`, by the daily
   `sweep-generated-media` job, whether or not the conversation is still there;
 - deletion with the organization, by prefix.
+
+Deletion with a conversation, an account or an organization removes the rows in
+its own transaction and hands the bytes to a job queued in that same transaction
+(`queue_external_state_cleanup`): the bytes go only if the rows do, and a process
+that dies after the commit does not take the unlink with it. The sweep deletes
+the bytes first and a row only once its bytes are gone.
 
 The record is bookkeeping, not the read path. A file written before the table
 existed has no row: it is still served, is not counted, and goes with its
@@ -34,17 +44,19 @@ organization.
 """
 
 import logging
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
-from app.db.session import get_db_context
+from app.db.session import get_db_context, get_worker_db_context
 from app.repositories import generated_media_repo
 from app.services.file_storage import get_file_storage
 
@@ -67,6 +79,10 @@ SWEEP_BATCH = 500
 SWEEP_MAX_BATCHES = 40
 """Batches per sweep. A backlog - a deployment turning retention on over a year
 of clips - is worked off over several daily runs rather than in one long one."""
+
+SWEEP_TIME_BUDGET = timedelta(minutes=10)
+"""How long one sweep starts new batches for, below the job's 15-minute timeout,
+so a slow store ends a run between batches rather than cancelling one."""
 
 
 def organization_directory(organization_id: UUID) -> str:
@@ -149,8 +165,12 @@ async def keep_generated_media(
                 storage_path=storage_path,
                 size_bytes=len(data),
             )
-    except Exception:
-        await get_file_storage().delete(storage_path)
+    except BaseException:
+        # `BaseException`, because a person pressing Stop or a run timing out
+        # cancels the call here, and that leaves the same unrecorded file. The
+        # unlink is shielded so the cancellation cannot interrupt it in turn.
+        with anyio.CancelScope(shield=True):
+            await get_file_storage().delete(storage_path)
         raise
     return leaf
 
@@ -160,8 +180,14 @@ async def generated_media_quota_reached(organization_id: UUID) -> bool:
 
     Asked before a paid generation call rather than at the save, so a tenant at
     its limit is refused before anything is spent - a clip refused after it was
-    made would be money paid for nothing. The cost is that a call admitted just
-    under the limit may finish over it by one file; the next one is refused.
+    made would be money paid for nothing. The cost is that nothing is reserved:
+    every call admitted just under the limit - concurrent runs, or parallel
+    calls in one response - may finish, so the organization can end over it by
+    up to one file per call in flight. The next call after them is refused.
+
+    Only files made in a conversation count (`bytes_used`): a member can free
+    those by deleting the conversation, and a preview's or a test run's cannot
+    be freed by anyone in the organization.
     """
     quota_mb = settings.GENERATED_MEDIA_QUOTA_MB
     if quota_mb == 0:
@@ -227,6 +253,16 @@ def generated_media_url(filename: str) -> str:
     return f"/api/v1/generated/{filename}"
 
 
+@dataclass(frozen=True)
+class SweptBatch:
+    """What one batch of the retention sweep did."""
+
+    removed: int
+    after: tuple[datetime, UUID] | None
+    """The `(created_at, id)` of the batch's last row, which the next batch reads
+    past - `None` when the batch was not full, so there is nothing after it."""
+
+
 class GeneratedMediaService:
     """What happens to recorded generated media when its owner or its time goes."""
 
@@ -235,12 +271,14 @@ class GeneratedMediaService:
 
     async def forget_conversations(
         self, organization_id: UUID, conversation_ids: Sequence[UUID]
-    ) -> list[str]:
-        """Drop the records of what these threads generated; answer their paths.
+    ) -> None:
+        """Drop the records of what these threads generated, and queue their unlink.
 
-        The caller unlinks the paths once its transaction commits, beside the
-        threads' attachments: an unlink before the commit is undone by a
-        rollback as a file already gone (#1293).
+        The unlink is a job queued in this transaction, not a task spawned after
+        it: it runs only if the delete commits - an unlink before the commit is
+        undone by a rollback as a file already gone (#1293) - and it survives
+        the process, because the rows are the only record of the bytes and
+        nothing could find them again once a lost unlink left them behind.
         """
         paths = await generated_media_repo.paths_in_conversations(
             self.db, organization_id=organization_id, conversation_ids=conversation_ids
@@ -248,42 +286,82 @@ class GeneratedMediaService:
         await generated_media_repo.delete_in_conversations(
             self.db, organization_id=organization_id, conversation_ids=conversation_ids
         )
-        return paths
+        await self._queue_unlink(paths, organization_id=organization_id)
 
-    async def sweep_expired(self, *, now: datetime | None = None) -> int:
-        """Delete every generated file older than the retention period; answer how many.
+    async def forget_user(self, user_id: UUID) -> None:
+        """Drop what was generated in this person's own conversations, and queue its unlink.
+
+        For account deletion: the person's conversations cascade with the
+        account, which would leave their generated rows behind with no
+        conversation and their bytes readable by the organization. Every
+        organization at once - the paths are already scoped by the rows.
+        """
+        paths = await generated_media_repo.delete_in_conversations_of_user(self.db, user_id=user_id)
+        await self._queue_unlink(paths, organization_id=None)
+
+    async def _queue_unlink(self, paths: list[str], *, organization_id: UUID | None) -> None:
+        if not paths:
+            return
+        from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
+
+        await queue_external_state_cleanup(self.db, paths, [], organization_id=organization_id)
+
+    async def sweep_batch(
+        self, *, cutoff: datetime, after: tuple[datetime, UUID] | None
+    ) -> SweptBatch:
+        """Delete one batch of files older than `cutoff`, read past `after`.
 
         The bytes before the row, and the row only once its bytes are gone: the
         other order leaves a file nothing can find. A file the store would not
-        delete keeps its row, is logged, and is retried by the next sweep - and
-        it ends this one, because the next batch would read the same rows again.
-
-        Args:
-            now: The moment the period is measured back from; a test freezes it.
+        delete keeps its row and is logged; the next batch reads past it, so one
+        stuck file cannot hold back every file behind it, and the next sweep
+        tries it again.
         """
-        days = settings.GENERATED_MEDIA_RETENTION_DAYS
-        if days == 0:
-            return 0
-        cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
         storage = get_file_storage()
-        removed = 0
-        for _ in range(SWEEP_MAX_BATCHES):
-            batch = await generated_media_repo.expired(self.db, cutoff=cutoff, limit=SWEEP_BATCH)
-            gone: list[UUID] = []
-            for row in batch:
-                try:
-                    await storage.delete(row.storage_path)
-                except Exception:
-                    logger.exception(
-                        "generated_media_not_unlinked",
-                        extra={
-                            "organization_id": str(row.organization_id),
-                            "media_id": str(row.id),
-                        },
-                    )
-                    continue
-                gone.append(row.id)
-            removed += await generated_media_repo.delete_by_ids(self.db, ids=gone)
-            if len(batch) < SWEEP_BATCH or len(gone) < len(batch):
-                break
-        return removed
+        batch = await generated_media_repo.expired(
+            self.db, cutoff=cutoff, limit=SWEEP_BATCH, after=after
+        )
+        gone: list[UUID] = []
+        for row in batch:
+            try:
+                await storage.delete(row.storage_path)
+            except Exception:
+                logger.exception(
+                    "generated_media_not_unlinked",
+                    extra={"organization_id": str(row.organization_id), "media_id": str(row.id)},
+                )
+                continue
+            gone.append(row.id)
+        removed = await generated_media_repo.delete_by_ids(self.db, ids=gone)
+        last = batch[-1] if len(batch) == SWEEP_BATCH else None
+        return SweptBatch(removed=removed, after=(last.created_at, last.id) if last else None)
+
+
+async def sweep_expired_generated_media(*, now: datetime | None = None) -> int:
+    """Delete every generated file older than the retention period; answer how many.
+
+    Each batch in a session of its own, committed before the next is read. One
+    transaction for the whole run would be rolled back by the job's timeout,
+    restoring rows whose bytes were already deleted, and a backlog that never
+    finishes inside the timeout would then delete the same oldest files again
+    every day and commit nothing. No new batch starts after `SWEEP_TIME_BUDGET`,
+    so a slow store ends the run between batches; the next run goes on.
+
+    Args:
+        now: The moment the period is measured back from; a test freezes it.
+    """
+    days = settings.GENERATED_MEDIA_RETENTION_DAYS
+    if days == 0:
+        return 0
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
+    stop_at = time.monotonic() + SWEEP_TIME_BUDGET.total_seconds()
+    removed = 0
+    after: tuple[datetime, UUID] | None = None
+    for _ in range(SWEEP_MAX_BATCHES):
+        async with get_worker_db_context() as db:
+            swept = await GeneratedMediaService(db).sweep_batch(cutoff=cutoff, after=after)
+        removed += swept.removed
+        if swept.after is None or time.monotonic() >= stop_at:
+            break
+        after = swept.after
+    return removed

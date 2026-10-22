@@ -101,16 +101,27 @@ An image, a speech clip or a video an agent generates is a file under
 `generated_<org>/` and a `generated_media` row naming it. The row records the
 organization, the conversation where the run had one, and the size - so the
 organization's total is bounded by `GENERATED_MEDIA_QUOTA_MB` (5120), checked
-before each paid generation call. The file is deleted with its conversation, by
-the daily `sweep-generated-media` job once it is older than
+before each paid generation call. Only files made in a conversation count: a
+preview's or a test run's has no conversation anybody could delete to free the
+space, so the retention period alone bounds it.
+
+The file is deleted with its
+conversation, with the account whose conversation it was, by the daily
+`sweep-generated-media` job once it is older than
 `GENERATED_MEDIA_RETENTION_DAYS` (90) even while its conversation is still
 there, and by prefix with its organization. 0 turns either bound off.
 
+Deleting a conversation, an account or an organization removes the rows in its
+own transaction and queues the unlink of the bytes as a background job in that
+same transaction, so the bytes go only if the rows do, and a restart after the
+commit does not lose the unlink. The sweep deletes a file first and its row
+only once the file is gone; a file the store refuses keeps its row, and the next
+sweep tries it again.
+
 Files generated before the table existed have no row. They are still served, but
 they are not counted against the quota and the sweep cannot see them: they go
-with their organization, or by hand. A conversation removed with its owner's
-account leaves its generated rows unlinked rather than deleted, and the sweep
-removes those files when their period ends.
+with their organization, or by hand, and the data-protection report counts them
+among the files with no row.
 
 ### Outside the database
 
@@ -213,9 +224,9 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Action | Removes | Leaves |
 |---|---|---|
-| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the images, speech and video its agents generated, rows and bytes alike; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
+| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the images, speech and video its agents generated - the rows in the delete, the bytes by a job queued with it; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
 | `DELETE /memory/person/{user_id}` (the person, or `members:manage`) | Every `agent_memory_files` row keyed to the person across the organization's agents, and the same in each bound mem0 store | Notes keyed to a group chat the person spoke in |
-| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter; their turns there are drawn as a former member's |
+| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; the images, speech and video agents generated in those conversations, the rows in the delete and the bytes by a job queued with it; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter, with the media generated in them; their turns there are drawn as a former member's |
 | Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
 | Deleting an organization | Everything scoped to it, with the same deferred teardown - its generated media by prefix, including files written before they were recorded | Personal collections that merely carried the id |
 
@@ -291,9 +302,14 @@ removed.
 Its last section counts the bytes no row names any more. Deleting a conversation
 or an account now unlinks their attachments after the commit, so that path no
 longer adds to it; what it still finds is what predates those deletes, plus an
-unlink a best-effort sweep did not complete. Generated images and the parse
-scratch directory are excluded, having no row by design; everything else counted
-there is bytes the product can no longer find and cannot delete. It reports a directory and a count rather than a
+unlink a best-effort sweep did not complete.
+
+The parse scratch directory is
+excluded, having no row by design. Generated media is counted since
+`generated_media` records each file, so a file generated before that table
+existed shows up under its `generated_<org>` directory: it has no row, and goes
+only with its organization. Everything else counted there is bytes the product
+can no longer find and cannot delete. It reports a directory and a count rather than a
 filename, because a stored path keeps the name the file was uploaded under.
 
 Two sections are read off what runs rather than off a table. **Capability

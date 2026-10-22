@@ -1,5 +1,5 @@
 ---
-source_sha: "b8aa197b63b9"
+source_sha: "2c7a8627ced0"
 ---
 
 # Datenschutz { #data-protection }
@@ -110,18 +110,30 @@ Ein Bild, ein Sprachclip oder ein Video, das ein Agent erzeugt, ist eine Datei
 unter `generated_<org>/` und eine `generated_media`-Zeile, die sie benennt. Die
 Zeile hält die Organisation fest, die Conversation, sofern der Run eine hatte, und
 die Größe - so ist die Summe der Organisation durch `GENERATED_MEDIA_QUOTA_MB`
-(5120) begrenzt, geprüft vor jedem bezahlten Erzeugungsaufruf. Die Datei wird mit
-ihrer Conversation gelöscht, vom täglichen Job `sweep-generated-media`, sobald sie
-älter als `GENERATED_MEDIA_RETENTION_DAYS` (90) ist, auch wenn ihre Conversation
-noch existiert, und per Präfix mit ihrer Organisation. 0 schaltet jede der beiden
+(5120) begrenzt, geprüft vor jedem bezahlten Erzeugungsaufruf. Es zählen nur
+Dateien, die in einer Conversation entstanden sind: Die einer Vorschau oder eines
+Testlaufs hat keine Conversation, die jemand löschen könnte, um Platz zu schaffen,
+daher begrenzt sie allein die Aufbewahrungsfrist.
+
+Die Datei wird mit ihrer
+Conversation gelöscht, mit dem Konto, dem diese Conversation gehörte, vom
+täglichen Job `sweep-generated-media`, sobald sie älter als
+`GENERATED_MEDIA_RETENTION_DAYS` (90) ist, auch wenn ihre Conversation noch
+existiert, und per Präfix mit ihrer Organisation. 0 schaltet jede der beiden
 Grenzen ab.
+
+Das Löschen einer Conversation, eines Kontos oder einer Organisation entfernt die
+Zeilen in seiner eigenen Transaktion und reiht das Lösen der Bytes in derselben
+Transaktion als Hintergrundjob ein - die Bytes gehen also nur, wenn die Zeilen
+gehen, und ein Neustart nach dem Commit verliert das Lösen nicht. Der Sweep
+löscht zuerst die Datei und ihre Zeile erst, wenn die Datei weg ist; eine Datei,
+die der Speicher verweigert, behält ihre Zeile, und der nächste Sweep versucht es
+erneut.
 
 Dateien, die erzeugt wurden, bevor es die Tabelle gab, haben keine Zeile. Sie
 werden weiter ausgeliefert, zählen aber nicht gegen das Kontingent, und der Sweep
-sieht sie nicht: Sie gehen mit ihrer Organisation oder von Hand. Eine
-Conversation, die mit dem Konto ihres Besitzers gelöscht wird, lässt ihre Zeilen
-erzeugter Medien unverknüpft statt gelöscht zurück, und der Sweep entfernt diese
-Dateien, wenn ihre Frist endet.
+sieht sie nicht: Sie gehen mit ihrer Organisation oder von Hand, und der
+Datenschutzbericht zählt sie zu den Dateien ohne Zeile.
 
 ### Außerhalb der Datenbank { #outside-the-database }
 
@@ -228,9 +240,9 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Aktion | Entfernt | Lässt zurück |
 |---|---|---|
-| `DELETE /conversations/{id}` (der Besitzer) | Die Conversation, ihre Nachrichten, Tool-Aufrufe, Bewertungen, Freigaben und `chat_files`-Zeilen per Kaskade - darunter das Transkript eines Sprachanrufs, da seine Züge Nachrichten sind; die Anhang-Bytes unter `MEDIA_DIR`, vor dem Löschen eingesammelt und nach dessen Commit gelöst; die von ihren Agenten erzeugten Bilder, Sprachclips und Videos, Zeilen wie Bytes; die aus diesem Thread ausgelagerten Medienobjekte per Präfix; ein Container-Workspace über `purge_for_conversation` | Run-Zeilen und Manifeste, die die Conversation benannten, behalten ihre Prompt-Kopie; eine `voice_calls`-Zeile behält ihre Zeiten und Kosten, mit geleerter Verknüpfung zur Conversation |
+| `DELETE /conversations/{id}` (der Besitzer) | Die Conversation, ihre Nachrichten, Tool-Aufrufe, Bewertungen, Freigaben und `chat_files`-Zeilen per Kaskade - darunter das Transkript eines Sprachanrufs, da seine Züge Nachrichten sind; die Anhang-Bytes unter `MEDIA_DIR`, vor dem Löschen eingesammelt und nach dessen Commit gelöst; die von ihren Agenten erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; die aus diesem Thread ausgelagerten Medienobjekte per Präfix; ein Container-Workspace über `purge_for_conversation` | Run-Zeilen und Manifeste, die die Conversation benannten, behalten ihre Prompt-Kopie; eine `voice_calls`-Zeile behält ihre Zeiten und Kosten, mit geleerter Verknüpfung zur Conversation |
 | `DELETE /memory/person/{user_id}` (die Person oder `members:manage`) | Jede `agent_memory_files`-Zeile, die auf die Person geschlüsselt ist, über alle Agents der Organisation hinweg, und dasselbe in jedem gebundenen mem0-Speicher | Notizen, die auf einen Gruppenchat geschlüsselt sind, in dem die Person gesprochen hat |
-| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations außerhalb eines Projekts und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören, und die Projekt-Chats, die die Person begonnen hat - für das Team behalten, ohne Urheber; ihre Nachrichten darin erscheinen als die eines ehemaligen Mitglieds |
+| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations außerhalb eines Projekts und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; die von Agenten in diesen Conversations erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören, und die Projekt-Chats, die die Person begonnen hat - für das Team behalten, ohne Urheber, mit den darin erzeugten Medien; ihre Nachrichten darin erscheinen als die eines ehemaligen Mitglieds |
 | Ein Dokument oder eine Collection löschen | Die Zeilen, die Vektortabelle und die gespeicherte Datei, über einen dauerhaften Flow nach dem Commit | Nichts, sobald der Flow gelaufen ist; die Zählstände in `sync_logs` bleiben |
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau - ihre erzeugten Medien per Präfix, einschließlich der Dateien, die geschrieben wurden, bevor sie erfasst wurden | Persönliche Collections, die die Id lediglich mitführten |
 
@@ -316,10 +328,14 @@ Sein letzter Abschnitt zählt die Bytes, die keine Zeile mehr benennt. Das Lösc
 einer Konversation oder eines Kontos löst deren Anhänge jetzt nach dem Commit, so
 dass dieser Weg nichts mehr hinzufügt; was er noch findet, stammt aus der Zeit vor
 diesen Löschungen oder aus einem Lösen, das ein Best-Effort-Sweep nicht zu Ende
-gebracht hat. Generierte Bilder und das Parse-Arbeitsverzeichnis sind
-ausgenommen - sie haben von vornherein keine Zeile; alles andere, was dort
-gezählt wird, sind Bytes, die das Produkt nicht mehr findet und nicht löschen
-kann. Er meldet ein Verzeichnis und eine Zahl statt eines Dateinamens, denn ein
+gebracht hat.
+
+Das Parse-Arbeitsverzeichnis ist ausgenommen - es hat von
+vornherein keine Zeile. Erzeugte Medien werden gezählt, seit `generated_media`
+jede Datei festhält, daher erscheint eine Datei, die vor dieser Tabelle erzeugt
+wurde, unter ihrem Verzeichnis `generated_<org>`: Sie hat keine Zeile und geht nur
+mit ihrer Organisation. Alles andere, was dort gezählt wird, sind Bytes, die das
+Produkt nicht mehr findet und nicht löschen kann. Er meldet ein Verzeichnis und eine Zahl statt eines Dateinamens, denn ein
 gespeicherter Pfad behält den Namen, unter dem die Datei hochgeladen wurde.
 
 Zwei Abschnitte werden aus dem gelesen, was läuft, und nicht aus einer Tabelle.

@@ -1,5 +1,5 @@
 ---
-source_sha: "42077a1e3d41"
+source_sha: "6ed00e8ed193"
 ---
 
 # Konfiguracja { #configuration }
@@ -722,7 +722,7 @@ sprawdzić, co i kiedy jest usuwane.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Ile wygenerowanych mediów może trzymać jedna organizacja, w MiB. Sprawdzane przed każdym płatnym wywołaniem generowania: po jego przekroczeniu narzędzie odpowiada, że organizacja wykorzystała swój magazyn, i niczego nie wydaje. Wywołanie wpuszczone tuż pod limitem może skończyć się jednym plikiem ponad. `0` to brak limitu |
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Ile wygenerowanych mediów może trzymać jedna organizacja, w MiB. Liczą się tylko pliki utworzone w rozmowie; plik z podglądu lub przebiegu testowego usuwa dopiero upływ okresu retencji. Sprawdzane przed każdym płatnym wywołaniem generowania: po jego przekroczeniu narzędzie odpowiada, że organizacja wykorzystała swój magazyn, i niczego nie wydaje. Nic nie jest rezerwowane, więc wywołania wpuszczone tuż pod limitem mogą go przekroczyć o najwyżej jeden plik na każde trwające wywołanie - równoległe przebiegi albo równoległe wywołania w jednej odpowiedzi. `0` to brak limitu |
 | `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Wiek, w którym codzienne zadanie `sweep-generated-media` usuwa wygenerowany plik i jego zapis, bez względu na to, czy jego konwersacja wciąż istnieje. `0` trzyma je, aż ich konwersacja albo organizacja zostanie usunięta |
 
 Plik jest serwowany strumieniowo, tylko w zakresie bajtów, o który prosi

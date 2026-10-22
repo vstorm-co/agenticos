@@ -940,7 +940,7 @@ class S3FileStorage(BaseFileStorage):
             key = self._key(storage_path)
         except ValueError:
             return False
-        return await run_blocking(self._head_blocking, key)
+        return await run_blocking(self._head_blocking, key) is not None
 
     async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
         """One object, in bounded chunks, never held whole in this process.
@@ -957,19 +957,10 @@ class S3FileStorage(BaseFileStorage):
         return self._chunks(body)
 
     async def size(self, storage_path: str) -> int:
-        return await run_blocking(self._size_blocking, self._key(storage_path))
-
-    def _size_blocking(self, key: str) -> int:
-        """`ContentLength` from a `HeadObject`, translating a miss as `load` does."""
-        from botocore.exceptions import ClientError
-
-        try:
-            response = self.client.head_object(Bucket=self.bucket, Key=key)
-        except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
-                raise FileNotFoundError(f"File not found: {key}") from exc
-            raise
-        length: int = response["ContentLength"]
+        key = self._key(storage_path)
+        length = await run_blocking(self._head_blocking, key)
+        if length is None:
+            raise FileNotFoundError(f"File not found: {key}")
         return length
 
     async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
@@ -1013,25 +1004,26 @@ class S3FileStorage(BaseFileStorage):
         finally:
             await run_blocking(body.close)
 
-    def _head_blocking(self, key: str) -> bool:
-        """Whether the object is there, and only that.
+    def _head_blocking(self, key: str) -> int | None:
+        """The object's `ContentLength`, or `None` where there is no such object.
 
         A blanket `except ClientError` would answer "not there" for an
         `AccessDenied`, a throttle or an outage - so a bad bucket policy would
         read as an agent with no avatar and a knowledge base whose documents
         have all been deleted, which is the wrong thing for anybody to act on.
-        Only the codes that mean "no such object" answer `False`; everything
+        Only the codes that mean "no such object" answer `None`; everything
         else is the caller's to see.
         """
         from botocore.exceptions import ClientError
 
         try:
-            self.client.head_object(Bucket=self.bucket, Key=key)
+            response = self.client.head_object(Bucket=self.bucket, Key=key)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
-                return False
+                return None
             raise
-        return True
+        length: int = response["ContentLength"]
+        return length
 
 
 def build_s3_client() -> BaseClient:

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, delete, func, insert, select
+from sqlalchemy import CursorResult, delete, func, insert, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
@@ -27,7 +27,8 @@ async def create(
     there: the id comes from the run, and a run with no saved thread - a
     preview, a test run - or one whose thread was deleted mid-run would
     otherwise fail the insert on the foreign key, losing the record of bytes
-    that are already stored. Unlinked, the row is still counted and still swept.
+    that are already stored. Unlinked, the row is still swept, though no longer
+    counted against the quota (`bytes_used`).
     """
     linked = (
         select(Conversation.id)
@@ -51,10 +52,17 @@ async def create(
 
 
 async def bytes_used(db: AsyncSession, *, organization_id: UUID) -> int:
-    """How many bytes of generated media this organization has recorded."""
+    """How many bytes of generated media made in a conversation this organization keeps.
+
+    A row with no conversation - a preview's, a test run's - is left out: no
+    member can delete anything to free it, so counting it would stop the
+    organization generating until the retention sweep reached it, or for good
+    with retention off. The sweep bounds those alone.
+    """
     total = await db.scalar(
         select(func.coalesce(func.sum(GeneratedMedia.size_bytes), 0)).where(
-            GeneratedMedia.organization_id == organization_id
+            GeneratedMedia.organization_id == organization_id,
+            GeneratedMedia.conversation_id.is_not(None),
         )
     )
     return int(total or 0)
@@ -116,13 +124,40 @@ async def delete_by_storage_paths(
     return result.rowcount or 0
 
 
-async def expired(db: AsyncSession, *, cutoff: datetime, limit: int) -> list[GeneratedMedia]:
-    """The oldest rows created before `cutoff`, across every organization."""
+async def delete_in_conversations_of_user(db: AsyncSession, *, user_id: UUID) -> list[str]:
+    """Drop the rows of what was generated in this person's conversations; answer their paths.
+
+    Every organization's: an account deletion takes the person's conversations
+    in all of them.
+    """
+    owned = select(Conversation.id).where(Conversation.user_id == user_id)
     rows = await db.execute(
-        select(GeneratedMedia)
-        .where(GeneratedMedia.created_at < cutoff)
-        .order_by(GeneratedMedia.created_at)
-        .limit(limit)
+        delete(GeneratedMedia)
+        .where(GeneratedMedia.conversation_id.in_(owned))
+        .returning(GeneratedMedia.storage_path)
+    )
+    return list(rows.scalars().all())
+
+
+async def expired(
+    db: AsyncSession,
+    *,
+    cutoff: datetime,
+    limit: int,
+    after: tuple[datetime, UUID] | None = None,
+) -> list[GeneratedMedia]:
+    """The oldest rows created before `cutoff`, across every organization.
+
+    `after` is the `(created_at, id)` of the last row a previous batch read:
+    rows the sweep could not delete stay in the table, and reading past them
+    rather than from the start is what keeps them from being every batch's
+    first rows.
+    """
+    query = select(GeneratedMedia).where(GeneratedMedia.created_at < cutoff)
+    if after is not None:
+        query = query.where(tuple_(GeneratedMedia.created_at, GeneratedMedia.id) > tuple_(*after))
+    rows = await db.execute(
+        query.order_by(GeneratedMedia.created_at, GeneratedMedia.id).limit(limit)
     )
     return list(rows.scalars().all())
 

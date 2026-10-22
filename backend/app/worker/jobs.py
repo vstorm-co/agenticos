@@ -117,6 +117,9 @@ class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
     restamps: list[Restamp]
+    # Defaulted, so a job queued by a release before it existed still parses.
+    prefixes: list[str] = []
+    """Storage prefixes removed whole - an organization's generated media (#2310)."""
 
 
 @dataclass(frozen=True)
