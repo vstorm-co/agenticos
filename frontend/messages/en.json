@@ -1952,7 +1952,8 @@
         "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
       },
       "openBuilder": "Open in the Agent Builder",
-      "askEditor": "Ask someone who can edit this agent to set it up."
+      "askEditor": "Ask someone who can edit this agent to set it up.",
+      "startPublished": "Start a voice call with the published version - the call does not run this draft"
     },
     "extras": {
       "remembered": "Remembered: {note}",

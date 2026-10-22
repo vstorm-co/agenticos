@@ -1,5 +1,5 @@
 ---
-source_sha: "518f778feaa6"
+source_sha: "f2926c5063e9"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -52,7 +52,9 @@ głos i język.
 **Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi w miejscu
 „Wyślij”, dopóki pole jest puste, a „Wyślij” wraca, gdy coś wpiszesz. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
 rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
-agenta, do zakładki Rozmowy na jego karcie Głos (Voice).
+agenta, do zakładki Rozmowy na jego karcie Głos (Voice). Okno Architekta i panel
+testowy Buildera oferują go tak samo; w panelu testowym rozmowa uruchamia
+opublikowaną wersję, nie testowany draft, i przycisk to mówi.
 
 **Embed.** Widget albo hostowana strona proponuje rozmowy tylko wtedy, gdy
 włączony jest jego własny przełącznik „Rozmowy głosowe”. Zapisanie włączonego

@@ -46,6 +46,23 @@ describe("VoiceCallButton", () => {
     expect(screen.getByRole("button", { name: NAME }).className).toContain("active:scale-90");
   });
 
+  it("says, beside a draft being tested, that a call runs the published version", () => {
+    render(
+      <VoiceCallButton
+        readiness={READY}
+        failed={false}
+        onStart={vi.fn()}
+        setUpHref={null}
+        publishedOnly
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: NAME })).toHaveAttribute(
+      "title",
+      expect.stringContaining("published version"),
+    );
+  });
+
   it("can be held off while something else is under way", () => {
     render(
       <VoiceCallButton

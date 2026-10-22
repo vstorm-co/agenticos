@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "518f778feaa6"
+source_sha: "f2926c5063e9"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -59,7 +59,9 @@ Agent an der Stelle von Senden, solange das Feld leer ist; sobald etwas getippt
 ist, kommt Senden zurück. Für einen ohne Stimme, oder mit einem Schlüssel, der
 keinen Anruf mehr halten kann, ist sie durchgestrichen, und ihr Grund verlinkt
 für alle, die den Agent bearbeiten dürfen, den Reiter Anrufe seiner Karte Stimme
-(Voice).
+(Voice). Das Fenster des Architect und das Testpanel des Builders bieten sie
+genauso an; im Testpanel führt der Anruf die veröffentlichte Version aus, nicht
+den getesteten Entwurf, und die Taste sagt das.
 
 **Das Embed.** Ein Widget oder eine gehostete Seite bietet Anrufe nur an, wenn
 sein eigener Schalter „Sprachanrufe“ (Voice calls) an ist. Den Schalter

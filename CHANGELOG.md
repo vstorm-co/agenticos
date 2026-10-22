@@ -159,7 +159,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **The call button stands in Send's place.** While the box is empty, every
   agent offers the call where Send is, as a waveform - crossed out, saying why,
   where it cannot take one; type something and Send comes back. Dictation stays
-  where it was.
+  where it was. The Architect's window and the Builder's test panel offer it
+  too - the test panel's call runs the published version, and says so.
 - **Connect a service from the chat.** When a request needs one of your
   services you have not connected, the agent offers it as a card with the
   service's logo and **Connect**, which goes straight to its sign-in and back to
@@ -183,6 +184,9 @@ Two things are versioned separately from this file and worth knowing about:
   chat page while a turn was being written and coming back showed the turn from
   memory: its timer kept running, and a question it had parked on never
   returned as a card. The chat now reads the conversation again.
+- **The `+` in the Architect's window opens.** The window kept its presses from
+  a dialog behind it by stopping them before React saw them, so every control
+  opening on a press - the composer's `+` menu among them - did nothing there.
 
 ## [1.13.0] - 2026-10-22
 

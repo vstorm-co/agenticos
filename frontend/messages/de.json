@@ -1952,7 +1952,8 @@
         "mediaFailed": "<strong>Die Audioverbindung kam nicht zustande,</strong> daher wurde der Anruf beendet. Möglicherweise blockiert Ihr Netzwerk sie. Alles bis dahin Gesagte ist oben gespeichert."
       },
       "openBuilder": "Im Agent Builder öffnen",
-      "askEditor": "Bitten Sie jemanden, der diesen Agent bearbeiten darf, ihn einzurichten."
+      "askEditor": "Bitten Sie jemanden, der diesen Agent bearbeiten darf, ihn einzurichten.",
+      "startPublished": "Sprachanruf mit der veröffentlichten Version starten - der Anruf führt diesen Entwurf nicht aus"
     },
     "extras": {
       "remembered": "Gemerkt: {note}",

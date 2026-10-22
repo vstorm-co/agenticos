@@ -27,6 +27,8 @@ interface VoiceCallButtonProps {
   setUpHref: string | null;
   /** Standing in Send's place, so drawn like it (#2301). */
   prominent?: boolean;
+  /** Beside a draft being tested, which a call does not run: the button says so. */
+  publishedOnly?: boolean;
 }
 
 /** How long the reason stays open after the pointer leaves, so it can reach the link. */
@@ -51,6 +53,7 @@ export function VoiceCallButton({
   onStart,
   setUpHref,
   prominent = false,
+  publishedOnly = false,
 }: VoiceCallButtonProps) {
   const t = useTranslations("chat.voice");
   const [open, setOpen] = useState(false);
@@ -81,7 +84,7 @@ export function VoiceCallButton({
         disabled={disabled}
         data-tour="chat-voice-call"
         aria-label={t("start")}
-        title={t("start")}
+        title={publishedOnly ? t("startPublished") : t("start")}
         className={cn(BUTTON, prominent && "transition-transform active:scale-90")}
       >
         <AudioLines className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />

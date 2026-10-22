@@ -1952,7 +1952,8 @@
         "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
       },
       "openBuilder": "Otwórz w Agent Builderze",
-      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację."
+      "askEditor": "Poproś kogoś, kto może edytować tego agenta, o konfigurację.",
+      "startPublished": "Rozpocznij rozmowę głosową z opublikowaną wersją - rozmowa nie uruchamia tego draftu"
     },
     "extras": {
       "remembered": "Zapamiętane: {note}",

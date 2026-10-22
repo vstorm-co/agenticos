@@ -9,6 +9,7 @@ import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
+import { WidgetRoot } from "./assistant-launcher";
 import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
 
 const state = vi.hoisted(() => ({
@@ -567,6 +568,23 @@ describe("the Architect widget", () => {
 
     expect(outside).not.toHaveBeenCalled();
     document.removeEventListener("pointerdown", outside);
+  });
+
+  it("lets its own controls have the press first, so a menu opening on it opens", () => {
+    // The composer's `+` is a menu that opens on pointerdown; a listener that
+    // stopped the press before React saw it left it dead in the window.
+    const pressed = vi.fn();
+    render(
+      <WidgetRoot>
+        <button type="button" onPointerDown={pressed}>
+          Add to message
+        </button>
+      </WidgetRoot>,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Add to message" }));
+
+    expect(pressed).toHaveBeenCalledOnce();
   });
 
   it("stays quiet on a page somebody silenced", () => {

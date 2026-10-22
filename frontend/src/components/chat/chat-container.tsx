@@ -985,12 +985,12 @@ function ChatUI({
   // a page, with no room for the rail and no use for the full chat's spacing.
   const compact = useInChatScope();
 
-  // A voice call (#54): offered beside the microphone when the selected agent
-  // can take one, crossed out with the reason when it cannot. Not in the narrow
-  // windows: the test panel runs the draft and a call runs what is published, and
-  // the Architect's window has no room for a call bar beside the page.
+  // A voice call (#54): offered in Send's place when the selected agent can take
+  // one, crossed out with the reason when it cannot - in the narrow windows too.
+  // The test panel runs the draft while a call runs what is published, so there
+  // the button says so.
   const tVoice = useTranslations("chat.voice");
-  const offerCall = hasAgent && !compact;
+  const offerCall = hasAgent;
   const { readiness, failed: readinessFailed } = useVoiceReadiness(
     offerCall ? selectedAgentId : null,
   );
@@ -1143,6 +1143,7 @@ function ChatUI({
         onStart={startCall}
         setUpHref={agentCallsHref}
         prominent={callReady}
+        publishedOnly={testingDraft}
       />
     </span>
   );

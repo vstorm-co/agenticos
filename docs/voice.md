@@ -50,7 +50,9 @@ language.
 **Every agent offers the button.** In `/chat` the call button stands in Send's
 place while the box is empty, and Send comes back once something is typed. For one with no voice, or a key that can no longer
 hold a call, it is crossed out, and its reason links whoever may edit the agent
-to the Calls tab of its Voice card.
+to the Calls tab of its Voice card. The Architect's window and the Builder's
+test panel offer it the same way; in the test panel the call runs the published
+version, not the draft being tested, and the button says so.
 
 **The embed.** A widget or a hosted page offers calls only when its own "Voice
 calls" switch is on. Saving the switch on is refused while the agent has no
