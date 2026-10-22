@@ -124,6 +124,13 @@ class RAGDocument(TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # `use_alter`, because the topic points back at the document covering it.
+    knowledge_gap_topic_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_gap_topics.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        index=True,
+    )
     # Bumped by `retry_ingestion` at dispatch time, threaded through to
     # `complete_ingestion`/`fail_ingestion` as an explicit parameter rather than
     # read back from this column at settlement (#1598). `retry_ingestion`

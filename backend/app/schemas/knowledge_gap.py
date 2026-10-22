@@ -21,7 +21,10 @@ class KnowledgeSearchRecord(BaseModel):
     top_similarity: float | None
 
 
-TopicStatusLiteral = Literal["open", "dismissed"]
+TopicStatusLiteral = Literal["open", "dismissed", "covered"]
+
+DecidedStatusLiteral = Literal["open", "dismissed"]
+"""What a person sets a topic to by hand; it is covered by adding its content."""
 
 
 class KnowledgeGapAgent(BaseSchema):
@@ -54,7 +57,7 @@ class ClassifiedAnswer(BaseSchema):
     """
 
     number: int
-    signal: Literal["did_not_know", "missing_information", "no_gap"]
+    signal: Literal["did_not_know", "missing_information", "no_gap", "refused"]
 
     @field_validator("signal", mode="before")
     @classmethod
@@ -92,16 +95,30 @@ class KnowledgeGapDraft(BaseSchema):
         max_length=50,
         description="The numbers of the questions the draft answers",
     )
+    context_files: list[int] = Field(
+        default_factory=list,
+        max_length=50,
+        description="The numbers of the context files the draft builds on or that answer it",
+    )
+    already_covered: bool = Field(
+        default=False,
+        description=(
+            "True when a context file or a document listed already answers the questions; "
+            "cite it, and say so in the content instead of repeating it"
+        ),
+    )
 
 
-SourceKind = Literal["document", "question"]
+SourceKind = Literal["document", "question", "context"]
 
 
 class KnowledgeGapSource(BaseSchema):
-    """What a draft rests on: a document of the knowledge base, or one of the topic's questions."""
+    """What a draft rests on: a document, one of the topic's questions, or a context file."""
 
     kind: SourceKind
-    id: UUID = Field(description="A document's id, or a search's id for a question")
+    id: UUID = Field(
+        description="A document's id, a search's id for a question, or a context file's id"
+    )
 
 
 class KnowledgeGapReport(BaseSchema):
@@ -118,10 +135,45 @@ class KnowledgeGapReport(BaseSchema):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1, max_length=20_000)
     sources: list[KnowledgeGapSource] = Field(default_factory=list, max_length=50)
+    already_covered: bool = False
 
 
 class KnowledgeGapSourceRead(KnowledgeGapSource):
-    label: str = Field(description="The document's file name, or the question as searched")
+    label: str = Field(
+        description="The document's file name, the question as searched, or the context file's name"
+    )
+
+
+class KnowledgeGapFlag(BaseSchema):
+    """Something in a topic's content that may identify a person, for a person to check."""
+
+    kind: Literal["personal_data", "shared"] = Field(
+        description=(
+            "`personal_data` for a match of the personal data detectors, `shared` for a "
+            "number or code the content repeats from the topic's questions, answers or comments"
+        )
+    )
+    value: str = Field(
+        description="The detector's category for `personal_data`, the repeated token for `shared`"
+    )
+    count: int = 1
+
+
+class KnowledgeGapContent(BaseSchema):
+    """What a person writes, or keeps of a draft, as a topic's content."""
+
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=20_000, description="Markdown")
+
+
+class KnowledgeGapContentAdd(KnowledgeGapContent):
+    confirm_identifying: bool = Field(
+        default=False,
+        description=(
+            "Add it although it is flagged as possibly identifying somebody; refused "
+            "without it while any flag stands"
+        ),
+    )
 
 
 class KnowledgeGapDraftRead(BaseSchema):
@@ -132,7 +184,29 @@ class KnowledgeGapDraftRead(BaseSchema):
     )
     unverified: int = Field(description="Sources the draft named that could not be verified")
     drafted_at: datetime
-    run_id: UUID | None = Field(description="The run that wrote it, in Activity")
+    run_id: UUID | None = Field(
+        description="The run that wrote it, in Activity; none for content a person wrote"
+    )
+    already_covered: bool = Field(
+        default=False,
+        description="The drafter found the questions answered by a source it cites",
+    )
+    blanks: list[str] = Field(
+        default_factory=list,
+        description="The details still to fill in, each written `{{...}}` in the content",
+    )
+    flags: list[KnowledgeGapFlag] = Field(
+        default_factory=list,
+        description="What may identify somebody, which adding the content asks to confirm",
+    )
+
+
+class KnowledgeGapDocument(BaseSchema):
+    """The document a person added to cover a topic."""
+
+    id: UUID
+    filename: str
+    status: str = Field(description="The document's ingestion status")
 
 
 class KnowledgeGapTopicRead(BaseSchema):
@@ -148,17 +222,25 @@ class KnowledgeGapTopicRead(BaseSchema):
     status: TopicStatusLiteral
     label: str = Field(description="The first question of the topic, as the agent searched it")
     question_count: int = Field(description="Searches in the topic that found nothing relevant")
+    asker_count: int = Field(
+        default=0,
+        description="Distinct people who asked; everybody who asked anonymously counts as one",
+    )
     last_asked_at: datetime
     examples: list[str] = Field(description="Up to three of the questions, as searched")
     agents: list[KnowledgeGapAgent] = Field(description="The agents that searched for it")
     dismissed_at: datetime | None = None
+    covered_at: datetime | None = None
+    covered_by: KnowledgeGapDocument | None = Field(
+        default=None, description="The document added for it, while it is covered"
+    )
     has_draft: bool = False
     can_edit: bool = Field(
         default=False,
         description=(
-            "Whether THIS caller may dismiss or reopen the topic: they may change its "
-            "knowledge base, by their role or a grant on it. Hides controls; the "
-            "server re-checks."
+            "Whether THIS caller may dismiss, reopen, draft or add the topic's content: "
+            "they may change its knowledge base, by their role or a grant on it. Hides "
+            "controls; the server re-checks."
         ),
     )
 
@@ -226,7 +308,8 @@ class KnowledgeGapQuestion(BaseSchema):
 class KnowledgeGapTopicDetail(KnowledgeGapTopicRead):
     questions: list[KnowledgeGapQuestion]
     draft: KnowledgeGapDraftRead | None = Field(
-        default=None, description="Proposed content, never added to the collection by itself"
+        default=None,
+        description="Proposed or written content, added to the collection only by a person",
     )
 
 

@@ -358,3 +358,16 @@ class EvalSuiteNotRunnableError(AppException):
     message = "This eval suite cannot run now"
     code = "EVAL_SUITE_NOT_RUNNABLE"
     status_code = 409
+
+
+class IdentifyingContentError(AppException):
+    """Content for a knowledge base may identify somebody, and nobody confirmed it (409).
+
+    `details.flags` lists what was found - a personal data category, or a number
+    or code the content repeats from people's questions - so the console can show
+    it; sending again with the confirmation adds the content.
+    """
+
+    message = "This content may identify somebody. Check what is flagged, then confirm it"
+    code = "IDENTIFYING_CONTENT"
+    status_code = 409

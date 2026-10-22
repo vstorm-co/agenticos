@@ -11,10 +11,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, KnowledgeGapSvc, require
+from app.api.deps import Auth, KnowledgeGapSvc, VectorStoreSvc, require
 from app.core.permissions import Perm
 from app.schemas.knowledge_gap import (
     KnowledgeGapCasesAdded,
+    KnowledgeGapContent,
+    KnowledgeGapContentAdd,
     KnowledgeGapToDataset,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
@@ -131,3 +133,33 @@ async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     person to check; nothing is added to the collection.
     """
     return await service.draft(ctx, topic_id)
+
+
+@router.put("/{topic_id}/draft", response_model=KnowledgeGapTopicDetail)
+async def save_gap_content(
+    topic_id: UUID, data: KnowledgeGapContent, service: KnowledgeGapSvc, ctx: Auth
+) -> Any:
+    """Keep what a person wrote, or kept of the draft, as the topic's content."""
+    return await service.save_content(ctx, topic_id, data)
+
+
+@router.post(
+    "/{topic_id}/document",
+    response_model=KnowledgeGapTopicDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_gap_content(
+    topic_id: UUID,
+    data: KnowledgeGapContentAdd,
+    service: KnowledgeGapSvc,
+    vector_store: VectorStoreSvc,
+    ctx: Auth,
+) -> Any:
+    """Add the topic's content to its knowledge base as a document; the topic is then covered.
+
+    Takes edit access to the knowledge base. Refused while the content still
+    asks for a detail to fill in, and - with `IDENTIFYING_CONTENT` - while it
+    is flagged as possibly identifying somebody and `confirm_identifying` is
+    not set.
+    """
+    return await service.add_content(ctx, topic_id, data, vector_store=vector_store)

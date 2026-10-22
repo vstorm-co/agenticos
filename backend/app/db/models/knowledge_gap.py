@@ -20,8 +20,8 @@ it - is still about the same questions after more arrive.
 A topic copies no question. Its name, its count and its examples are read from
 the searches it still holds, so when those go with their conversation the topic
 has nothing left to say about anybody, and the next grouping pass removes it -
-with the draft a person may have asked a model to write for it, the one text a
-topic keeps of its own.
+with the draft a model or a person wrote for it, the one text a topic keeps of
+its own. A document a person adds from a topic stays in its knowledge base.
 
 A miss need not come from retrieval. When a model reads an answer and finds the
 agent said it did not know, or a reader's thumbs-down comment says what was
@@ -37,6 +37,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -45,6 +46,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    false,
     func,
     text,
 )
@@ -152,6 +154,10 @@ class TopicStatus(StrEnum):
     DISMISSED = "dismissed"
     """A person decided it needs nothing. It keeps absorbing its questions, so it
     does not come back as a new topic the next time one is asked."""
+    COVERED = "covered"
+    """A person added its content to the knowledge base as a document. It keeps
+    absorbing its questions like a dismissed topic; once that document is
+    deleted, it reads as open again."""
 
 
 class KnowledgeGapTopic(Base):
@@ -208,12 +214,29 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    draft_already_covered: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    covered_by_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("rag_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    covered_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    covered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     __table_args__ = (
-        CheckConstraint("status IN ('open', 'dismissed')", name="ck_knowledge_gap_topic_status"),
+        CheckConstraint(
+            "status IN ('open', 'dismissed', 'covered')", name="ck_knowledge_gap_topic_status"
+        ),
     )
 
     def __repr__(self) -> str:
@@ -264,7 +287,8 @@ class KnowledgeGapClassification(Base):
         nullable=False,
         index=True,
     )
-    # A `GapSignal` other than retrieval, or `none` for an answer that missed nothing.
+    # A `GapSignal` other than retrieval, `none`, or `refused` - a rightful refusal of a
+    # request outside the agent's rules, whose run's misses are then no gap either.
     signal: Mapped[str] = mapped_column(String(16), nullable=False)
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -277,7 +301,9 @@ class KnowledgeGapClassification(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("signal IN ('answer', 'rating', 'none')", name="ck_classification_signal"),
+        CheckConstraint(
+            "signal IN ('answer', 'rating', 'none', 'refused')", name="ck_classification_signal"
+        ),
     )
 
     def __repr__(self) -> str:

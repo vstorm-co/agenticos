@@ -18,11 +18,14 @@ from sqlalchemy import (
     Text,
     and_,
     any_,
+    case,
+    cast,
     delete,
     distinct,
     exists,
     func,
     insert,
+    literal,
     or_,
     select,
 )
@@ -42,10 +45,14 @@ from app.db.models.knowledge_gap import (
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
+    TopicStatus,
 )
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
+
+REFUSED = "refused"
+"""The verdict on an answer that rightly refused a request outside the agent's rules."""
 
 
 async def record_searches(
@@ -78,11 +85,60 @@ async def record_searches(
 
 
 def is_miss(threshold: float) -> ColumnElement[bool]:
-    """The searches that found nothing close enough to the query, and the answers read as misses."""
-    return or_(
-        KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
-        KnowledgeSearch.result_count == 0,
-        KnowledgeSearch.top_similarity < threshold,
+    """The searches that found nothing close enough to the query, and the answers read as misses.
+
+    Neither counts in a run whose answer a model read as a rightful refusal of
+    a request outside the agent's rules, in a knowledge base it searched: the
+    question was not one any content should answer.
+    """
+    answered = aliased(Message)
+    refused = exists().where(
+        KnowledgeGapClassification.signal == REFUSED,
+        KnowledgeGapClassification.knowledge_base_id == any_(KnowledgeSearch.knowledge_base_ids),
+        answered.id == KnowledgeGapClassification.message_id,
+        answered.run_id == KnowledgeSearch.run_id,
+    )
+    return and_(
+        or_(
+            KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+            KnowledgeSearch.result_count == 0,
+            KnowledgeSearch.top_similarity < threshold,
+        ),
+        ~refused,
+    )
+
+
+def _status() -> ColumnElement[str]:
+    """A topic's status, reading a covered topic whose document is gone as open again."""
+    return case(
+        (
+            and_(
+                KnowledgeGapTopic.status == TopicStatus.COVERED.value,
+                KnowledgeGapTopic.covered_by_document_id.is_(None),
+            ),
+            TopicStatus.OPEN.value,
+        ),
+        else_=KnowledgeGapTopic.status,
+    )
+
+
+def _asker() -> ColumnElement[str]:
+    """Who asked a run's question, as far as the run can tell.
+
+    A channel turn is its sender's, since the run's member is the binding's
+    creator. A run reached through a binding with no sender, or with nobody
+    at all, is one anonymous asker however many there were.
+    """
+    return case(
+        (
+            AgentRun.channel_identity_id.is_not(None),
+            literal("channel:") + cast(AgentRun.channel_identity_id, Text),
+        ),
+        (
+            and_(AgentRun.exposure_id.is_(None), AgentRun.user_id.is_not(None)),
+            literal("user:") + cast(AgentRun.user_id, Text),
+        ),
+        else_=literal("anonymous"),
     )
 
 
@@ -233,7 +289,11 @@ class TopicRow(NamedTuple):
     """A topic and what its searches add up to under the filters it was read with."""
 
     topic: KnowledgeGapTopic
+    status: str
+    """The topic's status as read: a covered topic whose document is gone is open."""
     question_count: int
+    asker_count: int
+    """Distinct people who asked, every anonymous asker counted as one."""
     last_asked_at: datetime
     queries: list[str]
     agent_ids: list[UUID]
@@ -278,7 +338,9 @@ async def list_topics(
     grouped = (
         select(
             KnowledgeGapTopic,
+            _status().label("status"),
             question_count.label("question_count"),
+            func.count(distinct(_asker())).label("asker_count"),
             last_asked_at.label("last_asked_at"),
             func.array_agg(
                 aggregate_order_by(KnowledgeSearch.query, KnowledgeSearch.created_at),
@@ -290,6 +352,7 @@ async def list_topics(
         )
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .join(AgentRun, AgentRun.id == KnowledgeSearch.run_id)
         .where(
             KnowledgeGapTopic.organization_id == organization_id,
             KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
@@ -298,7 +361,7 @@ async def list_topics(
         .group_by(KnowledgeGapTopic.id)
     )
     if status is not None:
-        grouped = grouped.where(KnowledgeGapTopic.status == status)
+        grouped = grouped.where(_status() == status)
     if topic_id is not None:
         grouped = grouped.where(KnowledgeGapTopic.id == topic_id)
     total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
@@ -310,10 +373,12 @@ async def list_topics(
     return [
         TopicRow(
             topic=row[0],
-            question_count=row[1],
-            last_asked_at=row[2],
-            queries=list(row[3] or []),
-            agent_ids=[agent for agent in row[4] or [] if agent is not None],
+            status=row[1],
+            question_count=row[2],
+            asker_count=row[3],
+            last_asked_at=row[4],
+            queries=list(row[5] or []),
+            agent_ids=[agent for agent in row[6] or [] if agent is not None],
         )
         for row in result.all()
     ], total
@@ -344,7 +409,7 @@ async def topics_per_knowledge_base(
         .group_by(KnowledgeGapTopic.id)
     )
     if status is not None:
-        per_topic = per_topic.where(KnowledgeGapTopic.status == status)
+        per_topic = per_topic.where(_status() == status)
     topics = per_topic.subquery()
     questions = func.sum(topics.c.questions)
     result = await db.execute(
@@ -497,13 +562,7 @@ async def drafting_material(
         agent_id=None,
         limit=limit,
     )
-    answer_ids = [row.answer_message_id for row in rows if row.answer_message_id]
-    answers: dict[UUID, str] = {}
-    if answer_ids:
-        result = await db.execute(
-            select(Message.id, Message.content).where(Message.id.in_(answer_ids))
-        )
-        answers = {row[0]: row[1] for row in result.all()}
+    answers = await _answers(db, rows)
     found: dict[UUID, str] = {}
     run_ids = [row.search.run_id for row in rows]
     if run_ids:
@@ -528,6 +587,63 @@ async def drafting_material(
         )
         for row in rows
     ]
+
+
+async def _answers(db: AsyncSession, rows: Sequence[QuestionRow]) -> dict[UUID, str]:
+    answer_ids = [row.answer_message_id for row in rows if row.answer_message_id]
+    if not answer_ids:
+        return {}
+    result = await db.execute(select(Message.id, Message.content).where(Message.id.in_(answer_ids)))
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def source_texts(
+    db: AsyncSession,
+    topic_id: UUID,
+    *,
+    organization_id: UUID,
+    threshold: float,
+    limit: int,
+) -> list[str]:
+    """What people's conversations put into a topic's newest questions.
+
+    Each question as asked and as searched, the answer it got and a reader's
+    thumbs-down comment - what a passage written for the topic must not repeat.
+    """
+    rows = await list_questions(
+        db,
+        topic_id,
+        organization_id=organization_id,
+        threshold=threshold,
+        agent_id=None,
+        limit=limit,
+    )
+    answers = await _answers(db, rows)
+    texts = (
+        (
+            row.question,
+            row.search.query,
+            answers.get(row.answer_message_id) if row.answer_message_id else None,
+            row.down_rating_comment,
+        )
+        for row in rows
+    )
+    return [text for group in texts for text in group if text]
+
+
+async def documents_by_id(
+    db: AsyncSession, document_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, RAGDocument]:
+    """The organization's documents among these ids."""
+    if not document_ids:
+        return {}
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.organization_id == organization_id,
+            RAGDocument.id.in_(list(document_ids)),
+        )
+    )
+    return {document.id: document for document in result.scalars().all()}
 
 
 async def member_queries(
@@ -617,6 +733,8 @@ class CandidateRow(NamedTuple):
     result_count: int
     top_similarity: float | None
     """What the run's best search found, or nothing for a run that searched none."""
+    missed: bool
+    """Whether a search of the run already missed in the knowledge base, so counts already."""
 
 
 def _down_rated_with_comment(message_id: SQLColumnExpression[UUID]) -> ColumnElement[bool]:
@@ -638,8 +756,9 @@ def _candidates(
     conversation, and either
     searched the knowledge base without missing or was rated down with a
     comment by an agent version that binds it. A run that already missed on the
-    base is counted, so it is left out. An answer is read once for each
-    knowledge base, and again only if it read as `none` there and a newer
+    base is a candidate too, so that a rightful refusal of a request outside the
+    agent's rules takes its misses out of the gaps. An answer is read once for
+    each knowledge base, and again only if it read as `none` there and a newer
     thumbs-down with a comment has arrived since.
     """
     answer = aliased(Message)
@@ -647,11 +766,6 @@ def _candidates(
         KnowledgeSearch.run_id == AgentRun.id,
         KnowledgeSearch.signal == GapSignal.RETRIEVAL.value,
         any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
-    )
-    missed = exists().where(
-        KnowledgeSearch.run_id == AgentRun.id,
-        any_(KnowledgeSearch.knowledge_base_ids) == knowledge_base_id,
-        is_miss(threshold),
     )
     binds = exists().where(
         AgentVersion.id == AgentRun.agent_version_id,
@@ -682,7 +796,6 @@ def _candidates(
         AgentRun.conversation_id.is_not(None),
         AgentRun.started_at >= since,
         answer.id == _answer_of(AgentRun.id),
-        ~missed,
         or_(searched, and_(rated, binds)),
         or_(~read, reread),
     )
@@ -730,6 +843,7 @@ async def classification_candidates(
     message_ids = [row[0] for row in rows]
     comments: dict[UUID, list[str]] = {}
     best: dict[UUID, tuple[int, float | None]] = {}
+    missed: set[UUID] = set()
     if rows:
         rated = await db.execute(
             select(MessageRating.message_id, func.trim(MessageRating.comment, type_=Text))
@@ -752,6 +866,10 @@ async def classification_candidates(
         for search in searches.scalars().all():
             if _closer(search, best.get(search.run_id)):
                 best[search.run_id] = (search.result_count, search.top_similarity)
+            if search.result_count == 0 or (
+                search.top_similarity is not None and search.top_similarity < threshold
+            ):
+                missed.add(search.run_id)
     return [
         CandidateRow(
             message_id=row[0],
@@ -764,6 +882,7 @@ async def classification_candidates(
             comments=comments.get(row[0], []),
             result_count=best.get(row[1], (0, None))[0],
             top_similarity=best.get(row[1], (0, None))[1],
+            missed=row[1] in missed,
         )
         for row in rows
     ]
@@ -794,8 +913,10 @@ class Verdict(NamedTuple):
     """What a model decided about one candidate."""
 
     candidate: CandidateRow
+    verdict: str
+    """What the answer is remembered as: a `GapSignal` other than retrieval, `none` or `refused`."""
     signal: GapSignal | None
-    """`ANSWER` or `RATING` for a miss, None for an answer that missed nothing."""
+    """`ANSWER` or `RATING` for a miss to record, None for none - as for a run already missed."""
     query: str
     """What a miss is grouped by: the person's question, bounded as a search's query is."""
 
@@ -850,7 +971,7 @@ async def record_classifications(
                 "message_id": verdict.candidate.message_id,
                 "knowledge_base_id": knowledge_base_id,
                 "organization_id": organization_id,
-                "signal": "none" if verdict.signal is None else verdict.signal.value,
+                "signal": verdict.verdict,
                 "run_id": run_id,
             }
             for verdict in verdicts

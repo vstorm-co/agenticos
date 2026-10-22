@@ -31,6 +31,7 @@ MIGRATION_DATABASE = f"agenticos_knowledge_gaps_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
 _DRAFTERS = "0164_knowledge_gaps"
 _SIGNALS = "0167_knowledge_gap_signals"
+_COVERED = "0175_knowledge_gap_covered"
 
 
 def _url(database: str) -> str:
@@ -214,3 +215,89 @@ def test_undoing_signals_keeps_the_searches_and_unmarks_the_classifier() -> None
 
     assert after == ("agent", None)
     assert queries == ["retrieval"]
+
+
+def _seed_covered_and_refused(org_id: uuid.UUID) -> uuid.UUID:
+    """A topic covered by a document, and an answer read as a refusal; the topic's id."""
+    kb_id, document_id, topic_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE), isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO knowledge_bases (id, organization_id, name, visibility, scope, "
+                    "collection_name, is_default, embedding_model, embedding_dim) VALUES "
+                    "(:id, :org, 'Handbook', 'org', 'org', :collection, false, 'm', 3)"
+                ),
+                {"id": kb_id, "org": org_id, "collection": f"handbook_{kb_id.hex[:8]}"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO rag_documents (id, collection_name, filename, filesize, "
+                    "filetype, status, chunk_count, ingestion_config, organization_id, "
+                    "knowledge_base_id, started_at) VALUES (:id, 'c', 'parking.md', 1, 'md', "
+                    "'done', 0, '{}', :org, :kb, now())"
+                ),
+                {"id": document_id, "org": org_id, "kb": kb_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO knowledge_gap_topics (id, organization_id, knowledge_base_id, "
+                    "centroid, embedding_model, status, covered_by_document_id) VALUES "
+                    "(:id, :org, :kb, '[1, 0, 0]', 'm', 'covered', :document)"
+                ),
+                {"id": topic_id, "org": org_id, "kb": kb_id, "document": document_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO conversations (id, organization_id, is_archived) "
+                    "VALUES (:id, :org, false)"
+                ),
+                {"id": conversation_id, "org": org_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO messages (id, conversation_id, role, content, ordinal) "
+                    "VALUES (:id, :conversation, 'assistant', 'I cannot do that.', 1)"
+                ),
+                {"id": message_id, "conversation": conversation_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO knowledge_gap_classifications (message_id, knowledge_base_id, "
+                    "organization_id, signal) VALUES (:message, :kb, :org, 'refused')"
+                ),
+                {"message": message_id, "kb": kb_id, "org": org_id},
+            )
+    finally:
+        engine.dispose()
+    return topic_id
+
+
+def _status_and_refusals(topic_id: uuid.UUID) -> tuple[str, int]:
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as conn:
+            status = conn.execute(
+                text("SELECT status FROM knowledge_gap_topics WHERE id = :id"), {"id": topic_id}
+            ).scalar_one()
+            refusals = conn.execute(
+                text("SELECT count(*) FROM knowledge_gap_classifications")
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    return status, refusals
+
+
+def test_undoing_covered_topics_reopens_them_and_forgets_refusals() -> None:
+    _alembic("upgrade", _COVERED)
+    org_id, _ = _seed_system_agent("classifier", "knowledge_gap_classifier")
+    topic_id = _seed_covered_and_refused(org_id)
+
+    _alembic("downgrade", "-1")
+    after = _status_and_refusals(topic_id)
+    _alembic("upgrade", _COVERED)
+
+    assert after == ("open", 0)
+    assert _status_and_refusals(topic_id) == ("open", 0)
