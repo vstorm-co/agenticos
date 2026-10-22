@@ -12,9 +12,12 @@ rules that keep stored records meaningful live:
   archived: its values stay readable and it can no longer be written;
 - a new required column needs a default, since the records that already exist
   hold nothing for it.
+
+It also keeps each column's `revision`, the counter a published page compares to
+notice a column that no longer means what it was published against.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -28,7 +31,12 @@ from app.schemas.virtual_table import (
 )
 from app.services.virtual_tables.conversions import CONVERSIONS, convertible
 from app.services.virtual_tables.exceptions import InvalidSchemaError
-from app.services.virtual_tables.formula import FormulaProblem, check_formula, rename_references
+from app.services.virtual_tables.formula import (
+    FormulaProblem,
+    check_formula,
+    rename_references,
+    resolve_references,
+)
 from app.services.virtual_tables.types import (
     COMPUTED_TYPES,
     OPTION_TYPES,
@@ -190,15 +198,19 @@ def _check_reference(where: str, submitted: ColumnInput, previous: ColumnDef | N
         )
 
 
-def _check_formulas(columns: list[ColumnDef], previous: Sequence[ColumnDef]) -> list[ColumnDef]:
-    """`columns` with every formula reading renamed columns by their new labels, each
-    checked: it parses, and names live columns of the table that hold values."""
+def _renamed(columns: Sequence[ColumnDef], previous: Sequence[ColumnDef]) -> dict[str, str]:
+    """Each label the change gives a new one, old label to new."""
     old = {column.id: column.label for column in previous}
-    renamed = {
+    return {
         old[column.id]: column.label
         for column in columns
         if column.id in old and old[column.id] != column.label
     }
+
+
+def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> list[ColumnDef]:
+    """`columns` with every formula reading renamed columns by their new labels, each
+    checked: it parses, and names live columns of the table that hold values."""
     checked: list[ColumnDef] = []
     for index, column in enumerate(columns):
         if column.type == "formula" and column.formula is not None:
@@ -212,6 +224,59 @@ def _check_formulas(columns: list[ColumnDef], previous: Sequence[ColumnDef]) -> 
                     raise InvalidSchemaError(f"columns.{index}.formula", str(problem)) from None
         checked.append(column)
     return checked
+
+
+def _live_ids(columns: Sequence[ColumnDef]) -> dict[str, UUID]:
+    """The id of each live column of a version, by label: what a formula's `{label}` reads."""
+    return {column.label: column.id for column in columns if not column.archived}
+
+
+def _meaning(
+    column: ColumnDef, ids: Mapping[str, UUID], options: Collection[UUID]
+) -> tuple[object, ...]:
+    """What a column's values mean in the version whose live columns `ids` names.
+
+    The formula counts by the columns it reads, so a rename, which rewrites the text of
+    every formula naming the column, changes nothing, and a label taken over by another
+    column does. Of the select options, only whether each of `options` is archived
+    counts: a filter holds option ids, so a new label changes nothing it matches, and
+    neither does a new option.
+    """
+    formula = resolve_references(column.formula, ids) if column.formula is not None else None
+    return (
+        column.type,
+        column.archived,
+        column.link_table_id,
+        column.link_column_id,
+        column.target_column_id,
+        column.aggregate,
+        formula,
+        frozenset(
+            option.id for option in column.options if option.archived and option.id in options
+        ),
+    )
+
+
+def _revised(
+    column: ColumnDef,
+    previous: ColumnDef | None,
+    *,
+    before: Mapping[str, UUID],
+    after: Mapping[str, UUID],
+) -> ColumnDef:
+    """`column`, built and its formula renamed, carrying its revision: 0 for a new column,
+    else the previous column's, one higher when its values mean something else.
+
+    `before` and `after` are the live columns of the previous and the next version, which
+    the previous and the new formula are each read against.
+    """
+    if previous is None:
+        return column
+    known = {option.id for option in previous.options}
+    changed = _meaning(previous, before, known) != _meaning(column, after, known)
+    return column.model_copy(
+        update={"revision": previous.revision + 1 if changed else previous.revision}
+    )
 
 
 def _check_links(columns: Sequence[ColumnDef]) -> None:
@@ -258,7 +323,12 @@ def build_columns(
     if len(set(labels)) != len(labels):
         raise InvalidSchemaError("columns", "Two live columns have the same label")
     _check_links(columns)
-    return _check_formulas(columns, previous)
+    # Revised after the formulas are renamed, so each reads its columns by their new labels.
+    checked = _check_formulas(columns, _renamed(columns, previous))
+    before, after = _live_ids(previous), _live_ids(checked)
+    return [
+        _revised(column, known.get(column.id), before=before, after=after) for column in checked
+    ]
 
 
 def _becomes_required(old: ColumnDef, new: ColumnDef) -> bool:

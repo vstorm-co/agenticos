@@ -27,6 +27,7 @@ import re
 import tokenize
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
+from uuid import UUID
 
 from app.schemas.virtual_table import CellValue, ColumnDef
 
@@ -149,6 +150,20 @@ def rename_references(formula: str, renamed: Mapping[str, str]) -> str:
         return "{" + renamed.get(label, label) + "}"
 
     return _REFERENCE.sub(replace, formula)
+
+
+def resolve_references(formula: str, ids: Mapping[str, UUID]) -> tuple[str | UUID, ...]:
+    """`formula` split into its text and its references, alternately, starting with text.
+
+    Each reference is the id `ids` gives its label, or the label itself where it names
+    none. Two formulas that resolve alike read the same columns the same way, whatever
+    the columns are called.
+    """
+    parts = _REFERENCE.split(formula)
+    return tuple(
+        part if index % 2 == 0 else ids.get(part.strip(), part.strip())
+        for index, part in enumerate(parts)
+    )
 
 
 def _parse(formula: str, labels: Sequence[str]) -> ast.Expression:
