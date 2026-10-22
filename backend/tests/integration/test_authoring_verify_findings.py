@@ -47,10 +47,11 @@ async def test_a_finding_names_its_line_and_a_supported_one_needs_a_quote(db):
                 # A real quote that has nothing to do with greeting: kept, and tied to
                 # the line it claims to back, so the reader sees the mismatch.
                 _finding("supports", "Greeting helps", GREETING, [COMMENT], run_id),
-                _finding("supports", "Customers like names", "Greet the customer", [], run_id),
+                _finding("supports", "Customers like names", "Not in the edit", [], run_id),
                 _finding("supports", "Names matter", GREETING, ["Never said"], run_id),
                 _finding("risk", "It may answer in Klingon", "Answer in Klingon.", [], run_id),
-                _finding("removed", "Brevity is gone", "Be brief.", [], run_id),
+                _finding("removed", "Brevity is gone", "-Be brief.", [], run_id),
+                _finding("risk", "It may greet strangers", f"+{GREETING}", [], run_id),
                 _finding("removed", "The greeting went", GREETING, [], run_id),
             ],
             "instructions": [],
@@ -63,22 +64,22 @@ async def test_a_finding_names_its_line_and_a_supported_one_needs_a_quote(db):
     report = request.report
     assert report is not None
     assert [
-        (finding["verdict"], finding["text"], finding["edit"]) for finding in report["findings"]
+        (finding["verdict"], finding["text"], finding["edit"], finding.get("edit_refused"))
+        for finding in report["findings"]
     ] == [
-        ("supports", "Greeting helps", GREETING),
-        ("risk", "It may answer in Klingon", ""),
-        ("removed", "Brevity is gone", "Be brief."),
-        ("removed", "The greeting went", ""),
+        ("supports", "Greeting helps", GREETING, None),
+        ("risk", "It may answer in Klingon", "", "edit_not_in_diff"),
+        ("removed", "Brevity is gone", "Be brief.", None),
+        # Copied with the marker the diff showed it with.
+        ("risk", "It may greet strangers", GREETING, None),
+        ("removed", "The greeting went", "", "edit_not_in_diff"),
     ]
     assert report["findings"][0]["evidence"][0]["quote"] == COMMENT
-    assert report["dropped"] == {"unsupported": 2, "edit_not_in_diff": 2}
-    assert [
-        (item["kind"], item["reason"], item["change"]["text"]) for item in report["rejected"]
-    ] == [
-        ("finding", "unsupported", "Customers like names"),
-        ("finding", "unsupported", "Names matter"),
-        ("finding", "edit_not_in_diff", "It may answer in Klingon"),
-        ("finding", "edit_not_in_diff", "The greeting went"),
+    # Each finding refused once; one shown without its line is not listed as unrecorded.
+    assert report["dropped"] == {"unsupported": 2}
+    assert [(item["reason"], item["change"]["text"]) for item in report["rejected"]] == [
+        ("unsupported", "Customers like names"),
+        ("unsupported", "Names matter"),
     ]
 
     read = await AuthoringService(db).for_agent(ctx, agent.id)

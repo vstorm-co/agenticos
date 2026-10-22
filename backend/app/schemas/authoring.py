@@ -56,7 +56,7 @@ class Rejection(StrEnum):
     UNSUPPORTED = "unsupported"
     """A finding that an edit is supported, left with no evidence that could be checked."""
     EDIT_NOT_IN_DIFF = "edit_not_in_diff"
-    """The edit a finding names is not part of the edit it was shown."""
+    """The line a finding names is not part of the edit; the finding is shown without it."""
     SUPERSEDED = "superseded"
     """A request started later had already replaced the suggestions."""
 

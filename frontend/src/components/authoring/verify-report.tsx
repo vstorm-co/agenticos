@@ -22,6 +22,7 @@ const ICONS = {
  */
 export function VerifyReport({ findings }: { findings: VerifyFinding[] }) {
   const t = useTranslations("authoring.verify");
+  const tReason = useTranslations("authoring.rejected.reason");
   if (findings.length === 0) return <p className="text-muted-foreground text-sm">{t("nothing")}</p>;
   return (
     <ul className="space-y-3">
@@ -35,6 +36,9 @@ export function VerifyReport({ findings }: { findings: VerifyFinding[] }) {
             />
             <div className="space-y-1">
               <p className="text-sm">{finding.text}</p>
+              {finding.edit_refused && (
+                <p className="text-muted-foreground text-xs">{tReason(finding.edit_refused)}</p>
+              )}
               {finding.edit && (
                 <p className="text-muted-foreground font-mono text-xs break-words whitespace-pre-wrap">
                   {t("about", { line: finding.edit })}

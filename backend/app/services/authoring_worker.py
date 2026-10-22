@@ -273,6 +273,12 @@ def _signature(values: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _unmarked(line: str) -> str:
+    """A line as a model copied it from the diff, without the `+` or `-` it was shown with."""
+    line = line.strip()
+    return line[1:].strip() if line[:1] in ("+", "-") else line
+
+
 @dataclass(frozen=True)
 class _Edited:
     """What a person's edit added and removed, as a finding may name a line of it."""
@@ -732,25 +738,25 @@ class AuthoringRun:
 
         Whether a quote bears on that line is not something a check can decide; tying
         the finding to the line lets the reader see what the quote is meant to back. A
-        line that is not in the edit is cleared, and a finding that the edit is supported
-        with nothing left to show it is not shown.
+        finding that the edit is supported with nothing left to show it is not shown. A
+        line that is not in the edit is cleared, and the finding, still shown, says why
+        in `edit_refused` rather than being listed as not recorded.
         """
         kept_findings: list[dict[str, Any]] = []
         for finding in findings:
             kept, dropped = pack.verify(finding.evidence)
-            said = {"verdict": finding.verdict, "text": finding.text, "edit": finding.edit}
-            edit = finding.edit.strip()
-            if edit and not edited.has(edit, removed_only=finding.verdict == "removed"):
-                self._reject("finding", Rejection.EDIT_NOT_IN_DIFF, said)
-                edit = ""
             if finding.verdict == "supports" and not kept:
+                said = {"verdict": finding.verdict, "text": finding.text, "edit": finding.edit}
                 self._reject("finding", Rejection.UNSUPPORTED, said)
                 continue
+            edit = _unmarked(finding.edit)
+            refused = bool(edit) and not edited.has(edit, removed_only=finding.verdict == "removed")
             kept_findings.append(
                 {
                     "verdict": finding.verdict,
                     "text": finding.text,
-                    "edit": edit,
+                    "edit": "" if refused else edit,
+                    **({"edit_refused": Rejection.EDIT_NOT_IN_DIFF.value} if refused else {}),
                     "evidence": kept,
                     "evidence_dropped": dropped,
                 }

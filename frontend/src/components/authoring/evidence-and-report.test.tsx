@@ -71,6 +71,7 @@ describe("VerifyReport", () => {
           {
             verdict: "risk",
             text: "May bring back long answers",
+            edit_refused: "edit_not_in_diff",
             evidence: [],
             evidence_dropped: 1,
           },
@@ -84,5 +85,7 @@ describe("VerifyReport", () => {
     // The line a quote is meant to back, so the reader can judge whether it does.
     expect(screen.getByText("About: Answer in Polish.")).toBeInTheDocument();
     expect(screen.getAllByText(/^About:/)).toHaveLength(1);
+    // Shown without the line it named, and saying why.
+    expect(screen.getByText("The line it names is not part of the edit")).toBeInTheDocument();
   });
 });

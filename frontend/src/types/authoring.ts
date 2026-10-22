@@ -24,6 +24,8 @@ export interface VerifyFinding {
   text: string;
   /** The line of the edit the finding is about, as the edit has it; empty for none. */
   edit?: string;
+  /** Why the line it named was cleared - it is not part of the edit. */
+  edit_refused?: Rejection;
   /** `quote` is absent for a reader without `runs:view`. */
   evidence: { run_id: string; quote?: string }[];
   evidence_dropped: number;
