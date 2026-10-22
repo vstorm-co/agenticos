@@ -331,7 +331,9 @@ class HunkRead(BaseSchema):
         default=None,
         description=(
             "Why Accept is refused for now, when it is: `check_first` - a model change "
-            "is accepted only after a check of the batch with no confirmed regression"
+            "is accepted only after a check with no confirmed regression; "
+            "`check_outdated` - the checks of this model measured another combination "
+            "of the draft and its suggestions; `inconclusive`; `regression`"
         ),
     )
     rationale: str

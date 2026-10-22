@@ -100,7 +100,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
 from app.services.skills import SkillService
@@ -159,6 +159,7 @@ _GATE_MESSAGES = {
         "The last check of this model decided nothing - some answers went ungraded or "
         "there was no verdict. Grade them or run the check again before accepting."
     ),
+    "check_outdated": "The check is out of date. Run a new check.",
     "regression": (
         "The last check of this model broke cases it used to pass. Fix the suggestions "
         "or dismiss the change of model."
@@ -589,10 +590,12 @@ class AuthoringService:
         )
         quotes = ctx.has(Perm.RUNS_VIEW)
         names = await ConfigurationService(self.db).names(ctx, hunks)
+        waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
+        combination = authoring_hunks.projection(spec, waiting)[0]
         gates = {
-            hunk.id: await self._model_gate(ctx, batch, hunk)
-            for hunk in hunks
-            if hunk.status == HunkStatus.PENDING.value and _changes_model(hunk)
+            hunk.id: await self._model_gate(ctx, batch, combination)
+            for hunk in waiting
+            if _changes_model(hunk)
         }
         return BatchRead(
             id=batch.id,
@@ -609,16 +612,21 @@ class AuthoringService:
         )
 
     async def _model_gate(
-        self, ctx: AuthContext, batch: SpecProposalBatch, hunk: SpecProposalHunk
+        self, ctx: AuthContext, batch: SpecProposalBatch, combination: AgentSpec
     ) -> str | None:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
-        It pays off only once a check of the batch - one that ran this very model
-        and that the reader can see - came out with nothing graded left open, a
-        verdict, and no confirmed regression. `check_first` until there is one,
-        `inconclusive` when it decided nothing, `regression` when it broke cases.
+        `combination` is the draft as accepting would leave it, with every other
+        suggestion still waiting made: what a check measures. It pays off only once
+        a check of exactly that - one the reader can see - came out with nothing
+        graded left open, a verdict, and no confirmed regression. `check_first`
+        until a check ran the model, `check_outdated` when the checks that did
+        measured something else, `inconclusive` when it decided nothing,
+        `regression` when it broke cases.
         """
         evals = EvalRunService(self.db)
+        wanted = spec_hash(combination)
+        ran_model = False
         for run_id in reversed(batch.check_eval_run_ids):
             try:
                 run = await evals.get(ctx, run_id)
@@ -631,7 +639,10 @@ class AuthoringService:
                 self.db, candidate.id, organization_id=ctx.organization_id
             )
             ran = None if stored is None or stored.spec is None else stored.spec
-            if ran is None or str(ran.get("model_profile_id")) != str(hunk.new_value):
+            if ran is None or str(ran.get("model_profile_id")) != str(combination.model_profile_id):
+                continue
+            ran_model = True
+            if candidate.spec_hash != wanted:
                 continue
             if candidate.ungraded_cases or run.outcome is None:
                 return "inconclusive"
@@ -640,7 +651,7 @@ class AuthoringService:
             if run.outcome.verdict in (None, "invalid"):
                 return "inconclusive"
             return None
-        return "check_first"
+        return "check_outdated" if ran_model else "check_first"
 
     @staticmethod
     def _hunk(
@@ -849,7 +860,15 @@ class AuthoringService:
                 details={"problems": problems},
             )
         if _changes_model(hunk):
-            reason = await self._model_gate(ctx, batch, hunk)
+            others = [
+                other
+                for other in await authoring_repo.list_hunks(
+                    self.db, organization_id=ctx.organization_id, batch_id=batch.id
+                )
+                if other.status == HunkStatus.PENDING.value and other.id != hunk.id
+            ]
+            combination = authoring_hunks.projection(written, others)[0]
+            reason = await self._model_gate(ctx, batch, combination)
             if reason is not None:
                 raise BadRequestError(message=_GATE_MESSAGES[reason], details={"reason": reason})
         return written, {"accepted_value": value}
