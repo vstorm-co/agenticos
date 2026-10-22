@@ -28,9 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   listed host skips only the address check, when a connection is saved. The
   match is exact and ignores case, and OAuth sign-in to a listed host is still
   refused. Every account can reach every port on a listed host, so list only a
-  server that checks a token. A cloud metadata or link-local entry is refused
-  at startup. Empty, the default, changes nothing. See
-  [a connection](docs/mcp.md#a-connection).
+  server that checks a token. A cloud metadata, link-local or loopback entry
+  (`localhost` too) is refused at startup. Empty, the default, changes nothing.
+  See [a connection](docs/mcp.md#a-connection).
 
 ## [1.12.2] - 2026-10-22
 

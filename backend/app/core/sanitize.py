@@ -24,6 +24,18 @@ Blocked by name as well as by address because a name is what somebody types and
 `169.254.169.254` is what it resolves to. Neither is ever a service anybody runs.
 """
 
+METADATA_ADDRESSES = frozenset(
+    {
+        ipaddress.ip_address("100.100.100.200"),
+        ipaddress.ip_address("fd00:ec2::254"),
+    }
+)
+"""Instance-metadata addresses outside link-local, which a link-local test misses.
+
+Alibaba Cloud's sits in CGNAT and AWS's IPv6 one in a unique-local range, both of
+which a deployment may otherwise use for its own services.
+"""
+
 # Shared Address Space (RFC 6598) - CGNAT range.
 # Python 3.11+ no longer classifies 100.64.0.0/10 as private or reserved,
 # so we block it explicitly. Covers cloud metadata endpoints like

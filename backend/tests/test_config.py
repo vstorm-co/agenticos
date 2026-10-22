@@ -164,15 +164,41 @@ class TestMcpAllowedHosts:
             "metadata.google.internal",
             "Metadata.Google.Internal.",
             " instance-data ",
+            "100.100.100.200",
+            "fd00:ec2::254",
+            "2852039166",
+            "0xa9fea9fe",
+            "::ffff:169.254.169.254",
         ],
     )
     def test_a_metadata_or_link_local_entry_stops_the_settings_loading(self, entry):
         """A listed host is never range-checked, so these would hand any
-        connection the instance's credentials. Refused however it is spelled."""
-        with pytest.raises(ValidationError, match="cloud metadata or link-local"):
+        connection the instance's credentials. Refused however it is spelled,
+        including the metadata addresses outside link-local and the numeric
+        forms a resolver reads as `169.254.169.254`."""
+        with pytest.raises(ValidationError, match="cloud metadata, link-local or loopback"):
             Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry])
 
-    @pytest.mark.parametrize("entry", ["postgres-mcp", "10.0.0.5", "fd00::1"])
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "localhost",
+            "LOCALHOST.",
+            "api.localhost",
+            "127.0.0.1",
+            "127.1",
+            "[::1]",
+            "0.0.0.0",
+            "::ffff:127.0.0.1",
+        ],
+    )
+    def test_a_loopback_entry_stops_the_settings_loading(self, entry):
+        """Loopback is the API's own host: listing it would open every port the
+        deployment binds there to every account."""
+        with pytest.raises(ValidationError, match="cloud metadata, link-local or loopback"):
+            Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry])
+
+    @pytest.mark.parametrize("entry", ["postgres-mcp", "10.0.0.5", "fd00::1", "100.64.0.5"])
     def test_a_private_address_is_still_allowed(self, entry):
         """A private address is the reason the setting exists."""
         hosts = Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry]).MCP_ALLOWED_HOSTS

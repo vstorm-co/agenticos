@@ -75,9 +75,9 @@ async def validate_endpoint_url(url: str) -> str:
     """Check a provider `base_url` before the platform will store it.
 
     Everywhere else - webhooks, an MCP server not on `MCP_ALLOWED_HOSTS` - an
-    internal address is an SSRF attempt and is refused. Here it is frequently the entire point: Ollama on
-    `localhost:11434`, a vLLM server on the deployment's own network, a
-    LiteLLM proxy beside the API. Local models are a first-class provider, so
+    internal address is an SSRF attempt and is refused. Here it is frequently
+    the entire point: Ollama on `localhost:11434`, a vLLM server on the
+    deployment's own network, a LiteLLM proxy beside the API. Local models are a first-class provider, so
     private, loopback and link-local addresses are allowed for model profiles -
     and for model profiles only; the platform's other URL checks are unchanged.
 
