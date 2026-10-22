@@ -135,16 +135,6 @@ def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _no_steps_written_after(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No follow-ups model wrote next steps; `TestNextStepsWrittenAfterTheAnswer` covers it (#2301).
-
-    The build is stubbed with a `MagicMock` here, whose deps answer `next_steps`
-    with steps no JSON encoder can write.
-    """
-    monkeypatch.setattr("app.services.agent_runner._written_next_steps", lambda _deps: [])
-
-
-@pytest.fixture(autouse=True)
 def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
     from unittest.mock import AsyncMock

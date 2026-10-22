@@ -41,9 +41,10 @@ test.describe("Chat", () => {
   test("the composer is live, not merely rendered", async ({ page }) => {
     const input = await readyComposer(page);
 
-    // Disabled until there is something to send: an empty message would open a
-    // conversation with nothing in it.
-    await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+    // Nothing to send yet, so the call stands where Send is - an empty message
+    // would open a conversation with nothing in it (#2301).
+    await expect(page.getByRole("button", { name: "Start a voice call" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send message" })).toHaveCount(0);
 
     await input.fill("Hello, AI assistant!");
     await expect(input).toHaveText("Hello, AI assistant!");
