@@ -2186,6 +2186,14 @@ the steps arrive as a message of buttons under the answer, and a press is the
 presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
 the detail.
 
+**Model for next steps** (`model_profile_id`) hands the steps to a model of their
+own: the agent is no longer offered `suggest_next_steps`, and once its answer is in
+that model reads the request and the answer and writes up to three steps, or none.
+A small, cheap model is enough for three short buttons, and the agent no longer
+spends a request on them. The call is checked against the budgets first and booked
+on the run like any other; one that cannot be made costs the buttons, never the
+answer. Empty, the agent offers them itself.
+
 `propose_setup` proposes up to three things to set up, drawn as cards under the
 answer: an agent of the person's own, a routine, or a service to connect. A card
 acts in one click - a routine opens the routine dialog filled in, on the agent

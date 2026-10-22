@@ -1,5 +1,5 @@
 ---
-source_sha: "a17621366279"
+source_sha: "30c0824bee69"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2339,6 +2339,14 @@ charla trivial o una pregunta suya, y no repite los pasos en su respuesta. En
 Slack, Teams, Telegram y Mattermost los pasos llegan bajo la respuesta como un
 mensaje de botones, y pulsar uno es quien pulsa diciendo ese paso - el detalle
 está en [Canales](../channels.md#next-steps-as-buttons).
+
+**Modelo para los pasos siguientes** (`model_profile_id`) entrega los pasos a un
+modelo propio: al agent ya no se le ofrece `suggest_next_steps`, y cuando su
+respuesta está lista ese modelo lee la petición y la respuesta y escribe hasta tres
+pasos, o ninguno. Para tres botones cortos basta un modelo pequeño y barato, y el
+agent ya no gasta una petición en ellos. La llamada se comprueba antes contra los
+budgets y se anota en el run como cualquier otra; una que no se puede hacer cuesta
+los botones, nunca la respuesta. Vacío, el agent los ofrece él mismo.
 
 `propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
 bajo la respuesta: un agent propio de la persona, una rutina o un servicio que

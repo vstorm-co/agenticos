@@ -1,5 +1,5 @@
 ---
-source_sha: "a17621366279"
+source_sha: "30c0824bee69"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2463,6 +2463,15 @@ in seiner Antwort. In Slack, Teams, Telegram und Mattermost kommen die Schritte
 als Nachricht mit Schaltflächen unter der Antwort, und ein Druck ist die Person,
 die diesen Schritt sagt - die Einzelheiten stehen unter
 [Kanäle](../channels.md#next-steps-as-buttons).
+
+**Modell für nächste Schritte** (`model_profile_id`) übergibt die Schritte einem
+eigenen Modell: Der Agent bekommt `suggest_next_steps` nicht mehr angeboten, und
+sobald seine Antwort da ist, liest dieses Modell die Anfrage und die Antwort und
+schreibt bis zu drei Schritte oder keinen. Für drei kurze Schaltflächen reicht ein
+kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Der
+Aufruf wird zuerst gegen die Budgets geprüft und wie jeder andere auf dem Run
+gebucht; einer, der nicht gemacht werden kann, kostet die Schaltflächen, nie die
+Antwort. Leer bietet der Agent sie selbst an.
 
 `propose_setup` schlägt bis zu drei Dinge zum Einrichten vor, als Karten unter
 der Antwort: einen eigenen Agent der Person, eine Routine oder einen Dienst zum

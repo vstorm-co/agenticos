@@ -1581,6 +1581,23 @@ class TestValidateSpec:
         assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
 
     @pytest.mark.anyio
+    async def test_a_next_steps_model_from_nowhere_is_refused_at_publish(self):
+        """A reference to a profile, like the browser's step model (#2301)."""
+        spec = _spec(
+            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(uuid.uuid4())}}],
+            model_profile_id=uuid.uuid4(),
+        )
+        found = AsyncMock(side_effect=[MagicMock(), None])
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
+
+    @pytest.mark.anyio
     async def test_a_browser_step_model_from_nowhere_is_refused_at_publish(self, monkeypatch):
         """The step model is a reference to a profile, like the agent's own - one
         deleted since, or another organization's, would fail every browse."""

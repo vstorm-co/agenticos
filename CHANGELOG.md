@@ -132,6 +132,12 @@ Two things are versioned separately from this file and worth knowing about:
   message, held to the link, the access policy and the rate limit. Migration
   `0164_channel_next_steps` adds `channel_prompts.chat_type` and the `follow_up`
   kind.
+- **A model of their own for next steps.** The follow-ups capability takes a
+  **Model for next steps**: set, the agent is no longer offered
+  `suggest_next_steps`, and once its answer is in that model writes up to three
+  steps from the request and the answer - checked against the budgets and booked
+  on the run. They reach the console, the chat apps and the run history as the
+  agent's own call would.
 - **Make a skill of this.** A button under an answer hands the Architect your
   request and the answer to write a skill from, for whoever may write skills.
   A chat link with `?agent=<slug>` opens the chat on that agent.

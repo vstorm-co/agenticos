@@ -49,9 +49,11 @@ class SetupProposal(BaseModel):
 class FollowUpsToolset(FunctionToolset[AgentDepsT]):
     """Offers the person what to do next as buttons and cards rather than as a closing paragraph."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, offer_steps: bool = True) -> None:
+        """`offer_steps` false leaves the next steps to a model of their own (#2301)."""
         super().__init__()
-        self.add_function(self.suggest_next_steps, name="suggest_next_steps")
+        if offer_steps:
+            self.add_function(self.suggest_next_steps, name="suggest_next_steps")
         self.add_function(self.propose_setup, name="propose_setup")
 
     def suggest_next_steps(self, ctx: RunContext[AgentDepsT], steps: list[str]) -> str:

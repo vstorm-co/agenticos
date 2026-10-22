@@ -8042,6 +8042,12 @@
         "title": "Zeitlimit (Minuten)",
         "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
       }
+    },
+    "follow_ups": {
+      "model_profile_id": {
+        "title": "Modell für nächste Schritte",
+        "description": "Ein Modellprofil, das die nächsten Schritte schreibt, sobald die Antwort da ist, statt dass das Modell des Agents sie als Tool anbietet. Für drei kurze Schaltflächen reicht ein kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Leer lässt der Agent sie selbst anbieten."
+      }
     }
   },
   "apiReference": {

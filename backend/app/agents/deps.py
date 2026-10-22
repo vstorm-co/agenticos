@@ -60,6 +60,15 @@ silent on a surface with no `subagent_events`.
 """
 
 
+@dataclass(frozen=True)
+class WrittenNextSteps:
+    """Next steps written after an answer by a model other than the agent's (#2301)."""
+
+    call_id: str
+    """The id they are recorded under, so the console and the transcript agree."""
+    steps: list[str]
+
+
 @dataclass
 class AgentDeps:
     """Everything a tool may need that the model must not control."""
@@ -129,6 +138,11 @@ class AgentDeps:
     # each visual rendered, and `draw` waits a moment to hand that to the model.
     # None everywhere else, and a drawing is then simply not checked.
     visual_reports: VisualReports | None = None
+
+    # The next steps a model of the follow-ups capability's own wrote once the
+    # answer was in (#2301). The surfaces hand them on as the agent's own
+    # `suggest_next_steps` call would have been, under this id.
+    next_steps: WrittenNextSteps | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 

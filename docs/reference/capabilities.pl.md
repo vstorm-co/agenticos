@@ -1,5 +1,5 @@
 ---
-source_sha: "a17621366279"
+source_sha: "30c0824bee69"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2289,6 +2289,14 @@ po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
 Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
 przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
 w [Kanałach](../channels.md#next-steps-as-buttons).
+
+**Model do następnych kroków** (`model_profile_id`) oddaje kroki osobnemu modelowi:
+agent nie dostaje już `suggest_next_steps`, a gdy jego odpowiedź jest gotowa, ten
+model czyta prośbę i odpowiedź i pisze do trzech kroków albo żadnego. Na trzy
+krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie
+zapytania. Wywołanie najpierw przechodzi przez budżety i jest księgowane na runie
+jak każde inne; takie, którego nie da się wykonać, kosztuje przyciski, nigdy
+odpowiedź. Puste pole zostawia kroki agentowi.
 
 `propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
 pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta

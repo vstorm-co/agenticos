@@ -6,21 +6,34 @@ can act on for anything a button could not hold.
 """
 
 import json
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
+from app.agents.capabilities._ambient import AmbientCallSkipped
 from app.agents.capabilities._registry import CapabilityBinding, build
 from app.agents.capabilities.follow_ups import (
     FOLLOW_UPS_CAPABILITY_ID,
+    FOLLOW_UPS_MODEL_RESOURCE,
     FollowUps,
     FollowUpsToolset,
+    kept_steps,
 )
 from app.agents.capabilities.follow_ups._toolset import MAX_STEP_CHARS, SetupProposal
+from app.agents.deps import AgentDeps
 
 
 def _ctx(*, retry: int = 0) -> RunContext[Any]:
@@ -63,6 +76,113 @@ class TestTheCapability:
         toolset = capability.get_toolset()
         assert toolset is capability.get_toolset()
         assert list(toolset.tools) == ["suggest_next_steps", "propose_setup"]
+
+    def test_with_a_model_of_its_own_the_agent_is_not_offered_the_steps(self):
+        """The model writes them after the answer; the agent keeps proposing setups (#2301)."""
+        [capability] = build(
+            [CapabilityBinding(capability_id=FOLLOW_UPS_CAPABILITY_ID)],
+            resources={FOLLOW_UPS_MODEL_RESOURCE: TestModel()},
+        )
+
+        assert isinstance(capability, FollowUps)
+        assert capability.model is not None
+        assert list(capability.get_toolset().tools) == ["propose_setup"]
+
+    def test_a_resource_that_is_no_model_is_ignored(self):
+        [capability] = build(
+            [CapabilityBinding(capability_id=FOLLOW_UPS_CAPABILITY_ID)],
+            resources={FOLLOW_UPS_MODEL_RESOURCE: "not a model"},
+        )
+
+        assert isinstance(capability, FollowUps)
+        assert capability.model is None
+
+
+_WRITER = "app.agents.capabilities.follow_ups._capability.run_ambient_agent"
+
+
+def _turn(answer: str, *, called: bool = False) -> ModelResponse:
+    parts: list[Any] = [TextPart(content=answer)] if answer else []
+    if called:
+        parts.append(ToolCallPart(tool_name="web_search", args={}))
+    return ModelResponse(parts=parts)
+
+
+async def _after(
+    capability: FollowUps, response: ModelResponse, *, request: str = "Compare the vendors"
+) -> AgentDeps:
+    deps = AgentDeps()
+    ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage())
+    asked = SimpleNamespace(
+        messages=[
+            ModelRequest(parts=[UserPromptPart(content=request)]),
+            ModelResponse(parts=[TextPart(content="earlier")]),
+        ]
+    )
+    returned = await capability.after_model_request(ctx, request_context=asked, response=response)
+    assert returned is response
+    return deps
+
+
+@pytest.mark.anyio
+class TestNextStepsWrittenAfterTheAnswer:
+    async def test_the_steps_are_written_from_the_request_and_the_answer(self):
+        writer = AsyncMock(return_value=SimpleNamespace(steps=[" Make it a table ", "x" * 81]))
+        with patch(_WRITER, new=writer):
+            deps = await _after(FollowUps(model=TestModel()), _turn("Here is the comparison."))
+
+        assert deps.next_steps is not None
+        assert deps.next_steps.steps == ["Make it a table"]
+        assert deps.next_steps.call_id.startswith("next_steps_")
+        prompt = writer.await_args.kwargs["user_prompt"]
+        assert "Compare the vendors" in prompt and "Here is the comparison." in prompt
+
+    async def test_none_are_written_without_a_model_or_before_the_answer(self):
+        writer = AsyncMock()
+        with patch(_WRITER, new=writer):
+            assert (await _after(FollowUps(), _turn("Done."))).next_steps is None
+            assert (
+                await _after(FollowUps(model=TestModel()), _turn("Looking.", called=True))
+            ).next_steps is None
+            assert (await _after(FollowUps(model=TestModel()), _turn(""))).next_steps is None
+
+        writer.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [
+            SimpleNamespace(steps=[]),
+            AmbientCallSkipped("at a cap"),
+            RuntimeError("the provider is down"),
+        ],
+    )
+    async def test_steps_that_could_not_be_written_cost_the_buttons_only(self, outcome):
+        writer = AsyncMock(side_effect=outcome if isinstance(outcome, Exception) else None)
+        if not isinstance(outcome, Exception):
+            writer.return_value = outcome
+        with patch(_WRITER, new=writer):
+            deps = await _after(FollowUps(model=TestModel()), _turn("Done."))
+
+        assert deps.next_steps is None
+
+    async def test_a_run_with_no_request_still_reads_the_answer(self):
+        writer = AsyncMock(return_value=SimpleNamespace(steps=["Again"]))
+        deps = AgentDeps()
+        ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage())
+        with patch(_WRITER, new=writer):
+            await FollowUps(model=TestModel()).after_model_request(
+                ctx,
+                request_context=SimpleNamespace(
+                    messages=[ModelRequest(parts=[UserPromptPart(content=["an image"])])]
+                ),
+                response=_turn("Done."),
+            )
+
+        assert "The request:\n\n" in writer.await_args.kwargs["user_prompt"]
+
+
+def test_kept_steps_hold_what_a_button_can():
+    assert kept_steps(["", " a ", "b", "c", "d"]) == ["a", "b", "c"]
 
 
 def _proposal(kind: str, **overrides: object) -> SetupProposal:

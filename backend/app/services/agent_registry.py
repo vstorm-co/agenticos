@@ -42,6 +42,7 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.spec import (
@@ -1569,6 +1570,8 @@ class AgentRegistryService:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
+            if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
+                problems.add(await self._model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

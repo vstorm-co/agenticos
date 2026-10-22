@@ -7944,6 +7944,12 @@
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
       }
+    },
+    "follow_ups": {
+      "model_profile_id": {
+        "title": "Model do następnych kroków",
+        "description": "Profil modelu, który pisze następne kroki, gdy odpowiedź jest gotowa, zamiast własnego modelu agenta proponującego je narzędziem. Na trzy krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie zapytania. Puste pole zostawia to agentowi."
+      }
     }
   },
   "apiReference": {
