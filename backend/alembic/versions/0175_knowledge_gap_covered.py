@@ -5,8 +5,8 @@ document, so a person who adds a topic's content to its knowledge base sees the
 topic say so; a document deleted later leaves the topic open again. It also
 gains `draft_already_covered`, set when the drafter found the questions already
 answered by a context file or a document, and `draft_author`, `model` or
-`person`, set whenever there is a draft - every draft before it was the drafter's. `rag_documents` gains the topic a
-document was added from.
+`person`, set whenever there is a draft - every draft before it was the
+drafter's. `rag_documents` gains the topic a document was added from.
 
 `knowledge_gap_classifications` accepts `refused`: the agent rightly refused a
 request outside its rules, so the answer's misses are no gap.
