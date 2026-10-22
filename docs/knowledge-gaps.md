@@ -104,7 +104,7 @@ A miss joins the closest topic only when it is at least as similar to it as
 
 | Setting | Default | What it decides |
 |---|---|---|
-| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | The cosine similarity a miss needs to a topic to join it. What questions about one subject score depends on the embedding model: about 0.5 to 0.7 on OpenAI's `text-embedding-3` models. Raise it if unrelated questions share topics, lower it if one subject keeps starting new ones |
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | The cosine similarity a miss needs to a topic to join it. What questions about one subject score depends on the embedding model: about 0.5 to 0.7 on OpenAI's `text-embedding-3` models. Raise it if unrelated questions share topics, lower it if one subject keeps starting new ones. The default is tuned for those models; an embedding model served behind an OpenAI-compatible endpoint, such as bge or e5, scores even unrelated questions high, so raise it there |
 
 - A search over two knowledge bases becomes a question in a topic of each.
 - A knowledge base moved to another embedding model starts new topics, because

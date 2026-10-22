@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c4aa06f750"
+source_sha: "34594a8fb388"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -109,7 +109,7 @@ najmniej tak podobne jak `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; inaczej zakłada nowy
 
 | Ustawienie | Domyślnie | Co decyduje |
 |---|---|---|
-| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Podobieństwo kosinusowe, jakiego chybienie potrzebuje do tematu, żeby do niego dołączyć. Ile punktów dostają pytania o jedną sprawę, zależy od modelu embeddingów: w modelach `text-embedding-3` OpenAI zwykle od 0.5 do 0.7. Podnieś je, jeśli niepowiązane pytania trafiają do jednego tematu, obniż, jeśli jedna sprawa wciąż zakłada nowe |
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Podobieństwo kosinusowe, jakiego chybienie potrzebuje do tematu, żeby do niego dołączyć. Ile punktów dostają pytania o jedną sprawę, zależy od modelu embeddingów: w modelach `text-embedding-3` OpenAI zwykle od 0.5 do 0.7. Podnieś je, jeśli niepowiązane pytania trafiają do jednego tematu, obniż, jeśli jedna sprawa wciąż zakłada nowe. Wartość domyślna jest dobrana do tych modeli; model embeddingów podany pod endpointem zgodnym z OpenAI, na przykład bge albo e5, daje wysokie wyniki nawet niepowiązanym pytaniom, więc tam ją podnieś |
 
 - Wyszukiwanie w dwóch bazach wiedzy staje się pytaniem w temacie każdej z nich.
 - Baza wiedzy przeniesiona na inny model embeddingów zaczyna nowe tematy, bo

@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c4aa06f750"
+source_sha: "34594a8fb388"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -113,7 +113,7 @@ Ein Fehltreffer kommt nur dann in das nächste Thema, wenn er ihm mindestens so
 
 | Einstellung | Standard | Was sie entscheidet |
 |---|---|---|
-| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Die Kosinus-Ähnlichkeit, die ein Fehltreffer zu einem Thema braucht, um ihm beizutreten. Welchen Wert Fragen zu einer Sache erreichen, hängt vom Embedding-Modell ab: bei OpenAIs `text-embedding-3`-Modellen etwa 0,5 bis 0,7. Erhöhe sie, wenn nicht zusammengehörige Fragen ein Thema teilen, senke sie, wenn eine Sache immer neue beginnt |
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | Die Kosinus-Ähnlichkeit, die ein Fehltreffer zu einem Thema braucht, um ihm beizutreten. Welchen Wert Fragen zu einer Sache erreichen, hängt vom Embedding-Modell ab: bei OpenAIs `text-embedding-3`-Modellen etwa 0,5 bis 0,7. Erhöhe sie, wenn nicht zusammengehörige Fragen ein Thema teilen, senke sie, wenn eine Sache immer neue beginnt. Der Standard ist auf diese Modelle abgestimmt; ein Embedding-Modell hinter einem OpenAI-kompatiblen Endpunkt, etwa bge oder e5, bewertet selbst nicht zusammengehörige Fragen hoch, also erhöhe ihn dort |
 
 - Eine Suche über zwei Wissensdatenbanken wird zu einer Frage in einem Thema jeder der
   beiden.

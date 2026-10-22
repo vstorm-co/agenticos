@@ -1,5 +1,5 @@
 ---
-source_sha: "e2c4aa06f750"
+source_sha: "34594a8fb388"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -113,7 +113,7 @@ Un fallo entra en el tema más cercano solo si se le parece al menos tanto como
 
 | Ajuste | Por defecto | Qué decide |
 |---|---|---|
-| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | La similitud coseno que un fallo necesita con un tema para unirse a él. Lo que puntúan las preguntas sobre un mismo asunto depende del modelo de embeddings: entre 0,5 y 0,7 aproximadamente en los modelos `text-embedding-3` de OpenAI. Súbelo si preguntas sin relación comparten tema, bájalo si un mismo asunto sigue abriendo temas nuevos |
+| `KNOWLEDGE_GAP_TOPIC_SIMILARITY` | `0.55` | La similitud coseno que un fallo necesita con un tema para unirse a él. Lo que puntúan las preguntas sobre un mismo asunto depende del modelo de embeddings: entre 0,5 y 0,7 aproximadamente en los modelos `text-embedding-3` de OpenAI. Súbelo si preguntas sin relación comparten tema, bájalo si un mismo asunto sigue abriendo temas nuevos. El valor por defecto está ajustado a esos modelos; un modelo de embeddings servido tras un endpoint compatible con OpenAI, como bge o e5, puntúa alto incluso preguntas sin relación, así que súbelo ahí |
 
 - Una búsqueda en dos bases de conocimiento se convierte en una pregunta en un tema de
   cada una.
