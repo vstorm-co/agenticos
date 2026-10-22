@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "45fe64eecff2"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -224,9 +224,14 @@ klasa runów w [retencji](governance.md#retention) usuwa je razem z nim.
 Temat nie kopiuje pytań. Jego nazwa, przykłady i liczba są czytane z
 wyszukiwań, które jeszcze zawiera, więc gdy te wyszukiwania zostaną usunięte,
 tematowi nic nie zostaje i następne przejście grupowania usuwa go razem ze
-szkicem. Szkic to jedyny tekst, który temat przechowuje: pisze go model na
+szkicem.
+
+Szkic to jedyny tekst, który temat przechowuje: pisze go model na
 podstawie pytań, więc może powtarzać coś, co ktoś napisał. Poświadczenia, które
-powtarza, są redagowane przed zapisaniem. Pisanie szkicu wysyła pytania,
+powtarza, są redagowane przed zapisaniem. Wymazanie osoby odrzuca szkic
+każdego tematu, który zawiera jedno z jej wyszukiwań, nawet gdy zostają
+wyszukiwania innych osób, a temat można naszkicować ponownie z tego, co
+zostało. Pisanie szkicu wysyła pytania,
 odpowiedzi i komentarze do dostawcy modelu agenta. Zobacz
 [Ochrona danych](data-protection.md#where-personal-data-lives).
 

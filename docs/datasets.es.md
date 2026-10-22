@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "c72fa42d8eda"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -582,11 +582,23 @@ agents de la organización.
 ## Datos personales { #personal-data }
 
 Un caso tomado de una conversación es una copia de lo que escribió una persona y
-de lo que respondió el agent. Cuando se borra la conversación, o se borra a la
-persona que la escribió, el caso se queda y se elimina todo vínculo con ella: el
-run, la conversación y el mensaje de los que procede, y quién lo añadió si era
-la persona borrada. Lo que queda es el texto, que puede seguir conteniendo datos
-personales que alguien escribió y que solo desaparece al eliminar el caso.
+de lo que respondió el agent. Cuando se borra la conversación, el caso se queda
+y se elimina todo vínculo con la conversación: el run, la conversación y el
+mensaje de los que procede. El texto se queda, y puede seguir conteniendo datos
+personales que alguien escribió. Eliminar el caso lo elimina.
+
+Cuando se borra a la persona de la que se tomó un caso, el texto también se va.
+La pregunta, los turnos anteriores, ambas respuestas y la nota se sustituyen en
+todas las versiones que contienen el caso, y también las respuestas y llamadas
+que los eval runs registraron para él. El caso conserva su id, sus llamadas
+esperadas, sus comprobaciones y sus etiquetas, y se marca como anonimizado tras
+el borrado (**Anonymised after erasure**), para que su curador pueda reescribirlo
+o eliminarlo. Hasta entonces un eval run lo deja fuera, porque una respuesta al
+texto de sustitución no mide nada.
+
+Un caso tomado del run de otra persona que la
+persona borrada solo valoró conserva su pregunta y su respuesta, y pierde solo
+la nota que guardaba su comentario.
 Consulta [Protección de datos](data-protection.md#what-deletion-reaches).
 
 Una puntuación se conserva de la misma forma. Guarda una copia de la respuesta

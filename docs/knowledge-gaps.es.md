@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "45fe64eecff2"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -238,9 +238,14 @@ de la [retención](governance.md#retention) las borra con él.
 Un tema no copia preguntas. Su nombre, sus ejemplos y su recuento se leen de
 las búsquedas que aún contiene, así que cuando esas búsquedas se borran al tema
 no le queda nada y la siguiente pasada de agrupación lo elimina junto con su
-borrador. El borrador es el único texto que guarda un tema: lo escribe un
+borrador.
+
+El borrador es el único texto que guarda un tema: lo escribe un
 modelo a partir de las preguntas, así que puede repetir algo que alguien
-escribió. Las credenciales que repita se ocultan antes de guardarlo. Redactar
+escribió. Las credenciales que repita se ocultan antes de guardarlo. Borrar a
+una persona descarta el borrador de todo tema que contenga una de sus
+búsquedas, aunque queden búsquedas de otras personas, y el tema puede
+redactarse de nuevo con lo que queda. Redactar
 envía las preguntas, respuestas y comentarios al proveedor del modelo del
 redactor. Consulta
 [Protección de datos](data-protection.md#where-personal-data-lives).

@@ -220,10 +220,13 @@ to the searches already made. None outlives its run: the runs class of
 
 A topic copies no question. Its name, its examples and its count are read from
 the searches it still holds, so when those searches are deleted the topic has
-nothing left, and the next grouping pass removes it, with its draft. A draft is
-the one text a topic keeps: it is written by a model from the questions, so it
+nothing left, and the next grouping pass removes it, with its draft.
+
+A draft is the one text a topic keeps: it is written by a model from the questions, so it
 may repeat something a person wrote. Credentials it repeats are redacted before
-it is stored. Drafting sends the questions, answers and comments to the
+it is stored. Erasing a person discards the draft of every topic that holds one
+of their searches, even when other people's searches remain, and the topic can
+be drafted again from what is left. Drafting sends the questions, answers and comments to the
 drafter's model provider. See
 [Data protection](data-protection.md#where-personal-data-lives).
 

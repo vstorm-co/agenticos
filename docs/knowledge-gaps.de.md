@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "45fe64eecff2"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -238,10 +238,14 @@ geänderter Schwellenwert auch für die bereits gemachten Suchen gilt. Keine
 
 Ein Thema kopiert keine Fragen. Name, Beispiele und Anzahl werden aus den
 Suchen gelesen, die es noch enthält. Werden diese Suchen gelöscht, bleibt dem
-Thema nichts, und der nächste Gruppierungslauf entfernt es samt Entwurf. Der
-Entwurf ist der einzige Text, den ein Thema selbst hält: Ein Modell schreibt
+Thema nichts, und der nächste Gruppierungslauf entfernt es samt Entwurf.
+
+Der Entwurf ist der einzige Text, den ein Thema selbst hält: Ein Modell schreibt
 ihn aus den Fragen, er kann also wiederholen, was jemand geschrieben hat.
 Zugangsdaten, die er wiederholt, werden vor dem Speichern geschwärzt. Das
+Löschen einer Person verwirft den Entwurf jedes Themas, das eine ihrer Suchen
+enthält, auch wenn Suchen anderer Personen bleiben, und das Thema kann aus dem
+Verbliebenen neu entworfen werden. Das
 Entwerfen schickt die Fragen, Antworten und Kommentare an den Modellanbieter des
 Entwerfers. Siehe [Datenschutz](data-protection.md#where-personal-data-lives).
 

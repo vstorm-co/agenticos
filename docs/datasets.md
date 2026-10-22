@@ -545,11 +545,22 @@ shown only to somebody who may view every agent of the organization.
 ## Personal data { #personal-data }
 
 A case taken from a conversation is a copy of what a person wrote and what the
-agent answered. When the conversation is deleted, or the person who wrote it is
-erased, the case stays and every link from it back to them is cleared: the run,
-the conversation and the message it came from, and who added it if that was the
-person erased. What stays is the text - which may still hold personal data
-somebody typed into it, and is removed by deleting the case. See
+agent answered. When the conversation is deleted, the case stays and every link
+from it back to the conversation is cleared: the run, the conversation and the
+message it came from. The text stays, and may still hold personal data somebody
+typed into it. Deleting the case removes it.
+
+When the person a case was taken from is erased, the text goes too. The
+question, the earlier turns, both answers and the note are replaced in every
+version that holds the case, and so are the answers and calls that eval runs
+recorded for it. The case keeps its id, its expected calls, its checks and its
+tags, and is marked **Anonymised after erasure**, so its curator can rewrite it
+or remove it. Until then an eval run leaves it out, because an answer to the
+placeholder measures nothing.
+
+A case taken from somebody else's run that the
+erased person only rated keeps its question and answer, and loses only the note
+that held their comment. See
 [Data protection](data-protection.md#what-deletion-reaches).
 
 A score is kept the same way. It holds a copy of the answer it graded, up to

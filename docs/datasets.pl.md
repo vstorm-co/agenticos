@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "c72fa42d8eda"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -574,11 +574,22 @@ zobaczyć każdego agenta organizacji.
 ## Dane osobowe { #personal-data }
 
 Przypadek wzięty z rozmowy jest kopią tego, co napisała osoba, i tego, co
-odpowiedział agent. Gdy rozmowa zostanie usunięta albo osoba, która ją
-napisała, zostanie wymazana, przypadek zostaje, a każde powiązanie z nią jest
-czyszczone: run, rozmowa i wiadomość, z których pochodzi, oraz to, kto go dodał,
-jeśli była to wymazywana osoba. Zostaje tekst - który może nadal zawierać dane
-osobowe wpisane przez kogoś i znika dopiero po usunięciu przypadku. Zobacz
+odpowiedział agent. Gdy rozmowa zostanie usunięta, przypadek zostaje, a każde
+powiązanie z rozmową jest czyszczone: run, rozmowa i wiadomość, z których
+pochodzi. Tekst zostaje i może nadal zawierać dane osobowe wpisane przez kogoś.
+Usunięcie przypadku go usuwa.
+
+Gdy osoba, od której wzięto przypadek, zostanie wymazana, znika też tekst.
+Pytanie, wcześniejsze tury, obie odpowiedzi i notatka są zastępowane w każdej
+wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które eval
+runy zapisały dla niego. Przypadek zachowuje swoje id, oczekiwane wywołania,
+sprawdzenia i tagi, i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
+tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu eval run go
+pomija, bo odpowiedź na placeholder niczego nie mierzy.
+
+Przypadek wzięty z runu
+innej osoby, który wymazana osoba jedynie oceniła, zachowuje pytanie i
+odpowiedź, a traci tylko notatkę z jej komentarzem. Zobacz
 [Ochrona danych](data-protection.md#what-deletion-reaches).
 
 Wynik jest przechowywany tak samo. Zawiera kopię ocenianej odpowiedzi, do 8000
