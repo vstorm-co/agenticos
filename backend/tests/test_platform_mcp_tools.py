@@ -1,7 +1,7 @@
 """Each platform MCP tool is exactly one public API call, made as the caller (#2058)."""
 
 import uuid
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -330,7 +330,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         {"query": "notion"},
         ("GET", "/agents/mcp-servers", {"params": {"q": "notion", "limit": 10}}),
     ),
-    ("list_my_connections", {}, ("GET", "/me/mcp-connections", {})),
+    ("list_my_connections", {"include_tools": True}, ("GET", "/me/mcp-connections", {})),
     (
         "set_my_language",
         {"locale": "en"},
@@ -404,6 +404,40 @@ def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
     ]
 
     assert public, f"no public route answers {method} {path}"
+
+
+class TestListingMyConnections:
+    """Whether a service is connected needs its name, not the tools it offers."""
+
+    LISTING: ClassVar[dict[str, Any]] = {
+        "items": [
+            {
+                "name": "stripe",
+                "catalog_key": "stripe",
+                "authorized": True,
+                "allowed_tools": ["list_customers"],
+                "last_tools": [{"name": "list_customers"}, {"name": "create_refund"}],
+            }
+        ],
+        "total": 1,
+    }
+
+    async def test_the_tools_are_left_out_by_default(self, server: FastMCP, api: MagicMock) -> None:
+        api.request.return_value = self.LISTING
+
+        result = await server.call_tool("list_my_connections", {})
+
+        assert result.structured_content == {
+            "items": [{"name": "stripe", "catalog_key": "stripe", "authorized": True}],
+            "total": 1,
+        }
+
+    async def test_the_tools_come_when_asked_for(self, server: FastMCP, api: MagicMock) -> None:
+        api.request.return_value = self.LISTING
+
+        result = await server.call_tool("list_my_connections", {"include_tools": True})
+
+        assert result.structured_content == self.LISTING
 
 
 class TestUndoingADraft:

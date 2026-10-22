@@ -33,6 +33,10 @@ be the whole conversation. `app.agents.mcp` names the same set as
 """
 
 
+_TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
+"""A connection's tools - what `list_my_connections` leaves out unless asked."""
+
+
 @dataclass(frozen=True)
 class PlatformTool:
     name: str
@@ -417,13 +421,24 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", "/agents/mcp-servers", params={"q": query, "limit": limit})
 
-    async def list_my_connections() -> dict[str, Any]:
+    async def list_my_connections(include_tools: bool = False) -> dict[str, Any]:
         """The services the person asking has connected with their own account.
 
         Read it before suggesting a connection, so you never offer what they
-        already have. Tokens are never in it.
+        already have. Tokens are never in it. Each connection's tools are left
+        out unless `include_tools` is true - whether a service is connected
+        needs its name, not the forty tools it offers.
         """
-        return await api.request("GET", "/me/mcp-connections")
+        listing = await api.request("GET", "/me/mcp-connections")
+        if include_tools:
+            return listing
+        return {
+            **listing,
+            "items": [
+                {field: value for field, value in item.items() if field not in _TOOL_FIELDS}
+                for item in listing["items"]
+            ],
+        }
 
     async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
         """Switch the console's language for the person asking: `en`, `pl` or `de`.
