@@ -168,8 +168,13 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     if (bubble === "approvals") setApprovalsHeard(signals.pendingApprovals);
     setPreferences(readPreferences());
   };
+  // The chat's composer takes the launcher's corner, so there the launcher steps
+  // out - and a bubble pointing at a launcher that is not there is a message
+  // floating over the composer with nothing to answer it from.
+  const overComposer = pageOf(pathname).startsWith("/chat");
   const speaking =
     !phone &&
+    !overComposer &&
     readyOn === pathname &&
     setAside !== pathname &&
     !open &&
@@ -274,7 +279,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         }
         onToggle={() => (open ? setOpen(false) : openWindow())}
         onHover={touch}
-        overComposer={pageOf(pathname).startsWith("/chat")}
+        overComposer={overComposer}
       />
     </WidgetRoot>
   );

@@ -333,6 +333,15 @@ describe("the Architect widget", () => {
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
   });
 
+  it("keeps quiet in the chat, where the composer has its corner and no launcher shows", () => {
+    state.signals.pendingApprovals = 2;
+    state.pathname = "/chat";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+  });
+
   it("says what is waiting once a visit, not again on every page, until more arrives", () => {
     state.signals.pendingApprovals = 2;
     state.pathname = "/runs";

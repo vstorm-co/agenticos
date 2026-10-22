@@ -61,13 +61,7 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import {
-  DIALOG_BROAD,
-  DIALOG_CONFIRM,
-  DIALOG_FORM,
-  DIALOG_FRAMED,
-  DIALOG_SCROLL,
-} from "@/lib/dialog-sizes";
+import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_FRAMED, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -672,13 +666,13 @@ export function TriggerFormDialog({
           white under the last caption and the Continue button pinned to the
           bottom of the screen (#1069). The grid rows still pin the header and the
           nav and give the body whatever is between. */}
-      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_FORM)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
           </DialogTitle>
           <DialogDescription>{t("createDescription")}</DialogDescription>
-          <WizardSteps steps={steps} current={step} />
+          <WizardSteps steps={steps} current={step} compact />
         </DialogHeader>
 
         {/* Keyed on the step, so each one slides in rather than swapping in place -
@@ -698,9 +692,9 @@ export function TriggerFormDialog({
           )}
 
           {step === "configure" && (
-            // Side by side: the dialog is sized for the message step's editor,
-            // and two fields stretched across it read as a form nobody finished.
-            <div className="grid items-start gap-4 sm:grid-cols-2">
+            // One column: the dialog is a form's width, and the agent above its
+            // name reads in the order they are chosen.
+            <div className="space-y-4">
               {agentId === null && (
                 <FormField label={t("agent")} htmlFor="trigger-agent">
                   <Select

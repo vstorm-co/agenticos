@@ -30,4 +30,15 @@ describe("the wizard's steps", () => {
     expect(screen.getByText("Pick source")).toBeInTheDocument();
     expect(screen.getByText("Schedule")).toBeInTheDocument();
   });
+
+  it("compact, is a dot per step with only the current one written out", () => {
+    const { container } = render(<WizardSteps steps={STEPS} current="configure" compact />);
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[1]).toHaveAttribute("aria-current", "step");
+    // Every step is still named for a screen reader; on screen only the current one.
+    expect(items.map((item) => item.textContent)).toEqual(["Pick source", "Configure", "Schedule"]);
+    expect(container.querySelector("ol + span")).toHaveTextContent(/^Configure$/);
+  });
 });
