@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "e84db70caef9"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -14,8 +14,8 @@ oder ohne Wissen geantwortet hat, nach Thema gruppiert, mit der Häufigkeit jede
 sie gestellt haben.
 
 Eine Lücke sagt, was fehlt. Sie fügt einer Wissensdatenbank nie selbst etwas hinzu.
-Ein Mensch schreibt oder findet das fehlende Dokument - ein Modell kann es
-entwerfen - und fügt es hinzu. Vorher
+Ein Mensch schreibt den fehlenden Inhalt im Thema - ein Modell kann ihn
+entwerfen - und fügt ihn der Wissensdatenbank als Dokument hinzu. Vorher
 lassen sich die Fragen des Themas in Fälle eines [Datasets](datasets.md)
 umwandeln, damit ein Eval zeigt, ob das neue Dokument die Antworten verändert
 hat.
@@ -62,13 +62,14 @@ Antworten warten, mit einem Link zum Schalter für alle, die ihn ändern dürfen
 Das Modell ist der **Knowledge gap classifier**, ein
 [System-Agent](concepts.md#system-agents), den jede Organisation hat. Er liest
 jede Antwort mit ihrer Frage und den Kommentaren aller, die sie negativ bewertet
-haben, und entscheidet eines von drei Dingen:
+haben, und entscheidet eines von vier Dingen:
 
 | Urteil | Wann |
 |---|---|
-| Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand |
+| Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand. Eine berechtigte Frage, die der Agent abgelehnt hat, weil er nichts dazu hatte, gehört hierher, nicht zu den Ablehnungen |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
-| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
+| Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken |
+| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
@@ -78,7 +79,8 @@ Eine Antwort wird gelesen, wenn ihr Run aus den letzten 30 Tagen abgeschlossen
 ist und die Wissensbasis durchsucht und etwas gefunden hat oder mit einem
 Kommentar negativ bewertet wurde und auf einer Agent-Version läuft, die an die
 Wissensbasis gebunden ist. Ein Run, dessen Suche schon ein Fehltreffer war,
-zählt einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
+wird ebenfalls gelesen, damit eine berechtigte Ablehnung seinen Fehltreffer aus
+den Lücken nimmt; sonst zählt er weiterhin einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
 Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
 gelesen. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
 Starter kein Konto mehr hat, ebenso wenig.
@@ -142,8 +144,11 @@ wer diese Wissensdatenbank liest. Einen eigenen Filter nach Abteilung gibt es
 nicht: Eine Abteilung sieht die Lücken der Wissensdatenbanken, die mit ihr
 geteilt sind.
 
-Ein Thema zeigt, wie oft es gestellt wurde, wann zuletzt, welche Agents es
-gestellt haben, und bis zu drei seiner Fragen. Öffne es, um die neuesten Fragen
+Ein Thema zeigt, wie oft und von wie vielen Personen es gestellt wurde, wann
+zuletzt, welche Agents es gestellt haben, und bis zu drei seiner Fragen. Wer
+über einen Channel gefragt hat, zählt nach seinem Chat-Konto; alle, die anonym
+gefragt haben, über ein Widget oder ohne Person hinter dem Run, zählen als eine
+Person. Öffne es, um die neuesten Fragen
 zu sehen: was die Person gefragt hat, wonach der Agent gesucht hat, wie nah die
 nächste Passage war und den Kommentar aller, die die Antwort negativ bewertet
 haben. Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
@@ -151,18 +156,29 @@ oder ein Leser schrieb, dass Informationen fehlten.
 
 ## Was mit einer Lücke zu tun ist { #acting-on-a-gap }
 
-**Zum Dataset hinzufügen** und **Verwerfen** stehen im Menü **…** eines Themas,
-in seiner Zeile und im Thema selbst.
+Ein geöffnetes Thema hat einen Editor: einen Titel und den Inhalt in Markdown,
+leer oder mit dem Entwurf des Themas gefüllt. **Zum Dataset hinzufügen** und
+**Verwerfen** stehen im Menü **…** eines Themas, in seiner Zeile und im Thema
+selbst.
 
 | Aktion | Was sie tut |
 |---|---|
-| Fehlendes Dokument hinzufügen | Lade es in die Wissensdatenbank hoch oder in eine Quelle, aus der die Wissensdatenbank synchronisiert. Nichts wird für dich hinzugefügt |
+| **Zu** *Wissensdatenbank* **hinzufügen** | Fügt Titel und Inhalt der Wissensdatenbank des Themas als Markdown-Dokument hinzu, auf demselben Weg wie ein Upload, und markiert das Thema als davon **abgedeckt**. Wird verweigert, solange eine Angabe noch auszufüllen ist oder solange etwas eine Person identifizieren könnte und du es nicht bestätigt hast (siehe [Personenbezogene Daten](#personal-data)) |
+| **Speichern** | Behält Titel und Inhalt am Thema, ohne sie irgendwo hinzuzufügen |
 | **Zum Dataset hinzufügen** | Wandelt die neuesten Fragen des Themas (bis zu 200) in Fälle eines Datasets um, das du ändern darfst, als eine neue Version. Jeder Fall ist die Frage der Person, mit der Antwort des Agents als Gegenbeispiel. Eine über die HTTP API gestellte Frage hat keine gespeicherte Antwort und wird übersprungen |
 | **Verwerfen** | Markiert ein Thema als eines, das keinen Inhalt braucht. Ein verworfenes Thema behält die Fragen, die zu ihm gehören, und kommt deshalb nicht als neues Thema zurück. **Wieder öffnen** macht das rückgängig |
 
-Nachdem du das Dokument hinzugefügt hast, führe ein Eval über das Dataset aus.
-Die Fälle, die wegen des fehlenden Wissens fehlgeschlagen sind, sollten jetzt
-bestehen.
+Ein abgedecktes Thema sagt, welches Dokument es abdeckt, behält wie ein
+verworfenes die Fragen, die zu ihm gehören, und steht unter **Abgedeckt**. Wird
+dieses Dokument gelöscht, ist das Thema wieder offen. **Wieder öffnen** bei
+einem abgedeckten Thema lässt das Dokument in der Wissensdatenbank. Das Dokument
+hält fest, aus welchem Thema und von wem es hinzugefügt wurde, und jede
+Hinzufügung steht im Audit-Log als `knowledge_gap.content_added`.
+
+Du kannst ein Dokument auch selbst hochladen oder es einer Quelle hinzufügen,
+aus der die Wissensdatenbank synchronisiert. Nachdem du den Inhalt hinzugefügt
+hast, führe ein Eval über das Dataset aus. Die Fälle, die wegen des fehlenden
+Wissens fehlgeschlagen sind, sollten jetzt bestehen.
 
 ## Den fehlenden Inhalt entwerfen { #drafting-the-missing-content }
 
@@ -172,23 +188,37 @@ ein Run des **Knowledge gap drafter**, eines
 [System-Agents](concepts.md#system-agents), den jede Organisation hat. Er sieht
 die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
 gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
-Kommentar zu einer negativen Bewertung.
+Kommentar zu einer negativen Bewertung. Was Personen identifiziert, wird
+vorher entfernt (siehe [Personenbezogene Daten](#personal-data)). Er sieht
+außerdem die [Kontextdateien](context.md), die die Agents des Themas in ihren
+veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
+den Regeln folgt, denen die Agents schon folgen.
 
-Der Entwurf bleibt beim Thema, als Entwurf gekennzeichnet, mit einem Link zu
-seinem Run. Du kannst ihn kopieren oder als Markdown herunterladen. Er wird nie
-der Wissensdatenbank hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
-Antwort eine Zahl, ein Datum oder eine Regel braucht, schreibt er einen
-Platzhalter in eckigen Klammern, den du ausfüllst. Ein neuer Entwurf ersetzt den
-alten. Wer den Drafter bearbeiten darf, findet am Entwurf **Anweisungen des
+Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
+kannst ihn kopieren oder als Markdown herunterladen, und in die
+Wissensdatenbank kommt er erst, wenn ihn jemand hinzufügt. Der Entwerfer kennt
+die Fakten deines Unternehmens nicht: Wo eine Antwort eine Zahl, ein Datum oder
+eine Regel braucht, schreibt er `{{what to fill in}}`, und der Editor listet
+jede solche Stelle auf, bis sie ersetzt ist.
+
+Wenn eine Kontextdatei oder ein Dokument die Fragen schon beantwortet, sagt der
+Drafter das, und das Thema nennt diese Quelle: Verwirf dann das Thema, statt
+Inhalt hinzuzufügen. Ein neuer Entwurf ersetzt den alten. Wer den Drafter bearbeiten darf, findet am Entwurf **Anweisungen des
 Drafters bearbeiten** und den Drafter selbst unter **System-Agents** auf der
 Seite Agents.
 
 Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
-sich stützt, und die Fragen des Themas, die er beantwortet. Jede wird geprüft,
-bevor der Entwurf gespeichert wird - ein Dokument muss zur Wissensbasis des
-Themas gehören, eine Frage zum Thema - und eine, die das nicht tut, wird
-weggelassen, nie angezeigt und beim Entwurf gezählt. Höchstens 12 Quellen
+sich stützt, die Kontextdateien, denen er folgt, und die Fragen des Themas, die
+er beantwortet. Jede wird geprüft, bevor der Entwurf gespeichert wird - ein
+Dokument muss zur Wissensbasis des Themas gehören, eine Frage zum Thema, eine
+Kontextdatei muss eine sein, die du lesen darfst - und eine, die das nicht tut,
+wird weggelassen, nie angezeigt und beim Entwurf gezählt. Höchstens 12 Quellen
 werden behalten. Eine später gelöschte Quelle wird nicht mehr angezeigt.
+
+Ohne dass ein Mensch darum bittet - etwa durch eine automatische Verbesserung -
+wird ein Thema erst entworfen, wenn mindestens zwei verschiedene Personen danach
+gefragt haben, damit die Fragen einer einzelnen Person nie allein entscheiden,
+was alle zu hören bekommen.
 
 Ein Entwurf ist ein Modell-Run wie jeder andere. Er wird verweigert, solange die
 Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
@@ -213,6 +243,7 @@ und die API verweigert ihm den Zugriff.
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
 | Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
+| Den Inhalt eines Themas zu schreiben, zu speichern oder hinzuzufügen | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Antworten zu prüfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap classifier |
 
 Eine Prüfung der Antworten läuft später mit deiner Rolle, also startest du sie
@@ -238,12 +269,27 @@ geänderter Schwellenwert auch für die bereits gemachten Suchen gilt. Keine
 
 Ein Thema kopiert keine Fragen. Name, Beispiele und Anzahl werden aus den
 Suchen gelesen, die es noch enthält. Werden diese Suchen gelöscht, bleibt dem
-Thema nichts, und der nächste Gruppierungslauf entfernt es samt Entwurf. Der
-Entwurf ist der einzige Text, den ein Thema selbst hält: Ein Modell schreibt
-ihn aus den Fragen, er kann also wiederholen, was jemand geschrieben hat.
-Zugangsdaten, die er wiederholt, werden vor dem Speichern geschwärzt. Das
-Entwerfen schickt die Fragen, Antworten und Kommentare an den Modellanbieter des
-Entwerfers. Siehe [Datenschutz](data-protection.md#where-personal-data-lives).
+Thema nichts, und der nächste Gruppierungslauf entfernt es samt Entwurf.
+
+Der Entwurf ist der einzige Text, den ein Thema selbst hält, geschrieben von
+einem Modell oder einem Menschen. Zugangsdaten darin werden vor dem Speichern
+geschwärzt. Das Entwerfen schickt die Fragen, Antworten und Kommentare an den
+Modellanbieter des Entwerfers, nachdem entfernt wurde, was Personen
+identifiziert: E-Mail-Adressen, Telefon-, Karten- und Bankkontonummern sowie
+jede Zahl oder jeder Code mit vier oder mehr Ziffern oder mit drei Ziffern und
+einem Buchstaben, etwa eine Bestellnummer. Eine Angabe wie „30 Tage“ oder
+„$500“ bleibt. Nichts, was ein Mensch schreibt, wird verändert. Siehe
+[Datenschutz](data-protection.md#where-personal-data-lives).
+
+Ein Dokument, das aus einem Thema hinzugefügt wird, erreicht alle, denen die
+Agents seiner Wissensdatenbank antworten. Deshalb wird der Inhalt vor dem
+Hinzufügen auf personenbezogene Daten geprüft und auf jede solche Zahl und
+jeden solchen Code, den er aus den Fragen, Antworten oder Kommentaren des
+Themas wiederholt, es sei denn, eine Kontextdatei der Agents des Themas nennt
+ihn ebenfalls. Was gefunden wird, steht im Thema, und das Hinzufügen wartet,
+bis du es bestätigst. Der Audit-Eintrag hält fest, wie viel markiert wurde und
+dass es bestätigt wurde, nicht was. Das Dokument bleibt, wenn das Thema oder
+die Person, die es hinzugefügt hat, gelöscht wird.
 
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
 die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
@@ -258,3 +304,7 @@ Tagen. Runs über die HTTP-API behalten keine Antwort, also wird eine dort
 gestellte Frage nur dann zur Lücke, wenn ihre Suche ein Fehltreffer war. Eine
 ohne Kommentar negativ bewertete Antwort wird auf das gelesen, was der Agent
 gesagt hat, nicht auf die Bewertung.
+
+Namen werden weder aus dem entfernt, was der Drafter liest, noch in Inhalten
+zum Hinzufügen markiert: Nichts hier erkennt einen Namen. Prüfe einen Entwurf
+darauf, bevor du ihn hinzufügst.

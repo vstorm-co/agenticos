@@ -13,10 +13,10 @@ answered without knowing, grouped by topic, with how often each was asked and
 by which agents.
 
 A gap tells you what is missing. It never adds anything to a knowledge base by
-itself. A person writes or finds the missing document - a model can draft it -
-and adds it, and can first turn the topic's questions into
-[dataset](datasets.md) cases, so an eval can show whether the new document
-changed the answers.
+itself. A person writes the missing content in the topic - a model can draft it
+- and adds it to the knowledge base as a document, and can first turn the
+topic's questions into [dataset](datasets.md) cases, so an eval can show
+whether the new document changed the answers.
 
 ## How a question becomes a gap { #how-a-question-becomes-a-gap }
 
@@ -57,13 +57,14 @@ answers wait, with a link to the switch for whoever may change it.
 The model is the **Knowledge gap classifier**, a
 [system agent](concepts.md#system-agents) every organization has. It reads each
 answer with its question and the comments of anyone who rated it down, and
-decides one of three things:
+decides one of four things:
 
 | Verdict | When |
 |---|---|
-| The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information |
+| The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information. A fair question the agent turned down because it had nothing on it is this, not a refusal |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
-| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
+| Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too |
+| No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the
@@ -72,7 +73,8 @@ two it is, instead of naming a search.
 An answer is read when its run, in the last 30 days, finished and searched the
 knowledge base and found something, or was rated down with a comment and runs on
 an agent version bound to the knowledge base. A run whose search already missed
-is counted once, as that miss. Runs over the HTTP API keep no answer, and eval
+is read too, so that a rightful refusal takes its miss out of the gaps;
+otherwise it is still counted once, as that miss. Runs over the HTTP API keep no answer, and eval
 runs, whose questions are replayed or generated, are never read. Nor are a
 builder's tests of a draft, delegated runs, or runs whose starter's account is
 gone.
@@ -132,8 +134,10 @@ A topic belongs to its knowledge base, so who reads it follows who reads that
 knowledge base. There is no separate filter by department: a department sees
 the gaps of the knowledge bases shared with it.
 
-A topic shows how many times it was asked, when it was last asked, which
-agents asked it, and up to three of its questions. Open it to see the most
+A topic shows how many times it was asked and by how many people, when it was
+last asked, which agents asked it, and up to three of its questions. People
+who asked through a channel count by their chat account; everybody who asked
+anonymously, through a widget or with no person behind the run, counts as one. Open it to see the most
 recent questions: what the person asked, what the agent searched for, how
 close the closest passage was, and the comment of anyone who rated the answer
 down. A question read from an answer says whether the agent did not know or a
@@ -141,17 +145,27 @@ reader said information was missing.
 
 ## Acting on a gap { #acting-on-a-gap }
 
-**Add to dataset** and **Dismiss** are in a topic's **…** menu, on its row and
-in the topic itself.
+An open topic has an editor: a title and the content in Markdown, empty or
+filled with the topic's draft. **Add to dataset** and **Dismiss** are in a
+topic's **…** menu, on its row and in the topic itself.
 
 | Action | What it does |
 |---|---|
-| Add the missing document | Upload it to the knowledge base, or to a source the knowledge base syncs from. Nothing is added for you |
+| **Add to** *knowledge base* | Adds the title and content to the topic's knowledge base as a Markdown document, through the same path as an upload, and marks the topic **covered** by it. Refused while a detail is still to fill in, or while something may identify a person and you have not confirmed it (see [Personal data](#personal-data)) |
+| **Save** | Keeps the title and content on the topic without adding them anywhere |
 | **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you may change, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped |
 | **Dismiss** | Marks a topic as needing no content. A dismissed topic keeps the questions that belong to it, so it does not come back as a new topic. **Reopen** reverses it |
 
-After you add the document, run an eval over the dataset. The cases that
-failed because the knowledge was missing should now pass.
+A covered topic says which document covers it, keeps the questions that belong
+to it like a dismissed one, and is listed under **Covered**. If that document is
+deleted, the topic is open again. **Reopen** on a covered topic leaves the
+document in the knowledge base. The document records the topic it was added
+from and who added it, and each addition is in the audit log as
+`knowledge_gap.content_added`.
+
+You can also upload a document yourself, or add it to a source the knowledge
+base syncs from. After you add the content, run an eval over the dataset. The
+cases that failed because the knowledge was missing should now pass.
 
 ## Drafting the missing content { #drafting-the-missing-content }
 
@@ -160,22 +174,34 @@ passage or FAQ entry the knowledge base is missing. It is one run of the
 **Knowledge gap drafter**, a [system agent](concepts.md#system-agents) every
 organization has. The drafter is shown the topic's 20 newest questions: what
 each person asked, what the agent searched for and found, the answer the
-person got, and any comment left with a thumbs-down.
+person got, and any comment left with a thumbs-down. What identifies people is
+taken out first (see [Personal data](#personal-data)). It is also shown the
+[context files](context.md) the topic's agents read in their published
+versions, those you may read, so the draft follows the rules the agents
+already follow.
 
-The draft is kept on the topic, labelled as a draft, with a link to its run.
-You can copy it or download it as Markdown. It is never added to the
-knowledge base. The drafter does not know your
-company's facts: where an answer needs a number, a date or a rule, it writes a
-placeholder in square brackets for you to fill in. Drafting again replaces the
+The draft fills the topic's editor, with a link to its run. You can copy it or
+download it as Markdown, and it reaches the knowledge base only when somebody
+adds it. The drafter does not know your company's facts: where an answer needs
+a number, a date or a rule, it writes `{{what to fill in}}`, and the editor
+lists each one until it is replaced.
+
+When a context file or a document already
+answers the questions, the drafter says so, and the topic names that source:
+dismiss the topic instead of adding content. Drafting again replaces the
 draft. Whoever may edit the drafter finds **Edit the drafter's instructions** on
 the draft, and the drafter itself under **System agents** on the Agents page.
 
 A draft names its sources: the documents of the knowledge base it builds on,
-and the topic's questions it answers. Each one is verified before the draft is
-kept - a document must belong to the topic's knowledge base, a question must be
-one of the topic's - and one that is not is left out, never shown, and
-counted on the draft. At most 12 sources are kept. A source deleted later is
-no longer shown.
+the context files it follows, and the topic's questions it answers. Each one is
+verified before the draft is kept - a document must belong to the topic's
+knowledge base, a question must be one of the topic's, a context file one you
+may read - and one that is not is left out, never shown, and counted on the
+draft. At most 12 sources are kept. A source deleted later is no longer shown.
+
+A topic is drafted without a person asking - by an automated improvement, for
+example - only once at least two different people asked about it, so one
+person's questions alone never decide what everybody is told.
 
 A draft is a model run like any other. It is refused while the organization
 has [AI assistance](governance.md#ai-assistance) switched off, which it is
@@ -198,6 +224,7 @@ without it does not see the tab or the widget, and the API refuses them.
 | Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
 | Draft the missing content | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
+| Write, save or add a topic's content | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Check answers | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap classifier |
 
 A check of answers runs later on your role, so it is started only in person:
@@ -220,12 +247,23 @@ to the searches already made. None outlives its run: the runs class of
 
 A topic copies no question. Its name, its examples and its count are read from
 the searches it still holds, so when those searches are deleted the topic has
-nothing left, and the next grouping pass removes it, with its draft. A draft is
-the one text a topic keeps: it is written by a model from the questions, so it
-may repeat something a person wrote. Credentials it repeats are redacted before
-it is stored. Drafting sends the questions, answers and comments to the
-drafter's model provider. See
+nothing left, and the next grouping pass removes it, with its draft.
+
+A draft is the one text a topic keeps, written by a model or a person. Credentials in it
+are redacted before it is stored. Drafting sends the questions, answers and
+comments to the drafter's model provider, with what identifies people taken out
+first: e-mail addresses, phone, card and bank account numbers, and every number
+or code of four digits or more, or three with a letter, such as an order number.
+A figure like "30 days" or "$500" stays. Nothing a person writes is changed. See
 [Data protection](data-protection.md#where-personal-data-lives).
+
+A document added from a topic reaches everybody its knowledge base's agents
+answer, so before it is added the content is checked for personal data and for
+any such number or code it repeats from the topic's questions, answers or
+comments, unless a context file of the topic's agents states it too. What is
+found is shown in the topic, and adding waits until you confirm it. The audit
+entry records how much was flagged and that it was confirmed, not what. The
+document stays when the topic or the person who added it is deleted.
 
 A question read from an answer is kept the same way as a search: it holds the
 person's question and goes with its run and its conversation. Checking answers
@@ -239,3 +277,6 @@ Answers are read only when somebody checks them, and only from the last 30
 days. Runs over the HTTP API keep no answer, so a question asked there becomes
 a gap only when its search missed. An answer rated down without a comment is
 read for what the agent said, not for the rating.
+
+Names are not taken out of what the drafter reads, nor flagged in content to
+add: nothing here recognises a name. Check a draft for them before you add it.

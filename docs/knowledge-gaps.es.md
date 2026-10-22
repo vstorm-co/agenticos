@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "e84db70caef9"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -14,8 +14,8 @@ encontró nada relevante, o respondió sin saber, agrupadas por tema, con cuánt
 y qué agents la hicieron.
 
 Una laguna dice qué falta. Nunca añade nada a una base de conocimiento por sí misma. Una
-persona escribe o encuentra el documento que falta - un modelo puede redactar
-un borrador - y lo añade, y antes puede
+persona escribe el contenido que falta en el tema - un modelo puede redactar
+un borrador - y lo añade a la base de conocimiento como documento, y antes puede
 convertir las preguntas del tema en casos de un [dataset](datasets.md), para
 que un eval muestre si el nuevo documento cambió las respuestas.
 
@@ -63,13 +63,14 @@ cambiarlo.
 El modelo es el **Knowledge gap classifier**, un
 [agent del sistema](concepts.md#system-agents) que tiene cada organización. Lee
 cada respuesta con su pregunta y los comentarios de quien la valoró
-negativamente, y decide una de tres cosas:
+negativamente, y decide una de cuatro cosas:
 
 | Veredicto | Cuándo |
 |---|---|
-| El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información |
+| El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información. Una pregunta legítima que el agent rechazó porque no tenía nada sobre ella entra aquí, no entre los rechazos |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
-| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
+| Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas |
+| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
@@ -78,9 +79,12 @@ fallida. En el tema dice cuál de los dos es, en lugar de nombrar una búsqueda.
 Una respuesta se lee cuando su run, de los últimos 30 días, terminó y buscó en
 la base de conocimiento y encontró algo, o fue valorado negativamente con un
 comentario y funciona con una versión del agent vinculada a la base de
-conocimiento. Un run cuya búsqueda ya falló cuenta una vez, como ese fallo. Los
-runs por la API HTTP no guardan respuesta, y los runs de eval, cuyas preguntas se
-reproducen o se generan, nunca se leen. Tampoco las pruebas de un borrador en el
+conocimiento. Un run cuya búsqueda ya falló también se lee, para que un rechazo
+justificado saque su fallo de las lagunas; si no, sigue contando una vez, como
+ese fallo.
+
+Los runs por la API HTTP no guardan respuesta, y los runs de eval, cuyas
+preguntas se reproducen o se generan, nunca se leen. Tampoco las pruebas de un borrador en el
 builder, los runs delegados ni los runs cuyo autor ya no tiene cuenta.
 
 Una revisión pertenece a una base de conocimiento: lo que encuentra es una
@@ -144,8 +148,11 @@ quién lee esa base de conocimiento. No hay un filtro aparte por departamento:
 un departamento ve las lagunas de las bases de conocimiento compartidas con
 él.
 
-Un tema muestra cuántas veces se preguntó, cuándo fue la última vez, qué agents
-lo preguntaron y hasta tres de sus preguntas. Ábrelo para ver las preguntas más
+Un tema muestra cuántas veces se preguntó y cuántas personas lo preguntaron,
+cuándo fue la última vez, qué agents lo preguntaron y hasta tres de sus
+preguntas. Quienes preguntaron por un canal cuentan por su cuenta de chat;
+todos los que preguntaron de forma anónima, a través de un widget o sin una
+persona detrás del run, cuentan como una. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el
 fragmento más cercano y el comentario de quien valoró negativamente la
 respuesta. Una pregunta leída de una respuesta dice si el agent no lo sabía o si
@@ -153,17 +160,28 @@ un lector escribió que faltaba información.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 
-**Añadir al dataset** y **Descartar** están en el menú **…** de un tema, en su
-fila y en el propio tema.
+Un tema abierto tiene un editor: un título y el contenido en Markdown, vacío o
+con el borrador del tema. **Añadir al dataset** y **Descartar** están en el
+menú **…** de un tema, en su fila y en el propio tema.
 
 | Acción | Qué hace |
 |---|---|
-| Añadir el documento que falta | Súbelo a la base de conocimiento, o a una fuente que la base de conocimiento sincroniza. No se añade nada por ti |
+| **Añadir a** *base de conocimiento* | Añade el título y el contenido a la base de conocimiento del tema como documento Markdown, por el mismo camino que una subida, y marca el tema como **cubierto** por él. Se deniega mientras quede un dato por completar, o mientras algo pueda identificar a una persona y no lo hayas confirmado (consulta [Datos personales](#personal-data)) |
+| **Guardar** | Guarda el título y el contenido en el tema sin añadirlos a ningún sitio |
 | **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite |
 | **Descartar** | Marca un tema como uno que no necesita contenido. Un tema descartado conserva las preguntas que le pertenecen, así que no vuelve como tema nuevo. **Reabrir** lo deshace |
 
-Después de añadir el documento, ejecuta un eval sobre el dataset. Los casos que
-fallaban porque faltaba el conocimiento deberían pasar ahora.
+Un tema cubierto dice qué documento lo cubre, conserva las preguntas que le
+pertenecen como uno descartado y aparece en **Cubiertos**. Si ese documento se
+borra, el tema vuelve a estar abierto. **Reabrir** en un tema cubierto deja el
+documento en la base de conocimiento. El documento registra el tema desde el
+que se añadió y quién lo añadió, y cada adición queda en el registro de
+auditoría como `knowledge_gap.content_added`.
+
+También puedes subir un documento por tu cuenta, o añadirlo a una fuente que la
+base de conocimiento sincroniza. Después de añadir el contenido, ejecuta un
+eval sobre el dataset. Los casos que fallaban porque faltaba el conocimiento
+deberían pasar ahora.
 
 ## Redactar el contenido que falta { #drafting-the-missing-content }
 
@@ -173,23 +191,36 @@ Es un run del **Knowledge gap drafter**, un
 [agent del sistema](concepts.md#system-agents) que tiene cada organización. Ve
 las 20 preguntas más recientes del tema: qué preguntó cada persona, qué buscó y
 encontró el agent, qué respuesta recibió la persona y cualquier comentario
-dejado con una valoración negativa.
+dejado con una valoración negativa. Antes se quita lo que identifica a las
+personas (consulta [Datos personales](#personal-data)). También ve los
+[archivos de contexto](context.md) que los agents del tema leen en sus
+versiones publicadas, los que tú puedes leer, para que el borrador siga las
+reglas que los agents ya siguen.
 
-El borrador se guarda en el tema, marcado como borrador, con un enlace a su
-run. Puedes copiarlo o descargarlo como Markdown. Nunca se añade a la
-base de conocimiento. El redactor no conoce los datos de tu
-empresa: donde una respuesta necesita una cifra, una fecha o una regla, escribe
-entre corchetes un marcador para que lo completes. Redactar de nuevo sustituye
-el borrador. Quien puede editar el drafter encuentra **Edit the drafter's
+El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
+o descargarlo como Markdown, y solo llega a la base de conocimiento cuando
+alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
+respuesta necesita una cifra, una fecha o una regla, escribe
+`{{what to fill in}}`, y el editor enumera cada uno hasta que se sustituye.
+
+Cuando un archivo de contexto o un documento ya responde a las preguntas, el
+redactor lo dice y el tema nombra esa fuente: descarta el tema en lugar de
+añadir contenido. Redactar de nuevo sustituye el borrador. Quien puede editar el drafter encuentra **Edit the drafter's
 instructions** en el borrador, y el propio drafter en **System agents**, en la
 página Agents.
 
 Un borrador nombra sus fuentes: los documentos de la base de conocimiento en
-los que se apoya y las preguntas del tema que responde. Cada una se verifica
-antes de guardar el borrador - un documento debe pertenecer a la base de
-conocimiento del tema, una pregunta debe ser del tema - y la que no pasa se
+los que se apoya, los archivos de contexto que sigue y las preguntas del tema
+que responde. Cada una se verifica antes de guardar el borrador - un documento
+debe pertenecer a la base de conocimiento del tema, una pregunta debe ser del
+tema, un archivo de contexto debe ser uno que puedes leer - y la que no pasa se
 omite, nunca se muestra, y se cuenta en el borrador. Se guardan como mucho 12
 fuentes. Una fuente borrada después deja de mostrarse.
+
+Un tema se redacta sin que una persona lo pida - por una mejora automática, por
+ejemplo - solo cuando al menos dos personas distintas han preguntado por él,
+así que las preguntas de una sola persona nunca deciden por sí solas lo que se
+dice a todos.
 
 Un borrador es un run de modelo como cualquier otro. Se deniega mientras la
 organización tiene la [asistencia de IA](governance.md#ai-assistance)
@@ -213,6 +244,7 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
 | Redactar el contenido que falta | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
+| Escribir, guardar o añadir el contenido de un tema | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Revisar respuestas | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap classifier |
 
 Una revisión de respuestas se ejecuta después con tu rol, así que solo se inicia
@@ -238,12 +270,27 @@ de la [retención](governance.md#retention) las borra con él.
 Un tema no copia preguntas. Su nombre, sus ejemplos y su recuento se leen de
 las búsquedas que aún contiene, así que cuando esas búsquedas se borran al tema
 no le queda nada y la siguiente pasada de agrupación lo elimina junto con su
-borrador. El borrador es el único texto que guarda un tema: lo escribe un
-modelo a partir de las preguntas, así que puede repetir algo que alguien
-escribió. Las credenciales que repita se ocultan antes de guardarlo. Redactar
-envía las preguntas, respuestas y comentarios al proveedor del modelo del
-redactor. Consulta
+borrador.
+
+El borrador es el único texto que guarda un tema, escrito por un modelo o por
+una persona. Las credenciales que contenga se ocultan antes de guardarlo.
+Redactar envía las preguntas, respuestas y comentarios al proveedor del modelo
+del redactor, después de quitar lo que identifica a las personas: direcciones
+de correo electrónico, números de teléfono, de tarjeta y de cuenta bancaria, y
+todo número o código de cuatro o más dígitos, o de tres con una letra, como un
+número de pedido. Una cifra como «30 días» o «$500» se queda. Nada de lo que
+escribe una persona se modifica. Consulta
 [Protección de datos](data-protection.md#where-personal-data-lives).
+
+Un documento añadido desde un tema llega a todas las personas a las que
+responden los agents de su base de conocimiento, así que antes de añadirlo se
+revisa el contenido en busca de datos personales y de cualquier número o
+código de ese tipo que repita de las preguntas, respuestas o comentarios del
+tema, salvo que un archivo de contexto de los agents del tema también lo
+indique. Lo que se encuentra se muestra en el tema, y la adición espera hasta
+que lo confirmes. La entrada de auditoría registra cuánto se marcó y que se
+confirmó, no qué. El documento se queda cuando se borra el tema o la persona
+que lo añadió.
 
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
 la pregunta de la persona y se va con su run y su conversación. Revisar
@@ -258,3 +305,7 @@ días. Los runs por la API HTTP no guardan respuesta, así que una pregunta hech
 allí se convierte en laguna solo cuando su búsqueda falló. Una respuesta
 valorada negativamente sin comentario se lee por lo que dijo el agent, no por la
 valoración.
+
+Los nombres no se quitan de lo que lee el redactor ni se marcan en el contenido
+que se va a añadir: nada aquí reconoce un nombre. Revisa si un borrador los
+contiene antes de añadirlo.

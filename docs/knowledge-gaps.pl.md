@@ -1,5 +1,5 @@
 ---
-source_sha: "dce04e2d4523"
+source_sha: "e84db70caef9"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -13,8 +13,8 @@ wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
 że nie wie. Są pogrupowane w tematy, z liczbą zadań każdego pytania i agentami, którzy je zadali.
 
 Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do bazy wiedzy. Człowiek
-pisze albo znajduje brakujący dokument - może go naszkicować model - i go
-dodaje. Wcześniej może zamienić pytania z tematu na przypadki
+pisze brakującą treść w temacie - może ją naszkicować model - i dodaje ją do
+bazy wiedzy jako dokument. Wcześniej może zamienić pytania z tematu na przypadki
 [datasetu](datasets.md), żeby eval pokazał, czy nowy dokument zmienił
 odpowiedzi.
 
@@ -58,14 +58,15 @@ odpowiedzi czeka, z linkiem do przełącznika dla tego, kto może go zmienić.
 
 Model to **Knowledge gap classifier**, [agent systemowy](concepts.md#system-agents),
 którego ma każda organizacja. Czyta każdą odpowiedź razem z pytaniem i
-komentarzami osób, które oceniły ją łapką w dół, i wybiera jedną z trzech
+komentarzami osób, które oceniły ją łapką w dół, i wybiera jedną z czterech
 możliwości:
 
 | Werdykt | Kiedy |
 |---|---|
-| Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji |
+| Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji. Uzasadnione pytanie, którego agent nie podjął, bo nie miał na ten temat nic, należy tutaj, a nie do odmów |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
-| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
+| Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki |
+| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
@@ -74,7 +75,8 @@ to z dwóch przypadków, zamiast podawać wyszukiwanie.
 Odpowiedź jest czytana, gdy jej run z ostatnich 30 dni zakończył się i przeszukał
 bazę wiedzy i coś znalazł albo został oceniony łapką w dół z komentarzem i działa
 na wersji agenta powiązanej z bazą wiedzy. Run, którego wyszukiwanie już było
-chybione, liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
+chybione, też jest czytany, żeby słuszna odmowa usunęła jego chybienie z luk; w
+przeciwnym razie nadal liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
 odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
 są nigdy czytane. Testy draftu w builderze, runy delegowane i runy, których
 autor nie ma już konta, też nie.
@@ -135,25 +137,38 @@ Temat należy do swojej bazy wiedzy, więc kto go czyta, wynika z tego, kto
 czyta tę bazę wiedzy. Nie ma osobnego filtra według działu: dział widzi luki
 baz wiedzy, które mu udostępniono.
 
-Temat pokazuje, ile razy go zadano, kiedy ostatnio, którzy agenci go zadali, i
-do trzech jego pytań. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
+Temat pokazuje, ile razy go zadano i przez ile osób, kiedy ostatnio, którzy
+agenci go zadali, i do trzech jego pytań. Osoby pytające przez kanał są liczone
+według konta czatu; wszyscy, którzy pytali anonimowo, przez widżet albo w runie
+bez osoby za nim, liczą się jako jedna. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
 osoba, czego szukał agent, jak blisko był najbliższy fragment i komentarz
 każdego, kto ocenił odpowiedź łapką w dół. Pytanie odczytane z odpowiedzi mówi,
 czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji.
 
 ## Co zrobić z luką { #acting-on-a-gap }
 
-**Dodaj do datasetu** i **Odrzuć** są w menu **…** tematu, w jego wierszu i w
-samym temacie.
+Otwarty temat ma edytor: tytuł i treść w Markdownie, pustą albo wypełnioną
+szkicem tematu. **Dodaj do datasetu** i **Odrzuć** są w menu **…** tematu, w
+jego wierszu i w samym temacie.
 
 | Działanie | Co robi |
 |---|---|
-| Dodaj brakujący dokument | Wgraj go do bazy wiedzy albo do źródła, z którego baza wiedzy się synchronizuje. Nic nie jest dodawane za ciebie |
+| **Dodaj do** *bazy wiedzy* | Dodaje tytuł i treść do bazy wiedzy tematu jako dokument Markdown, tą samą ścieżką co wgranie pliku, i oznacza temat jako **uzupełniony** tym dokumentem. Jest odrzucane, dopóki jakaś informacja czeka na uzupełnienie albo dopóki coś może identyfikować osobę, a nie zostało to potwierdzone (zobacz [Dane osobowe](#personal-data)) |
+| **Zapisz** | Zachowuje tytuł i treść przy temacie, nigdzie ich nie dodając |
 | **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
 | **Odrzuć** | Oznacza temat jako niewymagający treści. Odrzucony temat zatrzymuje należące do niego pytania, więc nie wraca jako nowy temat. **Otwórz ponownie** to odwraca |
 
-Po dodaniu dokumentu uruchom eval na datasecie. Przypadki, które nie
-przechodziły z powodu brakującej wiedzy, powinny teraz przejść.
+Uzupełniony temat mówi, który dokument go uzupełnia, zatrzymuje należące do
+niego pytania tak jak odrzucony i jest na liście **Uzupełnione**. Jeśli ten
+dokument zostanie usunięty, temat znów jest otwarty. **Otwórz ponownie** na
+uzupełnionym temacie zostawia dokument w bazie wiedzy. Dokument zapisuje temat,
+z którego go dodano, i to, kto go dodał, a każde dodanie trafia do dziennika
+audytu jako `knowledge_gap.content_added`.
+
+Dokument można też wgrać samodzielnie albo dodać do źródła, z którego baza
+wiedzy się synchronizuje. Po dodaniu treści uruchom eval na datasecie.
+Przypadki, które nie przechodziły z powodu brakującej wiedzy, powinny teraz
+przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
 
@@ -162,22 +177,34 @@ fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. To jeden run
 **Knowledge gap drafter**, [agenta systemowego](concepts.md#system-agents),
 którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
 zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
-osoba i komentarz zostawiony przy ocenie łapką w dół.
+osoba i komentarz zostawiony przy ocenie łapką w dół. To, co identyfikuje
+ludzi, jest najpierw usuwane (zobacz [Dane osobowe](#personal-data)). Agent
+widzi też [pliki kontekstowe](context.md), które agenci tematu czytają w swoich
+opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się reguł,
+których agenci już się trzymają.
 
-Szkic zostaje przy temacie, oznaczony jako szkic, z odnośnikiem do jego runa.
-Możesz go skopiować albo pobrać jako Markdown. Nigdy nie jest dodawany do
-bazy wiedzy. Agent nie zna faktów
-twojej firmy: tam, gdzie odpowiedź wymaga liczby, daty albo reguły, wpisuje w
-nawiasach kwadratowych miejsce do uzupełnienia. Ponowny szkic zastępuje
-poprzedni. Kto może edytować draftera, znajdzie przy szkicu **Edytuj instrukcje
+Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
+skopiować albo pobrać jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy
+ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
+liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
+takie miejsce, dopóki nie zostanie zastąpione.
+
+Gdy plik kontekstowy albo dokument już odpowiada na te pytania, drafter to
+mówi, a temat podaje to źródło: zamiast dodawać treść, odrzuć temat. Ponowny
+szkic zastępuje poprzedni. Kto może edytować draftera, znajdzie przy szkicu **Edytuj instrukcje
 draftera**, a samego draftera w sekcji **Agenci systemowi** na stronie Agents.
 
-Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera, i
-pytania tematu, na które odpowiada. Każde źródło jest weryfikowane przed
-zapisaniem szkicu - dokument musi należeć do bazy wiedzy tematu, pytanie musi
-być pytaniem tematu - a to, które nie przejdzie, jest pomijane, nigdy
+Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera,
+pliki kontekstowe, których się trzyma, i pytania tematu, na które odpowiada.
+Każde źródło jest weryfikowane przed zapisaniem szkicu - dokument musi należeć
+do bazy wiedzy tematu, pytanie musi być pytaniem tematu, a plik kontekstowy
+takim, który możesz czytać - a to, które nie przejdzie, jest pomijane, nigdy
 pokazywane, i liczone przy szkicu. Zachowywanych jest najwyżej 12 źródeł.
 Źródło usunięte później przestaje być pokazywane.
+
+Temat jest szkicowany bez prośby człowieka - na przykład przez automatyczne
+ulepszanie - dopiero wtedy, gdy zapytały o niego co najmniej dwie różne osoby,
+więc pytania jednej osoby nigdy same nie decydują o tym, co usłyszą wszyscy.
 
 Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
 [asystenta AI](governance.md#ai-assistance), a jest on wyłączony, dopóki nie
@@ -200,6 +227,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
 | Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap drafter |
+| Napisać, zapisać albo dodać treść tematu | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
 
 Sprawdzenie odpowiedzi działa później na twojej roli, więc uruchamia się je tylko
@@ -224,11 +252,24 @@ klasa runów w [retencji](governance.md#retention) usuwa je razem z nim.
 Temat nie kopiuje pytań. Jego nazwa, przykłady i liczba są czytane z
 wyszukiwań, które jeszcze zawiera, więc gdy te wyszukiwania zostaną usunięte,
 tematowi nic nie zostaje i następne przejście grupowania usuwa go razem ze
-szkicem. Szkic to jedyny tekst, który temat przechowuje: pisze go model na
-podstawie pytań, więc może powtarzać coś, co ktoś napisał. Poświadczenia, które
-powtarza, są redagowane przed zapisaniem. Pisanie szkicu wysyła pytania,
-odpowiedzi i komentarze do dostawcy modelu agenta. Zobacz
+szkicem.
+
+Szkic to jedyny tekst, który temat przechowuje, napisany przez model albo
+człowieka. Poświadczenia w nim są redagowane przed zapisaniem. Pisanie szkicu
+wysyła pytania, odpowiedzi i komentarze do dostawcy modelu draftera, po
+usunięciu tego, co identyfikuje ludzi: adresów e-mail, numerów telefonów, kart
+i rachunków bankowych oraz każdej liczby albo kodu z co najmniej czterema
+cyframi albo z trzema cyframi i literą, jak numer zamówienia. Wartość taka jak
+„30 dni” albo „$500” zostaje. Nic, co pisze człowiek, nie jest zmieniane. Zobacz
 [Ochrona danych](data-protection.md#where-personal-data-lives).
+
+Dokument dodany z tematu trafia do każdego, komu odpowiadają agenci jego bazy
+wiedzy, więc przed dodaniem treść jest sprawdzana pod kątem danych osobowych i
+każdej takiej liczby albo kodu, które powtarza z pytań, odpowiedzi albo
+komentarzy tematu, chyba że podaje je też plik kontekstowy agentów tematu. To,
+co zostanie znalezione, jest pokazywane w temacie, a dodanie czeka, aż to
+potwierdzisz. Wpis audytu zapisuje, ile oznaczono i że to potwierdzono, ale nie
+co. Dokument zostaje, gdy temat albo osoba, która go dodała, zostanie usunięta.
 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
 zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
@@ -243,3 +284,7 @@ dni. Runy przez HTTP API nie zachowują odpowiedzi, więc zadane tam pytanie sta
 się luką tylko wtedy, gdy jego wyszukiwanie było chybione. Odpowiedź oceniona
 łapką w dół bez komentarza jest czytana pod kątem tego, co powiedział agent, a
 nie samej oceny.
+
+Imiona i nazwiska nie są usuwane z tego, co czyta drafter, ani oznaczane w
+treści do dodania: nic tutaj nie rozpoznaje imion i nazwisk. Sprawdź pod tym
+kątem szkic, zanim go dodasz.
