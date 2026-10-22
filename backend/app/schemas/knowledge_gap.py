@@ -167,11 +167,12 @@ class KnowledgeGapContent(BaseSchema):
 
 
 class KnowledgeGapContentAdd(KnowledgeGapContent):
-    confirm_identifying: bool = Field(
-        default=False,
+    confirmed: list[KnowledgeGapFlag] = Field(
+        default_factory=list,
+        max_length=200,
         description=(
-            "Add it although it is flagged as possibly identifying somebody; refused "
-            "without it while any flag stands"
+            "The flags the caller checked and confirms, as they were shown. Adding is "
+            "refused while the content holds a flag not among them"
         ),
     )
 

@@ -11,22 +11,33 @@ asked.
 
 import uuid
 from collections.abc import Iterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import delete, select
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, IdentifyingContentError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    IdentifyingContentError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
-from app.schemas.knowledge_gap import KnowledgeGapContent, KnowledgeGapContentAdd, KnowledgeGapDraft
+from app.schemas.knowledge_gap import (
+    KnowledgeGapContent,
+    KnowledgeGapContentAdd,
+    KnowledgeGapDraft,
+    KnowledgeGapFlag,
+)
 from app.services.knowledge_gaps import KnowledgeGapService
 from tests.integration.test_knowledge_gaps import (
     _a_topic,
@@ -62,12 +73,22 @@ def uploads(tmp_path, monkeypatch) -> Iterator[MagicMock]:
     return storage
 
 
-async def _add(db, ctx: AuthContext, topic_id: uuid.UUID, content: str, *, confirm: bool = False):
+async def _add(
+    db,
+    ctx: AuthContext,
+    topic_id: uuid.UUID,
+    content: str,
+    *,
+    confirmed: tuple[tuple[str, str], ...] = (),
+    title: str = "Visitor parking",
+):
     return await KnowledgeGapService(db).add_content(
         ctx,
         topic_id,
         KnowledgeGapContentAdd(
-            title="Visitor parking", content=content, confirm_identifying=confirm
+            title=title,
+            content=content,
+            confirmed=[KnowledgeGapFlag(kind=kind, value=value) for kind, value in confirmed],
         ),
         vector_store=_AcceptingStore(),
     )
@@ -196,13 +217,17 @@ async def test_content_repeating_an_order_number_is_held_until_somebody_confirms
         await _group(db, ctx, kb)
     [topic_id] = await _topics(db, kb)
 
+    content = "Order 7781 was parked on level -1. Mail ann@example.com"
     with pytest.raises(IdentifyingContentError) as refused:
-        await _add(db, ctx, topic_id, "Order 7781 was parked on level -1. Mail ann@example.com")
+        await _add(db, ctx, topic_id, content)
+    with pytest.raises(IdentifyingContentError) as partly:
+        await _add(db, ctx, topic_id, content, confirmed=(("shared", "7781"),))
     assert await _documents(db, kb) == []
     added = await _add(
-        db, ctx, topic_id, "Order 7781 was parked on level -1. Mail ann@example.com", confirm=True
+        db, ctx, topic_id, content, confirmed=(("shared", "7781"), ("personal_data", "email"))
     )
 
+    assert len(partly.value.details["flags"]) == 2
     flags = refused.value.details["flags"]
     assert {"kind": "shared", "value": "7781", "count": 1} in flags
     assert {"kind": "personal_data", "value": "email", "count": 1} in flags
@@ -329,32 +354,27 @@ async def _one_asker_topic(db, ctx: AuthContext, kb: KnowledgeBase, agent: Agent
     return topic_id
 
 
-async def test_a_topic_one_person_asked_is_not_drafted_unasked_and_two_people_are_enough(
-    db,
-) -> None:
+async def test_people_are_counted_once_whether_they_ask_in_a_channel_or_the_console(db) -> None:
     ctx = await _owner(db)
     kb = await _knowledge_base(db, ctx)
     agent = await _agent(db, ctx)
     topic_id = await _one_asker_topic(db, ctx, kb, agent)
-    service = KnowledgeGapService(db)
-    drafting_run, _ = await _turn(db, ctx, agent)
-
-    with pytest.raises(BadRequestError) as refused:
-        await service.draft(ctx, topic_id, automatic=True)
-    other = await _member(db, ctx, OrgRoleName.ADMIN)
-    run, _ = await _turn(db, other, agent, question="Visitor parking, anyone?")
-    await _searched(db, other, run, kb, query="visitor parking again")
+    linked = ChannelIdentity(platform="slack", platform_user_id="U1", user_id=ctx.user_id)
+    stranger = ChannelIdentity(platform="slack", platform_user_id="U2")
+    db.add_all([linked, stranger])
+    await db.flush()
+    for identity in (linked, stranger):
+        run, _ = await _turn(db, ctx, agent, question="Visitor parking from Slack?")
+        run.channel_identity_id = identity.id
+        await db.flush()
+        await _searched(db, ctx, run, kb, query=f"visitor parking {identity.platform_user_id}")
     with _embedding():
         await _group(db, ctx, kb)
-    with _drafter(
-        KnowledgeGapDraft(title="Parking", content="Visitors park on level {{level}}."),
-        drafting_run,
-    ):
-        drafted = await service.draft(ctx, topic_id, automatic=True)
 
-    assert refused.value.details["askers"] == 1
-    assert drafted.asker_count == 2
-    assert drafted.draft is not None and drafted.draft.blanks == ["level"]
+    [topic] = (await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)).items
+
+    assert topic.id == topic_id
+    assert (topic.question_count, topic.asker_count) == (4, 2)
 
 
 async def test_runs_with_nobody_behind_them_count_as_one_asker(db) -> None:
@@ -380,3 +400,91 @@ async def test_runs_with_nobody_behind_them_count_as_one_asker(db) -> None:
 
     assert topic.id == topic_id
     assert (topic.question_count, topic.asker_count) == (4, 2)
+
+
+async def test_a_draft_a_person_changes_is_theirs_and_an_unchanged_one_stays_the_models(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    _, agent, topic_id = await _a_topic(db, ctx)
+    drafting_run, _ = await _turn(db, ctx, agent)
+    service = KnowledgeGapService(db)
+    with _drafter(
+        KnowledgeGapDraft(
+            title="Parking",
+            content="Visitors park on level -1.",
+            questions=[1],
+            already_covered=True,
+        ),
+        drafting_run,
+    ):
+        await service.draft(ctx, topic_id)
+
+    kept = await service.save_content(
+        ctx, topic_id, KnowledgeGapContent(title="Parking", content="Visitors park on level -1.")
+    )
+    changed = await service.save_content(
+        ctx, topic_id, KnowledgeGapContent(title="Parking", content="Visitors park on level -2.")
+    )
+
+    assert kept.draft is not None and kept.draft.run_id == drafting_run.id
+    assert kept.draft.already_covered and kept.draft.sources
+    assert changed.draft is not None
+    assert (changed.draft.run_id, changed.draft.already_covered, changed.draft.sources) == (
+        None,
+        False,
+        [],
+    )
+
+
+async def test_a_covered_topic_takes_no_second_document(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    await _add(db, ctx, topic_id, "Visitors park on level -1.")
+
+    with pytest.raises(AlreadyExistsError):
+        await _add(db, ctx, topic_id, "Visitors park on level -2.")
+
+    assert len(await _documents(db, kb)) == 1
+
+
+async def test_a_detail_left_in_the_title_names_the_title(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+
+    with pytest.raises(BadRequestError) as refused:
+        await _add(db, ctx, topic_id, "Level -1.", title="Parking on {{level}}")
+
+    assert refused.value.details["fields"][0]["field"] == "title"
+
+
+async def test_a_context_file_the_caller_may_not_read_is_not_shown_to_the_drafter(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    shown = await _context_file(db, ctx, "refund-policy", "Digital goods are not refundable.")
+    hidden = await _context_file(db, ctx, "salaries", "Confidential pay bands.")
+    await _published(db, ctx, agent, shown, hidden)
+    run, _ = await _turn(db, ctx, agent, question="Refund my e-book?")
+    await _searched(db, ctx, run, kb, query="parking refund")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+    drafting_run, _ = await _turn(db, ctx, agent)
+
+    async def readable(db, ctx, resource, perm, *, resource_type) -> bool:
+        del db, ctx, perm, resource_type
+        return getattr(resource, "name", None) != "salaries"
+
+    drafted = KnowledgeGapDraft(title="Refunds", content="Not refundable.")
+    with (
+        patch("app.services.knowledge_gaps.resolve_access", new=readable),
+        _drafter(drafted, drafting_run) as run_it,
+    ):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    prompt = run_it.await_args.kwargs["prompt"]
+    assert "refund-policy" in prompt
+    assert "salaries" not in prompt and "pay bands" not in prompt

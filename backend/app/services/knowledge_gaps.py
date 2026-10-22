@@ -41,8 +41,8 @@ from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
+    AlreadyExistsError,
     AuthorizationError,
-    BadRequestError,
     IdentifyingContentError,
     NotFoundError,
 )
@@ -61,7 +61,14 @@ from app.repositories import (
     knowledge_gap_repo,
     member_repo,
 )
-from app.repositories.knowledge_gap import REFUSED, CandidateRow, DraftingRow, TopicRow, Verdict
+from app.repositories.knowledge_gap import (
+    REFUSED,
+    CandidateRow,
+    DraftingRow,
+    QuestionRow,
+    TopicRow,
+    Verdict,
+)
 from app.schemas.knowledge_gap import (
     MAX_DRAFT_SOURCES,
     ClassifiedAnswer,
@@ -118,9 +125,6 @@ DRAFT_CONTEXT_FILES = 10
 DRAFT_CONTEXT_CHARS = 4_000
 """How much of each context file a drafting model is shown."""
 
-MIN_AUTOMATIC_ASKERS = 2
-"""How many different people must have asked before a topic is drafted without a person
-asking: one person's questions alone would steer what everybody is then told."""
 
 EXAMPLES = 3
 
@@ -353,7 +357,7 @@ def _drafting_prompt(
             f"## Question {number}\n"
             f"Asked: {_private(_clip(row.question, 1_000))}\n"
             f"Searched for: {_private(_clip(row.search.query, 500))}\n"
-            f"Found: {_private(_clip(row.found, 2_000))}\n"
+            f"Found: {_redacted(_clip(row.found, 2_000))}\n"
             f"Answered: {_private(_clip(row.answer, 1_500))}\n"
             f"Reader's comment: {_private(_clip(row.down_rating_comment, 500))}"
         )
@@ -601,7 +605,6 @@ class KnowledgeGapService:
             self.db,
             knowledge_base_id,
             organization_id=ctx.organization_id,
-            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             since=datetime.now(UTC) - CLASSIFY_WINDOW,
         )
 
@@ -715,7 +718,7 @@ class KnowledgeGapService:
                 )
                 for q in questions
             ],
-            draft=await self._draft_read(ctx, topic, row),
+            draft=await self._draft_read(ctx, topic, row, questions if summary.can_edit else None),
         )
 
     async def _row(self, ctx: AuthContext, topic: KnowledgeGapTopic) -> TopicRow:
@@ -768,21 +771,13 @@ class KnowledgeGapService:
         return readable[:DRAFT_CONTEXT_FILES]
 
     async def _flags(
-        self, ctx: AuthContext, topic: KnowledgeGapTopic, row: TopicRow, text: str
+        self, ctx: AuthContext, row: TopicRow, questions: list[QuestionRow], text: str
     ) -> list[KnowledgeGapFlag]:
-        sources = await knowledge_gap_repo.source_texts(
-            self.db,
-            topic.id,
-            organization_id=ctx.organization_id,
-            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-            limit=TOPIC_QUESTIONS,
-        )
+        sources = await knowledge_gap_repo.source_texts(self.db, questions)
         known = [file.content for file in await self._context_files(ctx, row.agent_ids)]
         return _flags(text, sources=sources, known=known)
 
-    async def draft(
-        self, ctx: AuthContext, topic_id: UUID, *, automatic: bool = False
-    ) -> KnowledgeGapTopicDetail:
+    async def draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
 
         One run of the organization's seeded knowledge-gap drafter, as the caller:
@@ -796,13 +791,9 @@ class KnowledgeGapService:
         the topic's draft, so it takes what dismissing does: a caller who may
         change the topic's knowledge base.
 
-        `automatic` is for a draft nobody asked for by hand, which is refused
-        until :data:`MIN_AUTOMATIC_ASKERS` different people asked.
-
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            BadRequestError: For an automatic draft of a topic too few people asked.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
@@ -813,16 +804,6 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
-        if automatic:
-            askers = (await self._row(ctx, topic)).asker_count
-            if askers < MIN_AUTOMATIC_ASKERS:
-                raise BadRequestError(
-                    message=(
-                        "A topic is drafted without a person asking only once "
-                        f"{MIN_AUTOMATIC_ASKERS} different people asked about it"
-                    ),
-                    details={"topic_id": topic.id, "askers": askers},
-                )
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -946,11 +927,16 @@ class KnowledgeGapService:
         }
 
     async def _draft_read(
-        self, ctx: AuthContext, topic: KnowledgeGapTopic, row: TopicRow
+        self,
+        ctx: AuthContext,
+        topic: KnowledgeGapTopic,
+        row: TopicRow,
+        asked: list[QuestionRow] | None,
     ) -> KnowledgeGapDraftRead | None:
         """A topic's draft, with each source named - and left out if it is gone since.
 
-        With what is still to fill in, and what may identify somebody.
+        With what is still to fill in, and what may identify somebody when the
+        topic's questions are `asked`: only somebody who may add it is shown that.
         """
         if topic.draft_content is None or topic.drafted_at is None:
             return None
@@ -997,7 +983,9 @@ class KnowledgeGapService:
             run_id=topic.draft_run_id,
             already_covered=topic.draft_already_covered,
             blanks=_blanks(f"{title}\n{topic.draft_content}"),
-            flags=await self._flags(ctx, topic, row, f"{title}\n{topic.draft_content}"),
+            flags=[]
+            if asked is None
+            else await self._flags(ctx, row, asked, f"{title}\n{topic.draft_content}"),
         )
 
     async def save_content(
@@ -1022,13 +1010,25 @@ class KnowledgeGapService:
     async def _keep(
         self, ctx: AuthContext, topic: KnowledgeGapTopic, data: KnowledgeGapContent
     ) -> KnowledgeGapTopic:
-        """Replace a topic's draft text; the sources it was drafted from stay with it."""
+        """Replace a topic's draft text with a person's.
+
+        A model's draft kept as it was stays the model's, with its run and its
+        sources. Changed, it is the person's: what the model cited and found no
+        longer speaks for it.
+        """
+        title, content = _redacted(data.title), _redacted(data.content)
+        if (title, content) == (topic.draft_title, topic.draft_content):
+            return topic
         return await knowledge_gap_repo.update_topic(
             self.db,
             topic=topic,
             update_data={
-                "draft_title": _redacted(data.title),
-                "draft_content": _redacted(data.content),
+                "draft_title": title,
+                "draft_content": content,
+                "draft_sources": [],
+                "draft_unverified": 0,
+                "draft_already_covered": False,
+                "draft_run_id": None,
                 "drafted_by_user_id": ctx.user_id,
                 "drafted_at": datetime.now(UTC),
             },
@@ -1054,27 +1054,44 @@ class KnowledgeGapService:
         Content still asking for a detail to fill in, written `{{...}}`, is
         refused. So is content flagged as possibly identifying somebody -
         personal data, or a number or code it repeats from people's questions -
-        unless the caller confirms it.
+        unless the caller confirms each flag it holds now: one that appeared
+        since the caller looked is not confirmed by having confirmed the others.
+        A topic covered by a document already takes no second one.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
-            BadRequestError: Naming `content`, for a detail still to fill in.
-            IdentifyingContentError: For flagged content the caller did not confirm.
+            AlreadyExistsError: For a topic a document covers already.
+            BadRequestError: Naming `title` or `content`, for a detail still to fill in.
+            IdentifyingContentError: For a flag the caller did not confirm.
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
         kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
-        row = await self._row(ctx, topic)
-        text = f"{data.title}\n{data.content}"
-        blanks = _blanks(text)
-        if blanks:
-            raise refused_field(
-                "content", f"Fill in or remove what is still to fill in: {', '.join(blanks)}"
+        if topic.covered_by_document_id is not None:
+            raise AlreadyExistsError(
+                message="A document covers this topic already; reopen it to add another",
+                details={"topic_id": topic.id, "document_id": topic.covered_by_document_id},
             )
-        flags = await self._flags(ctx, topic, row, text)
-        if flags and not data.confirm_identifying:
+        row = await self._row(ctx, topic)
+        for field, value in (("title", data.title), ("content", data.content)):
+            blanks = _blanks(value)
+            if blanks:
+                raise refused_field(
+                    field, f"Fill in or remove what is still to fill in: {', '.join(blanks)}"
+                )
+        questions = await knowledge_gap_repo.list_questions(
+            self.db,
+            topic.id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            agent_id=None,
+            limit=TOPIC_QUESTIONS,
+        )
+        flags = await self._flags(ctx, row, questions, f"{data.title}\n{data.content}")
+        confirmed = {(flag.kind, flag.value) for flag in data.confirmed}
+        if any((flag.kind, flag.value) not in confirmed for flag in flags):
             raise IdentifyingContentError(
                 details={"flags": [flag.model_dump(mode="json") for flag in flags]}
             )

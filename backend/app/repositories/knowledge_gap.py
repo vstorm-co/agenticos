@@ -37,6 +37,7 @@ from sqlalchemy.orm import aliased
 
 from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
@@ -126,16 +127,24 @@ def _asker() -> ColumnElement[str]:
     """Who asked a run's question, as far as the run can tell.
 
     A channel turn is its sender's, since the run's member is the binding's
-    creator. A run reached through a binding with no sender, or with nobody
-    at all, is one anonymous asker however many there were.
+    creator - the member a linked chat account belongs to, so one person
+    asking in a channel and in the console is one asker. A run that ran as a
+    surface's publisher for somebody nobody knows, or with nobody at all, is
+    one anonymous asker however many there were.
     """
     return case(
+        (
+            ChannelIdentity.user_id.is_not(None),
+            literal("user:") + cast(ChannelIdentity.user_id, Text),
+        ),
         (
             AgentRun.channel_identity_id.is_not(None),
             literal("channel:") + cast(AgentRun.channel_identity_id, Text),
         ),
         (
-            and_(AgentRun.exposure_id.is_(None), AgentRun.user_id.is_not(None)),
+            and_(
+                AgentRun.user_id.is_not(None), AgentRun.initiated_by_publisher_fallback.is_(False)
+            ),
             literal("user:") + cast(AgentRun.user_id, Text),
         ),
         else_=literal("anonymous"),
@@ -353,6 +362,7 @@ async def list_topics(
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
         .join(AgentRun, AgentRun.id == KnowledgeSearch.run_id)
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
         .where(
             KnowledgeGapTopic.organization_id == organization_id,
             KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
@@ -597,27 +607,12 @@ async def _answers(db: AsyncSession, rows: Sequence[QuestionRow]) -> dict[UUID, 
     return {row[0]: row[1] for row in result.all()}
 
 
-async def source_texts(
-    db: AsyncSession,
-    topic_id: UUID,
-    *,
-    organization_id: UUID,
-    threshold: float,
-    limit: int,
-) -> list[str]:
-    """What people's conversations put into a topic's newest questions.
+async def source_texts(db: AsyncSession, rows: Sequence[QuestionRow]) -> list[str]:
+    """What people's conversations put into these questions of a topic.
 
     Each question as asked and as searched, the answer it got and a reader's
     thumbs-down comment - what a passage written for the topic must not repeat.
     """
-    rows = await list_questions(
-        db,
-        topic_id,
-        organization_id=organization_id,
-        threshold=threshold,
-        agent_id=None,
-        limit=limit,
-    )
     answers = await _answers(db, rows)
     texts = (
         (
@@ -746,7 +741,7 @@ def _down_rated_with_comment(message_id: SQLColumnExpression[UUID]) -> ColumnEle
 
 
 def _candidates(
-    knowledge_base_id: UUID, *, organization_id: UUID, threshold: float, since: datetime
+    knowledge_base_id: UUID, *, organization_id: UUID, since: datetime
 ) -> tuple[Any, Any]:
     """The runs and their last answers that are candidates for one knowledge base.
 
@@ -813,7 +808,7 @@ async def classification_candidates(
 ) -> list[CandidateRow]:
     """The newest answers in one knowledge base's runs that a model has still to read."""
     answer, conditions = _candidates(
-        knowledge_base_id, organization_id=organization_id, threshold=threshold, since=since
+        knowledge_base_id, organization_id=organization_id, since=since
     )
     question = (
         select(Message.content)
@@ -889,16 +884,11 @@ async def classification_candidates(
 
 
 async def count_unchecked(
-    db: AsyncSession,
-    knowledge_base_id: UUID,
-    *,
-    organization_id: UUID,
-    threshold: float,
-    since: datetime,
+    db: AsyncSession, knowledge_base_id: UUID, *, organization_id: UUID, since: datetime
 ) -> int:
     """How many answers in one knowledge base's runs a model has still to read."""
     answer, conditions = _candidates(
-        knowledge_base_id, organization_id=organization_id, threshold=threshold, since=since
+        knowledge_base_id, organization_id=organization_id, since=since
     )
     result = await db.execute(
         select(func.count(answer.id))

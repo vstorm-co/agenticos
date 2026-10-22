@@ -159,7 +159,7 @@ async def add_gap_content(
 
     Takes edit access to the knowledge base. Refused while the content still
     asks for a detail to fill in, and - with `IDENTIFYING_CONTENT` - while it
-    is flagged as possibly identifying somebody and `confirm_identifying` is
-    not set.
+    holds a flag, as possibly identifying somebody, that `confirmed` does not
+    list. A topic a document covers already is refused with `ALREADY_EXISTS`.
     """
     return await service.add_content(ctx, topic_id, data, vector_store=vector_store)
