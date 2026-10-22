@@ -232,6 +232,9 @@ export default defineConfig({
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
+        // The connected accounts a virtual terminal reads as (#2191), new and so
+        // inside the gate.
+        "src/components/vault/connected-accounts-card.tsx",
       ],
       exclude: [
         "node_modules",

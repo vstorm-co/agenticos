@@ -92,6 +92,8 @@ export const qk = {
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+    // What the virtual terminal can mount here; fixed until the deployment changes.
+    mirageBackends: () => ["agents", "mirage-backends"] as const,
     // The system variables instructions may use; fixed for the deployment.
     promptVariables: () => ["agents", "prompt-variables"] as const,
   },
@@ -473,6 +475,12 @@ export const qk = {
     preferences: () => ["notifications", "preferences"] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
+  },
+  connectedAccounts: {
+    all: () => ["connected-accounts"] as const,
+    // A person's own, and the organization's: two owners, two lists.
+    mine: () => ["connected-accounts", "mine"] as const,
+    organization: () => ["connected-accounts", "organization"] as const,
   },
   mcpConnections: {
     all: () => ["mcp-connections"] as const,

@@ -120,6 +120,10 @@ async def complete_mcp_oauth(
         connection = await service.oauth_callback(state=data.state, code=data.code)
     except (OAuthError, NotFoundError) as exc:
         return McpOAuthCallbackResult(ok=False, error=str(exc))
+    if connection.purpose == "account":
+        # A connected account is named by its address and bound by a terminal's
+        # mount, never added to an agent as a server - so no id to offer that with.
+        return McpOAuthCallbackResult(ok=True, connection_name=connection.label or connection.name)
     return McpOAuthCallbackResult(
         ok=True,
         connection_name=connection.name,

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { MirageSection } from "@/components/agents/mirage-section";
 import {
   CapabilityResources,
   resourceTabKey,
@@ -19,6 +20,7 @@ import {
   IMAGE_GENERATION_ID,
   MEMORY_FILES_ID,
   MEMORY_MEM0_ID,
+  MIRAGE_ID,
   SANDBOX_ID,
   SUBAGENTS_ID,
   unboundBinding,
@@ -207,6 +209,18 @@ export function CapabilityWorkbench({
                and the server says which. */
           focused.id === IMAGE_GENERATION_ID ? (
             <ImageGenerationSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : /* A folder's form depends on the service picked beside it, and so
+                  does how it signs in - a generated form has one shape. */
+          focused.id === MIRAGE_ID ? (
+            <MirageSection
               definition={focused}
               binding={bound ?? unboundBinding(focused.id)}
               onToggleEnabled={() => onToggle(focused.id)}

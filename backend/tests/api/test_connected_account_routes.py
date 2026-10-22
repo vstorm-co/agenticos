@@ -48,6 +48,7 @@ def service() -> MagicMock:
     stub.list_accounts = AsyncMock(return_value=[_account()])
     stub.account_start = AsyncMock(return_value="https://accounts.google.com/o/oauth2/v2/auth?x=1")
     stub.delete_account = AsyncMock(return_value=None)
+    stub.oauth_callback = AsyncMock(return_value=_account())
     return stub
 
 
@@ -119,3 +120,35 @@ async def test_a_viewer_connects_their_own_account_but_not_the_organizations(
     assert orgs.status_code == 403 and gone.status_code == 403
     assert service.account_start.await_count == 1
     service.delete_account.assert_not_called()
+
+
+async def test_the_builder_reads_what_the_terminal_can_mount(owner) -> None:
+    async with owner() as client:
+        response = await client.get(_url("/agents/capabilities/mirage/backends"))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["installed"] is True
+    github = next(item for item in body["items"] if item["name"] == "github")
+    assert (
+        github["secret_fields"] == ["token"]
+        and "base_url" not in github["options_schema"]["properties"]
+    )
+    s3 = next(item for item in body["items"] if item["name"] == "s3")
+    assert s3["available"] is False and s3["reason"]
+
+
+async def test_an_accounts_consent_returns_by_its_address_with_nothing_to_add_to_an_agent(
+    owner,
+) -> None:
+    async with owner() as client:
+        response = await client.post(
+            _url("/me/mcp-connections/oauth/callback"), json={"state": "s", "code": "c"}
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "connection_name": "ana@acme.com",
+        "connection_id": None,
+        "scope": None,
+        "error": None,
+    }

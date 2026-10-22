@@ -5458,7 +5458,23 @@
       "storedCount": "{count, plural, =1 {1 Schlüssel gespeichert} other {# Schlüssel gespeichert}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Wer diesen Schlüssel an einen Agent binden und wer ihn rotieren oder löschen darf. Ein Schlüssel, den niemand erreicht, ist eine Capability, die niemand konfigurieren kann."
+      "whoCanBindKey": "Wer diesen Schlüssel an einen Agent binden und wer ihn rotieren oder löschen darf. Ein Schlüssel, den niemand erreicht, ist eine Capability, die niemand konfigurieren kann.",
+      "connectedAccounts": {
+        "personalTitle": "Ihre verbundenen Konten",
+        "organizationTitle": "Verbundene Konten der Organisation",
+        "count": "{count, plural, one {# Konto} other {# Konten}}",
+        "connect": "Google-Konto verbinden",
+        "noneYet": "Noch keine Konten verbunden",
+        "personalDetail": "Ein Agent, dessen virtuelles Terminal die eigenen Konten jeder Person liest, bindet diese ein, wenn Sie mit ihm sprechen.",
+        "organizationDetail": "Das virtuelle Terminal eines Agenten kann eines dieser Konten für alle lesen, die mit ihm sprechen.",
+        "needsReconnect": "Die Anmeldung funktioniert nicht mehr. Verbinden Sie das Konto erneut.",
+        "scopes": "{count, plural, one {# Berechtigung erteilt} other {# Berechtigungen erteilt}}",
+        "reconnect": "Erneut verbinden",
+        "disconnect": "{email} trennen",
+        "disconnectTitle": "{email} trennen?",
+        "disconnectDetail": "Agenten, die dieses Konto lesen, verlieren seine Ordner beim nächsten Lauf. Die Freigabe wird aus dem Vault gelöscht.",
+        "disconnectConfirm": "Trennen"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspaces konnten nicht geladen werden",
@@ -8131,5 +8147,28 @@
     "reduce": "Reduziert",
     "full": "Voll",
     "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus."
+  },
+  "mirage": {
+    "folders": "Ordner",
+    "foldersDetail": "Jeder Ordner bindet einen Dienst ein. Der Agent listet, durchsucht und liest ihn mit Shell-Befehlen und schreibt nur dort, wo Sie es erlauben.",
+    "addFolder": "Ordner hinzufügen",
+    "folder": "Ordner",
+    "service": "Dienst",
+    "servicePlaceholder": "Dienst wählen ({name} ist hier nicht verfügbar)",
+    "removeFolder": "{folder} entfernen",
+    "writable": "Der Agent darf hier schreiben",
+    "approveWrites": "Jeden Schreibvorgang freigeben",
+    "secretFor": "Secret für {field}",
+    "entraApp": "Entra-App",
+    "chooseSecret": "Secret wählen",
+    "noSecret": "Keins",
+    "noSecrets": "Noch kein passendes Secret. Fügen Sie eines im <link>Vault</link> hinzu.",
+    "account": "Konto",
+    "chooseAccount": "Konto wählen",
+    "personalAccounts": "Die eigenen Konten jeder Person",
+    "personalAccountsDetail": "Jede Person, die mit dem Agenten spricht, sieht ihre eigenen Konten, einen Ordner pro Konto. Sie verbindet sie im <link>Vault</link>.",
+    "organizationAccountsDetail": "Alle, die mit dem Agenten sprechen, lesen dieses Konto. Die Organisation verbindet Konten im <link>Vault</link>.",
+    "backendsUnavailable": "Die Liste der Dienste konnte nicht geladen werden.",
+    "notInstalled": "Diese Bereitstellung hat das virtuelle Terminal nicht installiert. Ein Operator installiert es mit dem Extra mirage."
   }
 }

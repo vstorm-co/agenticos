@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, Upl
 from fastapi.responses import JSONResponse
 
 from app.agents.capabilities import all_capabilities
+from app.agents.capabilities.mirage import catalog
 from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
@@ -84,6 +85,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
 )
 from app.schemas.mention import MentionableList
+from app.schemas.mirage import MirageBackendList, MirageBackendRead
 from app.schemas.ml import DictationRead, DictationStatusRead
 from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
@@ -148,6 +150,23 @@ async def list_capability_catalog() -> Any:
         if definition.selectable
     ]
     return CapabilityCatalog(items=items, total=len(items))
+
+
+@router.get(
+    "/capabilities/mirage/backends",
+    response_model=MirageBackendList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_mirage_backends() -> Any:
+    """What the virtual terminal can mount here, available ones first, with each form.
+
+    A backend this deployment cannot run is listed with its reason rather than
+    left out; `installed` is false when the terminal itself is not.
+    """
+    backends = catalog()
+    return MirageBackendList(
+        items=[MirageBackendRead.from_info(info) for info in backends], installed=bool(backends)
+    )
 
 
 @router.get(

@@ -58,6 +58,8 @@ export const KNOWLEDGE_ID = "knowledge";
  * served by the API, so the panel asks rather than lists.
  */
 export const IMAGE_GENERATION_ID = "image_generation";
+/** The virtual terminal, whose folders each pick a service and an account (#2191). */
+export const MIRAGE_ID = "mirage";
 export const CODING_AGENT_ID = "coding_agent";
 
 /**

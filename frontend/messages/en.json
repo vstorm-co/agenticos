@@ -5576,7 +5576,23 @@
       "storedCount": "{count, plural, =1 {1 key stored} other {# keys stored}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure."
+      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure.",
+      "connectedAccounts": {
+        "personalTitle": "Your connected accounts",
+        "organizationTitle": "The organization's connected accounts",
+        "count": "{count, plural, one {# account} other {# accounts}}",
+        "connect": "Connect Google account",
+        "noneYet": "No accounts connected yet",
+        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
+        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
+        "needsReconnect": "Its sign-in stopped working. Connect it again.",
+        "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
+        "reconnect": "Reconnect",
+        "disconnect": "Disconnect {email}",
+        "disconnectTitle": "Disconnect {email}?",
+        "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
+        "disconnectConfirm": "Disconnect"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
@@ -8248,5 +8264,28 @@
     "reduce": "Reduce",
     "full": "Full",
     "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
+  },
+  "mirage": {
+    "folders": "Folders",
+    "foldersDetail": "Each folder mounts one service. The agent lists, searches and reads it with shell commands, and writes only where you allow it.",
+    "addFolder": "Add folder",
+    "folder": "Folder",
+    "service": "Service",
+    "servicePlaceholder": "Choose a service ({name} is not available here)",
+    "removeFolder": "Remove {folder}",
+    "writable": "The agent may write here",
+    "approveWrites": "Approve each write",
+    "secretFor": "Secret for {field}",
+    "entraApp": "Entra app",
+    "chooseSecret": "Choose a secret",
+    "noSecret": "None",
+    "noSecrets": "No suitable secret yet. Add one in the <link>vault</link>.",
+    "account": "Account",
+    "chooseAccount": "Choose an account",
+    "personalAccounts": "Each person's own accounts",
+    "personalAccountsDetail": "Each person who talks to the agent sees their own accounts, one folder per account. They connect them in the <link>vault</link>.",
+    "organizationAccountsDetail": "Everybody who talks to the agent reads this account. The organization connects accounts in the <link>vault</link>.",
+    "backendsUnavailable": "The list of services could not be loaded.",
+    "notInstalled": "This deployment does not have the virtual terminal installed. An operator installs it with the mirage extra."
   }
 }

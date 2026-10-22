@@ -5347,7 +5347,23 @@
       "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje."
+      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje.",
+      "connectedAccounts": {
+        "personalTitle": "Twoje podłączone konta",
+        "organizationTitle": "Podłączone konta organizacji",
+        "count": "{count, plural, one {# konto} few {# konta} many {# kont} other {# konta}}",
+        "connect": "Podłącz konto Google",
+        "noneYet": "Nie podłączono jeszcze żadnego konta",
+        "personalDetail": "Agent, którego wirtualny terminal czyta własne konta każdej osoby, montuje je, gdy z nim rozmawiasz.",
+        "organizationDetail": "Wirtualny terminal agenta może czytać jedno z tych kont dla każdego, kto z nim rozmawia.",
+        "needsReconnect": "Logowanie przestało działać. Podłącz konto ponownie.",
+        "scopes": "{count, plural, one {# przyznane uprawnienie} few {# przyznane uprawnienia} many {# przyznanych uprawnień} other {# przyznanego uprawnienia}}",
+        "reconnect": "Podłącz ponownie",
+        "disconnect": "Odłącz {email}",
+        "disconnectTitle": "Odłączyć {email}?",
+        "disconnectDetail": "Agenci czytający to konto stracą jego foldery przy następnym uruchomieniu. Zgoda zostanie usunięta z vault.",
+        "disconnectConfirm": "Odłącz"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Nie udało się wczytać workspace",
@@ -8033,5 +8049,28 @@
     "reduce": "Ograniczone",
     "full": "Pełne",
     "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
+  },
+  "mirage": {
+    "folders": "Foldery",
+    "foldersDetail": "Każdy folder montuje jedną usługę. Agent listuje, przeszukuje i czyta ją poleceniami powłoki, a zapisuje tylko tam, gdzie na to pozwolisz.",
+    "addFolder": "Dodaj folder",
+    "folder": "Folder",
+    "service": "Usługa",
+    "servicePlaceholder": "Wybierz usługę ({name} nie jest tu dostępna)",
+    "removeFolder": "Usuń {folder}",
+    "writable": "Agent może tu zapisywać",
+    "approveWrites": "Zatwierdzaj każdy zapis",
+    "secretFor": "Sekret dla {field}",
+    "entraApp": "Aplikacja Entra",
+    "chooseSecret": "Wybierz sekret",
+    "noSecret": "Brak",
+    "noSecrets": "Nie ma jeszcze pasującego sekretu. Dodaj go w <link>vault</link>.",
+    "account": "Konto",
+    "chooseAccount": "Wybierz konto",
+    "personalAccounts": "Własne konta każdej osoby",
+    "personalAccountsDetail": "Każda osoba rozmawiająca z agentem widzi własne konta, po jednym folderze na konto. Podłącza je w <link>vault</link>.",
+    "organizationAccountsDetail": "Każdy, kto rozmawia z agentem, czyta to konto. Organizacja podłącza konta w <link>vault</link>.",
+    "backendsUnavailable": "Nie udało się wczytać listy usług.",
+    "notInstalled": "To wdrożenie nie ma zainstalowanego wirtualnego terminala. Operator instaluje go z dodatkiem mirage."
   }
 }
