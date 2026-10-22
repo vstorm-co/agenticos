@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import patch
 
+import anyio
 import httpx
 import pytest
 
@@ -306,6 +307,22 @@ class TestBytePlus:
         assert caught.value.failure is VideoFailure.TIMED_OUT
         assert seen[-1].method == "DELETE"
         assert seen[-1].headers["authorization"] == f"Bearer {KEY}"
+
+    async def test_a_call_cancelled_mid_job_cancels_the_task_too(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A run that went away leaves no queued task billing for nobody."""
+        # An instant pause never yields, so the cancel would never be delivered.
+        monkeypatch.setattr(clients_module, "_pause", lambda _seconds: anyio.sleep(0.01))
+        routes = {
+            ("POST", self.TASKS): _json({"id": "cgt-9"}),
+            ("GET", f"{self.TASKS}/cgt-9"): _json({"status": "queued"}),
+            ("DELETE", f"{self.TASKS}/cgt-9"): lambda _r: httpx.Response(204),
+        }
+        with _answering(routes) as seen, anyio.move_on_after(0.2):
+            await _make("byteplus", "dreamina-seedance-2-0-260128")
+
+        assert seen[-1].method == "DELETE"
 
     async def test_a_cancel_that_fails_still_times_out(self):
         def unreachable(request: httpx.Request) -> httpx.Response:
@@ -1128,3 +1145,64 @@ async def test_a_host_trickling_bytes_past_the_grace_period_times_out(monkeypatc
         await _make("xai", "grok-imagine-video-1.5", timeout_seconds=0.0)
 
     assert caught.value.failure is VideoFailure.TIMED_OUT
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "routes"),
+    [
+        (
+            "byteplus",
+            "dreamina-seedance-2-0-260128",
+            {
+                ("POST", "/api/v3/contents/generations/tasks"): _json({"id": "t1"}),
+                ("GET", "/api/v3/contents/generations/tasks/t1"): _json(
+                    {"status": "succeeded", "content": {"video_url": "https://cdn.example/v.mp4"}}
+                ),
+                ("GET", "/v.mp4"): _bytes(b"", status=403),
+            },
+        ),
+        (
+            "xai",
+            "grok-imagine-video-1.5",
+            {
+                ("POST", "/v1/videos/generations"): _json({"request_id": "r1"}),
+                ("GET", "/v1/videos/r1"): _json(
+                    {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
+                ),
+                ("GET", "/v.mp4"): _bytes(b"", status=403),
+            },
+        ),
+    ],
+    ids=["byteplus", "xai"],
+)
+async def test_a_clip_made_and_not_fetched_reports_both_stages(provider, model, routes):
+    """`made` is what tells the tool the provider billed a clip it could not hand over."""
+    stages: list[str] = []
+    with _answering(routes), pytest.raises(VideoProviderError):
+        await _make(provider, model, reached=stages.append)
+
+    assert stages == ["submitted", "made"]
+
+
+async def test_a_call_cancelled_where_the_provider_has_no_cancel_just_stops(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """xAI documents no cancel, so a run that went away sends nothing more."""
+    monkeypatch.setattr(clients_module, "_pause", lambda _seconds: anyio.sleep(0.01))
+    routes = {
+        ("POST", "/v1/videos/generations"): _json({"request_id": "r2"}),
+        ("GET", "/v1/videos/r2"): _json({"status": "pending"}),
+    }
+    with _answering(routes) as seen, anyio.move_on_after(0.2):
+        await _make("xai", "grok-imagine-video-1.5")
+
+    assert {r.method for r in seen} == {"POST", "GET"}
+
+
+async def test_a_refused_submission_reports_no_stage():
+    stages: list[str] = []
+    routes = {("POST", "/v1/videos/generations"): lambda _r: httpx.Response(400, text="{}")}
+    with _answering(routes), pytest.raises(VideoProviderError):
+        await _make("xai", "grok-imagine-video-1.5", reached=stages.append)
+
+    assert stages == []

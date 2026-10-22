@@ -9,8 +9,8 @@ class VideoFailure(StrEnum):
     """What went wrong, as something a caller can branch on.
 
     The capability answers these differently: a refused key is the operator's to
-    fix, a prompt the provider's policy refused is the model's to rephrase, and a
-    provider that is down or slow is worth one more try later.
+    fix, a prompt the provider's policy refused is answered to the model as
+    refused, and a provider that is down or slow is worth one more try later.
     """
 
     CREDENTIALS = "credentials"
@@ -45,8 +45,9 @@ _MESSAGES = {
 class VideoProviderError(ExternalServiceError):
     """A provider call that produced no video.
 
-    The provider's own response body is logged where it is received and never
-    carried here: this message reaches a model and, through it, a chat.
+    Only the error code the provider names is logged (`provider_error_code.py`);
+    its body is never logged nor carried here: this message reaches a model and,
+    through it, a chat.
     """
 
     code = "VIDEO_PROVIDER_ERROR"

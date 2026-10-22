@@ -128,6 +128,9 @@ class CallWorker:
             # The call's question card, which the twin's `ask_user` reaches and
             # which its delegates inherit from these deps.
             built.deps.ask_questions = ctx.deps.ask_questions
+            # The same provenance set, not a copy: a clip the twin makes may start
+            # from an image the call drew, and what the twin makes is the call's.
+            built.deps.generated_files = ctx.deps.generated_files
             task_id = f"hand-off-{uuid4().hex[:12]}"
             started_at = datetime.now(UTC)
             error: str | None = None

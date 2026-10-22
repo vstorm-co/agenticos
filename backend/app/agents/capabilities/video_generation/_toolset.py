@@ -32,6 +32,7 @@ a slow job is a second bill. A job past its time limit is still booked, at its
 estimate: the provider may finish it and bill it after the call has given up.
 """
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -279,6 +280,9 @@ def build_video_toolset(
                 "this run has left."
             )
 
+        # How far the job got, as the client reports it: what the provider may
+        # bill no longer depends on whether a clip comes back.
+        stages: set[str] = set()
         try:
             clip = await generate_video(
                 entry,
@@ -291,8 +295,25 @@ def build_video_toolset(
                 duration=duration,
                 audio=sound,
                 first_frame=frame,
+                reached=stages.add,
             )
+        except asyncio.CancelledError:
+            # The run went away - a person pressed stop, a call hung up - while
+            # the provider had the job. It may still finish and bill it, so its
+            # estimate is booked, or the next clip would spend the same money.
+            if "submitted" in stages:
+                record_ambient_cost(ledger_name, estimate)
+            raise
         except VideoProviderError as exc:
+            if "made" in stages:
+                # Finished and billed; only fetching the clip failed. Booked, and
+                # answered rather than retried: a second attempt is a second bill.
+                record_ambient_cost(ledger_name, estimate)
+                return (
+                    "Not delivered: the video was made and billed, but it could not be "
+                    "fetched from the provider. Tell the user rather than trying again - a "
+                    "second attempt is billed again."
+                )
             match exc.failure:
                 case VideoFailure.CREDENTIALS:
                     return (
@@ -303,7 +324,8 @@ def build_video_toolset(
                     # Submitted and not cancelled in time, so possibly billed: an
                     # estimate booked is a cap held, where nothing booked would let
                     # the next clip spend the same money again.
-                    record_ambient_cost(ledger_name, estimate)
+                    if "submitted" in stages:
+                        record_ambient_cost(ledger_name, estimate)
                     return (
                         f"Not made: the video was not ready within {settings.timeout_seconds} "
                         "seconds. Tell the user rather than trying again - a second attempt is "

@@ -7918,7 +7918,7 @@
       },
       "timeout_seconds": {
         "title": "Time limit",
-        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it, and the call fails."
+        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
       }
     },
     "knowledge": {

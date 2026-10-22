@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
+import anyio
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
@@ -67,9 +68,16 @@ class _FakeGeneration:
         self.calls: list[dict[str, Any]] = []
         self.error: VideoProviderError | None = None
         self.seconds: float | None = 5.0
+        # How far the job gets before `error` or a hang: what the client reports.
+        self.stages: tuple[str, ...] = ("submitted",)
+        self.hang = False
 
     async def __call__(self, provider: Any, **kwargs: Any) -> Clip:
         self.calls.append({"provider": provider.provider, **kwargs})
+        for stage in self.stages:
+            kwargs["reached"](stage)
+        if self.hang:
+            await anyio.sleep_forever()
         if self.error is not None:
             raise self.error
         return Clip(data=MP4, seconds=self.seconds)
@@ -860,6 +868,54 @@ class TestAFailedJob:
         assert result.startswith("Not made:") and "not ready within 600 seconds" in result
         [entry] = ledger.entries
         assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+
+    async def test_a_job_that_timed_out_before_the_provider_took_it_books_nothing(self, generation):
+        generation.stages = ()
+        generation.error = VideoProviderError(VideoFailure.TIMED_OUT, provider="byteplus")
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            await _make(_toolset(), _ctx(uuid4()))
+
+        assert ledger.entries == []
+
+    @pytest.mark.parametrize(
+        "failure", [VideoFailure.UNAVAILABLE, VideoFailure.REJECTED, VideoFailure.RATE_LIMITED]
+    )
+    async def test_a_clip_made_but_not_fetched_is_booked_and_answered(self, generation, failure):
+        """Finished and billed, then the download failed: the money was spent, and
+        a retry would spend it again."""
+        generation.stages = ("submitted", "made")
+        generation.error = VideoProviderError(failure, provider="byteplus", status=403)
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            result = await _make(_toolset(), _ctx(uuid4()))
+
+        assert result.startswith("Not delivered: the video was made and billed")
+        [entry] = ledger.entries
+        assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+
+    async def test_a_run_cancelled_while_the_provider_has_the_job_books_its_estimate(
+        self, generation
+    ):
+        """Stopped or hung up mid-job: the provider may still finish and bill it."""
+        generation.hang = True
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            with anyio.move_on_after(0.05):
+                await _make(_toolset(), _ctx(uuid4()))
+
+        [entry] = ledger.entries
+        assert entry.cost_usd == _price("byteplus", "dreamina-seedance-2-0-260128", "720p") * 5
+
+    async def test_a_run_cancelled_before_the_provider_took_the_job_books_nothing(self, generation):
+        generation.stages = ()
+        generation.hang = True
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            with anyio.move_on_after(0.05):
+                await _make(_toolset(), _ctx(uuid4()))
+
+        assert ledger.entries == []
 
     @pytest.mark.parametrize(
         "failure", [VideoFailure.REJECTED, VideoFailure.RATE_LIMITED, VideoFailure.UNAVAILABLE]

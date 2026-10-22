@@ -7801,7 +7801,7 @@
       },
       "timeout_seconds": {
         "title": "Zeitlimit",
-        "description": "Wie lange auf einen Clip gewartet wird, in Sekunden. Ein bis dahin nicht fertiger Job wird abgebrochen, wo der Provider es erlaubt, und der Aufruf schlägt fehl."
+        "description": "Wie lange auf einen Clip gewartet wird, in Sekunden. Ein bis dahin nicht fertiger Job wird abgebrochen, wo der Provider es erlaubt, und mit seiner Schätzung gebucht."
       }
     },
     "knowledge": {

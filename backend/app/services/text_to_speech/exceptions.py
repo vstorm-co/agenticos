@@ -42,9 +42,10 @@ _MESSAGES = {
 class SpeechProviderError(ExternalServiceError):
     """A provider call that produced no audio.
 
-    The provider's own response body is logged where it is received and never
-    carried here: this message reaches a model and, through it, a chat, and a
-    provider's error text is not a string this repository controls.
+    Only the error code the provider names is logged (`provider_error_code.py`);
+    its body is never logged nor carried here: this message reaches a model and,
+    through it, a chat, and a provider's error text is not a string this
+    repository controls.
     """
 
     code = "SPEECH_PROVIDER_ERROR"

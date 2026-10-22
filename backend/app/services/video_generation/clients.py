@@ -14,8 +14,8 @@ in the capability's documentation rather than hidden.
 
 The key travels in a header and only there, and never to a download address: a
 provider's storage URL is signed already, and a key sent there is a key handed
-to a storage host. A provider's response body is logged where it is received
-and never put in the exception.
+to a storage host. Of a provider's error only its code is logged
+(`provider_error_code.py`); the body is neither logged nor put in the exception.
 """
 
 import asyncio
@@ -25,8 +25,9 @@ import logging
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
+import anyio
 import httpx
 import logfire
 
@@ -118,6 +119,10 @@ class VideoCall:
     """Whether the clip carries sound, or `None` where the model decides."""
 
     first_frame: FirstFrame | None = None
+    reached: Callable[[JobStage], None] = field(default=lambda _stage: None, repr=False)
+    """Told when the job is `submitted` - the provider has it, so it may be billed
+    whatever happens to this call - and when it is `made`: finished and billed,
+    with only the clip left to fetch."""
 
 
 @dataclass(frozen=True)
@@ -127,6 +132,10 @@ class Clip:
     data: bytes
     seconds: float | None
 
+
+JobStage = Literal["submitted", "made"]
+"""How far a job got: past the first, a cancelled call may still be billed; past
+the second, it was."""
 
 Client = Callable[[httpx.AsyncClient, VideoCall, float], Awaitable[Clip]]
 """A client takes the HTTP client, the call, and the deadline on the loop's clock."""
@@ -176,7 +185,7 @@ def _failure_for(status: int, body: str) -> VideoFailure:
 
 
 def _raise_for(call: VideoCall, response: httpx.Response) -> None:
-    """Refuse a non-2xx answer, logging what the provider said and keeping it out."""
+    """Refuse a non-2xx answer, logging only the provider's error code."""
     if response.is_success:
         return
     body = response.text
@@ -352,7 +361,9 @@ async def _poll(
     settled: Callable[[dict[str, Any]], bool],
     cancel: Callable[[], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
-    """Read a job's status until it settles, or cancel it once the deadline passes.
+    """Read a job's status until it settles, or cancel it once the deadline passes -
+    or once the call itself is cancelled, which leaves a queued job billing for
+    nobody.
 
     A read that fails for the moment - a transient transport error, a 408, 429 or
     5xx gateway status, or a 2xx that is not JSON - says nothing about the job,
@@ -360,6 +371,36 @@ async def _poll(
     than abandoned, which would tell the model to start a second, billed job. Any
     other refusal ends the poll at once.
     """
+    try:
+        return await _read_until_settled(
+            client,
+            call,
+            deadline,
+            url=url,
+            headers=headers,
+            every=every,
+            settled=settled,
+            cancel=cancel,
+        )
+    except asyncio.CancelledError:
+        if cancel is not None:
+            # Shielded, or the cancellation that brought us here cancels it too.
+            with anyio.CancelScope(shield=True):
+                await cancel()
+        raise
+
+
+async def _read_until_settled(
+    client: httpx.AsyncClient,
+    call: VideoCall,
+    deadline: float,
+    *,
+    url: str,
+    headers: dict[str, str],
+    every: float,
+    settled: Callable[[dict[str, Any]], bool],
+    cancel: Callable[[], Awaitable[None]] | None,
+) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     cause = "no answer"
     while True:
@@ -430,6 +471,8 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
             },
             {"type": "text", "text": call.prompt},
         ]
+    # The job runs inside this request, so it may be billed once it is sent.
+    call.reached("submitted")
     response = await client.post(
         f"{call.base_url}/interactions",
         headers=headers,
@@ -461,6 +504,7 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     )
     if video is None:
         raise _unusable(call)
+    call.reached("made")
     if isinstance(video.get("data"), str):
         # Bounded before it is decoded, as a download is while it streams.
         if len(video["data"]) * 3 // 4 > MAX_BYTES:
@@ -533,6 +577,7 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
     task_id = _json(call, response).get("id")
     if not isinstance(task_id, str):
         raise _unusable(call)
+    call.reached("submitted")
     task_url = f"{call.base_url}/contents/generations/tasks/{task_id}"
 
     async def cancel() -> None:
@@ -556,6 +601,7 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
     if task.get("status") != "succeeded":
         error = task.get("error")
         raise _job_failure(call, error.get("code") if isinstance(error, dict) else "")
+    call.reached("made")
     url = _storage_url(call, _dict(call, task.get("content")).get("video_url"))
     duration = task.get("duration")
     return Clip(
@@ -591,6 +637,8 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
     )
     _raise_for(call, response)
     request_id = _json(call, response).get("request_id")
+    if isinstance(request_id, str):
+        call.reached("submitted")
     if not isinstance(request_id, str):
         raise _unusable(call)
     job = await _poll(
@@ -611,6 +659,7 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
         # before using the address - and which an empty address also means. An
         # answer with no address field at all is malformed, not moderated.
         raise VideoProviderError(VideoFailure.POLICY, provider=call.provider)
+    call.reached("made")
     url = _storage_url(call, video.get("url"))
     duration = video.get("duration")
     return Clip(
@@ -648,6 +697,7 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
     task_id = _dict(call, _json(call, response).get("output")).get("task_id")
     if not isinstance(task_id, str):
         raise _unusable(call)
+    call.reached("submitted")
     task = await _poll(
         client,
         call,
@@ -664,6 +714,7 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
     output = _dict(call, task.get("output"))
     if output.get("task_status") != "SUCCEEDED":
         raise _job_failure(call, output.get("code"))
+    call.reached("made")
     url = _storage_url(call, output.get("video_url"))
     seconds = _dict(call, task.get("usage")).get("output_video_duration")
     return Clip(

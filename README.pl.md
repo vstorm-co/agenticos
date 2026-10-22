@@ -1,4 +1,4 @@
-<!-- source_sha: ab4f14389941 -->
+<!-- source_sha: 5a4d6fb78011 -->
 
 <div align="center">
 
@@ -319,11 +319,11 @@ Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szy
 <img src="docs/assets/readme/capabilities.webp" alt="29 wbudowanych capabilities w sześciu grupach: wiedza i pamięć, sieć, pliki, kod i wyniki, sposób działania, bezpieczeństwo i limity, kanały czatu." width="100%">
 
 <details>
-<summary>Wszystkie 29 wbudowanych capabilities w formie tekstu</summary>
+<summary>Wszystkie 31 wbudowanych capabilities w formie tekstu</summary>
 
 - **Wiedza i pamięć:** wyszukiwanie w wiedzy z cytatami, skills, kontekst, pamięć, pamięć przez mem0, dawne rozmowy.
 - **Sieć:** wyszukiwanie w sieci (domyślnie DuckDuckGo; Tavily, Brave lub Exa z kluczem), czytanie stron oraz przeglądarka, którą prowadzi agent, a Ty możesz ją przejąć.
-- **Pliki, kod i wyniki:** obliczenia w Pythonie, sandbox z plikami i powłoką, coding agent, który przekazuje pracę do Claude Code albo Codexa, wykresy, rysunki (diagramy, kalkulatory, sceny 3D), generowanie obrazów (OpenAI lub Google), aplikacje.
+- **Pliki, kod i wyniki:** obliczenia w Pythonie, sandbox z plikami i powłoką, coding agent, który przekazuje pracę do Claude Code albo Codexa, wykresy, rysunki (diagramy, kalkulatory, sceny 3D), generowanie obrazów (OpenAI lub Google), mowa (OpenAI, ElevenLabs lub Google), klipy wideo (Google, BytePlus, xAI lub Alibaba), aplikacje.
 - **Sposób działania:** subagenci, planowanie, myślenie, praca w trakcie działania narzędzi, wyszukiwanie narzędzi, data i godzina, przypomnienia instrukcji, pytania do użytkownika.
 - **Bezpieczeństwo i limity:** guardraile redagujące sekrety i dane osobowe, długie rozmowy, odciążanie mediów, limity wyników narzędzi.
 - **Kanały czatu:** wyszukiwanie kanałów czatu dla botów Slack, Telegram i Mattermost.

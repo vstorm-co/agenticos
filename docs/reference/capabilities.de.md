@@ -1,5 +1,5 @@
 ---
-source_sha: "5242e4744214"
+source_sha: "cc719d38e794"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1252,8 +1252,10 @@ Geld aus und erzeugt eine Aufnahme, die jemand veröffentlichen kann.
 `max_characters` oder vom Provider abgelehnter Text geht an das Modell zurück,
 ebenso ein Provider, der drosselt oder ausgefallen ist. Ein abgelehnter
 Schlüssel, eine unbekannte Stimme und ein ausgeschöpftes Budget werden als
-Ergebnis beantwortet, weil nur der Autor oder der Betreiber sie beheben kann. Der
-Fehlertext des Providers wird protokolliert und erreicht das Modell nie.
+Ergebnis beantwortet, weil nur der Autor oder der Betreiber sie beheben kann; eine
+vom Modell gewählte Stimme, die der Provider nicht kennt, geht an das Modell
+zurück. Protokolliert wird nur der Fehlercode des Providers; sein Fehlertext
+erreicht weder die Logs noch das Modell.
 
 ## Videoerzeugung { #video-generation }
 
@@ -1323,8 +1325,11 @@ der drosselt oder ausgefallen ist. Ein abgelehnter Schlüssel, ein aufgebrauchte
 Budget, ein Prompt, den die Inhaltsrichtlinie des Providers abgelehnt hat, und ein
 Job über dem Zeitlimit werden als Ergebnis beantwortet: ein Wiederholungshinweis
 bei einer Ablehnung würde zu ihrer Umgehung einladen. Ein Job über dem Zeitlimit
-wird mit seiner Schätzung gebucht, weil der Provider ihn noch beenden und
-abrechnen kann.
+oder einer, der mit dem Lauf abgebrochen wird, wird mit seiner Schätzung gebucht,
+sobald er abgeschickt war, weil der Provider ihn noch beenden und abrechnen kann.
+Ein Clip, der erstellt, aber nicht abgerufen werden konnte, wird ebenfalls gebucht
+und als Ergebnis beantwortet statt an das Modell zurückgegeben: ein zweiter
+Versuch würde erneut abgerechnet.
 
 ## Coding Agent { #coding-agent }
 

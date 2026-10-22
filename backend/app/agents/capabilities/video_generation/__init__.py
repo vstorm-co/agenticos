@@ -107,7 +107,7 @@ class VideoGenerationConfig(BaseModel):
         le=1800,
         description=(
             "How long to wait for a clip, in seconds. A job not finished by then is "
-            "cancelled where the provider allows it, and the call fails."
+            "cancelled where the provider allows it and booked at its estimate."
         ),
     )
 

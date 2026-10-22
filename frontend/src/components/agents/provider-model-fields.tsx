@@ -80,7 +80,7 @@ interface ProviderModelFieldsProps<P extends ProviderOffering> {
  * Whose model, and which one - two selects, because it is two decisions.
  *
  * Shared by every capability that makes media through a provider the author picks
- * (image generation, text to speech), so a person choosing a voice meets exactly
+ * (image generation, text to speech, video generation), so a person choosing a voice meets exactly
  * the controls they met choosing a painter. Both lists are the server's catalog.
  * Each model carries a sentence saying when to reach for it, which is the reason
  * the catalog is a file rather than an enum: a dropdown of ids is a decision made

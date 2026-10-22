@@ -75,9 +75,11 @@ catalog holds a dated price per second per resolution and the tool asks the budg
 with the clip's price before submitting. Gemini Omni decides its own length, so a
 clip there is priced at the model's longest before the call - the most it can
 cost - and booked at that, because Gemini reports no length. The others report the
-length they made, and that is what is booked. A job that fails or times out is
-not booked: none of the four reports a charge for one, so a figure here would be a
-guess - which is the gap to check against a provider's console.
+length they made, and that is what is booked. A job the provider refused is not
+booked. One that was submitted and then timed out or was cancelled, or was made
+but could not be fetched, is booked at its estimate: none of the four reports a
+charge for one, so the estimate is a ceiling rather than a figure from the
+provider - which is the gap to check against a provider's console.
 
 ## What it deliberately does not do
 
@@ -98,5 +100,5 @@ guess - which is the gap to check against a provider's console.
 | Content policy refused the prompt or image | Returned - a retry prompt on a refusal invites a way around it |
 | Not ready within `timeout_seconds` | Returned and booked at its estimate - a retry is billed again, and the job may still be |
 
-The provider's own error text is logged where it is received and never reaches the
-model.
+Only the provider's error code is logged (`provider_error_code.py`); its error
+text is neither logged nor passed to the model.

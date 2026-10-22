@@ -6,9 +6,9 @@ produce *and* that can be joined: MP3 frames concatenate, and PCM concatenates
 before a single WAV header is written around it. That is what lets a text longer
 than one request be spoken as one clip (:mod:`.synthesis`).
 
-The key travels in a header and only there. A provider's response body is logged
-at the point it is received and is never put in the exception: it is not text this
-repository controls, and it reaches a chat.
+The key travels in a header and only there. Of a provider's error only its code
+is logged (`provider_error_code.py`); the body is neither logged nor put in the
+exception: it is not text this repository controls, and it reaches a chat.
 """
 
 import base64

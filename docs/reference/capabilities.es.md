@@ -1,5 +1,5 @@
 ---
-source_sha: "5242e4744214"
+source_sha: "cc719d38e794"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1202,8 +1202,9 @@ imágenes: gasta dinero y produce una grabación que alguien puede publicar.
 `max_characters` o el que rechaza el provider vuelve al modelo, igual que un
 provider que limita el tráfico o no responde. Una clave rechazada, una voz
 desconocida y un budget agotado se responden como resultado, porque solo el autor
-o el operador pueden arreglarlos. El texto de error del provider se registra y
-nunca llega al modelo.
+o el operador pueden arreglarlos; una voz elegida por el modelo que el provider no
+conoce vuelve al modelo. Solo se registra el código de error del provider; su
+texto de error nunca llega a los registros ni al modelo.
 
 ## Generación de vídeo { #video-generation }
 
@@ -1272,8 +1273,11 @@ modelo con una indicación, igual que un provider que limita o está caído. Una
 clave rechazada, un presupuesto agotado, un prompt que la política de contenido
 del provider rechazó y un trabajo que pasa el límite de tiempo se responden como
 resultado: una indicación de reintento ante un rechazo invitaría a sortearlo. Un
-trabajo que pasa el límite de tiempo se contabiliza con su estimación, porque el
-provider aún puede terminarlo y cobrarlo.
+trabajo que pasa el límite de tiempo, o que se cancela con la ejecución, se
+contabiliza con su estimación una vez enviado, porque el provider aún puede
+terminarlo y cobrarlo. Un clip hecho que no se pudo descargar también se
+contabiliza, y se responde como resultado en lugar de devolverse al modelo: un
+segundo intento se cobraría de nuevo.
 
 ## Coding agent { #coding-agent }
 

@@ -7703,7 +7703,7 @@
       },
       "timeout_seconds": {
         "title": "Limit czasu",
-        "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, a wywołanie kończy się błędem."
+        "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, i księgowane według szacunku."
       }
     },
     "knowledge": {

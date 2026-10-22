@@ -1,5 +1,5 @@
 ---
-source_sha: "5242e4744214"
+source_sha: "cc719d38e794"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1182,7 +1182,9 @@ pieniądze i tworzy nagranie, które ktoś może opublikować.
 `max_characters` albo tekst odrzucony przez providera wraca do modelu, podobnie
 provider, który ogranicza ruch albo nie działa. Odrzucony klucz, nieznany głos i
 wyczerpany budget są zwracane jako wynik, bo naprawić je może tylko autor albo
-operator. Własny tekst błędu providera jest logowany i nigdy nie trafia do modelu.
+operator; głos wybrany przez model, którego provider nie zna, wraca do modelu.
+Logowany jest tylko kod błędu providera; jego tekst błędu nie trafia ani do logów,
+ani do modelu.
 
 ## Generowanie wideo { #video-generation }
 
@@ -1248,8 +1250,11 @@ proporcje, których model nie robi, i obraz, którego nie da się odczytać, wra
 do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
 działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
 treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
-ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu jest
-księgowane według szacunku, bo provider może je jeszcze dokończyć i rozliczyć.
+ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu albo
+anulowane razem z przebiegiem jest księgowane według szacunku, o ile zostało już
+wysłane, bo provider może je jeszcze dokończyć i rozliczyć. Klip zrobiony, ale nie
+do pobrania, też jest księgowany i zwracany jako wynik, a nie kierowany z powrotem
+do modelu: druga próba zostałaby rozliczona ponownie.
 
 ## Coding agent { #coding-agent }
 

@@ -33,13 +33,16 @@ Two things are versioned separately from this file and worth knowing about:
   Omni, ByteDance Seedance on BytePlus, xAI Grok Imagine or Alibaba Wan 3.0,
   chosen per agent with a model, resolution and shape, and optionally starting
   from an image the agent generated in the same run, or one in its workspace.
-  The clip plays in the conversation, where a generated image would be shown. Its per-second
-  price is checked against the budget before the job is submitted, and a job
-  past the agent's time limit is cancelled where the provider allows. Google
-  keeps the request it answers, because Gemini delivers a clip by address only
-  from a stored interaction. In a voice call a clip is handed to the agent's
-  text model, since a call cannot wait minutes in silence. BytePlus keys are a
-  new purpose in the vault (#2260).
+  The clip plays in the conversation, where a generated image would be shown.
+  Its per-second price is checked against the budget before the job is
+  submitted, and a job past the agent's time limit is cancelled where the
+  provider allows. Google keeps the request it answers, because Gemini delivers
+  a clip by address only from a stored interaction. `GET
+  /providers/video-models` lists each model's lengths, shapes, resolutions and
+  sound. A clip the provider took is booked at its estimate if the run stops, or
+  the clip cannot be fetched, before it arrives. In a voice call a clip is
+  handed to the agent's text model, since a call cannot wait minutes in silence.
+  BytePlus keys are a new purpose in the vault (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip plays in the
@@ -60,8 +63,17 @@ Two things are versioned separately from this file and worth knowing about:
   playback rather than as a download, so opening one shows a player. Like an
   image, it still downloads from the viewer's own control, and a generated
   clip answers a player's byte-range requests, which Safari and the desktop
-  app need to play video. This is groundwork for speech and video generation, which store their clips the same
-  way as generated images (#2259).
+  app need to play video. This is groundwork for speech and video generation,
+  which store their clips the same way as generated images (#2259).
+
+### Fixed
+
+- **A generated image is no longer lost when the sandbox will not open.** An
+  agent with the sandbox capability also copies what it generates into its
+  workspace. When the sandbox service refused to open a session, that copy
+  failed the whole turn, although the image had been made, paid for and stored.
+  The image is now handed back without a workspace path, as it already was for
+  a full workspace, and the same holds for speech (#2259).
 
 ## [1.12.1] - 2026-10-22
 
@@ -664,15 +676,6 @@ Two things are versioned separately from this file and worth knowing about:
   without an init, so anything orphaned under it stayed a zombie until the
   container restarted; production once showed more than 600. Both compose files
   now start it with `init: true`, as every sandbox it starts already was.
-
-### Fixed
-
-- **A generated image is no longer lost when the sandbox will not open.** An
-  agent with the sandbox capability also copies what it generates into its
-  workspace. When the sandbox service refused to open a session, that copy
-  failed the whole turn, although the image had been made, paid for and stored.
-  The image is now handed back without a workspace path, as it already was for
-  a full workspace, and the same holds for speech (#2259).
 
 ## [1.8.3] - 2026-10-20
 

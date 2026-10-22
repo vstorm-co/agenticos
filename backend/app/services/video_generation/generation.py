@@ -7,10 +7,11 @@ the same refusal a provider's own error would be.
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 import httpx
 
-from app.services.video_generation.clients import CLIENTS, Clip, FirstFrame, VideoCall
+from app.services.video_generation.clients import CLIENTS, Clip, FirstFrame, JobStage, VideoCall
 from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
 from app.services.video_models import VideoProvider
 
@@ -35,6 +36,7 @@ async def generate_video(
     duration: int | None = None,
     audio: bool | None = None,
     first_frame: FirstFrame | None = None,
+    reached: Callable[[JobStage], None] | None = None,
 ) -> Clip:
     """Make one clip with one provider's model, and return its bytes.
 
@@ -50,6 +52,8 @@ async def generate_video(
             decides its own length.
         audio: Whether the clip carries sound. Ignored where the model decides.
         first_frame: An image the clip starts from, for a model that takes one.
+        reached: Told how far the job got - `submitted`, then `made` - so a caller
+            can book what the provider bills although no clip comes back.
 
     Raises:
         VideoProviderError: The provider refused, failed, timed out, or returned
@@ -79,6 +83,7 @@ async def generate_video(
         duration=duration if chosen.duration_choosable else None,
         audio=audio if chosen.audio == "optional" else None,
         first_frame=first_frame,
+        **({} if reached is None else {"reached": reached}),
     )
     deadline = asyncio.get_running_loop().time() + timeout_seconds
     try:

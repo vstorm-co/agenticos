@@ -1119,9 +1119,11 @@ produces a recording a person may publish.
 
 **Failures go to whoever can fix them.** Empty text, text over `max_characters` or
 text the provider refuses is steered back to the model, as is a provider that is
-rate limiting or down. A refused key, an unknown voice and a spent budget are
-answered as the result, because only the author or the operator can fix them. The
-provider's own error text is logged and never reaches the model.
+rate limiting or down, and so is a voice the model chose that the provider does
+not know. A refused key, an unknown usual voice and a spent budget are answered
+as the result, because only the author or the operator can fix them. Only the
+provider's error code is logged; its error text never reaches the logs or the
+model.
 
 ## Video generation
 
@@ -1186,8 +1188,10 @@ model does not make and an image that cannot be read are steered back to the
 model, as is a provider that is rate limiting or down. A refused key, a spent
 budget, a prompt the provider's content policy refused and a job past the time
 limit are answered as the result: a retry prompt on a refusal would invite a way
-around it. A job past the time limit is booked at its estimate, since the
-provider may still finish and bill it.
+around it. A job past the time limit, or cancelled with the run, is booked at its
+estimate once it was submitted, since the provider may still finish and bill it.
+A clip that was made but could not be fetched is booked too, and answered rather
+than steered: a second attempt would be billed again.
 
 ## Coding agent { #coding-agent }
 

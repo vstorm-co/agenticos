@@ -90,5 +90,6 @@ Whose mistake decides the shape (`capabilities/_failures.py`):
 | Key refused, the usual voice or the model unknown | Returned - only the author or the operator can fix it |
 | Budget spent | Returned - a refusal, never a retry |
 
-The provider's own error text is logged where it is received and never reaches
-the model: it is not text this repository controls.
+Only the provider's error code is logged (`provider_error_code.py`); its error
+text is neither logged nor passed to the model: it is not text this repository
+controls, and it may echo the key or the words sent.
