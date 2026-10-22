@@ -55,6 +55,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
+from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
@@ -84,6 +85,7 @@ from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
+from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.user import UserUpdate
@@ -126,6 +128,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,
+    # The caller's own session row, labelled with the app it runs in (#2305).
+    SessionAppUpdate: Session,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,

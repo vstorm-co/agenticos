@@ -141,6 +141,34 @@ class TestWhoIsPushedTo:
         )
         assert "push" in await _channels(db, notification.id)
 
+    async def test_a_failed_read_costs_a_mandatory_event_only_its_push(self, db):
+        org, member = await _org_with_member(db)
+        await _subscribe(db, member)
+        with patch(
+            "app.services.notification_center.push_repo.subscribed",
+            new=AsyncMock(side_effect=OSError("read failed")),
+        ):
+            notification = await _write(
+                db, member, org, NotificationEventType.SECURITY_EVENT, use_savepoint=True
+            )
+        assert "push" not in await _channels(db, notification.id)
+
+    async def test_a_failed_read_still_abandons_an_ordinary_event(self, db):
+        org, member = await _org_with_member(db)
+        with patch(
+            "app.services.notification_center.push_repo.subscribed",
+            new=AsyncMock(side_effect=OSError("read failed")),
+        ):
+            written = await NotificationCenterService(db).write(
+                recipients=[member.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=uuid.uuid4().hex,
+                summary="Your run finished",
+                organization_id=org.id,
+                use_savepoint=True,
+            )
+        assert written == []
+
 
 async def _queued_push(
     db, member: User, org: Organization

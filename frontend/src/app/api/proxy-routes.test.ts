@@ -75,6 +75,7 @@ import * as triggerTemplates from "./trigger-templates/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
+import * as push from "./push/[[...path]]/route";
 import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
@@ -161,6 +162,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["sandbox-workspaces", sandboxWorkspaces],
   ["trigger-templates", triggerTemplates],
   ["secrets", secrets],
+  ["push", push],
   ["sessions", sessions],
   ["skill-changes", skillChanges],
   ["skills", skills],
