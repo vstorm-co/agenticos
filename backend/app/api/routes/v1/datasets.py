@@ -39,7 +39,7 @@ from app.schemas.scoring import (
     CaseScoreList,
     CaseScoreRead,
     CaseVerdict,
-    DatasetScoring,
+    DatasetScoringUpdate,
     JudgeAgreement,
     JudgeCreate,
     JudgeTemplate,
@@ -290,9 +290,13 @@ async def export_dataset_cases(
 
 @router.put("/{dataset_id}/scoring", response_model=DatasetRead)
 async def set_dataset_scoring(
-    dataset_id: UUID, data: DatasetScoring, service: ScoringSvc, ctx: Auth
+    dataset_id: UUID, data: DatasetScoringUpdate, service: ScoringSvc, ctx: Auth
 ) -> Any:
-    """Replace how the dataset's cases are scored. Scores already kept are unchanged."""
+    """Change how the dataset's cases are scored; a field left out keeps its value.
+
+    Scores already kept are unchanged. A list given, such as the judge's criteria,
+    replaces the stored one whole.
+    """
     return await service.set_scoring(ctx, dataset_id, data)
 
 

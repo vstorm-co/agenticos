@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +37,7 @@ from app.core.exceptions import (
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
-from app.core.field_errors import refused_field
+from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import AgentKind
@@ -62,6 +63,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    DatasetScoringUpdate,
     JudgeAgreement,
     JudgeCreate,
     JudgePin,
@@ -169,6 +171,16 @@ def _with_knowledge(instructions: str, knowledge: str | None) -> str:
     return f"{instructions}\n\nWhat you must know to grade:\n{knowledge.strip()}"
 
 
+def _merged(kept: dict[str, Any], changed: dict[str, Any]) -> dict[str, Any]:
+    """`kept` with every value `changed` gives in its place, object by object."""
+    merged = dict(kept)
+    for key, value in changed.items():
+        before = merged.get(key)
+        both = isinstance(value, dict) and isinstance(before, dict)
+        merged[key] = _merged(before, value) if both else value
+    return merged
+
+
 def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
     """Each dataset's waiting scores by outcome, the dataset with the most first."""
     tallies: dict[UUID, dict[str, int]] = {}
@@ -223,21 +235,35 @@ class ScoringService:
         self.judge = SystemAgentRunner(db)
 
     async def set_scoring(
-        self, ctx: AuthContext, dataset_id: UUID, data: DatasetScoring
+        self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoring | DatasetScoringUpdate
     ) -> DatasetRead:
-        """Replace how a dataset's cases are scored. Needs `datasets:edit` on it.
+        """Change how a dataset's cases are scored. Needs `datasets:edit` on it.
 
-        Scores already written keep the configuration they were computed with.
+        Only the fields `changes` sets change, at any depth: a setting left out
+        keeps its stored value, and a list given - the criteria, the default
+        checks - replaces the stored one whole. Scores already written keep the
+        configuration they were computed with.
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
-            BadRequestError: Every scorer is off, the judge is on with nothing to
-                grade, the judge picked is not one of the organization's judges,
-                or the judge or the reference comparison is turned on while AI
-                assistance is off. One already on stays on, and is skipped.
+            BadRequestError: The settings changed do not fit the ones kept, such
+                as a pass mark above the stored scale; every scorer is off, the
+                judge is on with nothing to grade, the judge picked is not one of
+                the organization's judges, or the judge or the reference
+                comparison is turned on while AI assistance is off. One already
+                on stays on, and is skipped.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         stored = DatasetScoring.model_validate(dataset.scoring)
+        kept = stored.model_dump(mode="json", by_alias=True)
+        changed = changes.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        try:
+            data = DatasetScoring.model_validate(_merged(kept, changed))
+        except ValidationError as exc:
+            raise BadRequestError(
+                message="These settings do not fit the ones the dataset keeps",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from exc
         turned_on = [
             field
             for field, now, before in (

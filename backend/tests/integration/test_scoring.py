@@ -65,8 +65,10 @@ from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CaseScoreCreate,
     CaseVerdict,
+    CeilingCheck,
     ChecksScorer,
     DatasetScoring,
+    DatasetScoringUpdate,
     JudgeCreate,
     JudgeScorer,
     ReferenceScorer,
@@ -1160,7 +1162,9 @@ class TestGradingAgain:
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
         )
         await scoring.set_verdict(tenant.ctx, dataset.id, failed.id, CaseVerdict(passed=False))
-        await scoring.set_scoring(tenant.ctx, dataset.id, DatasetScoring())
+        await scoring.set_scoring(
+            tenant.ctx, dataset.id, DatasetScoring(judge=JudgeScorer(enabled=False))
+        )
 
         result = await scoring.rescore(
             tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id, sound.id, failed.id])
@@ -2174,3 +2178,82 @@ class TestRefusals:
             await ScoringService(db).score_run(
                 tenant.ctx, dataset.id, uuid.uuid4(), CaseScoreCreate(run_id=run.id)
             )
+
+
+class TestChangingTheGrading:
+    def _kept(self) -> DatasetScoring:
+        return DatasetScoring(
+            checks=ChecksScorer(defaults=[CeilingCheck(type="max_cost_usd", value=0.5)]),
+            trajectory=TrajectoryScorer(enabled=False),
+            judge=JudgeScorer(enabled=True, scale_max=10, pass_at=8, criteria=RUBRIC),
+            review=ReviewScorer(select="failed"),
+        )
+
+    async def test_a_change_naming_nothing_changes_nothing(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=self._kept())
+
+        saved = await ScoringService(db).set_scoring(
+            tenant.ctx, dataset.id, DatasetScoringUpdate.model_validate({})
+        )
+
+        assert saved.scoring == self._kept()
+
+    async def test_a_change_naming_one_field_changes_that_field_alone(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=self._kept())
+
+        saved = await ScoringService(db).set_scoring(
+            tenant.ctx, dataset.id, DatasetScoringUpdate.model_validate({"judge": {"pass_at": 9}})
+        )
+
+        expected = self._kept()
+        expected.judge.pass_at = 9
+        assert saved.scoring == expected
+
+    async def test_a_list_given_replaces_the_stored_one_whole(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=self._kept())
+
+        saved = await ScoringService(db).set_scoring(
+            tenant.ctx,
+            dataset.id,
+            DatasetScoringUpdate.model_validate({"judge": {"criteria": [RUBRIC[0].model_dump()]}}),
+        )
+
+        assert saved.scoring.judge.criteria == RUBRIC[:1]
+        assert saved.scoring.checks.defaults == self._kept().checks.defaults
+
+    async def test_a_scale_below_the_stored_pass_mark_is_refused_naming_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=self._kept())
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(
+                tenant.ctx,
+                dataset.id,
+                DatasetScoringUpdate.model_validate({"judge": {"scale_max": 6}}),
+            )
+
+        [problem] = refused.value.details["fields"]
+        assert problem["field"] == "judge.pass_at"
+        assert "scale_max of at least 8" in problem["message"]
+        row = await dataset_repo.get(db, dataset.id, organization_id=tenant.organization.id)
+        assert row is not None and DatasetScoring.model_validate(row.scoring) == self._kept()
+
+    async def test_a_change_that_leaves_nothing_to_score_is_refused(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(
+            db, tenant, scoring=DatasetScoring(trajectory=TrajectoryScorer(enabled=False))
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(
+                tenant.ctx,
+                dataset.id,
+                DatasetScoringUpdate.model_validate({"checks": {"enabled": False}}),
+            )
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [
+            "checks.enabled"
+        ]
