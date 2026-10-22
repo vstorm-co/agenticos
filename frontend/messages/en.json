@@ -9573,8 +9573,17 @@
       "expects": "Expected: {effect}",
       "blocked": {
         "check_first": "A change of model is accepted once it pays off. Run Check with evals on these suggestions first.",
+        "check_outdated": "The check is out of date: the draft or the suggestions waiting on it changed since. Run a new check.",
         "inconclusive": "The last check of this model decided nothing. Grade the open answers or run the check again.",
         "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one."
+      },
+      "access": {
+        "title": "Adds access: {items}",
+        "capability": "capability “{name}”{count, plural, =0 {} =1 {, its tool that writes asking for approval} other {, its # tools that write asking for approval}}",
+        "collection": "knowledge base “{name}”",
+        "context": "context file “{name}”",
+        "mcpTools": "{count, plural, =0 {every tool of {server}} =1 {tool {tools} of {server}} other {tools {tools} of {server}}}, asking for approval where they write",
+        "keeps": "Undo puts the tools back and keeps them asking for approval."
       }
     },
     "evidence": {

@@ -200,4 +200,65 @@ describe("a field change", () => {
     ).toBeVisible();
     expect(screen.queryByRole("note")).toBeNull();
   });
+
+  it("marks what it adds access to, by name, and that tools that write ask for approval", () => {
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: { id: "artifacts" },
+        names: { artifacts: "Apps", "kb-1": "Orders" },
+        effect: {
+          writes: ["publish_artifact"],
+          adds: [
+            { kind: "capability", id: "artifacts", tools: ["publish_artifact"] },
+            { kind: "collection", id: "kb-1", tools: [] },
+            { kind: "context", id: "ctx-9", tools: [] },
+          ],
+        },
+      }),
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Adds access: capability “Apps”, its tool that writes asking for approval, knowledge base “Orders”, and context file “ctx-9”",
+    );
+    expect(screen.queryByText(/Undo puts the tools back/)).toBeNull();
+  });
+
+  it("names widened MCP tools and that Undo keeps them asking", () => {
+    card(
+      field({
+        path: "mcp_servers/conn-1/allowed_tools",
+        base_value: ["find"],
+        new_value: ["find", "lookup_order", "refund"],
+        names: { "conn-1": "Shop" },
+        effect: {
+          adds: [
+            { kind: "mcp_tools", id: "conn-1", tools: ["lookup_order", "refund"] },
+            { kind: "mcp_tools", id: "personal:notion", tools: [] },
+          ],
+        },
+      }),
+    );
+    expect(
+      screen.getByText(
+        "Adds access: tools lookup_order and refund of Shop, asking for approval where they write and every tool of personal:notion, asking for approval where they write",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Undo puts the tools back and keeps them asking for approval."),
+    ).toBeVisible();
+  });
+
+  it("holds a change of model back while its check measured something else", () => {
+    card(
+      field({
+        path: "model_profile_id",
+        base_value: "m-1",
+        new_value: "m-2",
+        blocked: "check_outdated",
+      }),
+    );
+    expect(screen.getByRole("note")).toHaveTextContent("The check is out of date");
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+  });
 });

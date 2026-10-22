@@ -9456,8 +9456,17 @@
       "expects": "Erwartet: {effect}",
       "blocked": {
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
+        "check_outdated": "Die Prüfung ist veraltet: Der Entwurf oder die darauf wartenden Vorschläge haben sich seitdem geändert. Führe eine neue Prüfung aus.",
         "inconclusive": "Die letzte Prüfung dieses Modells hat nichts entschieden. Bewerte die offenen Antworten oder prüfe erneut.",
         "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
+      },
+      "access": {
+        "title": "Erweitert den Zugriff: {items}",
+        "capability": "Capability „{name}“{count, plural, =0 {} =1 {, deren schreibendes Tool um Freigabe bittet} other {, deren # schreibende Tools um Freigabe bitten}}",
+        "collection": "Wissensdatenbank „{name}“",
+        "context": "Kontextdatei „{name}“",
+        "mcpTools": "{count, plural, =0 {jedes Tool von {server}} =1 {Tool {tools} von {server}} other {Tools {tools} von {server}}}, mit Freigabe, wo sie schreiben",
+        "keeps": "Rückgängig stellt die Tools wieder her und lässt sie weiter um Freigabe bitten."
       }
     },
     "evidence": {
