@@ -507,7 +507,10 @@ test.describe("Agents", () => {
     if (condition !== null) {
       await expect(group.getByLabel("Secret")).toHaveCount(0);
       await group.getByLabel(fieldLabel(condition.field)).click();
-      await page.getByRole("option", { name: condition.equals[0]!, exact: true }).click();
+      // An option is named for people: Web search lists `tavily` as is, image
+      // generation lists the provider `openai` as "OpenAI".
+      const value = condition.equals[0]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await page.getByRole("option", { name: new RegExp(`^${value}$`, "i") }).click();
     }
 
     const picker = group.getByLabel("Secret");

@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from pydantic_ai.capabilities import AbstractCapability
 
 from app.agents.capabilities import (
@@ -26,7 +27,13 @@ from app.agents.capabilities import (
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import (
+    ApiKeySecret,
+    AwsCredentialsSecret,
+    SecretCondition,
+    SecretKind,
+    SecretRequirement,
+)
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.agent_registry import AgentRegistryService
 
@@ -534,3 +541,29 @@ class TestSpecCarriesOnlyAReference:
                 id=CAPABILITY_ID,
                 secret=AwsCredentialsSecret,  # type: ignore[call-arg]
             )
+
+
+class _Chosen(BaseModel):
+    provider: str | None = None
+
+
+@pytest.mark.parametrize(
+    ("config", "purpose"),
+    [
+        (_Chosen(provider="google"), "google"),
+        (_Chosen(provider=""), "mem0"),
+        (_Chosen(), "mem0"),
+        (None, "mem0"),
+    ],
+    ids=["chosen", "empty", "unset", "no-config"],
+)
+def test_a_keys_purpose_is_the_chosen_service_or_the_named_one(config, purpose):
+    """The order the Builder's `purposeOf` reads: the gating field, then the name."""
+    requirement = SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="A key",
+        purpose="mem0",
+        required_when=SecretCondition(field="provider", equals=("google",)),
+    )
+
+    assert requirement.purpose_for(config) == purpose
