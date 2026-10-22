@@ -1995,7 +1995,9 @@
         "profile": "Save to my profile",
         "role_pack": "Add these routines"
       }
-    }
+    },
+    "turnLost": "The agent stopped before it answered - the server running it went away.",
+    "turnLostAskAgain": "Ask again"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

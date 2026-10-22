@@ -1197,8 +1197,12 @@ worker killed mid-run — OOM, a deploy that does not drain — leaves a durable
 nothing left to finish it: in Activity for ever, and blocking any schedule whose
 trigger it was the linked run of.
 
-An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
-six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+While its model works, the process executing a run stamps it alive every
+`RUN_HEARTBEAT_SECONDS`. A sweep every minute ends anything still `running` with no
+sign of life for `STALE_RUN_REAPED_AFTER_SECONDS` — two minutes by default, zero
+switches it off — as **`failed`**, and tells open consoles, so a chat stops saying
+"Working" over a turn nobody is answering and offers to ask again. A voice call's
+run is left to the voice reaper, which hangs the call up. Nobody stopped this
 run, the infrastructure did, and an operator filtering run history for problems is
 exactly who should see it.
 

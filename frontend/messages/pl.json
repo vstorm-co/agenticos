@@ -1995,7 +1995,9 @@
         "profile": "Zapisz w profilu",
         "role_pack": "Dodaj te rutyny"
       }
-    }
+    },
+    "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
+    "turnLostAskAgain": "Zapytaj ponownie"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

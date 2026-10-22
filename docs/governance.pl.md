@@ -1,5 +1,5 @@
 ---
-source_sha: "39561a7d0018"
+source_sha: "328cd9f889c1"
 ---
 
 # Governance { #governance }
@@ -1288,9 +1288,13 @@ drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Acti
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
-Godzinne przemiatanie kończy wszystko, co dalej jest `running` po
-`STALE_RUN_REAPED_AFTER_HOURS` — domyślnie sześć godzin, zero to wyłącza — jako
-**`failed`**. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
+Gdy model pracuje, proces wykonujący run oznacza go jako żywy co
+`RUN_HEARTBEAT_SECONDS`. Przemiatanie co minutę kończy jako **`failed`** wszystko,
+co dalej jest `running` bez znaku życia przez `STALE_RUN_REAPED_AFTER_SECONDS` —
+domyślnie dwie minuty, zero to wyłącza — i mówi o tym otwartym konsolom, więc
+czat przestaje pokazywać "Working" nad turą, na którą nikt nie odpowiada, i
+proponuje zapytać ponownie. Run rozmowy głosowej zostaje dla reapera rozmów,
+który ją rozłącza. Nikt nie zatrzymał tego runa, zrobiła to infrastruktura, a operator
 filtrujący historię runów pod kątem problemów to dokładnie ten, kto powinien go
 zobaczyć.
 

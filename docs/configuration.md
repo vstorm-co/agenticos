@@ -496,7 +496,8 @@ it deliberately leaves alone.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+| `RUN_HEARTBEAT_SECONDS` | `15` | How often the process executing a run stamps it alive while its model works |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | How long a `running` run may go without a sign of life before the per-minute sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
 
 A run's row is committed before its model is called, so a worker killed mid-run
 leaves it `running` with nothing left to finish it. The ceiling does not have to

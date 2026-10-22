@@ -1,5 +1,5 @@
 ---
-source_sha: "39561a7d0018"
+source_sha: "328cd9f889c1"
 ---
 
 # Governance { #governance }
@@ -1272,8 +1272,13 @@ La fila de un run se confirma como `running` antes de llamar a su modelo
 que no drena — deja una fila duradera sin nada que la termine: en Activity para
 siempre, y bloqueando cualquier horario del que fuera el run enlazado de su trigger.
 
-Un barrido cada hora termina como **`failed`** todo lo que siga en `running` pasadas
-`STALE_RUN_REAPED_AFTER_HOURS` — seis horas por defecto, cero lo apaga. Nadie detuvo
+Mientras su modelo trabaja, el proceso que ejecuta un run lo marca como vivo cada
+`RUN_HEARTBEAT_SECONDS`. Un barrido cada minuto termina como **`failed`** todo lo
+que siga en `running` sin señal de vida durante `STALE_RUN_REAPED_AFTER_SECONDS` —
+dos minutos por defecto, cero lo apaga — y avisa a las consolas abiertas, así que
+un chat deja de mostrar "Working" sobre un turno que nadie responde y ofrece
+preguntar de nuevo. El run de una llamada de voz queda para el reaper de llamadas,
+que la cuelga. Nadie detuvo
 este run, lo hizo la infraestructura, y quien filtra el historial de runs buscando
 problemas es exactamente quien debería verlo.
 

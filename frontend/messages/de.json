@@ -1995,7 +1995,9 @@
         "profile": "Im Profil speichern",
         "role_pack": "Diese Routinen hinzufügen"
       }
-    }
+    },
+    "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
+    "turnLostAskAgain": "Erneut fragen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

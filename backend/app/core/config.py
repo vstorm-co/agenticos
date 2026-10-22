@@ -303,15 +303,18 @@ class Settings(BaseSettings):
     # stops calling a run at work: a longer turn would go on unseen, and someone
     # reopening the thread could ask again over an answer still being written.
     CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
-    # How long a run may sit `running` before the sweep decides its process
-    # died. The row is committed before the model is called (#12), so a worker
-    # killed mid-run leaves it `running` with nothing left to finish it - in
-    # Activity for ever, and blocking any trigger whose resume it was. Six
-    # hours is far past anything this platform executes in one run, and the
-    # ceiling does not have to be exact: a live run the sweep flips anyway is
+    # How often the process executing a run stamps it alive, and how long a
+    # `running` run may go without a sign of life before the sweep decides its
+    # process died. The row is committed before the model is called (#12), so a
+    # process killed mid-run leaves it `running` with nothing left to finish it
+    # - "Working" in the chat, in Activity for ever, and blocking any trigger
+    # whose resume it was. The beat makes a short ceiling safe however long a
+    # model takes; eight missed beats is a dead process, not a busy one. It
+    # does not have to be exact either: a live run the sweep flips anyway is
     # flipped back by its own terminal write, which lands later and wins.
     # Zero or below switches the sweep off.
-    STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
+    RUN_HEARTBEAT_SECONDS: float = Field(default=15.0, gt=0)
+    STALE_RUN_REAPED_AFTER_SECONDS: float = 120.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

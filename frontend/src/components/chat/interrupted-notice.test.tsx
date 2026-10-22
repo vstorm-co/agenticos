@@ -27,4 +27,27 @@ describe("InterruptedNotice", () => {
 
     expect(onRecheck).toHaveBeenCalled();
   });
+
+  it("says a lost answer is not coming, over anything else, and offers to ask again", async () => {
+    const onAskAgain = vi.fn();
+    render(
+      <InterruptedNotice
+        interrupted={false}
+        left
+        lost
+        onRecheck={vi.fn()}
+        onAskAgain={onAskAgain}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(/stopped before it answered/);
+    expect(screen.queryByRole("button", { name: "Check for it" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Ask again" }));
+    expect(onAskAgain).toHaveBeenCalled();
+  });
+
+  it("says so without a button when there is nothing to ask again with", () => {
+    render(<InterruptedNotice interrupted={false} lost />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 });

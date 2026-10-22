@@ -10,6 +10,7 @@ import logging
 
 from app.db.session import get_worker_db_context
 from app.schemas.agent import AgentRunResult
+from app.services import change_feed
 from app.services.api_runs import ApiRunService
 from app.services.run_reaper import RunReaperService
 from app.worker.jobs import RunAgent
@@ -18,19 +19,23 @@ logger = logging.getLogger(__name__)
 
 
 async def reap_stale_runs() -> int:
-    """Fail every run left `running` past `STALE_RUN_REAPED_AFTER_HOURS`.
+    """Fail every run left `running` with no sign of life past `STALE_RUN_REAPED_AFTER_SECONDS`.
 
     Returns how many runs were reaped, so a caller can say what the sweep
-    found without anybody reading the logs.
+    found without anybody reading the logs. Each is announced to open
+    consoles once the session has committed it - a chat says "Working" over
+    a reaped turn until it hears.
     """
     async with get_worker_db_context() as db:
         reaped = await RunReaperService(db).reap_stale()
 
+    for event in reaped:
+        await change_feed.publish(event)
     if reaped:
         # A warning rather than an info: each one is a process that died with
         # work in hand, and the spend it made is recorded nowhere.
-        logger.warning("Stale-run sweep: %d run(s) reaped", reaped)
-    return reaped
+        logger.warning("Stale-run sweep: %d run(s) reaped", len(reaped))
+    return len(reaped)
 
 
 async def run_agent(job: RunAgent) -> AgentRunResult:

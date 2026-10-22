@@ -2172,10 +2172,23 @@ async def list_stale_approvals(
     return list(result.scalars().all())
 
 
+async def beat_run(db: AsyncSession, *, run_id: UUID, at: datetime) -> None:
+    """Say a run is still being executed, while it is `running`.
+
+    `updated_at` is set to itself so the column's `onupdate` does not fire: it
+    is the run's last *transition*, which a sign of life is not.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(heartbeat_at=at, updated_at=AgentRun.updated_at)
+    )
+
+
 async def fail_stale_runs(
     db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
-) -> list[UUID]:
-    """End every run still `running` from before `older_than`, and name which.
+) -> list[AgentRun]:
+    """End every run still `running` with no sign of life since `older_than`, and return them.
 
     A run's row is committed `running` before its model is called (#12), so a
     process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
@@ -2191,27 +2204,36 @@ async def fail_stale_runs(
     later and wins. `awaiting_approval` is deliberately not here: a parked row
     has a resolver, and the approvals sweep is its ceiling.
 
-    A run's age is its **last transition**, not its `started_at`. A resume
-    keeps the row's original start - the run's span covers both segments - and
-    flips it back to `running` with `mark_running`, whose UPDATE stamps
-    `updated_at`. Aged on `started_at` alone, a run approved more than the
-    ceiling after it first parked would be reaped the moment its replay began,
-    and a scheduled trigger could observe that false terminal status and fire
-    on top of the approved call still executing. `updated_at` is null until a
-    row's first UPDATE, so a never-touched orphan ages from its start.
+    A run's age is its **last sign of life**: the latest of its heartbeat, its
+    last transition and its start. The heartbeat is what makes a short ceiling
+    safe - a live run is stamped every few seconds however long its model
+    takes (`app.services.run_heartbeat`). The transition still counts because
+    a resume keeps the row's original start and flips it back to `running`
+    with `mark_running`, whose UPDATE stamps `updated_at`: aged on its start or
+    a heartbeat from before the park, a replay would be reaped the moment it
+    began, and a scheduled trigger could fire on top of the approved call still
+    executing. `GREATEST` skips nulls, so a never-touched orphan ages from its
+    start, and one with none of the three from when its row was written.
+
+    **A voice run is not this sweep's**: its call is heartbeated and hung up by
+    the voice reaper, which closes the run with it (`close_voice_run`).
     """
-    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
+    last_sign_of_life = func.coalesce(
+        func.greatest(AgentRun.heartbeat_at, AgentRun.updated_at, AgentRun.started_at),
+        AgentRun.created_at,
+    )
     result = await db.execute(
         sql_update(AgentRun)
         .where(
             AgentRun.status == RunStatus.RUNNING.value,
-            last_transition < older_than,
+            AgentRun.modality != "voice",
+            last_sign_of_life < older_than,
         )
         .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
-        .returning(AgentRun.id)
+        .returning(AgentRun)
     )
     await db.flush()
-    return [row[0] for row in result.all()]
+    return list(result.scalars().all())
 
 
 async def close_voice_run(

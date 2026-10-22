@@ -421,6 +421,8 @@ export function ChatContainer({
   // its row commits, and the session writes the answer after that, so the first
   // read can come back ending in the question - and nothing else would ask again.
   const runningIn = useRef<{ id: string | null; running: boolean }>({ id: null, running: false });
+  // The conversation whose run ended without writing an answer.
+  const [lostIn, setLostIn] = useState<string | null>(null);
   const answered = messages.at(-1)?.role === "assistant";
   const answeredRef = useRef(answered);
   useEffect(() => {
@@ -441,11 +443,32 @@ export function ChatContainer({
         await selectConversation(id);
         if (useConversationStore.getState().currentMessages.at(-1)?.role === "assistant") return;
       }
+      // The run ended and wrote nothing: its process died under it and the
+      // stale-run sweep closed it. No answer is coming, so say that instead.
+      if (waiting) setLostIn(id);
     })();
     return () => {
       waiting = false;
     };
   }, [runningSince, currentConversationId, selectConversation]);
+  // Until something else is asked or answered there: then the transcript no
+  // longer ends with the question nobody answered.
+  const unanswered = messages.at(-1);
+  const lostQuestion =
+    lostIn !== null &&
+    lostIn === currentConversationId &&
+    runningSince === null &&
+    !isProcessing &&
+    unanswered?.role === "user"
+      ? unanswered.content
+      : null;
+  const askAgain = useCallback(
+    (question: string) => {
+      setLostIn(null);
+      sendMessage(question);
+    },
+    [sendMessage],
+  );
 
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,
@@ -650,6 +673,8 @@ export function ChatContainer({
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
       leftTurnPending={leftTurnPending || answeringElsewhere}
+      answerLost={lostQuestion !== null}
+      onAskAgain={lostQuestion === null ? undefined : () => askAgain(lostQuestion)}
       onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
@@ -738,6 +763,10 @@ interface ChatUIProps {
   detachedTurnPending?: boolean;
   /** True while a turn the reader left running here is still on its way. */
   leftTurnPending?: boolean;
+  /** True when the turn ended without an answer - its process died under it. */
+  answerLost?: boolean;
+  /** Ask the unanswered question again. */
+  onAskAgain?: () => void;
   /** Read the transcript again, for the notice above. */
   onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
@@ -834,6 +863,8 @@ function ChatUI({
   interrupted = false,
   detachedTurnPending = false,
   leftTurnPending = false,
+  answerLost = false,
+  onAskAgain,
   onRecheck,
   personalGaps,
   lastUsage,
@@ -1340,7 +1371,9 @@ function ChatUI({
               interrupted={interrupted}
               detached={detachedTurnPending}
               left={leftTurnPending}
+              lost={answerLost}
               onRecheck={onRecheck}
+              onAskAgain={onAskAgain}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {sandboxPreparing && <SandboxPreparingNotice />}

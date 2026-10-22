@@ -1,5 +1,5 @@
 ---
-source_sha: "94cd032fa02a"
+source_sha: "4cea402448d3"
 ---
 
 # Architektura { #architecture }
@@ -284,9 +284,10 @@ triggera — co teraz obejmuje też żywy run równoległego `run_now` albo odpa
 zdarzeniem, czyli ochronę, której dawna niewidoczność nie mogła dać.
 
 Tymczasem worker, który umiera w trakcie runu, zostawia wiersz `running`, którego
-nic w procesie już nie dokończy. Ten wiersz ogranicza cogodzinne zamiatanie
-przeterminowanych runów, które kończy go jako `failed` po przekroczeniu
-`STALE_RUN_REAPED_AFTER_HOURS`. Własnym sygnałem życia zaplanowanego odpalenia
+nic w procesie już nie dokończy. Proces wykonujący run oznacza go jako żywy co
+`RUN_HEARTBEAT_SECONDS`, a wiersz, który przestał dawać znak życia, ogranicza
+zamiatanie przeterminowanych runów co minutę, które kończy go jako `failed` po
+przekroczeniu `STALE_RUN_REAPED_AFTER_SECONDS`. Własnym sygnałem życia zaplanowanego odpalenia
 pozostaje odnawiana dzierżawa (`app/repositories/agent_trigger.py::claim_due`).
 
 [Governance](governance.md#a-run-whose-process-died) mówi, co to zamiatanie

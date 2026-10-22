@@ -1,5 +1,5 @@
 ---
-source_sha: "39561a7d0018"
+source_sha: "328cd9f889c1"
 ---
 
 # Governance { #governance }
@@ -1373,9 +1373,13 @@ ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nic
 mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
-Ein stündlicher Sweep beendet alles, was jenseits von
-`STALE_RUN_REAPED_AFTER_HOURS` noch `running` ist — sechs Stunden voreingestellt,
-null schaltet es ab — als **`failed`**. Niemand hat diesen Run gestoppt, die
+Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
+alle `RUN_HEARTBEAT_SECONDS` als lebendig. Ein minütlicher Sweep beendet alles,
+was `STALE_RUN_REAPED_AFTER_SECONDS` lang ohne Lebenszeichen noch `running` ist —
+zwei Minuten voreingestellt, null schaltet es ab — als **`failed`** und sagt es
+den offenen Konsolen, sodass ein Chat nicht mehr "Working" über einem Zug zeigt,
+den niemand beantwortet, und anbietet, erneut zu fragen. Den Run eines
+Sprachanrufs überlässt er dem Reaper der Anrufe, der den Anruf auflegt. Niemand hat diesen Run gestoppt, die
 Infrastruktur hat es getan, und ein Betreiber, der die Run-Historie nach
 Problemen filtert, ist genau der, der das sehen sollte.
 

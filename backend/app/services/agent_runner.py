@@ -287,6 +287,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
+from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
     OpenWorkspace,
@@ -5562,13 +5563,16 @@ class AgentRunnerService:
             prepared.run, "created" if deferred_tool_results is None else "updated"
         )
         try:
-            result = await self._answer(
-                prepared,
-                user_prompt=user_prompt,
-                message_history=message_history,
-                deferred_tool_results=deferred_tool_results,
-                stream=stream,
-            )
+            # Stamped alive while the model works, so a process dying under it
+            # is noticed in minutes (`app.services.run_heartbeat`).
+            async with run_heartbeat(prepared.run.id):
+                result = await self._answer(
+                    prepared,
+                    user_prompt=user_prompt,
+                    message_history=message_history,
+                    deferred_tool_results=deferred_tool_results,
+                    stream=stream,
+                )
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.

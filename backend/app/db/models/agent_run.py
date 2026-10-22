@@ -372,6 +372,11 @@ class AgentRun(Base, TimestampMixin):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped every few seconds by the process executing the run
+    # (`app.services.run_heartbeat`), so a run whose process died is told apart
+    # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
+    # so it leaves `updated_at` - the run's last transition - alone.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Monthly spend, per organization. Read before *every* model request to

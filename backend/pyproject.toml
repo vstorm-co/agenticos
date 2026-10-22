@@ -700,6 +700,7 @@ include = [
     # reasoning to a stranger.
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
+    "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
@@ -1173,6 +1174,7 @@ include = [
     # reasoning to a stranger.
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
+    "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",

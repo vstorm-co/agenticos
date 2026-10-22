@@ -1,5 +1,5 @@
 ---
-source_sha: "be083e41ed5b"
+source_sha: "d094daa4a5c1"
 ---
 
 # Configuración { #configuration }
@@ -518,7 +518,8 @@ deja a propósito en paz.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | Cuánto puede quedarse un run en `running` antes de que el barrido horario decida que su proceso murió y lo termine como `failed`. Cero o menos apaga el barrido |
+| `RUN_HEARTBEAT_SECONDS` | `15` | Cada cuánto el proceso que ejecuta un run lo marca como vivo mientras su modelo trabaja |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Cuánto puede quedarse un run en `running` sin señal de vida antes de que el barrido de cada minuto decida que su proceso murió y lo termine como `failed`. Cero o menos apaga el barrido |
 
 La fila de un run se confirma antes de llamar a su modelo, así que un worker muerto a
 media ejecución la deja en `running` sin nada que la termine. El techo no tiene que

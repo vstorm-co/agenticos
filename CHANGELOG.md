@@ -147,6 +147,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A turn whose server died ends in two minutes, not six hours.** The process
+  executing a run stamps it alive every `RUN_HEARTBEAT_SECONDS` (new
+  `agent_runs.heartbeat_at`, migration `0165_run_heartbeat`), and the stale-run
+  sweep runs every minute and ends a run silent for
+  `STALE_RUN_REAPED_AFTER_SECONDS` (default 120), which replaces
+  `STALE_RUN_REAPED_AFTER_HOURS`. It tells open consoles, so a chat stops
+  saying "Working" over a turn nobody is answering and offers **Ask again**.
+  Voice calls are left to the voice reaper.
 - A fresh organization's starter agent is installed as **AgenticOS**
   (`@agenticos`). An organization bootstrapped earlier keeps its
   `@claude-code-like` agent as it is - an agent's handle never changes - and
