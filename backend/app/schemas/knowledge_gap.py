@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.base import BaseSchema
 
@@ -40,15 +40,26 @@ MAX_DRAFT_SOURCES = 12
 """The most sources a draft keeps, once verified."""
 
 
+_LEGACY_LABELS = {"answer": "did_not_know", "rating": "missing_information", "none": "no_gap"}
+"""The labels a classifier published before these were asked for, read as their successors."""
+
+
 class ClassifiedAnswer(BaseSchema):
     """What a classifying model decided about one answer, cited by its number.
 
     Its labels say what they mean to the model, rather than naming the signal a
     gap is stored under: a weaker model read `answer` as "the agent answered".
+    A classifier whose published instructions still name the old labels may
+    answer in them, so they are read as the labels that replaced them.
     """
 
     number: int
     signal: Literal["did_not_know", "missing_information", "no_gap"]
+
+    @field_validator("signal", mode="before")
+    @classmethod
+    def _successor(cls, value: object) -> object:
+        return _LEGACY_LABELS.get(value, value) if isinstance(value, str) else value
 
 
 class KnowledgeGapClassification(BaseSchema):

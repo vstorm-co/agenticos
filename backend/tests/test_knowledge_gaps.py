@@ -23,6 +23,7 @@ from app.db.models.knowledge_gap import (
 )
 from app.repositories import knowledge_gap_repo
 from app.repositories.knowledge_gap import DraftingRow
+from app.schemas.knowledge_gap import ClassifiedAnswer
 from app.services import change_feed
 from app.services.knowledge_gaps import (
     KnowledgeGapService,
@@ -476,6 +477,22 @@ class TestTheCheck:
 
         group.assert_not_awaited()
         told.assert_awaited_once_with(ORG)
+
+
+class TestClassifierLabels:
+    @pytest.mark.parametrize(
+        ("label", "read_as"),
+        [
+            ("answer", "did_not_know"),
+            ("rating", "missing_information"),
+            ("none", "no_gap"),
+            ("did_not_know", "did_not_know"),
+        ],
+    )
+    def test_a_classifier_still_on_the_old_labels_is_read_as_the_new_ones(self, label, read_as):
+        """A classifier seeded before the labels changed keeps its published
+        instructions, which name the old ones; its answer must still be read."""
+        assert ClassifiedAnswer(number=1, signal=label).signal == read_as
 
 
 class TestTheRepository:
