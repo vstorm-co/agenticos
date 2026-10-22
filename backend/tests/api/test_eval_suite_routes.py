@@ -150,19 +150,25 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     one = f"{suites}/{_SUITE.id}"
     body = {"name": "Nightly", "dataset_id": str(_SUITE.dataset_id), "on_publish": True}
     async with client() as http:
-        assert (await http.get(_url("/eval-suites"))).status_code == 200
-        assert (await http.get(_url(suites))).status_code == 200
-        assert (
-            await http.post(_url(f"{suites}/estimate"), json={"dataset_id": str(_SUITE.dataset_id)})
-        ).status_code == 200
-        assert (await http.post(_url(suites), json=body)).status_code == 201
-        assert (await http.get(_url(one))).status_code == 200
-        assert (await http.patch(_url(one), json={"is_active": False})).status_code == 200
-        assert (await http.post(_url(f"{one}/run"))).status_code == 201
+        statuses = [
+            (await http.get(_url("/eval-suites"))).status_code,
+            (await http.get(_url(suites))).status_code,
+            (
+                await http.post(
+                    _url(f"{suites}/estimate"), json={"dataset_id": str(_SUITE.dataset_id)}
+                )
+            ).status_code,
+            (await http.post(_url(suites), json=body)).status_code,
+            (await http.get(_url(one))).status_code,
+            (await http.patch(_url(one), json={"is_active": False})).status_code,
+            (await http.post(_url(f"{one}/run"))).status_code,
+        ]
         listed = await http.get(_url(f"{one}/results"), params={"skip": 20, "limit": 10})
-        assert listed.status_code == 200
-        assert (await http.delete(_url(one))).status_code == 204
+        deleted = await http.delete(_url(one))
 
+    assert statuses == [200, 200, 200, 201, 200, 200, 201]
+    assert listed.status_code == 200
+    assert deleted.status_code == 204
     assert service.results.await_args.kwargs == {"skip": 20, "limit": 10}
     assert listed.json()["items"][0]["status"] == "running"
 
