@@ -1,5 +1,5 @@
 ---
-source_sha: "cb389d355ac7"
+source_sha: "2f8125b4e417"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -60,6 +60,13 @@ nicht steht, ein Run, der nicht zu den gelesenen gehört, und alles über zwölf
 Einträge oder sechshundert Zeichen hinaus wird verworfen, und der Vorschlag sagt,
 wie viele es waren. Wer kein `runs:view` hat, sieht, auf welche Runs sich ein
 Vorschlag stützt, aber nicht, was darin gesagt wurde.
+
+Die Prüfung belegt, dass ein Zitat in seinem Run steht, nicht, dass es zu dem
+passt, was es stützt: Ein echtes Zitat über etwas anderes besteht sie. Deshalb
+nennt ein Befund von Prüfen die Zeile der Änderung, um die es geht, und diese
+Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
+Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
+Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
 
 ## Vorschläge { #suggestions }
 
