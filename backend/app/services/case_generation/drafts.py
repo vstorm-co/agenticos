@@ -89,10 +89,7 @@ class DraftedCase(BaseModel):
 class DraftedCases(BaseModel):
     """The generator's whole answer."""
 
-    # The docstring above is the schema's description, sent to the generator.
-    # Read case by case: a case not in the shape asked for is left out and
-    # counted, so one malformed case does not cost the readable ones; an answer
-    # with cases and none of them readable is unreadable as a whole.
+    # The docstring above is the schema's description, which the generator reads.
     cases: list[DraftedCase]
     _unreadable: int = PrivateAttr(default=0)
 
@@ -106,6 +103,11 @@ class DraftedCases(BaseModel):
     def _read_each_case(
         cls, data: object, handler: ModelWrapValidatorHandler[DraftedCases]
     ) -> DraftedCases:
+        """Leave out each case not in the shape asked for, and count it.
+
+        One malformed case does not cost the readable ones; an answer with cases
+        and none of them readable is unreadable as a whole.
+        """
         if not isinstance(data, dict):
             return handler(data)
         raw = data.get("cases")

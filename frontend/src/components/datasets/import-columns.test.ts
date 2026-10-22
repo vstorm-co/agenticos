@@ -9,7 +9,6 @@ describe("importTemplate", () => {
     expect(header).toBe(IMPORT_COLUMNS.join(","));
     expect(IMPORT_COLUMNS[0]).toBe("input");
     expect(example).toContain("How long does a refund take?");
-    // A cell holding a comma or a quote is quoted, its quotes doubled.
     expect(example).toContain('"refunds,billing"');
     expect(example).toContain('"[{""type"": ""contains""');
     expect(rest).toEqual([""]);

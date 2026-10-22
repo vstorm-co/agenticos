@@ -119,7 +119,6 @@ describe("DatasetHeader", () => {
     const click = vi.spyOn(picker, "click");
     await openMenu();
     await userEvent.click(await screen.findByRole("menuitem", { name: "Import" }));
-    // The format comes first, and the picker only from there.
     const help = await screen.findByRole("dialog", { name: "Import cases" });
     expect(click).not.toHaveBeenCalled();
     expect(within(help).getByText("reference_answer")).toBeInTheDocument();

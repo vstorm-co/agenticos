@@ -461,7 +461,6 @@ describe("adding a rated-down answer to a dataset", () => {
     datasets.add.mockImplementation(async () => order.push("add"));
     mount();
     await userEvent.click(down());
-    // Said before anything is chosen: what a rated-down answer becomes.
     expect(screen.getByText("alsoAddAsCounterExample")).toBeInTheDocument();
     await userEvent.click(alsoAdd());
     await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
@@ -522,7 +521,6 @@ describe("adding a rated-down answer to a dataset", () => {
     expect(vi.mocked(toast.success).mock.calls[0]![0]).toBe("thankYouFeedback");
     const action = toastAction(0);
     expect(action.label).toBe("addToDataset");
-    // Long enough to reach for the action, where sonner's default is gone in 4 s.
     expect(vi.mocked(toast.success).mock.calls[0]![1]).toEqual(
       expect.objectContaining({ duration: 10_000 }),
     );
