@@ -348,7 +348,8 @@ class EvalRunService:
         `candidate_skills` serves proposed skill bodies on the candidate in place
         of the stored ones, so a skill change is measured with the agent held still;
         `candidate_contexts` does the same for context files. A case anonymised
-        after its person was erased is always left out.
+        after its person was erased is always left out: it asks a placeholder,
+        so an answer to it measures nothing until its curator rewrites it.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
@@ -368,8 +369,6 @@ class EvalRunService:
                 message=f"Version {dataset_version.number} of '{dataset.name}' holds no cases",
                 details={"dataset_id": dataset.id, "version": dataset_version.number},
             )
-        # A case anonymised when its person was erased asks a placeholder, so an
-        # answer to it measures nothing until its curator rewrites it.
         anonymised = [case.case_id for case in cases if case.anonymised_at is not None]
         if anonymised:
             cases = [case for case in cases if case.anonymised_at is None]
@@ -380,7 +379,11 @@ class EvalRunService:
                         "anonymised when the person it was taken from was erased. Rewrite or "
                         "remove those cases first."
                     ),
-                    details={"dataset_id": dataset.id, "anonymised": len(anonymised)},
+                    details={
+                        "dataset_id": dataset.id,
+                        "anonymised": len(anonymised),
+                        "reason": "only_anonymised",
+                    },
                 )
         left_out = set(exclude_conversations)
         excluded = [case.case_id for case in cases if case.source_conversation_id in left_out]

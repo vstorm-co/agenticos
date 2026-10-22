@@ -123,6 +123,7 @@ const KNOWN_SKIPS = new Set([
   "over_cost_cap",
   "ai_assistance_off",
   "no_scorer",
+  "only_anonymised",
   "not_published",
   "version_gone",
   "owner_inactive",

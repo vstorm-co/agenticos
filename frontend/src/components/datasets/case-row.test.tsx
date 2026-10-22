@@ -83,6 +83,10 @@ describe("CaseRow", () => {
         onRemove={vi.fn()}
       />,
     );
+    expect(screen.queryByText(CASE.input)).toBeNull();
+    expect(
+      screen.getByText("Removed: the person this case was taken from was erased."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Anonymised after erasure")).toHaveAttribute(
       "title",
       expect.stringContaining("Eval runs leave it out"),

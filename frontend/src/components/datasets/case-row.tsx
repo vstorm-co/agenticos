@@ -20,7 +20,9 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
   return (
     <li className="group flex items-start gap-3 border-b py-3 last:border-b-0">
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
-        <span className="text-foreground line-clamp-2 block text-sm">{item.input}</span>
+        <span className="text-foreground line-clamp-2 block text-sm">
+          {item.anonymised_at ? t("anonymisedInput") : item.input}
+        </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{t(`source.${item.source}`)}</Badge>
           {item.anonymised_at && (
