@@ -6,10 +6,11 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 // one gives: this route takes client-controlled segments and checks no cookie, so
 // a value no deployment ever minted must not reach the network at all. The key is
 // `secrets.token_urlsafe`; the file is the leaf name the store wrote; the token is
-// an expiry and a SHA-256 HMAC in hex (`app.services.embed_generated_media`).
+// an expiry with no leading zero and a SHA-256 HMAC in hex, the one spelling the
+// backend accepts (`app.services.embed_generated_media`).
 const KEY_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const FILENAME_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,254}$/;
-const TOKEN_PATTERN = /^[0-9]{1,12}\.[0-9a-f]{64}$/;
+const TOKEN_PATTERN = /^[1-9][0-9]{0,11}\.[0-9a-f]{64}$/;
 
 // What this route passes on: a raster image, audio or video, which a browser hands
 // to its media pipeline and runs nothing from. This answer is served from the origin

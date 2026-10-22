@@ -83,8 +83,12 @@ Read by the tools' parsers rather than a copy of their `kind` strings here, so a
 media payload that changes shape changes what is signed with it.
 """
 
-_TOKEN = re.compile(r"([0-9]{1,12})\.([0-9a-f]{64})")
+_TOKEN = re.compile(r"([1-9][0-9]{0,11})\.([0-9a-f]{64})")
 """An expiry in Unix seconds, and a SHA-256 HMAC in hex.
+
+The expiry has no leading zero, as `media_token` writes it, so a link has one
+spelling: `0<expiry>` signs the same `int`, and accepting it would hand one link
+a fresh rate-limit bucket per zero (`rate_limit.embed_generated_media_allowed`).
 
 A bare HMAC rather than one of `app.core.security`'s typed JWTs because it rides
 in a URL a player requests over and over: a JWT's header and claims would treble

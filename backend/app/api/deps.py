@@ -14,6 +14,7 @@ is why every write in this API used to be acknowledged before it was durable
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -725,7 +726,7 @@ def get_agent_embed_service(db: DBSession) -> AgentEmbedService:
 
 EmbedSvc = Annotated[AgentEmbedService, Depends(get_agent_embed_service)]
 
-from app.services.embed_generated_media import EmbedGeneratedMediaService
+from app.services.embed_generated_media import EmbedGeneratedMediaService, token_opens
 
 
 def get_embed_generated_media_service(db: DBSession) -> EmbedGeneratedMediaService:
@@ -1223,14 +1224,18 @@ async def limit_artifact_content(token: str) -> None:
 
 
 async def limit_embed_generated_media(
+    public_key: str,
+    filename: str,
     token: Annotated[str | None, Query(max_length=128)] = None,
 ) -> None:
     """Refuse a signed link to a generated file fetched too often. Per link, before any read.
 
-    A request with no token is not counted: it is refused before any query or
-    read, so it has nothing to spend.
+    Only a link whose signature opens this file on this embed is counted. Any
+    other token - none, a forged one, an expired one - is left to the route, which
+    refuses it with the 404 a missing file gets before any query or read, so it
+    has nothing to spend and costs no counter in Redis.
     """
-    if token is None:
+    if token is None or not token_opens(public_key, filename, token, now=datetime.now(UTC)):
         return
     _refuse_if_over(
         await rate_limit.embed_generated_media_allowed(token),

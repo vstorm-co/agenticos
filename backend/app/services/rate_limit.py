@@ -4,7 +4,8 @@ Eleven of this platform's surfaces are reachable without a session: the public r
 API, the widget's script, its config endpoint, its socket, a hosted page's config,
 that page's logo and its file upload, the dictation a page and a widget share, a
 public artifact link, the signed address an artifact's page is served from, and
-the signed link a visitor's socket hands out for a file the agent generated. Every one of them reads at least one row before it decides
+the signed link a visitor's socket hands out for a file the agent generated. Every
+one of them answers a caller nobody signed in, most read a row before they decide
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -378,8 +379,10 @@ async def embed_generated_media_allowed(token: str) -> Decision:
     Keyed on the link, for `artifact_content_allowed`'s reasons: the request
     reaches this deployment through the hosted page's own proxy, so its address
     is the frontend's; and the link is minted here, for one stored file, so it
-    cannot be varied for free - a varied one fails its signature before anything
-    is read. A bearer credential for hours, so it is counted by its digest.
+    cannot be varied for free. A link has one spelling - the expiry carries no
+    leading zero - and `limit_embed_generated_media` counts only a link whose
+    signature holds, so any other string is refused uncounted. A bearer
+    credential for hours, so it is counted by its digest.
     """
     return await consume(
         surface="embed_generated_media",

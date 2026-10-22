@@ -1,5 +1,5 @@
 ---
-source_sha: "b6c1c6e97b87"
+source_sha: "6679081bbdde"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -652,7 +652,7 @@ sesión.
 **Una imagen, un audio de voz o un vídeo generados también se reproducen en la
 página** (#2309). La consola los lee a través de `/api/v1/generated/{filename}`,
 que necesita una sesión, y un visitante no la tiene. Por eso, al enviar un
-resultado de `generate_image`, `generate_speech` o `generate_video` que nombra un
+resultado con una imagen, una voz o un vídeo generados que nombra un
 archivo guardado por las propias herramientas de esa ejecución, el socket le añade
 un `token`, y la página lee el archivo a través de
 `/api/embed/<key>/generated/<file>?token=…`, que lo transmite en streaming y deja

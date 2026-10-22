@@ -68,8 +68,11 @@ Two things are versioned separately from this file and worth knowing about:
   which store their clips the same way as generated images (#2259).
 - **A tool can no longer be renamed onto `generate_image`, `generate_speech` or
   `generate_video`.** Publishing refuses a rename that gives another tool the
-  name of the tool that stores generated media; an agent that has one is
-  refused at its next publish until the rename is changed.
+  name of the tool that stores generated media. An agent that has one is
+  refused at its next publish, or at a rollback to a version that has one,
+  and its draft shows the problem. A version already published keeps
+  running. To publish or roll back again, remove the rename or give that tool
+  another name in the draft, and publish it.
 
 ### Fixed
 

@@ -182,6 +182,7 @@ describe("a generated file on a hosted page", () => {
     { file: ".hidden" },
     { token: null },
     { token: "forged" },
+    { token: `0${TOKEN}` },
     { token: `${TOKEN}&download=true` },
   ])("refuses %o before reaching the network", async (given) => {
     serve("bytes", { headers: { "content-type": "image/png" } });

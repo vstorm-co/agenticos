@@ -626,10 +626,11 @@ session.
 
 **A generated image, clip of speech or video plays on the page too** (#2309).
 The console reads one through `/api/v1/generated/{filename}`, which needs a
-session, and a visitor has none. So as the socket sends a `generate_image`,
-`generate_speech` or `generate_video` result naming a file that this run's own
-tools stored, it adds a `token`, and the page reads the file through `/api/embed/<key>/generated/<file>?token=…`,
-which streams it and passes byte ranges through for a player.
+session, and a visitor has none. So as the socket sends a generated image,
+speech or video result naming a file that this run's own tools stored, it adds
+a `token`, and the page reads the file through
+`/api/embed/<key>/generated/<file>?token=…`, which streams it and passes byte
+ranges through for a player.
 
 The token is an HMAC, under the deployment's `SECRET_KEY`, of the page's key, that
 one file and an expiry six hours away. It opens nothing else: not another

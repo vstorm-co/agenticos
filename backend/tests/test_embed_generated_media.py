@@ -73,6 +73,14 @@ class TestALinkOpensOneFileOnOneEmbedForAWhile:
 
         assert not token_opens(KEY, "abc_image.png", f"{int(expires) + 86400}.{signature}", now=NOW)
 
+    @pytest.mark.parametrize("zeros", ["0", "00"])
+    def test_a_link_has_one_spelling(self, zeros: str) -> None:
+        """`0<expiry>` signs the same `int`; accepted, each spelling would be its own
+        rate-limit bucket, so one link would get its allowance once per zero."""
+        token = media_token(KEY, "abc_image.png", now=NOW)
+
+        assert not token_opens(KEY, "abc_image.png", f"{zeros}{token}", now=NOW)
+
     @pytest.mark.parametrize("token", [None, "", "abc", "1.2", f"x.{'a' * 64}"])
     def test_anything_else_opens_nothing(self, token: str | None) -> None:
         assert not token_opens(KEY, "abc_image.png", token, now=NOW)

@@ -1,5 +1,5 @@
 ---
-source_sha: "b6c1c6e97b87"
+source_sha: "6679081bbdde"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -686,10 +686,10 @@ sie zu lesen braucht eine Session.
 
 **Ein generiertes Bild, gesprochene Sprache oder ein Video spielt auch auf der
 Seite** (#2309). Die Konsole liest eines über `/api/v1/generated/{filename}`, und
-das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket dem
-Ergebnis von `generate_image`, `generate_speech` oder `generate_video`, das eine
-von den eigenen Tools dieses Runs gespeicherte Datei nennt, beim Senden ein
-`token` hinzu, und die Seite liest die Datei über
+das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket
+einem Ergebnis mit einem generierten Bild, gesprochener Sprache oder einem Video,
+das eine von den eigenen Tools dieses Runs gespeicherte Datei nennt, beim Senden
+ein `token` hinzu, und die Seite liest die Datei über
 `/api/embed/<key>/generated/<file>?token=…`, das sie streamt und Byte-Bereiche für
 einen Player durchreicht.
 

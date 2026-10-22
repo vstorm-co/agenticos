@@ -1,5 +1,5 @@
 ---
-source_sha: "b6c1c6e97b87"
+source_sha: "6679081bbdde"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -643,11 +643,11 @@ wymaga sesji.
 
 **Wygenerowany obraz, nagranie mowy lub wideo działa także na stronie** (#2309).
 Konsola czyta je przez `/api/v1/generated/{filename}`, co wymaga sesji, a
-odwiedzający jej nie ma. Dlatego socket, wysyłając wynik `generate_image`,
-`generate_speech` lub `generate_video` wskazujący plik zapisany przez narzędzia
-tego samego uruchomienia, dodaje do niego `token`,
-a strona czyta plik przez `/api/embed/<key>/generated/<file>?token=…`, który
-przesyła go strumieniowo i przepuszcza zakresy bajtów dla odtwarzacza.
+odwiedzający jej nie ma. Dlatego socket, wysyłając wynik z wygenerowanym
+obrazem, mową lub wideo, który wskazuje plik zapisany przez narzędzia tego
+samego uruchomienia, dodaje do niego `token`, a strona czyta plik przez
+`/api/embed/<key>/generated/<file>?token=…`, który przesyła go strumieniowo i
+przepuszcza zakresy bajtów dla odtwarzacza.
 
 Token to HMAC, pod `SECRET_KEY` wdrożenia, klucza strony, tego jednego pliku i
 terminu ważności sześć godzin naprzód. Nie otwiera niczego innego: ani pliku z

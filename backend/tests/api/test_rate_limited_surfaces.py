@@ -12,6 +12,7 @@ decision, and a blanket middleware quietly metering the dashboard would be a
 different one.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.services import rate_limit
+from app.services.embed_generated_media import media_token
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -239,7 +241,7 @@ class TestTheWidgetsAdmission:
         app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
         client_mock = _redis(used=rate_limit.EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE + 1)
         rate_limit.configure(client_mock)
-        token = f"1761200000.{'ab' * 32}"
+        token = media_token("some-key", "abc_video.mp4", now=datetime.now(UTC))
 
         with patch(
             "app.services.embed_generated_media.EmbedGeneratedMediaService.load", AsyncMock()
@@ -268,6 +270,32 @@ class TestTheWidgetsAdmission:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/embed/some-key/generated/abc_video.mp4")
+
+        assert response.status_code == 404
+        client_mock.count_in_window.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "token",
+        [
+            f"{int(datetime.now(UTC).timestamp()) + 3600}.{'ab' * 32}",
+            f"0{media_token('some-key', 'abc_video.mp4', now=datetime.now(UTC))}",
+            media_token("some-key", "another_video.mp4", now=datetime.now(UTC)),
+        ],
+        ids=["forged", "zero-padded", "another-file"],
+    )
+    async def test_a_generated_media_link_that_does_not_open_is_not_counted(
+        self, mock_redis: MagicMock, token: str
+    ):
+        """Only a real link spends a counter: anything else is the route's 404, so a
+        caller sending garbage creates no Redis key and learns nothing (#2395)."""
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=999)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                f"/api/v1/embed/some-key/generated/abc_video.mp4?token={token}"
+            )
 
         assert response.status_code == 404
         client_mock.count_in_window.assert_not_awaited()
