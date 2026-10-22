@@ -107,6 +107,10 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **Gestures on the phone** (#2097): swipe a waiting approval right to approve
+  it or left to reject it, and pull a page down to read it again - in the phone
+  app and in AgenticOS installed to a touch screen - with a haptic tap when
+  letting go would act and when it has.
 - **The apps work without a network** (#2097). The desktop and phone apps,
   and AgenticOS added to a home screen, keep the conversation list, the 20
   conversations opened last and the approvals queue on the device for seven

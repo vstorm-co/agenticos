@@ -5,6 +5,7 @@ import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { DesktopBridge } from "@/components/desktop/desktop-bridge";
 import { MobileBridge } from "@/components/mobile/mobile-bridge";
+import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -33,6 +34,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <DesktopBridge />
       {/* Inside the phone app: live activities on the lock screen, and their buttons. */}
       <MobileBridge />
+      {/* A phone pulls the page down to read it again. */}
+      <PullToRefresh />
       {/* It reads the search params, which a prerendered page only has in the browser. */}
       <Suspense fallback={null}>
         <NavigationProgress />

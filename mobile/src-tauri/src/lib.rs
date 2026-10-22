@@ -231,8 +231,8 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
 }
 
 /// What the console - a remote page - may ask of the app: the unlock prompt
-/// again, its live activities, what was shared with the app, and the widget's
-/// counts. Granted for the configured server's origin
+/// again, its live activities, what was shared with the app, the widget's
+/// counts, and a haptic tap. Granted for the configured server's origin
 /// only, as the desktop shell grants its console's commands.
 fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
     let pattern = format!("{}/*", server.origin().ascii_serialization());
@@ -252,6 +252,10 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-take-shared")
             .permission("allow-attach-sheet")
             .permission("allow-offer-recent-photo")
+            // A tap under the finger when a swipe decides or a pull refreshes.
+            .permission("haptics:allow-impact-feedback")
+            .permission("haptics:allow-notification-feedback")
+            .permission("haptics:allow-selection-feedback")
             .permission("core:event:allow-listen")
             .permission("core:event:allow-unlisten"),
     )
@@ -530,6 +534,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
+        .plugin(tauri_plugin_haptics::init())
         .plugin(live::init())
         .plugin(managed::init())
         .plugin(push::init())
