@@ -14,38 +14,10 @@ from app.core.cron import cron_has_next
 from app.db.models.eval_suite import EvalSuiteResultStatus, EvalSuiteTrigger
 from app.schemas.base import BaseSchema
 from app.schemas.eval_run import EvalRunEstimate, OverallLiteral, VerdictLiteral
+from app.schemas.eval_threshold import EvalSuiteThreshold, ThresholdReason
 
-ThresholdReasonCode = Literal[
-    "pass_rate_below",
-    "nothing_graded",
-    "regressions",
-    "cost_per_pass_rise",
-    "p95_rise",
-    "invalid_comparison",
-    "ungraded",
-]
 FailingKind = Literal["regression", "failed", "ungraded"]
 DependencyKind = Literal["skill", "knowledge_base"]
-
-
-class EvalSuiteThreshold(BaseSchema):
-    """What a result must meet to pass. Quality first; efficiency only when asked for.
-
-    Attributes:
-        min_pass_rate: The lowest settled pass rate allowed - each case counted
-            by the majority of its attempts. None asks for no minimum.
-        max_confirmed_regressions: How many cases may break reproducibly
-            against the baseline. Zero by default: one confirmed regression fails.
-        max_cost_per_pass_rise: The largest rise in cost per passed case against
-            the baseline, as a fraction (0.2 is twenty per cent). None checks none.
-        max_p95_rise: The largest rise in p95 latency against the baseline, as a
-            fraction. None checks none.
-    """
-
-    min_pass_rate: float | None = Field(default=None, ge=0, le=1)
-    max_confirmed_regressions: int = Field(default=0, ge=0, le=10_000)
-    max_cost_per_pass_rise: float | None = Field(default=None, ge=0, le=100)
-    max_p95_rise: float | None = Field(default=None, ge=0, le=100)
 
 
 class EvalSuiteSchedule(BaseSchema):
@@ -143,15 +115,6 @@ class EvalSuiteEstimate(BaseSchema):
     paired_run: EvalRunEstimate | None
     fires_per_month: int | None
     monthly_usd: Decimal | None
-
-
-class ThresholdReason(BaseSchema):
-    """One way a result fell short, with the numbers that decided it."""
-
-    code: ThresholdReasonCode
-    value: float | None = None
-    limit: float | None = None
-    detail: str | None = None
 
 
 class FailingCase(BaseSchema):
