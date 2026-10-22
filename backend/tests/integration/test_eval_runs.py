@@ -2324,6 +2324,66 @@ async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
         )
 
 
+async def _anonymise(db: AsyncSession, dataset: Dataset, count: int) -> list[DatasetCase]:
+    """What erasing the person the first `count` cases were taken from leaves of them."""
+    cases = list(
+        (
+            await db.execute(
+                select(DatasetCase)
+                .where(DatasetCase.dataset_id == dataset.id)
+                .order_by(DatasetCase.input)
+                .limit(count)
+            )
+        ).scalars()
+    )
+    for case in cases:
+        case.input = "[Removed]"
+        case.anonymised_at = datetime.now(UTC)
+    await db.flush()
+    return cases
+
+
+async def test_a_case_anonymised_after_an_erasure_is_not_asked(db) -> None:
+    """Its question is a placeholder, so answering it would measure nothing - and
+    a comparison never sees the case answered before against the placeholder."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    [anonymised] = await _anonymise(db, dataset, 1)
+
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert started.cases == 2
+    asked = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    assert anonymised.case_id not in {attempt.case_id for attempt in asked}
+    assert started.excluded_case_ids == []
+
+
+async def test_a_dataset_left_with_only_anonymised_cases_is_refused(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    await _anonymise(db, dataset, 2)
+
+    with pytest.raises(BadRequestError, match="Rewrite or remove those cases"):
+        await EvalRunService(db).estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+
+async def test_an_anonymised_case_its_curator_rewrote_is_asked_again(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    [anonymised] = await _anonymise(db, dataset, 1)
+
+    rewritten = await DatasetService(db).update_case(
+        ctx, dataset.id, anonymised.case_id, DatasetCaseUpdate(input="Where is my refund?")
+    )
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert rewritten.anonymised_at is None
+    assert started.cases == 2
+
+
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:
     """A skill change is measured with the agent held still: the candidate serves the
     proposed body, the baseline the stored one."""
