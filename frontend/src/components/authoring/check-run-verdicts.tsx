@@ -7,17 +7,22 @@ import { useEvalRun } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 
+/** How many of a batch's latest checks are read for a suite's verdict. */
+const LATEST_CHECKS = 3;
+
 /**
- * Beside a batch's checks, what each suite a check ran on would have said of it.
+ * Beside a batch's checks, what each suite a check ran on would have said of it -
+ * for the latest few, since each is a read of its run and a batch keeps them all.
  * A check is an eval run, read only by a reader of runs, as its link is.
  */
 export function CheckRunVerdicts({ agentId, runIds }: { agentId: string; runIds: string[] }) {
   const { can } = usePermissions();
   if (!can(Perm.runsView)) return null;
+  const first = Math.max(runIds.length - LATEST_CHECKS, 0);
   return (
     <div className="space-y-2">
-      {runIds.map((runId, index) => (
-        <CheckRunVerdict key={runId} agentId={agentId} runId={runId} index={index} />
+      {runIds.slice(first).map((runId, offset) => (
+        <CheckRunVerdict key={runId} agentId={agentId} runId={runId} index={first + offset} />
       ))}
     </div>
   );

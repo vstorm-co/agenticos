@@ -7,12 +7,16 @@ import { CheckRunVerdicts } from "./check-run-verdicts";
 const state = vi.hoisted(() => ({
   granted: [] as string[],
   runs: {} as Record<string, unknown>,
+  read: [] as string[],
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRun: (runId: string) => ({ run: state.runs[runId] }),
+  useEvalRun: (runId: string) => {
+    state.read.push(runId);
+    return { run: state.runs[runId] };
+  },
 }));
 
 const judged = {
@@ -25,6 +29,7 @@ const judged = {
 
 beforeEach(() => {
   state.granted = [Perm.runsView];
+  state.read = [];
   state.runs = {
     "on-dataset": { suite_check: null },
     "on-suite": { suite_check: judged },
@@ -40,6 +45,16 @@ describe("CheckRunVerdicts", () => {
     expect(screen.getByText("run 2")).toBeInTheDocument();
     expect(screen.queryByText("run 1")).toBeNull();
     expect(screen.queryByText("run 3")).toBeNull();
+  });
+
+  it("reads only the latest checks, however many the batch keeps", () => {
+    const runIds = ["a", "b", "c", "d", "e"];
+    state.runs = Object.fromEntries(runIds.map((id) => [id, { suite_check: judged }]));
+    render(<CheckRunVerdicts agentId="agent-1" runIds={runIds} />);
+
+    expect(screen.queryByText("run 2")).toBeNull();
+    expect(["run 3", "run 4", "run 5"].map((text) => screen.getByText(text))).toHaveLength(3);
+    expect(state.read).toEqual(["c", "d", "e"]);
   });
 
   it("is not there for a caller who may not read runs", () => {
