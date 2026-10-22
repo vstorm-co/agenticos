@@ -38,9 +38,8 @@ depends_on: str | Sequence[str] | None = None
 
 logger = logging.getLogger("alembic.runtime.migration")
 
-# Whoever typed a user turn: its signed-in author, the account a chat identity is
-# linked to, or - for a console thread outside a project, from before authors
-# were kept - the thread's owner.
+# Turns from before authors were kept fall back to the thread's owner, which only
+# a console thread outside a project can vouch for.
 _SPEAKER = """
     COALESCE(
         m.author_user_id,

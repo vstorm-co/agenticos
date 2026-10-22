@@ -965,7 +965,6 @@ async def test_a_topics_questions_become_cases_of_a_dataset_in_one_version(db) -
         "Where can visitors park?",
     ]
     assert {c.note for c in cases} == {"No parking info", None}
-    # Whose words they are is kept with them, for an erasure to find after the threads go.
     assert {c.asked_by_user_id for c in cases} == {ctx.user_id}
     assert {c.noted_by_user_id for c in cases} == {ctx.user_id, None}
 
