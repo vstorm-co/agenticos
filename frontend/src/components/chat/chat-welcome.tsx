@@ -27,6 +27,8 @@ interface ChatWelcomeProps {
   onPick: (prompt: string) => void;
   /** Under the cards: hints, a note. */
   footer?: ReactNode;
+  /** Between the lead and the cards: what the platform proposes to this person (#2301). */
+  notice?: ReactNode;
   /** A narrow window - the Architect's, the Builder's test panel: one column, tighter. */
   compact?: boolean;
 }
@@ -45,6 +47,7 @@ export function ChatWelcome({
   suggestions,
   onPick,
   footer,
+  notice,
   compact = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
@@ -84,6 +87,8 @@ export function ChatWelcome({
           {lead}
         </p>
       </div>
+
+      {notice && <div className={compact ? "mt-3" : "mt-6"}>{notice}</div>}
 
       <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-8 gap-3 sm:grid-cols-2")}>
         {suggestions.map((suggestion) => (

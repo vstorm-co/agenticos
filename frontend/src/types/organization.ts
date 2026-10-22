@@ -57,6 +57,8 @@ export interface Organization {
    * the API serializes the column ("100.000000").
    */
   monthly_budget_usd: string | null;
+  /** What background work may spend per person per month, as a decimal string; "0" is off. */
+  proactive_limit_usd?: string;
   /**
    * Whether a chat session here may grant standing consent to gated tool calls -
    * `approve_all` in the composer's approval control. Off unless somebody who

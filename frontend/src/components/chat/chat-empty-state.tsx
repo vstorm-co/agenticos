@@ -22,6 +22,10 @@ import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
+import { SuggestionCards } from "./suggestion-cards";
+
+/** The starter agent, whose empty chat carries what the platform proposes to the person. */
+const STARTER_SLUG = "agenticos";
 
 /**
  * The four openers for an agent that names none of its own, in order. Their
@@ -67,8 +71,13 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
   // The agent's own first messages, as its published version names them, in
   // the words its author wrote - the card is the message, so nothing under it.
-  // Without them, an agent that draws opens on what it can draw (#2302).
-  const starters = agent?.starters ?? [];
+  // The starter agent has none and offers the person's own instead, written for
+  // them overnight (#2301). Without either, an agent that draws opens on what it
+  // can draw (#2302).
+  const isStarter = agent?.slug === STARTER_SLUG;
+  const own = agent?.starters ?? [];
+  const personal = isStarter ? (user?.personal_starters ?? []) : [];
+  const starters = own.length ? own : personal;
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.map((starter, index) => ({
         key: `starter-${index}`,
@@ -111,6 +120,7 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
         )
       }
       suggestions={suggestions}
+      notice={isStarter && agent ? <SuggestionCards agentId={agent.id} /> : undefined}
       onPick={onPick}
       footer={
         <>

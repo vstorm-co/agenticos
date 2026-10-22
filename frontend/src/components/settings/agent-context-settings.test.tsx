@@ -48,6 +48,7 @@ describe("AgentContextSettings", () => {
       job_title: "Head of sales",
       about: null,
       time_zone: "Europe/Warsaw",
+      working_hours: null,
     });
     expect(toastSuccess).toHaveBeenCalledWith("Saved - your agents know it from the next message.");
   });
@@ -65,7 +66,12 @@ describe("AgentContextSettings", () => {
     await userEvent.clear(screen.getByLabelText("Time zone"));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(save).toHaveBeenCalledWith({ job_title: null, about: null, time_zone: null });
+    expect(save).toHaveBeenCalledWith({
+      job_title: null,
+      about: null,
+      time_zone: null,
+      working_hours: null,
+    });
   });
 
   it("says why a save was refused and lets it be tried again", async () => {
@@ -84,5 +90,41 @@ describe("AgentContextSettings", () => {
     rerender(<AgentContextSettings user={user({ job_title: "Sales" })} />);
 
     expect(screen.getByLabelText("Your role")).toHaveValue("Sales");
+  });
+
+  it("saves working hours from a picked day, nine to five until changed", async () => {
+    save.mockResolvedValue(user());
+    render(<AgentContextSettings user={user()} />);
+    expect(screen.queryByLabelText("Starts at")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Wed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mon" }));
+    await userEvent.clear(screen.getByLabelText("Ends at"));
+    await userEvent.type(screen.getByLabelText("Ends at"), "16:00");
+    await userEvent.clear(screen.getByLabelText("Starts at"));
+    await userEvent.type(screen.getByLabelText("Starts at"), "08:30");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(save.mock.calls[0]?.[0].working_hours).toEqual({
+      days: [1, 3],
+      start: "08:30",
+      end: "16:00",
+    });
+    expect(screen.getByRole("button", { name: "Mon" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clears working hours when the last day is taken off", async () => {
+    save.mockResolvedValue(user());
+    render(
+      <AgentContextSettings
+        user={user({ working_hours: { days: [2], start: "08:00", end: "12:00" } })}
+      />,
+    );
+    expect(screen.getByLabelText("Starts at")).toHaveValue("08:00");
+
+    await userEvent.click(screen.getByRole("button", { name: "Tue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(save.mock.calls[0]?.[0].working_hours).toBeNull();
   });
 });

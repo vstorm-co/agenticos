@@ -5,12 +5,14 @@ import { useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import type { WorkingHours } from "@/types/auth";
 
 /** What every agent is told about the person (#2301), as the account keeps it. */
 export interface AgentContext {
   job_title?: string | null;
   about?: string | null;
   time_zone?: string | null;
+  working_hours?: WorkingHours | null;
 }
 
 /**

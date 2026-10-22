@@ -5,12 +5,14 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SectionCard } from "@/components/settings/settings-section";
+import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
 import { useChanged } from "@/hooks/use-changed";
 import { useSaveAgentContext } from "@/hooks/use-account-profile";
 import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
+import type { WorkingHours } from "@/types/auth";
 
 const ZONES = Intl.supportedValuesOf("timeZone");
 
@@ -26,12 +28,15 @@ export function AgentContextSettings({ user }: { user: User }) {
   const [role, setRole] = useState(user.job_title ?? "");
   const [about, setAbout] = useState(user.about ?? "");
   const [zone, setZone] = useState(user.time_zone ?? "");
+  const [hours, setHours] = useState<WorkingHours | null>(user.working_hours ?? null);
   const [saving, setSaving] = useState(false);
 
-  if (useChanged(`${user.id}|${user.job_title}|${user.about}|${user.time_zone}`)) {
+  const stored = JSON.stringify(user.working_hours ?? null);
+  if (useChanged(`${user.id}|${user.job_title}|${user.about}|${user.time_zone}|${stored}`)) {
     setRole(user.job_title ?? "");
     setAbout(user.about ?? "");
     setZone(user.time_zone ?? "");
+    setHours(user.working_hours ?? null);
   }
 
   const submit = async () => {
@@ -41,6 +46,7 @@ export function AgentContextSettings({ user }: { user: User }) {
         job_title: role.trim() || null,
         about: about.trim() || null,
         time_zone: zone || null,
+        working_hours: hours,
       });
       toast.success(t("saved"));
     } catch (error) {
@@ -92,6 +98,13 @@ export function AgentContextSettings({ user }: { user: User }) {
               <option key={name} value={name} />
             ))}
           </datalist>
+        </FormField>
+        <FormField
+          label={t("workingHours")}
+          htmlFor="agent-context-hours"
+          description={t("workingHoursHint")}
+        >
+          <WorkingHoursField value={hours} onChange={setHours} />
         </FormField>
       </div>
     </SectionCard>

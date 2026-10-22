@@ -41,6 +41,10 @@ export interface User {
   job_title?: string | null;
   /** What the person works on, as every agent is told it. */
   about?: string | null;
+  /** When the person works, in their own time zone - knowledge for the agent only. */
+  working_hours?: WorkingHours | null;
+  /** The first messages an empty chat with the starter agent offers them, written for them. */
+  personal_starters?: string[] | null;
   /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates
@@ -134,4 +138,11 @@ export interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+/** When a person works: ISO weekdays (1 = Monday) and HH:MM in their own zone (#2301). */
+export interface WorkingHours {
+  days: number[];
+  start: string;
+  end: string;
 }

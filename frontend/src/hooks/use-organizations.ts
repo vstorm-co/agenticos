@@ -203,6 +203,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setProactiveLimit = useCallback(
+    async (id: string, limitUsd: number): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        proactive_limit_usd: limitUsd,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const setChatApprovalWaiver = useCallback(
     async (id: string, allowed: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -260,6 +271,7 @@ export function useOrganizations() {
     createOrg,
     patchOrg,
     setMonthlyBudget,
+    setProactiveLimit,
     setChatApprovalWaiver,
     setVoiceSettings,
     deleteOrg,

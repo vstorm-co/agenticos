@@ -1968,6 +1968,19 @@
       "routineFromChat": "Aus einem Gespräch",
       "makeAgent": "Einen Agent daraus machen",
       "makeAgentAsk": "Bau mir einen Agent, der das erledigt, damit ich nicht jedes Mal im Chat fragen muss: {request}"
+    },
+    "suggestions": {
+      "label": "Vorschläge für Sie",
+      "agentAsk": "Bauen Sie mir einen Agent, der das erledigt, damit ich nicht jedes Mal fragen muss: {request}",
+      "profileSaved": "Im Profil gespeichert - Ihre Agents wissen es ab der nächsten Nachricht.",
+      "packInstalling": "Die Routinen werden hinzugefügt - gleich stehen sie unter Routinen.",
+      "notNow": "Nicht jetzt",
+      "take": {
+        "routine": "Einrichten",
+        "agent": "Mit dem Architect bauen",
+        "profile": "Im Profil speichern",
+        "role_pack": "Diese Routinen hinzufügen"
+      }
     }
   },
   "common": {
@@ -5516,8 +5529,17 @@
         "aboutPlaceholder": "Großkunden in Skandinavien; wöchentlicher Pipeline-Review mit dem CFO.",
         "timeZone": "Zeitzone",
         "save": "Speichern",
-        "saved": "Gespeichert - Ihre Agents wissen es ab der nächsten Nachricht."
-      }
+        "saved": "Gespeichert - Ihre Agents wissen es ab der nächsten Nachricht.",
+        "workingHours": "Wann Sie arbeiten",
+        "workingHoursHint": "In Ihrer Zeitzone. Agents planen darum herum; nichts wird zurückgehalten oder verschoben.",
+        "workingDays": "Arbeitstage",
+        "workStart": "Beginn",
+        "workEnd": "Ende"
+      },
+      "prefSuggestion": "Vorschläge für Sie",
+      "prefSuggestionTrigger": "AgenticOS hat etwas bemerkt, das sich einzurichten lohnt - eine Anfrage, die Sie wiederholen, ein Paket für Ihre Rolle, Ihr Profil. Höchstens einmal am Tag, an Sie.",
+      "prefCapabilityRequested": "Eine Capability angefragt",
+      "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -6296,6 +6318,15 @@
       "saved": "Spracheinstellungen gespeichert",
       "providerNoKey": "{name} (noch kein Schlüssel)",
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen."
+    },
+    "proactive": {
+      "title": "Hintergrundarbeit pro Person",
+      "description": "Was die Plattform pro Mitglied und Monat für Arbeit aus eigener Initiative ausgeben darf - wiederholte Anfragen erkennen, die ersten Nachrichten schreiben. Zählt zum Monatslimit oben. 0 schaltet sie ab.",
+      "label": "Limit pro Person (USD)",
+      "save": "Speichern",
+      "saved": "Limit pro Person aktualisiert",
+      "off": "Hintergrundarbeit ist aus",
+      "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr."
     }
   },
   "theme": {

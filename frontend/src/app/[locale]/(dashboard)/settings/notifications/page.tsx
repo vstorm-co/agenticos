@@ -9,12 +9,14 @@ import {
   FileX2,
   Hand,
   KeyRound,
+  Lightbulb,
   Mail,
   Megaphone,
   PieChart,
   ServerCrash,
   ServerCog,
   Share2,
+  Sparkles,
   UserPlus,
   XCircle,
 } from "lucide-react";
@@ -160,6 +162,18 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     words: "prefAgentUsageReport",
     icon: PieChart,
     channels: ["in_app"],
+  },
+  {
+    eventType: "suggestion",
+    words: "prefSuggestion",
+    icon: Lightbulb,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "capability_requested",
+    words: "prefCapabilityRequested",
+    icon: Sparkles,
+    channels: ["in_app", "email"],
   },
   {
     eventType: "announcement",

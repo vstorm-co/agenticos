@@ -1,0 +1,125 @@
+"use client";
+
+import { useState } from "react";
+import { Bot, CalendarClock, Package, UserRound, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
+import { Button } from "@/components/ui";
+import { useSuggestions } from "@/hooks/use-suggestions";
+import { getErrorMessage } from "@/lib/api-error";
+import type { Suggestion, SuggestionKind } from "@/lib/suggestions-api";
+import { useAuthStore } from "@/stores";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
+import type { TriggerTemplate } from "@/types/trigger-templates";
+
+/** Weekly on Monday at 8:00 UTC, for a repeated request the night gave no cadence. */
+const WEEKLY = { schedule_kind: "cron", cron_expression: "0 8 * * 1" } as const;
+
+const ICONS: Record<SuggestionKind, typeof Bot> = {
+  routine: CalendarClock,
+  agent: Bot,
+  profile: UserRound,
+  role_pack: Package,
+};
+
+const text = (value: unknown): string => (typeof value === "string" ? value : "");
+
+/**
+ * What the platform noticed overnight and proposes, above the empty chat (#2301).
+ *
+ * Made in the background; here the person only decides. A routine opens the
+ * routine dialog filled in, an agent is a question to the Architect, a profile
+ * update and a role pack are saved by the server. "Not now" declines it for good.
+ */
+export function SuggestionCards({ agentId }: { agentId: string | null }) {
+  const t = useTranslations("chat.suggestions");
+  const tErrors = useTranslations("errors");
+  const { suggestions, accept, dismiss } = useSuggestions();
+  const ask = useArchitectAskStore((state) => state.ask);
+  const [routine, setRoutine] = useState<TriggerTemplate | null>(null);
+
+  if (suggestions.length === 0) return null;
+
+  const decide = async (work: () => Promise<unknown>) => {
+    try {
+      await work();
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+    }
+  };
+
+  const take = (suggestion: Suggestion) =>
+    decide(async () => {
+      if (suggestion.kind === "routine") {
+        const cron = text(suggestion.payload.cron);
+        setRoutine({
+          key: `suggestion-${suggestion.id}`,
+          label: suggestion.title,
+          description: "",
+          prompt: text(suggestion.payload.prompt),
+          trigger_type: "schedule",
+          suggested_cadence: cron ? { schedule_kind: "cron", cron_expression: cron } : WEEKLY,
+        });
+      } else if (suggestion.kind === "agent") {
+        ask(t("agentAsk", { request: text(suggestion.payload.request) }));
+      }
+      await accept(suggestion.id);
+      if (suggestion.kind === "profile") {
+        const user = useAuthStore.getState().user;
+        if (user) useAuthStore.getState().setUser({ ...user, ...suggestion.payload });
+        toast.success(t("profileSaved"));
+      } else if (suggestion.kind === "role_pack") {
+        toast.success(t("packInstalling"));
+      }
+    });
+
+  return (
+    <section aria-label={t("label")} className="mx-auto w-full max-w-2xl space-y-2">
+      {suggestions.map((suggestion) => {
+        const Icon = ICONS[suggestion.kind];
+        return (
+          <div
+            key={suggestion.id}
+            role="group"
+            aria-label={suggestion.title}
+            className="bg-muted/60 flex items-start gap-3 rounded-2xl p-3"
+          >
+            <span className="bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+              <Icon className="h-4 w-4" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-sm">
+                {suggestion.title}
+                {suggestion.detail && (
+                  <span className="text-muted-foreground block text-xs">{suggestion.detail}</span>
+                )}
+              </p>
+              <Button type="button" size="sm" onClick={() => take(suggestion)}>
+                {t(`take.${suggestion.kind}`)}
+              </Button>
+            </div>
+            <button
+              type="button"
+              onClick={() => decide(() => dismiss(suggestion.id))}
+              aria-label={t("notNow")}
+              title={t("notNow")}
+              className="text-muted-foreground hover:text-foreground rounded-md p-1"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
+      {routine && (
+        <TriggerFormDialog
+          agentId={agentId}
+          open
+          onOpenChange={(open) => !open && setRoutine(null)}
+          initialTemplate={routine}
+        />
+      )}
+    </section>
+  );
+}

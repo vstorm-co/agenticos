@@ -1968,6 +1968,19 @@
       "routineFromChat": "Z rozmowy",
       "makeAgent": "Zrób z tego agenta",
       "makeAgentAsk": "Zbuduj mi agenta, który robi to, żebym nie musiał za każdym razem prosić w czacie: {request}"
+    },
+    "suggestions": {
+      "label": "Propozycje dla ciebie",
+      "agentAsk": "Zbuduj mi agenta, który to robi, żebym nie musiał prosić za każdym razem: {request}",
+      "profileSaved": "Zapisane w profilu - twoi agenci wiedzą to od następnej wiadomości.",
+      "packInstalling": "Dodaję rutyny - za chwilę będą w Rutynach.",
+      "notNow": "Nie teraz",
+      "take": {
+        "routine": "Ustaw",
+        "agent": "Zbuduj z Architektem",
+        "profile": "Zapisz w profilu",
+        "role_pack": "Dodaj te rutyny"
+      }
     }
   },
   "common": {
@@ -5405,8 +5418,17 @@
         "aboutPlaceholder": "Duzi klienci w Skandynawii; cotygodniowy przegląd lejka z CFO.",
         "timeZone": "Strefa czasowa",
         "save": "Zapisz",
-        "saved": "Zapisane - agenci wiedzą to od następnej wiadomości."
-      }
+        "saved": "Zapisane - agenci wiedzą to od następnej wiadomości.",
+        "workingHours": "Kiedy pracujesz",
+        "workingHoursHint": "W twojej strefie czasowej. Agenci planują wokół tego; nic nie jest wstrzymywane ani przesuwane.",
+        "workingDays": "Dni pracy",
+        "workStart": "Początek",
+        "workEnd": "Koniec"
+      },
+      "prefSuggestion": "Propozycje dla ciebie",
+      "prefSuggestionTrigger": "AgenticOS zauważył coś, co warto ustawić - prośbę, którą powtarzasz, pakiet dla twojej roli, twój profil. Najwyżej raz dziennie, do ciebie.",
+      "prefCapabilityRequested": "Prośba o capability",
+      "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -6184,6 +6206,15 @@
       "saved": "Zapisano ustawienia głosu",
       "providerNoKey": "{name} (brak klucza)",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
+    },
+    "proactive": {
+      "title": "Praca w tle na osobę",
+      "description": "Ile platforma może miesięcznie wydać na każdego członka na pracę z własnej inicjatywy - zauważanie powtarzanych próśb, pisanie jego pierwszych wiadomości. Wlicza się w miesięczny limit powyżej. 0 ją wyłącza.",
+      "label": "Limit na osobę (USD)",
+      "save": "Zapisz",
+      "saved": "Limit na osobę zaktualizowany",
+      "off": "Praca w tle wyłączona",
+      "invalid": "Wpisz kwotę w dolarach, 0 lub więcej."
     }
   },
   "theme": {

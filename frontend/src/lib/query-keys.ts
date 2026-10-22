@@ -470,6 +470,10 @@ export const qk = {
   slashCommands: {
     list: () => ["slash-commands", "list"] as const,
   },
+  // What the platform proposed to the signed-in person overnight (#2301).
+  suggestions: {
+    mine: () => ["suggestions"] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,

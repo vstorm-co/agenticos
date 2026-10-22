@@ -1968,6 +1968,19 @@
       "routineFromChat": "From a conversation",
       "makeAgent": "Make an agent of this",
       "makeAgentAsk": "Build me an agent that does this, so I do not have to ask in a chat each time: {request}"
+    },
+    "suggestions": {
+      "label": "Suggestions for you",
+      "agentAsk": "Build me an agent that does this, so I do not have to ask each time: {request}",
+      "profileSaved": "Saved to your profile - your agents know it from the next message.",
+      "packInstalling": "Adding the routines - they will be in Routines in a moment.",
+      "notNow": "Not now",
+      "take": {
+        "routine": "Set it up",
+        "agent": "Build it with the Architect",
+        "profile": "Save to my profile",
+        "role_pack": "Add these routines"
+      }
     }
   },
   "common": {
@@ -5634,8 +5647,17 @@
         "aboutPlaceholder": "Enterprise deals in the Nordics; weekly pipeline reviews with the CFO.",
         "timeZone": "Time zone",
         "save": "Save",
-        "saved": "Saved - your agents know it from the next message."
-      }
+        "saved": "Saved - your agents know it from the next message.",
+        "workingHours": "When you work",
+        "workingHoursHint": "In your time zone. Agents plan around it; nothing is held back or moved.",
+        "workingDays": "Working days",
+        "workStart": "Starts at",
+        "workEnd": "Ends at"
+      },
+      "prefSuggestion": "Suggestions for you",
+      "prefSuggestionTrigger": "AgenticOS noticed something worth setting up - a request you keep repeating, a role pack, your profile. At most once a day, to you.",
+      "prefCapabilityRequested": "A capability asked for",
+      "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6413,6 +6435,15 @@
       "saved": "Voice settings saved",
       "providerNoKey": "{name} (no key yet)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
+    },
+    "proactive": {
+      "title": "Background work per person",
+      "description": "What the platform may spend on each member a month on work it does on its own - noticing requests they repeat, writing their first messages. It counts toward the monthly limit above. 0 switches it off.",
+      "label": "Limit per person (USD)",
+      "save": "Save",
+      "saved": "Limit per person updated",
+      "off": "Background work is off",
+      "invalid": "Enter an amount in dollars, 0 or more."
     }
   },
   "theme": {

@@ -9,10 +9,17 @@ import type { Mentionable } from "@/types/mention";
 const env = vi.hoisted(() => ({
   agents: [] as Partial<Agent>[],
   items: [] as Mentionable[],
+  personal: null as string[] | null,
 }));
 
 vi.mock("@/hooks", () => ({
-  useAuth: () => ({ user: { full_name: "Ada Lovelace", email: "ada@example.com" } }),
+  useAuth: () => ({
+    user: {
+      full_name: "Ada Lovelace",
+      email: "ada@example.com",
+      personal_starters: env.personal,
+    },
+  }),
   useAgents: () => ({ agents: env.agents }),
 }));
 vi.mock("@/hooks/use-mentionables", () => ({
@@ -23,6 +30,12 @@ vi.mock("@/stores", () => ({
     select({ selectedAgentId: "a1" }),
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => <span /> }));
+// The cards are tested on their own; here it only matters which chat carries them.
+vi.mock("./suggestion-cards", () => ({
+  SuggestionCards: ({ agentId }: { agentId: string | null }) => (
+    <div data-testid="suggestions" data-agent={agentId ?? ""} />
+  ),
+}));
 
 const AGENT = { id: "a1", slug: "amigo", name: "Amigo", has_avatar: false, avatar_color: 0 };
 const visuals: Mentionable = { kind: "capability", id: "visuals", name: "Visuals" };
@@ -31,6 +44,35 @@ describe("ChatEmptyState", () => {
   beforeEach(() => {
     env.agents = [{ ...AGENT, starters: [] }];
     env.items = [];
+    env.personal = null;
+  });
+
+  it("opens the starter agent's chat on the person's own first messages and suggestions", async () => {
+    env.agents = [{ ...AGENT, slug: "agenticos", name: "AgenticOS", starters: [] }];
+    env.personal = ["Show my pipeline", "Plan my Monday"];
+    const onPick = vi.fn();
+    render(<ChatEmptyState onPick={onPick} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show my pipeline" }));
+
+    expect(onPick).toHaveBeenCalledWith("Show my pipeline");
+    expect(screen.getByTestId("suggestions")).toHaveAttribute("data-agent", "a1");
+    expect(screen.queryByText("Set up a routine")).toBeNull();
+  });
+
+  it("keeps the person's first messages and suggestions to the starter agent", () => {
+    env.personal = ["Show my pipeline"];
+    render(<ChatEmptyState onPick={vi.fn()} />);
+
+    expect(screen.queryByText("Show my pipeline")).toBeNull();
+    expect(screen.queryByTestId("suggestions")).toBeNull();
+  });
+
+  it("offers the chat's own to the starter agent before its first night", () => {
+    env.agents = [{ ...AGENT, slug: "agenticos", starters: [] }];
+    render(<ChatEmptyState onPick={vi.fn()} />);
+
+    expect(screen.getByText("Set up a routine")).toBeInTheDocument();
   });
 
   it("offers the agent's own first messages, which send as written (#2301)", async () => {
