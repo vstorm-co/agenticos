@@ -41,8 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
   /providers/video-models` lists each model's lengths, shapes, resolutions and
   sound. A clip the provider took, or may have taken when its answer was lost, is
   booked at its estimate if the run stops, or the clip cannot be fetched, before
-  it arrives. In a voice call a clip is
-  handed to the agent's text model, since a call cannot wait minutes in silence.
+  it arrives. In a voice call a clip is handed to the agent's text model, since
+  a call cannot wait minutes in silence.
   BytePlus keys are a new purpose in the vault (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
@@ -75,6 +75,18 @@ Two things are versioned separately from this file and worth knowing about:
   failed the whole turn, although the image had been made, paid for and stored.
   The image is now handed back without a workspace path, as it already was for
   a full workspace, and the same holds for speech (#2259).
+
+## [1.12.2] - 2026-10-22
+
+### Fixed
+
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
 
 ## [1.12.1] - 2026-10-22
 

@@ -253,15 +253,19 @@ class Worker:
     async def _ended(
         self, job_id: UUID, kind: str, payload: dict[str, JsonValue], why: str
     ) -> None:
-        """Run the job's settler, and record it run.
+        """Run the job's settler once, and record it run.
 
         A settler that fails leaves `settled_at` empty, and the rescuer's next
         pass runs it again: the queue's word is final, so nothing else would ever
-        close the document or the sync log it left (Codex, #2248).
+        close the document or the sync log it left (Codex, #2248). It runs under
+        the claim on the job's row, so the worker that saw the death and a
+        rescuer reading the same end as owed never both run it (#2334).
         """
         try:
-            await self.on_ended(kind, payload, why)
             async with self.sessions() as db:
+                if not await job_repo.claim_settlement(db, job_id=job_id):
+                    return
+                await self.on_ended(kind, payload, why)
                 await job_repo.mark_settled(db, job_id)
         except Exception:
             logger.exception("background_job_end_unsettled", extra={"job_id": str(job_id)})
