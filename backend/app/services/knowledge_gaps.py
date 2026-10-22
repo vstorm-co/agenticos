@@ -52,7 +52,13 @@ from app.core.phone import phone_text_error
 from app.db.locks import LockScope, hold_subject
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.knowledge_gap import GapSignal, KnowledgeGapTopic, KnowledgeSearch, TopicStatus
+from app.db.models.knowledge_gap import (
+    DraftAuthor,
+    GapSignal,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+    TopicStatus,
+)
 from app.db.models.rag_document import RAGDocument
 from app.repositories import (
     agent_repo,
@@ -229,6 +235,11 @@ def _identifying(token: str) -> bool:
     return digits >= 4 or (digits >= 3 and any(character.isalpha() for character in token))
 
 
+def _personal_data_out(text: str) -> str:
+    """Text with credentials and the personal data the detectors find taken out."""
+    return pii.scan(_redacted(text)).redacted_text
+
+
 def _private(text: str) -> str:
     """People's text as a drafting model is shown it, with what identifies them taken out.
 
@@ -236,7 +247,7 @@ def _private(text: str) -> str:
     phone, card and account numbers - and every identifying number or code.
     Applied to what the drafter reads, never to what a person writes.
     """
-    found = pii.scan(_redacted(text)).redacted_text
+    found = _personal_data_out(text)
     return _TOKEN.sub(
         lambda match: _NUMBER if _identifying(match.group(0)) else match.group(0), found
     )
@@ -357,7 +368,7 @@ def _drafting_prompt(
             f"## Question {number}\n"
             f"Asked: {_private(_clip(row.question, 1_000))}\n"
             f"Searched for: {_private(_clip(row.search.query, 500))}\n"
-            f"Found: {_redacted(_clip(row.found, 2_000))}\n"
+            f"Found: {_personal_data_out(_clip(row.found, 2_000))}\n"
             f"Answered: {_private(_clip(row.answer, 1_500))}\n"
             f"Reader's comment: {_private(_clip(row.down_rating_comment, 500))}"
         )
@@ -907,7 +918,7 @@ class KnowledgeGapService:
                 "draft_sources": verified[:MAX_DRAFT_SOURCES],
                 "draft_unverified": unverified + len(named) - len(verified),
                 "draft_already_covered": report.already_covered,
-                "draft_by_model": True,
+                "draft_author": DraftAuthor.MODEL.value,
                 "draft_run_id": run_id,
                 "drafted_by_user_id": ctx.user_id,
                 "drafted_at": datetime.now(UTC),
@@ -1029,7 +1040,7 @@ class KnowledgeGapService:
                 "draft_sources": [],
                 "draft_unverified": 0,
                 "draft_already_covered": False,
-                "draft_by_model": False,
+                "draft_author": DraftAuthor.PERSON.value,
                 "draft_run_id": None,
                 "drafted_by_user_id": ctx.user_id,
                 "drafted_at": datetime.now(UTC),
@@ -1056,8 +1067,9 @@ class KnowledgeGapService:
         Content still asking for a detail to fill in, written `{{...}}`, is
         refused. So is content flagged as possibly identifying somebody -
         personal data, or a number or code it repeats from people's questions -
-        unless the caller confirms each flag it holds now: one that appeared
-        since the caller looked is not confirmed by having confirmed the others.
+        unless the caller confirms each flag it holds now, with at least as many
+        matches: one that appeared since the caller looked - a new category, or
+        more of one - is not confirmed by having confirmed the others.
         A topic covered by a document already takes no second one.
 
         Raises:
@@ -1092,8 +1104,8 @@ class KnowledgeGapService:
             limit=TOPIC_QUESTIONS,
         )
         flags = await self._flags(ctx, row, questions, f"{data.title}\n{data.content}")
-        confirmed = {(flag.kind, flag.value) for flag in data.confirmed}
-        if any((flag.kind, flag.value) not in confirmed for flag in flags):
+        confirmed = {(flag.kind, flag.value): flag.count for flag in data.confirmed}
+        if any(confirmed.get((flag.kind, flag.value), 0) < flag.count for flag in flags):
             raise IdentifyingContentError(
                 details={"flags": [flag.model_dump(mode="json") for flag in flags]}
             )

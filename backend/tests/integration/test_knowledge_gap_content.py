@@ -422,7 +422,7 @@ async def test_a_draft_a_person_changes_is_theirs_and_an_unchanged_one_stays_the
         await service.draft(ctx, topic_id)
 
     drafted = await db.get(KnowledgeGapTopic, topic_id)
-    assert drafted is not None and drafted.draft_by_model is True
+    assert drafted is not None and drafted.draft_author == "model"
     kept = await service.save_content(
         ctx, topic_id, KnowledgeGapContent(title="Parking", content="Visitors park on level -1.")
     )
@@ -439,7 +439,24 @@ async def test_a_draft_a_person_changes_is_theirs_and_an_unchanged_one_stays_the
         [],
     )
     topic = await db.get(KnowledgeGapTopic, topic_id)
-    assert topic is not None and topic.draft_by_model is False
+    assert topic is not None and topic.draft_author == "person"
+
+
+async def test_a_models_draft_stays_the_models_once_its_run_is_gone(db) -> None:
+    """Run retention clears the draft's run; who wrote the text must not change with it."""
+    ctx = await _owner(db)
+    _, agent, topic_id = await _a_topic(db, ctx)
+    drafting_run, _ = await _turn(db, ctx, agent)
+    with _drafter(KnowledgeGapDraft(title="Parking", content="Level -1."), drafting_run):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    await db.execute(delete(AgentRun).where(AgentRun.id == drafting_run.id))
+    await db.flush()
+    db.expire_all()
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+
+    assert topic is not None
+    assert (topic.draft_run_id, topic.draft_author) == (None, "model")
 
 
 async def test_a_covered_topic_takes_no_second_document(db, uploads) -> None:
@@ -493,3 +510,62 @@ async def test_a_context_file_the_caller_may_not_read_is_not_shown_to_the_drafte
     prompt = run_it.await_args.kwargs["prompt"]
     assert "refund-policy" in prompt
     assert "salaries" not in prompt and "pay bands" not in prompt
+
+
+async def test_a_run_made_as_a_surfaces_publisher_is_an_anonymous_asker(db) -> None:
+    """A widget visitor runs as whoever published the widget: the publisher did not ask."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    topic_id = await _one_asker_topic(db, ctx, kb, agent)
+    for query in ("visitor parking widget one", "visitor parking widget two"):
+        run, _ = await _turn(db, ctx, agent, question="Parking via the widget?")
+        run.initiated_by_publisher_fallback = True
+        await db.flush()
+        await _searched(db, ctx, run, kb, query=query)
+    with _embedding():
+        await _group(db, ctx, kb)
+
+    [topic] = (await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)).items
+
+    assert topic.id == topic_id
+    assert (topic.question_count, topic.asker_count) == (4, 2)
+
+
+async def test_a_topic_whose_document_was_deleted_can_be_covered_again(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    await _add(db, ctx, topic_id, "Visitors park on level -1.")
+    await db.execute(delete(RAGDocument).where(RAGDocument.knowledge_base_id == kb.id))
+    await db.flush()
+    db.expire_all()
+
+    added = await _add(db, ctx, topic_id, "Visitors park on level -2.")
+
+    assert added.status == "covered"
+    assert len(await _documents(db, kb)) == 1
+
+
+async def test_confirming_one_match_of_a_kind_does_not_confirm_more_of_it(db, uploads) -> None:
+    del uploads
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    content = "Write to ann@example.com or bob@example.com."
+
+    with pytest.raises(IdentifyingContentError) as refused:
+        await KnowledgeGapService(db).add_content(
+            ctx,
+            topic_id,
+            KnowledgeGapContentAdd(
+                title="Parking",
+                content=content,
+                confirmed=[KnowledgeGapFlag(kind="personal_data", value="email", count=1)],
+            ),
+            vector_store=_AcceptingStore(),
+        )
+
+    assert refused.value.details["flags"] == [
+        {"kind": "personal_data", "value": "email", "count": 2}
+    ]
+    assert await _documents(db, kb) == []

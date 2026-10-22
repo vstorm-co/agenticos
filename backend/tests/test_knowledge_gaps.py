@@ -578,6 +578,21 @@ class TestTheDraftingPrompt:
         assert "Searched for: refund [number]" in prompt
         assert "`{{what to fill in}}`" in prompt and "`already_covered`" in prompt
 
+    def test_what_the_knowledge_base_returned_keeps_its_figures_and_loses_personal_data(self):
+        rows = [
+            DraftingRow(
+                search=MagicMock(query="price"),
+                question=None,
+                answer=None,
+                found="SKU 12345 costs $5000 since 2026. Ask ann@example.com",
+                down_rating_comment=None,
+            )
+        ]
+
+        prompt = _drafting_prompt("Catalog", rows, [], [])
+
+        assert "Found: SKU 12345 costs $5000 since 2026. Ask [redacted:email]" in prompt
+
 
 class TestWhatIdentifiesSomebody:
     @pytest.mark.parametrize(

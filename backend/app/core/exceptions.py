@@ -36,6 +36,11 @@ class AppException(Exception):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(message={self.message!r}, code={self.code!r})"
 
+    @property
+    def logged_details(self) -> dict[str, Any] | None:
+        """What of `details` the server log records: all of it, unless a refusal says less."""
+        return self.details
+
 
 class NotFoundError(AppException):
     """Resource not found (404)."""
@@ -371,3 +376,9 @@ class IdentifyingContentError(AppException):
     message = "This content may identify somebody. Check what is flagged, then confirm it"
     code = "IDENTIFYING_CONTENT"
     status_code = 409
+
+    @property
+    def logged_details(self) -> dict[str, Any] | None:
+        """The flags' kinds and counts: their values are what may identify somebody."""
+        flags = (self.details or {}).get("flags", [])
+        return {"flags": [{"kind": flag["kind"], "count": flag["count"]} for flag in flags]}

@@ -160,6 +160,13 @@ class TopicStatus(StrEnum):
     deleted, it reads as open again."""
 
 
+class DraftAuthor(StrEnum):
+    """Who wrote a topic's draft: what a person's erasure may take and what it must leave."""
+
+    MODEL = "model"
+    PERSON = "person"
+
+
 class KnowledgeGapTopic(Base):
     """Questions one knowledge base could not answer, grouped by meaning."""
 
@@ -214,11 +221,9 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Whether a model wrote the draft's text, rather than a person: its run may be
-    # gone with retention while the text stays the model's.
-    draft_by_model: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=false()
-    )
+    # `model` or `person`, set with the draft's text: its run may be gone with
+    # retention while the text stays the model's.
+    draft_author: Mapped[str | None] = mapped_column(String(16), nullable=True)
     draft_already_covered: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
@@ -241,6 +246,11 @@ class KnowledgeGapTopic(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('open', 'dismissed', 'covered')", name="ck_knowledge_gap_topic_status"
+        ),
+        CheckConstraint(
+            "(draft_content IS NULL) = (draft_author IS NULL) "
+            "AND (draft_author IS NULL OR draft_author IN ('model', 'person'))",
+            name="ck_knowledge_gap_draft_author",
         ),
     )
 

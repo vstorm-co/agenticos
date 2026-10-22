@@ -4,8 +4,8 @@
 document, so a person who adds a topic's content to its knowledge base sees the
 topic say so; a document deleted later leaves the topic open again. It also
 gains `draft_already_covered`, set when the drafter found the questions already
-answered by a context file or a document, and `draft_by_model`, whether a model
-or a person wrote the draft's text - every draft before it was the drafter's. `rag_documents` gains the topic a
+answered by a context file or a document, and `draft_author`, `model` or
+`person`, set whenever there is a draft - every draft before it was the drafter's. `rag_documents` gains the topic a
 document was added from.
 
 `knowledge_gap_classifications` accepts `refused`: the agent rightly refused a
@@ -32,6 +32,7 @@ depends_on: str | Sequence[str] | None = None
 
 _STATUS = "knowledge_gap_topics_ck_knowledge_gap_topic_status_check"
 _SIGNAL = "knowledge_gap_classifications_ck_classification_signal_check"
+_AUTHOR = "knowledge_gap_topics_ck_knowledge_gap_draft_author_check"
 
 
 def _check(name: str, table: str, condition: str) -> None:
@@ -59,12 +60,17 @@ def upgrade() -> None:
         sa.Column("draft_already_covered", sa.Boolean(), server_default=sa.false(), nullable=False),
     )
     op.add_column(
-        "knowledge_gap_topics",
-        sa.Column("draft_by_model", sa.Boolean(), server_default=sa.false(), nullable=False),
+        "knowledge_gap_topics", sa.Column("draft_author", sa.String(length=16), nullable=True)
     )
     # Every draft so far was the drafter's: nothing else could write one.
     op.execute(
-        "UPDATE knowledge_gap_topics SET draft_by_model = true WHERE draft_content IS NOT NULL"
+        "UPDATE knowledge_gap_topics SET draft_author = 'model' WHERE draft_content IS NOT NULL"
+    )
+    op.create_check_constraint(
+        op.f(_AUTHOR),
+        "knowledge_gap_topics",
+        "(draft_content IS NULL) = (draft_author IS NULL) "
+        "AND (draft_author IS NULL OR draft_author IN ('model', 'person'))",
     )
     op.create_foreign_key(
         op.f("knowledge_gap_topics_covered_by_document_id_fkey"),
@@ -124,7 +130,8 @@ def downgrade() -> None:
         "knowledge_gap_topics",
         type_="foreignkey",
     )
-    op.drop_column("knowledge_gap_topics", "draft_by_model")
+    op.drop_constraint(op.f(_AUTHOR), "knowledge_gap_topics", type_="check")
+    op.drop_column("knowledge_gap_topics", "draft_author")
     op.drop_column("knowledge_gap_topics", "draft_already_covered")
     op.drop_column("knowledge_gap_topics", "covered_at")
     op.drop_column("knowledge_gap_topics", "covered_by_user_id")

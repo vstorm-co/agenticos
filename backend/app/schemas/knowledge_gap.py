@@ -154,9 +154,10 @@ class KnowledgeGapFlag(BaseSchema):
         )
     )
     value: str = Field(
-        description="The detector's category for `personal_data`, the repeated token for `shared`"
+        max_length=200,
+        description="The detector's category for `personal_data`, the repeated token for `shared`",
     )
-    count: int = 1
+    count: int = Field(default=1, ge=1)
 
 
 class KnowledgeGapContent(BaseSchema):
