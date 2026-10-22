@@ -579,8 +579,16 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
  * `base` is undefined while it loads and for an agent never published.
  */
 export function useDraftBase(agentId: string | null) {
-  const { versions } = useAllAgentVersions(agentId);
-  const { version } = useAgentVersion(agentId, versions[0]?.id ?? null);
+  // No placeholder from the agent before: its newest version is not this one's.
+  const { data } = useQuery({
+    queryKey: qk.agents.versions(agentId ?? "", 0, 1),
+    queryFn: () =>
+      apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`, {
+        params: { skip: "0", limit: "1" },
+      }),
+    enabled: !!agentId,
+  });
+  const { version } = useAgentVersion(agentId, data?.items[0]?.id ?? null);
   return { base: version };
 }
 

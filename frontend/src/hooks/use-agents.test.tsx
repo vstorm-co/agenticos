@@ -1093,6 +1093,9 @@ describe("useDraftBase", () => {
     const { result } = renderHook(() => useDraftBase("a1"), { wrapper });
     await waitFor(() => expect(result.current.base?.version).toBe(2));
 
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "0", limit: "1" },
+    });
     expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions/v2");
   });
 

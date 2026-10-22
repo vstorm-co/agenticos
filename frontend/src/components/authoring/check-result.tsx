@@ -24,18 +24,13 @@ type Translate = ReturnType<typeof useTranslations>;
  */
 export function checkFindings(comparison: EvalComparison, t: Translate, locale: string): string {
   if (comparison.verdict === "invalid") return t("invalid");
-  const list = new Intl.ListFormat(locale, { type: "conjunction" });
   const broken = comparison.cases.filter((item) => item.flip === "regression" && item.confirmed);
-  const parts: string[] = [];
-  if (broken.length > 0) {
-    const cases = list.format(
-      broken.slice(0, QUOTED_CASES).map((item) => t("quote", { text: item.input })),
-    );
-    const more = broken.length - QUOTED_CASES;
-    parts.push(more > 0 ? t("breaksMore", { cases, count: more }) : t("breaks", { cases }));
-  }
-  if (comparison.fixed_confirmed > 0) parts.push(t("fixes", { count: comparison.fixed_confirmed }));
-  return parts.length > 0 ? list.format(parts) : t("noChange");
+  const fixed = comparison.fixed_confirmed;
+  if (broken.length === 0) return fixed > 0 ? t("fixes", { count: fixed }) : t("noChange");
+  const cases = new Intl.ListFormat(locale, { type: "conjunction" }).format(
+    broken.slice(0, QUOTED_CASES).map((item) => t("quote", { text: item.input })),
+  );
+  return t("breaks", { cases, more: Math.max(broken.length - QUOTED_CASES, 0), fixed });
 }
 
 /** What the check says as a whole: the suite's verdict when it ran on one, else the dataset. */

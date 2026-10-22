@@ -82,7 +82,7 @@ describe("CheckResult", () => {
 
     expect(
       screen.getByRole("link", {
-        name: "On refunds: breaks “A?”, “B?”, and “C?” and 2 more and fixes 2 cases",
+        name: "On refunds: breaks “A?”, “B?”, and “C?” and 2 more cases, and fixes 2 cases",
       }),
     ).toBeInTheDocument();
   });
