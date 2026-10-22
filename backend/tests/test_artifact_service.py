@@ -532,7 +532,7 @@ class TestContent:
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
             served = await _service().content(token)
-        assert served.document == artifacts.PLATFORM_SCRIPT.encode() + b"<h1>hi</h1>"
+        assert served.document == artifacts.platform_script().encode() + b"<h1>hi</h1>"
         assert served.embed_origins == []
         assert lookup.await_args.args[1] == version.id
 
@@ -592,7 +592,7 @@ class TestRender:
         page = b"<script>draw()</script>"
         assert (
             artifacts.render(_version(artifact), page, title="t")
-            == artifacts.PLATFORM_SCRIPT.encode() + page
+            == artifacts.platform_script().encode() + page
         )
 
     def test_markdown_is_rendered_into_a_page_with_its_raw_html_escaped(self) -> None:
@@ -637,6 +637,18 @@ class TestThePolicy:
             # The deployment's own library set, by its path, and nothing else.
             assert remote in ([], [library])
         assert directives["img-src"] == ["data:", "blob:"]
+
+    @pytest.mark.security
+    def test_map_tiles_come_from_the_deployment_s_own_tile_path_and_no_remote_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "openstreetmap")
+        policy = artifacts.content_security_policy()
+        directives = {part.split()[0]: part.split()[1:] for part in policy.split("; ")}
+        tiles = f"{artifacts.settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/artifact-content/tiles/"
+        assert directives["img-src"] == ["data:", "blob:", tiles]
+        assert "openstreetmap" not in policy
+        assert directives["connect-src"] == ["'none'"]
 
     @pytest.mark.security
     def test_an_embeddable_page_may_be_framed_by_its_sites_and_the_embed_document(self) -> None:

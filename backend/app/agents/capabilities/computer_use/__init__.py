@@ -212,6 +212,7 @@ def _session(organization: object, conversation: object) -> str:
 
 @register(
     id="computer_use",
+    voice="hand_off",
     name="Computer use",
     category="research",
     description="Operate a desktop - any application, not only web pages - through screenshots, mouse and keyboard.",

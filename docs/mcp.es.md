@@ -1,5 +1,5 @@
 ---
-source_sha: "1eecb93af547"
+source_sha: "7d3991430b9c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -58,6 +58,18 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     la plataforma se rompe y no como una dirección que corregir
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — auto-alojar y
     pegar una URL de `localhost` es el caso ordinario, no el exótico.
+
+    Un operador puede dejar que una conexión alcance un servidor de la propia
+    red del despliegue, como un servicio de compose. Para ello, lista su host en
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Un host de la
+    lista solo se salta la comprobación de dirección. La URL sigue necesitando
+    `http` o `https`, y el inicio de sesión OAuth en él se sigue rechazando.
+
+    Toda cuenta del despliegue puede entonces alcanzar cualquier puerto de ese
+    host. Así que lista solo un servidor que compruebe un token, y nunca
+    `localhost` ni un servicio de este stack, como `app`, `db` o `redis`. La
+    lista solo se lee al guardar una conexión: quitar un host no desconecta una
+    conexión guardada.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
@@ -386,7 +398,8 @@ Quedan dos bordes, ambos estrechos y ambos deliberados:
   alguien, que la resuelve por su cuenta. No hay nada que fijar.
 - La **URL propia de la conexión** se comprueba al guardar y se resuelve otra vez
   cuando un agent se ejecuta — la escribe un operador, así que volver a apuntarla
-  significa ser el operador.
+  significa ser el operador. Un host de `MCP_ALLOWED_HOSTS` se salta la
+  comprobación de dirección.
 
 Nada que elija un *modelo* llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.
@@ -506,9 +519,13 @@ siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
     conexión tumbaría todos los agents que la nombran, incluidos los que nunca la
     necesitaron.
 
-    El modelo responde entonces **sin** esas herramientas — lo correcto para un
-    turno de chat, lo incorrecto si dabas por hecho que una herramienta siempre
-    estaba ahí.
+    El modelo responde entonces **sin** esas herramientas, y lo sabe: las
+    instrucciones del turno nombran el servidor, dicen que no respondió o rechazó
+    la conexión, y piden al modelo que diga que no se pudo contactar en vez de
+    informar de un resultado vacío. Vale también para un servidor que respondió
+    hace un momento y falla cuando el turno se conecta. Lo correcto para un turno
+    de chat, lo incorrecto si dabas por hecho que una herramienta siempre estaba
+    ahí.
 
 Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se

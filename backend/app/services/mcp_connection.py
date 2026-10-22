@@ -21,10 +21,11 @@ unreadable the moment they switched. Neither is encrypted with a deployment-wide
 key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
-webhooks), the connectivity test that discovers a server's tools, and building
-per-turn agent toolsets - either from the user's own enabled connections (the
-general assistant) or from the organization-scoped ones a published agent's
-spec names.
+webhooks, except that a host on the deployment's `MCP_ALLOWED_HOSTS` skips the
+private-address check, and only on a connection's own address), the
+connectivity test that discovers a server's tools, and building per-turn agent
+toolsets - either from the user's own enabled connections (the general
+assistant) or from the organization-scoped ones a published agent's spec names.
 """
 
 import asyncio
@@ -126,7 +127,7 @@ def _now_epoch() -> float:
     return datetime.now(UTC).timestamp()
 
 
-async def _checked_url(url: str) -> str:
+async def _checked_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a submitted URL, refusing it as a 400 rather than a crash.
 
     `validate_mcp_url` raises `SSRFBlockedError`, which subclasses `ValueError`
@@ -151,12 +152,17 @@ async def _checked_url(url: str) -> str:
     goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
     refusal that is not a `UrlRefusedError`.
 
+    Only the four callers that save a connection's own address pass
+    `honour_allowlist`. `probe_sign_in` and `_oauth_start` keep the strict
+    default: `mcp_oauth.discover` never honours the list, so a listed URL would
+    only be refused there instead, hop by hop.
+
     Raises:
         BadRequestError: If the URL is malformed or points inside the
             deployment's network.
     """
     try:
-        return await validate_mcp_url(url)
+        return await validate_mcp_url(url, honour_allowlist=honour_allowlist)
     except UrlRefusedError as exc:
         # Ours to quote, in the log as much as in the body - see the docstring.
         logger.warning("MCP server URL refused: %s", exc)
@@ -668,7 +674,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await _checked_url(data.url)
+        url = await _checked_url(data.url, honour_allowlist=True)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
             raise AlreadyExistsError(
@@ -731,7 +737,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await _checked_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"], honour_allowlist=True)
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_by_name(
@@ -1710,7 +1716,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await _checked_url(data.url)
+        url = await _checked_url(data.url, honour_allowlist=True)
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=data.name
         )
@@ -1784,7 +1790,7 @@ class McpConnectionService:
             edited_fields.add("allowed_tools")
 
         if "url" in update_data:
-            update_data["url"] = await _checked_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"], honour_allowlist=True)
 
         if "label" in update_data:
             update_data["label"] = _stored_label(update_data["label"])
@@ -2092,11 +2098,36 @@ class UnavailablePlatformServer:
     """
 
 
+@dataclass(frozen=True)
+class UnavailableUnreachableServer:
+    """A bound server that did not answer its probe, so the turn runs without it.
+
+    Skipped rather than attached because a dead server aborts the whole turn once
+    pydantic-ai enters its toolset - but skipped silently it is invisible to the
+    model, which then answers as though the agent never had the service ("no data
+    available") instead of saying the service is down. A slow server is the usual
+    case, not a dead one: a bridge whose `tools/list` takes longer than
+    :data:`~app.agents.mcp.CONNECT_TIMEOUT_SECS` is left out of one turn and
+    attached on the next, and the person asking should hear that a retry may help.
+
+    `held_by` names another binding that answered under the same tool prefix:
+    those tools are attached, so the model is told whose they are rather than
+    that the prefix has none.
+    """
+
+    server: str
+    binding: str
+    held_by: str | None = None
+
+
 # A binding a turn could not honour: a personal one with nobody or nothing to
-# speak through, the platform's own with nobody to act as, or a server dropped
-# because its tool prefix collided.
+# speak through, the platform's own with nobody to act as, a server dropped
+# because its tool prefix collided, or one that did not answer its probe.
 UnavailableBinding = (
-    UnavailablePersonalService | UnavailablePlatformServer | UnavailablePrefixCollision
+    UnavailablePersonalService
+    | UnavailablePlatformServer
+    | UnavailablePrefixCollision
+    | UnavailableUnreachableServer
 )
 
 
@@ -2302,6 +2333,23 @@ async def build_toolsets_for_agent(
             )
     origins: dict[str, UUID] = {}
     attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
+    # A server whose probe failed is briefed, not left to the warning in the log.
+    # Where another binding answered under its prefix, those tools are present,
+    # so the briefing says whose they are: read as this binding's, the other
+    # account's results would pass for the one that is down. The same binding
+    # bound twice and answering once is not missing at all.
+    held = {tool_prefix(spec.name): bindings[id(spec)] for spec, _ in attached}
+    for spec, toolset in probed:
+        if toolset is not None:
+            continue
+        holder = held.get(tool_prefix(spec.name))
+        if holder == bindings[id(spec)]:
+            continue
+        unavailable.append(
+            UnavailableUnreachableServer(
+                server=spec.name, binding=bindings[id(spec)], held_by=holder
+            )
+        )
     return ResolvedMcpToolsets(
         toolsets=[
             toolset

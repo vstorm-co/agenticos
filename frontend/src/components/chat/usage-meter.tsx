@@ -80,7 +80,9 @@ export function UsageMeter({
   const fill = usage === null ? null : fillOf(usage, workspace, t);
   const agentShare = usage?.agent_budget_percent ?? null;
   const orgShare = usage?.budget_percent ?? null;
-  if (context === null && total === null && fill === null) return null;
+  // Always there, a new chat included: before the first reply it says what it will show.
+  const empty =
+    context === null && total === null && fill === null && agentShare === null && orgShare === null;
 
   const contextLevel = levelOf(context?.percent ?? null, CONTEXT_ALERT);
   const otherLevel = worst([
@@ -133,6 +135,7 @@ export function UsageMeter({
         sideOffset={8}
         className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
       >
+        {empty && <p className="text-muted-foreground px-2 py-1.5 text-xs">{t("empty")}</p>}
         <dl className="text-xs">
           {context !== null && (
             <Reading

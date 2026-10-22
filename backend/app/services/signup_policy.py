@@ -51,12 +51,17 @@ belongs (#1773). So `invite_only` and the domain list admit it, and `closed`
 still refuses it.
 """
 
+from typing import Literal
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
 from app.db.models.organization import Invitation
 from app.repositories import deployment_settings_repo, invitation_repo
 from app.services.invitation_admission import admits
+
+Admission = Literal["policy", "invitation"]
+"""What let an account in: the deployment's own rule, or an organization's word for it."""
 
 
 async def check_may_register(
@@ -66,8 +71,14 @@ async def check_may_register(
     is_first_user: bool,
     invitation_token: str | None = None,
     admitted_by_directory: bool = False,
-) -> None:
-    """Raise unless this deployment admits an account for `email`.
+) -> Admission:
+    """Raise unless this deployment admits an account for `email`, and say on what grounds.
+
+    `policy` when the deployment's own rule admits it - the first account, an
+    open deployment, an address at an allowed domain. `invitation` when only an
+    organization's invitation or directory mapping does: somebody in *that*
+    organization vouched for the person, which says nothing about any other
+    organization - the default one included (#2156).
 
     Args:
         db: The request's session.
@@ -87,11 +98,11 @@ async def check_may_register(
             "you were not invited" must not become a way to enumerate tenants.
     """
     if is_first_user:
-        return
+        return "policy"
 
     row = await deployment_settings_repo.get(db)
     if row is None:
-        return
+        return "policy"
 
     mode = row.signup_mode
     if mode == "closed":
@@ -113,11 +124,13 @@ async def check_may_register(
             message="This deployment is invite-only. Ask an administrator to invite you."
         )
 
-    if domains and not invited and email.strip().lower().rpartition("@")[2] not in domains:
+    at_allowed_domain = not domains or email.strip().lower().rpartition("@")[2] in domains
+    if not invited and not at_allowed_domain:
         raise AuthorizationError(
             message="That email domain cannot register on this deployment.",
             details={"allowed_domains": sorted(domains)},
         )
+    return "policy" if mode != "invite_only" and at_allowed_domain else "invitation"
 
 
 async def _is_invited(db: AsyncSession, *, email: str, invitation_token: str | None) -> bool:

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a08ac08ea50"
+source_sha: "083ce38797dc"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -139,7 +139,7 @@ Te rzeczy zostaw dokładnie takimi, jakie są po angielsku:
 | Nazwy klas błędów i wyjątków | `AuthorizationError` |
 | Nazwy produktów | Docker Compose, PostgreSQL, Slack, Logfire |
 | Bloki mermaid | Etykieta z nawiasem albo cudzysłowem rozwala graf, a build nie może ci tego powiedzieć — Mermaid renderuje się w przeglądarce |
-| Etykieta z konsoli, którą czytelnik ma znaleźć na ekranie | UI jest po angielsku, więc `Admin → Response Ratings` jest punktem orientacyjnym, a nie frazą |
+| Etykieta z konsoli, którą czytelnik ma znaleźć na ekranie | Tam, gdzie UI pokazuje ją po angielsku, `Admin → Response Ratings` jest punktem orientacyjnym, a nie frazą. Tam, gdzie tłumaczy ją katalog samej konsoli (`frontend/messages/pl.json`, `de.json`), napisz etykietę, którą pokazuje UI czytelnika, z angielską w nawiasie - „Głos (Voice)” - żeby dało się ją znaleźć w każdym z języków |
 | Ścieżki obrazków | Jeden zrzut ekranu obsługuje wszystkie cztery lokalizacje |
 
 Komentarz wewnątrz bloku kodu jest prozą, którą czytelnik czyta, a nie

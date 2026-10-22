@@ -1,5 +1,5 @@
 ---
-source_sha: "02fe4ffb1664"
+source_sha: "497b7ff159f0"
 ---
 
 # Konfiguracja { #configuration }
@@ -63,6 +63,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
 | `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose ustawia `http://browser-egress:3128` | Proxy, przez które przeglądarka wdrożenia łączy się z każdą stroną. Usługa `browser-egress` z compose to `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): sama rozwiązuje każdy host, odrzuca adresy prywatne, loopback, link-local i metadanych i łączy się z adresem, który sprawdziła, więc ani przekierowanie, ani DNS rebinding nie wprowadzi strony do wnętrza sieci. Używane przez każde przeglądanie bez proxy organizacji i nie na przeglądarce hostowanej. Wewnętrzne narzędzie, które agent ma przeglądać, wymaga wyjątku w `docker/browser-egress/squid.conf`. Puste wypuszcza przeglądarkę bezpośrednio: ustaw `BROWSER_EGRESS_PROXY=` w głównym `.env` tylko dla przeglądarki spoza compose, która nie dosięgnie proxy. Bez proxy każda strona jest sprawdzana przy pierwszym żądaniu w karcie, a potem przeglądarka sama rozwiązuje jej nazwę, więc nazwa, która później w tej samej karcie wskaże adres prywatny, nie zostanie wychwycona |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosty, na które może wskazywać URL połączenia MCP, choć rozwiązują się na adres prywatny albo loopback, na przykład usługa compose: `["postgres-mcp"]`. Dopasowanie jest dokładne i nie rozróżnia wielkości liter. Host z listy pomija tylko sprawdzenie adresu: URL nadal musi mieć `http` albo `https`, a logowanie OAuth do niego nadal jest odrzucane. Każde konto we wdrożeniu może sięgnąć do każdego portu hosta z listy, więc wpisuj tylko serwer, który sprawdza token. Wpis wskazujący usługę metadanych chmury, adres link-local albo loopback, taki jak `169.254.169.254` czy `localhost`, jest odrzucany przy starcie. Pusta lista odrzuca każdy adres wewnętrzny. Zobacz [połączenie](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Jak długo może trwać pojedyncza konwersja DOC na tekst przez LibreOffice, zanim zostanie zabita. Znacznie poniżej 600s bazy wiedzy, bo to interaktywny upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Ile konwersji LibreOffice może działać naraz. Podproces omija `FILE_IO_MAX_WORKERS`, więc jest ograniczany osobno |
@@ -745,6 +746,17 @@ serwowane. Zobacz [Aplikacje](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
+
+**Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o
+`/api/v1/artifact-content/tiles/{z}/{x}/{y}`; API sprawdza liczby, pobiera kafelek
+z serwera, trzyma ostatnie 2048 w pamięci i odpowiada, więc klucz z szablonu nigdy
+nie opuszcza serwera. Trasa nie wymaga sesji - ładuje ją każda strona - więc ma
+limit na adres (`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Pilnuj warunków dostawcy:
+publiczne kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment
+powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy
+serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
@@ -1123,6 +1135,26 @@ usunięty), profile modeli mogą wskazywać na lokalne endpointy takie jak Ollam
 sandboksa dla `run_python` są konfiguracją capability per agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` zostały usunięte).
 
+## Rozmowy głosowe { #voice-calls }
+
+[Rozmowy głosowe](voice.md) włącza się w każdym agencie, a ogranicza je jego
+najdłuższa rozmowa i budżety. Dwa sufity należą do deploymentu:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem budżetu organizacji |
+
+Oba liczą rozmowy ze świeżym heartbeatem, więc rozmowa, której proces padł,
+przestaje się liczyć w ciągu 45 sekund. Rozpoczynanie rozmów w embedzie ma też
+rate limit (`RATE_LIMIT_EMBED_VOICE_*`, [niżej](#rate-limiting)). Własny
+`rate_limit_per_minute` embeda, ustawiany w Builderze, liczy **wiadomości**
+odwiedzającego, a nie rozpoczęcia rozmów, więc nie ogranicza rozmów.
+
+Reszta jest ustalona w kodzie, a nie konfigurowana: rozmowa nigdy nie trwa
+dłużej niż 50 minut, heartbeaty idą co 15 sekund, a sprzątanie rozmów
+głosowych działa co minutę, jako harmonogram workera `reap-voice-calls`.
+
 ## CORS { #cors }
 
 | Zmienna | Domyślnie | Opis |
@@ -1139,7 +1171,7 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
-powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
+powierzchni, configu i logo hostowanej strony oraz uploadu, dyktowania i rozmowy głosowej odwiedzającego. Własne
 trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
 osobna decyzja, nie ta.
 
@@ -1149,8 +1181,15 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Odsłuchanie głosu](voice.md#turn-it-on) w Builderze, na osobę. Każdy podgląd spoza cache to krótka płatna sesja u providera realtime agenta, poza wszystkimi budżetami modelu; raz odsłuchany głos jest trzymany w cache przez tydzień |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji. Zużywane dopiero po wpuszczeniu odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Adres jest liczony, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem, zużywane dopiero po wpuszczeniu odwiedzającego. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

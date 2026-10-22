@@ -4,6 +4,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { BrandingProvider } from "@/components/branding/branding-provider";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
+import { AppearanceScript } from "@/components/theme/appearance-script";
+import { MotionScript } from "@/components/theme/motion-script";
 import { readBranding } from "@/lib/branding-server";
 import { LOGO_VERSION } from "@/lib/logo.generated";
 import { readPublicConfig } from "@/lib/public-config";
@@ -223,6 +225,12 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${display.variable} ${displayExt.variable} ${body.variable} ${bodyExt.variable} ${mono.variable} ${monoExt.variable}`}
     >
+      <head>
+        {/* Before the first paint, so a reduced-motion preference holds from frame one. */}
+        <MotionScript />
+        {/* The look, and the desktop app's window, from frame one too. */}
+        <AppearanceScript />
+      </head>
       <body className="font-body">
         <BrandingProvider branding={branding}>
           <PublicConfigProvider config={publicConfig}>{children}</PublicConfigProvider>

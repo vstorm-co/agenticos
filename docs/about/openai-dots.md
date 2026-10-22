@@ -10,7 +10,7 @@ OpenAI dots are always-on agents inside ChatGPT. Each dot has its own cloud comp
 
 If your company already lives in ChatGPT and your plan and region include dots, they are the fastest way to try an AI teammate. If you need the agents, the data and the rules to stay yours, AgenticOS is built for that.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. dots scope: OpenAI's announcement of 29 September 2026, its help-centre FAQ and press coverage, not a tested account.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. dots scope: OpenAI's announcement of 29 September 2026, its help-centre FAQ and press coverage, not a tested account.
 
 ## At a glance
 

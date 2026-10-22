@@ -22,7 +22,7 @@ serves whichever one a query happened to order first.
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import text
@@ -77,6 +77,38 @@ class DeploymentSettings(Base, TimestampMixin):
     else's name needs, since our pages describe our terms and not theirs.
     """
 
+    vapid_private_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """This deployment's VAPID signing key for Web Push (#2097), sealed in the
+    vault under the deployment's scope.
+
+    Generated the first time anything needs it - nobody configures Web Push -
+    and never replaced: every browser subscription is bound to the public half,
+    so a new key would silently end every subscription there is. The master
+    key's rotation re-wraps it (`vault_rotate`), which leaves the key itself,
+    and the subscriptions, as they were.
+    """
+    vapid_public_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    """The public half, base64url, as a browser's `applicationServerKey` takes it."""
+    vapid_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    apns_private_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """The organization's own APNs signing key (a `.p8`, PEM), sealed in the
+    vault under the deployment's scope (#2097).
+
+    Push to an iPhone goes through Apple's service with the key of the Apple
+    developer account the app was signed with - the company's own, since a
+    company signs its own build. Null: no iPhone push. Set and replaced by an
+    administrator; the four columns after it say whose key it is.
+    """
+    apns_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    apns_key_id: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    """The key's ID in the Apple developer account (the JWT's `kid`)."""
+    apns_team_id: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    """The developer account's team ID (the JWT's `iss`)."""
+    apns_topic: Mapped[str | None] = mapped_column(String(155), nullable=True)
+    """The app's bundle identifier, which every message names."""
+    apns_sandbox: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Apple's development service rather than production: a build run from
+    Xcode, whose tokens production refuses."""
     max_organizations_per_user: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """How many organizations one account may own, or null for no ceiling.
 
@@ -105,6 +137,35 @@ class DeploymentSettings(Base, TimestampMixin):
     )
     """`open`, `invite_only` or `closed`. See `app/services/signup_policy.py`."""
 
+    personal_organizations: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    """Whether a new account gets an organization of its own (#2156).
+
+    On by default, which is what a deployment open to independent people wants.
+    A deployment for one company turns it off, so a colleague does not start in
+    a tenant of their own - with its own keys, budget and audit trail - beside
+    the company's. Applies to accounts created afterwards; an existing personal
+    organization stays.
+    """
+
+    default_organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The organization every new account joins, or null for none (#2156).
+
+    It is also where a session with no organization named lands, ahead of a
+    personal one, and what the console selects when nothing else is. Deleting
+    the organization clears it rather than leaving a setting pointing nowhere.
+    """
+
+    default_organization_role: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="member", server_default=text("'member'")
+    )
+    """The role a new account joins `default_organization_id` with. Never `owner`."""
+
     allowed_email_domains: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
@@ -131,6 +192,21 @@ class DeploymentSettings(Base, TimestampMixin):
     upgrade sends nobody mail they were not sending before; on, every
     impersonation emails its target once, when it starts. The audit trail records
     the impersonation either way.
+    """
+
+    dictation_compressed_audio: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM (#1797).
+
+    Off, a dictation is 16 kHz mono 16-bit PCM WAV and nothing else, so its
+    length *is* its byte count and the longest dictation bounds what a
+    recording can cost exactly. On, the compressed formats `MediaRecorder`
+    makes are accepted too, with their length read from the file's own header -
+    which a file built by hand can understate, so the byte cap is then the only
+    bound, and low-bitrate audio fits about forty times the longest dictation
+    into it. A deployment's decision, because a hosted page or a widget lets a
+    stranger send the file, in every organization at once.
     """
 
     retention_defaults: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)

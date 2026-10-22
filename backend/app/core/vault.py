@@ -61,14 +61,16 @@ class VaultScopeKind(StrEnum):
 
     ORGANIZATION = "org"
     USER = "user"
+    DEPLOYMENT = "deployment"
 
 
 @dataclass(frozen=True)
 class VaultScope:
     """Who a sealed secret belongs to.
 
-    Almost everything is owned by an organization; the exception is a member's
-    personal MCP connection, which belongs to them and to no tenant - the row
+    Almost everything is owned by an organization; the exceptions are the
+    deployment's own Web Push key, and a member's personal MCP connection,
+    which belongs to them and to no tenant - the row
     has no `organization_id` at all, and a member may be in several
     organizations, so binding it to whichever one happened to be active when
     they added it would make the token unreadable after they switch.
@@ -84,6 +86,12 @@ class VaultScope:
     @classmethod
     def user(cls, user_id: UUID) -> VaultScope:
         return cls(kind=VaultScopeKind.USER, subject_id=user_id)
+
+    @classmethod
+    def deployment(cls) -> VaultScope:
+        """The installation itself, for the few secrets no tenant owns - the Web
+        Push signing key (#2097). One deployment per database, so one subject."""
+        return cls(kind=VaultScopeKind.DEPLOYMENT, subject_id=UUID(int=0))
 
     def __str__(self) -> str:
         return f"{self.kind.value}:{self.subject_id}"

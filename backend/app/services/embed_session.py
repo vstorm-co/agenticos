@@ -59,7 +59,7 @@ import contextlib
 import logging
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import UUID
@@ -105,6 +105,77 @@ def _flatten(value: str) -> str:
     the whole thing this block is arranged to prevent.
     """
     return " ".join(value.replace("[", "(").replace("]", ")").split())
+
+
+def supplied_block(embed: AgentEmbed, supplied: Mapping[str, Any]) -> str:
+    """What the page told us about this visitor, as data the model may read.
+
+    Only what the embed *declared*. An undeclared key is dropped rather than
+    rendered: the page is something a visitor can edit, and without a
+    declaration any key they invented would become a line inside an agent's
+    instructions.
+
+    Never as an instruction, and it says so. These values arrive from a
+    browser - in `jwt` mode as much as in `public`, because the widget reads
+    them from `window.AgenticOSContext` either way - so nothing here may be
+    relied on to decide what the agent is allowed to do. The line above the
+    block is what tells the model that, and it is why this is a block rather
+    than substituted into the placement sentence, where it would read as
+    something the operator wrote.
+
+    A declared-and-missing value is left out and logged. `required` is a
+    promise between an integrator and themselves; enforcing it here would
+    cost a visitor their answer for somebody else's deployment mistake.
+    """
+    declared = [
+        EmbedVariable.model_validate(variable) for variable in (embed.context_variables or [])
+    ]
+    if embed.kind == "page":
+        # On a page of our own the only place a value can come from is the
+        # visitor's own URL, so `user_tier=premium` typed into the address bar
+        # has to be impossible unless somebody marked that one variable
+        # URL-safe. The narrowing is read off the row rather than passed in by
+        # whoever opened the socket, which is a flag a caller could get wrong
+        # in the direction that widens it (#517).
+        declared = [variable for variable in declared if variable.url_safe]
+    if not declared:
+        return ""
+
+    lines: list[str] = []
+    missing: list[str] = []
+    for variable in declared:
+        value = supplied.get(variable.name)
+        if value is None or str(value).strip() == "":
+            if variable.required:
+                missing.append(variable.name)
+            continue
+        lines.append(f"{variable.name}: {_flatten(str(value))}")
+
+    if missing:
+        logger.warning(
+            "embed_context_missing",
+            extra={"embed_id": str(embed.id), "missing": sorted(missing)},
+        )
+    if not lines:
+        return ""
+    return SUPPLIED_HEADER + "\n" + "\n".join(lines)
+
+
+def placement_preamble(embed: AgentEmbed, supplied: Mapping[str, Any]) -> list[str]:
+    """What the model is told about where it is and who it is talking to.
+
+    The operator's placement context, then the page's supplied variables
+    (`supplied_block`). A text turn prepends these to every prompt; a voice call
+    from an embed (#54) puts them in the call's instructions, so an agent knows
+    the same about a visitor on a call as in text.
+    """
+    parts: list[str] = []
+    if embed.context:
+        parts.append(f"[Context for this placement: {embed.context}]")
+    block = supplied_block(embed, supplied)
+    if block:
+        parts.append(block)
+    return parts
 
 
 # Rolling window per (widget, visitor). In-process on purpose: this stops one
@@ -525,12 +596,7 @@ class EmbedSession:
         # visitor's supplied variables with it. `self._supplied` is refreshed on
         # every frame, so a single-page app signing the visitor in on turn 2 is
         # reflected here, and a page that stops supplying a value stops sending it.
-        parts: list[str] = []
-        if self.embed.context:
-            parts.append(f"[Context for this placement: {self.embed.context}]")
-        supplied_block = self._supplied_block()
-        if supplied_block:
-            parts.append(supplied_block)
+        parts = placement_preamble(self.embed, self._supplied)
         prompt = "\n\n".join([*parts, text]) if parts else text
 
         # The same loop the dashboard's chat drives, through this surface's own
@@ -630,60 +696,6 @@ class EmbedSession:
             self.conversation_id, limit=HISTORY_MESSAGES
         )
 
-    def _supplied_block(self) -> str:
-        """What the page told us about this visitor, as data the model may read.
-
-        Only what the embed *declared*. An undeclared key is dropped rather than
-        rendered: the page is something a visitor can edit, and without a
-        declaration any key they invented would become a line inside an agent's
-        instructions.
-
-        Never as an instruction, and it says so. These values arrive from a
-        browser - in `jwt` mode as much as in `public`, because the widget reads
-        them from `window.AgenticOSContext` either way - so nothing here may be
-        relied on to decide what the agent is allowed to do. The line above the
-        block is what tells the model that, and it is why this is a block rather
-        than substituted into the placement sentence, where it would read as
-        something the operator wrote.
-
-        A declared-and-missing value is left out and logged. `required` is a
-        promise between an integrator and themselves; enforcing it here would
-        cost a visitor their answer for somebody else's deployment mistake.
-        """
-        declared = [
-            EmbedVariable.model_validate(variable)
-            for variable in (self.embed.context_variables or [])
-        ]
-        if self.embed.kind == "page":
-            # On a page of our own the only place a value can come from is the
-            # visitor's own URL, so `user_tier=premium` typed into the address bar
-            # has to be impossible unless somebody marked that one variable
-            # URL-safe. The narrowing is read off the row rather than passed in by
-            # whoever opened the socket, which is a flag a caller could get wrong
-            # in the direction that widens it (#517).
-            declared = [variable for variable in declared if variable.url_safe]
-        if not declared:
-            return ""
-
-        lines: list[str] = []
-        missing: list[str] = []
-        for variable in declared:
-            value = self._supplied.get(variable.name)
-            if value is None or str(value).strip() == "":
-                if variable.required:
-                    missing.append(variable.name)
-                continue
-            lines.append(f"{variable.name}: {_flatten(str(value))}")
-
-        if missing:
-            logger.warning(
-                "embed_context_missing",
-                extra={"embed_id": str(self.embed.id), "missing": sorted(missing)},
-            )
-        if not lines:
-            return ""
-        return SUPPLIED_HEADER + "\n" + "\n".join(lines)
-
     async def _context(self, db: AsyncSession) -> AuthContext:
         """The role this run carries: the member who published the widget.
 
@@ -764,8 +776,10 @@ class EmbedSession:
 # deployment artefact to keep in step with this server. Its stylesheet is one
 # `<style>` of `aos-` classes scoped to its own root, for the same reason (#2006).
 #
-# `__PUBLIC_KEY__` and `__BASE_URL__` are substituted when it is served. A raw
-# string, so a backslash in a regular expression reaches the browser as written.
+# `__PUBLIC_KEY__`, `__BASE_URL__` and `__VOICE_VERSION__` (the call script's
+# content hash, `embed_voice_js.VOICE_JS_VERSION`) are substituted when it is
+# served. A raw string, so a backslash in a regular expression reaches the browser
+# as written.
 WIDGET_JS = r"""(function () {
   var KEY = "__PUBLIC_KEY__";
   var BASE = "__BASE_URL__";
@@ -951,6 +965,541 @@ WIDGET_JS = r"""(function () {
     return img;
   }
 
+  // The microphone's controls carry their own inline styles, as the call script's
+  // do: they are drawn only when an embed takes recordings, and keep the shared
+  // `aos-` sheet to what every visitor's bubble needs.
+  function styled(tag, style, text) {
+    var node = document.createElement(tag);
+    if (style) node.setAttribute("style", style);
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  // Voice (#1797). Everything the microphone needs lives between here and
+  // `mountVoice`, so the chat above it reads as it did before. `server` records
+  // in the page and posts to `/dictation`; `browser` hands the audio to the
+  // browser's own recogniser, which sends it to the browser's vendor. Copy is
+  // English, like the rest of the widget. No glow: a bubble on somebody else's
+  // page has no room for one.
+  var WAV_RATE = 16000;
+  var RECORDER_TYPES = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"];
+  var EXTENSIONS = { "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4", "audio/wav": "wav" };
+  var NEAR_LIMIT_SECONDS = 30;
+  var VOICE_COPY = {
+    requesting: "Allow the microphone in your browser's prompt to start recording.",
+    too_short: "That was under a second, so nothing was sent. Press the microphone, speak, then press Stop.",
+    mic_denied: "The microphone is blocked for this site. Allow it in your browser's site settings, then try again.",
+    mic_not_found: "No microphone found. Connect one, then try again.",
+    mic_busy: "The microphone didn't start. Another app may be using it.",
+    mic_insecure: "This page can't use the microphone: browsers allow it only on HTTPS.",
+    unsupported_type: "This browser can't record audio in a format we accept. Try Chrome or Firefox.",
+    empty: "No speech was heard in that recording. Check your microphone isn't muted, then try again.",
+    too_large: "That recording is too long to transcribe. Keep it shorter.",
+    provider_error: "The transcription didn't finish. Please try again.",
+    timeout: "The transcription took too long. Please try again.",
+    rate_limited: "Too many recordings just now - wait a minute and try again.",
+    offline: "The server couldn't be reached. Check your connection and try again.",
+    unavailable: "Voice input isn't available right now. Please type your message instead."
+  };
+  var SERVER_REASONS = ["empty", "unsupported_type", "too_large", "provider_error", "timeout"];
+
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  function clock(seconds) {
+    var whole = Math.max(0, Math.floor(seconds));
+    var rest = whole % 60;
+    return Math.floor(whole / 60) + ":" + (rest < 10 ? "0" : "") + rest;
+  }
+
+  function icon(paths) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    for (var i = 0; i < paths.length; i += 1) {
+      var path = document.createElementNS(ns, "path");
+      path.setAttribute("d", paths[i]);
+      svg.appendChild(path);
+    }
+    return svg;
+  }
+  var MIC_ICON = ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"];
+
+  // The WAV path: what the server advertises unless the deployment accepts
+  // compressed audio and the provider takes WebM. Ported from the console's
+  // `wav-encoder.ts`, resampler included. The server accepts exactly 16 kHz
+  // mono 16-bit PCM, whose length is its size, so whatever rate the
+  // microphone delivers is resampled to that before the file is built.
+  function mixToMono(channels) {
+    var length = channels[0].length;
+    for (var c = 1; c < channels.length; c += 1) length = Math.min(length, channels[c].length);
+    var mono = new Float32Array(length);
+    for (var k = 0; k < channels.length; k += 1) {
+      for (var i = 0; i < length; i += 1) mono[i] += channels[k][i] / channels.length;
+    }
+    return mono;
+  }
+
+  // Each output sample averages the source samples it spans - a crude low-pass,
+  // where plain decimation would fold the band above 8 kHz into the speech.
+  // Window edges count from the first sample ever fed, so chunks do not drift.
+  function createResampler(fromRate) {
+    var ratio = fromRate / WAV_RATE;
+    var consumed = 0;
+    var produced = 0;
+    var pending = new Float32Array(0);
+    return function (chunk) {
+      var input = new Float32Array(pending.length + chunk.length);
+      input.set(pending);
+      input.set(chunk, pending.length);
+      var output = [];
+      for (;;) {
+        var start = Math.floor(produced * ratio) - consumed;
+        var end = Math.max(Math.floor((produced + 1) * ratio) - consumed, start + 1);
+        if (end > input.length) break;
+        var sum = 0;
+        for (var i = start; i < end; i += 1) sum += input[i];
+        output.push(sum / (end - start));
+        produced += 1;
+      }
+      var drop = Math.floor(produced * ratio) - consumed;
+      pending = input.subarray(drop);
+      consumed += drop;
+      return new Float32Array(output);
+    };
+  }
+
+  function toPcm16(samples) {
+    var buffer = new ArrayBuffer(samples.length * 2);
+    var view = new DataView(buffer);
+    for (var i = 0; i < samples.length; i += 1) {
+      var clipped = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(i * 2, clipped < 0 ? clipped * 0x8000 : clipped * 0x7fff, true);
+    }
+    return buffer;
+  }
+
+  function wavHeader(dataBytes) {
+    var view = new DataView(new ArrayBuffer(44));
+    function ascii(offset, text) {
+      for (var i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+    }
+    ascii(0, "RIFF");
+    view.setUint32(4, 36 + dataBytes, true);
+    ascii(8, "WAVE");
+    ascii(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, WAV_RATE, true);
+    view.setUint32(28, WAV_RATE * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    ascii(36, "data");
+    view.setUint32(40, dataBytes, true);
+    return view.buffer;
+  }
+
+  // A ScriptProcessorNode, deprecated, rather than an AudioWorklet: a worklet
+  // is a module loaded by URL, and the host page's CSP decides whether that is
+  // allowed - this widget cannot know. Every browser still runs the processor.
+  function wavRecorder(context, stream, done) {
+    var chunks = [];
+    var bytes = 0;
+    var nodes = [];
+    var live = false;
+    return {
+      recording: function () { return live; },
+      start: function () {
+        var resample = createResampler(context.sampleRate);
+        var source = context.createMediaStreamSource(stream);
+        var processor = context.createScriptProcessor(4096, 2, 1);
+        var mute = context.createGain();
+        mute.gain.value = 0;
+        processor.onaudioprocess = function (event) {
+          var channels = [];
+          for (var i = 0; i < event.inputBuffer.numberOfChannels; i += 1) channels.push(event.inputBuffer.getChannelData(i));
+          var pcm = toPcm16(resample(mixToMono(channels)));
+          chunks.push(pcm);
+          bytes += pcm.byteLength;
+        };
+        source.connect(processor);
+        processor.connect(mute);
+        mute.connect(context.destination);
+        nodes = [source, processor, mute];
+        live = true;
+      },
+      stop: function () {
+        live = false;
+        for (var i = 0; i < nodes.length; i += 1) nodes[i].disconnect();
+        done(new Blob([wavHeader(bytes)].concat(chunks), { type: "audio/wav" }));
+      }
+    };
+  }
+
+  function mediaRecorder(stream, done) {
+    if (typeof MediaRecorder === "undefined") return null;
+    var type = null;
+    for (var i = 0; i < RECORDER_TYPES.length; i += 1) {
+      if (MediaRecorder.isTypeSupported(RECORDER_TYPES[i])) { type = RECORDER_TYPES[i]; break; }
+    }
+    if (type === null) return null;
+    var recorder;
+    try { recorder = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32000 }); } catch (e) { return null; }
+    var chunks = [];
+    recorder.ondataavailable = function (event) { chunks.push(event.data); };
+    recorder.onstop = function () { done(new Blob(chunks, { type: type })); };
+    return {
+      recording: function () { return recorder.state !== "inactive"; },
+      start: function () { recorder.start(250); },
+      stop: function () { recorder.stop(); }
+    };
+  }
+
+  function micFailure(error) {
+    var name = error && error.name;
+    if (name === "NotAllowedError" || name === "SecurityError") return "mic_denied";
+    if (name === "NotFoundError" || name === "OverconstrainedError") return "mic_not_found";
+    return "mic_busy";
+  }
+
+  // What a refused `/dictation` means for the visitor. The server's own
+  // `details.reason` first; then what the status alone says.
+  function refusalReason(status, body) {
+    var reason = body && body.error && body.error.details && body.error.details.reason;
+    if (reason && SERVER_REASONS.indexOf(reason) !== -1) return reason;
+    if (status === 429) return "rate_limited";
+    if (status === 413) return "too_large";
+    if (status === 404 || reason === "not_configured") return "unavailable";
+    return "provider_error";
+  }
+
+  function mountVoice(parts) {
+    var form = parts.form;
+    var input = parts.input;
+    var send = parts.send;
+    var accent = config.accent;
+    var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var mode = config.dictation;
+    if (mode === "browser" && !Recognition) return;
+    if (mode !== "browser" && mode !== "server") return;
+
+    var note = styled("div", "display:none;padding:0 14px 10px;font-size:12px;line-height:1.45;color:var(--aos-muted);background:var(--aos-bg)");
+    note.setAttribute("aria-live", "polite");
+    parts.panel.appendChild(note);
+    function say(text, error) {
+      note.textContent = text || "";
+      note.style.display = text ? "block" : "none";
+      note.style.color = error ? "#b91c1c" : "var(--aos-muted)";
+    }
+
+    var mic = styled("button", "border:0;border-radius:10px;padding:0 10px;cursor:pointer;background:transparent;color:var(--aos-muted);display:flex;align-items:center");
+    mic.setAttribute("type", "button");
+    mic.setAttribute("aria-label", "Dictate");
+    mic.setAttribute("title", "Dictate");
+    mic.appendChild(icon(MIC_ICON));
+    form.insertBefore(mic, send);
+
+    if (mode === "browser") {
+      var listening = null;
+      mic.onclick = function () {
+        if (listening) { listening.stop(); return; }
+        var recognition = new Recognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = navigator.language || "en-US";
+        recognition.onresult = function (event) {
+          var heard = "";
+          for (var i = event.resultIndex; i < event.results.length; i += 1) {
+            if (event.results[i].isFinal) heard += event.results[i][0].transcript;
+          }
+          heard = heard.trim();
+          if (heard) input.value = input.value ? input.value + " " + heard : heard;
+        };
+        recognition.onerror = function (event) {
+          if (event.error === "not-allowed" || event.error === "service-not-allowed") say(VOICE_COPY.mic_denied, true);
+        };
+        recognition.onend = function () { listening = null; mic.style.color = "var(--aos-muted)"; mic.setAttribute("aria-label", "Dictate"); };
+        say("");
+        recognition.start();
+        listening = recognition;
+        mic.style.color = accent;
+        mic.setAttribute("aria-label", "Stop dictating");
+      };
+      return { abandon: function () { if (listening) listening.abort(); } };
+    }
+
+    var ROW = "display:none;flex:1;align-items:center;gap:8px;min-width:0";
+    var bar = styled("div", ROW);
+    var cancel = styled("button", "border:0;border-radius:10px;padding:8px 10px;cursor:pointer;background:transparent;color:var(--aos-muted);font-size:16px;line-height:1", "✕");
+    cancel.setAttribute("type", "button");
+    cancel.setAttribute("aria-label", "Cancel dictation");
+    cancel.setAttribute("title", "Cancel (Esc)");
+    var meter = styled("div", "flex:1;height:6px;border-radius:3px;background:var(--aos-line);overflow:hidden;min-width:0");
+    var level = styled("div", "height:100%;width:0;border-radius:3px;background:" + accent);
+    meter.appendChild(level);
+    var status = styled("div", "font-size:13px;color:var(--aos-muted);font-variant-numeric:tabular-nums;white-space:nowrap", "0:00");
+    status.setAttribute("aria-live", "off");
+    var stop = styled("button", "border:0;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;background:" + accent, "Stop");
+    stop.setAttribute("type", "button");
+    stop.setAttribute("aria-label", "Stop and transcribe");
+    stop.setAttribute("title", "Stop and transcribe (Enter)");
+    bar.appendChild(cancel);
+    bar.appendChild(meter);
+    bar.appendChild(status);
+    bar.appendChild(stop);
+    form.appendChild(bar);
+
+    var still = reducedMotion();
+    var audio = null;
+    var current = 0;
+    var phase = "idle";
+    var stream = null;
+    var recorder = null;
+    var ticker = null;
+    var frame = null;
+    var meterSource = null;
+    var request = null;
+    var startedAt = 0;
+
+    function show(recording) {
+      var chat = recording ? "none" : "";
+      input.style.display = chat;
+      mic.style.display = recording ? "none" : "flex";
+      send.style.display = chat;
+      bar.style.display = recording ? "flex" : "none";
+    }
+
+    function context() {
+      var Context = window.AudioContext || window.webkitAudioContext;
+      if (!Context) return null;
+      if (!audio) audio = new Context();
+      if (audio.state === "suspended" && audio.resume) audio.resume();
+      return audio;
+    }
+
+    function closeMic() {
+      if (ticker !== null) { clearInterval(ticker); ticker = null; }
+      if (frame !== null) { cancelAnimationFrame(frame); frame = null; }
+      if (meterSource) { meterSource.disconnect(); meterSource = null; }
+      if (stream) {
+        var tracks = stream.getTracks();
+        for (var i = 0; i < tracks.length; i += 1) tracks[i].stop();
+        stream = null;
+      }
+      recorder = null;
+      level.style.width = "0";
+    }
+
+    function settle(text, error) {
+      closeMic();
+      phase = "idle";
+      show(false);
+      say(text, error);
+      input.focus();
+    }
+
+    function abandon() {
+      current += 1;
+      if (request) { request.abort(); request = null; }
+      if (recorder && recorder.recording()) recorder.stop();
+      settle("");
+    }
+
+    function watchLevel(context) {
+      if (!context) return;
+      meterSource = context.createMediaStreamSource(stream);
+      var analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      meterSource.connect(analyser);
+      var samples = new Float32Array(analyser.fftSize);
+      var smoothed = 0;
+      var shown = 0;
+      function sample() {
+        analyser.getFloatTimeDomainData(samples);
+        var sum = 0;
+        for (var i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+        var target = Math.min(1, Math.sqrt(sum / samples.length) * 7);
+        smoothed += (target - smoothed) * (target > smoothed ? 0.35 : 0.08);
+        // Under reduced motion the bar holds one of five steps rather than
+        // following the voice frame by frame.
+        var width = still ? Math.round(smoothed * 5) * 20 : Math.round(smoothed * 100);
+        if (width !== shown) { shown = width; level.style.width = width + "%"; }
+        frame = requestAnimationFrame(sample);
+      }
+      frame = requestAnimationFrame(sample);
+    }
+
+    function transcribe(blob, seconds, session) {
+      phase = "transcribing";
+      meter.style.display = "none";
+      stop.style.display = "none";
+      status.textContent = "Transcribing…";
+      cancel.setAttribute("aria-label", "Cancel transcription");
+      cancel.focus();
+      var base = blob.type.split(";")[0];
+      var body = new FormData();
+      body.append("file", blob, "recording." + (EXTENSIONS[base] || "webm"));
+      body.append("duration", String(Math.max(0, seconds)));
+      // In the form, never in the URL or a header: a header would need a
+      // preflight this site is not allowed, and a URL lands in access logs.
+      var token = window.AgenticOSToken;
+      if (token) body.append("token", token);
+      request = window.AbortController ? new AbortController() : null;
+      fetch(BASE + "/api/v1/embed/" + KEY + "/dictation", { method: "POST", body: body, signal: request ? request.signal : undefined })
+        .then(function (response) {
+          return response.json().then(
+            function (json) { return { ok: response.ok, status: response.status, json: json }; },
+            function () { return { ok: response.ok, status: response.status, json: null }; }
+          );
+        })
+        .then(function (result) {
+          if (session !== current) return;
+          request = null;
+          if (!result.ok || !result.json || typeof result.json.text !== "string") {
+            settle(VOICE_COPY[refusalReason(result.status, result.json)], true);
+            return;
+          }
+          // Into the box, never sent: the visitor reads and edits it first.
+          var text = result.json.text;
+          var value = input.value;
+          if (value && value.charAt(value.length - 1) !== " ") value += " ";
+          input.value = value + text;
+          settle("");
+          input.setSelectionRange(input.value.length, input.value.length);
+        }, function (error) {
+          if (session !== current || (error && error.name === "AbortError")) return;
+          request = null;
+          settle(VOICE_COPY.offline, true);
+        });
+    }
+
+    function record(session, ctx) {
+      var finished = function (blob) {
+        if (session !== current) return;
+        var seconds = (Date.now() - startedAt) / 1000;
+        closeMic();
+        if (seconds < 1) { settle(VOICE_COPY.too_short, false); return; }
+        transcribe(blob, seconds, session);
+      };
+      if (config.dictation_format === "wav") {
+        recorder = ctx && ctx.createScriptProcessor ? wavRecorder(ctx, stream, finished) : null;
+      } else {
+        recorder = mediaRecorder(stream, finished);
+      }
+      if (!recorder) { settle(VOICE_COPY.unsupported_type, true); return; }
+      try { recorder.start(); } catch (e) { settle(VOICE_COPY.mic_busy, true); return; }
+      startedAt = Date.now();
+      phase = "recording";
+      meter.style.display = "";
+      stop.style.display = "";
+      status.textContent = "0:00";
+      cancel.setAttribute("aria-label", "Cancel dictation");
+      show(true);
+      say("");
+      stop.focus();
+      watchLevel(ctx);
+      var limit = config.dictation_max_seconds;
+      var warned = false;
+      ticker = setInterval(function () {
+        var elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        var left = limit - elapsed;
+        // The ticking count goes in the clock, which is not live; the note, which
+        // is, says once that the end is near - a screen reader read every second.
+        status.textContent = left <= NEAR_LIMIT_SECONDS
+          ? clock(elapsed) + " (" + clock(Math.max(0, left)) + " left)"
+          : clock(elapsed);
+        if (left <= NEAR_LIMIT_SECONDS && !warned) {
+          warned = true;
+          say("Under " + NEAR_LIMIT_SECONDS + " seconds left. At " + clock(limit) + " the recording stops and is transcribed.", false);
+        }
+        // The person said it: a recording that reaches the limit is
+        // transcribed, never thrown away.
+        if (left <= 0 && recorder && recorder.recording()) recorder.stop();
+      }, 1000);
+      var tracks = stream.getAudioTracks();
+      for (var i = 0; i < tracks.length; i += 1) {
+        tracks[i].onended = function () { if (recorder && recorder.recording()) recorder.stop(); };
+      }
+    }
+
+    mic.onclick = function () {
+      if (phase !== "idle") return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        say(window.isSecureContext === false ? VOICE_COPY.mic_insecure : VOICE_COPY.unsupported_type, true);
+        return;
+      }
+      // Opened inside the click, where the browser counts it as the visitor's
+      // own gesture; one made after the permission prompt may start suspended.
+      var ctx = context();
+      current += 1;
+      var session = current;
+      phase = "requesting";
+      say(VOICE_COPY.requesting, false);
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      }).then(function (opened) {
+        if (session !== current) {
+          var tracks = opened.getTracks();
+          for (var i = 0; i < tracks.length; i += 1) tracks[i].stop();
+          return;
+        }
+        stream = opened;
+        record(session, ctx);
+      }, function (error) {
+        if (session !== current) return;
+        settle(VOICE_COPY[micFailure(error)], true);
+      });
+    };
+    stop.onclick = function () {
+      if (phase === "recording" && recorder && recorder.recording()) recorder.stop();
+    };
+    cancel.onclick = abandon;
+    parts.panel.addEventListener("keydown", function (event) {
+      if (phase === "idle") return;
+      // Escape is the recording's while one runs, not the panel's: it cancels
+      // the dictation and leaves the panel open.
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); abandon(); }
+      else if (event.key === "Enter" && event.target !== stop && event.target !== cancel) {
+        event.preventDefault();
+        stop.onclick();
+      }
+    });
+    // For the panel closing: a recording whose controls are hidden would run on
+    // to the limit unseen, and be transcribed and paid for.
+    return { abandon: function () { if (phase !== "idle") abandon(); } };
+  }
+
+  // A visitor's voice call (#54) lives in its own script, fetched the first time
+  // the panel opens and only when this embed offers calls, so the bubble every
+  // visitor downloads stays small. It registers under this widget's key.
+  var voiceRequested = false;
+  var voiceCall = null;
+  function loadVoice(parts) {
+    if (voiceRequested) return;
+    voiceRequested = true;
+    var script = styled("script");
+    // The call script's content hash, substituted when this is served: a deploy
+    // that changes it changes this URL, so the two scripts always match.
+    script.src = BASE + "/api/v1/embed/" + KEY + "/voice.js?v=__VOICE_VERSION__";
+    script.async = true;
+    script.onload = function () {
+      var mountCall = window.AgenticOSVoice && window.AgenticOSVoice[KEY];
+      if (mountCall) voiceCall = mountCall(parts, config);
+    };
+    script.onerror = function () { voiceRequested = false; };
+    (document.head || document.body).appendChild(script);
+  }
+
   function mount() {
     var style = el("style");
     style.textContent = CSS;
@@ -994,6 +1543,8 @@ WIDGET_JS = r"""(function () {
     form.appendChild(input);
     form.appendChild(send);
     panel.appendChild(form);
+    var dictation = mountVoice({ form: form, input: input, send: send, panel: panel });
+    var callParts = { form: form, input: input, send: send, panel: panel, log: log, bubble: bubble };
 
     var launcher = el("button", "aos-launcher");
     launcher.type = "button";
@@ -1029,6 +1580,18 @@ WIDGET_JS = r"""(function () {
       row.appendChild(face(true));
       var body = el("div", "aos-msg aos-bot");
       if (text) markdown(body, text);
+      row.appendChild(body);
+      log.appendChild(row);
+      pin();
+      return body;
+    }
+
+    // What the call script draws a spoken turn into (#54): the caller's words on
+    // the right, the agent's on the left, each returning the bubble to fill.
+    function bubble(role, text) {
+      if (role !== "user") return botBubble(text);
+      var row = el("div", "aos-row aos-row-user");
+      var body = el("div", "aos-msg aos-user", text);
       row.appendChild(body);
       log.appendChild(row);
       pin();
@@ -1218,6 +1781,11 @@ WIDGET_JS = r"""(function () {
       root.className = "aos-root" + (open ? " aos-open" : "");
       launcher.setAttribute("aria-expanded", open ? "true" : "false");
       if (open && !socket) { connect(); greet(); }
+      if (open && config.voice_conversation) loadVoice(callParts);
+      // Closing the panel ends a call and a dictation: neither goes on with its
+      // controls hidden.
+      if (!open && voiceCall) voiceCall.end();
+      if (!open && dictation) dictation.abandon();
       if (open) input.focus();
       else launcher.focus();
     }

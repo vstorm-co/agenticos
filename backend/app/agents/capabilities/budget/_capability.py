@@ -827,6 +827,31 @@ class BudgetGuard(AbstractCapability[Any]):
         """
         return await self._first_exceeded() is None
 
+    async def headroom(self) -> Decimal | None:
+        """How much this run may still spend before the tightest cap binds, or `None` uncapped.
+
+        What a voice call passes as its `cost_limit` and checks its worst case
+        against at setup (#54). Each cap meters its own spend, so this is the
+        smallest of the per-cap remainders, never a `min()` of the caps
+        themselves. Never negative: a cap already passed has no room.
+        """
+        async with self.run_state.check:
+            remaining: Decimal | None = None
+            for limit in self.limits:
+                left = limit.limit_usd - (await self._baseline_for(limit) + self.ledger.total_usd)
+                remaining = left if remaining is None else min(remaining, left)
+        return None if remaining is None else max(remaining, Decimal(0))
+
+    def refresh_baselines(self) -> None:
+        """Forget what other runs had booked, so the next check reads it again (#54).
+
+        A voice call can last fifty minutes while the month moves underneath it.
+        The lookups open short sessions of their own (`agent_period_spend`,
+        `org_period_spend` in the runner), never the run's shared one, so a
+        heartbeat may call this and then `can_afford_next_request`.
+        """
+        self.run_state.baselines.clear()
+
     async def wrap_model_request(
         self,
         ctx: RunContext[Any],

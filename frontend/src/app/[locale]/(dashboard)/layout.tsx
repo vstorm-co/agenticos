@@ -1,6 +1,11 @@
+import { Suspense } from "react";
+
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
+import { DesktopBridge } from "@/components/desktop/desktop-bridge";
+import { MobileBridge } from "@/components/mobile/mobile-bridge";
+import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -9,7 +14,9 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
@@ -23,18 +30,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ActiveOrgGuard />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
+      <DesktopBridge />
+      {/* Inside the phone app: live activities on the lock screen, and their buttons. */}
+      <MobileBridge />
+      {/* A phone pulls the page down to read it again. */}
+      <PullToRefresh />
+      {/* It reads the search params, which a prerendered page only has in the browser. */}
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
         <OnScreenKeyboard />
         {/* As tall as what can be seen, keyboard and address bar included -
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
-        <div className="flex h-[var(--app-height,100dvh)] flex-col">
+        {/* Less the phone app's status bar, which `body` leaves room for
+            (`desktop.css`); zero everywhere else. */}
+        <div className="flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
           <MobileHeader />
           <ImpersonationBanner />
+          <OfflineBanner />
           {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}
@@ -73,6 +93,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   maintenance window still leaves the navigation and the account
                   menu, because the administrator who has to end it reaches the
                   settings page through them. */}
+              {/* The desktop app's window is dragged by the top of its content,
+                  as by a toolbar; nothing in a browser (`desktop.css`). */}
+              <div aria-hidden className="window-drag-strip" data-tauri-drag-region />
               <DeploymentGate>
                 <PageTransition>{children}</PageTransition>
               </DeploymentGate>

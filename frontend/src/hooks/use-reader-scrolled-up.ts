@@ -29,13 +29,20 @@ export function useReaderScrolledUp(
     const element = scroller.current;
     if (!element) return;
     let touchY: number | null = null;
+    let lastTop = element.scrollTop;
     const letGo = () => {
       scrolledUp.current = true;
     };
+    // Far from the foot is a let-go only when the scroll went up. Content that
+    // grows by more than a screen at once - a call's turns arriving together -
+    // has the browser's scroll anchoring move the position *down* first, and
+    // that scroll lands far from the new foot before the follower can pin it.
     const onScroll = () => {
-      const fromFoot = element.scrollHeight - element.scrollTop - element.clientHeight;
+      const top = element.scrollTop;
+      const fromFoot = element.scrollHeight - top - element.clientHeight;
       if (fromFoot <= AT_FOOT_PX) scrolledUp.current = false;
-      else if (fromFoot > LET_GO_PX) letGo();
+      else if (fromFoot > LET_GO_PX && top < lastTop) letGo();
+      lastTop = top;
     };
     const onWheel = (event: WheelEvent) => {
       if (event.deltaY < 0) letGo();

@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -69,6 +70,7 @@ import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
+import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
@@ -944,6 +946,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1403,6 +1416,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 />
               </CardContent>
             </Card>
+
+            <VoiceCard
+              value={spec.speech_to_text}
+              onChange={(speech_to_text) => update({ speech_to_text })}
+              conversation={{
+                agentId: id,
+                value: spec.voice,
+                onChange: (voice) => update({ voice }),
+                hasGuardrails: spec.capabilities.some(
+                  (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                ),
+              }}
+              disabled={!canEdit}
+            />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same role-level `canEdit` every other

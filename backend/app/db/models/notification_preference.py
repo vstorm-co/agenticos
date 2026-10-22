@@ -51,7 +51,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(
-            "channel IN ('in_app', 'email')", name="ck_notification_preferences_channel"
+            "channel IN ('in_app', 'email', 'push')", name="ck_notification_preferences_channel"
         ),
         # `PATCH` is an upsert against this constraint (`INSERT ... ON CONFLICT
         # ... DO UPDATE`), never a plain insert - without it, two concurrent

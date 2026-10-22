@@ -53,6 +53,9 @@ export interface Session {
   device_type?: string | null;
   ip_address?: string | null;
   is_current: boolean;
+  /** The AgenticOS app the session runs in - `macos`, `ios`… - or null for a browser. */
+  app_platform?: string | null;
+  app_version?: string | null;
   created_at: string;
   last_used_at: string;
 }

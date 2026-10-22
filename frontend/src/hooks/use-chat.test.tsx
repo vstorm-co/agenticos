@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
@@ -26,8 +26,19 @@ import {
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
 const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+  // The real error class: `usePermissions` reads a refusal by it.
+  ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
+  apiClient: { post, get },
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The outbox's copy on the device is `device-cache`'s to test; here, what the
+// hook hands it and what it does with what comes back.
+const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
+  keepOutbox: vi.fn(() => Promise.resolve()),
+  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+}));
+vi.mock("@/lib/offline/device-cache", () => ({ keepOutbox, keptOutbox }));
 
 const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   sent: vi.fn(),
@@ -3716,5 +3727,170 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(sent).toHaveBeenCalledWith({ type: "unfollow" });
     expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
     expect(result.current.isProcessing).toBe(false);
+  });
+});
+
+describe("useChat - the outbox (#2097)", () => {
+  // A failed expectation skips a test's own `useRealTimers`; the next test's
+  // `waitFor` would wait on a clock nobody advances.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Ask, queue `queued` behind it, and let the first turn end so the queue drains. */
+  async function drainOne(result: { current: ReturnType<typeof useChat> }, queued: string) {
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage(queued));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+  }
+
+  it("keeps what is queued under its conversation, and lets it go once it is sent", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+
+    await drainOne(result, "second");
+
+    expect(keepOutbox).toHaveBeenCalledWith("c-1", [
+      expect.objectContaining({ content: "second" }),
+    ]);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-1", []);
+    expect(frame(1).message).toBe("second");
+    vi.useRealTimers();
+  });
+
+  it("brings a conversation's outbox back when it is opened, and sends it", async () => {
+    vi.useFakeTimers();
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(keptOutbox).toHaveBeenCalledWith("c-1");
+    expect(lastFrame().message).toBe("written on the train");
+    vi.useRealTimers();
+  });
+
+  it("holds a kept message while the network is gone, saying it waits", async () => {
+    socket.isConnected = false;
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(1));
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("puts what was kept ahead of what was typed while it was being read", async () => {
+    socket.isConnected = false;
+    let answer!: (kept: unknown[]) => void;
+    keptOutbox.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed just now"));
+
+    await act(async () => {
+      answer([
+        { id: "q-1", content: "written on the train" },
+        { id: result.current.queuedMessages[0]!.id, content: "typed just now" },
+      ]);
+    });
+
+    expect(result.current.queuedMessages.map((q) => q.content)).toEqual([
+      "written on the train",
+      "typed just now",
+    ]);
+  });
+
+  it("takes a new chat's queue along when the chat gets its id", async () => {
+    socket.isConnected = false;
+    let conversationId: string | null = null;
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    await act(async () => {});
+    act(() => result.current.sendMessage("the first question"));
+    expect(keepOutbox).toHaveBeenLastCalledWith(null, [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+
+    conversationId = "c-new";
+    rerender();
+
+    expect(keepOutbox).toHaveBeenCalledWith(null, []);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-new", [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+  });
+
+  it("puts a queued message the server refused back, saying why, instead of a dead question", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+    act(() => result.current.sendMessage("third"));
+
+    receive("error", { message: "The monthly budget is spent." });
+
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "second", refused: "The monthly budget is spent." }),
+      expect.objectContaining({ content: "third" }),
+    ]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).not.toContain("second");
+    expect(texts.join(" ")).not.toContain("budget");
+
+    // Held: the refused one is at the head, and the queue is the order they go in.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(sent).toHaveBeenCalledTimes(2);
+
+    const refused = result.current.queuedMessages[0]!;
+    act(() => result.current.retryQueued(refused.id));
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(2).message).toBe("second");
+    expect(result.current.queuedMessages).toEqual([expect.objectContaining({ content: "third" })]);
+    vi.useRealTimers();
+  });
+
+  it("leaves a refusal after the message was saved where it was", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+
+    receive("user_prompt", { content: "second" });
+    receive("error", { message: "The model failed." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).toContain("second");
+    vi.useRealTimers();
+  });
+
+  it("does not take a message typed straight in for a queued one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed"));
+
+    receive("error", { message: "Pick an agent." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Pick an agent.");
+  });
+
+  it("takes the queue off the screen on a switch without dropping it from the device", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("later"));
+    keepOutbox.mockClear();
+
+    act(() => result.current.clearQueued());
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(keepOutbox).not.toHaveBeenCalled();
   });
 });

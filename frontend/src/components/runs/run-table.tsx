@@ -7,7 +7,8 @@ import { MessageSquare, ThumbsDown } from "lucide-react";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
-import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
+import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
+import { clock } from "@/lib/voice/clock";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
@@ -138,8 +139,10 @@ export function RunTable({
             </Badge>
           )}
           {/* On a phone the row is this cell and the cost: who ran and when,
-              folded under the status rather than six columns swiped sideways. */}
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs sm:hidden">
+              folded under the status rather than six columns swiped sideways.
+              Bounded by the screen, or a long agent name widens the column and
+              pushes the cost off its edge - a table cell grows to its content. */}
+          <span className="text-muted-foreground flex max-w-[calc(100vw-10rem)] min-w-0 items-center gap-1.5 text-xs sm:hidden">
             {agentLabel(run)}
             {run.started_at !== null && (
               <span className="shrink-0 whitespace-nowrap">
@@ -211,6 +214,7 @@ export function RunTable({
         <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
           <SurfaceIcon surface={run.surface} />
           {surfaceLabel(run.surface, t)}
+          <ModalityBadge modality={run.modality} />
         </span>
       ),
     },
@@ -253,9 +257,10 @@ export function RunTable({
       align: "right",
       className: "max-sm:pr-5",
       sortable,
+      // A call is one row (#54): its reconnects' runs are summed into it.
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
-          ${Number(run.cost_usd).toFixed(4)}
+          ${Number(run.voice_chain?.cost_usd ?? run.cost_usd).toFixed(4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
               {" +"}
@@ -273,11 +278,21 @@ export function RunTable({
       // A still-running or parked run reads "-", the same absence the
       // duration sort places last in both directions - it has no
       // duration yet, which is a different fact from having been fast.
-      cell: (run) => (
-        <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
-          {formatRunDuration(run.started_at, run.ended_at)}
-        </span>
-      ),
+      cell: (run) =>
+        run.voice_chain ? (
+          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
+            {clock(run.voice_chain.seconds)}
+            {run.voice_chain.connections > 1 && (
+              <span className="block font-sans">
+                {t("reconnected", { count: run.voice_chain.connections - 1 })}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
+            {formatRunDuration(run.started_at, run.ended_at)}
+          </span>
+        ),
     },
     {
       key: "started_at",

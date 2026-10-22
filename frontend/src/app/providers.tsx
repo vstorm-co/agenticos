@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
-import { ThemeProvider } from "@/components/theme";
+import { MotionProvider, ThemeProvider } from "@/components/theme";
 import { TooltipProvider } from "@/components/ui";
 
 interface ProvidersProps {
@@ -35,8 +35,10 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster richColors position="top-right" />
+        <MotionProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster richColors position="top-right" />
+        </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

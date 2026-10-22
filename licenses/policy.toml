@@ -93,6 +93,18 @@ status = "accepted"
 obligations = "File-level copyleft: the MPL-covered files stay under MPL and their source is made available. The bundle is a CA certificate list, distributed unmodified."
 fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/certifi/python-certifi."
 
+[review.python."pywebpush"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "File-level copyleft on the library's own files; source availability for them. Encrypts and sends Web Push notifications to browsers (#2097)."
+fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/web-push-libs/pywebpush."
+
+[review.python."py-vapid"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "File-level copyleft on the library's own files; source availability for them. Signs Web Push requests (VAPID); reached through pywebpush."
+fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/web-push-libs/vapid."
+
 [review.python."tqdm"]
 license = "MPL-2.0"
 status = "accepted"

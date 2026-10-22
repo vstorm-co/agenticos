@@ -13,10 +13,13 @@ function Scroller({ attach = true }: { attach?: boolean }) {
 }
 
 /** The geometry jsdom never computes, as a browser would report it. */
-function at(element: HTMLElement, fromFoot: number) {
-  Object.defineProperty(element, "scrollHeight", { configurable: true, value: 2000 });
+function at(element: HTMLElement, fromFoot: number, height = 2000) {
+  Object.defineProperty(element, "scrollHeight", { configurable: true, value: height });
   Object.defineProperty(element, "clientHeight", { configurable: true, value: 500 });
-  Object.defineProperty(element, "scrollTop", { configurable: true, value: 1500 - fromFoot });
+  Object.defineProperty(element, "scrollTop", {
+    configurable: true,
+    value: height - 500 - fromFoot,
+  });
   fireEvent.scroll(element);
 }
 
@@ -62,11 +65,23 @@ describe("useReaderScrolledUp", () => {
   it("follows again at the foot, and lets go of a scrollbar dragged far up", () => {
     const scroller = mount();
 
+    at(scroller, 0);
     at(scroller, 600);
     expect(state.current).toBe(true);
     at(scroller, 100);
     expect(state.current).toBe(true);
     at(scroller, 10);
+    expect(state.current).toBe(false);
+  });
+
+  it("keeps following when content grows by more than a screen at once", () => {
+    // Scroll anchoring moves the position down with the growth, and that scroll
+    // lands far from the new foot before the follower pins it.
+    const scroller = mount();
+
+    at(scroller, 0);
+    at(scroller, 512, 3000);
+
     expect(state.current).toBe(false);
   });
 

@@ -21,6 +21,7 @@ import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
@@ -35,11 +36,13 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
+from app.services.ml import MLService
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -143,6 +146,7 @@ _SERVICE_DEPS = (
     deps.get_rag_document_service,
     deps.get_stats_service,
     deps.get_ml_service,
+    deps.get_voice_usage_service,
 )
 
 Provider = Callable[[], object]
@@ -348,6 +352,15 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
+    # The organization's call minutes by agent, for the dashboard figure and the
+    # Voice card: what the organization spent time on, read like its runs.
+    Call(
+        "GET",
+        "/voice/usage",
+        Perm.RUNS_VIEW,
+        query="?start=2020-01-01T00:00:00Z&end=2020-01-02T00:00:00Z",
+    ),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",
@@ -502,6 +515,9 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/ml/audio/transcriptions", Perm.ML_INVOKE, upload=True),
     Call("POST", "/ml/privacy/pii", Perm.ML_INVOKE, body={"text": "hello"}),
     Call("GET", "/ml/calls", Perm.ML_INVOKE),
+    # The transcription summary names agents and bots, so it reads like `/spend`:
+    # `ml:invoke` alone (every Member) is not enough (#1797).
+    Call("GET", "/ml/calls/summary", Perm.RUNS_VIEW),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
     Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
@@ -804,6 +820,9 @@ _PLATFORM_PREFIXES = (
     # rather than by a person in a browser, which is precisely why the sweep has
     # to see them: nobody would notice an ungated one from the console.
     "/ml",
+    # Call minutes (#54). The call socket itself is `/ws/voice`, outside this
+    # prefix, and an agent's readiness lives under `/agents`.
+    "/voice",
 )
 
 
@@ -1386,6 +1405,78 @@ class TestStatsScopeIsDecidedInTheService:
         assert response.status_code == 200
 
 
+class TestTheMLCallLogsAttribution:
+    """`GET /ml/calls` is `ml:invoke`, and the agent, bot and surface on it are
+    `runs:view` - the summary's gate, since filtering by agent is its breakdown
+    asked for one row at a time (#1797). A route gate cannot say "this half of
+    the answer needs more", so the service and the serializer do."""
+
+    _AGENT = uuid4()
+
+    @pytest.fixture
+    def logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        row = MLServiceCall(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            service="speech_to_text",
+            status="succeeded",
+            input_bytes=10,
+            units=3,
+            unit="seconds",
+            duration_ms=900,
+            provider="openai",
+            model="whisper-1",
+            surface="chat",
+            agent_id=self._AGENT,
+            audio_ms=2500,
+            created_at=datetime.now(UTC),
+        )
+        repo = "app.services.ml.facade.ml_service_call_repo"
+        monkeypatch.setattr(f"{repo}.list_for", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(f"{repo}.count_for", AsyncMock(return_value=1))
+        monkeypatch.setattr(f"{repo}.get", AsyncMock(return_value=row))
+
+    @staticmethod
+    def _service() -> dict[Callable[..., object], Provider]:
+        return {deps.get_ml_service: lambda: MLService(MagicMock())}
+
+    @pytest.mark.parametrize(
+        "query", ["agent_id=" + str(_SOME_ID), "channel_bot_id=" + str(_SOME_ID), "surface=chat"]
+    )
+    async def test_an_attribution_filter_without_runs_view_is_refused(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory, query: str
+    ) -> None:
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url("/ml/calls", f"?{query}"))
+
+        assert response.status_code == 403
+
+    async def test_ml_invoke_alone_reads_the_log_without_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(only(Perm.ML_INVOKE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        for read in (item, one.json()):
+            assert (read["agent_id"], read["channel_bot_id"], read["surface"]) == (None, None, None)
+            assert (read["provider"], read["audio_ms"]) == ("openai", 2500)
+
+    async def test_runs_view_reads_and_filters_by_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(all_but(Perm.CONNECTIONS_MANAGE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls", f"?agent_id={self._AGENT}"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        assert (item["agent_id"], item["surface"]) == (str(self._AGENT), "chat")
+        assert one.json()["agent_id"] == str(self._AGENT)
+
+
 # -- the inverse guard, for routes that are deliberately open -----------------
 
 # What `/public` serves to somebody with no account. The first route is an
@@ -1514,6 +1605,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # A phone signing in by scanning the code a signed-in console shows
+        # (#2097). The phone has no session yet - that is what it is getting -
+        # and the single-use, one-minute code is the credential, as a magic
+        # link's token is.
+        ("POST", f"{V1}/auth/pairing-codes/redeem"),
         # Confirming a staged email address (#1772). The link is followed from
         # the *new* address, routinely in a different browser from the one that
         # asked for the change, so there is no session to carry - the token is
@@ -1578,6 +1674,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # drawing - the console posts it in - under the app sandbox policy, framed
         # only by the console.
         ("GET", f"{V1}/artifact-content/visual-frame"),
+        # Map tiles for a visual or an app (#2302): every page loads them, saved
+        # or shared, from an opaque origin with no credentials. Three numbers
+        # checked against the zoom, fetched from the operator's tile server, and
+        # counted per address - nothing of a tenant's is reachable here.
+        ("GET", f"{V1}/artifact-content/tiles/{{z}}/{{x}}/{{y}}"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.
@@ -1672,6 +1773,25 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # to whoever published the page, because `chat_files.user_id` is NOT NULL
         # and a stranger has nobody to be.
         ("POST", f"{V1}/embed/{{public_key}}/files"),
+        # Dictation on a hosted page or a widget set to `server` (#1797). Admitted
+        # as the surface it arrives on - a widget by its allow-list and token, a
+        # page by its continuity key - and refused unless that embed's own setting
+        # is `server`. Nothing is stored; each attempt is a paid call to the
+        # organization's provider, bounded per address, per link and, for a `jwt`
+        # widget, per visitor.
+        ("POST", f"{V1}/embed/{{public_key}}/dictation"),
+        # A visitor's voice call (#54). Admitted as the embed's own socket - a
+        # widget by its allow-list and token, a page by this deployment's origin
+        # and its continuity key - and only while that embed's voice switch is
+        # on. Each call is a paid realtime session: starts are bounded per address
+        # and per link, each call by the organization's call cap, monthly minutes
+        # and the agent's budget, and tools needing approval are left out.
+        ("WEBSOCKET", f"{V1}/embed/{{public_key}}/voice/ws"),
+        # The widget's call UI, fetched by `widget.js` when a visitor opens the
+        # panel of a widget whose calls are on. A script like `widget.js`: no
+        # secret, decides nothing, 404 unless that widget is active with its
+        # voice switch on; the socket above is where a call is admitted.
+        ("GET", f"{V1}/embed/{{public_key}}/voice.js"),
     }
 )
 

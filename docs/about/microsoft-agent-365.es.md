@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: gobernar agents por tu cuenta"
 description: "Agent 365 es el plano de control de Microsoft para los agents de Microsoft 365. Compáralo con AgenticOS: crear, ejecutar y gobernar agents en tus servidores."
-source_sha: "b13848977282"
+source_sha: "c7529954399e"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -11,7 +11,7 @@ Microsoft Agent 365 es un plano de control para los agents de una empresa - los 
 
 Si tu empresa funciona con Microsoft 365 y quiere inventariar y vigilar los agents que ya tiene, Agent 365 encaja en ese entorno. Si quieres los propios agents, y las reglas sobre ellos, en una infraestructura que controlas y con cualquier modelo, AgenticOS hace ambas cosas en un solo lugar.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026. Versión de referencia de AgenticOS: v0.0.535. Alcance de Agent 365: la disponibilidad general de Microsoft hacia el 1 de mayo de 2026 según la prensa; no un tenant probado. Para crear agents en el ecosistema de Microsoft, consulta [AgenticOS vs Copilot Studio](copilot-studio.md).
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Agent 365: la disponibilidad general de Microsoft hacia el 1 de mayo de 2026 según la prensa; no un tenant probado. Para crear agents en el ecosistema de Microsoft, consulta [AgenticOS vs Copilot Studio](copilot-studio.md).
 
 ## De un vistazo { #at-a-glance }
 

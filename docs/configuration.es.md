@@ -1,5 +1,5 @@
 ---
-source_sha: "02fe4ffb1664"
+source_sha: "497b7ff159f0"
 ---
 
 # Configuración { #configuration }
@@ -65,6 +65,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
 | `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose fija `http://browser-egress:3128` | El proxy a través del cual el navegador del despliegue llega a cada sitio. El servicio `browser-egress` de compose es `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): resuelve cada host por sí mismo, rechaza direcciones privadas, de loopback, link-local y de metadatos y se conecta a la dirección que comprobó, así que ni una redirección ni un DNS rebinding llevan una página dentro de la red. Lo usa todo recorrido sin proxy de la organización y que no esté en un navegador alojado. Una herramienta interna que un agent deba navegar necesita una excepción en `docker/browser-egress/squid.conf`. Vacío deja salir al navegador directamente: pon `BROWSER_EGRESS_PROXY=` en el `.env` raíz solo para un navegador fuera de compose que no alcance el proxy. Sin proxy cada sitio se comprueba en su primera petición en una pestaña y luego el navegador resuelve su nombre por sí mismo, así que un nombre que más tarde en la misma pestaña apunte a una dirección privada no se detecta |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts que la URL de una conexión MCP puede nombrar aunque resuelvan a una dirección privada o de loopback, por ejemplo un servicio de compose: `["postgres-mcp"]`. La coincidencia es exacta y no distingue mayúsculas de minúsculas. Un host de la lista solo se salta la comprobación de dirección: la URL sigue necesitando `http` o `https`, y el inicio de sesión OAuth en él se sigue rechazando. Toda cuenta del despliegue puede alcanzar cualquier puerto de un host de la lista, así que lista solo un servidor que compruebe un token. Una entrada de un servicio de metadatos de la nube o de una dirección link-local o de loopback, como `169.254.169.254` o `localhost`, se rechaza al arrancar. Vacío rechaza toda dirección interna. Ver [una conexión](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Cuántas conversiones de LibreOffice pueden ejecutarse a la vez. El subproceso evita `FILE_IO_MAX_WORKERS`, así que se acota por separado |
@@ -762,6 +763,18 @@ dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 | `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por aplicación. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+| `VISUAL_MAP_TILES` | (vacío) | El único servidor de teselas sobre el que un [visual](artifacts.md#visuals) o una app puede dibujar un mapa: `openstreetmap`, `usgs-topo` o una plantilla de URL `https://` con `{z}`, `{x}` y `{y}` una vez cada uno. El despliegue trae cada tesela y la sirve a las páginas desde su propia ruta de teselas; ninguna página habla con el servidor. Vacío dibuja un mapa como un contorno de sus paradas. Un valor que no se puede servir se rechaza al arrancar |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (vacío) | El crédito que se muestra bajo un mapa en un servidor de teselas propio, p. ej. `© OpenStreetMap contributors`. Obligatorio con una plantilla de URL; un preset trae el suyo |
+
+**Las teselas las trae el despliegue, no el navegador del lector.** Una página
+pide `/api/v1/artifact-content/tiles/{z}/{x}/{y}`; la API comprueba los números,
+trae la tesela del servidor, guarda las últimas 2.048 en memoria y responde, así que
+una clave en la plantilla nunca sale del servidor. La ruta no requiere sesión -
+la carga cualquier página - así que tiene un límite por dirección
+(`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Respete las condiciones del proveedor: las
+teselas públicas de OpenStreetMap son para un uso ligero, y un despliegue con mucho
+tráfico debería tener su propio servidor o pagar a un proveedor. *Admin → System*
+muestra si el servidor responde.
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
@@ -1139,6 +1152,27 @@ pueden apuntar a endpoints locales como Ollama sin ninguna bandera
 `run_python` son configuración de la capability por agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` se eliminaron).
 
+## Llamadas de voz { #voice-calls }
+
+Las [llamadas de voz](voice.md) se encienden en cada agent, y las acotan su
+llamada más larga y los budgets. Dos techos son del despliegue:
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Llamadas que una persona puede mantener a la vez. La llamada de una segunda pestaña es casi siempre un error, y cada una se factura; un segundo inicio se rechaza como `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Llamadas que un widget o una página alojada pueden mantener a la vez, de todos los visitantes juntos; la siguiente se rechaza como `line_busy`. Los visitantes no tienen cuenta contra la que contar, así que esto es lo que impide que un enlace filtrado gaste en paralelo el budget de la organización |
+
+Los dos cuentan las llamadas cuyo latido está al día, así que una llamada cuyo
+proceso murió deja de contar en 45 segundos. Iniciar llamadas en un embed
+también tiene un límite de tasa (`RATE_LIMIT_EMBED_VOICE_*`,
+[más abajo](#rate-limiting)). El propio `rate_limit_per_minute` de un embed,
+fijado en el Builder, cuenta los **mensajes** de un visitante, no los inicios de
+llamada, así que no limita las llamadas.
+
+El resto está fijado en el código en lugar de configurarse: una llamada nunca
+dura más de 50 minutos, los latidos van cada 15 segundos, y el barrido de voz se
+ejecuta cada minuto, como la planificación `reap-voice-calls` del worker.
+
 ## CORS { #cors }
 
 | Variable | Por defecto | Descripción |
@@ -1156,7 +1190,7 @@ Validación en producción: `CORS_ORIGINS` no puede contener `"*"` con
 Se aplican a las superficies que un desconocido puede alcanzar, y solo a ellas: la API
 pública de runs, el script del widget, su configuración, el handshake del socket de
 cualquiera de las dos superficies, la configuración y el logo de una página alojada, y
-la subida de un visitante. Las rutas propias de la consola están detrás de una sesión
+la subida, el dictado y la llamada de voz de un visitante. Las rutas propias de la consola están detrás de una sesión
 y no se miden — si toda la API debería llevar un techo es una decisión aparte, no
 esta.
 
@@ -1166,8 +1200,15 @@ esta.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Todas las rutas de `auth.py` — login, registro, refresh y las rutas de petición y verificación del restablecimiento y del enlace mágico. Se cuenta **por IP y, donde el cuerpo lleve una, por dirección enviada**. Ver más abajo |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Por dirección, y **dos contadores separados de este tamaño**: uno para `widget.js`, otro para la admisión — el `/config` del widget más el handshake del socket de cualquiera de las dos superficies. Ver más abajo |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Teselas de mapa que una dirección puede traer por la [ruta de teselas](artifacts.md#visuals) del despliegue, **por dirección**. Un mapa son unas decenas de teselas y desplazarlo suma más; el límite evita que el despliegue sea el proxy gratuito de cualquiera hacia su servidor de teselas |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Escuchar una voz](voice.md#turn-it-on) en el Builder, por persona. Cada vista previa fuera de caché es una sesión de pago corta en el provider realtime del agent, fuera de todo budget de modelo; una voz escuchada una vez queda en caché una semana |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictado en un widget o en una página alojada](channels.md#dictation-on-a-widget-or-a-hosted-page), por dirección, y por visitante en un widget `jwt`. Cada dictado es una llamada al provider de pago de la organización, fuera de todo budget de modelo |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Lo mismo, por página o widget, de todos los visitantes a la vez - el techo de lo que cuesta un enlace filtrado: este número de grabaciones por minuto, cada una de hasta el dictado más largo de la organización. Solo se gasta una vez admitido el visitante |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Llamadas de voz](channels.md#voice-calls-on-a-widget-or-a-hosted-page) iniciadas en un widget o una página alojada, por dirección, y por sujeto del token del visitante en un widget `jwt`. La dirección se cuenta antes de buscar la clave; cada llamada es una sesión en tiempo real de pago |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Lo mismo, por página o widget, de todos los visitantes a la vez, gastado solo una vez admitido el visitante. Junto con `VOICE_MAX_CALLS_PER_EMBED` más arriba, el techo de lo que cuesta un enlace filtrado |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con

@@ -16,7 +16,7 @@ from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
-from app.schemas.session import SessionListResponse, SessionRead
+from app.schemas.session import SessionAppUpdate, SessionListResponse, SessionRead
 
 logger = logging.getLogger(__name__)
 
@@ -425,10 +425,28 @@ class SessionService:
         token_hash = hash_token(refresh_token)
         return await session_repo.deactivate_by_refresh_token_hash(self.db, token_hash)
 
+    async def record_app(
+        self, session_id: UUID | None, user_id: UUID, app: SessionAppUpdate
+    ) -> None:
+        """Label the caller's own session with the AgenticOS app it runs in.
+
+        Raises `NotFoundError` for a request with no session of its own - an API
+        key - or a session that is not the caller's open one.
+        """
+        if session_id is None or not await session_repo.set_app(
+            self.db,
+            session_id=session_id,
+            user_id=user_id,
+            platform=app.platform,
+            version=app.version,
+        ):
+            raise NotFoundError(message="This request has no signed-in session to label.")
+
     async def list_sessions(
         self,
         user_id: UUID,
         *,
+        current_session_id: UUID | None = None,
         skip: int = 0,
         limit: int = 10,
     ) -> SessionListResponse:
@@ -453,7 +471,9 @@ class SessionService:
                     device_name=s.device_name,
                     device_type=s.device_type,
                     ip_address=s.ip_address,
-                    is_current=False,
+                    is_current=s.id == current_session_id,
+                    app_platform=s.app_platform,
+                    app_version=s.app_version,
                     created_at=s.created_at,
                     last_used_at=s.last_used_at,
                 )

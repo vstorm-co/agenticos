@@ -1,0 +1,12 @@
+[package]
+name = "agenticos-shell-core"
+version = "0.2.0"
+description = "What the AgenticOS desktop and mobile shells share about reaching a deployment"
+license = "Apache-2.0"
+repository = "https://github.com/vstorm-co/agenticos"
+edition = "2021"
+rust-version = "1.77.2"
+
+[dependencies]
+url = "2"
+uuid = { version = "1", features = ["v4"] }

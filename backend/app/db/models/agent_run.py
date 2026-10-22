@@ -291,6 +291,12 @@ class AgentRun(Base, TimestampMixin):
     subagent_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     surface: Mapped[str] = mapped_column(String(16), nullable=False, default=RunSurface.WEB.value)
+    # `voice` for a call (#54). Its own column rather than a `RunSurface` member,
+    # for the reason that enum's docstring gives: where a run came from and how
+    # it was held are two questions, and a call in the widget is still the widget.
+    modality: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="text", server_default="text"
+    )
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=RunStatus.RUNNING.value, index=True
     )
@@ -374,6 +380,7 @@ class AgentRun(Base, TimestampMixin):
             "started_at",
             "provider",
         ),
+        CheckConstraint("modality IN ('text', 'voice')", name="ck_agent_runs_modality"),
     )
 
     def __repr__(self) -> str:

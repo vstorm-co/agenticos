@@ -6,6 +6,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { ApiError, apiClient } from "@/lib/api-client";
+import { readThrough } from "@/lib/offline/device-cache";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -62,6 +63,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
+    modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
     modelLabel?: string;
     /** Who the run ran as. */
@@ -91,6 +94,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    modality,
     modelLabel,
     userId,
     conversationId,
@@ -108,6 +112,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      modality,
       modelLabel,
       userId,
       conversationId,
@@ -131,6 +136,7 @@ export function useRuns(
       if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;
@@ -347,7 +353,13 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
   const skip = options?.skip ?? 0;
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(skip),
-    queryFn: () => apiClient.get<ApprovalList>("/approvals", { params: { skip: String(skip) } }),
+    queryFn: () => {
+      const ask = () =>
+        apiClient.get<ApprovalList>("/approvals", { params: { skip: String(skip) } });
+      // The first page is what the apps keep to read offline (#2097).
+      return skip === 0 ? readThrough("approvals", ask) : ask();
+    },
+    networkMode: "offlineFirst",
     refetchInterval: 30_000,
     enabled: options?.enabled ?? true,
     // The previous page stays on screen while the next loads. Not only to avoid

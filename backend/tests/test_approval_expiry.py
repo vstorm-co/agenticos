@@ -333,3 +333,94 @@ class TestTheScheduledSweep:
 
         # The unanswered questions are swept in the same pass (#2064).
         service.expire_unanswered.assert_awaited_once()
+
+
+class TestALiveCallsApproval:
+    """A call's approval is decided by the person on the call, nowhere else (#54)."""
+
+    async def test_the_queue_refuses_an_approval_a_live_call_is_waiting_on(self):
+        approval = _approval()
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=approval.organization_id, role=OrgRoleName.OWNER
+        )
+        with (
+            patch(
+                "app.services.approvals.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
+            ) as decided,
+            pytest.raises(BadRequestError, match="decided in the call"),
+        ):
+            await ApprovalService(_db()).decide(ctx, approval.id, approved=True)
+
+        decided.assert_not_awaited()
+
+    async def test_the_call_itself_may_decide_it(self):
+        approval = _approval()
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=approval.organization_id, role=OrgRoleName.OWNER
+        )
+        with (
+            patch(
+                "app.services.approvals.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=True),
+            ) as live,
+            patch(
+                "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
+            ) as decided,
+            patch.object(ApprovalService, "_record_decision", new=AsyncMock()),
+        ):
+            await ApprovalService(_db()).decide(ctx, approval.id, approved=True, via_call=True)
+
+        live.assert_not_awaited()
+        assert decided.await_args.kwargs["status"] == ApprovalStatus.APPROVED.value
+
+    async def test_an_approval_nobody_decided_in_the_call_expires_with_nobody_named(self):
+        approval = _approval()
+        with (
+            patch(
+                "app.services.approvals.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
+            ) as decided,
+            patch.object(ApprovalService, "_record_decision", new=AsyncMock()) as audited,
+        ):
+            await ApprovalService(_db()).expire_now(
+                approval.id, organization_id=approval.organization_id, note="n"
+            )
+
+        kwargs = decided.await_args.kwargs
+        assert (kwargs["status"], kwargs["decided_by_user_id"], kwargs["note"]) == (
+            ApprovalStatus.EXPIRED.value,
+            None,
+            "n",
+        )
+        assert audited.await_args.kwargs["actor_user_id"] is None
+
+    @pytest.mark.parametrize("found", ["missing", "decided"])
+    async def test_expiring_leaves_a_decided_or_missing_row_alone(self, found):
+        approval = None if found == "missing" else _approval(status=ApprovalStatus.APPROVED.value)
+        with (
+            patch(
+                "app.services.approvals.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
+            ) as decided,
+        ):
+            await ApprovalService(_db()).expire_now(uuid.uuid4(), organization_id=uuid.uuid4())
+
+        decided.assert_not_awaited()

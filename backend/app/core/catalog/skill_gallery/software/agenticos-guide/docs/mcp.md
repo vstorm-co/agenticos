@@ -53,6 +53,17 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
     pasting a `localhost` URL is the ordinary case, not the exotic one.
 
+    An operator can let a connection reach a server on the deployment's own
+    network, such as a compose service. To do this, list its host in
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
+    skips only the address check. The URL still needs `http` or `https`, and
+    OAuth sign-in to it is still refused.
+
+    Every account on the deployment can then reach every port on that host. So
+    list only a server that checks a token, and never `localhost` or a service
+    of this stack, such as `app`, `db` or `redis`. The list is read only when a
+    connection is saved: removing a host does not disconnect a saved connection.
+
 ### Personal or organization-wide
 
 Two kinds, and the difference is the point. The connect dialog asks it as one
@@ -359,7 +370,8 @@ Two edges remain, both narrow and both deliberate:
 - The **consent URL** is checked and then handed to somebody's browser, which
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator.
+  runs — operator-typed, so rebinding it means being the operator. A host on
+  `MCP_ALLOWED_HOSTS` skips the address check.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
@@ -468,8 +480,12 @@ two long names stay two tools. The server is still called by its real name.
     otherwise abort the whole turn: one expired token on one connection would take
     down every agent that names it, including the ones that never needed it.
 
-    The model then answers **without** those tools — right for a chat turn, wrong
-    if you assumed a tool was always there.
+    The model then answers **without** those tools, and is told so: the turn's
+    instructions name the server, say it did not answer or refused the
+    connection, and ask the model to say it could not be reached rather than
+    report an empty result. That holds for a server that answered a moment ago and
+    fails when the turn connects. It is right for a chat turn, wrong if you
+    assumed a tool was always there.
 
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.

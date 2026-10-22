@@ -78,6 +78,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Destroy the remote sandboxes a deleted conversation or project left behind
     # (#2209). Each tombstone carries its own backoff, so most ticks find none due.
     Schedule("retry-sandbox-destroys", jobs.RETRY_SANDBOX_DESTROYS, _MINUTE),
+    # A call a dead worker left is billed by the minute, and its heartbeat goes
+    # stale 45 s after the worker died (#54).
+    Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),

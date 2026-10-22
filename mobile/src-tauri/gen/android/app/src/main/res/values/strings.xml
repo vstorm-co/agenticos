@@ -1,0 +1,57 @@
+<resources>
+    <string name="app_name">"AgenticOS"</string>
+    <string name="main_activity_title">"AgenticOS"</string>
+    <!-- The launcher's shortcuts and the Quick Settings tile. -->
+    <string name="shortcut_call">Voice call</string>
+    <string name="shortcut_call_long">Call your agent</string>
+    <string name="shortcut_dictate">Dictate</string>
+    <string name="shortcut_dictate_long">Dictate a message</string>
+    <string name="shortcut_chat">Chat</string>
+    <string name="shortcut_chat_long">Open the chat</string>
+    <string name="shortcut_approvals">Approvals</string>
+    <string name="shortcut_approvals_long">Approvals waiting for you</string>
+    <string name="tile_ask">Ask AgenticOS</string>
+    <string name="widget_description">What is waiting for you and what is running</string>
+    <string name="widget_never">Open AgenticOS</string>
+    <!-- What the widget picker shows before any count. -->
+    <string name="widget_approvals_preview">waiting for you</string>
+    <string name="widget_running_preview">running</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">waiting for you</item>
+        <item quantity="other">waiting for you</item>
+    </plurals>
+    <plurals name="widget_running">
+        <item quantity="one">running</item>
+        <item quantity="other">running</item>
+    </plurals>
+    <!-- What device management may set (app_restrictions.xml). -->
+    <string name="managed_server_url">Server address</string>
+    <string name="managed_server_url_hint">The AgenticOS server the app connects to.</string>
+    <string name="managed_server_locked">Only this server</string>
+    <string name="managed_biometric_lock">Biometric lock</string>
+    <string-array name="managed_lock_entries">
+        <item>Up to the person</item>
+        <item>Always on</item>
+        <item>Always off</item>
+    </string-array>
+    <string-array name="managed_lock_values" translatable="false">
+        <item>person</item>
+        <item>on</item>
+        <item>off</item>
+    </string-array>
+    <!-- The composer's attach sheet and the offer of a photo just taken. -->
+    <string name="attach_title">Add to message</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_photos">Photos</string>
+    <string name="attach_files">Files</string>
+    <string name="attach_add">Add</string>
+    <string name="attach_photo">Photo</string>
+    <string name="attach_allow_recent">Show your recent photos here</string>
+    <string name="attach_offer">Add the photo you just took?</string>
+    <string name="attach_offer_dismiss">Not now</string>
+    <plurals name="attach_add_n">
+        <item quantity="one">Add %d photo</item>
+        <item quantity="other">Add %d photos</item>
+    </plurals>
+    <string name="push_channel">Notifications</string>
+</resources>

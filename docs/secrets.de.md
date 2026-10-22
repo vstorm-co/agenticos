@@ -1,5 +1,5 @@
 ---
-source_sha: "11255bcc5d61"
+source_sha: "64b487154003"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -116,6 +116,15 @@ und bei zwei gespeicherten org-sichtbaren Apps wird die Verbindung abgelehnt
 (unter Nennung beider), statt an denjenigen Namen gebunden zu werden, der zuerst
 sortiert.
 
+Dieselbe Regel - **nur organisationsweit sichtbar** - gilt für den
+API-Schlüssel, mit dem die Spracherkennungs-Voreinstellung der Organisation und
+das eigene Transkriptionspaar eines Kanal-Bots gesendet werden: Die Plattform
+gibt ihn für das Diktat jedes Mitglieds und jede Sprachnachricht aus, die ein
+Bot empfängt, daher wird der private Schlüssel eines Mitglieds beim Speichern
+beider abgelehnt, und ein Schlüssel, der danach privat wird, wird nicht mehr
+benutzt. Anders als `github_oauth_app` werden diese Schlüssel per ID benannt,
+sodass mehrere nebeneinander gespeichert sein dürfen.
+
 `git_token` trägt seinen Host, weil eine Git-Sync-Quelle das Token an eine URL
 sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es
 abgelegt wurde, lässt sich das Token durch Bearbeiten der Quelle nicht auf einen
@@ -161,6 +170,32 @@ außerdem eine abgeschnittene Einfügung ab, solange das Formular noch offen ist
 **Model-Provider.** Benannt von einem [Model-Profil](models.md). Ausgaben werden
 dem Secret zugerechnet, auf das der Run aufgelöst hat, und so bekommt "welcher
 Key kostet am meisten" eine Antwort.
+
+**Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
+neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:
+in der Voreinstellung der Organisation, in der Überschreibung eines Agents und
+im eigenen Paar eines Kanal-Bots. Zur Laufzeit wird kein Schlüssel gesucht. Der
+Schlüssel der Organisation und eines Bots muss organisationsweit sichtbar sein;
+der eines Agents folgt der Leihregel - der Veröffentlichende muss ihn sehen
+können. Der [Nutzungseintrag](ml-services.md#what-is-recorded) jeder
+Transkription nennt den Schlüssel, mit dem sie gesendet wurde. Siehe
+[welche Engine eine Aufnahme erreicht](ml-services.md#which-engine-a-recording-reaches).
+Die Liste der Agents, die einen Schlüssel nutzen, zeigt diese Verwendung nicht.
+
+**Sprachanrufe.** Der Schlüssel, mit dem ein [Sprachanruf](voice.md) geführt
+wird, ist auf der Karte Stimme (Voice) des Agents benannt, neben Realtime-Provider
+und Modell. Sein Zweck muss der Provider sein und seine Art die des Providers:
+ein `api_key` oder, für Azure, ein `azure_openai`-Secret, das auch Endpunkt und
+API-Version trägt. Er folgt der Leihregel - der Veröffentlichende muss ihn sehen
+können -, und zur Laufzeit wird kein Schlüssel gesucht. Der Schlüssel wird
+entsiegelt, um einen Anruf zu öffnen, und erreicht nie den Browser: Der Server
+beantwortet das WebRTC-Angebot, und es wird kein Client-Secret ausgestellt.
+
+Um einen Anruf aufzulegen, dessen Prozess gestorben ist, liest der Voice-Sweep
+ihn über `OrganizationSecretService.voice_call_key`, einen Leser, dessen
+Klartext an den Auflege-Endpunkt des Providers geht und nirgendwohin sonst. Eine
+Zeile eines Anrufs behält nur die Id des Schlüssels, und ein gelöschter
+Schlüssel lässt den Agent keine Anrufe annehmen, bis ein anderer gewählt ist.
 
 **Capabilities.** Eine Capability erklärt, dass sie Zugangsdaten einer
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API

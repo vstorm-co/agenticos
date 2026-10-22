@@ -107,6 +107,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePlatformServer,
     UnavailablePrefixCollision,
+    UnavailableUnreachableServer,
 )
 from app.services.sandbox_workspace import OpenWorkspace
 from app.services.skill_workspace import SKILLS_ROOT
@@ -2602,6 +2603,11 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            # Not a call's approval: the queue may decide it (#54).
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=False),
+            ),
         ):
             await ApprovalService(_db()).decide(ctx, approval.id, approved=True)
 
@@ -2652,6 +2658,11 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            # Not a call's approval: the queue may decide it (#54).
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=False),
+            ),
         ):
             await ApprovalService(_db()).decide(
                 _ctx(), approval.id, approved=False, note="wrong customer"
@@ -5201,6 +5212,51 @@ class TestTellingTheAgentWhatItCannotReach:
         )
         assert "only GitHub is attached" in spec.instructions
         assert "is bound to the account" not in spec.instructions
+
+    def test_a_server_that_did_not_answer_is_named_as_unreachable_not_empty(self):
+        """Told nothing, the model reads a missing server as an empty answer and
+        reports "no data"; told the server did not answer, it says so and that a
+        retry may work. Not a personal gap - nobody connects an account to fix
+        it - so it names no link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailableUnreachableServer(server="semrush", binding="the connection 'semrush'")],
+            RunSurface.WEB,
+        )
+
+        assert "semrush server (the connection 'semrush') is not available this turn" in (
+            spec.instructions
+        )
+        assert "none of its semrush_* tools are attached" in spec.instructions
+        # A probe also fails on a refused token or a protocol error, not only a
+        # timeout: a retry may work, and a failure that persists is the connection.
+        assert "did not answer, or refused the connection" in spec.instructions
+        assert "trying again may work" in spec.instructions
+        assert "if it keeps failing the connection needs checking" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
+
+    def test_a_dead_server_whose_prefix_another_holds_names_whose_tools_those_are(self):
+        """Its prefix's tools are attached from another account, so "none of its
+        tools" would be false - and saying nothing lets the live account's
+        results pass for the dead one's."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailableUnreachableServer(
+                    server="github",
+                    binding="the connection 'github'",
+                    held_by="the connection 'GitHub'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "github server (the connection 'github') is not available" in spec.instructions
+        assert "none of its github_* tools" not in spec.instructions
+        assert (
+            "the github_* tools that are attached belong to the connection 'GitHub', and "
+            "what they return comes from that account, not this one"
+        ) in spec.instructions
 
     def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):
         """An organization `notion` and each person's own `notion` collide under

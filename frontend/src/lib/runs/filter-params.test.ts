@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeFilterCount,
   DEFAULT_RUN_FILTERS,
   isNarrowed,
   parseRunFilters,
@@ -25,6 +26,7 @@ const narrowed: RunFilters = {
   userId: "user-1",
   versionId: "ver-2",
   model: "gpt-4o-mini",
+  modality: "voice",
   test: "only",
 };
 
@@ -118,5 +120,22 @@ describe("which tab a link opens", () => {
     expect(parseRunsTab("approvals", false)).toBe("runs");
     // And only that tab is gated - spend is not.
     expect(parseRunsTab("spend", false)).toBe("spend");
+  });
+});
+
+describe("the voice filter", () => {
+  it("round-trips the voice filter through the URL", () => {
+    const filters = parseRunFilters(new URLSearchParams("modality=voice"));
+    expect(filters.modality).toBe("voice");
+    expect(runFilterParams(filters).modality).toBe("voice");
+    expect(parseRunFilters(new URLSearchParams("modality=video")).modality).toBe("all");
+    expect(parseRunFilters(new URLSearchParams("modality=text")).modality).toBe("text");
+  });
+});
+
+describe("activeFilterCount", () => {
+  it("counts each filter set away from its default", () => {
+    expect(activeFilterCount(DEFAULT_RUN_FILTERS)).toBe(0);
+    expect(activeFilterCount({ ...DEFAULT_RUN_FILTERS, status: "failed", test: "hide" })).toBe(2);
   });
 });

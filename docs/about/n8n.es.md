@@ -1,5 +1,5 @@
 ---
-source_sha: "6a4832545d9e"
+source_sha: "3b37854bab7f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
 description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
@@ -11,7 +11,7 @@ n8n es una herramienta de automatización de workflows. Conectas triggers, integ
 
 Encajan bien juntos. n8n mueve datos entre sistemas según una programación. AgenticOS ejecuta los agents que necesitan un responsable, un aprobador y un límite de gasto.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2026. Versión de referencia de AgenticOS: v0.0.504. Alcance de n8n: su página de precios, su documentación y su licencia en n8n@2.40.7, no un plan de nube probado ni una licencia Enterprise autoalojada.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de n8n: su página de precios, su documentación y su licencia en n8n@2.44.5, no un plan de nube probado ni una licencia Enterprise autoalojada.
 
 ## De un vistazo { #at-a-glance }
 
@@ -25,7 +25,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Entornos y control de versiones | Business y superiores | Entornos y exportación a YAML en todos los despliegues |
 | Control del gasto | Cuotas de ejecuciones por plan | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Auditoría | Log streaming en Enterprise | Registro de auditoría con evidencia de manipulación en todos los despliegues |
-| Aprobación humana | Por herramienta, a través de nueve canales de revisión | Por capability y por herramienta para las herramientas de capability, a través de una cola compartida; las herramientas MCP no se controlan por herramienta |
+| Aprobación humana | Por herramienta, a través de nueve canales de revisión | Por capability y por herramienta, y una política de aprobación por conexión MCP (none, writes o all), a través de una cola compartida |
 | Precio | Community gratis; Cloud desde 20 € al mes por 2500 ejecuciones, con facturación anual; Business a 667 € al mes, autoalojado | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }

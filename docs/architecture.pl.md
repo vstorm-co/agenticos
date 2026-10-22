@@ -1,5 +1,5 @@
 ---
-source_sha: "64760597cdc5"
+source_sha: "94cd032fa02a"
 ---
 
 # Architektura { #architecture }
@@ -137,7 +137,8 @@ Route prosi o `DBSession` (`app/api/deps.py`), co rozwiązuje się do
 `get_db_session` (`app/db/session.py`). Wszystko poniżej route'a dzieli tę jedną
 sesję: serwisy przyjmują ją w konstruktorze, repozytoria jako pierwszy argument,
 i ani jedne, ani drugie nigdy nie wołają `commit()` — z jednym celowym wyjątkiem,
-ścieżką runu agenta, opisaną [niżej](#the-run-paths-two-commits). `flush()`
+ścieżką runu agenta i rozmową głosową, która też jest runem, opisanymi
+[niżej](#the-run-paths-two-commits). `flush()`
 wysyła instrukcje, żeby wiersz miał id, a ograniczenia zostały sprawdzone; commit
 następuje raz, po drodze na zewnątrz.
 
@@ -235,6 +236,30 @@ odpowiada.
 Obie granice są dowodzone na prawdziwej bazie danych w
 `tests/integration/test_run_commit_boundary.py`.
 
+**Rozmowa głosowa jest runem i zachowuje te same dwa commity** ([#54][54]).
+Rozmowa trzyma swój socket do pięćdziesięciu minut, więc commituje tam, gdzie
+ścieżka runu, a wszystko pomiędzy zapisuje przez własne sesje:
+
+- `VoiceCallStarter.start` commituje raz, gdy wszystkie odmowy zostały już
+  sprawdzone, z zapisanym wierszem `voice_calls` i jego runem, zanim provider
+  zostanie wywołany. Wiersze zatwierdzeń, heartbeat i sprzątanie rozmów
+  głosowych potrzebują tych wierszy czytelnych z innych sesji; odmowa przed tym
+  punktem wycofuje wszystko, więc odrzucona rozmowa nie zostawia niczego
+  w Activity.
+- Każda zapisana tura, każdy 15-sekundowy heartbeat i każdy zapis zatwierdzenia
+  otwiera własną sesję `get_db_context()` i tam commituje, nigdy na wspólnej
+  sesji runu — tura jest trwała w chwili, gdy zostanie wypowiedziana, a awaria
+  traci co najwyżej turę w toku.
+- Sprzątanie `VoiceCallSession`, osłonięte `finally`, zapisuje koniec w
+  wierszu rozmowy, potem rozłącza wywołanie providera, kończy run i commituje
+  ponownie — końcowy commit, na każdej drodze wyjścia. Koniec idzie pierwszy,
+  żeby ponowne połączenie, które na niego czeka, nie czekało też na
+  rozłączenie.
+
+`tests/test_voice_starter.py::test_a_started_call_is_committed_with_its_row_and_a_voice_run`
+i `tests/test_voice_session.py::test_every_exit_path_hangs_up_the_provider_call`
+pilnują obu końców.
+
 ### Jedyny inny wczesny commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` jest drugim, i to z odwrotnego powodu: nie
@@ -330,6 +355,7 @@ tak. Zob. [Dodaj zadanie w tle](howto/add-background-task.md).
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
+[54]: https://github.com/vstorm-co/agenticos/issues/54
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
@@ -410,7 +436,7 @@ są godzone w serwisie, zanim wiersz zniknie, wewnątrz własnej transakcji żą
   jest legalny, a klucz pozostaje osiągalny dla organizacji, zamiast zostać
   osierocony.
 - **Organizacje twórcy.** `organizations.created_by_user_id` jest `RESTRICT`,
-  a każda rejestracja tworzy organizację osobistą, więc gołe `DELETE users` nigdy
+  a rejestracja domyślnie tworzy organizację osobistą, więc gołe `DELETE users` nigdy
   nie zadziałało dla prawdziwego konta. Organizacja osobista jest usuwana razem
   z właścicielem; współdzielona jest przekazywana innemu właścicielowi, a gdy nie
   ma komu jej przekazać, usunięcie zostaje odrzucone.

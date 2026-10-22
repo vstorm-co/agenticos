@@ -101,6 +101,15 @@ class Session(Base):
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    app_platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """The AgenticOS app this session is signed in through - `macos`, `windows`,
+    `linux`, `ios`, `android` - or null for a browser.
+
+    Reported by the console page the app loads (`PUT /sessions/current/app`),
+    because the app's requests carry its webview's User-Agent, which names the
+    browser engine and not the app (#2305, #2097).
+    """
+    app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False

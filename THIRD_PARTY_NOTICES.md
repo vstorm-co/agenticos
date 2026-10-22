@@ -23,18 +23,19 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 105 | 241 |
-| Apache-2.0 | 65 | 24 |
+| MIT | 106 | 242 |
+| Apache-2.0 | 64 | 24 |
 | BSD-3-Clause | 24 | 4 |
 | ISC | 3 | 16 |
 | BSD-2-Clause | 7 | 0 |
+| MPL-2.0 | 5 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
-| MPL-2.0 | 3 | 0 |
 | PSF-2.0 | 3 | 0 |
 | 0BSD | 1 | 1 |
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
+| Apache-2.0 OR BSD-2-Clause | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
@@ -48,7 +49,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-223 distributions.
+226 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -125,6 +126,7 @@ names no author is in the evidence column below.
 | h2 | 4.4.1 | MIT | https://github.com/python-hyper/h2/ | License-Expression |
 | hf-xet | 1.4.3 | Apache-2.0 | https://github.com/huggingface/xet-core.git | License-Expression |
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
+| http-ece | 1.2.1 | MIT | https://github.com/martinthomson/encrypted-content-encoding | License field; no licence file, attributed to Martin Thomson |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
@@ -188,7 +190,7 @@ names no author is in the evidence column below.
 | opentelemetry-sdk | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-semantic-conventions | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-util-http | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
-| packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging | License-Expression |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
 | phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 13.0.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
@@ -201,6 +203,7 @@ names no author is in the evidence column below.
 | psutil | 7.2.2 | BSD-3-Clause | https://github.com/giampaolo/psutil | License field |
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.5 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.5/ | License-Expression |
+| py-vapid | 1.9.6 | MPL-2.0 | https://github.com/mozilla-services/vapid | License field; review accepted |
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
@@ -227,6 +230,7 @@ names no author is in the evidence column below.
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.3.post1 | MIT | https://github.com/stub42/pytz.git | License field |
+| pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
 | qdrant-client | 1.19.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
@@ -278,7 +282,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-292 distributions.
+293 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -563,6 +567,7 @@ names no author is in the evidence column below.
 | unist-util-stringify-position | 4.0.0 | MIT | https://github.com/syntax-tree/unist-util-stringify-position | package.json license |
 | unist-util-visit | 5.1.0 | MIT | https://github.com/syntax-tree/unist-util-visit | package.json license |
 | unist-util-visit-parents | 6.0.2 | MIT | https://github.com/syntax-tree/unist-util-visit-parents | package.json license |
+| uqr | 0.1.3 | MIT | https://github.com/unjs/uqr | package.json license |
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ | package.json license |
 | use-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar | package.json license |
@@ -593,7 +598,7 @@ and data files.
 | xvfb, socat, dumb-init, tzdata (Debian packages) | as pinned by Debian bookworm | system package, browser image | Xvfb: MIT/X11. socat: GPL-2.0. dumb-init: MIT. tzdata: public domain. | https://packages.debian.org/bookworm/ | accepted | Licence texts; socat (GPL-2.0) is run unmodified as a separate process, so its corresponding source available to recipients. | Debian's /usr/share/doc/<package>/copyright for each is in the image; source through Debian's source packages; none modified. |
 | fonts-liberation, fonts-noto, fonts-noto-cjk, fonts-noto-color-emoji (Debian packages) | as pinned by Debian bookworm | system package, browser image | Liberation: OFL-1.1. Noto: OFL-1.1 (Noto Color Emoji: OFL-1.1, its images Apache-2.0). | https://fonts.google.com/noto | accepted | OFL-1.1: the licence text travels with the fonts; the fonts are not sold on their own. | Debian's /usr/share/doc/fonts-*/copyright is in the image; installed as system fonts the browser renders pages with, never sold or redistributed apart from the image. |
 | Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names. |
-| Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
+| Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. @lobehub/icons: MIT. SVG Logos (Gil Barbara): CC0-1.0. theSVG: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://icons.lobehub.com, https://github.com/gilbarbara/logos, https://github.com/glincker/thesvg | accepted | MIT notices for @lobehub/icons and theSVG; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the four sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
 | Rare UI components vendored into frontend/src/components/ui/ | swamimalode07/rare-ui as of 2026-09-22 (animated-counter, notification-bell, task-list) | source, frontend image | MIT | https://github.com/swamimalode07/rare-ui | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | NOTICE at the repository root and frontend/NOTICE name the project, its copyright holder and the MIT text; frontend/scripts/collect-licenses.ts copies the latter into the frontend image at /app/licenses/NOTICE. Each file that came from it says so in its own header, with what was changed and why. The distribution method is why this is here rather than in the npm inventory: the project's own instructions are `shadcn add`, which copies a file into the tree rather than adding a dependency a lockfile would record. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | Chart.js, vendored into backend/app/core/catalog/artifact_lib/ | 4.5.1 (dist/chart.umd.min.js from the npm tarball) | source, backend image, served to published artifacts | MIT | https://github.com/chartjs/Chart.js | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | The file is copied byte for byte and keeps its own header naming Chart.js and the MIT licence; backend/app/core/catalog/artifact_lib/README.md carries the full MIT text with the copyright line, and NOTICE names it. Copied rather than installed because a published page has no network: the deployment serves the file to its pages itself (#1971). |
@@ -602,6 +607,8 @@ and data files.
 | three.js, vendored into backend/app/core/catalog/artifact_lib/ | 0.186.0 (build/three.module.js, build/three.core.js and examples/jsm/controls/OrbitControls.js from the npm tarball) | source, backend image, served to published artifacts and visuals | MIT | https://github.com/mrdoob/three.js | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | The files are copied byte for byte and keep their own headers naming three.js and the MIT licence; backend/app/core/catalog/artifact_lib/README.md carries the full MIT text with the copyright line, and NOTICE names it. The same version the console depends on. Copied for the same reason as Chart.js (#2171). |
 | Mermaid, vendored into backend/app/core/catalog/artifact_lib/ | 12.1.0 (dist/mermaid.min.js from the npm tarball) | source, backend image, served to published artifacts and visuals | MIT; the bundle includes its dependencies, among them DOMPurify (MPL-2.0 OR Apache-2.0, used under Apache-2.0), elkjs (EPL-2.0), d3 and d3-sankey (ISC, BSD-3-Clause), chevrotain (Apache-2.0) and MIT-licensed others (cytoscape, dagre-d3-es, dayjs, katex, khroma, marked, roughjs, stylis, uuid) | https://github.com/mermaid-js/mermaid | accepted | MIT and ISC: keep the notices. Apache-2.0: keep the licence and its notices. EPL-2.0 (elkjs, distributed unmodified in object form): ship the licence and say where its source is available. | The bundle is copied byte for byte and keeps the headers it carries (DOMPurify's among them); backend/app/core/catalog/artifact_lib/README.md carries Mermaid's MIT text, names every bundled dependency with its licence, links the EPL-2.0 text and the elkjs 0.9.3 source, and NOTICE names it. Copied for the same reason as Chart.js (#2171). |
 | idiomorph, vendored into backend/app/core/catalog/artifact_lib/ | 0.8.0 (dist/idiomorph.min.js from the npm tarball) | source, backend image, served to the visual frame | 0BSD | https://github.com/bigskysoftware/idiomorph | accepted | None: the Zero-Clause BSD licence asks for no notice. | Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md names it with its licence text anyway. It morphs a visual's markup in place while the drawing streams (#2171). |
+| Leaflet, vendored into backend/app/core/catalog/artifact_lib/ | 1.9.4 (dist/leaflet.js and dist/leaflet.css from the npm tarball) | source, backend image, served to published artifacts and visuals | BSD-2-Clause | https://github.com/Leaflet/Leaflet | accepted | Keep the copyright notice, the conditions and the disclaimer with the copies, in source and in the documentation of a binary distribution. | Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md carries the BSD-2-Clause text with both copyright lines, and NOTICE names it. The map kit draws an itinerary on the deployment's tile server with it (#2302). Copied for the same reason as Chart.js. |
+| Open Intelligent UI, adapted into agenticos-map-1.js and the visual-design skill | 8391a94c1c3939c679e40ddd7bfc08a9ef690e70 | source, backend image, served to published artifacts and visuals | MIT | https://github.com/CopilotKit/OpenIntelligentUI | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | The pin-drop timing of createTripAnimator is adapted in backend/app/core/catalog/artifact_lib/agenticos-map-1.js, whose header carries the MIT notice with the copyright line; the visual-design skill's guidance on choosing the form of an answer, follow-ups and itineraries borrows from its playbook and skills. backend/app/core/catalog/artifact_lib/README.md and NOTICE name it (#2302). |
 | pgvector/pgvector | pg16 | service image, deployment | PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License. | https://github.com/pgvector/pgvector | accepted | Permissive; keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. |
 | valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |
 | traefik | v3.7 | service image, deployment (optional reverse proxy) | MIT | https://github.com/traefik/traefik | accepted | Keep the copyright notice. Not redistributed by this project. | Pulled by the operator; named here with its source. |

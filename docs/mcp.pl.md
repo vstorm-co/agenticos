@@ -1,5 +1,5 @@
 ---
-source_sha: "1eecb93af547"
+source_sha: "7d3991430b9c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -58,6 +58,18 @@ niczego do konfigurowania.
     platformy, a nie jak adres do poprawienia
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting
     i wklejenie URL-a z `localhost` to przypadek zwyczajny, nie egzotyczny.
+
+    Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
+    wdrożenia, na przykład do usługi compose. W tym celu wpisuje jego host do
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Host z listy
+    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`,
+    a logowanie OAuth do niego nadal jest odrzucane.
+
+    Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
+    Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
+    usługi tego stacku, takiej jak `app`, `db` czy `redis`. Lista jest czytana
+    tylko przy zapisie połączenia: usunięcie hosta nie rozłącza zapisanego
+    połączenia.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
@@ -377,7 +389,7 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem.
+  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.
@@ -494,8 +506,12 @@ jest nadal wywoływany pod prawdziwą nazwą.
     położyłby każdego agenta, który go wskazuje, łącznie z tymi, które nigdy go
     nie potrzebowały.
 
-    Model odpowiada wtedy **bez** tych narzędzi — słusznie w turze czatu,
-    niesłusznie, jeśli założyłeś, że narzędzie jest tam zawsze.
+    Model odpowiada wtedy **bez** tych narzędzi i wie o tym: instrukcje tury
+    wymieniają serwer, mówią, że nie odpowiedział albo odrzucił połączenie,
+    i każą modelowi powiedzieć, że nie dało się z nim połączyć, zamiast zgłaszać
+    pusty wynik. Dotyczy to także serwera, który odpowiedział chwilę wcześniej
+    i zawodzi, gdy tura się łączy. Słusznie w turze czatu, niesłusznie, jeśli
+    założyłeś, że narzędzie jest tam zawsze.
 
 To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie

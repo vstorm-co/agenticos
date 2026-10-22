@@ -21,10 +21,10 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronRight, Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { ProjectRows } from "@/components/layout/project-rows";
 
@@ -77,9 +77,22 @@ function NavLink({
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
-      <item.icon className="h-4 w-4 shrink-0" aria-hidden />
+      <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
     </Link>
+  );
+}
+
+/**
+ * The entry's icon, turning while the page it opens is on its way: the click
+ * answers where it was made, beside the bar along the top edge.
+ */
+function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+  ) : (
+    <Icon className="h-4 w-4 shrink-0" aria-hidden />
   );
 }
 
@@ -226,6 +239,7 @@ export function AppSidebar() {
     // deepest of the four surfaces in both themes, and a deployment can
     // retheme it.
     <aside
+      data-collapsed={collapsed ? "" : undefined}
       className={cn(
         "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
         mounted && "transition-[width] duration-200",
@@ -238,7 +252,13 @@ export function AppSidebar() {
           on the column's own title bar - where every editor and console with a
           collapsible panel puts one. Search and the bell are actions and live
           with the account at the foot, where a hand rests. */}
+      {/* In the desktop app this row is also the window's title bar: it holds
+          the traffic lights on macOS (`desktop.css`) and the window is dragged
+          by it. "deep", so its empty space drags and its controls still click -
+          Tauri's drag script skips buttons and links on its own. */}
       <div
+        data-titlebar
+        data-tauri-drag-region="deep"
         className={cn(
           "flex h-14 shrink-0 items-center border-b",
           collapsed ? "justify-center px-2" : "gap-1 px-3",

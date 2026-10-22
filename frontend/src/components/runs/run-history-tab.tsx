@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { RunFilterBar } from "@/components/runs/run-filter-bar";
+import { PhoneFilters } from "@/components/ui/phone-filters";
+import { activeFilterCount } from "@/lib/runs/filter-params";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -167,6 +169,7 @@ export function RunHistoryTab({
           ? PROBLEM_STATUSES
           : [filters.status],
     surface: filters.surface === "all" ? undefined : filters.surface,
+    modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
@@ -191,6 +194,7 @@ export function RunHistoryTab({
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
   if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;
@@ -258,13 +262,15 @@ export function RunHistoryTab({
               {canView && (
                 <ListCardControlsRow className="shrink-0">
                   {periodControl}
-                  <RunFilterBar
-                    filters={filters}
-                    period={period}
-                    onChange={onFiltersChange}
-                    agentId={agentId}
-                    onAgentChange={changeAgent}
-                  />
+                  <PhoneFilters active={activeFilterCount(filters) + (agentId === null ? 0 : 1)}>
+                    <RunFilterBar
+                      filters={filters}
+                      period={period}
+                      onChange={onFiltersChange}
+                      agentId={agentId}
+                      onAgentChange={changeAgent}
+                    />
+                  </PhoneFilters>
                 </ListCardControlsRow>
               )}
               {!canView ? (

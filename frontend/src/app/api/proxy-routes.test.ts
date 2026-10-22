@@ -34,6 +34,7 @@ import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
@@ -74,6 +75,7 @@ import * as triggerTemplates from "./trigger-templates/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
+import * as push from "./push/[[...path]]/route";
 import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
@@ -82,6 +84,7 @@ import * as stats from "./stats/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as voice from "./voice/[[...path]]/route";
 
 /**
  * Every mount of the shared forwarder.
@@ -123,6 +126,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
   ["memory", memory],
+  ["ml/calls", mlCalls],
   ["me/channel-link", channelLink],
   ["me/mcp-connections", myMcpConnections],
   ["me/mcp-connections/[id]", myMcpConnection],
@@ -158,6 +162,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["sandbox-workspaces", sandboxWorkspaces],
   ["trigger-templates", triggerTemplates],
   ["secrets", secrets],
+  ["push", push],
   ["sessions", sessions],
   ["skill-changes", skillChanges],
   ["skills", skills],
@@ -166,6 +171,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
   ["me/dashboard-layout/presets", dashboardPresets],

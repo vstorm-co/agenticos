@@ -1,0 +1,78 @@
+"""Data access for Web Push subscriptions (PostgreSQL async)."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import delete, select, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.push_subscription import PushSubscription
+
+
+async def upsert(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+    user_agent: str | None,
+) -> None:
+    """Keep this browser's subscription for this person.
+
+    On the endpoint, which is the browser: subscribing again refreshes its
+    keys, and a browser now signed in as somebody else becomes theirs - the
+    previous person stops receiving pushes in a browser they no longer use.
+    """
+    values = {"p256dh": p256dh, "auth": auth, "user_agent": user_agent, "user_id": user_id}
+    await db.execute(
+        insert(PushSubscription)
+        .values(id=uuid.uuid4(), endpoint=endpoint, **values)
+        .on_conflict_do_update(index_elements=[PushSubscription.endpoint], set_=values)
+    )
+    await db.flush()
+
+
+async def delete_for_user(db: AsyncSession, *, user_id: uuid.UUID, endpoint: str) -> bool:
+    """Forget one of this person's browsers. Whether there was one to forget."""
+    result = await db.execute(
+        delete(PushSubscription).where(
+            PushSubscription.user_id == user_id, PushSubscription.endpoint == endpoint
+        )
+    )
+    await db.flush()
+    return bool(getattr(result, "rowcount", 0))
+
+
+async def delete_by_id(db: AsyncSession, subscription_id: uuid.UUID) -> None:
+    await db.execute(delete(PushSubscription).where(PushSubscription.id == subscription_id))
+    await db.flush()
+
+
+async def list_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[PushSubscription]:
+    result = await db.execute(
+        select(PushSubscription)
+        .where(PushSubscription.user_id == user_id)
+        .order_by(PushSubscription.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def subscribed(db: AsyncSession, user_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Which of these people have at least one browser to push to."""
+    if not user_ids:
+        return set()
+    result = await db.execute(
+        select(PushSubscription.user_id).where(PushSubscription.user_id.in_(user_ids)).distinct()
+    )
+    return set(result.scalars().all())
+
+
+async def mark_sent(db: AsyncSession, subscription_id: uuid.UUID, at: datetime) -> None:
+    await db.execute(
+        update(PushSubscription)
+        .where(PushSubscription.id == subscription_id)
+        .values(last_sent_at=at)
+    )
+    await db.flush()

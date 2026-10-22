@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useActiveRoute } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +26,8 @@ export interface PageTab {
   icon?: LucideIcon;
   /** Match only the exact path (use for index/overview tabs). */
   exact?: boolean;
+  /** A tab for the desktop app's own settings, left out of the row in a browser and on a phone. */
+  shellOnly?: boolean;
 }
 
 /**
@@ -33,7 +37,15 @@ export interface PageTab {
  * produces a stray vertical scrollbar. The scrollbar is hidden; tabs scroll
  * horizontally only when they overflow (mobile).
  */
-export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; className?: string }) {
+export function PageTabs({
+  tabs: allTabs,
+  className,
+}: {
+  tabs: readonly PageTab[];
+  className?: string;
+}) {
+  const shell = useShell();
+  const tabs = isDesktopShell(shell) ? allTabs : allTabs.filter((tab) => !tab.shellOnly);
   const isActive = useActiveRoute();
   const t = useTranslations("nav");
   const strip = useRef<HTMLElement>(null);

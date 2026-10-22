@@ -27,6 +27,8 @@ export interface RunFilters {
   versionId: string;
   /** The model as a run recorded it - the label the dashboard's bars count. */
   model: string;
+  /** Text runs or voice calls (#54). */
+  modality: "all" | "text" | "voice";
   /** Runs from the Builder's test panel: only them, none of them, or both (#2074). */
   test: "all" | "only" | "hide";
 }
@@ -38,8 +40,16 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
   userId: "all",
   versionId: "all",
   model: "all",
+  modality: "all",
   test: "all",
 };
+
+/** How many filters are narrowing the list - what a phone's Filters button counts. */
+export function activeFilterCount(filters: RunFilters): number {
+  return (Object.keys(DEFAULT_RUN_FILTERS) as (keyof RunFilters)[]).filter(
+    (key) => filters[key] !== DEFAULT_RUN_FILTERS[key],
+  ).length;
+}
 
 /** The URL name of each filter. `person` reads better in a pasted link than `userId`. */
 const PARAM: Record<keyof RunFilters, string> = {
@@ -49,10 +59,12 @@ const PARAM: Record<keyof RunFilters, string> = {
   userId: "person",
   versionId: "version",
   model: "model",
+  modality: "modality",
   test: "test",
 };
 
 const RATINGS = new Set(["up", "down"]);
+const MODALITIES = new Set(["text", "voice"]);
 const TESTS = new Set(["only", "hide"]);
 
 /** Activity's three tabs, in the order the strip draws them. */
@@ -80,13 +92,14 @@ export function parseRunsTab(param: string | null, canDecide: boolean): RunsTab 
  *
  * Anything unrecognised falls back to "all" rather than to an error: a pasted
  * link with a status this build renamed should still open the page, narrowed by
- * whatever else it carried. `rated` is the one closed set worth checking here -
+ * whatever else it carried. `rated` and `modality` are the closed sets worth checking here -
  * the others are ids and free strings the backend answers for, and a status it
  * does not know is refused by name at the API rather than guessed at here.
  */
 export function parseRunFilters(params: URLSearchParams): RunFilters {
   const read = (key: keyof RunFilters) => params.get(PARAM[key])?.trim() || "all";
   const rated = read("rated");
+  const modality = read("modality");
   const test = read("test");
   return {
     status: read("status") as RunFilters["status"],
@@ -95,6 +108,7 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     userId: read("userId"),
     versionId: read("versionId"),
     model: read("model"),
+    modality: MODALITIES.has(modality) ? (modality as RunFilters["modality"]) : "all",
     test: TESTS.has(test) ? (test as RunFilters["test"]) : "all",
   };
 }

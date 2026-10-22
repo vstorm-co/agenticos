@@ -9,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.deps import (
     CurrentUser,
     DeploymentSettingsSvc,
+    DevicePairingSvc,
     ImpersonationSvc,
     InvitationStagingSvc,
     SessionSvc,
@@ -33,7 +34,13 @@ from app.schemas.password_reset import (
     PasswordResetRequest,
     PasswordResetResponse,
 )
-from app.schemas.token import MagicLinkToken, RefreshTokenRequest, Token
+from app.schemas.token import (
+    MagicLinkToken,
+    PairingCodeRead,
+    PairingRedeem,
+    RefreshTokenRequest,
+    Token,
+)
 from app.schemas.user import MeRead, UserCreate, UserRead
 from app.services.email.service import get_email_service
 from app.services.session import refresh_expiry, successor_refresh_token
@@ -68,6 +75,34 @@ async def login(
     )
     access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/pairing-codes", response_model=PairingCodeRead, status_code=status.HTTP_201_CREATED)
+async def create_pairing_code(
+    request: Request, current_user: CurrentUser, pairing: DevicePairingSvc
+) -> Any:
+    """A single-use code that signs a phone in as the caller, drawn as a QR (#2097).
+
+    Valid for a minute and redeemed once; the session is created at redemption,
+    under the phone's address and user agent.
+    """
+    await enforce_auth_limit(request, surface="auth_pairing", identifier=str(current_user.id))
+    issued = await pairing.issue(current_user)
+    return PairingCodeRead(code=issued.code, expires_in=issued.expires_in)
+
+
+@router.post("/pairing-codes/redeem", response_model=Token)
+async def redeem_pairing_code(
+    request: Request, body: PairingRedeem, pairing: DevicePairingSvc
+) -> Any:
+    """Swap a scanned pairing code for the phone's own token pair."""
+    await enforce_auth_limit(request, surface="auth_pairing_redeem")
+    paired = await pairing.redeem(
+        body.code,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return Token(access_token=paired.access_token, refresh_token=paired.refresh_token)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

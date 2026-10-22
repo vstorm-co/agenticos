@@ -1,5 +1,5 @@
 ---
-source_sha: "8c2d10c549a3"
+source_sha: "0202c6a280dd"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: selbst gehostete Alternative"
 description: "Microsoft Copilot Studio vs. AgenticOS: keine Copilot Credits, jeder Modell-Provider, Ihre eigene Infrastruktur, Budgets pro Agent und offenes Audit."
@@ -11,7 +11,7 @@ Microsoft Copilot Studio erstellt Agents innerhalb von Power Platform. Es bietet
 
 Wenn Ihr Unternehmen in Microsoft 365 lebt, ist Copilot Studio ein naheliegender Kandidat. AgenticOS ist der Kandidat, wenn Sie die Plattform besitzen, die Daten dort halten möchten, wo Sie es wählen, und einen Zähler pro Funktion vermeiden wollen.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Stand: v0.0.504. Copilot-Studio-Umfang: die Preisseite von Microsoft, die Azure-Retail-Preis-API und Microsoft Learn, kein getesteter Tenant.
+Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. Copilot-Studio-Umfang: die Preisseite von Microsoft, die Azure-Retail-Preis-API und Microsoft Learn, kein getesteter Tenant.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -20,10 +20,10 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Wo es läuft | Cloud von Microsoft, in Power-Platform-Umgebungen | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Standardmäßig GPT-Modelle, Claude-Modelle allgemein verfügbar, Azure-Foundry-Modelle separat abgerechnet | 28 Provider, einschließlich lokaler |
-| Abrechnung | 200 $ im Monat für 25.000 Copilot Credits oder 0,01 $ pro Credit bei nutzungsbasierter Abrechnung | Keine Lizenzgebühr; Modellnutzung zu den Tarifen Ihres Providers |
+| Abrechnung | 0,01 $ pro Copilot Credit bei nutzungsbasierter Abrechnung oder vorausbezahlte Copilot Credit Commit Units mit bis zu 20 % Rabatt | Keine Lizenzgebühr; Modellnutzung zu den Tarifen Ihres Providers |
 | Wie Nutzung gezählt wird | Credits pro Funktion: eine generative Antwort kostet 2, eine Agent-Aktion 5, Grounding über den Tenant-Graph 10 | Modell-Tokens, bepreist pro Provider |
 | Durchsetzung der Ausgaben | Monatliche Limits pro Agent; Agents werden bei 125 % der vorausbezahlten Kapazität deaktiviert | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
-| Oberflächen | Teams, Microsoft 365, SharePoint, Web, WhatsApp, Sprache sowie Slack oder Telegram über Azure Bot Service | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Oberflächen | Teams, Microsoft 365, SharePoint, Web, WhatsApp, Sprache sowie Slack oder Telegram über Azure Bot Service | Web-Chat mit Sprachanrufen, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
 | Identität | Microsoft Entra ID | OIDC-SSO einschließlich Entra, LDAP und Kerberos |
 | Governance | Datenrichtlinien von Power Platform, Purview-Audit, Entra Agent ID | Berechtigungskatalog, Grants, Freigaben und ein Audit-Log mit Manipulationsnachweis |
 
@@ -47,12 +47,12 @@ Die Governance von Copilot Studio ist innerhalb des Microsoft-Stacks stark. Agen
 
 ### Microsoft-Identität ohne Microsoft-Hosting { #microsoft-identity-without-microsoft-hosting }
 
-AgenticOS meldet Personen mit Entra ID über [OIDC](../configuration.md#single-sign-on-generic-oidc) an, ordnet [Verzeichnisgruppen](../directory.md#the-groups-claim-over-oidc) Rollen zu und liest Dateien aus [SharePoint und OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Sie behalten Microsoft als Quelle für Identität und Dokumente und betreiben die Agents selbst.
+AgenticOS meldet Personen mit Entra ID über [OIDC](../configuration.md#single-sign-on-generic-oidc) an, ordnet [Verzeichnisgruppen](../directory.md#the-groups-claim-over-oidc) Rollen zu und liest Dateien aus [SharePoint und OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Agents können auch in Microsoft 365 arbeiten, über Microsofts eigene Work-IQ-MCP-Server für Outlook, Teams und Word, die im [MCP-Katalog](../mcp.md#communication-support-knowledge) stehen. Sie behalten Microsoft als Quelle für Identität und Dokumente und betreiben die Agents selbst.
 
 ## Wann Copilot Studio besser passt { #when-copilot-studio-is-the-better-fit }
 
 - Ihre Agents gehören in Teams und Microsoft 365 Copilot, und Ihre Benutzer haben bereits Lizenzen für Microsoft 365 Copilot.
-- Sie benötigen Power-Platform-Connectoren, Agent-Flows, Sprache oder WhatsApp. AgenticOS hat keinen Kanal für Teams, Sprache oder WhatsApp.
+- Sie benötigen Power-Platform-Connectoren, Agent-Flows, Telefonie oder WhatsApp. AgenticOS hat keinen Kanal für Teams, Telefon oder WhatsApp; seine [Sprachanrufe](../voice.md) laufen im Browser.
 - Purview, Sentinel und die Datenrichtlinien von Power Platform sind die Art, wie Ihre Organisation alles andere steuert.
 
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
@@ -71,7 +71,7 @@ Ja. Personen melden sich mit Entra ID über OIDC an, Verzeichnisgruppen werden R
 
 ### Was kostet Copilot Studio im Vergleich zu AgenticOS? { #how-much-does-copilot-studio-cost-compared-with-agenticos }
 
-Copilot Studio verkauft 25.000 Copilot Credits für 200 $ im Monat oder 0,01 $ pro Credit bei nutzungsbasierter Abrechnung. AgenticOS erhebt keine eigene Gebühr; Sie bezahlen Ihren Modell-Provider für die Tokens, die ein Agent verbraucht.
+Copilot Studio berechnet 0,01 $ pro Copilot Credit bei nutzungsbasierter Abrechnung oder verkauft vorausbezahlte Copilot Credit Commit Units mit bis zu 20 % Rabatt. AgenticOS erhebt keine eigene Gebühr; Sie bezahlen Ihren Modell-Provider für die Tokens, die ein Agent verbraucht.
 
 ### Kann AgenticOS Agents in Microsoft Teams veröffentlichen? { #can-agenticos-publish-agents-to-microsoft-teams }
 
@@ -83,7 +83,7 @@ Noch nicht. Es veröffentlicht im Web-Chat, in einem Widget, auf einer gehostete
 
 ## Quellen { #sources }
 
-- [Preise für Copilot Studio](https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio): das Credit-Paket und die nutzungsbasierte Abrechnung.
+- [Preise für Copilot Studio](https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio): der Vorauszahlungsplan und die nutzungsbasierte Abrechnung.
 - [Azure-Retail-Preise](https://prices.azure.com/api/retail/prices?$filter=contains(productName,'Copilot%20Studio')): 0,01 $ pro Credit.
 - [Abrechnungssätze und Verwaltung](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management): Credits pro Funktion, Limits pro Agent und die Durchsetzung bei 125 %.
 - [Harnesses](https://learn.microsoft.com/en-us/microsoft-copilot-studio/harnesses-overview) und [Abrechnung der Harnesses](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/billing-credit-overview): Abrechnung ab der Erstellung.

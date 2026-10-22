@@ -56,14 +56,16 @@ class NotificationEventType(enum.StrEnum):
 class NotificationChannel(enum.StrEnum):
     """A channel a notification reaches a recipient through.
 
-    `notification_preferences.channel` (Decision 4) holds both values, since a
+    `notification_preferences.channel` (Decision 4) holds every value, since a
     person can turn each off independently. `notification_deliveries.channel`
-    (Decision 3) only ever holds `EMAIL` - in-app has no delivery row, because
-    the :class:`Notification` row itself is the in-app delivery.
+    (Decision 3) holds `EMAIL` and `PUSH` - in-app has no delivery row, because
+    the :class:`Notification` row itself is the in-app delivery. `PUSH` is Web
+    Push to every browser the person subscribed (#2097).
     """
 
     IN_APP = "in_app"
     EMAIL = "email"
+    PUSH = "push"
 
 
 class Notification(Base, TimestampMixin):

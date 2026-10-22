@@ -1,15 +1,17 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
 import { apiClient } from "@/lib/api-client";
+import { initialCall } from "@/lib/voice/call-reducer";
 import {
   useAgentSelectionStore,
   useAuthStore,
   useChatStore,
+  useComposerIntentStore,
   useConversationStore,
   useOrgStore,
 } from "@/stores";
@@ -23,12 +25,131 @@ import {
  * asserting on `delegations` proves the state; this proves what the reader gets.
  */
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, upload } = vi.hoisted(() => ({
+  get: vi.fn(),
+  upload: vi.fn(async () => ({ text: "hello" })),
+}));
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  apiClient: { get, post: vi.fn(), upload, patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+/**
+ * The recording, as a phase this test sets; and the glow, as attributes. What is
+ * under test is what the container hands the glow and the strip for a phase, not
+ * the recorder (`use-dictation.test.ts`) or the beam (`voice-glow`).
+ */
+const dictation = vi.hoisted(() => ({
+  phase: "idle" as string,
+  reason: null as string | null,
+  upload: null as number | null,
+  inserted: false,
+  /** The recorder's cancel, one for every render, as the hook's own is. */
+  cancel: vi.fn(),
+  /** The recorder's start, which the microphone - or a shortcut - presses. */
+  start: vi.fn(),
+  /** The format the container last handed the recorder. */
+  format: undefined as string | undefined,
+  /** Where the container last told the recorder to send a recording. */
+  send: undefined as
+    | ((
+        recording: Blob,
+        seconds: number,
+        signal: AbortSignal,
+        onProgress: (fraction: number) => void,
+      ) => unknown)
+    | null
+    | undefined,
+}));
+vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-dictation")>()),
+  useDictation: ({ format, send }: { format: string; send: typeof dictation.send }) => {
+    dictation.format = format;
+    dictation.send = send;
+    return {
+      state: {
+        phase: dictation.phase,
+        elapsed: 42,
+        remaining: null,
+        silent: false,
+        meter: { read: () => 0, subscribe: () => () => {} },
+        reason: dictation.reason,
+        canRetry: dictation.reason !== null,
+        retryAfter: null,
+        transcript: dictation.inserted ? { id: 1, text: "hello there" } : null,
+        upload: dictation.upload,
+        stoppedAtLimit: false,
+        inserted: dictation.inserted,
+      },
+      actions: {
+        start: dictation.start,
+        stop: vi.fn(),
+        cancel: dictation.cancel,
+        retry: vi.fn(),
+        dismiss: vi.fn(),
+        dismissInserted: vi.fn(),
+      },
+    };
+  },
+}));
+vi.mock("@/components/ui/voice-glow", () => ({
+  useMicrophone: () => ({
+    stream: null,
+    state: "idle",
+    error: null,
+    supported: true,
+    start: vi.fn(),
+    stop: vi.fn(),
+  }),
+}));
+
+/**
+ * The voice call, as a session this test sets (#54). What is under test is what
+ * the container does with a call - where the bar goes, what the button starts,
+ * how saved turns reach the transcript - not the socket (`use-voice-session.test.tsx`).
+ */
+const voiceCall = vi.hoisted(() => ({
+  call: null as unknown,
+  start: vi.fn(),
+  end: vi.fn(),
+  dismiss: vi.fn(),
+  options: {} as { onTurnSaved?: () => void; onConversation?: (id: string) => void },
+}));
+vi.mock("@/hooks/use-voice-session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-voice-session")>()),
+  useVoiceSession: (options: typeof voiceCall.options) => {
+    voiceCall.options = options;
+    return {
+      call: voiceCall.call,
+      localStream: null,
+      remoteStream: null,
+      start: voiceCall.start,
+      end: voiceCall.end,
+      setMuted: vi.fn(),
+      pressToTalk: vi.fn(),
+      decide: vi.fn(),
+      dismissUnavailable: vi.fn(),
+      dismiss: voiceCall.dismiss,
+    };
+  },
+}));
+
+/** The active organization, with server dictation set up unless told otherwise. */
+const organization = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+
+/** What `GET /agents/{id}/dictation` answers for every agent. */
+const readiness = vi.hoisted(() => ({
+  current: {
+    engine: "server",
+    requested: true,
+    server_available: true,
+    unavailable: null,
+    max_seconds: 300,
+    provider: "openai",
+    format: "wav",
+  } as Record<string, unknown>,
+}));
 
 const { socket } = vi.hoisted(() => ({
   socket: { onMessage: null as ((event: MessageEvent) => void) | null, send: vi.fn() },
@@ -127,8 +248,28 @@ beforeEach(() => {
             is_app_admin: false,
             permissions: [],
           })
-        : Promise.resolve({ items: [], total: 0 }),
+        : url === "/orgs" && organization.current !== null
+          ? Promise.resolve({ items: [organization.current], total: 1 })
+          : /^\/agents\/[^/]+\/dictation$/.test(url)
+            ? Promise.resolve(readiness.current)
+            : Promise.resolve({ items: [], total: 0 }),
   );
+  organization.current = null;
+  readiness.current = {
+    engine: "server",
+    requested: true,
+    server_available: true,
+    unavailable: null,
+    max_seconds: 300,
+    provider: "openai",
+    format: "wav",
+  };
+  dictation.phase = "idle";
+  dictation.reason = null;
+  dictation.upload = null;
+  dictation.inserted = false;
+  dictation.format = undefined;
+  dictation.send = undefined;
   useAuthStore.setState({
     accessToken: "t-1",
     user: SIGNED_IN as never,
@@ -136,8 +277,120 @@ beforeEach(() => {
   });
   useOrgStore.setState({ activeOrgId: "org-1" });
   useAgentSelectionStore.setState({ selectedAgentId: null });
+  useComposerIntentStore.setState({ intent: null, shared: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  voiceCall.call = initialCall;
+});
+
+describe("the chat container - following the transcript", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    scrollTo.mockClear();
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "m-1",
+        role: "user",
+        content: "Send the invoice",
+        timestamp: new Date(),
+      }),
+    );
+    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
+    // around the chat is one: during a call it scrolled the whole chat up and out.
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollTo.mockRestore();
+    scrollIntoView.mockRestore();
+  });
+
+  /**
+   * Every ResizeObserver the chat makes, so a test can say an element changed
+   * size. The dock's height is padding under the transcript, not content, so
+   * the transcript's own observer never hears of it.
+   */
+  function observeSizes() {
+    const observers: { grew: () => void; targets: Element[] }[] = [];
+    class FakeResize {
+      private readonly seen: { grew: () => void; targets: Element[] };
+      constructor(callback: () => void) {
+        this.seen = { grew: callback, targets: [] };
+        observers.push(this.seen);
+      }
+      observe(element: Element) {
+        this.seen.targets.push(element);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResize);
+    return observers;
+  }
+
+  /**
+   * The transcript's scroller, a screen long and scrolled to its end, and the
+   * dock over it. With a message in it: an empty conversation reads from its top
+   * and is not followed at all.
+   */
+  async function scrollerAndDock() {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "m-1",
+        role: "user",
+        content: "Send the invoice",
+        timestamp: new Date(),
+      }),
+    );
+    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const scroller = dock.previousElementSibling as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    return { dock, scroller };
+  }
+
+  function growDock(observers: ReturnType<typeof observeSizes>, dock: HTMLElement): void {
+    Object.defineProperty(dock, "offsetHeight", { configurable: true, value: 148 });
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
+    });
+  }
+
+  it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    scroller.scrollTop = 1500;
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(2000);
+  });
+
+  it("leaves a reader who scrolled up where they are when the dock grows", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    // From the foot, then up: a scroll up is what lets go.
+    scroller.scrollTop = 1500;
+    fireEvent.scroll(scroller);
+    scroller.scrollTop = 200;
+    fireEvent.scroll(scroller);
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(200);
+  });
 });
 
 describe("the chat container - delegation panels across a conversation switch", () => {
@@ -233,6 +486,404 @@ describe("the chat container - delegation panels across a conversation switch", 
     expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
     expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
+  });
+});
+
+describe("the chat container - server dictation", () => {
+  beforeEach(() => {
+    organization.current = {
+      id: "org-1",
+      name: "Acme",
+      dictation_max_seconds: 300,
+    };
+    // The engine is the agent's: its readiness says `server` once it is read.
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+  });
+
+  it("shows the pill above the box while the recording is transcribed", async () => {
+    dictation.phase = "transcribing";
+    mount();
+
+    // The pill floats once the agent's engine is read; nothing glows under the box.
+    expect(await screen.findByText("0:42 of audio")).toBeInTheDocument();
+    expect(screen.getByTestId("floating-pill")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-glow")).toBeNull();
+  });
+
+  it("counts the upload in the pill", async () => {
+    dictation.phase = "transcribing";
+    dictation.upload = 42;
+    mount();
+
+    expect(await screen.findByText("Uploading 42%")).toBeInTheDocument();
+  });
+
+  it("shows no note for the words that landed: they are in the box", async () => {
+    // `ChatInput`'s status region tells a screen reader "Inserted 2 words".
+    dictation.inserted = true;
+    mount();
+
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByText("Inserted 2 words")).not.toBeInTheDocument();
+  });
+
+  it("puts a failure in the strip on top of the box, which loses its top corners", async () => {
+    dictation.phase = "failed";
+    dictation.reason = "provider_error";
+    mount();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Transcription didn't finish.");
+    expect(document.querySelector('[data-tour="chat-composer"]')).toHaveClass("rounded-t-none");
+  });
+
+  it("tells the recorder the format the agent's readiness names", async () => {
+    // A deployment that accepts compressed audio, and an agent on a provider
+    // that takes WebM: the backend says so, not a list of providers kept here.
+    organization.current = { ...organization.current, speech_to_text_provider: "openai" };
+    readiness.current = { ...readiness.current, provider: "groq", format: "webm" };
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    await waitFor(() => expect(dictation.format).toBe("webm"));
+    expect(get).toHaveBeenCalledWith("/agents/a-1/dictation");
+  });
+
+  it("records PCM WAV and has nowhere to send before an agent is chosen", () => {
+    organization.current = null;
+    useAgentSelectionStore.setState({ selectedAgentId: null });
+    mount();
+
+    expect(dictation.format).toBe("wav");
+    expect(dictation.send).toBeNull();
+  });
+
+  it("sends a recording to the agent chosen", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    const recording = new Blob(["a"], { type: "audio/webm" });
+
+    const onProgress = vi.fn();
+
+    await expect(
+      dictation.send!(recording, 2, new AbortController().signal, onProgress),
+    ).resolves.toBe("hello");
+    expect(upload).toHaveBeenCalledWith("/agents/a-1/dictation", expect.any(FormData), {
+      signal: expect.any(AbortSignal),
+      onProgress,
+    });
+  });
+
+  it("offers the microphone once the agent's readiness says yes", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    const mic = await screen.findByRole("button", { name: "Voice input" });
+    await waitFor(() => expect(mic).not.toHaveAttribute("aria-disabled"));
+  });
+
+  it("takes what another app shared into the message, once", async () => {
+    useComposerIntentStore.setState({ shared: { id: 7, files: [], text: "from the browser" } });
+    const view = mount();
+
+    await waitFor(() => expect(screen.getByText("from the browser")).toBeInTheDocument());
+    expect(useComposerIntentStore.getState().shared).toBeNull();
+    view.unmount();
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    expect(screen.queryByText("from the browser")).toBeNull();
+  });
+
+  it("starts dictating once when a phone shortcut asked, as soon as the engine is known", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "dictate" });
+    mount();
+
+    await waitFor(() => expect(dictation.start).toHaveBeenCalledOnce());
+    expect(useComposerIntentStore.getState().intent).toBeNull();
+  });
+
+  it("dictates in the browser for an agent whose switch is off or has no provider", async () => {
+    readiness.current = { ...readiness.current, engine: "browser", requested: false };
+    dictation.phase = "transcribing";
+    mount();
+
+    expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
+    expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
+  });
+
+  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
+    readiness.current = { ...readiness.current, engine: "browser", requested: false };
+    class FakeRecognition {
+      start = vi.fn();
+      stop = vi.fn();
+    }
+    vi.stubGlobal("SpeechRecognition", FakeRecognition);
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
+
+    expect(
+      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
+    ).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels a recording when the agent leaves the server engine mid-sentence", async () => {
+    dictation.phase = "recording";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: "Stop and transcribe" });
+    dictation.cancel.mockClear();
+
+    readiness.current = { ...readiness.current, engine: "browser" };
+    await act(() => client.invalidateQueries());
+
+    // The bar with its Stop button is gone, so the recording goes with it.
+    await waitFor(() => expect(dictation.cancel).toHaveBeenCalled());
+    // Gone once the pill has finished leaving.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Stop and transcribe" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("draws no recording pill for the browser engine", async () => {
+    readiness.current = { ...readiness.current, engine: "browser" };
+    dictation.phase = "transcribing";
+    mount();
+
+    expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
+    expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
+  });
+});
+
+describe("the chat container - a voice call (#54)", () => {
+  const READY_VOICE = {
+    available: true,
+    unavailable: null,
+    transport: "webrtc",
+    provider: "openai",
+    model: "gpt-realtime",
+    cap_seconds: 600,
+  };
+  const LIVE_CALL = {
+    ...initialCall,
+    phase: "live",
+    activity: "listening",
+    callId: "c1",
+    conversationId: "c-a",
+    startedAt: Date.now(),
+    capSeconds: 600,
+  };
+
+  /** The call button once the agent's readiness has said yes. */
+  async function offeredCall(): Promise<HTMLElement> {
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start a voice call" })).not.toHaveAttribute(
+        "aria-disabled",
+      ),
+    );
+    return screen.getByRole("button", { name: "Start a voice call" });
+  }
+
+  beforeEach(() => {
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /^\/agents\/[^/]+\/voice$/.test(url) ? Promise.resolve(READY_VOICE) : base(url),
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
+  it("offers no call before an agent is chosen", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  it("starts a call with the selected agent, in the conversation that is open", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    expect(voiceCall.start).toHaveBeenCalledWith({
+      kind: "console",
+      agentId: "a-1",
+      conversationId: "c-a",
+      transport: "webrtc",
+    });
+  });
+
+  it("starts the call a phone shortcut asked for once the agent can take one", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "call" });
+    mount();
+    await waitFor(() => expect(voiceCall.start).toHaveBeenCalledOnce());
+    expect(useComposerIntentStore.getState().intent).toBeNull();
+  });
+
+  it("drops a shortcut's call the agent cannot take, leaving the button to say why", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useComposerIntentStore.setState({ intent: "call" });
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /\/voice$/.test(url)
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_key" })
+        : base(url),
+    );
+    mount();
+    await waitFor(() => expect(useComposerIntentStore.getState().intent).toBeNull());
+    expect(voiceCall.start).not.toHaveBeenCalled();
+  });
+
+  it("crosses the button out, with the reason, for an agent whose voice cannot take a call", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /\/voice$/.test(url)
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_key" })
+        : base(url),
+    );
+    mount();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Start a voice call",
+          description: /This agent's voice has no key/,
+        }),
+      ).toHaveAttribute("aria-disabled", "true"),
+    );
+  });
+
+  it("turns the composer into the call bar while the call is on, so nothing is sent beside it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const { container } = mount();
+    expect(await screen.findByRole("group", { name: "Voice call" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End call" })).toBeInTheDocument();
+    // The composer is still mounted, so a draft survives the call - and closed.
+    expect(container.querySelector('button[type="submit"]')).toBeDisabled();
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("reads the transcript again in place as each spoken turn is saved", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    get.mockClear();
+    const loading = vi.fn();
+    const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
+    act(() => voiceCall.options.onTurnSaved?.());
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-a/messages"));
+    stop();
+    // Not the select path: nothing is cleared and no skeleton is drawn.
+    expect(loading).not.toHaveBeenCalledWith(true);
+  });
+
+  it("opens the conversation a call started, and keeps reading it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => voiceCall.options.onConversation?.("c-new"));
+    expect(useConversationStore.getState().currentConversationId).toBe("c-new");
+    get.mockClear();
+    act(() => voiceCall.options.onTurnSaved?.());
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-new/messages"));
+    expect(voiceCall.end).not.toHaveBeenCalled();
+  });
+
+  it("hangs a call up when another conversation is opened", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-b"));
+    expect(voiceCall.end).toHaveBeenCalled();
+    expect(voiceCall.dismiss).toHaveBeenCalled();
+    // A saved turn from the old call no longer reloads the conversation on screen.
+    get.mockClear();
+    act(() => voiceCall.options.onTurnSaved?.());
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages");
+  });
+
+  it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-b"));
+    expect(voiceCall.end).toHaveBeenCalled();
+    // The server naming the call's conversation afterwards does not pull the person back.
+    act(() => voiceCall.options.onConversation?.("c-new"));
+    expect(useConversationStore.getState().currentConversationId).toBe("c-b");
+  });
+
+  /** The container, and a way to draw it again once the test changed the call. */
+  function mountRedrawable() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = () => (
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>
+    );
+    const view = render(tree());
+    return () => view.rerender(tree());
+  }
+
+  it("puts focus back on the call button when the call ends, if the bar took it with it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const redraw = mountRedrawable();
+    await offeredCall();
+    expect(await screen.findByRole("group", { name: "Voice call" })).toHaveFocus();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toHaveFocus();
+  });
+
+  it("leaves focus where the person put it during the call", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const redraw = mountRedrawable();
+    await offeredCall();
+    const elsewhere = document.createElement("input");
+    document.body.appendChild(elsewhere);
+    elsewhere.focus();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(elsewhere).toHaveFocus();
+    elsewhere.remove();
+  });
+
+  it("goes to the message box after ending a call to continue in text", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = {
+      ...LIVE_CALL,
+      approvalUnavailable: { tool: "send_invoice", args: { customer: "Acme" } },
+    };
+    const redraw = mountRedrawable();
+    await offeredCall();
+    fireEvent.click(screen.getByRole("button", { name: "End call, continue in text" }));
+    expect(voiceCall.end).toHaveBeenCalled();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("shows the call's turns as they are spoken, without an empty state behind them", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = {
+      ...LIVE_CALL,
+      captions: [{ turnId: "c1:1:user", part: 0, role: "user", text: "Hello there", final: false }],
+    };
+    mount();
+    expect(await screen.findByTestId("voice-captions-visible")).toHaveTextContent("Hello there");
   });
 });
 
@@ -455,6 +1106,40 @@ describe("the chat container - an answer still being written after its person le
     });
 
     await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
+  });
+
+  it("says nothing of an answer left behind while this tab holds the call that is the run", async () => {
+    // A call is a run in its conversation, and while the agent thinks the last
+    // spoken turn is the caller's: that is not a turn somebody walked away from.
+    voiceCall.call = { ...initialCall, phase: "live", callId: "call-1", startedAt: Date.now() };
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Write me a rollout plan",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+
+    // The list that says the run is at work has been read.
+    await vi.waitFor(
+      () =>
+        expect(get.mock.calls.some(([url]) => String(url).startsWith("/conversations?"))).toBe(
+          true,
+        ),
+      SETTLE,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByText(/still answering when you left/)).toBeNull();
   });
 
   it("says the opened chat was seen, though nothing in it was unread", async () => {

@@ -24,6 +24,12 @@ A spreadsheet in, a published page out. The agent read the CSV with Python, work
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
 
+### A voice call
+
+The composer turned into a call bar: what the call is doing, its time against the limit, a waveform of both voices, mute, push to talk and End. The conversation goes on above it - captions inside the message being spoken, tool runs, and an approval card with the exact arguments and what you were heard to say.
+
+> **Screenshot pending — A voice call.**
+
 ## Building an agent
 
 ### Agents

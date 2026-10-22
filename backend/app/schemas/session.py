@@ -1,9 +1,14 @@
 """Session schemas."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
+from pydantic import Field
+
 from app.schemas.base import BaseSchema
+
+AppPlatform = Literal["macos", "windows", "linux", "ios", "android"]
 
 
 class SessionRead(BaseSchema):
@@ -14,8 +19,19 @@ class SessionRead(BaseSchema):
     device_type: str | None = None
     ip_address: str | None = None
     is_current: bool = False
+    app_platform: str | None = None
+    """The AgenticOS app this session signed in through (`AppPlatform`), or null
+    for a browser. Validated where it is written, `SessionAppUpdate`."""
+    app_version: str | None = None
     created_at: datetime
     last_used_at: datetime
+
+
+class SessionAppUpdate(BaseSchema):
+    """What the console tells the server when it is loaded inside an AgenticOS app."""
+
+    platform: AppPlatform
+    version: str = Field(min_length=1, max_length=32, pattern=r"^[0-9A-Za-z.+-]+$")
 
 
 class SessionListResponse(BaseSchema):

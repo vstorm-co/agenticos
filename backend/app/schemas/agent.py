@@ -515,6 +515,12 @@ class CapabilityCatalogEntry(BaseSchema):
         ),
     )
     scopes: list[str]
+    voice: Literal["live", "hand_off", "never"] = Field(
+        description=(
+            "How this capability takes part in a voice call: `live` on the call's own model, "
+            "`hand_off` in the agent's text model the call hands a task to, `never` not at all"
+        )
+    )
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,
         description=(

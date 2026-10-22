@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core.config import settings
 from app.core.sanitize import (
     PinnedAddress,
     SSRFBlockedError,
@@ -307,6 +308,66 @@ class TestEveryRefusalIsWrittenHere:
     def test_the_pinned_resolver_refuses_in_the_same_type(self, url: str):
         with pytest.raises(UrlRefusedError):
             resolve_pinned_url(url)
+
+    @pytest.mark.parametrize("url", [url for url in _REFUSED if url != "http://127.0.0.1/hook"])
+    def test_a_trusted_host_is_refused_in_the_same_type_for_its_form(self, url: str):
+        """The exemption waives the address check and nothing before it, so a
+        trusted host still meets every form refusal, written here."""
+        with pytest.raises(UrlRefusedError):
+            validate_webhook_url(url, trusted_hosts=frozenset({"example.com", "8.8.8.8", "::1"}))
+
+
+# validate_webhook_url - hosts the caller vouched for
+
+
+class TestTrustedHosts:
+    """`trusted_hosts` waives the address check for hosts the caller names.
+
+    The caller is `app.agents.mcp.validate_mcp_url`, for the hosts an operator
+    listed in `MCP_ALLOWED_HOSTS`. A trusted host is never resolved: the
+    resolution exists only so the address check can fail closed.
+    """
+
+    @staticmethod
+    def _recording(asked: list[str]):
+        def fake_getaddrinfo(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            asked.append(host)
+            return [(2, 1, 6, "", ("10.0.0.9", port))]
+
+        return fake_getaddrinfo
+
+    def test_a_trusted_private_literal_passes(self):
+        url = "http://10.0.0.5:8000/mcp"
+        assert validate_webhook_url(url, trusted_hosts=frozenset({"10.0.0.5"})) == url
+
+    def test_a_trusted_name_passes_without_being_resolved(self):
+        asked: list[str] = []
+        url = "http://postgres-mcp:8000/mcp"
+        with patch("app.core.sanitize.socket.getaddrinfo", self._recording(asked)):
+            assert validate_webhook_url(url, trusted_hosts=frozenset({"postgres-mcp"})) == url
+
+        assert asked == []
+
+    def test_a_name_nobody_trusted_is_resolved_and_refused_as_before(self):
+        asked: list[str] = []
+        with (
+            patch("app.core.sanitize.socket.getaddrinfo", self._recording(asked)),
+            pytest.raises(SSRFBlockedError, match="other-mcp"),
+        ):
+            validate_webhook_url(
+                "http://other-mcp:8000/mcp", trusted_hosts=frozenset({"postgres-mcp"})
+            )
+
+        assert asked == ["other-mcp"]
+
+    def test_the_default_trusts_no_host_the_deployment_listed(self, monkeypatch):
+        """`sanitize.py` never reads `MCP_ALLOWED_HOSTS`: only a caller that passes
+        `trusted_hosts` waives the address check, so a browser sign-in session
+        and every other direct caller stay strict."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.5"])
+
+        with pytest.raises(SSRFBlockedError):
+            validate_webhook_url("http://10.0.0.5:8000/mcp")
 
 
 # SSRFBlockedError is a subclass of ValueError

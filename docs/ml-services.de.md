@@ -1,5 +1,5 @@
 ---
-source_sha: "f761c7242a73"
+source_sha: "d3a18b2e5b08"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -125,25 +125,220 @@ als bei der Ingestion, weil hier jemand wartet und auf eine Ingestion niemand.
 
 ### Spracherkennung { #speech-to-text }
 
-`POST /api/v1/ml/audio/transcriptions` transkribiert eine Aufnahme auf den
-eigenen Zugangsdaten der Organisation. `provider` und `model` benennen, was
-benutzt wird; lässt man **beide** weg, wird das erste angebotene Paar des
-Deployments genommen, und nennt man einen Anbieter ohne Modell, dessen erstes
-Modell. Was nie passiert: auf den Standardanbieter zurückzufallen, obwohl ein
-Anbieter genannt wurde — so landet eine Aufnahme, die für eine selbst gehostete
-Engine gedacht war, bei einem Anbieter.
+`POST /api/v1/ml/audio/transcriptions` transkribiert eine Aufnahme mit einem
+Schlüssel aus dem Vault der Organisation. `provider` und `model` benennen, was
+benutzt wird; lässt man **beide** weg, wird die Spracherkennungs-Voreinstellung
+der Organisation von der [Voice-Karte](console.md#the-voice-card) genommen, ohne
+eine solche das erste angebotene Paar des Deployments, und nennt man einen
+Anbieter ohne Modell, dessen erstes Modell. Was nie passiert: auf den
+Standardanbieter zurückzufallen, obwohl ein Anbieter genannt wurde.
 
 Eine Aufnahme unterliegt außerdem der eigenen 25-MB-Grenze des
 Transkriptionsclients, auch wenn `ML_MAX_UPLOAD_SIZE_MB` höher steht - eine zu
 große Aufnahme wird also als zu groß abgelehnt, statt die Engine zu erreichen und
-als 503 über Zugangsdaten zurückzukommen.
+als 503 über einen Schlüssel zurückzukommen.
 
-Die Engine ist jener Endpunkt, den das model profile der Organisation für diesen
-Anbieter benennt. Das ist die Antwort für ein Deployment, das kein Audio an einen
-Anbieter senden darf: das Profil auf einen selbst gehosteten Server richten, der
-dieselbe API spricht, und der Endpunkt hier bleibt unverändert. Eine Organisation
-ohne brauchbare Zugangsdaten wird abgelehnt, und die Ablehnung sagt es — nichts
-wird als vorhanden angenommen, was ein Betreiber nicht konfiguriert hat.
+**Der Schlüssel wird benannt, nie gesucht.** `secret_id` benennt den
+Vault-Schlüssel, mit dem die Aufnahme gesendet wird: einen API-Schlüssel, dessen
+Zweck der Anbieter ist und den der Aufrufer sehen kann. Fehlt er, wird der
+Standardschlüssel der Organisation benutzt, aber nur für den Anbieter, für den er
+gewählt wurde; jeder andere Anbieter ohne `secret_id` wird als `not_configured`
+abgelehnt. Ein Schlüssel für einen anderen Anbieter, einer anderen Art oder einer,
+den der Aufrufer nicht sieht, wird am Feld `secret_id` abgelehnt. Der
+`OPENAI_API_KEY` des Deployments wird nie benutzt.
+
+Jede Ebene, die Spracherkennung einrichtet, funktioniert gleich: Das Modell ist
+eine Wahl aus dem Spracherkennungskatalog, und der Schlüssel ist ein daneben
+benanntes Vault-Secret. Kein model profile wird gelesen - Profile sind das, was
+ein Text-Run nutzt -, und nichts wählt einen Schlüssel, nur weil er zufällig der
+einzige für einen Anbieter ist. Bei zwei OpenAI-Schlüsseln im Vault zahlt der
+benannte.
+
+!!! note "Noch kein selbst gehosteter Spracherkennungsserver"
+
+    Jeder Anbieter im Katalog wird unter seiner eigenen Adresse erreicht, mit
+    einem Schlüssel. Ein schlüsselloser Server im eigenen Netz - ein Whisper
+    hinter einer OpenAI-kompatiblen API - ist heute nicht erreichbar. Das ist ein
+    geplanter Folgeschritt: ein [lokaler Dienst](configuration.md) einer neuen
+    Art, `speech`, benannt anstelle eines Schlüssels, so wie Collections schon
+    einen Embedding- oder OCR-Server benennen.
+
+Eine Ablehnung sagt in `details.reason`, warum, hier wie beim
+[Diktieren](#dictation-in-chat). Der eigene Fehlertext des Anbieters wird
+protokolliert und nie zurückgegeben, denn ein Anbieter-Client schreibt die
+Anfrage-URL samt Schlüssel in seine Meldung.
+
+| `reason` | Status | Was passiert ist |
+|---|---|---|
+| `not_configured` | 503 | Für den Anbieter ist kein brauchbarer Schlüssel benannt - keiner gewählt, gelöscht oder auf dieser Ebene nicht mehr zulässig; beim Diktieren auch: Server-Diktat nicht eingerichtet |
+| `empty` | 400 | Die Engine hat keine Sprache gehört, oder die Aufnahme hat keine Bytes |
+| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WAV mit 16 kHz, Mono und 16-Bit-PCM - oder, wo das Deployment komprimiertes Audio annimmt, kein WebM, Ogg oder MP4 -, oder auf einer gehosteten Seite oder in einem Widget lässt sich die Länge einer komprimierten Aufnahme nicht lesen. `details.accepted` listet die angenommenen Typen |
+| `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation in Bytes oder in gemessener Länge; `details.limit_seconds` nennt die Grenze |
+| `provider_error` | 503 | Der Anbieter hat die Anfrage abgelehnt oder ist daran gescheitert |
+| `timeout` | 503 | Der Anbieter hat nicht innerhalb von 60 Sekunden geantwortet |
+
+#### Diktieren im Chat { #dictation-in-chat }
+
+`POST /api/v1/agents/{agent_id}/dictation` ist das Mikrofon im
+[Eingabefeld von `/chat`](console.md#dictation), wenn die Organisation auf dem
+Server transkribiert. Es nimmt eine Aufnahme als `file` und antwortet mit
+`{"text": "..."}`, das das Eingabefeld zum Bearbeiten einsetzt; gesendet wird
+nichts, bis die Person auf Senden drückt. Der Aufrufer nennt weder Anbieter
+noch Modell noch Sprache — die [lösen sich](#which-engine-a-recording-reaches)
+aus dem Agent und der Organisation auf — und die Person darf jedem Agent
+diktieren, den sie ausführen darf, ein Viewer mit einem
+`use`-Grant darauf eingeschlossen. Ein Agent, den sie nicht ausführen darf,
+antwortet mit 404, wie überall sonst.
+
+**Der Schalter gehört dem Agent.** Eine Aufnahme wird nur transkribiert, solange
+der veröffentlichte Diktier-Schalter des Agents, `speech_to_text.dictation`, an
+ist; aus, nutzt der Composer die Spracherkennung des Browsers, und eine trotzdem
+gesendete Aufnahme wird als `not_configured` abgelehnt, wie für einen
+archivierten Agent. Anbieter, Modell und Schlüssel
+[lösen sich](#which-engine-a-recording-reaches) dann aus Agent und Organisation
+auf. Aus der Organisation, eingestellt auf der
+[Karte Stimme (Voice)](console.md#the-voice-card) von jemandem mit
+`org:settings`, kommen `speech_to_text_provider` und `speech_to_text_model` (ein
+Paar aus dem Speech-to-Text-Katalog), `speech_to_text_language` (ein
+ISO-639-1-Code, oder null, damit die Engine ihn erkennt) und
+`dictation_max_seconds` (10 bis 600, standardmäßig 300), das nur die
+Organisation festlegt.
+
+`GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, wie das
+Mikrofon transkribieren wird, bevor jemand aufnimmt: `engine` (`server` oder
+`browser`), `requested` (der Schalter des Agents), `server_available`,
+`unavailable`, `max_seconds`, `provider` und `format`. `server_available`
+verlangt ein Paar, das sich für diesen Agent auflöst, einen Katalog, der es noch
+anbietet, und einen brauchbaren Schlüssel, der neben dem Paar benannt ist - auf
+sein Vorhandensein geprüft, nie geöffnet; `engine` ist `server`, wenn das gilt,
+der Schalter an ist und der Agent nicht archiviert ist, und sonst `browser`.
+
+Ist es falsch,
+sagt `unavailable`, was fehlt: `no_provider` (keine Ebene benennt ein Paar),
+`not_offered` (der Katalog hat es zurückgezogen) oder `no_key` (kein brauchbarer
+Schlüssel benannt - einen wählen).
+Das Embed-Formular liest `server_available`, denn eine
+[gehostete Seite oder ein Widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+hängt nicht am `/chat`-Schalter des Agents.
+
+`provider` ist der Anbieter, den eine Aufnahme erreichen würde, und `format`,
+worin für ihn aufgenommen wird: `wav`, es sei denn, das Deployment
+[nimmt komprimiertes Audio an](deployment.md#what-a-dictation-may-be-uploaded-as)
+und der Speech-to-Text-Katalog sagt, dass der Anbieter nimmt, was
+`MediaRecorder` erzeugt - dann `webm`. Das wird hier entschieden, sodass kein
+Client eine eigene Liste führt. Ein Agent ohne veröffentlichte Version
+antwortet aus den Einstellungen der Organisation.
+
+**Standardmäßig ist ein Diktat rohes PCM**: `audio/wav` (oder `audio/x-wav`,
+`audio/wave`) mit 16 kHz, Mono und 16-Bit-Integer-PCM, das jeder Browser über
+Web Audio aufnimmt. Die Datei wird streng gelesen - ein `fmt `-Chunk, der genau
+das sagt, ein `data`-Chunk aus ganzen Samples, Größen, die zur Datei passen -,
+und jedes andere WAV, auch ein Stereo-, 48-kHz-, 24-Bit- oder Float-WAV, wird
+als `unsupported_type` abgelehnt. Der Anbieter bekommt die gezählten Samples
+hinter einem Header, den der Server baut, nie den Header des Aufrufers oder
+einen anderen Chunk der Datei, als `recording.wav`.
+
+Wo das Deployment komprimiertes Audio annimmt, werden auch `audio/webm`,
+`audio/ogg` und `audio/mp4` angenommen, ein Codec-Suffix ist erlaubt, und
+`audio/x-m4a` und `audio/m4a` werden als `audio/mp4` gelesen, `audio/opus`
+sowie `audio/x-ogg` als `audio/ogg`. Sie erzeugt `MediaRecorder` in Browsern,
+und der Anbieter erhält sie als `recording.webm`, `recording.ogg` oder
+`recording.m4a`, nach derselben Tabelle, die eine Sprachnotiz aus einem Kanal
+`voice.<ext>` nennt.
+
+Die Route liest höchstens 25 MB des Bodys; die Byte-Grenze der Organisation -
+die Bytes, die `dictation_max_seconds` plus drei Sekunden PCM belegen, 32.000
+pro Sekunde, und 4 KB für den Container - gilt für das Gelesene. Ein Body, den die
+Anfragegrenze des Deployments ablehnt, bevor die Route läuft, bekommt 413 ohne
+`reason`, was das Eingabefeld als `too_large` liest.
+
+Dann wird **die Länge gemessen**, bevor der Provider aufgerufen wird, und eine
+Aufnahme, die länger als `dictation_max_seconds` ist, wird als `too_large`
+abgelehnt, mit drei Sekunden Spielraum, weil das Eingabefeld im Sekundentakt
+stoppt. Bei PCM ist die Länge die gezählten Samples, exakt. Die einer
+komprimierten Aufnahme wird aus ihrem eigenen Header gelesen - der letzten
+Ogg-Seite, den Zeitstempeln der WebM-Blöcke, den Movie- oder Fragment-Headern
+von MP4 -, den eine von Hand gebaute Datei zu kurz angeben kann. Eine, deren
+Länge sich nicht lesen lässt, wird hier innerhalb der Byte-Grenze angenommen;
+[eine gehostete Seite oder ein Widget](channels.md#what-it-costs-and-what-bounds-it)
+lehnt sie ab.
+
+Jede Person darf `RATE_LIMIT_DICTATION_PER_MINUTE`-mal pro Minute diktieren,
+standardmäßig 10, auf einem eigenen Zähler, sodass Diktieren nicht das
+ML-Kontingent einer Integration verbraucht. Jedes Diktat hinterlässt einen
+[Aufrufdatensatz](#what-is-recorded), unter `speech_to_text` und in Sekunden
+Audio gezählt - bei PCM die gezählte Länge. Das Eingabefeld schickt die
+aufgenommene Länge als Formularfeld `duration` neben `file`, das nur für eine
+komprimierte Aufnahme verwendet wird, für die nichts anderes eine Länge angibt.
+
+**Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
+zurückkehrt, und der Text existiert nur in der Antwort. Abbrechen im Browser
+bricht eine bereits gesendete Aufnahme nicht ab — der Anbieter transkribiert sie
+trotzdem, stellt sie dem Konto der Organisation in Rechnung, und der Aufruf wird
+aufgezeichnet.
+
+!!! note "Bei Mistral nimmt der Browser immer WAV auf, und es werden weniger Sprachen transkribiert"
+
+    Mistral dokumentiert für Voxtral WAV- und MP3-Eingaben, nicht WebM oder
+    Opus, was Chrome und Firefox aufnehmen. Ist Mistral der Anbieter, auf den
+    sich eine Aufnahme auflöst, nimmt das Eingabefeld deshalb in jedem Browser
+    WAV mit 16 kHz, Mono und 16 Bit auf, auch wo das Deployment komprimiertes
+    Audio annimmt. Ein PCM-Upload ist etwa doppelt so groß wie das WebM, das er
+    ersetzt — 32.000 Bytes pro Sekunde —, und die Längengrenze ist dieselbe.
+
+    Die Sprachliste ist die von Whisper, die OpenAI und Groq akzeptieren.
+    Mistral nennt 13 Sprachen für Voxtral, sodass eine festgelegte Sprache, die
+    er nicht nimmt, als `provider_error` zurückkommt. Bei Mistral die Sprache
+    auf automatischer Erkennung lassen und eine Aufnahme ausprobieren, bevor man
+    sich darauf verlässt.
+
+#### Welche Engine eine Aufnahme erreicht { #which-engine-a-recording-reaches }
+
+Drei Stellen können eine Speech-to-Text-Engine nennen: die
+[Karte Stimme (Voice)](console.md#the-voice-card) der Organisation, die
+[`speech_to_text`](reference/spec.md#speech-to-text)-Überschreibung eines Agents,
+eingestellt auf seiner eigenen [Karte Stimme (Voice)](console.md#an-agents-voice-card)
+und live, sobald er veröffentlicht ist, und ein
+[Kanal-Bot](channels.md#what-every-channel-shares). Sie lösen sich in zwei
+Hälften auf:
+
+| Was | Kommt von der ersten Stelle, die es setzt |
+|---|---|
+| Anbieter, Modell und Schlüssel, zusammen | Der Bot, dann der Agent, dann die Organisation |
+| Sprache | Der Agent, dann die Organisation, dann erkennt die Engine sie |
+
+**Der Schlüssel reist mit seinem Paar.** Jede Ebene benennt einen Schlüssel neben
+ihrem eigenen Anbieter und Modell, und die drei lösen sich als Einheit auf: Ein
+Agent mit eigenem Paar sendet es mit seinem eigenen Schlüssel, nie mit dem der
+Organisation. Ein Schlüssel erreicht also nie einen Anbieter, der ihn nicht
+ausgestellt hat. Welche Schlüssel eine Ebene benennen darf:
+
+| Ebene | Der Schlüssel muss sein |
+|---|---|
+| Die Voreinstellung der Organisation | Ein API-Schlüssel für den Anbieter, **für die ganze Organisation sichtbar** - die Plattform gibt ihn für alle aus. Geprüft beim Speichern der Voice-Karte und erneut bei jeder Aufnahme |
+| Das eigene Paar eines Kanal-Bots | Ebenso: organisationsweit sichtbar, denn die Sprachnachrichten eines Bots werden für jeden bezahlt, der ihm schreibt |
+| Die Überschreibung eines Agents | Ein API-Schlüssel für den Anbieter, den der Veröffentlichende sehen kann - die Regel, der jeder Schlüssel in einer Agent-Spec folgt. Geprüft beim Veröffentlichen |
+
+Ein Schlüssel, der nach der Wahl auf Organisations- oder Bot-Ebene privat wird,
+wird nicht mehr benutzt, statt weiter für die Aufnahmen anderer zu zahlen. Ein
+gelöschter Schlüssel leert den Verweis auf diesen beiden Ebenen, und die Spec
+eines Agents behält die ID, bis sie mit einem anderen neu veröffentlicht wird:
+So oder so sagen die Voice-Karte und die Bereitschaftsprüfung „Schlüssel
+wählen“, und Aufnahmen werden als `not_configured` abgelehnt, bis jemand das tut.
+
+Ein polnischer Agent in einer auf Englisch eingerichteten Organisation legt also
+`language: pl` fest und behält Anbieter und Schlüssel der Organisation. Ein Bot hat keine
+eigene Sprache; die des Agents oder der Organisation gilt auch für sein eigenes
+Paar. Löst sich nichts auf, wird nichts transkribiert: das Diktieren antwortet
+`not_configured`, und ein Bot sagt, dass er nicht zuhören kann.
+
+Das Diktieren liest die veröffentlichte Standardversion des Agents, die, die
+`/chat` ausführt. Ein Bot liest den Agent, den seine Bindung bedient - nie einen
+Agent, den jemand mit `@slug` erwähnt, denn eine Aufnahme wird transkribiert,
+bevor Erwähnungen geroutet werden -, in der Version, die die Umgebung dieser
+Bindung festlegt, der, die der Run benutzen wird. Ein Agent im Entwurf oder
+archiviert hat keine Version, die jemand ausführt, und die Organisation
+antwortet allein.
 
 ### Erkennung personenbezogener Daten { #personal-data-detection }
 
@@ -205,11 +400,62 @@ Dokumentenspeicher gedacht hat. Ein Aufrufdatensatz einer anderen Organisation
 ist nicht auffindbar, genau wie jede andere Zeile auf dieser API.
 
 Nutzung wird in der Einheit gezählt, in der der Dienst arbeitet — Seiten bei
-einem Parse, Zeichen bei einem Scan — und nicht in Geld. Die gelieferten Dienste
-laufen entweder auf den eigenen Maschinen des Betreibers, wo es keinen
-Anbieterpreis gibt, oder auf dem eigenen Anbieterkonto der Organisation, das ihr
-direkt in Rechnung stellt. Eine Zahl, die niemand mit einer Rechnung abgleichen
-kann, ist schlimmer als eine ehrliche Einheitenzählung.
+einem Parse, Zeichen bei einem Scan, Sekunden Audio bei einer Transkription — und
+nicht in Geld. Die gelieferten Dienste laufen entweder auf den eigenen Maschinen
+des Betreibers, wo es keinen Anbieterpreis gibt, oder auf dem eigenen
+Anbieterkonto der Organisation, das ihr direkt in Rechnung stellt. Eine Zahl, die
+niemand mit einer Rechnung abgleichen kann, ist schlimmer als eine ehrliche
+Einheitenzählung. Auf das [Budget](governance.md#budgets) eines Agents wird
+Transkription ebenfalls nicht angerechnet.
+
+### Transkriptionen { #transcriptions }
+
+Sprache zu Text wird auf drei Wegen erreicht, und jeder hinterlässt dieselbe
+Zeile: die API (`surface: api`), [Diktat](#dictation-in-chat) (`chat`) und die
+[Sprachnachrichten eines Kanal-Bots](channels.md#what-every-channel-shares)
+(`channel`). Die Zeile ergänzt `provider` und `model`, die `secret_id` des
+Vault-Schlüssels, mit dem sie gesendet wurde - so wie ein Run seinen Schlüssel
+festhält, damit „welcher Schlüssel kostet am meisten“ eine Antwort hat -, die
+`agent_id`, für die sie war - der Agent, in den diktiert wurde, oder der Agent,
+den der Bot bedient -, die `channel_bot_id` und `audio_ms`, die Länge der
+Aufnahme.
+
+Das Löschen des Schlüssels behält die Zeile und leert ihre
+`secret_id`. Das `requested_by`
+einer Sprachnachricht ist die Person, mit der der Absender verknüpft ist,
+solange sie Mitglied der Organisation ist, oder niemand. Erfasst wird nur eine Aufnahme, die dem Provider übergeben wurde; ein
+ausgeschalteter Bot oder einer ohne Engine zum Erben hat niemanden gefragt.
+
+Die Länge ist die erste bekannte von diesen:
+
+| Quelle | Wer sie liefert |
+|---|---|
+| Die Aufnahme selbst | Nur Diktat: die aus ihrem Container gelesene Länge, wie oben |
+| Die Antwort des Providers | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, angefordert mit `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| Die Metadaten der Plattform | Eine Telegram-Sprachnachricht oder Audiodatei, ein Slack-Clip |
+| Der Browser | Nur Diktat: die `duration`, die das Eingabefeld schickt, begrenzt auf das längste Diktat der Organisation, weil es das Wort des Clients ist |
+
+OpenAIs `gpt-4o-transcribe` und `gpt-4o-mini-transcribe` melden Tokens, keine
+Sekunden, und Mattermost gibt keine Länge an, sodass eine Sprachnachricht dort
+mit diesen Modellen keine hat. Eine erfolgreiche Zeile zählt dann `0` Sekunden
+mit leerem `audio_ms` - ungemessen, nicht still.
+
+`GET /api/v1/ml/calls` filtert außer nach `ml_service` auch nach `agent_id`,
+`channel_bot_id`, `surface`, `since` und `until`, immer innerhalb der
+Organisation des Aufrufers: Die Agent-ID eines anderen Mandanten passt auf
+nichts. Agent, Bot und Weg - als Filter und als Spalten - verlangen `runs:view`,
+wie die Zusammenfassung unten. Mit `ml:invoke` allein wird ein Filter darauf mit
+403 abgelehnt, und die drei kommen in jeder Zeile als null zurück.
+
+`GET /api/v1/ml/calls/summary?days=30` summiert die erfolgreichen
+Transkriptionen über ein Zeitfenster: `seconds` - die eigenen `units` jeder
+Zeile, also die Aufnahme auf die Sekunde aufgerundet, addiert, damit die
+Zusammenfassung zur Liste passt - und `count`, `count_unknown_length` für die Aufnahmen, die die Sekunden auslassen, und
+dasselbe nach Agent, nach Kanal-Bot und nach Weg (`surface`). Es verlangt
+`runs:view`, wie [`GET /spend`](governance.md#what-the-cost-screen-shows), statt
+`ml:invoke`: Die Aufschlüsselung nennt Agents und Bots, die ein Member
+möglicherweise nicht sehen darf. Die [Karte Stimme (Voice)](console.md#the-voice-card) der
+Organisation zeigt es in einer Zeile.
 
 ## Grenzen { #limits }
 

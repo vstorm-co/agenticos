@@ -1,0 +1,396 @@
+/* Onboarding, drawn like a system setup assistant: the window's own material
+   behind it (the shell sets it for its local pages), the app's icon, system
+   type and controls, grouped choices. No colour of its own beyond ink. */
+
+:root {
+  color-scheme: light dark;
+  --label: rgb(0 0 0 / 88%);
+  --secondary: rgb(0 0 0 / 55%);
+  --tertiary: rgb(0 0 0 / 30%);
+  --fill: rgb(255 255 255 / 62%);
+  --fill-hover: rgb(255 255 255 / 85%);
+  --separator: rgb(0 0 0 / 9%);
+  --field: rgb(255 255 255 / 75%);
+  --field-border: rgb(0 0 0 / 14%);
+  --ink: #1d1d1f;
+  --ink-fg: #ffffff;
+  --focus: rgb(0 122 255 / 45%);
+  --error: #d70015;
+  --success: #248a3d;
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 0 0 0.5px rgb(0 0 0 / 6%);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --label: rgb(255 255 255 / 92%);
+    --secondary: rgb(255 255 255 / 58%);
+    --tertiary: rgb(255 255 255 / 28%);
+    --fill: rgb(255 255 255 / 6%);
+    --fill-hover: rgb(255 255 255 / 11%);
+    --separator: rgb(255 255 255 / 9%);
+    --field: rgb(0 0 0 / 22%);
+    --field-border: rgb(255 255 255 / 12%);
+    --ink: #f5f5f7;
+    --ink-fg: #1d1d1f;
+    --focus: rgb(10 132 255 / 55%);
+    --error: #ff453a;
+    --success: #30d158;
+    --shadow: 0 0 0 0.5px rgb(255 255 255 / 8%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Every screen and control is laid out with grid or flex, which would
+   otherwise show what the script hid. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  height: 100%;
+}
+
+/* Transparent: the material is the window's. Where there is none (Linux) the
+   shell paints the window in the mode's own colour behind the page. At least
+   the window's height, so a short screen sits in the middle; a long one - the
+   local set-up form - grows past it and the page scrolls. */
+body {
+  margin: 0;
+  min-height: 100%;
+  padding-block: 3.5rem 2.5rem;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--label);
+  font:
+    13px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI Variable",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.titlebar {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 2.5rem;
+}
+
+main {
+  width: min(27rem, calc(100vw - 4rem));
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+section {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  animation: arrive 420ms var(--ease);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.app-icon {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 1.25rem;
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 18%)) drop-shadow(0 1px 2px rgb(0 0 0 / 12%));
+}
+
+.busy .app-icon {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+}
+
+h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 0 0 1.75rem;
+  color: var(--secondary);
+  font-size: 0.95rem;
+  max-width: 24rem;
+}
+
+button {
+  font: inherit;
+  cursor: default;
+  border: 0;
+  transition:
+    background 160ms,
+    opacity 160ms,
+    transform 160ms var(--ease);
+}
+
+button:active {
+  transform: scale(0.985);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+.primary {
+  min-width: 8.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ink-fg);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.secondary {
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  box-shadow: var(--shadow);
+}
+
+.link {
+  padding: 0.45rem 0.25rem;
+  background: none;
+  color: var(--secondary);
+}
+
+.link:hover {
+  color: var(--label);
+}
+
+/* One rounded group of rows, as System Settings draws a list. */
+.choices {
+  width: 100%;
+  display: grid;
+  border-radius: 12px;
+  background: var(--fill);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0.9rem;
+  text-align: start;
+  background: none;
+  color: var(--label);
+}
+
+.choice + .choice {
+  border-top: 0.5px solid var(--separator);
+}
+
+.choice:hover {
+  background: var(--fill-hover);
+}
+
+.choice-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9px;
+  background: var(--ink);
+}
+
+.choice-icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: none;
+  stroke: var(--ink-fg);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.choice-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.choice-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.choice-hint {
+  color: var(--secondary);
+}
+
+.chevron {
+  margin-inline-start: auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-top: 1.5px solid var(--tertiary);
+  border-right: 1.5px solid var(--tertiary);
+  transform: rotate(45deg);
+}
+
+form {
+  width: 100%;
+  display: grid;
+  gap: 0.35rem;
+  text-align: start;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+label {
+  margin-top: 0.6rem;
+  font-weight: 500;
+}
+
+.optional {
+  color: var(--secondary);
+  font-weight: 400;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0.5px solid var(--field-border);
+  border-radius: 7px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+  font-size: 0.95rem;
+  box-shadow: inset 0 0.5px 1px rgb(0 0 0 / 6%);
+}
+
+.hint {
+  margin: 0.1rem 0 0;
+  color: var(--secondary);
+  font-size: 0.82rem;
+}
+
+.error {
+  margin: 0.75rem 0 0;
+  color: var(--error);
+}
+
+.actions {
+  width: 100%;
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.actions .link {
+  margin-inline-end: auto;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  border-radius: 12px;
+  background: var(--fill);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  text-align: start;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.95rem;
+  color: var(--secondary);
+}
+
+.steps li + li {
+  border-top: 0.5px solid var(--separator);
+}
+
+/* The status mark: a ring waiting, a spinner working, a check done. */
+.steps li::before {
+  content: "";
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--tertiary);
+}
+
+.steps li[data-state="active"] {
+  color: var(--label);
+}
+
+.steps li[data-state="active"]::before {
+  border-color: var(--tertiary);
+  border-top-color: var(--label);
+  animation: spin 0.75s linear infinite;
+}
+
+.steps li[data-state="done"] {
+  color: var(--label);
+}
+
+.steps li[data-state="done"]::before {
+  border: 0;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 100% no-repeat,
+    var(--success);
+}
+
+.steps li[data-state="failed"]::before {
+  border: 0;
+  background: var(--error);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  section,
+  .busy .app-icon,
+  .steps li[data-state="active"]::before {
+    animation: none;
+  }
+}

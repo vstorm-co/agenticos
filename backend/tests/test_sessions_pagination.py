@@ -25,6 +25,8 @@ def _session_row(device: str) -> MagicMock:
     row.device_name = device
     row.device_type = "desktop"
     row.ip_address = "203.0.113.4"
+    row.app_platform = None
+    row.app_version = None
     row.created_at = datetime.now(UTC)
     row.last_used_at = datetime.now(UTC)
     return row

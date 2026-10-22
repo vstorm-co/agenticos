@@ -9,6 +9,8 @@ import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-sp
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
+import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
@@ -87,7 +89,14 @@ export function useAgents({
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
-    queryFn: () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags)),
+    queryFn: () => {
+      const ask = () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags));
+      // The unfiltered list - the chat's picker, an agent's name and face
+      // beside its answers - is kept on the device in the apps (#2097).
+      if (facetCategories.length > 0 || facetTags.length > 0) return ask();
+      return readThrough(includeArchived ? "agents:all" : "agents:active", ask);
+    },
+    networkMode: "offlineFirst",
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -254,8 +263,14 @@ export function useAgent(agentId: string | null) {
   // environment server-side, and the environments cache is not under
   // `qk.agents` - without this the panel keeps naming the pin the publish
   // just moved, right after a dialog said it would move.
+  // Dictation readiness too: it reads the published version's speech-to-text
+  // override, which the publish may just have changed.
   const invalidateEnvironments = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+        invalidateSpeechSettings(queryClient),
+      ]),
     [queryClient, agentId],
   );
 

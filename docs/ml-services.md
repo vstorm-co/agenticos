@@ -118,24 +118,201 @@ ingestion.
 
 ### Speech to text
 
-`POST /api/v1/ml/audio/transcriptions` transcribes a recording on the
-organization's own credential. `provider` and `model` name what to use; omitting
-**both** takes the deployment's first offered pair, and naming a provider without
-a model takes that provider's first model. What it never does is fall back to the
-default provider when a provider was named — that is how a recording meant for a
-self-hosted engine ends up at a vendor.
+`POST /api/v1/ml/audio/transcriptions` transcribes a recording on a key from the
+organization's vault. `provider` and `model` name what to use; omitting
+**both** takes the organization's speech-to-text default from the
+[Voice card](console.md#the-voice-card), or the deployment's first offered pair
+where it has none, and naming a provider without a model takes that provider's
+first model. What it never does is fall back to the default provider when a
+provider was named.
 
 A recording is also held to the transcription client's own 25 MB ceiling even
 where `ML_MAX_UPLOAD_SIZE_MB` is higher, so an over-large recording is refused as
 being over-large rather than reaching the engine and coming back as a 503 about a
-credential.
+key.
 
-The engine is whichever endpoint the organization's model profile for that
-provider names. That is the answer to a deployment that may send no audio to a
-vendor: point the profile at a self-hosted server speaking the same API and the
-endpoint here is unchanged. An organization with no usable credential is
-refused, saying so — nothing is assumed to exist that an operator has not
-configured.
+**The key is named, never looked up.** `secret_id` names the vault key to send
+the recording with: an API key whose purpose is the provider, which the caller
+can view. Omit it and the organization's default key is used, but only for the
+provider that key was chosen for; any other provider without a `secret_id` is
+refused as `not_configured`. A key named for another provider, of another kind,
+or one the caller cannot see is refused on the `secret_id` field. The
+deployment's own `OPENAI_API_KEY` is never used.
+
+Every level that sets up speech to text works the same way: the model is a pick
+from the speech-to-text catalog, and the key is a vault secret named beside it.
+No model profile is read - profiles are what a text run uses - and nothing picks
+a key because it happens to be the only one for a provider. With two OpenAI keys
+in the vault, the one named is the one that pays.
+
+!!! note "No self-hosted speech-to-text server yet"
+
+    Every catalogued provider is reached at its own address, with a key. A
+    keyless server on your own network - a Whisper behind an OpenAI-compatible
+    API - is not reachable today. It is a planned follow-up: a
+    [local service](configuration.md) of a new kind, `speech`, named in place of
+    a key, as collections already name an embedding or an OCR server.
+
+A refusal says why in `details.reason`, here and on
+[dictation](#dictation-in-chat) alike. The provider's own error text is logged
+and never returned, because a provider client puts the request URL, key and
+all, in its message.
+
+| `reason` | Status | What happened |
+|---|---|---|
+| `not_configured` | 503 | No usable key is named for the provider - none chosen, deleted, or no longer one that level may use; for dictation, also server dictation not set up |
+| `empty` | 400 | The engine heard no speech, or the recording has no bytes |
+| `unsupported_type` | 400 | Dictation only: the recording is not 16 kHz mono 16-bit PCM WAV - or, where the deployment accepts compressed audio, WebM, Ogg or MP4 - or, on a hosted page or a widget, a compressed recording's length cannot be read. `details.accepted` lists the types accepted |
+| `too_large` | 400 | Over 25 MB, or over the organization's dictation cap in bytes or in measured length; `details.limit_seconds` names the limit |
+| `provider_error` | 503 | The provider refused or failed the request |
+| `timeout` | 503 | The provider did not answer within 60 seconds |
+
+#### Dictation in chat
+
+`POST /api/v1/agents/{agent_id}/dictation` is the microphone in the
+[`/chat` composer](console.md#dictation), when the organization transcribes on
+the server. It takes one recording as `file` and answers `{"text": "..."}`,
+which the composer puts into the box for the person to edit; nothing is sent
+until they press Send. The caller names no provider, model or language — those
+[resolve](#which-engine-a-recording-reaches) from the agent and the
+organization — and the person may dictate to any agent they may run, a Viewer
+with a `use` grant on it included. An agent they may not run answers 404, as
+everywhere else.
+
+**The switch is the agent's.** A recording is transcribed only while the agent's
+published Dictation switch, `speech_to_text.dictation`, is on; off, the composer
+uses the browser's own recognition, and a recording posted anyway is refused as
+`not_configured`, as it is for an archived agent. The provider, model and key
+then [resolve](#which-engine-a-recording-reaches) from the agent and the
+organization. From the organization, set on the
+[Voice card](console.md#the-voice-card) by somebody holding `org:settings`, come
+`speech_to_text_provider` and `speech_to_text_model` (a pair from the
+speech-to-text catalog), `speech_to_text_language` (an ISO-639-1 code, or null
+to let the engine detect it) and `dictation_max_seconds` (10 to 600, 300 by
+default), which only the organization sets.
+
+`GET /api/v1/agents/{agent_id}/dictation`, with the same access, says how the
+microphone will transcribe before anybody records: `engine` (`server` or
+`browser`), `requested` (the agent's switch), `server_available`,
+`unavailable`, `max_seconds`, `provider` and `format`. `server_available`
+needs a pair that resolves for this agent, the catalog still offering it, and a
+usable key named beside the pair - checked for existence, never opened;
+`engine` is `server` when that holds, the switch is on and the agent is not
+archived, and `browser` otherwise.
+
+Where it is false, `unavailable` says which half is missing:
+`no_provider` (no level names a pair), `not_offered` (the catalog withdrew it) or
+`no_key` (no usable key is named - choose one). The embed form reads
+`server_available`, because a [hosted page or a widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+is not gated by the agent's `/chat` switch.
+
+`provider` is the one a recording would reach, and `format` what to record in
+for it: `wav`, unless the deployment
+[accepts compressed audio](deployment.md#what-a-dictation-may-be-uploaded-as)
+and the speech-to-text catalog says the provider takes what `MediaRecorder`
+makes, in which case `webm`. Decided here, so no client keeps a list of its own.
+An agent with nothing published answers from the organization's settings.
+
+**By default a dictation is raw PCM**: `audio/wav` (or `audio/x-wav`,
+`audio/wave`) holding 16 kHz, mono, 16-bit integer PCM, which every browser
+records from Web Audio. The file is read strictly - one `fmt ` chunk saying
+exactly that, one `data` chunk of whole samples, sizes that agree with the file -
+and any other WAV, a stereo, 48 kHz, 24-bit or float one included, is refused as
+`unsupported_type`. The provider is sent the counted samples behind a header
+the server builds, never the caller's header or any other chunk the file held,
+as `recording.wav`.
+
+Where the deployment accepts compressed audio, `audio/webm`, `audio/ogg` and
+`audio/mp4` are accepted too, a codec suffix allowed, with `audio/x-m4a` and
+`audio/m4a` read as `audio/mp4`, and `audio/opus` and `audio/x-ogg` as
+`audio/ogg`. They are what browsers' `MediaRecorder` produces, and the provider
+receives them as `recording.webm`, `recording.ogg` or `recording.m4a`, from the
+same table that names a channel voice note `voice.<ext>`.
+
+The route reads at most 25 MB of the body; the organization's byte cap - the
+bytes `dictation_max_seconds` plus three seconds of PCM take, 32,000 a second,
+and 4 KB for the container - is applied to what was read. A body the
+deployment's request limit refuses before the route runs answers 413 without a
+`reason`, which the composer reads as `too_large`.
+
+Then the **length is measured** before the provider is called, and a recording
+longer than `dictation_max_seconds` is refused as `too_large`, with three
+seconds' grace because the composer stops on a once-a-second tick. For PCM the
+length is the samples counted, exactly. A compressed recording's is read from
+its own header - the last Ogg page, the WebM block timestamps, the MP4 movie or
+fragment headers - which a file built by hand can understate. One whose length
+cannot be read is accepted here, under the byte cap; a
+[hosted page or a widget](channels.md#what-it-costs-and-what-bounds-it) refuses one.
+
+Each person may dictate `RATE_LIMIT_DICTATION_PER_MINUTE` times a minute, 10 by
+default, on a counter of its own, so dictating does not spend an integration's
+ML quota. Every dictation leaves one [call record](#what-is-recorded), under
+`speech_to_text` and counted in seconds of audio - for PCM, the length counted.
+The composer sends the length it recorded as a `duration` form field beside
+`file`, used only for a compressed recording nothing else states a length for.
+
+**The audio is never stored**: it is discarded when the call returns, and the
+text exists only in the response. Cancelling in the browser does not cancel a
+recording already sent — the provider still transcribes it, bills the
+organization's account for it, and the call is recorded.
+
+!!! note "On Mistral the browser records WAV always, and fewer languages are transcribed"
+
+    Mistral documents WAV and MP3 input for Voxtral, not WebM or Opus, which is
+    what Chrome and Firefox record. So when the provider a recording resolves to
+    is Mistral, the composer records 16 kHz mono 16-bit WAV in every browser
+    even where the deployment accepts compressed audio. A PCM upload is about
+    twice the size of the WebM it replaces - 32,000 bytes a second - and the
+    length limit is the same.
+
+    The language list is Whisper's, which OpenAI and Groq accept. Mistral states
+    13 languages for Voxtral, so a pinned language it does not take comes back
+    as `provider_error`. On Mistral, leave the language on auto-detect and try a
+    recording before relying on it.
+
+#### Which engine a recording reaches
+
+Three places can name a speech-to-text engine: the organization's
+[Voice card](console.md#the-voice-card), an agent's
+[`speech_to_text`](reference/spec.md#speech-to-text) override, set on its own
+[Voice card](console.md#an-agents-voice-card) and live once published, and a
+[channel bot](channels.md#what-every-channel-shares). They resolve in two halves:
+
+| What | Comes from the first that sets it |
+|---|---|
+| Provider, model and key, together | The bot, then the agent, then the organization |
+| Language | The agent, then the organization, then the engine detects it |
+
+**The key travels with its pair.** Each level names a key next to its own
+provider and model, and the three resolve as one: an agent that sets its own
+pair sends it with its own key, and never with the organization's. So a key is
+never sent to a provider it was not issued by. Which keys a level may name:
+
+| Level | The key must be |
+|---|---|
+| The organization's default | An API key for the provider, **visible to the whole organization** - the platform spends it for everybody. Checked when the Voice card is saved, and again per recording |
+| A channel bot's own pair | The same: organization-visible, because a bot's voice notes are paid for on behalf of whoever writes to it |
+| An agent's override | An API key for the provider that the publisher can view, the rule every key an agent spec names follows. Checked at publish |
+
+A key made private after it was chosen at the organization or on a bot stops
+being used, rather than going on paying for other people's recordings. A
+deleted key empties the reference at those two levels, and an agent's spec
+keeps the id until it is republished with another: either way the Voice card
+and the readiness check say "choose a key", and recordings are refused as
+`not_configured` until somebody does.
+
+So a Polish agent in an organization set up for English pins `language: pl` and
+keeps the organization's provider and key. A bot has no language of its own; the
+agent's or the organization's applies to its own pair too. Nothing resolving
+means nothing is transcribed: dictation answers `not_configured`, and a bot says
+it cannot listen.
+
+Dictation reads the agent's published default version, the one `/chat` runs. A
+bot reads the agent its binding serves - never an agent somebody mentions with
+`@slug`, because a recording is transcribed before mentions are routed - at the
+version that binding's
+environment pins, the one the run will use. A draft or archived agent has no
+version anybody runs, and the organization answers alone.
 
 ### Personal data detection
 
@@ -193,10 +370,57 @@ thought of as a document store. A call record another organization made is not
 found, the same way every other row on this API is scoped.
 
 Usage is counted in the unit the service works in — pages for a parse,
-characters for a scan — and not in money. The delivered services either run on
-the operator's own machines, where there is no vendor price, or on the
-organization's own provider account, which bills it directly. A figure nobody
-can reconcile against an invoice is worse than an honest unit count.
+characters for a scan, seconds of audio for a transcription — and not in money.
+The delivered services either run on the operator's own machines, where there is
+no vendor price, or on the organization's own provider account, which bills it
+directly. A figure nobody can reconcile against an invoice is worse than an
+honest unit count. Transcription is not counted against an agent's
+[budget](governance.md#budgets) either.
+
+### Transcriptions
+
+Speech to text is reached three ways, and each leaves the same row: the API
+(`surface: api`), [dictation](#dictation-in-chat) (`chat`) and a
+[channel bot's voice messages](channels.md#what-every-channel-shares)
+(`channel`). The row adds the `provider` and `model`, the `secret_id` of the
+vault key it was sent with - as a run records its key, so "which key costs most"
+has one answer - the `agent_id` it was for - the dictated-to agent, or the agent
+the bot serves - the `channel_bot_id`, and `audio_ms`, the recording's length.
+
+Deleting the key leaves the row and empties its `secret_id`. A voice message's `requested_by` is the
+person the sender is linked to while that person is still a member of the
+organization, or nobody. Only a recording handed to the
+provider is recorded; a bot switched off, or one with no engine to inherit,
+asked nobody.
+
+The length is the first of these that is known:
+
+| Source | Who gives it |
+|---|---|
+| The recording itself | Dictation only: the length read from its container, as above |
+| The provider's answer | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, asked for with `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| The platform's metadata | A Telegram voice note or audio file, a Slack clip |
+| The browser | Dictation only: the `duration` the composer sends, clamped to the organization's longest dictation, because it is the client's word |
+
+OpenAI's `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` report tokens, not
+seconds, and Mattermost states no length, so a voice message there on those
+models has none. A successful row then counts `0` seconds with a null
+`audio_ms` - unmeasured, not silent.
+
+`GET /api/v1/ml/calls` narrows by `agent_id`, `channel_bot_id`, `surface`,
+`since` and `until` as well as `ml_service`, always inside the caller's
+organization: another tenant's agent id matches nothing. The agent, the bot and
+the surface - as filters and as columns - need `runs:view`, like the summary
+below. With `ml:invoke` alone a filter on them is refused with 403, and the
+three come back null on every row.
+
+`GET /api/v1/ml/calls/summary?days=30` adds up the successful transcriptions
+over a window: `seconds` - each row's own `units`, the recording rounded up to
+the second, added up, so the summary agrees with the listing - and `count`,
+`count_unknown_length` for the recordings the seconds leave out, and the same by agent, by channel bot and by surface. It
+needs `runs:view`, as [`GET /spend`](governance.md#what-the-cost-screen-shows) does, rather than
+`ml:invoke`: the breakdown names agents and bots a Member may not see. The
+organization's [Voice card](console.md#the-voice-card) shows it in one line.
 
 ## Limits
 
