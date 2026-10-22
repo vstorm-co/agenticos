@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **OpenTelemetry moves to 1.45.1 (0.66b1 for the instrumentation packages).**
+  `opentelemetry-api` 1.44.0 is affected by CVE-2026-114603
+  (GHSA-xcq7-p3pf-p88h), which failed `make audit` and so the required Security
+  Scan on every pull request. Only the lockfile and the third-party notices
+  change; two Apache-2.0 packages, `opentelemetry-exporter-http-transport` and
+  `opentelemetry-exporter-otlp-common`, come in with the new exporters.
+
 ## [1.13.0] - 2026-10-22
 
 ### Added
