@@ -17,13 +17,14 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
-from enum import IntEnum
+from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
+@unique
 class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
@@ -53,19 +54,6 @@ class LockScope(IntEnum):
     #: just ingested, because the older one never saw it (#987). Session-scoped,
     #: unlike the rest: a sync spans many transactions.
     SYNC_SOURCE_RUN = 7
-    #: One case's place in its dataset's review queue: a send reads which score
-    #: waits, then queues or replaces it, and two at once must not both read none.
-    REVIEW_PER_CASE = 8
-    #: How many eval cases one organization runs at once: two workers counting
-    #: together would otherwise both start one past the limit.
-    EVAL_CASES_PER_ORGANIZATION = 9
-    #: One knowledge base's grouping pass: it reads the misses no topic holds
-    #: and then places them, so two passes at once would put a question in two
-    #: topics.
-    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 10
-    #: One knowledge base's check of its answers: two at once would pay twice for
-    #: the same answers. Session-scoped, since a check spans many runs.
-    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 11
     #: One person's concurrent voice calls (#54). Two starts at once each counted
     #: zero open calls and both connected - two billed sessions for one person.
     VOICE_CALLS_PER_USER = 8
@@ -76,6 +64,19 @@ class LockScope(IntEnum):
     #: `resume_of` and token at once each passed the checks and each continued the
     #: call - one call's remaining time, spent several times over (Codex on #2204).
     VOICE_RESUME = 10
+    #: One case's place in its dataset's review queue: a send reads which score
+    #: waits, then queues or replaces it, and two at once must not both read none.
+    REVIEW_PER_CASE = 11
+    #: How many eval cases one organization runs at once: two workers counting
+    #: together would otherwise both start one past the limit.
+    EVAL_CASES_PER_ORGANIZATION = 12
+    #: One knowledge base's grouping pass: it reads the misses no topic holds
+    #: and then places them, so two passes at once would put a question in two
+    #: topics.
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 13
+    #: One knowledge base's check of its answers: two at once would pay twice for
+    #: the same answers. Session-scoped, since a check spans many runs.
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 14
 
 
 def _key(subject: UUID) -> int:
