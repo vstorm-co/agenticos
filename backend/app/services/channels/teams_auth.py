@@ -47,8 +47,17 @@ KEYS_TTL_SECONDS = 24 * 3600
 """How long a fetched key set is trusted before it is fetched again.
 
 Microsoft rolls these keys over days, not minutes. A `kid` that is not in the
-cached set refetches at once, so a rotation is picked up on the first token
-signed with the new key rather than a day later.
+cached set refetches, so a rotation is picked up on the first token signed with
+the new key rather than a day later - at most once per `MISS_COOLDOWN_SECONDS`.
+"""
+
+MISS_COOLDOWN_SECONDS = 300
+"""The least time between two refetches an unknown `kid` causes.
+
+The key is read before the signature is checked, so anybody who knows a bot's
+endpoint can name a fresh `kid` on every request. Without a floor each one cost
+two calls to Microsoft, queued behind one lock; with it a flood costs one pair
+every five minutes, and a genuine rotation still lands within that.
 """
 
 SERVICE_HOSTS = (
@@ -130,14 +139,17 @@ class _KeySet:
     def __init__(self, metadata_url: str) -> None:
         self.metadata_url = metadata_url
         self._keys: dict[str, dict[str, Any]] = {}
-        self._fetched_at = 0.0
+        self._fetched_at = float("-inf")
         self._lock = asyncio.Lock()
 
     async def key(self, kid: str, client: httpx.AsyncClient) -> dict[str, Any] | None:
         if kid in self._keys and time.monotonic() - self._fetched_at < KEYS_TTL_SECONDS:
             return self._keys[kid]
         async with self._lock:
-            if kid not in self._keys or time.monotonic() - self._fetched_at >= KEYS_TTL_SECONDS:
+            # Read again under the lock: a request that waited here behind a
+            # refetch finds it done, and does not make its own.
+            age = time.monotonic() - self._fetched_at
+            if age >= KEYS_TTL_SECONDS or (kid not in self._keys and age >= MISS_COOLDOWN_SECONDS):
                 await self._refresh(client)
         return self._keys.get(kid)
 

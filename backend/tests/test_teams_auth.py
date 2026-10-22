@@ -17,9 +17,11 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.services.channels import teams_auth
 from app.services.channels.teams_auth import (
     BOT_FRAMEWORK_ISSUER,
     BOT_FRAMEWORK_METADATA,
+    MISS_COOLDOWN_SECONDS,
     TeamsAuth,
     TeamsAuthError,
     TeamsCredentials,
@@ -150,6 +152,32 @@ class TestATokenThatChecksOut:
         await _verify(auth, f"Bearer {_token()}")
 
         assert sum(1 for call in calls if str(call.url) == BF_KEYS) == 1
+
+    async def test_unknown_keys_cannot_make_every_request_call_microsoft(self) -> None:
+        """A `kid` is read before the signature, so anybody can name a new one (Codex on #2324)."""
+        calls: list[httpx.Request] = []
+        auth = TeamsAuth(httpx.AsyncClient(transport=_transport(calls)))
+        await _verify(auth, f"Bearer {_token()}")
+
+        for n in range(5):
+            with pytest.raises(TeamsAuthError, match="does not publish"):
+                await _verify(auth, f"Bearer {_token(kid=f'made-up-{n}')}")
+
+        assert sum(1 for call in calls if str(call.url) == BF_KEYS) == 1
+
+    async def test_a_rotated_key_is_fetched_once_the_cooldown_has_passed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[httpx.Request] = []
+        auth = TeamsAuth(httpx.AsyncClient(transport=_transport(calls)))
+        await _verify(auth, f"Bearer {_token()}")
+        later = time.monotonic() + MISS_COOLDOWN_SECONDS + 1
+        monkeypatch.setattr(teams_auth.time, "monotonic", lambda: later)
+
+        with pytest.raises(TeamsAuthError, match="does not publish"):
+            await _verify(auth, f"Bearer {_token(kid='rotated')}")
+
+        assert sum(1 for call in calls if str(call.url) == BF_KEYS) == 2
 
 
 class TestEachCheckRefuses:
