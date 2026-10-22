@@ -1707,16 +1707,26 @@ async def test_deleting_a_project_keeps_a_case_from_a_chat_it_takes_but_not_the_
 
 
 @pytest.mark.security
-async def test_erasing_the_person_keeps_the_case_with_no_link_back_to_them(db) -> None:
-    owner, member, revision_id = await _case_from_someone(db)
+async def test_erasing_the_person_keeps_the_case_with_no_link_back_to_them(
+    engine: AsyncEngine,
+) -> None:
+    """The setup commits first, as the run and the case have long before an erasure:
+    a run inserted in the deleting transaction itself has its conversation link
+    rechecked when the cascade clears its starter, and the order the cascades fire
+    in then decides whether the delete fails."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        owner, member, revision_id = await _case_from_someone(setup)
+        await setup.commit()
     assert member.user_id is not None
-    member_id = member.user_id
 
-    await UserService(db).delete(member_id)
+    async with factory() as session:
+        await UserService(session).delete(member.user_id)
 
-    stored = await _unlinked(db, revision_id)
-    assert stored.created_by_user_id == owner.user_id
-    assert stored.note == "Wrong refund window"
+        stored = await _unlinked(session, revision_id)
+        assert stored.created_by_user_id == owner.user_id
+        assert stored.note == "Wrong refund window"
+        await session.rollback()
 
 
 @pytest.mark.security
