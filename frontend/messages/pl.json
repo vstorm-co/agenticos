@@ -8610,7 +8610,9 @@
       },
       "threshold": {
         "minPassRate": "≥{rate}",
-        "regressions": "{count, plural, =0 {0 regresji} one {≤# regresja} few {≤# regresje} many {≤# regresji} other {≤# regresji}}"
+        "regressions": "{count, plural, =0 {0 regresji} one {≤# regresja} few {≤# regresje} many {≤# regresji} other {≤# regresji}}",
+        "costRise": "koszt/zaliczenie ≤+{rise}",
+        "p95Rise": "p95 ≤+{rise}"
       }
     },
     "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",

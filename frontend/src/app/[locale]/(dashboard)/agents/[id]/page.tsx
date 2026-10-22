@@ -379,9 +379,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     ...(isJudge ? ["datasets"] : []),
     ...(isSystem ? [] : ["toolbox", "mcp", "availability"]),
     "limits",
-    ...(canViewRuns && !isSystem ? ["evals"] : []),
+    ...(canViewRuns && !isSystem ? ["evals", "gaps"] : []),
     "history",
-    ...(canViewRuns && !isSystem ? ["gaps"] : []),
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // An eval needs a dataset with a case this caller may run - a grant on one is

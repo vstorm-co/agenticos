@@ -89,6 +89,14 @@ describe("thresholdText", () => {
       "threshold.regressions(2)",
     );
   });
+
+  it("names the cost and latency rises a result may not exceed, when they are set", () => {
+    expect(
+      thresholdText({ ...threshold, max_cost_per_pass_rise: 0.2, max_p95_rise: 0.3 }, t, "en"),
+    ).toBe(
+      "threshold.minPassRate(70%) · threshold.regressions(2) · threshold.costRise(20%) · threshold.p95Rise(30%)",
+    );
+  });
 });
 
 describe("reasonText", () => {

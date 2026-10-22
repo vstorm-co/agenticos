@@ -95,13 +95,21 @@ export function whenLabels(suite: EvalSuite, t: Translate, days: Translate): str
   return labels;
 }
 
-/** What a result must meet, as its row shows it - "≥70% · 0 regressions". */
+/** What a result must meet, as its row shows it - "≥70% · 0 regressions · cost/pass ≤+20%". */
 export function thresholdText(threshold: EvalSuiteThreshold, t: Translate, locale: string): string {
   const parts: string[] = [];
   if (threshold.min_pass_rate !== null) {
     parts.push(t("threshold.minPassRate", { rate: percent(threshold.min_pass_rate, locale) }));
   }
   parts.push(t("threshold.regressions", { count: threshold.max_confirmed_regressions }));
+  if (threshold.max_cost_per_pass_rise !== null) {
+    parts.push(
+      t("threshold.costRise", { rise: percent(threshold.max_cost_per_pass_rise, locale) }),
+    );
+  }
+  if (threshold.max_p95_rise !== null) {
+    parts.push(t("threshold.p95Rise", { rise: percent(threshold.max_p95_rise, locale) }));
+  }
   return parts.join(" · ");
 }
 

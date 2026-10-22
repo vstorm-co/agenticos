@@ -9366,7 +9366,9 @@
       },
       "threshold": {
         "minPassRate": "≥{rate}",
-        "regressions": "{count, plural, =0 {0 regressions} one {≤# regression} other {≤# regressions}}"
+        "regressions": "{count, plural, =0 {0 regressions} one {≤# regression} other {≤# regressions}}",
+        "costRise": "cost/pass ≤+{rise}",
+        "p95Rise": "p95 ≤+{rise}"
       }
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",

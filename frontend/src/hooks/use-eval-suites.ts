@@ -94,7 +94,6 @@ export function useEvalSuites(agentId: string) {
 
   return {
     suites: query.data?.items ?? [],
-    // Pending, not loading: a read that has not started yet has nothing to show either.
     isPending: query.isPending,
     error: query.error,
     refetch: query.refetch,

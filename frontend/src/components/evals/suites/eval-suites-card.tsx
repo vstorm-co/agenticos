@@ -27,7 +27,12 @@ export function EvalSuitesCard({ agentId, canManage }: { agentId: string; canMan
   const tc = useTranslations("common");
   const { suites, isPending, error, refetch } = useEvalSuites(agentId);
   const [creating, setCreating] = useState(false);
-  const create = canManage ? { label: t("new"), onClick: () => setCreating(true) } : undefined;
+  const create = canManage && (
+    <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+      <Plus className="h-3.5 w-3.5" aria-hidden />
+      {t("new")}
+    </Button>
+  );
 
   return (
     <Card>
@@ -39,12 +44,7 @@ export function EvalSuitesCard({ agentId, canManage }: { agentId: string; canMan
           <CardTitle>{t("title")}</CardTitle>
           <CardDescription>{t("description")}</CardDescription>
         </div>
-        {create && suites.length > 0 && (
-          <Button size="sm" variant="outline" onClick={create.onClick}>
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            {create.label}
-          </Button>
-        )}
+        {suites.length > 0 && create}
       </CardHeader>
       <CardContent className="space-y-3">
         {isPending ? (
@@ -57,12 +57,7 @@ export function EvalSuitesCard({ agentId, canManage }: { agentId: string; canMan
         ) : suites.length === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-muted-foreground text-sm">{t("empty.line")}</p>
-            {create && (
-              <Button size="sm" variant="outline" onClick={create.onClick}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                {create.label}
-              </Button>
-            )}
+            {create}
           </div>
         ) : (
           suites.map((suite) => <SuiteRow key={suite.id} suite={suite} canManage={canManage} />)

@@ -36,7 +36,7 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
     rangeLabel,
   }: {
     lines: PassRateLine[];
-    recent: number;
+    recent: number | null;
     rangeLabel: string;
   }) => (
     <p>{`${rangeLabel}, last ${recent}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
@@ -146,16 +146,24 @@ describe("passRateLines", () => {
   afterEach(() => vi.useRealTimers());
 
   it("puts finished runs in order, a line per group by its dash, each point in its verdict's colour", () => {
-    vi.useFakeTimers({ now: new Date("2026-10-15T12:00:00Z"), toFake: ["Date"] });
+    // On the reader's wall clock, so "today" is the same day in every time zone.
+    const at = (day: number, hour: number) => new Date(2026, 9, day, hour).toISOString();
+    vi.useFakeTimers({ now: new Date(2026, 9, 15, 12), toFake: ["Date"] });
     const lines = passRateLines(
       [
-        worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
+        worse({ id: "late", created_at: at(15, 10) }),
         evalRun({
           id: "early",
+          created_at: at(14, 10),
           arms: [arm({ source: "draft", version_number: null })],
           outcome: { ...worse().outcome!, verdict: "better", baseline: null },
         }),
-        evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" }),
+        evalRun({
+          id: "other",
+          created_at: at(14, 11),
+          dataset_id: "ds-2",
+          dataset_name: "shipping",
+        }),
         evalRun({ id: "live", status: "running" }),
         evalRun({ id: "nothing", arms: [arm({ summary: { ...SUMMARY, pass_rate: null } })] }),
         evalRun({ id: "armless", arms: [] }),
