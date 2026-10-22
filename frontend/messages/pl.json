@@ -1562,7 +1562,9 @@
       "suggestingNextSteps": "Proponuje następne kroki",
       "nextSteps": "Następne kroki",
       "requestingCapability": "Prosi o capability",
-      "capabilityRequest": "Prośba o capability"
+      "capabilityRequest": "Prośba o capability",
+      "proposingSetup": "Proponuję, co ustawić",
+      "setupProposals": "Do ustawienia"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1967,7 +1969,15 @@
       "runOnSchedule": "Uruchamiaj to według harmonogramu",
       "routineFromChat": "Z rozmowy",
       "makeAgent": "Zrób z tego agenta",
-      "makeAgentAsk": "Zbuduj mi agenta, który robi to, żebym nie musiał za każdym razem prosić w czacie: {request}"
+      "makeAgentAsk": "Zbuduj mi agenta, który robi to, żebym nie musiał za każdym razem prosić w czacie: {request}",
+      "setup": {
+        "agentAsk": "Zbuduj mi agenta, który to robi: {request}",
+        "take": {
+          "agent": "Zbuduj z Architektem",
+          "routine": "Ustaw",
+          "connection": "Podłącz"
+        }
+      }
     },
     "suggestions": {
       "label": "Propozycje dla ciebie",

@@ -1562,7 +1562,9 @@
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
       "requestingCapability": "Asking for a capability",
-      "capabilityRequest": "Capability request"
+      "capabilityRequest": "Capability request",
+      "proposingSetup": "Proposing what to set up",
+      "setupProposals": "Things to set up"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1967,7 +1969,15 @@
       "runOnSchedule": "Run this on a schedule",
       "routineFromChat": "From a conversation",
       "makeAgent": "Make an agent of this",
-      "makeAgentAsk": "Build me an agent that does this, so I do not have to ask in a chat each time: {request}"
+      "makeAgentAsk": "Build me an agent that does this, so I do not have to ask in a chat each time: {request}",
+      "setup": {
+        "agentAsk": "Build me an agent that does this: {request}",
+        "take": {
+          "agent": "Build it with the Architect",
+          "routine": "Set it up",
+          "connection": "Connect it"
+        }
+      }
     },
     "suggestions": {
       "label": "Suggestions for you",

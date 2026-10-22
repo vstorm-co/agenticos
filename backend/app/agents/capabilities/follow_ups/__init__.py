@@ -18,13 +18,20 @@ FOLLOW_UPS_CAPABILITY_ID = "follow_ups"
     name="Follow-ups",
     category="utility",
     description=(
-        "Offer the person up to three next steps as buttons under an answer, "
-        "so what to ask next is one click away."
+        "Offer the person up to three next steps as buttons under an answer, and things "
+        "to set up as cards, so what to do next is one click away."
     ),
     tools=(
         CapabilityToolInfo(
             id="suggest_next_steps",
             description="Offer up to three next steps as buttons under your answer.",
+        ),
+        CapabilityToolInfo(
+            id="propose_setup",
+            description=(
+                "Propose up to three concrete things to set up, as cards the person acts on "
+                "in one click."
+            ),
         ),
     ),
     # A call has no buttons to put them on, and reading three steps aloud after

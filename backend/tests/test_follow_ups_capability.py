@@ -9,6 +9,7 @@ import json
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
@@ -19,7 +20,7 @@ from app.agents.capabilities.follow_ups import (
     FollowUps,
     FollowUpsToolset,
 )
-from app.agents.capabilities.follow_ups._toolset import MAX_STEP_CHARS
+from app.agents.capabilities.follow_ups._toolset import MAX_STEP_CHARS, SetupProposal
 
 
 def _ctx(*, retry: int = 0) -> RunContext[Any]:
@@ -55,10 +56,47 @@ class TestSuggestingNextSteps:
 
 
 class TestTheCapability:
-    def test_it_builds_once_and_offers_its_one_tool(self):
+    def test_it_builds_once_and_offers_its_two_tools(self):
         [capability] = build([CapabilityBinding(capability_id=FOLLOW_UPS_CAPABILITY_ID)])
 
         assert isinstance(capability, FollowUps)
         toolset = capability.get_toolset()
         assert toolset is capability.get_toolset()
-        assert list(toolset.tools) == ["suggest_next_steps"]
+        assert list(toolset.tools) == ["suggest_next_steps", "propose_setup"]
+
+
+def _proposal(kind: str, **overrides: object) -> SetupProposal:
+    values: dict[str, object] = {
+        "kind": kind,
+        "title": f"A {kind}",
+        "why": "Because you said so",
+        "request": "Summarise new tickets",
+    }
+    values.update(overrides)
+    return SetupProposal.model_validate(values)
+
+
+class TestProposingSetup:
+    def test_the_proposals_reach_the_console_as_given(self):
+        answered = FollowUpsToolset[Any]().propose_setup(
+            _ctx(),
+            [
+                _proposal("routine", cron="0 7 * * 1-5"),
+                _proposal("agent"),
+                _proposal("connection", request="Gmail"),
+            ],
+        )
+
+        proposals = json.loads(answered)["proposals"]
+        assert [p["kind"] for p in proposals] == ["routine", "agent", "connection"]
+        assert proposals[0]["cron"] == "0 7 * * 1-5"
+        assert proposals[1]["cron"] is None
+
+    @pytest.mark.parametrize(("count", "says"), [(0, "at least one"), (4, "at most 3")])
+    def test_none_or_too_many_is_sent_back_to_the_model(self, count, says):
+        with pytest.raises(ModelRetry, match=says):
+            FollowUpsToolset[Any]().propose_setup(_ctx(), [_proposal("agent")] * count)
+
+    def test_a_kind_the_console_cannot_draw_is_refused_by_the_schema(self):
+        with pytest.raises(ValidationError):
+            _proposal("webinar")

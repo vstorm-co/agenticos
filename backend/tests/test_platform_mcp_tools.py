@@ -480,13 +480,19 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
-    def test_only_the_language_switch_is_ungated(self) -> None:
-        """Switching the console's language changes the asker's own preference,
-        on their word; every other write - publishing above all - is held."""
+    def test_only_the_askers_own_language_and_profile_are_ungated(self) -> None:
+        """Switching the console's language, or saving the role and work agents are
+        told, changes the asker's own account on their word (#2301); every other
+        write - publishing and creating a skill above all - is held."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        assert {name for name, tool in tools.items() if tool.ungated} == {
+            "set_my_language",
+            "set_my_profile",
+        }
         assert tools["set_my_language"].writes
+        assert tools["set_my_profile"].writes
+        assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 
     def test_the_agent_layer_names_the_same_set(self) -> None:

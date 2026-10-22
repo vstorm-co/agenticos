@@ -1,9 +1,11 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
+import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
@@ -112,6 +114,7 @@ export function MessageList({ messages, onRegenerate, pins, onFollowUp }: Messag
   // part in before it was retired still has to say who answered.
   const { agents } = useAgents({ includeArchived: true });
   const byId = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
+  const router = useRouter();
 
   const getGroupPosition = (
     message: ChatMessage,
@@ -139,8 +142,20 @@ export function MessageList({ messages, onRegenerate, pins, onFollowUp }: Messag
   const timestamps = messages.map((message) => message.timestamp);
   const now = new Date();
 
+  // "Show me" (#2301): a console link an agent wrote opens that page in the
+  // console and points at the control its `?highlight=` names, as the
+  // Architect's links do - rather than reloading the whole app.
+  const onClickCapture = (event: React.MouseEvent) => {
+    const anchor = (event.target as Element).closest("a");
+    const link = consoleLink(anchor?.getAttribute("href") ?? null, window.location.origin);
+    if (link === null) return;
+    event.preventDefault();
+    router.push(link.path);
+    if (link.anchor) void pointAt(link.anchor);
+  };
+
   return (
-    <div className="space-y-0">
+    <div className="space-y-0" onClickCapture={onClickCapture}>
       {messages.map((message, index) => (
         <Fragment key={message.renderKey ?? message.id}>
           {/* Never inside a turn: a run that crossed midnight is still one answer. */}

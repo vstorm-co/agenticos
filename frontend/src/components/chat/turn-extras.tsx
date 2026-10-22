@@ -15,10 +15,13 @@ import {
   capabilityCardsOf,
   followUpsOf,
   memoryChangesOf,
+  setupProposalsOf,
   type CapabilityCard,
 } from "@/lib/turn-extras";
 import type { ChatMessage } from "@/types/chat";
 import { Perm } from "@/types/permissions";
+
+import { SetupProposals } from "./setup-proposals";
 
 interface TurnExtrasProps {
   message: ChatMessage;
@@ -30,20 +33,25 @@ interface TurnExtrasProps {
 
 /**
  * What a turn's calls left under its answer (#2301): what the agent noted about
- * the person, a card for a capability it lacked, and next steps as buttons.
+ * the person, a card for a capability it lacked, things to set up, and next
+ * steps as buttons.
  */
 export function TurnExtras({ message, agentName, onFollowUp }: TurnExtrasProps) {
   if (message.role !== "assistant" || message.isStreaming) return null;
   const changes = memoryChangesOf(message.toolCalls);
   const cards = capabilityCardsOf(message.toolCalls);
+  const proposals = setupProposalsOf(message.toolCalls);
   const steps = onFollowUp ? followUpsOf(message.toolCalls) : [];
-  if (!changes.length && !cards.length && !steps.length) return null;
+  if (!changes.length && !cards.length && !proposals.length && !steps.length) return null;
   return (
     <div className="space-y-2 pb-3">
       {changes.length > 0 && <MemoryLine labels={changes} />}
       {cards.map((card) => (
         <CapabilityRequestCard key={card.callId} card={card} agentName={agentName} />
       ))}
+      {proposals.length > 0 && (
+        <SetupProposals proposals={proposals} agentId={message.agentId ?? null} />
+      )}
       {steps.length > 0 && onFollowUp && <FollowUpButtons steps={steps} onPick={onFollowUp} />}
     </div>
   );

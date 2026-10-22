@@ -173,6 +173,18 @@ class UserRead(UserBase, TimestampSchema):
     personal_starters: list[str] | None = None
 
 
+class UserAgentContext(BaseSchema):
+    """What every agent is told about the person, on its own (#2301).
+
+    What an agent may change for the person it talks to - their role, their work -
+    and nothing else on the account. Unset fields are left as they are; `null`
+    clears one.
+    """
+
+    job_title: str | None = Field(default=None, max_length=120)
+    about: str | None = Field(default=None, max_length=500)
+
+
 class UserLocale(BaseSchema):
     """The console language a person chose, on its own."""
 

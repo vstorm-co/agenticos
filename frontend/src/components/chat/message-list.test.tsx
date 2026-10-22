@@ -17,6 +17,12 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks", () => ({ useAgents: () => ({ agents: state.agents }) }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), pointAt: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: navigation.push }) }));
+vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant-highlight")>()),
+  pointAt: navigation.pointAt,
+}));
 // The extras are tested on their own; the list decides which answer may offer next steps.
 vi.mock("./turn-extras", () => ({
   TurnExtras: ({
@@ -533,5 +539,45 @@ describe("the next steps under an answer", () => {
     expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-offers", "true");
     expect(screen.getByTestId("extras-m-3")).toHaveAttribute("data-agent", "Helper");
     expect(screen.getByTestId("extras-m-2")).toHaveAttribute("data-agent", "");
+  });
+});
+
+describe("a console link an agent wrote", () => {
+  it("opens the page in the console and points at the control it names", async () => {
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/mcp-servers?highlight=mcp-add");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/mcp-servers");
+    expect(navigation.pointAt).toHaveBeenCalledWith("mcp-add");
+  });
+
+  it("leaves a link to anywhere else to the browser", () => {
+    navigation.push.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "https://example.com/");
+    link.addEventListener("click", (event) => event.preventDefault());
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("opens a console page with nothing to point at", () => {
+    navigation.pointAt.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/routines");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/routines");
+    expect(navigation.pointAt).not.toHaveBeenCalled();
   });
 });

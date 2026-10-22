@@ -378,6 +378,14 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "nextSteps",
     hidden: true,
   },
+  // ...and things to set up, drawn as cards under the answer (#2301).
+  propose_setup: {
+    kind: "tool",
+    render: "generic",
+    captionKey: "proposingSetup",
+    displayNameKey: "setupProposals",
+    hidden: true,
+  },
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.

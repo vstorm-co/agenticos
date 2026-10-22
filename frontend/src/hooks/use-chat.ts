@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
+import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
@@ -784,6 +785,9 @@ export function useChat(options: UseChatOptions = {}) {
               ?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
             const chosen = name ? localeChosenBy(name, content) : null;
             if (chosen) adoptAccountLocale(chosen);
+            // Or to remember what the person does (#2301).
+            const saved = name ? contextSavedBy(name, content) : null;
+            if (saved) adoptAccountContext(saved);
           }
           break;
         }

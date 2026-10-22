@@ -171,10 +171,35 @@ async def test_the_console_language_is_kept_on_the_account(
     assert update.model_dump(exclude_unset=True) == {"locale": "en"}
 
 
+@pytest.mark.anyio
+async def test_what_agents_are_told_is_saved_and_nothing_else(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """AgenticOS's welcome interview saves a role through the platform's MCP server
+    (#2301): the two fields named, and only those - an unnamed one stays."""
+    mock_user_service.update = ServiceMock(
+        return_value=MagicMock(job_title="Head of sales", about="Nordic deals")
+    )
+
+    response = await auth_client.patch(
+        f"{settings.API_V1_STR}/users/me/agent-context", json={"job_title": "Head of sales"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"job_title": "Head of sales", "about": "Nordic deals"}
+    user_id, update = mock_user_service.update.await_args.args
+    assert user_id == mock_user.id
+    assert update.model_dump(exclude_unset=True) == {"job_title": "Head of sales"}
+
+
 @pytest.mark.security
 @pytest.mark.parametrize(
     ("method", "path"),
-    [("PUT", "/users/me/locale"), ("GET", "/me/mcp-connections")],
+    [
+        ("PUT", "/users/me/locale"),
+        ("PATCH", "/users/me/agent-context"),
+        ("GET", "/me/mcp-connections"),
+    ],
 )
 def test_a_key_reaches_the_person_s_own_routes_only_when_issued_for_runs(method, path):
     """Codex on #2324: any key of a person read their connections and set their

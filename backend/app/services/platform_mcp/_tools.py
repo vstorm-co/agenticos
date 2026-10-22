@@ -22,12 +22,13 @@ from app.services.platform_mcp._api import PlatformApi
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
-UNGATED = frozenset({"set_my_language"})
+UNGATED = frozenset({"set_my_language", "set_my_profile"})
 """Writes no binding holds for a person's approval, whatever its policy.
 
-Changing the console's language changes one preference of the person asking, on
-their own word, and one click undoes it - an approval card for "switch to
-English" would be the whole conversation. `app.agents.mcp` names the same set as
+Changing the console's language, or the role and work agents are told, changes
+the person asking's own account on their own word, and Settings undoes it - an
+approval card for "switch to English", or for what they just said they do, would
+be the whole conversation. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
 """
 
@@ -417,9 +418,45 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("PUT", "/users/me/locale", json={"locale": locale})
 
+    async def set_my_profile(
+        job_title: str | None = None, about: str | None = None
+    ) -> dict[str, Any]:
+        """Save what every agent is told about the person asking: their role and their work.
+
+        Use it when they tell you what they do - in the welcome interview, or when
+        they correct it - so no agent asks again. Their own words, short: a role
+        such as "Head of sales", and what they work on in a sentence. Pass only
+        what they told you; what you leave out stays as it is.
+        """
+        changes = {
+            name: value
+            for name, value in (("job_title", job_title), ("about", about))
+            if value is not None
+        }
+        return await api.request("PATCH", "/users/me/agent-context", json=changes)
+
     async def list_skills(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The skills this caller can see. Needs `skills:view`."""
         return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
+
+    async def create_skill(name: str, description: str, content: str) -> dict[str, Any]:
+        """Save a procedure as a skill an agent can follow. Needs `skills:edit`.
+
+        Use it when somebody asks to keep something that worked - "make a skill of
+        this". Write the skill as instructions for a future agent, not a record of
+        this conversation: when to use it, the steps, what to check, what to
+        hand back. Then offer to bind it to the agent that should use it.
+
+        Args:
+            name: Lowercase letters, digits and hyphens, unique here - `weekly-sales-digest`.
+            description: The one line an agent reads before deciding to load it.
+            content: The steps, in Markdown.
+        """
+        return await api.request(
+            "POST",
+            "/skills",
+            json={"name": name, "description": description, "content": content},
+        )
 
     async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The members of this connection's organization, with their roles. Needs `members:view`."""
@@ -472,11 +509,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (search_knowledge, False),
         (list_capabilities, False),
         (list_skills, False),
+        (create_skill, True),
         (list_members, False),
         (invite_member, True),
         (search_mcp_servers, False),
         (list_my_connections, False),
         (set_my_language, True),
+        (set_my_profile, True),
     )
     return tuple(
         PlatformTool(name=function.__name__, function=function, writes=writes)

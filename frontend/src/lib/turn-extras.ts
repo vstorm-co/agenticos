@@ -13,6 +13,7 @@ import { toolEntry } from "./tool-catalog";
 
 export const SUGGEST_NEXT_STEPS = "suggest_next_steps";
 export const REQUEST_CAPABILITY = "request_capability";
+export const PROPOSE_SETUP = "propose_setup";
 
 /** Whether a call is drawn under the answer instead of as a step. */
 export function drawnUnderTheAnswer(name: string): boolean {
@@ -76,6 +77,47 @@ export interface MemoryChange {
 const SAVES = new Set(["write_memory", "edit_memory"]);
 
 /** What the turn noted down about the person, or forgot - each change once. */
+export type SetupKind = "agent" | "routine" | "connection";
+
+export interface SetupProposal {
+  key: string;
+  kind: SetupKind;
+  title: string;
+  why: string;
+  /** What the agent should do, the routine's prompt, or the service's name. */
+  request: string;
+  cron: string | null;
+}
+
+const SETUP_KINDS: readonly string[] = ["agent", "routine", "connection"];
+
+/** What the turn's last `propose_setup` proposed, one card each. */
+export function setupProposalsOf(calls: readonly ToolCall[] | undefined): SetupProposal[] {
+  const last = finished(calls, PROPOSE_SETUP).at(-1);
+  const proposals = jsonObject(last?.result)?.proposals;
+  if (!last || !Array.isArray(proposals)) return [];
+  return proposals.flatMap((proposal: unknown, index) => {
+    if (!proposal || typeof proposal !== "object") return [];
+    const { kind, title, why, request, cron } = proposal as Record<string, unknown>;
+    return typeof kind === "string" &&
+      SETUP_KINDS.includes(kind) &&
+      typeof title === "string" &&
+      typeof why === "string" &&
+      typeof request === "string"
+      ? [
+          {
+            key: `${last.id}-${index}`,
+            kind: kind as SetupKind,
+            title,
+            why,
+            request,
+            cron: typeof cron === "string" ? cron : null,
+          },
+        ]
+      : [];
+  });
+}
+
 export function memoryChangesOf(calls: readonly ToolCall[] | undefined): MemoryChange[] {
   return (calls ?? []).flatMap((call) => {
     const forgot = call.name === "delete_memory";
