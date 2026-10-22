@@ -127,6 +127,13 @@ def trajectory(
     return rows
 
 
+_ERRORED = "This eval stopped on an error before it finished. Run it again."
+_STOPPED = (
+    "This eval was stopped before it finished: it ran out of time, or its worker shut down. "
+    "Run it again."
+)
+
+
 class EvalRunWorker:
     """Runs one eval run to its end."""
 
@@ -149,12 +156,17 @@ class EvalRunWorker:
         """Answer every case, confirm the flips, and close the run.
 
         A run the worker cannot finish ends `failed` here, as an agent run's
-        does, rather than live until the sweep finds it silent.
+        does, rather than live until the sweep finds it silent. So does one
+        cancelled under it - its job timed out, or the worker is shutting down -
+        whose job has no attempt left to finish it.
         """
         try:
             await self._work()
+        except asyncio.CancelledError:
+            await asyncio.shield(self._give_up(_STOPPED))
+            raise
         except Exception:
-            await self._give_up()
+            await self._give_up(_ERRORED)
             raise
 
     async def _work(self) -> None:
@@ -173,7 +185,7 @@ class EvalRunWorker:
             with suppress(asyncio.CancelledError):
                 await beating
 
-    async def _give_up(self) -> None:
+    async def _give_up(self, error: str) -> None:
         """Fail the run and what it had not finished, if it is still live."""
         try:
             async with self.sessions() as db:
@@ -182,7 +194,7 @@ class EvalRunWorker:
                     self.eval_run_id,
                     organization_id=self.organization_id,
                     now=datetime.now(UTC),
-                    error="This eval stopped on an error before it finished. Run it again.",
+                    error=error,
                 )
         except Exception:
             # The database that failed the run may refuse this as well; the
