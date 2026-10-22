@@ -188,9 +188,9 @@ matters in my inbox* the default cannot do — on these terms:
   prompt carries a mail or a webhook body nobody vetted, and a note written from
   it would be read by every later chat as the creator's own.
 - **Past conversations stay closed** either way.
-- **Somebody else's edit turns it off.** Changing the message, the environment or
-  the filter of a trigger you did not create switches it off, so nobody rewrites
-  what runs as you. An administrator acting as you through impersonation, or a
+- **Somebody else's edit turns it off.** Changing the message, the environment,
+  the filter or the Teams channel of a trigger you did not create switches it
+  off, so nobody rewrites what runs as you or sends its answer somewhere else. An administrator acting as you through impersonation, or a
   script holding your API key, cannot turn it on.
 - **So does a new version you did not publish yourself.** A publish, a
   promotion or a rollback by anybody else turns it off - and so does one made
