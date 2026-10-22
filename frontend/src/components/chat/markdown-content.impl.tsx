@@ -9,7 +9,7 @@ import { ExternalLink, ImageOff, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
-import { brandForUrl, isAppLink } from "@/lib/link-brands";
+import { brandForUrl, consolePageIcon, isAppLink } from "@/lib/link-brands";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
@@ -241,6 +241,8 @@ export function MarkdownContent({
         const app = !!href && isAppLink(href, window.location.origin);
         const isExternal = !app && !!href && /^https?:\/\//i.test(href);
         const brand = isExternal ? brandForUrl(href) : null;
+        // A console page the agent points at wears the sidebar's mark for it.
+        const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
         const label = app && textOf(children) === href ? t("openApp") : children;
         return (
           <a
@@ -252,6 +254,12 @@ export function MarkdownContent({
           >
             {app && (
               <PanelsTopLeft
+                aria-hidden
+                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+              />
+            )}
+            {PageIcon && (
+              <PageIcon
                 aria-hidden
                 className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
               />

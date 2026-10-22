@@ -166,6 +166,9 @@ Two things are versioned separately from this file and worth knowing about:
   every 15 minutes, hourly, every 6 hours, daily, weekdays, weekly or custom -
   with only what that choice needs under it, a sentence saying what it means,
   and what happens when a run is still going under **More options**.
+- **A link to a console page wears its icon.** When an agent links to
+  Routines, MCP servers or any other section, the link carries the sidebar's
+  icon for it, as a link to a known service carries its logo.
 - **Connect a service from the chat.** When a request needs one of your
   services you have not connected, the agent offers it as a card with the
   service's logo and **Connect**, which goes straight to its sign-in and back to
