@@ -53,6 +53,17 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
     pasting a `localhost` URL is the ordinary case, not the exotic one.
 
+    An operator can let a connection reach a server on the deployment's own
+    network, such as a compose service. To do this, list its host in
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
+    skips only the address check. The URL still needs `http` or `https`, and
+    OAuth sign-in to it is still refused.
+
+    Every account on the deployment can then reach every port on that host. So
+    list only a server that checks a token, and never `localhost` or a service
+    of this stack, such as `app`, `db` or `redis`. The list is read only when a
+    connection is saved: removing a host does not disconnect a saved connection.
+
 ### Personal or organization-wide
 
 Two kinds, and the difference is the point. The connect dialog asks it as one
@@ -359,7 +370,8 @@ Two edges remain, both narrow and both deliberate:
 - The **consent URL** is checked and then handed to somebody's browser, which
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator.
+  runs — operator-typed, so rebinding it means being the operator. A host on
+  `MCP_ALLOWED_HOSTS` skips the address check.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
