@@ -1,17 +1,19 @@
-"""Turning a voice note into text, on the organization's own credential.
+"""Turning a voice note into text, on the key named for it.
 
 A voice message is the one attachment an agent cannot be handed as a file: a
 model reads a PDF and looks at a screenshot, and an `audio/ogg` blob is a byte
 count. So a bot that receives one has three options - ignore it, tell the sender
 it cannot listen, or transcribe it. This is the third.
 
-**Where the credential comes from, and why not a new one.** Transcription happens
-to a voice note before an agent is involved, so there is no spec to seal a key
-into. It runs instead on the model profile the organization already configured for
-that provider, resolved through `ModelProfileService.resolve_credential` - the one
-place that knows how the vault and the legacy credential store join. Choosing
-"OpenAI" for transcription on a bot therefore needs nothing new configured, and
-there is no second place a key can be wrong.
+**Which key, and why it is never chosen here.** The key is named next to the
+pair, wherever the pair was chosen - the organization's default, an agent's
+override, a channel bot's own - and arrives here as a `secret_id`
+(`speech_to_text_settings`). This only opens it: no model profile is scanned
+and no vault key is looked up by provider, because with two keys for one
+provider either lookup is a guess about who pays. A key that is gone, is for
+another provider, or - where the platform spends it for everybody - is no
+longer organization-visible, is refused as `not_configured`. The deployment's
+own environment key is never used.
 
 **One API shape.** Every catalogued provider serves OpenAI's
 `POST /audio/transcriptions`: multipart in, `{"text": ...}` out. That is what
@@ -19,10 +21,13 @@ makes three providers one client. The shape is declared per entry in the catalog
 rather than assumed here, so a provider whose only route to audio is a chat call
 arrives as another branch instead of a name check in the middle of this.
 
-**A failure here is never a failure of the turn.** The caller gets `None` and
-answers without the transcript, saying so - a bot that goes silent because a
-transcription provider was rate-limited is worse than one that says it could not
-listen to this particular message.
+**A failure raises, and says why.** Every refusal is a domain exception carrying
+`details.reason` - `not_configured`, `too_large`, `empty`, `provider_error`,
+`timeout` - and never the provider's own text. The channel router turns any of
+them into its per-recording "could not be transcribed" line, so a bot still
+answers without the transcript rather than going silent; the ML facade records
+them in the usage log and hands them to the caller, so the composer can say what
+went wrong.
 """
 
 import logging
@@ -32,10 +37,10 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.secret_kinds import ApiKeySecret
-from app.repositories import credential as credential_repo
+from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.services import speech_to_text
-from app.services.model_profile import ModelProfileService
+from app.services.organization_secret import OrganizationSecretService
+from app.services.speech_to_text import LanguageField
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +60,46 @@ has spent the time twice.
 """
 
 
+RECORDING_EXTENSIONS: dict[str, str] = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+}
+"""The extension a provider is sent for each recording type.
+
+OpenAI and Groq read the format from the file name, not from the part's
+content type, so the name is chosen from the type rather than passed through:
+a Telegram voice note arrives named `audio`, a Slack clip may say `.mp4`, and
+`.opus` or `.aac` is a name the endpoint refuses for audio it would have
+read. MP4 audio goes as `.m4a`, the name OpenAI, Groq and Mistral all list.
+Shared by composer dictation and channel voice notes, so the two cannot
+disagree about what a type is called.
+"""
+
+RECORDING_TYPE_ALIASES: dict[str, str] = {
+    "audio/x-wav": "audio/wav",
+    "audio/wave": "audio/wav",
+    "audio/x-m4a": "audio/mp4",
+    "audio/m4a": "audio/mp4",
+    "audio/opus": "audio/ogg",
+    "audio/x-ogg": "audio/ogg",
+    "audio/mp3": "audio/mpeg",
+}
+"""Other names clients and platforms use for the same containers."""
+
+
+def recording_type(mime_type: str) -> str:
+    """A recording's type without parameters, in the spelling `RECORDING_EXTENSIONS` uses.
+
+    `audio/webm;codecs=opus` is `audio/webm`, `Audio/X-WAV` is `audio/wav`. A
+    type nobody aliased is returned lowercased and otherwise as given.
+    """
+    base = mime_type.split(";", 1)[0].strip().lower()
+    return RECORDING_TYPE_ALIASES.get(base, base)
+
+
 @dataclass(frozen=True)
 class Recording:
     """A voice note, in hand."""
@@ -62,6 +107,46 @@ class Recording:
     content: bytes
     filename: str
     mime_type: str
+
+
+@dataclass(frozen=True)
+class TranscriptionResult:
+    """What was said, and how long the recording was where the provider says."""
+
+    text: str
+    audio_seconds: float | None
+    """The provider's own figure (`audio_seconds_of`), or `None` where its answer
+    carries none - `gpt-4o(-mini)-transcribe` reports tokens, not seconds. A
+    caller with a figure of its own (platform metadata, the browser's clock)
+    falls back to it; nothing here decodes the audio to measure it."""
+
+
+def audio_seconds_of(payload: dict[str, object]) -> float | None:
+    """The recording's length in an `/audio/transcriptions` answer, if it states one.
+
+    Three shapes, in the order they are trusted:
+
+    - OpenAI bills `whisper-1` by duration and says so: `usage.type ==
+      "duration"` with `usage.seconds`. Its `gpt-4o-*` models answer
+      `usage.type == "tokens"`, which is not a length and is not read as one.
+    - Mistral answers `usage.prompt_audio_seconds`.
+    - Groq answers a top-level `duration`, in `verbose_json` only - which is why
+      its catalog entry asks for that format (`SpeechToTextEntry.response_format`).
+
+    A value that is not a positive number - absent, a string, a boolean, zero -
+    is no figure at all rather than a recording of no length.
+    """
+    usage = payload.get("usage")
+    candidates: list[object] = []
+    if isinstance(usage, dict):
+        if usage.get("type") == "duration":
+            candidates.append(usage.get("seconds"))
+        candidates.append(usage.get("prompt_audio_seconds"))
+    candidates.append(payload.get("duration"))
+    for value in candidates:
+        if isinstance(value, int | float) and not isinstance(value, bool) and value > 0:
+            return float(value)
+    return None
 
 
 class TranscriptionService:
@@ -77,96 +162,143 @@ class TranscriptionService:
         organization_id: UUID,
         provider: str,
         model: str,
-    ) -> str | None:
-        """The words in this recording, or `None` where it could not be read.
+        secret_id: UUID | None,
+        shared_key: bool,
+        language: str | None = None,
+    ) -> TranscriptionResult:
+        """The words in this recording, and its length where the provider states it.
 
-        `None` rather than an exception for every reason: no such provider, no
-        credential configured for it, a recording too large, a refusal from the
-        endpoint, a timeout. Each is logged with what actually happened, and the
-        caller answers without the transcript - the sender is told the bot could
-        not listen to this message, which beats a bot that goes quiet.
+        `secret_id` is the vault key named next to the pair, and `shared_key`
+        whether it is spent on everybody's behalf (`ResolvedSpeechToText.shared_key`),
+        which then requires it to be organization-visible. `language` is an
+        ISO-639-1 code to pin the recording to; `None` leaves the engine to
+        detect it.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the pair is not offered,
+                no key is named, or the named key is not usable for the provider.
+            BadRequestError: `reason="too_large"` over `MAX_BYTES`, or `reason="empty"`
+                when the engine heard nothing.
+            ExternalServiceError: `reason="timeout"` or `reason="provider_error"`. The
+                provider's own text stays in the log: a provider client puts the
+                request URL, key and all, in its message.
         """
+        context = {"provider": provider, "model": model}
         entry = speech_to_text.by_provider(provider)
         if entry is None or not speech_to_text.is_offered(provider, model):
             logger.warning(
                 "Transcription asked for a model that is not offered: %s/%s", provider, model
             )
-            return None
+            raise ConfigurationError(
+                message=f"{provider} does not offer {model} for transcription here.",
+                details={"reason": "not_configured", **context},
+            )
 
         if len(recording.content) > MAX_BYTES:
             logger.info(
                 "Recording of %d bytes is over the transcription limit", len(recording.content)
             )
-            return None
+            raise BadRequestError(
+                message="The recording is larger than transcription accepts.",
+                details={"reason": "too_large", "limit_bytes": MAX_BYTES, **context},
+            )
 
-        key, base_url = await self._credential(organization_id, provider)
-        if key is None:
-            logger.warning("No %s credential in this organization to transcribe with", provider)
-            return None
-
+        api_key = (
+            None
+            if secret_id is None
+            else await OrganizationSecretService(self.db).transcription_key(
+                organization_id, secret_id, provider=provider, shared=shared_key
+            )
+        )
+        if api_key is None:
+            logger.warning("No usable %s key is named to transcribe with", provider)
+            raise ConfigurationError(
+                message=f"No usable {provider} key is chosen for transcription here.",
+                details={"reason": "not_configured", **context},
+            )
+        # `is_offered` above found it.
+        offered = next(candidate for candidate in entry.models if candidate.id == model)
         return await self._post(
-            recording, base_url=base_url or entry.base_url, api_key=key, model=model
+            recording,
+            base_url=entry.base_url,
+            api_key=api_key,
+            model=model,
+            language=language,
+            language_field=offered.language_field,
+            response_format=entry.response_format,
+            context=context,
         )
 
-    async def _credential(
-        self, organization_id: UUID, provider: str
-    ) -> tuple[str | None, str | None]:
-        """This organization's key for one provider, and its endpoint if it set one.
+    async def has_key(
+        self, organization_id: UUID, *, provider: str, secret_id: UUID | None, shared_key: bool
+    ) -> bool:
+        """Whether `transcribe` would find the named key usable - read, never opened.
 
-        Any profile on that provider will do, and the first with a resolvable
-        credential wins: a profile is "the organization's OpenAI", and holding two
-        of them is about chat models rather than about which key transcribes. A
-        profile whose secret was deleted is skipped rather than fatal, because the
-        next one may be fine and refusing on the first would make transcription
-        depend on row order.
+        So a readiness check can say "choose a key" without a plaintext leaving
+        the vault. "Usable", not "works": a key revoked at the provider is still
+        found here, and is reported when a recording arrives as `provider_error`.
         """
-        profiles = [
-            profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if profile.provider == provider
-        ]
-        service = ModelProfileService(self.db)
-        for profile in profiles:
-            try:
-                resolved = await service.resolve_credential(organization_id, profile)
-            except Exception:
-                logger.info(
-                    "Skipping model profile %s while looking for a %s key",
-                    profile.id,
-                    provider,
-                    exc_info=True,
-                )
-                continue
-            if isinstance(resolved.secret, ApiKeySecret):
-                return resolved.secret.api_key.get_secret_value(), resolved.base_url
-        return None, None
+        if secret_id is None:
+            return False
+        row = await OrganizationSecretService(self.db).usable_transcription_key(
+            organization_id, secret_id, provider=provider, shared=shared_key
+        )
+        return row is not None
 
     @staticmethod
-    async def _post(recording: Recording, *, base_url: str, api_key: str, model: str) -> str | None:
+    async def _post(
+        recording: Recording,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        language: str | None,
+        language_field: LanguageField,
+        response_format: str | None,
+        context: dict[str, str],
+    ) -> TranscriptionResult:
         """`POST /audio/transcriptions`, as OpenAI defined it.
 
-        The provider's own error text is logged and never returned: this string
-        reaches a chat as part of an answer, and a provider client puts the failing
-        request URL - key in the query string - in its message.
+        The provider's own error text is logged and never raised: it reaches a
+        chat or a composer as part of an answer, and a provider client puts the
+        failing request URL - key in the query string - in its message.
         """
+        headers = {"Authorization": f"Bearer {api_key}"}
+        data = {"model": model}
+        if language is not None:
+            # A list field, form-encoded the way OpenAI's own clients send one.
+            data["languages[]" if language_field == "languages" else "language"] = language
+        if response_format is not None:
+            data["response_format"] = response_format
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
                 response = await client.post(
                     f"{base_url.rstrip('/')}/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    data={"model": model},
+                    headers=headers,
+                    data=data,
                     files={"file": (recording.filename, recording.content, recording.mime_type)},
                 )
                 response.raise_for_status()
                 payload = response.json()
-        except Exception:
+        except httpx.TimeoutException as exc:
+            logger.warning("Transcription timed out for model %s", model, exc_info=True)
+            raise ExternalServiceError(
+                message="The transcription provider did not answer in time.",
+                details={"reason": "timeout", "stage": "engine", **context},
+            ) from exc
+        except Exception as exc:
             logger.warning("Transcription request failed for model %s", model, exc_info=True)
-            return None
+            raise ExternalServiceError(
+                message="The transcription provider refused or failed the request.",
+                details={"reason": "provider_error", "stage": "engine", **context},
+            ) from exc
 
         text = str(payload.get("text") or "").strip() if isinstance(payload, dict) else ""
         if not text:
             logger.info("Transcription for model %s came back empty", model)
-            return None
-        return text
+            raise BadRequestError(
+                message="No speech was heard in the recording.",
+                details={"reason": "empty", "stage": "engine", **context},
+            )
+        # A dict, or `text` above would have been empty and refused.
+        return TranscriptionResult(text=text, audio_seconds=audio_seconds_of(payload))

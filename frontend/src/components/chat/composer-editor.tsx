@@ -25,6 +25,12 @@ export interface ComposerEditorHandle {
   focus: () => void;
   /** Put the caret `offset` characters into the message, after a chip that spans it. */
   setCaret: (offset: number) => void;
+  /**
+   * What is selected in the message - an empty range at the caret - or, once
+   * focus has left the editor, what was selected as it left. Null before the
+   * editor has held one.
+   */
+  selection: () => { from: number; to: number } | null;
 }
 
 /**
@@ -146,6 +152,17 @@ function placeCaret(root: HTMLElement, offset: number) {
   select(range);
 }
 
+/** What is selected in the message, in order, or null when the selection is not in the editor. */
+function selectionIn(root: HTMLElement): { from: number; to: number } | null {
+  const selection = window.getSelection();
+  const { anchorNode, focusNode } = selection ?? {};
+  if (!selection || !anchorNode || !focusNode) return null;
+  if (!root.contains(anchorNode) || !root.contains(focusNode)) return null;
+  const anchor = offsetOf(root, anchorNode, selection.anchorOffset);
+  const focus = offsetOf(root, focusNode, selection.focusOffset);
+  return { from: Math.min(anchor, focus), to: Math.max(anchor, focus) };
+}
+
 /** Where the caret is in the message, or null when it is not in the editor. */
 function caretIn(root: HTMLElement): number | null {
   const selection = window.getSelection();
@@ -182,6 +199,7 @@ export function ComposerEditor({
   placeholder,
   idle,
   disabled = false,
+  readOnly = false,
   enterKeyHint,
   className,
   ref,
@@ -196,6 +214,8 @@ export function ComposerEditor({
   /** Shown instead of the placeholder while the box is empty and not being typed in. */
   idle?: ReactNode;
   disabled?: boolean;
+  /** Shown, focusable and dimmed, but not editable - the box while a dictation runs. */
+  readOnly?: boolean;
   enterKeyHint?: "enter" | "send";
   className?: string;
   ref?: Ref<ComposerEditorHandle>;
@@ -209,6 +229,9 @@ export function ComposerEditor({
   const reported = useRef<{ text: string; caret: number } | null>(null);
   const composing = useRef(false);
   const [focused, setFocused] = useState(false);
+  // The selection as focus left: a control outside the box - the `+` menu's
+  // Dictate - acts on where the person was, which is no longer the document's.
+  const leftAt = useRef<{ from: number; to: number } | null>(null);
 
   const emit = useCallback(
     (text: string, caret: number) => {
@@ -219,13 +242,18 @@ export function ComposerEditor({
   );
 
   useImperativeHandle(ref, () => ({
-    focus: () => rootRef.current?.focus(),
+    // A disabled box takes no focus, as a disabled field does not: the call bar
+    // that stands in for the composer keeps the focus it was given.
+    focus: () => {
+      if (!disabled) rootRef.current?.focus();
+    },
     setCaret: (offset: number) => {
       const root = rootRef.current;
       if (root === null) return;
       root.focus();
       placeCaret(root, offset);
     },
+    selection: () => (rootRef.current && selectionIn(rootRef.current)) ?? leftAt.current,
   }));
 
   useLayoutEffect(() => {
@@ -292,7 +320,8 @@ export function ComposerEditor({
         aria-multiline="true"
         aria-label={placeholder}
         aria-disabled={disabled || undefined}
-        contentEditable={!disabled}
+        aria-readonly={readOnly || undefined}
+        contentEditable={!disabled && !readOnly}
         tabIndex={disabled ? -1 : 0}
         suppressContentEditableWarning
         enterKeyHint={enterKeyHint}
@@ -301,10 +330,14 @@ export function ComposerEditor({
         className={cn(
           "relative block max-h-[200px] min-h-[40px] w-full scrollbar-thin overflow-y-auto py-2.5 text-base break-words whitespace-pre-wrap focus:outline-none",
           disabled && "cursor-not-allowed opacity-50",
+          readOnly && "text-foreground/55",
           className,
         )}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={(event) => {
+          leftAt.current = selectionIn(event.currentTarget);
+          setFocused(false);
+        }}
         onInput={(event) => {
           if (!composing.current) report(event.currentTarget);
         }}

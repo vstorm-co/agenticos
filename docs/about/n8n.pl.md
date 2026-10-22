@@ -1,5 +1,5 @@
 ---
-source_sha: "6a4832545d9e"
+source_sha: "3b37854bab7f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -11,7 +11,7 @@ n8n to narzędzie do automatyzacji workflow. Na kanwie łączysz wyzwalacze, int
 
 Dobrze się uzupełniają. n8n przenosi dane między systemami według harmonogramu. AgenticOS uruchamia agentów, którzy potrzebują właściciela, osoby zatwierdzającej i limitu wydatków.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres n8n: strona z cennikiem, dokumentacja i licencja w wersji n8n@2.40.7, bez testowanego planu chmurowego ani licencji Enterprise dla self-hostingu.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres n8n: strona z cennikiem, dokumentacja i licencja w wersji n8n@2.44.5, bez testowanego planu chmurowego ani licencji Enterprise dla self-hostingu.
 
 ## W skrócie { #at-a-glance }
 
@@ -25,7 +25,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Środowiska i kontrola wersji | Business i wyższe | Środowiska i eksport do YAML w każdym wdrożeniu |
 | Kontrola wydatków | Limity wykonań w zależności od planu | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Audyt | Log streaming w Enterprise | Odporny na manipulacje dziennik audytu w każdym wdrożeniu |
-| Zatwierdzanie przez człowieka | Dla każdego narzędzia, przez dziewięć kanałów przeglądu | Dla każdej capability i każdego narzędzia capabilities, przez wspólną kolejkę; narzędzia MCP nie są bramkowane per narzędzie |
+| Zatwierdzanie przez człowieka | Dla każdego narzędzia, przez dziewięć kanałów przeglądu | Dla każdej capability i każdego narzędzia oraz polityka zatwierdzeń per połączenie MCP (none, writes albo all), przez wspólną kolejkę |
 | Cennik | Community za darmo; Cloud od 20 EUR miesięcznie za 2500 wykonań, przy płatności rocznej; Business 667 EUR miesięcznie, self-hosted | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }

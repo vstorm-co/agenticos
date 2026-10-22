@@ -105,6 +105,9 @@ async def test_every_check_says_what_it_verified(
     monkeypatch.setattr(background_schedule, "list_all", fired)
     monkeypatch.setattr(background_task_kind, "list_all", nothing_paused)
 
+    # No tile server, so its check answers without reaching the network.
+    monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "")
+
     response = await admin_client.get(f"{settings.API_V1_STR}/admin/system")
 
     assert response.status_code == 200
@@ -115,6 +118,7 @@ async def test_every_check_says_what_it_verified(
         "vector_store",
         "model_access",
         "scheduler",
+        "map_tiles",
     ]
     assert all(check["detail"] for check in checks)
     by_key = {check["key"]: check for check in checks}

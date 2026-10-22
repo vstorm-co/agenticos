@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc4623a620"
+source_sha: "2a7849df1ca9"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -27,6 +27,12 @@ Eine Tabelle hinein, eine veröffentlichte Seite heraus. Der Agent hat die CSV m
 
 ![Chat](assets/screens/light/chat.webp#only-light)
 ![Chat](assets/screens/dark/chat.webp#only-dark)
+
+### Ein Sprachanruf { #a-voice-call }
+
+Das Eingabefeld ist zur Anrufleiste geworden: was der Anruf gerade tut, seine Zeit gemessen am Limit, eine Wellenform beider Stimmen, Stummschalten, Push-to-Talk und Beenden. Darüber läuft die Unterhaltung weiter - Untertitel in der Nachricht, die gerade gesprochen wird, Tool-Ausführungen und eine Freigabekarte mit den exakten Argumenten und dem, was von Ihnen verstanden wurde.
+
+> **Screenshot ausstehend — Ein Sprachanruf.**
 
 ## Einen Agent bauen { #building-an-agent }
 

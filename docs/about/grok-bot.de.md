@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: ein selbst gehostetes KI-Teammitglied"
 description: "Grok Bot gibt jedem benannten Teammitglied einen Cloud-Computer mit Grok. Vergleichen Sie AgenticOS: jedes Modell, ein Audit-Log, getrennte Anmeldungen, Ihre Server."
-source_sha: "718df56557d9"
+source_sha: "2fd2c16c9165"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -11,7 +11,7 @@ Mit Grok Bot von xAI und Cursor legen Sie benannte KI-Teammitglieder an. Jedes h
 
 Wenn Sie diese Woche ein Team von KI-Kollegen auf den Modellen von xAI ausprobieren möchten, ist Grok Bot schnell gestartet. Wenn Sie zeigen müssen, wer was getan hat, die Logins jeder Person trennen und das Modell wählen wollen, ist AgenticOS genau dafür gebaut.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang Grok Bot: die am 11. August 2026 angekündigte öffentliche Beta, wie Presse und unabhängige Tests sie beschreiben, kein getestetes Konto. Ein Test stammt von einem konkurrierenden Anbieter und ist unten so gekennzeichnet.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Grok Bot: die am 11. August 2026 angekündigte öffentliche Beta, wie Presse und unabhängige Tests sie beschreiben, kein getestetes Konto. Ein Test stammt von einem konkurrierenden Anbieter und ist unten so gekennzeichnet.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -21,9 +21,9 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Bas
 | Wo es läuft | Die Cloud von xAI | Ihre Infrastruktur, mit Docker Compose |
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Nur Grok, keine Wahl | 28 Provider, darunter lokale Modelle |
-| Computer | Eine dauerhafte VM, die alle Bots eines Kontos teilen | Eine Sandbox pro Unterhaltung; ein Browser, dessen Anmeldungen pro Person getrennt bleiben |
+| Computer | Eine dauerhafte VM, die alle Bots eines Kontos teilen | Eine Sandbox pro Unterhaltung oder eine, die sich die Chats eines [Projekts](../projects.md) teilen; ein Browser, dessen Anmeldungen pro Person getrennt bleiben |
 | Eine Aufgabe lernen | Bis zu zehn Minuten Bildschirm aufnehmen; ein Skill-Entwurf kommt zurück | Skills, geschrieben oder aus einer Galerie installiert, an jeden Agent gebunden |
-| Teamarbeit | Gruppenchats von zwei bis sechs Bots, die Arbeit weiterreichen | [Delegation](../reference/capabilities.md#delegation) an andere veröffentlichte Agents, an eine Version gebunden |
+| Teamarbeit | Gruppenchats von zwei bis sechs Bots, die Arbeit weiterreichen | [Subagents](../reference/capabilities.md#delegation): andere veröffentlichte Agents, an eine Version gebunden; Projekt-Chats, in denen mehrere Personen und Agents zusammenarbeiten |
 | Freigaben | In Prosa beschrieben; optionale Prüfung durch ein Modell | Von der Plattform geprüft, bevor ein Werkzeug läuft |
 | Audit | Angekündigt | Ein manipulationssicheres Audit-Log und ein Protokoll jedes Runs |
 | Preise | Bezahlte Tarife von 120 $ pro Platz bis 200 $ im Monat | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |

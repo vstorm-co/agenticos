@@ -74,6 +74,7 @@ from app.repositories import mcp_server_check as mcp_server_check_repo
 from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
+from app.repositories import voice_call as voice_call_repo
 
 __all__ = [
     "user_repo",
@@ -136,4 +137,5 @@ __all__ = [
     "context_repo",
     "memory_repo",
     "notification_repo",
+    "voice_call_repo",
 ]

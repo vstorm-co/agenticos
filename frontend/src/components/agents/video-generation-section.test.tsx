@@ -84,6 +84,7 @@ const DEFINITION: CapabilityCatalogEntry = {
     },
   },
   requires_secret: null,
+  voice: "hand_off",
 };
 
 function mount(

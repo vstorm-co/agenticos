@@ -42,38 +42,38 @@ browser is pointed at the deployment's browser service
 
 ## What ships
 
-| id | Name | Category | Tools | Scope | Key |
-|---|---|---|---|---|---|
-| `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Context | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
-| `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
-| `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra |
-| `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
-| `charts` | Charts | analysis | `create_chart` | — | — |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
-| `image_generation` | Image generation | analysis | `generate_image` | — | required |
-| `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required |
-| `video_generation` | Video generation | analysis | `generate_video` | — | required |
-| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Thinking | reasoning | none, by design | — | — |
-| `system_reminders` | Instruction reminders | reasoning | none, by design | — | — |
-| `tool_search` | Tool search | utility | none, by design | — | — |
-| `clock` | Date and time | utility | none, by design | — | — |
-| `guardrails` | Guardrails | utility | none, by design | — | — |
-| `compaction` | Long conversations | utility | none, by design | — | — |
-| `media` | Media offload | utility | none, by design | — | — |
-| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Ask the user | utility | `ask_user_question` | — | — |
+| id | Name | Category | Tools | Scope | Key | Voice |
+|---|---|---|---|---|---|---|
+| `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — | as-is |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adapted |
+| `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
+| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | as-is |
+| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required | as-is |
+| `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
+| `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
+| `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
+| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
+| `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
+| `charts` | Charts | analysis | `create_chart` | — | — | as-is |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
+| `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
+| `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required | as-is |
+| `video_generation` | Video generation | analysis | `generate_video` | — | required | handed off |
+| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required | handed off |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | handed off |
+| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | as-is |
+| `thinking` | Thinking | reasoning | none, by design | — | — | mapped |
+| `system_reminders` | Instruction reminders | reasoning | none, by design | — | — | no effect |
+| `tool_search` | Tool search | utility | none, by design | — | — | dropped |
+| `clock` | Date and time | utility | none, by design | — | — | as-is |
+| `guardrails` | Guardrails | utility | none, by design | — | — | on transcripts |
+| `compaction` | Long conversations | utility | none, by design | — | — | no effect |
+| `media` | Media offload | utility | none, by design | — | — | no effect |
+| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
+| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
+| `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -92,6 +92,25 @@ tools says so with `tools=()` rather than omitting the argument; see
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
 appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
 both explained under [Delegation](#delegation) below.
+
+**The Voice column is what a capability does in a [voice call](../voice.md#what-a-call-can-use).**
+*As-is* runs unchanged. *Adapted* skills load as instructions on demand,
+without their reading tool. *Dropped* tool search gives the call its MCP tools
+directly, because a call's tools are fixed when it connects. *Mapped* thinking
+becomes the realtime model's own reasoning setting. *Handed off* runs in the
+agent's own text model, which the call hands a task to
+([Handing work off](../voice.md#handing-work-off)); the Builder's Voice card
+lists those for an agent that has them, and so does Work while tools run, which
+only sends a handed-off tool to the background. *On screen* asks its questions on
+the call view's card in `/chat`. Chat channel lookup is *not available*, because
+a call is never made on a channel. *No effect* marks three that work on a text
+run's model requests and their stored history, which a call does not send.
+
+Guardrails screen the call's transcripts. A tool's result is screened, and
+blocked, before the agent reads it; the check before a tool runs is the
+approval, for tools that need one. Guardrails do not screen a tool's arguments.
+The catalog API carries how each capability takes part as its `voice` field:
+`live` on the call's own model, `hand_off`, or `never`.
 
 **One of them is not in the Toolbox at all.** `channel_tools` is chosen per bound
 bot under *Where this agent is available*, and publishing refuses a spec that
@@ -1272,9 +1291,30 @@ explainer, a 3D scene.*
 
 Draws in the chat itself. `kind` is `svg` for diagrams and illustrations,
 `mermaid` for flowcharts, sequences and ER diagrams, or `html` for anything
-interactive - sliders, `<canvas>`, three.js. No configuration; the bundled
-`visual-design` skill carries the house style and three templates, and the
-Builder binds it when Visuals is switched on.
+interactive - sliders, `<canvas>`, three.js, a map. No configuration; the bundled
+`visual-design` skill carries the house style and five templates, and the
+Builder binds it, with Charts, when Visuals is switched on.
+
+**It chooses the form first.** Not every answer is a drawing. The tool's text
+and the skill tell the model to answer a fact in text, exact values in a
+Markdown table, numbers to see with `create_chart` - so "now chart it" turns a
+table into a native chart - and to draw when the person should understand how
+something works, use a tool made for the moment, or follow places on a map. The
+skill also says how a drawing should look so it reads as made for the answer
+rather than generated: one large subject, space instead of boxes, theme colours
+only, no pills, shadows or gradients.
+
+**A drawing can continue the conversation.** `agenticos.followUp(text)` in a
+drawing asks to send the person's choice as their next message - *Plan this
+stop*, *Use these numbers*. The console shows the text under the drawing and
+sends it only when the person clicks *Send*; a request with no click behind it
+is dropped. See [Follow-ups](../artifacts.md#visuals).
+
+**Maps.** `lib/agenticos-map-1.js` draws an itinerary - numbered pins dropped in
+order, the line between them, pause and replay, and a card per stop - on the
+tile server `VISUAL_MAP_TILES` names, or as an outline of the stops on a
+deployment that names none. The capability's instructions tell the model which,
+so it does not promise streets it cannot show.
 
 **It appears while it is written.** The drawing is the call's `content` argument.
 The console reads it from the streamed tool-call arguments and posts it into a
@@ -1311,7 +1351,8 @@ pictures its drawing still uses, six at most across its revisions.
 
 **It has an app's isolation.** The frame is the app sandbox - an opaque origin,
 `connect-src 'none'`, nothing remote but the deployment's library set, which now
-includes three.js and Mermaid. See [Visuals](../artifacts.md#visuals).
+includes three.js, Mermaid and Leaflet, and the deployment's own map tile path.
+See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 

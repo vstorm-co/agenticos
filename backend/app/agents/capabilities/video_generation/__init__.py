@@ -210,6 +210,10 @@ class VideoGenerationConfig(BaseModel):
     # A clip costs more than any other single call an agent makes and produces
     # content a person may publish, so every call is a candidate for approval.
     side_effecting=True,
+    # A clip takes minutes, which a voice call cannot sit silent through, and may
+    # start from an image in the workspace a call does not open: the call hands
+    # it to the agent's text twin, as it does the sandbox.
+    voice="hand_off",
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         description="The API key for the chosen video provider",

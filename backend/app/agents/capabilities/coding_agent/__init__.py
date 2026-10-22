@@ -179,6 +179,8 @@ class CodingAgentConfig(BaseModel):
     side_effecting=True,
     # The one tool is the capability: its approval is the capability's.
     tool_settings=False,
+    # Claude Code runs in the sandbox, which a realtime session cannot open.
+    voice="hand_off",
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),

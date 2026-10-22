@@ -62,6 +62,7 @@ const CHARTS: CapabilityCatalogEntry = {
   category: "analysis",
   description: "Draw a chart so the user can see the numbers rather than read them.",
   side_effecting: false,
+  voice: "live",
   scopes: [],
   tools: [
     {

@@ -9,6 +9,7 @@ import {
   useProviderModels,
   useTextToSpeechProviders,
   useVideoProviders,
+  useSpeechToTextProviders,
 } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
 
@@ -257,5 +258,28 @@ describe("useVideoProviders", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.providers).toEqual([]);
+  });
+});
+
+describe("useSpeechToTextProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes on the languages a recording may be pinned to", async () => {
+    // The organization's Voice card offers exactly these, so the list is the
+    // server's and not a copy kept here.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, languages: ["en", "pl"] });
+    const { result } = renderHook(() => useSpeechToTextProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.languages).toEqual(["en", "pl"]));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models");
+  });
+
+  it("answers with no providers and no languages when the catalog cannot be read", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useSpeechToTextProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
+    expect(result.current.languages).toEqual([]);
   });
 });

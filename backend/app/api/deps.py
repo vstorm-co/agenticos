@@ -283,7 +283,7 @@ def get_file_upload_service(db: DBSession) -> FileUploadService:
 
 
 FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
-from app.repositories import member_repo, organization_repo
+from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.retention import RetentionService
 from app.services.member import MemberService
@@ -397,6 +397,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.api.embed_cors import allow_embed_origin
 from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
@@ -598,8 +599,10 @@ async def get_active_organization(
     acts there and nowhere else; an `X-Organization-Id` naming another one is a
     400 naming the header rather than a silent switch (#1903).
 
-    A session reads the `X-Organization-Id` header and falls back to the user's
-    Personal Org when it is absent. Raises 404 if the user is not a member.
+    A session reads the `X-Organization-Id` header. Without it, the request acts
+    in the deployment's default organization when the user belongs to it, then
+    in their personal one, then in their only one; a user with a choice and no
+    header is a 400 asking for it (#2156). Raises 404 if the user is not a member.
     """
     caller = _key_caller(request)
     if caller is not None:
@@ -615,9 +618,14 @@ async def get_active_organization(
         return caller.organization
 
     if x_organization_id is None:
-        org = await organization_repo.get_personal_for_user(db, user.id)
-        if not org:
-            raise NotFoundError(message="Personal organization not found - please re-register")
+        org = await OrganizationService(db).fallback_for(user.id)
+        if org is None:
+            raise BadRequestError(
+                message=(
+                    "Name the organization this request acts in with the X-Organization-Id header."
+                ),
+                details={"header": "X-Organization-Id"},
+            )
         return org
 
     # The membership and the organization in one query, and the membership kept
@@ -1054,6 +1062,31 @@ async def limit_ml_call(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
+async def limit_dictation(ctx: Auth) -> None:
+    """Refuse a person dictating more than their share - each one is a paid call.
+
+    Its own bucket rather than `limit_ml_call`'s, so a person dictating into the
+    composer and an integration calling the ML surface do not spend each other's
+    allowance.
+    """
+    decision = await rate_limit.consume(
+        surface="dictation",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.dictation_limit(),
+    )
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
+
+
+async def limit_voice_preview(ctx: Auth) -> None:
+    """Refuse a person listening to more voices than their share - each is a paid session."""
+    decision = await rate_limit.consume(
+        surface="voice_preview",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.voice_preview_limit(),
+    )
+    _refuse_if_over(decision, "Too many voice previews in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 
@@ -1177,6 +1210,13 @@ async def limit_artifact_content(token: str) -> None:
     )
 
 
+async def limit_map_tiles(request: Request) -> None:
+    """Refuse an address fetching map tiles through the deployment too fast."""
+    _refuse_if_over(
+        await rate_limit.map_tiles_allowed(request), "Too many requests. Try again shortly."
+    )
+
+
 async def limit_hosted_logo(public_key: str) -> None:
     """Refuse a hosted page whose logo is being fetched too often."""
     _refuse_if_over(
@@ -1201,6 +1241,20 @@ async def limit_embed_upload(
         ),
         "Too many uploads. Try again shortly.",
     )
+
+
+async def limit_embed_dictation(request: Request) -> None:
+    """Refuse a caller sending recordings to a hosted page or a widget too fast.
+
+    Per address, before the key is looked up; the link's own ceiling is spent
+    once the visitor is admitted (`rate_limit.embed_dictation_link_allowed`). A
+    refusal is readable by the site that asked: it runs before admission and says
+    the same to every origin (`app.api.embed_cors`).
+    """
+    decision = await rate_limit.embed_dictation_allowed(request)
+    if not decision.allowed:
+        allow_embed_origin(request, request.headers.get("origin"))
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
 
 
 class RequireOrgRole:
@@ -1353,12 +1407,13 @@ async def get_active_organization_ws(
     token, an org id is not a secret - membership is verified here, so an id the
     user does not belong to closes the socket rather than granting anything.
 
-    Falls back to the user's Personal organization when the parameter is absent,
-    which keeps single-org clients working unchanged.
+    Falls back as the HTTP dependency does when the parameter is absent - the
+    default organization, the personal one, the only one - which keeps
+    single-org clients working unchanged.
 
     Raises:
-        WebSocketException: If the user has no Personal org (4001), or is not a
-            member of the requested org (4003). Membership failure and a
+        WebSocketException: If the fallback leaves a choice (4001), or the user is
+            not a member of the requested org (4003). Membership failure and a
             non-existent org return the same reason so the socket cannot be used
             to probe which organizations exist.
     """
@@ -1371,9 +1426,9 @@ async def get_active_organization_ws(
 
     async with get_db_context() as db:
         if organization_id is None:
-            org = await organization_repo.get_personal_for_user(db, user.id)
+            org = await OrganizationService(db).fallback_for(user.id)
             if org is None:
-                raise WebSocketException(code=4001, reason="Personal organization not found")
+                raise WebSocketException(code=4001, reason="Name the organization_id")
         else:
             # One query, as `get_active_organization` reads it: the foreign key
             # means a membership always names an organization that exists.
@@ -1614,6 +1669,31 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
+from app.services.voice import VoicePreviewService, VoiceSettingsService, VoiceUsageService
+
+
+def get_voice_settings_service(db: DBSession) -> VoiceSettingsService:
+    """Create VoiceSettingsService instance with database session."""
+    return VoiceSettingsService(db)
+
+
+VoiceSettingsSvc = Annotated[VoiceSettingsService, Depends(get_voice_settings_service)]
+
+
+def get_voice_usage_service(db: DBSession) -> VoiceUsageService:
+    """Create VoiceUsageService instance with database session."""
+    return VoiceUsageService(db)
+
+
+VoiceUsageSvc = Annotated[VoiceUsageService, Depends(get_voice_usage_service)]
+
+
+def get_voice_preview_service(db: DBSession, redis: Redis) -> VoicePreviewService:
+    """Create VoicePreviewService instance with database session and Redis."""
+    return VoicePreviewService(db, redis)
+
+
+VoicePreviewSvc = Annotated[VoicePreviewService, Depends(get_voice_preview_service)]
 from app.services.background_jobs import BackgroundJobService
 
 

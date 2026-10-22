@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export type StatusTone = "ok" | "warn" | "err" | "neutral";
 
 export interface StatusRow {
+  /** What tells two rows apart when their labels match - two bots both named "test". */
+  id?: string;
   label: string;
   sub?: string;
   pill: string;
@@ -55,7 +57,7 @@ export function StatusList({ rows, className }: { rows: StatusRow[]; className?:
   return (
     <ul className={cn("space-y-1", className)}>
       {rows.map((row) => (
-        <li key={row.label} className="flex items-center gap-2.5 py-1 text-sm">
+        <li key={row.id ?? row.label} className="flex items-center gap-2.5 py-1 text-sm">
           {row.icon ? (
             <span
               className={cn("flex size-4 shrink-0 items-center justify-center", MARK[row.tone])}

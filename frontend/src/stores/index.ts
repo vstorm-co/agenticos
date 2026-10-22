@@ -1,5 +1,8 @@
 export { useAuthStore } from "./auth-store";
 export { useThemeStore } from "./theme-store";
+export { useVoiceGlowStore } from "./voice-glow-store";
+export { useVoiceCallStore } from "./voice-call-store";
+export { useMotionStore } from "./motion-store";
 export { useSidebarStore } from "./sidebar-store";
 export { useChatStore } from "./chat-store";
 export { useChatBandsStore, useChatSidebarStore } from "./chat-sidebar-store";

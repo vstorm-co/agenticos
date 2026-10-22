@@ -39,6 +39,7 @@ from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionC
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
+from app.agents.hand_off import HAND_OFF_TOOL
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DynamicSpecialists,
@@ -980,6 +981,38 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+    def test_the_tool_a_call_adds_has_its_own_row(self):
+        """`hand_off` is no capability's, so the check above cannot see it (#54)."""
+        source = CATALOG_PATH.read_text(encoding="utf-8")
+        start = source.index("export const CALL_TOOLS")
+        body = source[source.index("{", start) : source.index("\n};", start)]
+        assert re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE) == [HAND_OFF_TOOL]
+
+
+def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
+    """#54: a realtime session cannot carry these, so a call hands them to the
+    agent's text twin; the Builder's Voice card lists them.
+
+    `channel_tools` alone is never in a call, which is never made on a channel;
+    `docs/reference/capabilities.md` says the same of each.
+    """
+    load_builtins()
+    by_support = {
+        support: {d.id for d in all_capabilities() if d.voice == support}
+        for support in ("hand_off", "never")
+    }
+    assert by_support == {
+        "hand_off": {
+            "sandbox",
+            "browser_use",
+            "subagents",
+            "background_tools",
+            "coding_agent",
+            "video_generation",
+        },
+        "never": {"channel_tools"},
+    }
 
 
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"

@@ -37,8 +37,9 @@ Two things are versioned separately from this file and worth knowing about:
   price is checked against the budget before the job is submitted, and a job
   past the agent's time limit is cancelled where the provider allows. Google
   keeps the request it answers, because Gemini delivers a clip by address only
-  from a stored interaction. BytePlus keys are a new purpose in the vault
-  (#2260).
+  from a stored interaction. In a voice call a clip is handed to the agent's
+  text model, since a call cannot wait minutes in silence. BytePlus keys are a
+  new purpose in the vault (#2260).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip plays in the
@@ -62,14 +63,290 @@ Two things are versioned separately from this file and worth knowing about:
   app need to play video. This is groundwork for speech and video generation, which store their clips the same
   way as generated images (#2259).
 
+## [1.12.1] - 2026-10-22
+
 ### Security
 
-- **`virtualenv` moves to 21.14.5.** 21.14.1 carried four advisories published
-  on 2026-10-21, and every pull request failed the Security Scan on them; 21.14.5
-  fixes three. The fourth, GHSA-vxj4-q4g9-crj7, is fixed only in 21.14.7, which
-  needs `packaging` 26 while `xai-sdk` pins `packaging` below 26, so `make audit`
-  accepts it by name with the reason beside it. `virtualenv` is a development
-  dependency of `pre-commit` and is not in the image.
+- **Dependency alerts match the backend's locked versions again.** Dependabot
+  cannot read a project that requires Python 3.15, so since 1.9.0 its graph kept
+  the versions locked before, and fourteen alerts for Pillow, certifi and
+  virtualenv stayed open although `backend/uv.lock` already held the fixed
+  releases. A new workflow, `.github/workflows/dependency-graph.yml`, submits
+  the graph from the lock on every push to `main` that moves it. See
+  [Dependency updates](docs/branching.md#dependency-updates).
+
+## [1.12.0] - 2026-10-22
+
+### Added
+
+- **Interactive answers in the chat (#2302).** An agent with Visuals chooses
+  the form of each answer - text, a Markdown table, a native chart, or a
+  drawing - and a drawing can be a tool: an explainer with controls, a
+  calculator, a map. A button in a drawing can continue the conversation with
+  what the person picked through `agenticos.followUp(text)`: the console shows
+  the exact text under the drawing and sends it only when the person clicks
+  Send, so a drawing can never speak for them. In a saved app the call does
+  nothing.
+- **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
+  `openstreetmap`, `usgs-topo`, or a https URL template with
+  `VISUAL_MAP_TILES_ATTRIBUTION`. The deployment fetches the tiles and serves
+  them from its own tile path, by three checked numbers and limited per address
+  (`RATE_LIMIT_MAP_TILES_PER_MINUTE`), so a page never sees the server's address
+  or key and can send it nothing. Off by default. Leaflet 1.9.4 and the map kit
+  `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
+  replay, stop cards) join the library set; without tiles a map is drawn as an
+  outline of its stops. *Admin → System* shows whether the tile server answers.
+- **Starters for an agent that draws**: an empty chat with Visuals on opens on
+  four - explain in 3D, compare then chart, make a calculator, plan a trip on a
+  map. Switching Visuals on in the Builder binds Charts too.
+
+### Changed
+
+- **Drawings sit in the conversation without a card around them**, from the
+  text's left edge, named by a quiet line underneath; a drawing holds the height
+  it declared while it streams, and shows nothing until its styles are written.
+  The `visual-design` skill says how to choose the form of an answer and how to
+  make a drawing look designed rather than generated, with templates for a 3D
+  explainer, a calculator and an itinerary. Messages in the chat sit a little
+  closer together, and a drawing and the answer after the steps a little
+  further apart.
+
+## [1.11.0] - 2026-10-21
+
+### Added
+
+- **A default organization for new accounts, and personal organizations made
+  optional** (#2156). Two settings under Admin → Deployment → New accounts: turn
+  personal organizations off, and name the organization every new account joins,
+  with a role other than owner - an account admitted only by another
+  organization's invitation does not join it. A session request naming no organization now acts
+  in the default organization first, then the personal one, then the only one,
+  and is refused with a `400` naming `X-Organization-Id` rather than guessing
+  between several. The console selects the default organization when nothing else
+  is selected, and switches to the organization an accepted invitation joined.
+
+## [1.10.2] - 2026-10-21
+
+### Added
+
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
+
+## [1.10.1] - 2026-10-21
+
+### Changed
+
+- **The comparison guides are checked again, on 21 October 2026, against
+  1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
+  was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
+  now returns a conversation link and polls run status in beta, though the
+  answer still cannot be read back; ChatGPT Business and Claude Team sell
+  Premium seats; Copilot Studio's credit pack gave way to commit units; Google
+  no longer lists Gemini Enterprise prices; Viktor and OpenCode changed plans.
+  The guides also say what AgenticOS gained since 0.0.504: the coding agent
+  that hands work to Claude Code or Codex, the MCP server, A2A, projects, an
+  approval policy per MCP connection, 33 permissions, the scaling guide and,
+  with 1.10.0, voice calls in web chat, the widget and the hosted page.
+- **AgenticOS vs Sauna**, a new comparison with Sauna, a proactive AI
+  assistant per person: where it runs and processes data, models per plan,
+  sharing, autonomy and pricing, from its public pricing, security and privacy
+  pages.
+
+## [1.10.0] - 2026-10-21
+
+### Added
+
+- **A navigation shows it is on its way.** A click on a link inside the
+  console starts a thin bar along the top edge, shown after 120 ms and
+  finished when the page arrives, and the sidebar entry clicked turns its icon
+  into a spinner, so a slow page no longer looks like a click that did nothing.
+- **The composer offers the same controls for every agent.** The call button
+  shows for an agent with no voice too, saying calls are off and linking an
+  editor to the agent's Voice card in the Builder; browser dictation says when
+  the agent's Dictation switch is off and links there too; the files button and
+  the usage meter appear in a new chat, saying what will show once it runs.
+- **Voice conversations with agents (#54).** A member can call a published
+  agent and talk to it, with barge-in; the agent keeps its tools, knowledge,
+  in-call approvals (the exact arguments shown, 60 seconds to decide, only the
+  caller with `approvals:decide` deciding) and budgets, and every turn is saved
+  as text in the conversation with no audio stored. Calls are switched on in the
+  agent, not the organization: a published agent with a Voice section takes
+  them, for as long as its own longest call (10 minutes by default, 50 at most),
+  bounded by the budgets. An agent's spec gains an
+  optional `voice` block - provider, model or Azure deployment and base model,
+  key, voice, language, longest call, voice note - picked from a new realtime
+  catalog (`GET /api/v1/providers/realtime-models`) and refused at publish when
+  it cannot hold a call; no `SPEC_VERSION` bump. Calls run over
+  `/api/v1/ws/voice`: OpenAI over WebRTC with a server sideband (no data
+  channel, no client secret), Azure OpenAI, Gemini Live and xAI through a relay,
+  those three **not verified live**. Each call is a run (`agent_runs.modality`,
+  and a `voice_calls` row per connection, `0155_voice_calls.py`), hung up on
+  every exit, heartbeated every 15 seconds and swept every minute for a dead
+  worker's calls; one call per person (`VOICE_MAX_CALLS_PER_USER`); one
+  automatic reconnect within 10 seconds, seeded with text. Turns are messages
+  with a `turn_id` and an `interrupted` marker (`0156_message_voice_turns.py`).
+  `GET /api/v1/agents/{agent_id}/voice` says whether a call would start,
+  `GET /api/v1/voice/usage` reports call minutes, `GET /api/v1/runs` takes
+  `?modality=`, and Activity shows a call as one row with a microphone badge.
+  Widgets and hosted pages get their own Voice calls switch and
+  `/api/v1/embed/{public_key}/voice/ws`, with gated tools left out of visitors'
+  calls, `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` (3) and
+  `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` (6), and at most
+  `VOICE_MAX_CALLS_PER_EMBED` (3) calls open per embed. The dashboard gains a
+  Voice minutes card and the walkthrough stops for both voice settings. In
+  `/chat` a call is a pill above a composer that does not change, its turns
+  drawn as the messages they become; the hosted page (without approval
+  controls) and the widget, whose `voice.js` loads only when calls are on, use
+  a call bar. A play button beside the Builder's voice picker plays the draft's
+  voice (`POST /api/v1/agents/{agent_id}/voice/preview`, cached, per person
+  `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` (6)).
+  What a realtime session cannot carry - sandbox, browser use, subagents, work
+  while tools run - the call hands to the same agent on its own text model
+  through one `hand_off` tool: same workspace, same budget, its approvals on
+  the call's card, its steps shown live and saved on the turn. In `/chat` the
+  agent's `ask_user` questions appear on the call view's card and can be
+  answered by a tap or aloud. The capability catalog's `voice` field is now
+  `live`, `hand_off` or `never`, and readiness no longer lists unavailable
+  capabilities. See [Voice conversations](docs/voice.md).
+- **Dictation in `/chat` on the organization's own speech-to-text provider
+  (#1797).** With the agent's Dictation switch on (`speech_to_text.dictation`),
+  the composer records
+  in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the
+  recording, and the text lands at the caret for editing, never sent by itself.
+  Anyone who may run the agent may dictate to it. Refusals carry
+  `details.reason`, each dictation is one `ml_service_calls` row, and the audio
+  is not stored. A per-person `RATE_LIMIT_DICTATION_PER_MINUTE` (10) meters it on
+  its own counter. Every browser records 16 kHz mono 16-bit PCM WAV, the only
+  format accepted by default (see the Admin → Deployment switch below). An
+  upload that takes over a second shows its percentage before the transcribing
+  sweep, and the strip under the box says when a recording stopped at the
+  organization's limit and how many words it inserted - on a hosted page too.
+  See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
+- **A Voice card on the organization's Members page.** For `org:settings`
+  holders: the default provider and model from the speech-to-text catalog, its
+  key, a language and the longest recording, stored in five new organization
+  columns (`0150_org_speech_settings.py`) - the default agents and channel bots
+  inherit. Without an agent's switch on, `/chat` dictates in the browser.
+- **An agent can transcribe on its own engine (#1797).** An optional
+  `speech_to_text` block on the agent spec (provider, model and key together,
+  the language on its own), set on a Voice card on the Build tab and live once
+  published. Speech resolves in one place: the pair from the bot, the agent,
+  then the organization; the language from the agent, then the organization.
+  `GET /api/v1/agents/{agent_id}/dictation` tells the composer whether
+  dictation to that agent is ready and on which provider, which decides the
+  recording format. See
+  [Which engine a recording reaches](docs/ml-services.md#which-engine-a-recording-reaches).
+- **Channel bots inherit, choose or switch off transcription.** A new
+  `transcribe_voice_notes` switch (`0151_bot_transcription_switch.py`): a bot
+  with no pair now inherits from its agent and organization, and off never
+  transcribes. Every bot that had no pair before the migration is switched off,
+  so none starts transcribing on upgrade. Slack audio clips are transcribed
+  whatever type Slack gives them, and an untyped Slack or Mattermost upload is
+  transcribed when its extension names audio; a Mattermost webhook-mode bot
+  looks its files up first, several at once, and keeps a file whose details come
+  back malformed as an ordinary attachment. `audio/opus` and `audio/x-ogg` are
+  read as Ogg and `audio/m4a` as MP4. The provider is sent `voice.<ext>` named
+  from the type, and a voice note posted in a thread before the bot joined is
+  named in the reply rather than transcribed. A bot whose agent is archived or
+  has nothing published transcribes nothing, since its turn is refused anyway. A
+  voice note longer than the organization's longest dictation, or whose length
+  neither its file (Ogg, WebM, MP4, WAV, MP3) nor its platform states, is
+  refused before any provider is paid. See
+  [the voice message notes](docs/channels.md#what-every-channel-shares).
+- **Every transcription is recorded with its length and attribution (#1797).**
+  `ml_service_calls` gains the provider and model, the key, the surface (`chat`,
+  `channel`, `api`), the agent and channel bot, and `audio_ms`
+  (`0152_ml_call_attribution.py`); a transcription now counts seconds of audio,
+  not characters. Channel voice notes write a row too, naming the linked
+  sender while they are still a member. The length comes from the recording
+  itself for dictation, then the provider (`whisper-1`, Groq, Mistral), the
+  platform (Telegram, Slack) or, for dictation, the browser's clamped figure.
+  `GET /api/v1/ml/calls` filters by agent, bot, surface and window - the first
+  three, and those columns, for `runs:view` only - and
+  `GET /api/v1/ml/calls/summary` (`runs:view`) adds up each row's own rounded
+  seconds, so it agrees with the listing; the organization's Voice card shows
+  it in one line. See
+  [Transcriptions](docs/ml-services.md#transcriptions).
+- **Dictation on a hosted page and in the website widget (#1797).** Each has a
+  `dictation` setting - Off, Browser or Server - and Server transcribes a
+  visitor's recording on the organization's own provider through the public
+  `POST /api/v1/embed/{public_key}/dictation`, admitted as the surface is (a
+  widget by its allow-list and token, a page by its visitor key). The page uses
+  the composer's recorder, hints and glow; the widget has a plain-JS recorder of
+  its own, WAV encoder and resampler included. Switching Server on is refused
+  while no provider and key resolve, and a page or widget whose provider
+  goes away offers no microphone. Rows record surface `hosted` or `widget` and
+  no person. Before the provider is called, the server counts the recording's
+  samples and refuses one over the organization's longest dictation as
+  `too_large`, so the link's limit times the longest dictation bounds the
+  spend exactly. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
+  `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (10, per
+  link) bound the spend. The recording format is the server's to say, as
+  `format` on `GET /api/v1/agents/{agent_id}/dictation` with
+  `server_available` beside it, and as `dictation_format` in a page's or a
+  widget's public config. See
+  [Dictation on a widget or a hosted page](docs/channels.md#dictation-on-a-widget-or-a-hosted-page).
+- **Dictation is raw PCM unless the deployment accepts compressed audio
+  (#1797).** By default every dictation - composer, hosted page and widget - is
+  WAV holding 16 kHz mono 16-bit PCM, read strictly: any other WAV, and WebM,
+  Ogg or MP4, is refused as `unsupported_type`, with `details.accepted`. Its
+  length is its size, so the samples are counted, refused over the longest
+  dictation before the provider is called, recorded exactly, and sent behind a
+  header the server builds. A **Dictation audio** card on Admin → Deployment
+  turns on `dictation_compressed_audio`
+  (`0154_dictation_compressed_audio.py`, off), after a dialog naming the risk
+  and an acknowledgement: compressed formats are then accepted too, their
+  length read from the file's header, which a crafted file can understate up to
+  about forty times within the byte cap; a page or widget still refuses one
+  whose length it cannot read, and the composer accepts it under the byte cap.
+  Browsers record WebM only where it is on and the provider takes it - Mistral
+  stays on WAV. See
+  [What a dictation may be uploaded as](docs/deployment.md#what-a-dictation-may-be-uploaded-as).
+- **An Appearance card under Settings → Profile** with the theme, a **Voice
+  glow** preference - Vivid, Subtle (the default) or Off, per browser, and no
+  glow under reduced motion - and a per-browser **Motion** preference: System
+  follows the operating system, Reduce turns motion down without it, and Full
+  keeps it whatever the operating system says.
+
+### Changed
+
+- **A hosted page's `allow_voice` is now `dictation` (#1797).** `true` reads as
+  `browser` and `false` as `off`, both on stored rows
+  (`0153_embed_dictation.py`, reversible) and on any config still sent with the
+  old field, so no page loses its microphone.
+- **Speech to text is sent with a key named beside its pair (#1797).** At
+  every level - the organization's default (`speech_to_text_secret_id`), an
+  agent's `speech_to_text.secret_id`, a channel bot's own pair
+  (`speech_to_text_secret_id`) - the model is a catalog pick and the key a vault
+  API key whose purpose is the provider. Provider, model and key resolve
+  together from the first level naming a pair, so a key never reaches another
+  provider; an agent that sets only a language keeps the organization's pair and
+  key. The organization's and a bot's key must be organization-visible, checked
+  when saved and per recording; an agent's must be viewable by its publisher,
+  checked at publish. Nothing is looked up at run time: model profiles are no
+  longer read for transcription, and the vault is not searched for a key by
+  provider. Deleting a key empties the reference, and readiness says `no_key`
+  (`unavailable` on `GET /api/v1/agents/{agent_id}/dictation`) until another is
+  chosen. `POST /api/v1/ml/audio/transcriptions` takes a `secret_id`, and with
+  none uses the organization's default key for its own provider; with no
+  provider named it uses the organization's default pair. Each usage row
+  records the key it was sent with (`secret_id`, SET NULL). Existing bots with a
+  pair get the key their first keyed profile held, where it is an
+  organization-visible API key for the provider; the rest show "choose a key".
+  The speech-to-text catalog no longer returns `credentialed`. A pinned language
+  is passed to the provider. Channel bots still answer "could not be
+  transcribed" on any failure. A self-hosted speech-to-text server cannot be
+  named yet; a local service of kind `speech` is the planned follow-up.
+- **A null pair on a channel bot means inherit, not off.** `PATCH
+  /channels/bots/{id}` turns transcription off with `transcribe_voice_notes:
+  false`, which clears the pair, and refuses an explicit `null` for it. A pair
+  sent together with `false` is refused, on create as on update. A spec
+  carrying `speech_to_text` cannot be imported into a deployment older than it.
 
 ## [1.9.1] - 2026-10-21
 

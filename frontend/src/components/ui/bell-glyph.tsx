@@ -31,13 +31,14 @@ import {
   AnimatePresence,
   motion,
   useMotionValue,
-  useReducedMotion,
   useSpring,
   useTransform,
   useVelocity,
   type AnimationPlaybackControls,
   type MotionValue,
 } from "motion/react";
+
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
 // Roles, not shades. Every one of these resolves per theme in `globals.css`,
@@ -306,7 +307,7 @@ function CountBadge({
  * lucide icons and has to match them exactly.
  */
 export function RingingBell({ count = 0, className }: { count?: number; className?: string }) {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = useReducedMotion();
   const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   const { swing, clapper } = useBellRing(total, reduced);
   return <BellIcon swing={swing} clapper={clapper} className={className} />;
@@ -344,7 +345,7 @@ export function BellGlyph({
   label,
   ...props
 }: BellGlyphProps) {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = useReducedMotion();
   const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   // use the total so a weird count cannot ring the bell
   const { swing, clapper } = useBellRing(total, reduced);

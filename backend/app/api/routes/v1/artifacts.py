@@ -25,6 +25,7 @@ from app.api.deps import (
     ArtifactSvc,
     Auth,
     limit_artifact_content,
+    limit_map_tiles,
     limit_public_artifact,
     require,
 )
@@ -33,6 +34,7 @@ from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
     library_response,
+    map_tile_response,
     visual_frame_response,
 )
 from app.core.permissions import Perm
@@ -47,6 +49,7 @@ from app.schemas.artifact import (
     PublicArtifactRead,
     PublicArtifactUnlock,
 )
+from app.services import tile_proxy
 from app.services.artifact import library_file
 from app.services.visual import frame_document
 
@@ -201,6 +204,19 @@ async def get_artifact_library_file(name: str) -> Response:
     """One file of the library set pages may load. Static, versioned by name."""
     data, media_type = await library_file(name)
     return library_response(data, media_type)
+
+
+@content_router.get(
+    "/tiles/{z}/{x}/{y}", response_class=Response, dependencies=[Depends(limit_map_tiles)]
+)
+async def get_map_tile(z: int, x: int, y: int) -> Response:
+    """One map tile of the deployment's tile server, for a visual or an app to draw on.
+
+    Fetched here so a page never learns the server's address or key and can send
+    it nothing but three numbers. 404 when the deployment names no tile server.
+    """
+    data, media_type = await tile_proxy.tile(z, x, y)
+    return map_tile_response(data, media_type)
 
 
 @content_router.get("/visual-frame", response_class=Response)

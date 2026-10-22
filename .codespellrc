@@ -31,7 +31,9 @@
 #              reader gets on an untranslated page is written out in
 #              `scripts/mkdocs_hooks.py`; both files are otherwise English prose
 #              worth checking, so the words are ignored rather than the files.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform
+#   afterall   Playwright's `test.afterAll` hook, which an e2e spec has to call
+#              by that name.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform,afterall
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.

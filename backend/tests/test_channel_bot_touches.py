@@ -44,6 +44,7 @@ def _row(platform: str = "mattermost") -> ChannelBot:
         stream_answers=True,
         step_display="timeline",
         rate_answers=True,
+        transcribe_voice_notes=True,
     )
 
 

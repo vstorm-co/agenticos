@@ -1,5 +1,5 @@
 ---
-source_sha: "62f20297dde0"
+source_sha: "12eb1406746c"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -286,6 +286,47 @@ existe y lee el rechazo como que el producto está roto. Por eso también se
 publican los dominios permitidos: no son un secreto, y el despliegue está en el
 host de la propia empresa.
 
+## Dónde empieza una cuenta nueva { #where-a-new-account-starts }
+
+Lo deciden dos ajustes junto al modo de registro, ambos en **Cuentas nuevas** de
+`/admin/settings`, y ambos se aplican a las cuentas creadas después: una
+organización personal existente se queda (#2156).
+
+| Ajuste | Por defecto | Efecto |
+|---|---|---|
+| `personal_organizations` | activado | Cada cuenta nueva recibe una organización propia, con ella misma como Owner. |
+| `default_organization_id` | ninguna | Cada cuenta nueva se une a esta organización, con `default_organization_role`. |
+| `default_organization_role` | `member` | Cualquier rol salvo `owner`; un ajuste que hiciera owner a cada recién llegado les daría a todos las llaves de la empresa. |
+
+Un despliegue abierto a personas independientes mantiene los valores por defecto.
+Un despliegue para una sola empresa desactiva las organizaciones personales y
+nombra la organización de la empresa, así que un compañero empieza donde están los
+agents y el conocimiento de la empresa, y nadie ejecuta agents con un budget, una
+política de aprobaciones y un registro de auditoría propios junto a los de la
+empresa. Una organización personal no puede ser la organización por defecto, y
+borrar la organización por defecto vacía el ajuste.
+
+**Una invitación a la organización por defecto tiene prioridad.** Una invitación
+nombra su propio rol, y aceptar una a una organización a la que la persona ya
+pertenece se rechaza; así que quien se registra con una invitación a la
+organización por defecto, o tiene una pendiente para su dirección, no se une a ella
+al registrarse. Se une al aceptarla, con el rol de la invitación.
+
+**Solo la regla propia del despliegue une a alguien a ella.** Una cuenta admitida
+por el propio modo de registro — un despliegue abierto, una dirección de un
+dominio permitido — se une a la organización por defecto. Una admitida solo por la
+invitación o el mapeo de directorio de otra organización, no: los responsables de
+esa organización avalaron a la persona ante su propia organización, y unirla a la
+por defecto les permitiría añadir personas a una organización que no gestionan.
+
+**La organización por defecto es también donde aterriza una sesión.** Una petición
+con token de sesión y sin `X-Organization-Id` actúa en la organización por defecto
+cuando la persona pertenece a ella, luego en su personal, luego en la única que
+tenga. Quien tiene donde elegir y no envía la cabecera recibe un `400` que la nombra
+en vez de una suposición; consulta [la cabecera de organización](api.md#the-organization-header).
+La consola selecciona la misma organización cuando no hay otra seleccionada, y
+aceptar una invitación cambia la consola a la organización a la que se unió.
+
 ## Encontrar un tenant entre todos ellos { #finding-one-tenant-among-all-of-them }
 
 `GET /admin/organizations` es la única superficie que responde a *qué tenants
@@ -301,7 +342,7 @@ despliegue puede arreglar y que por tanto hay que mostrarle.
 | `search` | Nombre, slug o la dirección del owner. El término es texto, no un patrón: `100%` encuentra al tenant que se llama así en lugar de a todos |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Cualquier otra cosa es un 422 |
 | `sort_dir` | `asc` / `desc`, con los más nuevos primero por defecto |
-| `kind` | `personal`, `team` o `all`. A cada cuenta se le da una organización personal al registrarse, así que en la mayoría de despliegues son casi toda la lista |
+| `kind` | `personal`, `team` o `all`. A cada cuenta se le da una organización personal al registrarse salvo que el despliegue lo haya desactivado, así que en la mayoría de despliegues son casi toda la lista |
 | `skip`, `limit` | Una página del servidor, hasta 100 |
 
 **Todo ello ocurre en SQL, antes de `OFFSET`/`LIMIT`**, y `total` cuenta aquello
@@ -512,6 +553,32 @@ El schema rechaza el cero: una cuenta que no puede poseer ninguna organización 
 una cuenta que no se puede crear, ya que el registro da a cada una su propia
 organización personal.
 
+## En qué formato puede subirse un dictado { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **desactivado por defecto**, decide el formato de
+todo [dictado](ml-services.md#dictation-in-chat) del despliegue - el composer de
+`/chat`, las páginas alojadas y los widgets, en todas las organizaciones.
+Desactivado, el servidor acepta un único formato: WAV con PCM de 16 bits, mono y
+16 kHz, que graba cualquier navegador. Su duración es su tamaño, 32.000 bytes por
+segundo, así que el servidor cuenta las muestras y el dictado más largo limita
+con exactitud lo que cuesta una grabación.
+
+Activado, se aceptan además WebM, Ogg y MP4, y las subidas pesan más o menos una
+octava parte. Su duración se lee de la propia cabecera del archivo, que un archivo hecho
+a mano puede declarar por debajo: un dictado puede llevar entonces hasta unas
+cuarenta veces el dictado más largo dentro del límite de tamaño. En una
+[página o un widget públicos](channels.md#what-it-costs-and-what-bounds-it)
+cualquiera que tenga el enlace puede enviar uno, cobrado a la cuenta del provider
+de la organización y fuera de todo budget.
+
+Por eso el interruptor de `/admin/settings` pregunta antes. Activarlo abre un
+diálogo que nombra esos riesgos y solo habilita su botón de confirmar cuando se
+marca una casilla que dice que se han leído; desactivarlo no pregunta nada. En
+ambos casos se guarda con el resto del formulario y se audita como cualquier otro
+campo. Los navegadores lo siguen la próxima vez que una página pregunta: el
+formato en que graban es el que anuncia el servidor, nunca una lista guardada en
+el cliente.
+
 ## La fila { #the-row }
 
 Una sola fila para toda la instalación, custodiada por la base de datos y no por
@@ -602,10 +669,16 @@ cuando la causa esté resuelta, o morirán igual. Los ajustes están en
   una columna nula significa *lo integrado* y no *vacío*.
 - `signup_mode` se aplica en **un solo lugar** y controla ambos caminos que acuñan
   una cuenta. Una invitación anula una lista de dominios; nada anula `closed`.
+- Una cuenta nueva recibe una **organización personal salvo que se haya
+  desactivado**, y se une a la **organización por defecto** cuando hay una; ahí
+  aterriza también una sesión que no nombra organización.
 - Un app admin **no puede dejarse a sí mismo sin acceso** desde la consola.
 - **La impersonación es una sesión**: iniciada desde la consola sin ningún token
   en el portapapeles, nombrada en una franja, terminada por el administrador, por
   la persona al cerrar sesión en todas partes, o por la hora. Si se avisa a la
   persona es `notify_impersonated_users`, desactivado por defecto.
+- El dictado es **PCM en crudo salvo que `dictation_compressed_audio` esté
+  activado**, y un administrador solo lo activa tras un diálogo que nombra lo que
+  cuesta.
 - Cada rechazo de este despliegue tiene el mismo aspecto, sea cual sea la capa que
   lo produjo.

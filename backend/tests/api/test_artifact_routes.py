@@ -359,6 +359,53 @@ class TestTheContentRoute:
         assert "sandbox" not in response.headers.get("content-security-policy", "")
 
 
+class TestTheTileRoute:
+    @pytest.mark.security
+    async def test_a_tile_is_an_image_for_any_page_and_carries_nothing_else(
+        self, client: OpenClient
+    ) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+        with patch(
+            "app.api.routes.v1.artifacts.tile_proxy.tile",
+            new=AsyncMock(return_value=(png, "image/png")),
+        ) as fetched:
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/3/4/5")
+
+        assert response.status_code == 200
+        assert response.content == png
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["cross-origin-resource-policy"] == "cross-origin"
+        assert "set-cookie" not in response.headers
+        fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_tile_path_that_is_not_three_numbers_is_refused(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/tiles/3/4/secret-from-the-page"
+            )
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_an_address_fetching_too_many_tiles_is_refused_before_any_fetch(
+        self, client: OpenClient
+    ) -> None:
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
+        fetch = AsyncMock()
+        with (
+            patch.object(rate_limit, "map_tiles_allowed", new=AsyncMock(return_value=refused)),
+            patch("app.api.routes.v1.artifacts.tile_proxy.tile", new=fetch),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/1/0/0")
+        assert response.status_code == 429
+        fetch.assert_not_awaited()
+
+
 class TestWhatAPageGained:
     async def test_the_agent_filter_lists_the_publishers(self, client: OpenClient) -> None:
         agent_id = uuid.uuid4()

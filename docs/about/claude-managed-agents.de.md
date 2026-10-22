@@ -2,7 +2,7 @@
 title: "AgenticOS vs Claude Managed Agents"
 seo_title: "AgenticOS vs Claude Managed Agents: eine selbst gehostete Laufzeit"
 description: "Claude Managed Agents ist die gehostete Agent-Laufzeit von Anthropic für Entwickler. Vergleichen Sie AgenticOS: eine Laufzeit samt Konsole auf Ihren Servern."
-source_sha: "ef4c85c46963"
+source_sha: "059068f07c88"
 ---
 
 # AgenticOS vs Claude Managed Agents { #agenticos-vs-claude-managed-agents }
@@ -11,7 +11,7 @@ Claude Managed Agents ist die von Anthropic gehostete Laufzeit für Entwickler: 
 
 Wenn Sie als Entwickler ein Produkt auf Claude bauen und die Laufzeit von Anthropic hosten lassen möchten, ist Managed Agents der kürzeste Weg. Wenn die Agents eines Unternehmens von den Menschen gebaut werden sollen, die sie brauchen, an einem Ort gesteuert und auf Ihrer Infrastruktur gehalten, ist AgenticOS genau dafür gebaut.
 
-Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Basisversion: v0.0.535. Umfang Managed Agents: die am 8. und 9. April 2026 angekündigte öffentliche Beta und die veröffentlichten Preise, kein getestetes Konto.
+Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Managed Agents: die am 8. und 9. April 2026 angekündigte öffentliche Beta und die veröffentlichten Preise, kein getestetes Konto.
 
 ## Auf einen Blick { #at-a-glance }
 

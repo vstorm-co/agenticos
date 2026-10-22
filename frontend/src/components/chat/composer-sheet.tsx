@@ -15,7 +15,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 
 interface ComposerSheetProps {
   onAttach: () => void;
-  onVoice: () => void;
+  /** Starts dictating; absent where the organization's engine offers no microphone. */
+  onVoice?: () => void;
   /** Starts a slash command; absent where the composer offers none. */
   onCommand?: () => void;
   /** Picks the project a new chat starts in; absent once the chat exists. */
@@ -57,13 +58,17 @@ export function ComposerSheet({
       description: t("attachFileHint"),
       run: onAttach,
     },
-    {
-      key: "voice",
-      icon: Mic,
-      label: t("voiceInput"),
-      description: t("voiceInputHint"),
-      run: onVoice,
-    },
+    ...(onVoice
+      ? [
+          {
+            key: "voice",
+            icon: Mic,
+            label: t("voiceInput"),
+            description: t("voiceInputHint"),
+            run: onVoice,
+          },
+        ]
+      : []),
     ...(onCommand
       ? [
           {

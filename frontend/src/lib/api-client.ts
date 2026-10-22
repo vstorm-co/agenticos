@@ -14,10 +14,92 @@ import { useAuthStore, useOrgStore } from "@/stores";
 // that reading a refusal does not require pulling in the fetch client.
 export { ApiError };
 
+/** How much of a request's body has gone up, from 0 to 1. */
+export type UploadProgress = (fraction: number) => void;
+
 interface RequestOptions extends Omit<RequestInit, "body"> {
   /** Pairs allow a repeated key - FastAPI list params arrive as ?status=a&status=b. */
   params?: Record<string, string> | [string, string][];
   body?: unknown;
+  /**
+   * Report the body's progress as it is sent. The request then goes by
+   * `XMLHttpRequest` rather than `fetch`, which reports none.
+   */
+  onProgress?: UploadProgress;
+}
+
+/** Statuses whose response may not carry a body; `new Response` refuses one. */
+const NULL_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
+
+/**
+ * A request by `XMLHttpRequest`, for the one thing `fetch` cannot do: say how
+ * much of the body has gone up. `onProgress` hears each step, and 1 once the
+ * last byte has left.
+ *
+ * It answers the way `fetch` does, so whoever reads the answer cannot tell the
+ * two apart: a `Response` for any status, a `TypeError` when the request never
+ * reached a server, and an `AbortError` when `signal` cancelled it. That is
+ * what `dictationReason` reads a failure by - offline, or nobody's fault.
+ *
+ * Credentials follow `fetch`'s default: cookies go to this origin only.
+ */
+export function sendWithProgress(
+  url: string,
+  init: {
+    method: string;
+    headers: HeadersInit;
+    body: XMLHttpRequestBodyInit | null;
+    signal?: AbortSignal | null;
+  },
+  onProgress: UploadProgress,
+): Promise<Response> {
+  const { signal } = init;
+  return new Promise<Response>((resolve, reject) => {
+    // i18n-exempt: an exception's name and message, read by code, never shown
+    const aborted = () => new DOMException("The request was aborted.", "AbortError");
+    if (signal?.aborted) {
+      reject(aborted());
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    const onAbort = () => xhr.abort();
+    const settle = () => signal?.removeEventListener("abort", onAbort);
+    xhr.open(init.method, url);
+    new Headers(init.headers).forEach((value, name) => xhr.setRequestHeader(name, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+    };
+    xhr.upload.onload = () => onProgress(1);
+    xhr.onload = () => {
+      settle();
+      const headers = new Headers();
+      for (const line of xhr
+        .getAllResponseHeaders()
+        .trim()
+        .split(/[\r\n]+/)) {
+        const colon = line.indexOf(":");
+        if (colon > 0) headers.append(line.slice(0, colon).trim(), line.slice(colon + 1).trim());
+      }
+      resolve(
+        new Response(NULL_BODY_STATUSES.has(xhr.status) ? null : xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers,
+        }),
+      );
+    };
+    xhr.onerror = () => {
+      settle();
+      // i18n-exempt: what `fetch` rejects with, read by code as "offline"
+      reject(new TypeError("Failed to fetch"));
+    };
+    xhr.onabort = () => {
+      settle();
+      reject(aborted());
+    };
+    signal?.addEventListener("abort", onAbort);
+    xhr.send(init.body);
+  });
 }
 
 // The proxy route that mints a fresh access token from the refresh cookie.
@@ -109,8 +191,11 @@ function refreshAccessToken(): Promise<boolean> {
 }
 
 class ApiClient {
-  private async send(endpoint: string, options: RequestOptions = {}): Promise<Response> {
-    const { params, body, ...fetchOptions } = options;
+  private async send(
+    endpoint: string,
+    options: RequestOptions & { method: string },
+  ): Promise<Response> {
+    const { params, body, onProgress, ...fetchOptions } = options;
 
     let url = `/api${endpoint}`;
 
@@ -125,21 +210,33 @@ class ApiClient {
     // and is sent as-is. Anything else is JSON.
     const isMultipart = body instanceof FormData;
 
+    const headers = {
+      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
+      // The active organization travels on every request so org-scoped
+      // endpoints resolve the same tenant the UI is showing. The server
+      // verifies membership; an id the user does not belong to is refused,
+      // and no header at all falls back to their personal org.
+      ...(activeOrgId ? { "X-Organization-Id": activeOrgId } : {}),
+      [CONSOLE_TAB_HEADER]: CONSOLE_TAB,
+      ...fetchOptions.headers,
+    };
+    const payload = isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined;
+
+    // A fresh request each time, so the retry after a refresh reports its own
+    // progress from zero.
     const doFetch = () =>
-      fetch(url, {
-        ...fetchOptions,
-        headers: {
-          ...(isMultipart ? {} : { "Content-Type": "application/json" }),
-          // The active organization travels on every request so org-scoped
-          // endpoints resolve the same tenant the UI is showing. The server
-          // verifies membership; an id the user does not belong to is refused,
-          // and no header at all falls back to their personal org.
-          ...(activeOrgId ? { "X-Organization-Id": activeOrgId } : {}),
-          [CONSOLE_TAB_HEADER]: CONSOLE_TAB,
-          ...fetchOptions.headers,
-        },
-        body: isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined,
-      });
+      onProgress
+        ? sendWithProgress(
+            url,
+            {
+              method: fetchOptions.method,
+              headers,
+              body: payload ?? null,
+              signal: fetchOptions.signal,
+            },
+            onProgress,
+          )
+        : fetch(url, { ...fetchOptions, headers, body: payload });
 
     let response = await (SERVER_REFRESHING.has(endpoint) ? withAuthLock(doFetch) : doFetch());
 
@@ -166,7 +263,10 @@ class ApiClient {
     return response;
   }
 
-  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestOptions & { method: string },
+  ): Promise<T> {
     const response = await this.send(endpoint, options);
 
     const text = await response.text();
@@ -237,10 +337,17 @@ class ApiClient {
    * then rejects a body it was just handed. Going through `request` rather than
    * a bare `fetch` is what keeps the active organization header on an
    * org-scoped upload, and the 401-refresh with it.
+   *
+   * A `File` is sent as the form's `file` field; a form with other fields
+   * beside it is built by the caller and sent as it is. `onProgress` reports
+   * how much of it has gone up.
    */
-  upload<T>(endpoint: string, file: File, options?: RequestOptions) {
-    const form = new FormData();
-    form.append("file", file);
+  upload<T>(endpoint: string, file: File | FormData, options?: RequestOptions) {
+    let form = file;
+    if (file instanceof File) {
+      form = new FormData();
+      form.append("file", file);
+    }
     return this.request<T>(endpoint, {
       ...options,
       method: "POST",

@@ -1,5 +1,5 @@
 ---
-source_sha: "caab0d1d874d"
+source_sha: "a43a833ec82f"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -510,6 +510,49 @@ Die Zeile des Kind-Runs, die eine Delegation schreibt, benennt das Modell, das
 geantwortet hat, das Kosten-Dashboard gruppiert einen delegierten Zug also unter
 dem Modell, das tatsächlich lief, statt unter dem des Elternteils.
 
+## Realtime-Modelle { #realtime-models }
+
+Ein [Sprachanruf](voice.md) verwendet kein Model Profile. Sein Modell ist eine
+Auswahl aus einem Katalog, den dieses Deployment mitliefert,
+`backend/app/core/catalog/realtime_models.json`, gelesen von
+`backend/app/services/realtime_models.py` und dem Builder unter
+`GET /api/v1/providers/realtime-models` ausgeliefert. Der Key wird im Abschnitt
+Sprachgespräche (Voice conversations) des Agents als Vault-Secret benannt, nicht
+auf einem Profile. Das ist dieselbe Form, die Speech-to-Text verwendet: eine
+Auswahl aus dem Katalog plus ein ausdrücklicher Key.
+
+Jeder Eintrag benennt einen Provider, seine Modelle und für jedes Modell:
+
+| Feld | Was es entscheidet |
+|---|---|
+| `transport` | `webrtc` (der Browser spricht mit dem Provider; dieses Deployment hält eine Sideband-Verbindung) oder `relay` (das Audio geht durch den Socket dieses Deployments) |
+| `input_sample_rate`, `output_sample_rate` | Die PCM-Raten, mit denen der Browser über das Relay aufnimmt und abspielt |
+| `voices`, `default_voice` | Was der Abschnitt Sprachgespräche anbietet und was eine leere Auswahl bedeutet |
+| `supports_thinking` | Ob die Thinking-Capability des Agents auf die eigene Reasoning-Einstellung des Modells abgebildet wird |
+| `context_window` | Ab wann eine Wiederverbindung nicht mehr die Züge nachspielt, sondern eine Zusammenfassung der älteren |
+| `pricing` | `kind` (`tokens` oder `per_minute`), `worst_case_usd_per_minute` für die Prüfung vor einem Anruf und `usd_per_minute` für ein Modell mit Minutenpreis |
+
+Die `gpt-realtime`-Familie von OpenAI läuft über WebRTC und ist der einzige
+live getestete Provider. Azure OpenAI, Gemini Live und xAI laufen über das Relay
+und sind **nicht live verifiziert**. GPT-Live steht nicht im Katalog: Es kann
+nach dem Start einer Sitzung keinen Verlauf mehr aufnehmen, also könnte eine
+Wiederverbindung einen Anruf nicht fortsetzen.
+
+**Azure ist ein Deployment plus ein Basismodell.** Den Namen eines Deployments
+wählt sein Besitzer, und er sagt nichts darüber, was darauf läuft, also nimmt
+der Abschnitt Sprachgespräche den Deployment-Namen als Freitext und das
+Katalogmodell, das darauf läuft, als `base_model`. Das Basismodell bestimmt die
+Stimmen und den Preis: Die Tokens eines Azure-Anrufs werden wie dieses Modell
+bei OpenAI bepreist. Endpunkt und API-Version kommen aus dem
+`azure_openai`-Secret.
+
+**Preise.** Modelle mit Tokenpreis werden pro Antwort aus demselben
+mitgelieferten Snapshot bepreist wie Text-Runs. Ein Modell mit Minutenpreis
+(xAI) wird für die verbundene Zeit zum `usd_per_minute` des Katalogs
+abgerechnet. Ein Modell mit Tokenpreis, das der Snapshot nicht bepreisen kann,
+wird beim Start eines Anrufs abgelehnt, statt mit einem Budget zu laufen, das
+es nicht durchsetzen kann.
+
 ## Zusammenfassung { #recap }
 
 - Ein **Profile** ist ein benanntes Modell plus ein benannter Key, und Agents
@@ -524,6 +567,8 @@ dem Modell, das tatsächlich lief, statt unter dem des Elternteils.
 - Die **Kosten** kommen aus einem mitgelieferten Snapshot, ein unbekanntes Modell
   wird als unbepreist statt als kostenlos erfasst, und ein Provider ohne Key
   erfasst überhaupt keine Ausgaben.
+- **Realtime-Modelle** für Sprachanrufe sind eine Auswahl aus dem Katalog plus
+  ein benannter Key, ohne Profile; nur die von OpenAI sind live verifiziert.
 
 ## Eines einrichten { #setting-one-up }
 

@@ -162,7 +162,7 @@ describe("accepting after sign-in", () => {
   });
 
   it("redeems the handle of the flow it was given, and clears exactly that cookie", async () => {
-    vi.mocked(backendFetch).mockResolvedValueOnce(undefined);
+    vi.mocked(backendFetch).mockResolvedValueOnce({ organization_id: "org-acme" });
     const both = { ...staged, [stageCookie(OTHER_FLOW)]: "other" };
 
     const response = await acceptPending(request(both, undefined, forFlow(FLOW)));
@@ -171,7 +171,9 @@ describe("accepting after sign-in", () => {
       method: "POST",
       headers: { Authorization: "Bearer jwt", "X-Invitation-Handle": "h" },
     });
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    // The organization joined, so the console can switch to it (#2156).
+    expect(await response.json()).toEqual({ organization_id: "org-acme" });
     expect(cookie(response, stageCookie(FLOW))?.value).toBe("");
     expect(cookie(response, stageCookie(OTHER_FLOW))).toBeUndefined();
   });
@@ -179,7 +181,7 @@ describe("accepting after sign-in", () => {
   it("forwards the caller's address, since the backend rate limits per IP", async () => {
     // Without it every invitee behind the frontend container shares one bucket, and
     // one caller exhausting it locks unrelated invitees out of their acceptance.
-    vi.mocked(backendFetch).mockResolvedValueOnce(undefined);
+    vi.mocked(backendFetch).mockResolvedValueOnce({ organization_id: "org-acme" });
 
     await acceptPending(
       request(staged, undefined, forFlow(FLOW), { "x-forwarded-for": "203.0.113.7" }),

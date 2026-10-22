@@ -32,6 +32,9 @@ export const ARTIFACT_PAGES_SKILL = "artifact-pages";
 export const VISUALS_ID = "visuals";
 export const VISUAL_DESIGN_SKILL = "visual-design";
 
+/** The capability that draws a chart natively - the form a table of numbers takes next (#2302). */
+export const CHARTS_ID = "charts";
+
 /**
  * The bundled skill each capability is better with, by capability id.
  *
@@ -203,12 +206,20 @@ export function withSkills(
  * reads it. Left alone when the organization has no such skill: there is nothing
  * to bind, and the drawing still works. Switching visuals off leaves the skill
  * bound - that is the Skills tab's to undo.
+ *
+ * Charts come along too (#2302): the skill tells the agent to answer numbers with
+ * a native chart rather than a hand-drawn one, which needs `create_chart`. Only
+ * when the agent has no charts binding at all - one an author switched off stays off.
  */
 export function withVisuals(
   spec: Pick<AgentSpec, "capabilities" | "skill_ids">,
   skills: readonly { id: string; name: string }[],
 ): Pick<AgentSpec, "skill_ids" | "capabilities"> {
-  const capabilities = withCapability(spec.capabilities, VISUALS_ID, true);
+  const capabilities = withCapability(
+    withCapability(spec.capabilities, VISUALS_ID, true),
+    CHARTS_ID,
+    true,
+  );
   const design = skills.find((skill) => skill.name === VISUAL_DESIGN_SKILL);
   if (design === undefined) return { skill_ids: spec.skill_ids, capabilities };
   // Through `withSkills` even when the skill is already bound: it may be bound

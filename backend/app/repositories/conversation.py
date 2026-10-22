@@ -3,7 +3,7 @@
 from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import (
@@ -1393,6 +1393,57 @@ async def create_message(
         .values(updated_at=message.created_at)
     )
 
+    return message
+
+
+async def create_voice_turn(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    role: Literal["user", "assistant"],
+    content: str,
+    turn_id: str,
+    interrupted: bool,
+    run_id: UUID,
+    agent_id: UUID | None,
+    agent_version_id: UUID | None,
+    parts: list[dict[str, object]] | None,
+) -> Message | None:
+    """Write one spoken turn, or nothing when this turn is already written (#54).
+
+    `ON CONFLICT DO NOTHING` on (conversation_id, turn_id): the voice service
+    writes each turn the moment it finishes, from its own session, and a
+    retried write after a timeout must not leave the turn twice. Like
+    :func:`create_message`, a written turn moves the conversation up the list.
+    """
+    statement = (
+        pg_insert(Message)
+        .values(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            turn_id=turn_id,
+            interrupted=interrupted,
+            run_id=run_id,
+            agent_id=agent_id,
+            agent_version_id=agent_version_id,
+            parts=parts,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[Message.conversation_id, Message.turn_id],
+            index_where=Message.turn_id.is_not(None),
+        )
+        .returning(Message)
+    )
+    message = (await db.execute(statement)).scalar_one_or_none()
+    if message is None:
+        return None
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(updated_at=message.created_at)
+    )
+    await db.flush()
     return message
 
 

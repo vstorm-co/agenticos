@@ -69,6 +69,7 @@ from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 from app.api.routes.v1 import notifications
 from app.api.routes.v1 import admin_announcements
+from app.api.routes.v1 import voice
 from app.api.routes.v1 import admin_background_jobs
 from app.api.routes.v1 import run_requests
 
@@ -228,3 +229,4 @@ v1_router.include_router(
 v1_router.include_router(
     org_integrations.router, prefix="/org/integrations", tags=["org:integrations"]
 )
+v1_router.include_router(voice.router, tags=["voice"])

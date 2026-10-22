@@ -52,6 +52,19 @@ def library_response(data: bytes, media_type: str) -> Response:
     )
 
 
+def map_tile_response(data: bytes, media_type: str) -> Response:
+    """One map tile: an image, cached for a day, loadable from a page's opaque origin."""
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "public, max-age=86400",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+        },
+    )
+
+
 def visual_frame_response(document: bytes) -> Response:
     """The visual renderer, under the same sandbox policy as every app's page."""
     return Response(

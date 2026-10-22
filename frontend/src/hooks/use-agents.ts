@@ -9,6 +9,7 @@ import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-sp
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
@@ -254,8 +255,14 @@ export function useAgent(agentId: string | null) {
   // environment server-side, and the environments cache is not under
   // `qk.agents` - without this the panel keeps naming the pin the publish
   // just moved, right after a dialog said it would move.
+  // Dictation readiness too: it reads the published version's speech-to-text
+  // override, which the publish may just have changed.
   const invalidateEnvironments = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+        invalidateSpeechSettings(queryClient),
+      ]),
     [queryClient, agentId],
   );
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "018d5eb09c59"
+source_sha: "a08f44a4897c"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
 description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
@@ -11,7 +11,7 @@ OpenAI Codex to agent do inżynierii oprogramowania. Obejmuje open-source'owe CL
 
 Oba mają część wspólną: licencję Apache-2.0 dla części otwartych, MCP, wykonywanie w sandboksie i zatwierdzanie przed ryzykownymi działaniami. Stosują to jednak wobec różnych użytkowników.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Codex: dokumentacja Codex OpenAI na learn.chatgpt.com, jej strona z cennikiem i repozytorium `openai/codex`, bez testowanego wdrożenia enterprise.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Codex: dokumentacja Codex OpenAI na learn.chatgpt.com, jej strona z cennikiem i repozytorium `openai/codex`, bez testowanego wdrożenia enterprise.
 
 ## W skrócie { #at-a-glance }
 
@@ -24,8 +24,8 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Modele | OpenAI z logowaniem przez ChatGPT; CLI przyjmuje też Ollama, LM Studio, Bedrock i własnych providerów | 28 providerów, ustawianych w profilu modelu |
 | Użytkownicy końcowi | Deweloper | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
 | Zatwierdzenia | Tryby sandboksa i polityki zatwierdzeń przy biurku dewelopera | Osoba z `approvals:decide`, ze wspólnej kolejki |
-| Kontrola wydatków | Limity planu na pięciogodzinne okno i kredyty współdzielone z ChatGPT Work | Miesięczny budżet na agenta i na organizację |
-| Cennik | W ramach planów ChatGPT; OpenAI szacuje 100–200 USD na dewelopera miesięcznie w kredytach | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
+| Kontrola wydatków | Limity na pięciogodzinne okno na stanowiskach Plus i Standard Business oraz kredyty współdzielone z ChatGPT Work | Miesięczny budżet na agenta i na organizację |
+| Cennik | W każdym planie ChatGPT, od Free do Enterprise; OpenAI szacuje 100–200 USD na dewelopera miesięcznie w kredytach | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -55,6 +55,8 @@ Codex uruchamia polecenia w sandboksie systemu operacyjnego na maszynie dewelope
 
 Inżynier może użyć Codex, żeby napisać, przetestować i przejrzeć nową [capability](../howto/add-capability.md): typowany Python z testami, w repozytorium, którego zasady dla kontrybutorów są spisane. Po scaleniu jest ona dostępna dla każdego twórcy agentów w organizacji. Spec agenta [eksportuje się do YAML](../features.md#exportable-into-your-own-repository), więc Codex może też przejrzeć zmianę agenta w pull requeście.
 
+Spotykają się też w czasie działania. Agent z capability [coding agent](../reference/capabilities.md#coding-agent) przekazuje pracę programistyczną Codexowi we własnym sandboksie, zalogowanemu kluczem API OpenAI albo kontem ChatGPT, a każdy krok widać w czacie na bieżąco. W drugą stronę [AgenticOS jest serwerem MCP](../mcp.md#agenticos-as-an-mcp-server), więc Codex może wyświetlać i uruchamiać agentów firmy, czytać ich runy i przeszukiwać ich bazy wiedzy.
+
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
 Zadaj obu to samo pytanie o [wspólny podręcznik](../howto/first-document-agent.md). Następnie przekaż odpowiedź koledze, który nie programuje, i sprawdź, czego każdy z nich potrzebuje, zanim ten kolega zada własne pytanie. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
@@ -63,7 +65,7 @@ Zadaj obu to samo pytanie o [wspólny podręcznik](../howto/first-document-agent
 
 ### Czy AgenticOS to alternatywa dla OpenAI Codex? { #is-agenticos-an-alternative-to-openai-codex }
 
-Nie, rozwiązują różne problemy. Codex to agent programistyczny dla deweloperów. AgenticOS to platforma dla zarządzanych agentów, których budują zespoły biznesowe, a używają wszyscy.
+Nie, rozwiązują różne problemy. Codex to agent programistyczny dla deweloperów. AgenticOS to platforma dla zarządzanych agentów, których budują zespoły biznesowe, a używają wszyscy, a agent AgenticOS może przekazać pracę programistyczną Codexowi.
 
 ### Czy OpenAI Codex jest open source? { #is-openai-codex-open-source }
 
@@ -84,8 +86,8 @@ Tak. Obliczenia wykonują Pythona bez dostępu do sieci i systemu plików, a San
 ## Źródła { #sources }
 
 - [Repozytorium Codex](https://github.com/openai/codex): CLI na licencji Apache-2.0.
-- [Cennik Codex](https://learn.chatgpt.com/docs/pricing): plany, okna użycia, kredyty i funkcje według planu.
+- [Cennik Codex](https://learn.chatgpt.com/docs/pricing): plany od Free do Enterprise, okna pięciogodzinne, kredyty współdzielone z ChatGPT Work.
 - [Zatwierdzenia i bezpieczeństwo](https://learn.chatgpt.com/docs/agent-approvals-security): tryby sandboksa i polityki zatwierdzeń.
 - [Konfiguracja zaawansowana](https://learn.chatgpt.com/docs/config-file/config-advanced): własni i lokalni providerzy modeli.
-- [Zarządzana konfiguracja enterprise](https://learn.chatgpt.com/codex/enterprise/managed-configuration): `requirements.toml`.
+- [Zarządzana konfiguracja enterprise](https://learn.chatgpt.com/docs/enterprise/managed-configuration): `requirements.toml`.
 - [Cennik kredytów ChatGPT](https://help.openai.com/en/articles/11481834-chatgpt-rate-card-business-enterpriseedu-credit-based-pricing): szacunek na dewelopera.

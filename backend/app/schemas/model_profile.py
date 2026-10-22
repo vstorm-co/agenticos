@@ -187,6 +187,41 @@ class SpeechToTextProviderRead(BaseSchema):
 class SpeechToTextProviderList(BaseSchema):
     items: list[SpeechToTextProviderRead]
     total: int
+    languages: list[str] = Field(
+        default_factory=list,
+        description="ISO-639-1 codes a recording may be pinned to.",
+    )
+
+
+class RealtimeModelRead(BaseSchema):
+    """One realtime model, for the Voice card's picker."""
+
+    id: str
+    name: str
+    description: str
+    transport: Literal["webrtc", "relay"]
+    voices: list[str]
+    default_voice: str
+    supports_thinking: bool
+    input_sample_rate: int
+    output_sample_rate: int
+
+
+class RealtimeProviderRead(BaseSchema):
+    """One provider that can hold a voice conversation, and what may be chosen on it."""
+
+    provider: str
+    name: str
+    secret_kind: str = Field(description="The vault kind a key for this provider must be")
+    deployment: bool = Field(
+        description="Whether the model is an Azure deployment name plus a base model"
+    )
+    models: list[RealtimeModelRead]
+
+
+class RealtimeProviderList(BaseSchema):
+    items: list[RealtimeProviderRead]
+    total: int
 
 
 class TextToSpeechVoiceRead(BaseSchema):

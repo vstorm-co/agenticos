@@ -22,6 +22,16 @@ export type EmbedAuthMode = "public" | "jwt";
  */
 export type EmbedKind = "widget" | "socket" | "page";
 
+/**
+ * How a visitor dictates on a page or in a widget.
+ *
+ * `browser` is the browser's own recogniser, which sends the audio to the
+ * browser's vendor and never to this deployment. `server` records in the page and
+ * transcribes on the organization's own provider, on its bill. Switching `server`
+ * on is refused while no provider and credential resolve for the agent.
+ */
+export type EmbedDictation = "off" | "browser" | "server";
+
 /** What the bubble in the corner of somebody else's page looks like. */
 export interface WidgetConfig {
   kind: "widget";
@@ -33,6 +43,9 @@ export interface WidgetConfig {
   accent: string;
   position: "left" | "right";
   launcher_label: string;
+  dictation: EmbedDictation;
+  /** Whether visitors are offered a voice call - see `PageConfig.voice_conversation`. */
+  voice_conversation: boolean;
   /** Up to four suggested first messages, offered under the greeting (#2006). */
   quick_replies: string[];
   /** Name the documents an answer drew on - the names only, never the passages. */
@@ -62,14 +75,16 @@ export interface PageConfig {
   welcome: string;
   /** `#rgb` or `#rrggbb`; the backend refuses anything else. */
   accent: string;
+  /** Whether, and how, the composer offers a microphone - see `EmbedDictation`. */
+  dictation: EmbedDictation;
   /**
-   * Whether the composer offers a microphone.
+   * Whether visitors are offered a voice call with the agent (#54).
    *
-   * The browser's own speech recognition dictates into the box - no audio
-   * reaches this deployment. Off by default because a browser that has one hands
-   * the audio to its vendor.
+   * Off by default and separate from dictation. Switching it on is refused while
+   * the agent has no published voice to call with. Visitors cannot approve, so tools that need approval are left out of
+   * their calls.
    */
-  allow_voice: boolean;
+  voice_conversation: boolean;
   /** Whether the visitor may start a fresh thread, which mints a new key. */
   allow_new_conversation: boolean;
   /**
@@ -185,6 +200,8 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   accent: "#4f46e5",
   position: "right",
   launcher_label: "Chat",
+  dictation: "off",
+  voice_conversation: false,
   quick_replies: [],
   show_sources: false,
 };
@@ -196,7 +213,8 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
   title: "",
   welcome: "",
   accent: "#4f46e5",
-  allow_voice: false,
+  dictation: "off",
+  voice_conversation: false,
   allow_new_conversation: true,
   allow_files: false,
   show_thinking: false,

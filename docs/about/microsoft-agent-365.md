@@ -10,7 +10,7 @@ Microsoft Agent 365 is a control plane for a company's agents - Microsoft's own,
 
 If your company runs on Microsoft 365 and wants to inventory and police agents it already has, Agent 365 fits that estate. If you want the agents themselves, and the rules over them, on infrastructure you control and with any model, AgenticOS does both in one place.
 
-Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v0.0.535. Agent 365 scope: Microsoft's general availability around 1 May 2026 as reported by the press, not a tested tenant. For building agents in Microsoft's stack, see [AgenticOS vs Copilot Studio](copilot-studio.md).
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Agent 365 scope: Microsoft's general availability around 1 May 2026 as reported by the press, not a tested tenant. For building agents in Microsoft's stack, see [AgenticOS vs Copilot Studio](copilot-studio.md).
 
 ## At a glance
 

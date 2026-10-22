@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
@@ -10,6 +12,7 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
@@ -23,6 +26,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ActiveOrgGuard />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* It reads the search params, which a prerendered page only has in the browser. */}
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>

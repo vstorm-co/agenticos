@@ -29,10 +29,11 @@ describe("staging an invitation from the browser", () => {
 
 describe("accepting a staged invitation", () => {
   it("posts to the pending accept naming the flow, which reads that cookie server-side", async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce(undefined);
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ organization_id: "org-acme" });
 
-    await acceptStagedInvitation("0123456789abcdef0123456789abcdef");
+    const joined = await acceptStagedInvitation("0123456789abcdef0123456789abcdef");
 
+    expect(joined).toBe("org-acme");
     expect(apiClient.post).toHaveBeenCalledWith(
       "/invitations/pending/accept?flow=0123456789abcdef0123456789abcdef",
     );

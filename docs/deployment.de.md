@@ -1,5 +1,5 @@
 ---
-source_sha: "62f20297dde0"
+source_sha: "12eb1406746c"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -300,6 +300,50 @@ existiert, und liest die Ablehnung als ein kaputtes Produkt. Auch deshalb werden
 die erlaubten Domains veröffentlicht: sie sind kein Geheimnis, und das Deployment
 läuft auf dem eigenen Host des Unternehmens.
 
+## Wo ein neues Konto beginnt { #where-a-new-account-starts }
+
+Zwei Einstellungen neben dem Anmeldemodus entscheiden das, beide unter **Neue
+Konten** auf `/admin/settings`, und beide gelten für danach angelegte Konten —
+eine bestehende persönliche Organisation bleibt (#2156).
+
+| Einstellung | Standard | Wirkung |
+|---|---|---|
+| `personal_organizations` | an | Jedes neue Konto bekommt eine eigene Organisation, mit sich selbst als Owner. |
+| `default_organization_id` | keine | Jedes neue Konto tritt dieser Organisation bei, mit `default_organization_role`. |
+| `default_organization_role` | `member` | Jede Rolle außer `owner`; eine Einstellung, die jeden Neuen zum Owner machte, gäbe allen die Schlüssel der Firma. |
+
+Ein Deployment, das unabhängigen Personen offensteht, behält die Standards. Ein
+Deployment für eine Firma schaltet persönliche Organisationen ab und nennt die
+Firmenorganisation, damit ein Kollege dort beginnt, wo die Agents und das Wissen
+der Firma sind, und niemand Agents unter einem eigenen Budget, einer eigenen
+Freigaberegel und einem eigenen Audit-Log neben denen der Firma ausführt. Eine
+persönliche Organisation kann nicht die Standardorganisation sein, und das Löschen
+der Standardorganisation leert die Einstellung.
+
+**Eine Einladung in die Standardorganisation hat Vorrang.** Eine Einladung nennt
+ihre eigene Rolle, und eine Einladung in eine Organisation anzunehmen, der die
+Person schon angehört, wird abgelehnt — wer sich also mit einer Einladung in die
+Standardorganisation registriert oder für dessen Adresse eine aussteht, tritt ihr
+bei der Registrierung nicht bei. Der Beitritt erfolgt beim Annehmen, mit der Rolle
+der Einladung.
+
+**Nur die eigene Regel des Deployments lässt jemanden beitreten.** Ein Konto,
+das der Anmeldemodus selbst zulässt — ein offenes Deployment, eine Adresse unter
+einer erlaubten Domain — tritt der Standardorganisation bei. Eines, das nur durch
+die Einladung oder Verzeichniszuordnung einer anderen Organisation zugelassen
+wurde, nicht: Deren Manager haben für die Person bei ihrer eigenen Organisation
+gebürgt, und ein Beitritt zur Standardorganisation ließe sie Personen zu einer
+Organisation hinzufügen, die sie nicht verwalten.
+
+**Die Standardorganisation ist auch, wo eine Sitzung landet.** Eine Anfrage mit
+Sitzungs-Token und ohne `X-Organization-Id` handelt in der Standardorganisation,
+wenn die Person ihr angehört, dann in ihrer persönlichen, dann in ihrer einzigen.
+Wer eine Wahl hat und keinen Header sendet, erhält `400` mit dem Namen des Headers
+statt einer Vermutung — siehe [den Organisations-Header](api.md#the-organization-header).
+Die Konsole wählt dieselbe Organisation, wenn nichts anderes ausgewählt ist, und
+das Annehmen einer Einladung schaltet die Konsole auf die beigetretene
+Organisation um.
+
 ## Einen Tenant unter allen finden { #finding-one-tenant-among-all-of-them }
 
 `GET /admin/organizations` ist die einzige Oberfläche, die beantwortet, *welche
@@ -315,7 +359,7 @@ nur der Deployment-Admin beheben kann und der ihm deshalb gezeigt werden muss.
 | `search` | Name, Slug oder die Adresse des Owners. Der Begriff ist Text, kein Muster — `100%` findet den so genannten Tenant und nicht alle |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Alles andere ist ein 422 |
 | `sort_dir` | `asc` / `desc`, standardmäßig neueste zuerst |
-| `kind` | `personal`, `team` oder `all`. Jedes Konto bekommt bei der Anmeldung eine persönliche Organisation, auf den meisten Deployments machen sie also den Großteil der Liste aus |
+| `kind` | `personal`, `team` oder `all`. Jedes Konto bekommt bei der Anmeldung eine persönliche Organisation, sofern das Deployment das nicht abgeschaltet hat, auf den meisten Deployments machen sie also den Großteil der Liste aus |
 | `skip`, `limit` | Eine Serverseite, bis zu 100 |
 
 **All das geschieht in SQL, vor `OFFSET`/`LIMIT`**, und `total` zählt das, worauf
@@ -541,6 +585,33 @@ Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von
 ihnen eine persönliche Organisation.
 
+## In welchem Format ein Diktat hochgeladen werden darf { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **standardmäßig aus**, entscheidet über das Format
+jedes [Diktats](ml-services.md#dictation-in-chat) im Deployment — im Eingabefeld
+von `/chat`, auf gehosteten Seiten und in Widgets, in jeder Organisation. Aus
+nimmt der Server ein Format an: WAV mit 16 kHz, Mono und 16-Bit-PCM, das jeder
+Browser aufnimmt. Seine Länge ist seine Größe, 32.000 Bytes pro Sekunde, der
+Server zählt also die Samples, und das längste Diktat begrenzt exakt, was eine
+Aufnahme kostet.
+
+Ein werden zusätzlich WebM, Ogg und MP4 angenommen, und Uploads sind etwa achtmal
+kleiner. Ihre Länge wird aus dem eigenen Header der Datei gelesen, den eine von
+Hand gebaute Datei zu kurz angeben kann: Ein Diktat kann dann innerhalb der
+Größengrenze bis zu etwa vierzigmal das längste Diktat tragen. Auf einer
+[öffentlichen Seite oder in einem Widget](channels.md#what-it-costs-and-what-bounds-it)
+kann jeder, der den Link hat, eines senden, abgerechnet über das Provider-Konto
+der Organisation und außerhalb jedes Budgets.
+
+Deshalb fragt der Schalter auf `/admin/settings` zuerst. Das Einschalten öffnet
+einen Dialog, der diese Risiken benennt, und aktiviert dessen
+Bestätigungsschaltfläche erst, wenn ein Kästchen angehakt ist, das bestätigt,
+dass sie gelesen wurden; das Ausschalten fragt nichts. In beiden Fällen wird er
+mit dem Rest des Formulars gespeichert und wie jedes andere Feld auditiert.
+Browser folgen ihm, sobald eine Seite das nächste Mal fragt: Das Format, in dem
+sie aufnehmen, ist das, das der Server ankündigt, nie eine im Client gepflegte
+Liste.
+
 ## Die Zeile { #the-row }
 
 Eine Zeile für die gesamte Installation, von der Datenbank bewacht statt von einer
@@ -637,10 +708,16 @@ Einstellungen stehen unter [Konfiguration](configuration.md#background-work).
 - `signup_mode` wird an **einer Stelle** angewendet und kontrolliert beide Pfade,
   die ein Konto prägen. Eine Einladung setzt eine Domain-Liste außer Kraft;
   nichts setzt `closed` außer Kraft.
+- Ein neues Konto bekommt eine **persönliche Organisation, sofern das nicht
+  abgeschaltet ist**, und tritt der **Standardorganisation** bei, wenn eine gesetzt
+  ist; dort landet auch eine Sitzung, die keine Organisation nennt.
 - Ein App-Admin **kann sich nicht selbst aussperren** über die Konsole.
 - **Impersonation ist eine Session**: aus der Konsole gestartet, ohne Token in der
   Zwischenablage, in einem Banner benannt, beendet vom Administrator, davon, dass
   die Person sich überall abmeldet, oder von der Stunde. Ob die Person informiert
   wird, ist `notify_impersonated_users`, standardmäßig aus.
+- Diktieren ist **rohes PCM, es sei denn, `dictation_compressed_audio` ist an**,
+  was ein Administrator erst nach einem Dialog einschaltet, der benennt, was es
+  kostet.
 - Jede Ablehnung dieses Deployments sieht gleich aus, welche Schicht sie auch
   erzeugt hat.

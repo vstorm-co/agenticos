@@ -1,5 +1,5 @@
 ---
-source_sha: "f132d6049482"
+source_sha: "d4c56f79341c"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -111,6 +111,15 @@ para la conexión de toda la organización, y con dos apps visibles para la
 organización guardadas la conexión se rechaza (nombrando ambas) en lugar de
 quedar atada al nombre que ordene primero.
 
+La misma regla - **solo visibles para la organización** - cubre la clave de API
+con la que se envían la configuración por defecto de voz a texto de la
+organización y el par de transcripción propio de un bot de canal: la plataforma
+la gasta en el dictado de cada miembro y en cada nota de voz que recibe un bot,
+así que la clave privada de un miembro se rechaza al guardar cualquiera de los
+dos, y una clave que se vuelve privada después deja de usarse. A diferencia de
+`github_oauth_app`, estas claves se nombran por id, así que puede haber varias
+guardadas a la vez.
+
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
 token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
@@ -154,6 +163,33 @@ truncado mientras el formulario sigue abierto.
 **Providers de modelos.** Los nombra un [perfil de modelo](models.md). El gasto se
 atribuye al secreto al que resolvió el run, y así «qué clave está costando más»
 tiene respuesta.
+
+**Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
+id junto al proveedor y el modelo allí donde se configura la voz a texto: la
+configuración por defecto de la organización, la sobrescritura de un agent y el
+par propio de un bot de canal. Nada busca una clave en tiempo de ejecución. La
+clave de la organización y la de un bot tienen que ser visibles para la
+organización; la de un agent sigue la regla del préstamo: quien publica tiene que
+poder verla. El [registro de uso](ml-services.md#what-is-recorded) de cada
+transcripción nombra la clave con la que se envió. Consulta
+[a qué motor llega una grabación](ml-services.md#which-engine-a-recording-reaches).
+La lista de agents que usan una clave no muestra este uso.
+
+**Llamadas de voz.** La clave con la que se mantiene una
+[llamada de voz](voice.md) se nombra en la tarjeta Voice del agent, junto al
+provider y el modelo en tiempo real. Su propósito tiene que ser el provider y su
+kind el del provider: una `api_key`, o un secreto `azure_openai` para Azure, que
+lleva además el endpoint y la versión de la API. Sigue la regla del préstamo -
+quien publica tiene que poder verla - y nada busca una clave en tiempo de
+ejecución. La clave se desella para abrir una llamada y nunca llega al
+navegador: el servidor responde a la oferta WebRTC y no se emite ningún secreto
+de cliente.
+
+Para colgar una llamada cuyo proceso murió, el barrido de voz la lee a través
+de `OrganizationSecretService.voice_call_key`, un lector cuyo texto en claro va
+al endpoint de colgar del provider y a ningún otro sitio. Una fila de llamada
+solo guarda el id de la clave, y una clave borrada deja al agent sin poder
+atender llamadas hasta que se elija otra.
 
 **Capabilities.** Una capability declara que necesita una credencial de un *kind*
 dado — nunca una instancia. El código dice «necesito una clave de API»; la

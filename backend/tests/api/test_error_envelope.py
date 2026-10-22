@@ -27,6 +27,7 @@ import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient, Response
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
+from starlette.datastructures import State
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
@@ -334,6 +335,10 @@ class TestAnExhaustedPoolIsBusyNotBroken:
 class _HttpConnection:
     scope = {"type": "http"}
     method = "GET"
+
+    def __init__(self) -> None:
+        # Every real request has one; the embed CORS helper reads it.
+        self.state = State()
 
     class url:
         path = "/api/v1/anything"

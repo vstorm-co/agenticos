@@ -1,5 +1,5 @@
 ---
-source_sha: "06f8c1ff3994"
+source_sha: "c820451e5c9f"
 ---
 
 # Apps { #artifacts }
@@ -142,6 +142,8 @@ später auf einen anderen Origin verlegt:
 | `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, als `window.L` - zeichnet auf den [Kartenkacheln](#visuals) des Deployments, wenn es welche hat |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gesetzt, eine Linie zwischen ihnen, Pause und Wiederholung und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
 eine neue Datei neben der alten hinzu, sodass eine Seite, die gegen eine Version
@@ -180,16 +182,52 @@ der gespeicherten Seite. Der Rahmen meldet seine Größe, seine Fehler und einen
 Herzschlag; eine Zeichnung, die nicht mehr schlägt, wird geschlossen, statt den Tab
 festzuhalten.
 
-**Im Chat.** Das Panel zeigt die ganze Zeichnung - ein SVG nach seiner `viewBox`
-eingepasst, eine Seite in der Breite des Panels gesetzt und über 560 Pixel verkleinert -
-unter ihrem Titel, in der Nachricht des Agent, nie als Teil der Konsole. Vollbild
-zeigt sie in ihrer eigenen Größe; auf einem Telefon öffnet ein Tippen das Vollbild.
-Der Zoom erscheint in der unteren rechten Ecke der Zeichnung, solange der Zeiger auf
-der Karte ist, in der Vorschau und im Vollbild: ein SVG wird größer gezeichnet, eine
-Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung über ihn hinauswächst.
-Darüber stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
-Mermaid-Quelle) und *Als Bild kopieren* für ein SVG, und ein Fehler, den die Zeichnung
-meldet, kommt mit *Beheben*, das den Agent fragt.
+**Im Chat.** Eine Zeichnung steht im Gespräch selbst, ohne Karte darum, ab dem
+linken Rand des Nachrichtentexts: ein SVG wird nach seiner `viewBox` eingepasst und
+über 560 Pixeln verkleinert, eine Seite wird in der Breite der Spalte gesetzt und
+über 900 verkleinert. Eine ruhige Zeile darunter nennt sie und sagt, ob sie noch
+gezeichnet wird; *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
+Mermaid-Quelle), *Als Bild kopieren* für ein SVG, *In Apps speichern* und
+*Vollbild* erscheinen in dieser Zeile, wenn der Zeiger über der Zeichnung ist, und
+auf einem Touchscreen immer. Während sie gestreamt wird, behält die Zeichnung die
+Höhe, die ihr Aufruf angegeben hat, auf einem leichten Ton, damit sich das Gespräch
+unter dem Leser nicht verschiebt. Vollbild zeigt sie in ihrer eigenen Größe; auf
+einem Telefon öffnet ein Tippen die Vorschau im Vollbild. Der Zoom sitzt unten
+rechts in der Zeichnung, solange der Zeiger darauf ist: ein SVG wird größer
+gezeichnet, eine Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung ihm
+entwächst. Ein Fehler, den die Zeichnung meldet, kommt mit *Beheben*, das den
+Agent fragt.
+
+**Folgenachrichten.** Ein Bedienelement in einer Zeichnung kann die Wahl der
+Person an das Gespräch zurückgeben - *Diesen Stopp planen*, *Diese Zahlen
+verwenden* - indem es `agenticos.followUp(text)` aufruft. Die Zeichnung bittet nur.
+Die Konsole zeigt den genauen Text unter der Zeichnung mit *Senden*, *Bearbeiten*
+und *Verwerfen*, und er wird erst dann zur Nachricht der Person, wenn sie auf
+*Senden* klickt - einen Klick, den die Zeichnung nicht für sie machen kann. Eine
+Bitte ohne Benutzerinteraktion dahinter - beim Laden, per Timer - wird verworfen,
+ebenso eine über 2.000 Zeichen, und solange eine wartet, kann keine zweite sie
+ersetzen. Folgenachrichten gibt es nur im Chat: `agenticos.canFollowUp()` ist in
+einem geteilten Thread, im Widget und in einer App falsch, wo `followUp` nichts
+tut und `false` zurückgibt, sodass eine gespeicherte Zeichnung weiter funktioniert.
+
+**Karten.** Ist [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
+gesetzt, kann eine Zeichnung oder eine App auf echten Kartenkacheln zeichnen: das
+Deployment holt jede Kachel von diesem Server und liefert sie über seinen eigenen
+Kachelpfad aus, `agenticos.map` sagt wohin, und das Karten-Kit zeichnet darauf eine
+Route mit der Quellenangabe des Servers darunter. Ohne die Einstellung zeichnet
+derselbe Aufruf einen Umriss der Stopps - Pins und die Linie dazwischen, keine
+Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Das Bild einer Karte in
+einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
+
+**Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung
+überhaupt die richtige Antwort ist: Text für eine Tatsache oder einen Rat, eine
+Markdown-Tabelle für genaue Werte, `create_chart` für Zahlen zum Ansehen - sodass
+„jetzt als Diagramm“ eine Tabelle in ein natives Diagramm verwandelt - und eine
+Zeichnung, um zu erklären, wie sich etwas bewegt, ein Werkzeug für den Moment zu
+bauen oder Orten auf einer Karte zu folgen. Seine Vorlagen sind ein Diagramm, eine
+Erklärung mit Reglern, ein 3D-Flugzeug mit Nicken, Rollen und Gieren, ein Rechner
+und eine Reiseroute. Ein leerer Chat mit einem Agent, der zeichnet, öffnet mit je
+einem Starter dafür. Wer Visuals im Builder einschaltet, bindet auch Charts.
 
 **Herunterladen.** Eine von der Festplatte geöffnete Datei hat keinen Rahmen um
 sich, also trägt der Download mit, was der Rahmen durchgesetzt hat. Ein SVG behält
@@ -314,7 +352,7 @@ nichts, was sie tut, die Konsole oder die Person erreichen kann, die sie ansieht
   sich allein öffnet.
 - Dieselbe Policy setzt `default-src 'none'` und `connect-src 'none'`. Die einzige
   entfernte Quelle, die sie nennt, ist der eigene Pfad des Bibliothekssatzes auf
-  dem Inhalts-Origin, für Skripte, Stile und Schriften. `frame-ancestors` nennt nur
+  dem Inhalts-Origin, für Skripte, Stile und Schriften. Auf einem Deployment, das `VISUAL_MAP_TILES` setzt, kommen Bilder aus seinem eigenen Kachelpfad hinzu, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Diese Route nimmt drei Zahlen, jede gegen die Zoomstufe geprüft, auf der es sie geben kann, und holt die Kachel selbst, sodass eine Seite weder Adresse noch Schlüssel des Kachelservers erfährt und ihm nichts schicken kann, was sie selbst gewählt hat. `frame-ancestors` nennt nur
   die Konsole — und für eine Seite mit öffentlichem Link und Einbettungs-Websites
   das Einbettungsdokument und diese Websites. Der Frame in der Konsole trägt
   dieselbe `sandbox`-Liste als zweites Schloss.
@@ -328,7 +366,7 @@ nichts, was sie tut, die Konsole oder die Person erreichen kann, die sie ansieht
   dasselbe in einer Leiste unter der Seite. Die Seite könnte diese Nachricht
   selbst senden, sie ist also eine Bitte und nie eine Erlaubnis — die Person, die
   die Adresse liest, steht zwischen einer per Prompt Injection manipulierten
-  Seite und der Adresse, an die sie ihre Zahlen schicken würde.
+  Seite und der Adresse, an die sie ihre Zahlen schicken würde. Eine [Folgenachricht](#visuals) ist dieselbe Art Bitte: die Konsole zeigt den Text, und ein Mensch sendet ihn.
 - Eine signierte Adresse lädt ihre Seite höchstens einige Male pro Minute,
   gezählt pro Adresse, bevor irgendetwas gelesen wird. Die Konsole und die
   öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den

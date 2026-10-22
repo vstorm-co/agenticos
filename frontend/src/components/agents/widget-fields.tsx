@@ -15,6 +15,9 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { EmbedDictationField } from "@/components/agents/embed-dictation-field";
+import { EmbedVoiceField } from "@/components/agents/embed-voice-field";
+import type { EmbedVoiceChoice, ServerDictationChoice } from "@/components/agents/page-fields";
 import type { WidgetConfig } from "@/types/embeds";
 
 const MAX_TITLE = 80;
@@ -46,10 +49,16 @@ const MAX_QUICK_REPLY = 60;
 export function WidgetFields({
   config,
   disabled,
+  serverDictation,
+  voiceCall,
   onChange,
 }: {
   config: WidgetConfig;
   disabled: boolean;
+  /** What `EmbedDictationField` needs to offer `server` honestly. */
+  serverDictation: ServerDictationChoice;
+  /** What `EmbedVoiceField` needs to offer calls honestly. */
+  voiceCall: EmbedVoiceChoice;
   onChange: (config: WidgetConfig) => void;
 }) {
   const t = useTranslations("agents");
@@ -161,6 +170,28 @@ export function WidgetFields({
         </div>
       </div>
 
+      {/* The widget's own copy is English whatever this form's locale - the
+          bubble's voice messages and its call included - so only the choices
+          are made here. */}
+      <EmbedDictationField
+        name="widget-dictation"
+        value={config.dictation}
+        disabled={disabled}
+        serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
+        wasServer={serverDictation.wasServer}
+        onChange={(dictation) => onChange({ ...config, dictation })}
+      />
+
+      <EmbedVoiceField
+        name="widget-voice"
+        value={config.voice_conversation}
+        disabled={disabled}
+        available={voiceCall.available}
+        unchecked={voiceCall.unchecked}
+        wasOn={voiceCall.wasOn}
+        onChange={(voice_conversation) => onChange({ ...config, voice_conversation })}
+      />
       <Label className="flex items-start gap-2 font-normal">
         <Checkbox
           checked={config.show_sources}
