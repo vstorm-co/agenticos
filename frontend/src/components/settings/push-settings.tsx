@@ -6,6 +6,7 @@ import { BellRing } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
+import { IphonePush } from "@/components/mobile/iphone-push";
 import { PhonePush } from "@/components/mobile/phone-push";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useShell } from "@/hooks/use-shell";
@@ -15,13 +16,15 @@ import { disablePush, enablePush, pushState, sendTestPush, type PushState } from
 /**
  * Push notifications in this browser, or the installed web app (#2097): on,
  * off, a test. In the Android app, push through its UnifiedPush distributor
- * instead (`PhonePush`). Absent in the desktop app, which notifies natively
- * while it runs, and in the iPhone app until it has APNs.
+ * instead (`PhonePush`); in the iPhone app, through APNs with the
+ * organization's key (`IphonePush`). Absent in the desktop app, which
+ * notifies natively while it runs.
  */
 export function PushSettings() {
   const shell = useShell();
   if (shell === null) return <PushCard />;
-  return shell.platform === "android" ? <PhonePush /> : null;
+  if (shell.platform === "android") return <PhonePush />;
+  return shell.platform === "ios" ? <IphonePush /> : null;
 }
 
 function PushCard() {

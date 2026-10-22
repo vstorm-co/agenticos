@@ -41,7 +41,8 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService, absolute_context_url
-from app.services.web_push import PushMessage, WebPushService
+from app.services.push import PushService
+from app.services.web_push import PushMessage
 
 logger = logging.getLogger(__name__)
 
@@ -258,12 +259,13 @@ class NotificationDeliveryService:
     async def _push(
         self, delivery: NotificationDelivery, claimed_at: datetime, notification: Notification
     ) -> str:
-        """Push a notification to every browser its recipient subscribed (#2097).
+        """Push a notification to every browser and iPhone its recipient
+        subscribed (#2097).
 
-        Sent once any browser took it: retrying would show it again on the ones
-        that did. Skipped when there is nobody left to push to - every browser
-        unsubscribed since it was queued. Retried only when every browser that
-        is still there refused it.
+        Sent once any of them took it: retrying would show it again on the ones
+        that did. Skipped when there is nobody left to push to - every one
+        unsubscribed since it was queued. Retried only when every one still
+        there refused it.
         """
         message = PushMessage(
             title=await self._deployment_settings.effective_app_name(),
@@ -273,7 +275,7 @@ class NotificationDeliveryService:
         )
         try:
             outcome = await asyncio.wait_for(
-                WebPushService(self.db).send(notification.recipient_user_id, message),
+                PushService(self.db).send(notification.recipient_user_id, message),
                 timeout=SEND_TIMEOUT_SECONDS,
             )
         except Exception as exc:

@@ -140,6 +140,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         version_attr="vapid_key_version",
         scope=_deployment_scope,
     ),
+    SealedTable(
+        label="deployment_settings (apns)",
+        model=DeploymentSettings,
+        columns=("apns_private_key",),
+        version_attr="apns_key_version",
+        scope=_deployment_scope,
+    ),
 )
 
 

@@ -87,6 +87,8 @@ from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.web_push import WebPushService
+from app.services.apns import ApnsService
+from app.services.push import PushService
 from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 from app.services.device_pairing import DevicePairingService
@@ -144,6 +146,22 @@ def get_web_push_service(db: DBSession) -> WebPushService:
 
 
 WebPushSvc = Annotated[WebPushService, Depends(get_web_push_service)]
+
+
+def get_apns_service(db: DBSession) -> ApnsService:
+    """Create ApnsService with the request's database session."""
+    return ApnsService(db)
+
+
+ApnsSvc = Annotated[ApnsService, Depends(get_apns_service)]
+
+
+def get_push_service(db: DBSession) -> PushService:
+    """Create PushService - Web Push and APNs - with the request's database session."""
+    return PushService(db)
+
+
+PushSvc = Annotated[PushService, Depends(get_push_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

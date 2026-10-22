@@ -160,6 +160,26 @@ Two things are versioned separately from this file and worth knowing about:
 - **Native notifications** for new approvals, with Approve and Reject on the
   notification, and for new inbox rows, plus a count on the Dock icon and
   beside the tray icon.
+- **The iPhone app** (#2097): the phone app now builds for iOS, with what an
+  iPhone draws outside the app. Live Activities show your running runs with a
+  clock and waiting approvals with Reject and Approve, on the lock screen and
+  in the Dynamic Island; a decision taken there waits for Face ID. Home- and
+  lock-screen widgets count approvals and runs, and a Pinned agents widget
+  opens a new chat with an agent pinned on its page (iOS lets no app place an
+  icon on the home screen). The app icon's long-press menu, Shortcuts, Siri,
+  the Action Button and Control Center start a voice call, dictation, a new
+  chat or the approvals. Share → AgenticOS takes text, links, photos and files
+  into a new message; the composer's Camera, Photos and Files open iOS's own
+  pickers, and opening the chat offers a photo taken a moment ago. Managed app
+  configuration (AppConfig) sets the same keys as on Android.
+- **Notifications on an iPhone** (#2097), through Apple's push service with
+  the organization's own APNs key: an administrator adds the key file, its key
+  ID, the team ID and the app's bundle ID under Admin, Settings; it is sealed
+  in the vault and never shown again. Settings → Notifications in the iPhone
+  app turns push on, sends a test or turns it off, and a notification opens
+  its page through the app's lock. `GET`/`PUT`/`DELETE /api/v1/push/apns`
+  (setting it needs an app admin), `POST`/`DELETE /api/v1/push/apns/devices`;
+  `POST /api/v1/push/test` now reaches iPhones too; migration `0162_apns`.
 
 ### Fixed
 

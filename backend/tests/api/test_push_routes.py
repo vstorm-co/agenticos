@@ -1,4 +1,5 @@
-"""`/push`: the key a browser subscribes with, the subscription, a test (#2097)."""
+"""`/push`: the key a browser subscribes with, the subscription, an iPhone's
+token, the organization's APNs key, a test (#2097)."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.exceptions import NotFoundError
 from app.main import app
+from app.schemas.push import ApnsRead
 from app.services.web_push import PushOutcome
 
 pytestmark = pytest.mark.anyio
@@ -19,12 +21,26 @@ ENDPOINT = "https://fcm.googleapis.com/fcm/send/abc"
 KEYS = {"p256dh": "BPk", "auth": "c2Vj"}
 
 
+P8 = "the contents of AuthKey_KEY1234567.p8"
+TOKEN = "ab" * 32
+
+
 @asynccontextmanager
-async def _client(push: MagicMock, user_id: UUID) -> AsyncIterator[AsyncClient]:
-    app.dependency_overrides[deps.get_current_user] = lambda: MagicMock(id=user_id)
+async def _client(
+    push: MagicMock,
+    user_id: UUID,
+    *,
+    apns: MagicMock | None = None,
+    deployment: MagicMock | None = None,
+    admin: bool = False,
+) -> AsyncIterator[AsyncClient]:
+    user = MagicMock(id=user_id, is_app_admin=admin)
+    app.dependency_overrides[deps.get_current_user] = lambda: user
     app.dependency_overrides[deps.get_web_push_service] = lambda: push
-    app.dependency_overrides[deps.get_deployment_settings_service] = lambda: MagicMock(
-        effective_app_name=AsyncMock(return_value="Acme")
+    app.dependency_overrides[deps.get_push_service] = lambda: push
+    app.dependency_overrides[deps.get_apns_service] = lambda: apns or MagicMock()
+    app.dependency_overrides[deps.get_deployment_settings_service] = lambda: (
+        deployment or MagicMock(effective_app_name=AsyncMock(return_value="Acme"))
     )
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
     try:
@@ -67,7 +83,7 @@ async def test_an_endpoint_that_is_not_https_is_refused() -> None:
     push.subscribe.assert_not_called()
 
 
-async def test_a_test_reports_how_each_browser_took_it_and_404s_with_none() -> None:
+async def test_a_test_reports_how_each_device_took_it_and_404s_with_none() -> None:
     push = MagicMock(send_test=AsyncMock(return_value=PushOutcome(sent=1, gone=1, failed=0)))
     async with _client(push, uuid4()) as client:
         sent = await client.post("/api/v1/push/test")
@@ -76,3 +92,47 @@ async def test_a_test_reports_how_each_browser_took_it_and_404s_with_none() -> N
     assert sent.json() == {"sent": 1, "gone": 1, "failed": 0}
     assert push.send_test.await_args.kwargs == {"app_name": "Acme"}
     assert missing.status_code == 404
+
+
+READ = ApnsRead(configured=True, key_id="KEY1234567", team_id="TEAM123456", topic="com.acme.app")
+
+
+async def test_anybody_reads_whether_iphones_get_push_and_registers_their_own() -> None:
+    user_id = uuid4()
+    apns = MagicMock(
+        read=AsyncMock(return_value=READ), register=AsyncMock(), unregister=AsyncMock()
+    )
+    async with _client(MagicMock(), user_id, apns=apns) as client:
+        read = await client.get("/api/v1/push/apns")
+        registered = await client.post("/api/v1/push/apns/devices", json={"token": TOKEN})
+        refused = await client.post("/api/v1/push/apns/devices", json={"token": "not-hex"})
+        forgotten = await client.delete("/api/v1/push/apns/devices", params={"token": TOKEN})
+    assert read.json()["configured"] is True and "private_key" not in read.json()
+    assert (registered.status_code, refused.status_code, forgotten.status_code) == (204, 422, 204)
+    apns.register.assert_awaited_once_with(user_id, TOKEN)
+    apns.unregister.assert_awaited_once_with(user_id, TOKEN)
+
+
+async def test_only_an_app_admin_sets_or_clears_the_key() -> None:
+    deployment = MagicMock(
+        set_apns_key=AsyncMock(return_value=READ),
+        clear_apns_key=AsyncMock(return_value=ApnsRead(configured=False)),
+    )
+    body = {
+        "key_id": "KEY1234567",
+        "team_id": "TEAM123456",
+        "topic": "com.acme.app",
+        "private_key": P8,
+    }
+    async with _client(MagicMock(), uuid4(), deployment=deployment) as client:
+        member = await client.put("/api/v1/push/apns", json=body)
+        member_clear = await client.delete("/api/v1/push/apns")
+    assert (member.status_code, member_clear.status_code) == (403, 403)
+    deployment.set_apns_key.assert_not_called()
+    async with _client(MagicMock(), uuid4(), deployment=deployment, admin=True) as client:
+        stored = await client.put("/api/v1/push/apns", json=body)
+        cleared = await client.delete("/api/v1/push/apns")
+    assert stored.json()["topic"] == "com.acme.app"
+    assert P8 not in stored.text
+    assert cleared.json()["configured"] is False
+    assert deployment.set_apns_key.await_args.kwargs["data"].private_key.get_secret_value() == P8

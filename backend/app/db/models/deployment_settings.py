@@ -90,6 +90,25 @@ class DeploymentSettings(Base, TimestampMixin):
     vapid_public_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     """The public half, base64url, as a browser's `applicationServerKey` takes it."""
     vapid_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    apns_private_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """The organization's own APNs signing key (a `.p8`, PEM), sealed in the
+    vault under the deployment's scope (#2097).
+
+    Push to an iPhone goes through Apple's service with the key of the Apple
+    developer account the app was signed with - the company's own, since a
+    company signs its own build. Null: no iPhone push. Set and replaced by an
+    administrator; the four columns after it say whose key it is.
+    """
+    apns_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    apns_key_id: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    """The key's ID in the Apple developer account (the JWT's `kid`)."""
+    apns_team_id: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    """The developer account's team ID (the JWT's `iss`)."""
+    apns_topic: Mapped[str | None] = mapped_column(String(155), nullable=True)
+    """The app's bundle identifier, which every message names."""
+    apns_sandbox: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Apple's development service rather than production: a build run from
+    Xcode, whose tokens production refuses."""
     max_organizations_per_user: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """How many organizations one account may own, or null for no ceiling.
 

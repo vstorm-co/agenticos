@@ -336,6 +336,34 @@ class TestRotateTable:
         assert report.rotated == 1 and row.vapid_key_version == 2
         assert unseal(row.vapid_private_key or "", scope=scope, key_version=2) == "raw-p256-scalar"
 
+    async def test_the_organizations_apns_key_moves_on_its_own_version(self, monkeypatch):
+        """The APNs key (#2097) shares the row with the Web Push key but not its
+        version: it is set by an administrator, at whichever master key is
+        current then."""
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+        scope = VaultScope.deployment()
+        row = DeploymentSettings(
+            id=uuid.uuid4(),
+            apns_private_key=seal("the organization's .p8", scope=scope).ciphertext,
+            apns_key_version=1,
+        )
+
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+        report = Report()
+        await _rotate_table(
+            _db_returning([row]),
+            _spec("deployment_settings (apns)"),
+            target=2,
+            dry_run=False,
+            report=report,
+        )
+
+        assert report.rotated == 1 and row.apns_key_version == 2
+        assert (
+            unseal(row.apns_private_key or "", scope=scope, key_version=2)
+            == "the organization's .p8"
+        )
+
 
 class TestRun:
     @staticmethod
@@ -362,7 +390,7 @@ class TestRun:
             hint="abcd",
             key_version=1,
         )
-        db = _db_returning([secret], [], [], [], [], [], [])
+        db = _db_returning([secret], [], [], [], [], [], [], [])
 
         with patch.object(sweep, "get_db_context", self._db_context(db)):
             report = await _run(dry_run=False)

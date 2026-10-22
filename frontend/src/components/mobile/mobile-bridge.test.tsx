@@ -8,6 +8,8 @@ import { MobileBridge } from "./mobile-bridge";
 
 const PHONE: ShellInfo = { platform: "ios", version: "0.1.0", window: "main", vibrancy: false };
 
+const IPHONE_PUSH = { configured: true, permission: "granted", token: "ab" };
+
 const env = vi.hoisted(() => ({
   shell: null as unknown,
   can: true,
@@ -32,6 +34,12 @@ const env = vi.hoisted(() => ({
   recordApp: vi.fn(async (_shell: unknown) => {}),
   pushStatus: vi.fn(async (): Promise<unknown> => ({ subscription: null })),
   syncPush: vi.fn(async (_status: unknown) => {}),
+  iphonePush: vi.fn(async (): Promise<unknown> => ({
+    configured: true,
+    permission: "granted",
+    token: "ab",
+  })),
+  syncIphone: vi.fn(async (_push: unknown) => {}),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -68,6 +76,10 @@ vi.mock("@/lib/mobile/live-activities", async (original) => ({
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
 vi.mock("@/lib/mobile/widget", () => ({ updateWidget: env.updateWidget }));
 vi.mock("@/lib/session-app", () => ({ recordSessionApp: env.recordApp }));
+vi.mock("@/lib/mobile/apns", () => ({
+  iphonePush: env.iphonePush,
+  syncIphonePush: env.syncIphone,
+}));
 vi.mock("@/lib/mobile/push", () => ({
   phonePushStatus: env.pushStatus,
   syncPhonePush: env.syncPush,
@@ -177,10 +189,11 @@ describe("MobileBridge", () => {
     expect(env.updateWidget).not.toHaveBeenCalled();
   });
 
-  it("tells the server which app this is", () => {
+  it("tells the server which app this is, and an iPhone's push token", async () => {
     mount();
     expect(env.recordApp).toHaveBeenCalledWith(PHONE);
     expect(env.pushStatus).not.toHaveBeenCalled();
+    await waitFor(() => expect(env.syncIphone).toHaveBeenCalledWith(IPHONE_PUSH));
   });
 
   it("keeps the server's copy of an Android phone's push endpoint current", async () => {

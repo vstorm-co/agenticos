@@ -1,8 +1,9 @@
-"""Web Push subscription schemas (#2097)."""
+"""Push schemas: Web Push subscriptions and iPhones' APNs tokens and key (#2097)."""
 
+from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 
 from app.schemas.base import BaseSchema
 
@@ -53,8 +54,39 @@ class PushKeyRead(BaseSchema):
 
 
 class PushTestRead(BaseSchema):
-    """How a test push went, by browser."""
+    """How a test push went, by browser and iPhone."""
 
     sent: int
     gone: int
     failed: int
+
+
+ApnsEnvironment = Literal["production", "sandbox"]
+
+
+class ApnsKeyUpdate(BaseSchema):
+    """The organization's APNs key, as Apple's developer account hands it out:
+    the `.p8` file's contents, its key ID, the team ID, and the app's bundle
+    identifier the messages are for."""
+
+    key_id: str = Field(pattern=r"^[A-Z0-9]{10}$")
+    team_id: str = Field(pattern=r"^[A-Z0-9]{10}$")
+    topic: str = Field(min_length=1, max_length=155, pattern=r"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")
+    environment: ApnsEnvironment = "production"
+    private_key: SecretStr = Field(min_length=1, max_length=4096)
+
+
+class ApnsRead(BaseSchema):
+    """Whether iPhones can be pushed to, and with whose key - never the key."""
+
+    configured: bool
+    key_id: str | None = None
+    team_id: str | None = None
+    topic: str | None = None
+    environment: ApnsEnvironment | None = None
+
+
+class ApnsDeviceCreate(BaseSchema):
+    """The token the iOS app received from APNs, hex."""
+
+    token: str = Field(min_length=64, max_length=200, pattern=r"^[0-9a-f]+$")

@@ -115,11 +115,18 @@ class PushMessage:
 
 @dataclass(frozen=True)
 class PushOutcome:
-    """How one send went, by browser."""
+    """How one send went, by browser or iPhone."""
 
     sent: int
     gone: int
     failed: int
+
+    def __add__(self, other: PushOutcome) -> PushOutcome:
+        return PushOutcome(
+            sent=self.sent + other.sent,
+            gone=self.gone + other.gone,
+            failed=self.failed + other.failed,
+        )
 
 
 class WebPushService:
@@ -250,16 +257,5 @@ class WebPushService:
         await push_repo.mark_sent(self.db, subscription.id, datetime.now(UTC))
         return "sent"
 
-    async def send_test(self, user_id: uuid.UUID, *, app_name: str) -> PushOutcome:
-        """A push to the caller's own browsers, from the settings page."""
-        if not await push_repo.list_for_user(self.db, user_id):
-            raise NotFoundError(message="No browser of yours is subscribed to push yet.")
-        return await self.send(
-            user_id,
-            PushMessage(
-                title=app_name,
-                body="Push works. This is what a notification from your agents looks like.",
-                url="/settings/notifications",
-                tag="push-test",
-            ),
-        )
+    async def has_subscriptions(self, user_id: uuid.UUID) -> bool:
+        return bool(await push_repo.list_for_user(self.db, user_id))

@@ -25,6 +25,7 @@ import {
   type LiveActivity,
 } from "@/lib/mobile/live-activities";
 import { updateWidget } from "@/lib/mobile/widget";
+import { iphonePush, syncIphonePush } from "@/lib/mobile/apns";
 import { phonePushStatus, syncPhonePush } from "@/lib/mobile/push";
 import { recordSessionApp } from "@/lib/session-app";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
@@ -116,13 +117,15 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     );
   }, [shell]);
 
-  // A distributor can hand over a new endpoint at any time; the server is told
-  // the current one whenever the console arrives, as a browser's is.
+  // A distributor - or APNs - can hand over a new address at any time; the
+  // server is told the current one whenever the console arrives, as a
+  // browser's is.
   useEffect(() => {
-    if (shell.platform !== "android") return;
-    phonePushStatus()
-      .then(syncPhonePush)
-      .catch((error: unknown) => reportShellFailure("could not sync push", error));
+    const sync =
+      shell.platform === "android"
+        ? phonePushStatus().then(syncPhonePush)
+        : iphonePush().then(syncIphonePush);
+    sync.catch((error: unknown) => reportShellFailure("could not sync push", error));
   }, [shell]);
 
   const shown = useRef(new Map<string, string>());

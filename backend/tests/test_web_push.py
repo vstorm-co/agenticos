@@ -198,21 +198,13 @@ class TestSending:
         assert first["ttl"] == web_push.TTL_SECONDS
         assert isinstance(first["aiohttp_session"], aiohttp.ClientSession)
 
-    async def test_a_test_needs_a_subscribed_browser(self, service: WebPushService) -> None:
-        with (
-            patch(f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[])),
-            pytest.raises(NotFoundError),
+    async def test_it_says_whether_the_person_has_a_browser(self, service: WebPushService) -> None:
+        with patch(f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[])):
+            assert not await service.has_subscriptions(uuid4())
+        with patch(
+            f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[_subscription()])
         ):
-            await service.send_test(uuid4(), app_name="Acme")
-        with (
-            patch(
-                f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[_subscription()])
-            ),
-            patch(f"{MODULE}.webpush_async", new=AsyncMock()),
-            patch(f"{MODULE}.push_repo.mark_sent", new=AsyncMock()),
-        ):
-            outcome = await service.send_test(uuid4(), app_name="Acme")
-        assert outcome.sent == 1
+            assert await service.has_subscriptions(uuid4())
 
 
 class TestSubscribing:

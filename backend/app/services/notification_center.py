@@ -27,11 +27,11 @@ from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
-from app.repositories import push_subscription as push_repo
 from app.services import rate_limit
 from app.services.access import ARTIFACT, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
+from app.services.push import PushService
 
 logger = logging.getLogger(__name__)
 
@@ -705,9 +705,10 @@ class NotificationCenterService:
         self, *, recipients: list[uuid.UUID], event_type: NotificationEventType, mandatory: bool
     ) -> _ChannelReads:
         """Every channel's preference for the whole fan-out, one query each, and
-        who has a browser to push to. A mandatory event reads no preference -
-        it reaches every channel - but still only pushes to a subscriber."""
-        subscribed = await push_repo.subscribed(self.db, recipients)
+        who has a browser or an iPhone to push to. A mandatory event reads no
+        preference - it reaches every channel - but still only pushes to a
+        subscriber."""
+        subscribed = await PushService(self.db).subscribed(recipients)
         if mandatory:
             return _ChannelReads(subscribed=subscribed)
         in_app_by_recipient = await notification_repo.get_channel_preferences(

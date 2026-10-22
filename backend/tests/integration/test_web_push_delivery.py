@@ -10,12 +10,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import select
 
+from app.db.models.apns_device import ApnsDevice
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.user import User
+from app.repositories import apns_device as device_repo
 from app.repositories import deployment_settings as deployment_repo
 from app.repositories import push_subscription as push_repo
 from app.services.notification_center import NotificationCenterService
@@ -145,7 +147,7 @@ class TestWhoIsPushedTo:
         org, member = await _org_with_member(db)
         await _subscribe(db, member)
         with patch(
-            "app.services.notification_center.push_repo.subscribed",
+            "app.services.notification_center.PushService.subscribed",
             new=AsyncMock(side_effect=OSError("read failed")),
         ):
             notification = await _write(
@@ -156,7 +158,7 @@ class TestWhoIsPushedTo:
     async def test_a_failed_read_still_abandons_an_ordinary_event(self, db):
         org, member = await _org_with_member(db)
         with patch(
-            "app.services.notification_center.push_repo.subscribed",
+            "app.services.notification_center.PushService.subscribed",
             new=AsyncMock(side_effect=OSError("read failed")),
         ):
             written = await NotificationCenterService(db).write(
@@ -207,7 +209,7 @@ class TestTheSweepSettlesAPush:
         org, member = await _org_with_member(db)
         delivery, now = await _queued_push(db, member, org)
         send = AsyncMock(return_value=outcome)
-        with patch("app.services.notification_delivery.WebPushService.send", new=send):
+        with patch("app.services.notification_delivery.PushService.send", new=send):
             assert (
                 await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
                 == result
@@ -221,7 +223,7 @@ class TestTheSweepSettlesAPush:
         org, member = await _org_with_member(db)
         delivery, now = await _queued_push(db, member, org)
         with patch(
-            "app.services.notification_delivery.WebPushService.send",
+            "app.services.notification_delivery.PushService.send",
             new=AsyncMock(side_effect=OSError("https://fcm.googleapis.com/secret-token")),
         ):
             assert (
@@ -247,7 +249,7 @@ class TestTheSweepSettlesAPush:
         )
         await db.flush()
         send = AsyncMock()
-        with patch("app.services.notification_delivery.WebPushService.send", new=send):
+        with patch("app.services.notification_delivery.PushService.send", new=send):
             assert (
                 await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
                 == "skipped"
@@ -279,3 +281,39 @@ class TestTheWritesThatAreSql:
         assert not await push_repo.delete_for_user(db, user_id=alice.id, endpoint=endpoint)
         assert await push_repo.delete_for_user(db, user_id=bob.id, endpoint=endpoint)
         assert await push_repo.subscribed(db, []) == set()
+
+    async def test_an_iphone_follows_whoever_registers_it_and_is_forgotten_for_them(self, db):
+        token = "cd" * 32
+        alice, bob = await _user(db), await _user(db)
+        for user in (alice, bob):
+            await device_repo.upsert(db, user_id=user.id, token=token)
+        rows = (await db.execute(select(ApnsDevice))).scalars().all()
+        assert [(row.user_id, row.token) for row in rows] == [(bob.id, token)]
+        assert await device_repo.subscribed(db, [alice.id, bob.id]) == {bob.id}
+        assert not await device_repo.delete_for_user(db, user_id=alice.id, token=token)
+        assert await device_repo.delete_for_user(db, user_id=bob.id, token=token)
+
+
+class TestAnIphoneIsPushedTo:
+    async def test_only_once_the_organization_has_set_its_apns_key(self, db):
+        org, member = await _org_with_member(db)
+        await device_repo.upsert(db, user_id=member.id, token="ef" * 32)
+        notification = await _write(
+            db, member, org, NotificationEventType.SECURITY_EVENT, use_savepoint=True
+        )
+        assert "push" not in await _channels(db, notification.id)
+        await deployment_repo.upsert(
+            db,
+            update_data={
+                "apns_private_key": "sealed",
+                "apns_key_version": 1,
+                "apns_key_id": "KEY1234567",
+                "apns_team_id": "TEAM123456",
+                "apns_topic": "com.acme.app",
+                "apns_sandbox": False,
+            },
+        )
+        notification = await _write(
+            db, member, org, NotificationEventType.SECURITY_EVENT, use_savepoint=True
+        )
+        assert "push" in await _channels(db, notification.id)

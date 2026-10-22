@@ -115,7 +115,7 @@ dependencies = [
     # because `app/core/pinned_http.py` imports it directly: the boundary is
     # wherever an object crosses into or out of a vendor SDK, and a library our
     # own code imports is one this manifest names (#1820).
-    "httpx>=0.28.0",
+    "httpx[http2]>=0.28.0",
     "httpx2>=2.13.1",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -907,6 +907,9 @@ include = [
     "app/repositories/push_subscription.py",
     "app/schemas/push.py",
     "app/api/routes/v1/push.py",
+    "app/services/apns.py",
+    "app/services/push.py",
+    "app/repositories/apns_device.py",
     "app/api/routes/v1/mcp_oauth.py",
     "app/api/public_api.py",
     "app/api/routes/v1/public_openapi.py",
@@ -1409,6 +1412,9 @@ include = [
     "app/repositories/push_subscription.py",
     "app/schemas/push.py",
     "app/api/routes/v1/push.py",
+    "app/services/apns.py",
+    "app/services/push.py",
+    "app/repositories/apns_device.py",
     "app/api/routes/v1/mcp_oauth.py",
     "app/api/public_api.py",
     "app/api/routes/v1/public_openapi.py",
