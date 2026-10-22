@@ -247,9 +247,9 @@ Each arm of the run is summarised on two axes, and per tag:
 Every attempt comes out one of four ways (`state` on the attempt):
 
 - **passed** or **failed** on its grade;
-- **failed** too when the agent crashed - a tool that raised, its step limit,
-  a loop, a guardrail, a request the provider refused - which counts against
-  the pass rate;
+- **failed** too when the agent's run failed - a tool that raised, its step
+  limit, a loop, a guardrail, a request the provider refused - which fails a
+  suite outright, even when the case's reruns pass;
 - **incomplete** when the provider failed after its retries (an error 5xx, 408
   or 429, or no answer at all), a scorer raised, the run was cancelled or ran
   out of budget, or its tries tied;

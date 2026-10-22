@@ -160,8 +160,8 @@ _GATE_MESSAGES = {
         "or dismiss the change of model."
     ),
     "crashed": (
-        "The agent crashed on cases in the last check of this model. Fix what failed, "
-        "then run the check again."
+        "The agent's run failed on cases in the last check of this model. Fix what "
+        "failed, then run the check again."
     ),
 }
 

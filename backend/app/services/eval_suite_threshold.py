@@ -47,6 +47,10 @@ def judge(
     baseline, over the cases both answered.
     """
     if summary.pass_rate is None:
+        if summary.crashed:
+            return EvalSuiteResultStatus.FAILED, [
+                ThresholdReason(code="crashed", value=summary.crashed)
+            ]
         return EvalSuiteResultStatus.INCONCLUSIVE, [
             ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate)
         ]

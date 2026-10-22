@@ -237,6 +237,26 @@ def test_an_agent_that_crashed_fails_with_no_minimum_and_no_baseline(
     assert [(r.code, r.value) for r in reasons] == [("crashed", crashed)]
 
 
+def test_a_crash_whose_reruns_tied_still_fails_with_nothing_else_decided() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        _summary(cases=1, passed=0, incomplete=1, crashed=1, pass_rate=None),
+        _comparison(),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [(r.code, r.value) for r in reasons] == [("crashed", 1)]
+
+
+def test_a_crash_fails_even_when_the_comparison_is_invalid() -> None:
+    status, reasons = judge(
+        EvalSuiteThreshold(),
+        _summary(passed=9, failed=1, crashed=1, pass_rate=0.9),
+        _comparison(verdict="invalid", invalid_reason="A different judge graded the baseline"),
+    )
+    assert status is EvalSuiteResultStatus.FAILED
+    assert [r.code for r in reasons] == ["crashed"]
+
+
 def test_a_crash_on_both_sides_fails_though_nothing_flipped() -> None:
     crashed = _summary(cases=10, passed=0, failed=10, crashed=10, pass_rate=0.0)
     status, reasons = judge(

@@ -1,5 +1,5 @@
 ---
-source_sha: "03947b258648"
+source_sha: "f17665f52246"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -262,9 +262,10 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 Cada intento sale de una de cuatro maneras (`state` en el intento):
 
 - **aprobado** o **suspendido** según su calificación;
-- también **suspendido** cuando el agent se cayó - una herramienta lanzó una
-  excepción, su límite de pasos, un bucle, un guardrail, una petición que el
-  provider rechazó -, lo que cuenta contra la tasa de aprobados;
+- también **suspendido** cuando el run del agent falló - una herramienta lanzó
+  una excepción, su límite de pasos, un bucle, un guardrail, una petición que
+  el provider rechazó -, lo que suspende una suite de inmediato, aunque los
+  reintentos del caso aprueben;
 - **incompleto** cuando el provider falló tras sus reintentos (un error 5xx,
   408 o 429, o ninguna respuesta), un evaluador lanzó una excepción, el run se
   canceló o se quedó sin budget, o sus intentos empataron;

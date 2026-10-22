@@ -1,5 +1,5 @@
 ---
-source_sha: "03947b258648"
+source_sha: "f17665f52246"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -279,9 +279,10 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
 
 - **bestanden** oder **nicht bestanden** nach seiner Bewertung;
-- ebenfalls **nicht bestanden**, wenn der Agent abgestürzt ist - ein Werkzeug
-  hat eine Ausnahme geworfen, sein Schrittlimit, eine Schleife, eine Guardrail,
-  eine vom Provider abgelehnte Anfrage -, was gegen die Bestehensquote zählt;
+- ebenfalls **nicht bestanden**, wenn der Run des Agenten gescheitert ist - ein
+  Werkzeug hat eine Ausnahme geworfen, sein Schrittlimit, eine Schleife, eine
+  Guardrail, eine vom Provider abgelehnte Anfrage -, was eine Suite sofort
+  durchfallen lässt, auch wenn die Wiederholungen des Falls bestehen;
 - **unvollständig**, wenn der Provider nach seinen Wiederholungen gescheitert
   ist (ein Fehler 5xx, 408 oder 429 oder gar keine Antwort), ein Bewerter eine
   Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder

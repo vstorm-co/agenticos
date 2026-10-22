@@ -146,8 +146,8 @@ class ArmSummaryRead(BaseSchema):
     crashed: int = Field(
         default=0,
         description=(
-            "First answers the agent's run failed before giving - counted in `failed`, and "
-            "each one fails a suite"
+            "First answers the agent's run failed before giving; each fails a suite even "
+            "when its reruns pass"
         ),
     )
     pass_rate: float | None = Field(

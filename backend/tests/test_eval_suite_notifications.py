@@ -74,7 +74,7 @@ def test_a_failure_names_why_and_the_first_cases() -> None:
             ThresholdReason(code="incomplete", value=1),
             "1 case(s) the provider or a scorer failed on",
         ),
-        (ThresholdReason(code="crashed", value=3), "the agent crashed on 3 case(s)"),
+        (ThresholdReason(code="crashed", value=3), "the agent's run failed on 3 case(s)"),
     ],
 )
 def test_each_reason_is_said_in_words(reason: ThresholdReason, said: str) -> None:

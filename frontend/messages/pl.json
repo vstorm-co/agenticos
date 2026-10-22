@@ -8541,7 +8541,7 @@
         "invalid": "Obie strony oceniono inaczej, więc nie da się ich porównać.",
         "ungraded": "{count, plural, one {# przypadek nie ma czym go ocenić} few {# przypadki nie mają czym ich ocenić} many {# przypadków nie ma czym ich ocenić} other {# przypadku nie ma czym ocenić}}, więc suita nie może ręczyć za ten wynik.",
         "incomplete": "{count, plural, one {# przypadku} few {# przypadków} many {# przypadków} other {# przypadku}} nie dało się rozstrzygnąć - zawiódł provider albo scorer - więc suita nie może ręczyć za ten wynik.",
-        "crashed": "Agent się wysypał na {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}; awaria oblewa suitę."
+        "crashed": "Run agenta nie powiódł się na {count, plural, one {# przypadku} few {# przypadkach} many {# przypadkach} other {# przypadku}}; nieudany run oblewa suitę."
       },
       "skip": {
         "budget": "Kosztowałaby więcej, niż zostało w budżecie w tym miesiącu.",
@@ -9353,7 +9353,7 @@
         "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź evalami na tych sugestiach.",
         "inconclusive": "Ostatnie sprawdzenie tego modelu zostawiło nierozstrzygnięte przypadki. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
         "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę.",
-        "crashed": "Agent się wysypał na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie."
+        "crashed": "Run agenta nie powiódł się na przypadkach w ostatnim sprawdzeniu tego modelu. Napraw to, co zawiodło, i uruchom sprawdzenie ponownie."
       }
     },
     "evidence": {

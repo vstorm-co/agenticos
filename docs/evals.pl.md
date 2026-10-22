@@ -1,5 +1,5 @@
 ---
-source_sha: "03947b258648"
+source_sha: "f17665f52246"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -263,9 +263,10 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
 
 - **zaliczona** albo **niezaliczona** według oceny;
-- również **niezaliczona**, gdy agent się wysypał - narzędzie rzuciło wyjątek,
-  przekroczył limit kroków, zapętlił się, zatrzymał go guardrail, provider
-  odrzucił żądanie - i to liczy się przeciw odsetkowi zaliczonych;
+- również **niezaliczona**, gdy run agenta się nie powiódł - narzędzie rzuciło
+  wyjątek, przekroczył limit kroków, zapętlił się, zatrzymał go guardrail,
+  provider odrzucił żądanie - co od razu oblewa suitę, nawet gdy ponowne próby
+  tego przypadku przejdą;
 - **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
   albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
   się budżet, albo próby wyszły na remis;

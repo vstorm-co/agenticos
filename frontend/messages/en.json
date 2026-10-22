@@ -9297,7 +9297,7 @@
         "invalid": "The two sides were graded differently, so they cannot be compared.",
         "ungraded": "{count, plural, =1 {1 case has nothing that grades it} other {# cases have nothing that grades them}}, so the suite cannot vouch for this result.",
         "incomplete": "{count, plural, =1 {1 case} other {# cases}} could not be decided - the provider or a scorer failed on them - so the suite cannot vouch for this result.",
-        "crashed": "The agent crashed on {count, plural, =1 {1 case} other {# cases}}; a crash fails the suite."
+        "crashed": "The agent's run failed on {count, plural, =1 {1 case} other {# cases}}; a failed run fails the suite."
       },
       "skip": {
         "budget": "It would cost more than the budget has left this month.",
@@ -9576,7 +9576,7 @@
         "check_first": "A change of model is accepted once it pays off. Run Check with evals on these suggestions first.",
         "inconclusive": "The last check of this model left cases undecided. Grade the open answers or run the check again.",
         "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one.",
-        "crashed": "The agent crashed on cases in the last check of this model. Fix what failed, then run the check again."
+        "crashed": "The agent's run failed on cases in the last check of this model. Fix what failed, then run the check again."
       }
     },
     "evidence": {
