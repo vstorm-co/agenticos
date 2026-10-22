@@ -9441,6 +9441,34 @@
       "placeholder": "Agent wsparcia, który odpowiada na pytania o zwroty na podstawie naszej polityki i przekazuje zdenerwowanych klientów człowiekowi.",
       "send": "Opisz go Architektowi",
       "prompt": "Przygotuj dla mnie draft agenta: {description}"
+    },
+    "rejected": {
+      "title": "{count, plural, =1 {1 proponowana zmiana nie została zapisana} few {# proponowane zmiany nie zostały zapisane} many {# proponowanych zmian nie zostało zapisanych} other {# proponowanej zmiany nie zapisano}}",
+      "more": "{count, plural, =1 {1 kolejna nie jest wymieniona} few {# kolejne nie są wymienione} many {# kolejnych nie jest wymienionych} other {# kolejnej nie wymieniono}}",
+      "after": "Po: {passage}",
+      "atEnd": "Na końcu instrukcji",
+      "proposed": "Propozycja: {text}",
+      "kind": {
+        "instructions": "Instrukcje",
+        "tool_override": "Narzędzie",
+        "spec_field": "Ustawienie"
+      },
+      "reason": {
+        "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
+        "ambiguous_anchor": "Fragment, który zmienia, występuje więcej niż raz",
+        "no_change": "Niczego nie zmienia",
+        "unknown_tool": "Agent nie ma takiego narzędzia",
+        "invalid_tool_change": "Nazwa albo opis narzędzia, których agent nie może użyć",
+        "not_a_target": "Tego asystent nie może zmieniać",
+        "operation": "To ustawienie nie pozwala na taką zmianę",
+        "loosens_approval": "Poluzowałaby zatwierdzanie",
+        "weakens_protection": "Osłabiłaby zabezpieczenie",
+        "unknown_capability": "Nie ma takiej capability",
+        "invalid_config": "Jej ustawienia są niepoprawne",
+        "does_not_apply": "Nie pasuje do draftu",
+        "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
+        "dismissed_before": "Ktoś już ją wcześniej odrzucił"
+      }
     }
   },
   "promotionGate": {

@@ -9547,6 +9547,34 @@
       "placeholder": "Ein Support-Agent, der Rückgabefragen anhand unserer Richtlinie beantwortet und verärgerte Kunden an einen Menschen übergibt.",
       "send": "Dem Architekten beschreiben",
       "prompt": "Entwirf mir einen Agent: {description}"
+    },
+    "rejected": {
+      "title": "{count, plural, =1 {1 vorgeschlagene Änderung wurde nicht gespeichert} other {# vorgeschlagene Änderungen wurden nicht gespeichert}}",
+      "more": "{count, plural, =1 {1 weitere ist nicht aufgeführt} other {# weitere sind nicht aufgeführt}}",
+      "after": "Nach: {passage}",
+      "atEnd": "Am Ende der Anweisungen",
+      "proposed": "Vorschlag: {text}",
+      "kind": {
+        "instructions": "Anweisungen",
+        "tool_override": "Tool",
+        "spec_field": "Einstellung"
+      },
+      "reason": {
+        "unanchored": "Die Stelle, die sie ändert, steht nicht in den Anweisungen",
+        "ambiguous_anchor": "Die Stelle, die sie ändert, kommt mehr als einmal vor",
+        "no_change": "Sie ändert nichts",
+        "unknown_tool": "Der Agent hat kein solches Tool",
+        "invalid_tool_change": "Ein Tool-Name oder eine Beschreibung, die der Agent nicht verwenden kann",
+        "not_a_target": "Nichts, was der Assistent ändern darf",
+        "operation": "Keine Änderung, die diese Einstellung erlaubt",
+        "loosens_approval": "Sie würde die Freigabe lockern",
+        "weakens_protection": "Sie würde eine Schutzmaßnahme schwächen",
+        "unknown_capability": "Keine solche Capability",
+        "invalid_config": "Ihre Einstellungen sind ungültig",
+        "does_not_apply": "Sie passt nicht zum Draft",
+        "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
+        "dismissed_before": "Jemand hat sie schon verworfen"
+      }
     }
   },
   "promotionGate": {

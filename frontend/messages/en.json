@@ -9664,6 +9664,34 @@
       "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
       "send": "Describe it to the Architect",
       "prompt": "Draft an agent for me: {description}"
+    },
+    "rejected": {
+      "title": "{count, plural, =1 {1 proposed change was not recorded} other {# proposed changes were not recorded}}",
+      "more": "{count, plural, =1 {1 more is not listed} other {# more are not listed}}",
+      "after": "After: {passage}",
+      "atEnd": "At the end of the instructions",
+      "proposed": "Proposed: {text}",
+      "kind": {
+        "instructions": "Instructions",
+        "tool_override": "Tool",
+        "spec_field": "Setting"
+      },
+      "reason": {
+        "unanchored": "The passage it changes is not in the instructions",
+        "ambiguous_anchor": "The passage it changes occurs more than once",
+        "no_change": "It changes nothing",
+        "unknown_tool": "The agent has no such tool",
+        "invalid_tool_change": "A tool name or description the agent cannot use",
+        "not_a_target": "Not something the assistant may change",
+        "operation": "Not a change that setting allows",
+        "loosens_approval": "It would loosen approval",
+        "weakens_protection": "It would weaken a safeguard",
+        "unknown_capability": "No such capability",
+        "invalid_config": "Its settings are not valid",
+        "does_not_apply": "It does not fit the draft",
+        "not_grantable": "It adds something the person who asked may not grant",
+        "dismissed_before": "Somebody dismissed it before"
+      }
     }
   },
   "promotionGate": {
