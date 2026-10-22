@@ -1253,6 +1253,13 @@ class EvalSuiteService:
         if run is None:
             await self._finish(result, EvalSuiteResultStatus.ERROR, reason="run_gone", now=now)
             return
+        if run.status == EvalRunStatus.CANCELLED.value:
+            # Nothing failed and nothing was vouched for: what ran is not the
+            # dataset, so the version is neither passed nor held to a failure.
+            await self._finish(
+                result, EvalSuiteResultStatus.INCONCLUSIVE, reason=run.status, now=now
+            )
+            return
         if run.status != EvalRunStatus.COMPLETED.value:
             await self._finish(
                 result, EvalSuiteResultStatus.ERROR, reason=run.status, message=run.error, now=now
