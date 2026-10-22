@@ -1,5 +1,5 @@
 ---
-source_sha: "5f9addc0d109"
+source_sha: "ecd5b5eccded"
 ---
 
 # Konfiguration { #configuration }
@@ -452,8 +452,9 @@ Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host. Irgendein Worker muss `eval` bedienen, sonst warten Eval-Runs in der Warteschlange, bis sie nach einem Tag als fehlgeschlagen gelten; `agenticos cmd doctor` nennt einen Pool, den kein lebender Worker bedient |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval-Runs gleichzeitig. Jeder hält seinen Slot für den ganzen Run, daher haben Evals einen eigenen Pool und belegen nie einen Slot, den ein Agent-Run braucht |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |

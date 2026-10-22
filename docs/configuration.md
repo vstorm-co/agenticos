@@ -426,8 +426,9 @@ reaches the database the API does. Every setting below is per worker process.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | The pools this process serves. Run a second worker with `ingest` to put parsing on a host of its own. Some worker has to serve `eval`, or eval runs wait queued until they are failed a day later; `agenticos cmd doctor` names a pool no live worker serves |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Agent runs and trigger fires at once |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runs at once. Each holds its slot for the whole run, so evals have a pool of their own and never hold one an agent run needs |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sweeps, cleanups and reports at once |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in the shipped compose files) | Child processes for parsing and embedding, one job each at a time |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | What one child may hold, with whatever it started, before the watchdog stops it |

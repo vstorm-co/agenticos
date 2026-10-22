@@ -1,5 +1,5 @@
 ---
-source_sha: "5f9addc0d109"
+source_sha: "ecd5b5eccded"
 ---
 
 # Konfiguracja { #configuration }
@@ -434,8 +434,9 @@ ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host |
+| `WORKER_POOLS` | `agent,eval,ingest,system` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Któryś worker musi obsługiwać `eval`, inaczej eval runy czekają w kolejce, aż po dobie zostaną oznaczone jako nieudane; `agenticos cmd doctor` wskazuje pulę, której nie obsługuje żaden żywy worker |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runy naraz. Każdy trzyma swój slot przez cały run, więc evale mają własną pulę i nigdy nie zajmują slotu potrzebnego runowi agenta |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Ile może zająć jeden proces potomny razem z tym, co uruchomił, zanim zatrzyma go watchdog |

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d597d189a74"
+source_sha: "25d309992393"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -149,7 +149,7 @@ Warum die Warteschlange aus Zeilen in Postgres besteht, gemessen an neun anderen
 Engines, steht im [Benchmark der Hintergrund-Jobs](task-queue-benchmark.md).
 
 Die Pools trennen, wenn Parsen mit Agenten-Läufen konkurriert.
-`WORKER_POOLS=agent,system` auf einer Gruppe von Prozessen und
+`WORKER_POOLS=agent,eval,system` auf einer Gruppe von Prozessen und
 `WORKER_POOLS=ingest` auf Hosts mit Speicherreserve verhindern, dass ein großer
 Upload eine Routine verzögert. Die Health-Probe und `agenticos cmd doctor`
 melden einen Pool, den kein lebender Worker bedient. Die Einstellungen unter
