@@ -1,4 +1,8 @@
-"""Generated media rows: recorded on save, summed for the quota, removed with what owns them."""
+"""Generated media rows: recorded on save, summed for the quota, removed with what owns them.
+
+Beside them, the quota a generation call in flight holds until its file is
+recorded (`GeneratedMediaReservation`).
+"""
 
 from collections.abc import Sequence
 from datetime import datetime
@@ -9,7 +13,7 @@ from sqlalchemy import ColumnElement, CursorResult, and_, delete, func, insert, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
-from app.db.models.generated_media import GeneratedMedia
+from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 
 
 async def create(
@@ -66,6 +70,57 @@ async def bytes_used(db: AsyncSession, *, organization_id: UUID) -> int:
         )
     )
     return int(total or 0)
+
+
+async def bytes_reserved(db: AsyncSession, *, organization_id: UUID, since: datetime) -> int:
+    """How many bytes this organization's calls in flight hold, made since `since`.
+
+    A claim older than that belonged to a call that died with its process
+    before it could release it; it is not counted, and the sweep removes it.
+    """
+    total = await db.scalar(
+        select(func.coalesce(func.sum(GeneratedMediaReservation.size_bytes), 0)).where(
+            GeneratedMediaReservation.organization_id == organization_id,
+            GeneratedMediaReservation.created_at >= since,
+        )
+    )
+    return int(total or 0)
+
+
+async def reserve(db: AsyncSession, *, organization_id: UUID, size_bytes: int) -> UUID:
+    """Hold `size_bytes` of this organization's quota for one call; answers the claim's id.
+
+    The caller holds the organization's generated-media lock, taken before it
+    read what is used, so the check and this write are one step to every other
+    admission.
+    """
+    result = await db.execute(
+        insert(GeneratedMediaReservation)
+        .values(organization_id=organization_id, size_bytes=size_bytes)
+        .returning(GeneratedMediaReservation.id)
+    )
+    return result.scalar_one()
+
+
+async def release(db: AsyncSession, *, organization_id: UUID, reservation_id: UUID) -> None:
+    """Drop one claim of this organization's; a claim already gone is no error."""
+    await db.execute(
+        delete(GeneratedMediaReservation).where(
+            GeneratedMediaReservation.id == reservation_id,
+            GeneratedMediaReservation.organization_id == organization_id,
+        )
+    )
+
+
+async def delete_stale_reservations(db: AsyncSession, *, before: datetime) -> int:
+    """Drop every claim made before `before`, across organizations; answers how many."""
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            delete(GeneratedMediaReservation).where(GeneratedMediaReservation.created_at < before)
+        ),
+    )
+    return result.rowcount or 0
 
 
 async def paths_in_conversations(

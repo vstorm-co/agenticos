@@ -11,7 +11,14 @@ One row per file: the organization (`CASCADE`, the tenant's purge removes the
 bytes by prefix), the conversation where the run had one (`SET NULL`, so a
 conversation removed by a path that did not unlink its media leaves the row for
 the retention sweep to find rather than deleting the only record of the bytes),
-the leaf name it is served under, its storage path and its size.
+the leaf name it is served under - unique within the organization, the scope it
+is served in, not across the deployment - its storage path and its size.
+
+Beside it, `generated_media_reservations`: the quota held for a generation call
+in flight. The quota is asked before a paid call and the file recorded after it,
+so admission writes a claim of the call's estimated size under a per-organization
+advisory lock, and recording the file replaces it. Without it every call admitted
+under the limit at once could finish, together far past it.
 
 No backfill. Files written before this revision have no row: they are still
 served, because the serving route resolves a leaf name in the caller's own
@@ -64,7 +71,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("generated_media_pkey")),
-        sa.UniqueConstraint("filename", name=op.f("generated_media_filename_key")),
+        sa.UniqueConstraint(
+            "organization_id", "filename", name=op.f("uq_generated_media_org_filename")
+        ),
     )
     op.create_index(
         op.f("generated_media_organization_id_idx"),
@@ -79,9 +88,49 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index("ix_generated_media_created", "generated_media", ["created_at"], unique=False)
+    op.create_table(
+        "generated_media_reservations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("organization_id", sa.UUID(), nullable=False),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name=op.f("generated_media_reservations_organization_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("generated_media_reservations_pkey")),
+    )
+    op.create_index(
+        op.f("generated_media_reservations_organization_id_idx"),
+        "generated_media_reservations",
+        ["organization_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_generated_media_reservations_created",
+        "generated_media_reservations",
+        ["created_at"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_generated_media_reservations_created", table_name="generated_media_reservations"
+    )
+    op.drop_index(
+        op.f("generated_media_reservations_organization_id_idx"),
+        table_name="generated_media_reservations",
+    )
+    op.drop_table("generated_media_reservations")
     op.drop_index("ix_generated_media_created", table_name="generated_media")
     op.drop_index(op.f("generated_media_conversation_id_idx"), table_name="generated_media")
     op.drop_index(op.f("generated_media_organization_id_idx"), table_name="generated_media")

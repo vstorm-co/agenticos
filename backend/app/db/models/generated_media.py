@@ -13,7 +13,7 @@ this table existed - which has no row - is served exactly as before.
 
 import uuid
 
-from sqlalchemy import BigInteger, ForeignKey, Index, String
+from sqlalchemy import BigInteger, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,12 +43,51 @@ class GeneratedMedia(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    filename: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    # Unique within the organization, which is the scope a leaf is served in: the
+    # serving route resolves a name inside the caller's own directory, so two
+    # organizations holding the same leaf are two different files.
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    # The retention sweep walks the table oldest first, across every organization.
-    __table_args__ = (Index("ix_generated_media_created", "created_at"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "filename", name="uq_generated_media_org_filename"),
+        # The retention sweep walks the table oldest first, across every organization.
+        Index("ix_generated_media_created", "created_at"),
+    )
 
     def __repr__(self) -> str:
         return f"<GeneratedMedia(id={self.id}, filename={self.filename}, size={self.size_bytes})>"
+
+
+class GeneratedMediaReservation(Base, TimestampMixin):
+    """Quota held for one generation call in flight, until its file is recorded.
+
+    The quota is asked before a paid call and the file is recorded only after it,
+    minutes later for a clip. Without a claim in between, every call admitted
+    under the limit at once could finish, together far past it. So admission,
+    under a per-organization lock, writes one of these with the call's estimated
+    size; `bytes_used` and these together are what the next admission is measured
+    against. Recording the file replaces it with the real size; a call that makes
+    nothing releases it; a call that died with its process leaves it to expire
+    (`app/services/generated_media.py`).
+    """
+
+    __tablename__ = "generated_media_reservations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    # The sweep removes expired claims across every organization by age.
+    __table_args__ = (Index("ix_generated_media_reservations_created", "created_at"),)
+
+    def __repr__(self) -> str:
+        return f"<GeneratedMediaReservation(id={self.id}, size={self.size_bytes})>"

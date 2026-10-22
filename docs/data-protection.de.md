@@ -1,5 +1,5 @@
 ---
-source_sha: "332cbf2910d8"
+source_sha: "a695e09a60d4"
 ---
 
 # Datenschutz { #data-protection }
@@ -131,11 +131,11 @@ Zeilen in seiner eigenen Transaktion und reiht das Lösen der Bytes in derselben
 Transaktion als Hintergrundjob ein - die Bytes gehen also nur, wenn die Zeilen
 gehen, und ein Neustart nach dem Commit verliert das Lösen nicht. Dieser Job
 wiederholt ein Präfix, das der Speicher nicht ganz entfernt - das einer
-Organisation -, weil nichts anderes diese Bytes je wiederfinden könnte. Eine
-einzelne Datei einer gelöschten Conversation oder eines gelöschten Kontos, die der
-Speicher verweigert, wird protokolliert, nicht wiederholt; sie bleibt ohne Zeile
-unter `generated_<org>/`, bis ihre Organisation geht, und der Bericht unten zählt
-sie.
+Organisation -, und eine einzelne Datei einer gelöschten Conversation oder eines
+gelöschten Kontos, die der Speicher verweigert, weil nichts anderes diese Bytes
+je wiederfinden könnte. Eine Datei, die der Speicher auch beim letzten Versuch
+des Jobs verweigert, bleibt ohne Zeile unter `generated_<org>/`, bis ihre
+Organisation geht, und der Bericht unten zählt sie.
 
 Der Sweep löscht zuerst die Datei und ihre Zeile erst, wenn die Datei weg ist; eine Datei,
 die der Speicher verweigert, behält ihre Zeile, und der nächste Sweep versucht es

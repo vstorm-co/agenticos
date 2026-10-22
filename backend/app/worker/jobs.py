@@ -123,6 +123,13 @@ class CleanupExternalState(Payload):
     # organization purge carries prefixes, and only a current worker runs it.
     prefixes: list[str] = Field(default_factory=list, exclude_if=lambda prefixes: not prefixes)
     """Storage prefixes removed whole - an organization's generated media (#2310)."""
+    required_paths: list[str] = Field(
+        default_factory=list, exclude_if=lambda required_paths: not required_paths
+    )
+    """Files whose failed unlink fails the job, so it is retried - generated media
+    whose rows went with the delete that queued this (#2310). Defaulted and left
+    out of the dump when empty, as `prefixes` is. A previous-release worker
+    refuses a job that carries them; a current one runs it."""
 
 
 @dataclass(frozen=True)

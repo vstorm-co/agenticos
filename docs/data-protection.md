@@ -120,10 +120,11 @@ Deleting a conversation, an account or an organization removes the rows in its
 own transaction and queues the unlink of the bytes as a background job in that
 same transaction, so the bytes go only if the rows do, and a restart after the
 commit does not lose the unlink. That job retries a prefix the store will not
-remove whole - an organization's - because nothing else could find those bytes
-again. A single file of a deleted conversation or account that the store
-refuses is logged, not retried; it stays under `generated_<org>/` with no row
-until its organization goes, and the report below counts it.
+remove whole - an organization's - and a single file of a deleted conversation
+or account that the store refuses, because nothing else could find those bytes
+again. A file the store still refuses after the job's last attempt stays under
+`generated_<org>/` with no row until its organization goes, and the report
+below counts it.
 
 The sweep deletes a
 file first and its row only once the file is gone; a file the store refuses

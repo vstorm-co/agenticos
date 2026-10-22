@@ -30,7 +30,7 @@ from pydantic_ai.usage import RunUsage
 from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities import get
-from app.agents.capabilities._generated import store_generated
+from app.agents.capabilities._generated import MediaSlot, store_generated
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.budget import (
     BudgetGuard,
@@ -494,6 +494,72 @@ class TestMaking:
         assert answer.startswith("Not made: this organization has used its storage")
         assert generation.calls == []
 
+    async def test_a_clip_holds_its_length_against_the_quota_until_it_is_stored(
+        self,
+        generation,
+        generated_media_ledger,
+        generated_media_reservations,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Calls in flight at once are measured against each other through what
+        each holds, so they cannot all pass on the same figure (#2310)."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+        held: list[int] = []
+        make = generation.__call__
+
+        async def watching(provider: Any, **kwargs: Any) -> Any:
+            held.extend(int(c["size_bytes"]) for c in generated_media_reservations.values())
+            return await make(provider, **kwargs)
+
+        monkeypatch.setattr(toolset_module, "generate_video", watching)
+
+        assert parse_generated_video(await _make(_toolset(), _ctx(organization_id))) is not None
+
+        assert held == [5 * toolset_module.RESERVED_BYTES_PER_SECOND]
+        assert generated_media_reservations == {}
+        assert [row["size_bytes"] for row in generated_media_ledger] == [len(MP4)]
+
+    async def test_a_clip_that_would_carry_the_organization_past_its_quota_is_refused(
+        self, generation, generated_media_ledger, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Five seconds hold 10 MiB: under the quota now, past it once made."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 16)
+        generated_media_ledger.append(
+            {"organization_id": organization_id, "size_bytes": 8 * 1024 * 1024}
+        )
+
+        answer = await _make(_toolset(), _ctx(organization_id))
+
+        assert answer.startswith("Not made: this organization has used its storage")
+        assert generation.calls == []
+
+    async def test_a_clip_that_was_not_made_gives_its_hold_back(
+        self, generation, generated_media_reservations, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+        generation.error = VideoProviderError(VideoFailure.POLICY, provider="byteplus")
+
+        answer = await _make(_toolset(), _ctx(uuid4()))
+
+        assert answer.startswith("Not made:")
+        assert len(generation.calls) == 1
+        assert generated_media_reservations == {}
+
+    async def test_a_cancelled_clip_gives_its_hold_back(
+        self, generation, generated_media_reservations, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Stop, or a run timing out, cancels the call while the provider has it."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+        generation.hang = True
+
+        with anyio.move_on_after(0.05):
+            await _make(_toolset(), _ctx(uuid4()))
+
+        assert len(generation.calls) == 1
+        assert generated_media_reservations == {}
+
     async def test_a_stored_clip_is_recorded_against_its_organization(
         self, generation, generated_media_ledger
     ):
@@ -647,9 +713,12 @@ class TestStartingFromAnImage:
 
     async def test_storing_a_generated_file_records_that_this_run_made_it(self, tmp_path):
         """The provenance is written where the file is made, not read back from text."""
-        ctx = _ctx(uuid4())
+        organization_id = uuid4()
+        ctx = _ctx(organization_id)
 
-        stored = await store_generated(ctx, PNG, filename="image.png")
+        stored = await store_generated(
+            ctx, PNG, filename="image.png", slot=MediaSlot(organization_id, None)
+        )
 
         assert stored.filename in ctx.deps.generated_files
 

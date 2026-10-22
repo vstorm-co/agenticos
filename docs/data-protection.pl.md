@@ -1,5 +1,5 @@
 ---
-source_sha: "332cbf2910d8"
+source_sha: "a695e09a60d4"
 ---
 
 # Ochrona danych { #data-protection }
@@ -123,11 +123,11 @@ Usunięcie konwersacji, konta albo organizacji usuwa wiersze we własnej
 transakcji i w tej samej transakcji kolejkuje odpięcie bajtów jako zadanie w
 tle, więc bajty odchodzą tylko wtedy, gdy odchodzą wiersze, a restart po commicie
 nie gubi odpięcia. To zadanie ponawia prefiks, którego magazyn nie usunie w
-całości - prefiks organizacji - bo nic innego nie znalazłoby już tych bajtów.
-Pojedynczy plik usuniętej konwersacji albo konta, którego magazyn nie chce
-usunąć, trafia do logu i nie jest ponawiany; zostaje bez wiersza pod
-`generated_<org>/`, dopóki nie odejdzie jego organizacja, a raport niżej go
-liczy.
+całości - prefiks organizacji - oraz pojedynczy plik usuniętej konwersacji albo
+konta, którego magazyn nie chce usunąć, bo nic innego nie znalazłoby już tych
+bajtów. Plik, którego magazyn nie usunie także przy ostatniej próbie zadania,
+zostaje bez wiersza pod `generated_<org>/`, dopóki nie odejdzie jego
+organizacja, a raport niżej go liczy.
 
 Sweep usuwa najpierw plik, a jego wiersz dopiero wtedy, gdy
 pliku już nie ma; plik, którego magazyn nie chce usunąć, zachowuje wiersz, a

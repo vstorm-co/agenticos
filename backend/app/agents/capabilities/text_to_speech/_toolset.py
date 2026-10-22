@@ -39,7 +39,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import quota_refusal, store_generated
+from app.agents.capabilities._generated import admit, store_generated
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
 from app.agents.deps import AgentDeps
 from app.services.text_to_speech import (
@@ -55,6 +55,14 @@ MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 MAX_INSTRUCTIONS = 1000
 """The longest direction on how to speak. It goes to the provider with every piece
 of a long text and is not priced, so it is kept to a direction rather than a text."""
+
+RESERVED_BYTES_PER_CHARACTER = 8 * 1024
+"""What one character of text holds against the quota while it is spoken (#2310).
+
+The largest format here is 16-bit mono WAV at 24 kHz, 48 KB a second; speech
+runs at about 15 characters a second, and slow or directed speech at fewer. 8 KiB
+a character is that WAV at under 6 characters a second, and MP3 at a fraction of
+it. A clip larger than this is still recorded at its real size."""
 
 
 @dataclass(frozen=True)
@@ -185,8 +193,6 @@ def build_speech_toolset(
                 "Not spoken: this agent's speech model is no longer offered. Its author "
                 "needs to choose another in the agent's settings."
             )
-        if (refused := await quota_refusal(ctx, verdict="Not spoken")) is not None:
-            return refused
         price = price_per_character(chosen, on=datetime.now(UTC).date())
         estimate = _cost(price, len(spoken))
         if not await can_afford_ambient_call(estimate or Decimal(0)):
@@ -197,60 +203,68 @@ def build_speech_toolset(
                 "budget this run has left."
             )
 
-        try:
-            speech = await synthesize(
-                entry,
-                model=model,
-                voice=speaker,
-                text=spoken,
-                audio_format=audio_format,
-                api_key=api_key,
-                instructions=instructions,
-                # Booked piece by piece, as each one's audio arrives, so a failure
-                # or a cancelled run partway through a long text still books the
-                # pieces that came back.
-                on_spoken=lambda characters: record_ambient_cost(
-                    ledger_name, _cost(price, characters)
-                ),
-            )
-        except SpeechProviderError as exc:
-            match exc.failure:
-                case SpeechFailure.CREDENTIALS:
-                    return (
-                        "Not spoken: the speech provider refused this agent's API key. Its "
-                        "author needs to replace the key in the vault."
-                    )
-                case SpeechFailure.NOT_FOUND if speaker != usual_voice:
-                    # A voice the model chose - an id it made up, on a binding that
-                    # leaves the account's voices open - is the model's to fix.
-                    return steer(
-                        ctx,
-                        f"The speech provider has no voice {speaker!r}. Use a voice id the user "
-                        "gave you, or leave `voice` out to speak in the usual one.",
-                    )
-                case SpeechFailure.NOT_FOUND:
-                    return (
-                        "Not spoken: the speech provider does not know this agent's voice "
-                        "or model. Its author needs to choose another in the agent's settings."
-                    )
-                case SpeechFailure.REJECTED:
-                    return steer(
-                        ctx,
-                        "The speech provider refused this request - the text, the voice or a "
-                        "setting. Rephrase or shorten the text, or answer without audio.",
-                    )
-                case _:
-                    return steer(ctx, f"{exc.message} Try once more, or answer without audio.")
+        slot = await admit(
+            ctx, estimate_bytes=len(spoken) * RESERVED_BYTES_PER_CHARACTER, verdict="Not spoken"
+        )
+        if isinstance(slot, str):
+            return slot
+        async with slot:
+            try:
+                speech = await synthesize(
+                    entry,
+                    model=model,
+                    voice=speaker,
+                    text=spoken,
+                    audio_format=audio_format,
+                    api_key=api_key,
+                    instructions=instructions,
+                    # Booked piece by piece, as each one's audio arrives, so a failure
+                    # or a cancelled run partway through a long text still books the
+                    # pieces that came back.
+                    on_spoken=lambda characters: record_ambient_cost(
+                        ledger_name, _cost(price, characters)
+                    ),
+                )
+            except SpeechProviderError as exc:
+                match exc.failure:
+                    case SpeechFailure.CREDENTIALS:
+                        return (
+                            "Not spoken: the speech provider refused this agent's API key. Its "
+                            "author needs to replace the key in the vault."
+                        )
+                    case SpeechFailure.NOT_FOUND if speaker != usual_voice:
+                        # A voice the model chose - an id it made up, on a binding that
+                        # leaves the account's voices open - is the model's to fix.
+                        return steer(
+                            ctx,
+                            f"The speech provider has no voice {speaker!r}. Use a voice id the user "
+                            "gave you, or leave `voice` out to speak in the usual one.",
+                        )
+                    case SpeechFailure.NOT_FOUND:
+                        return (
+                            "Not spoken: the speech provider does not know this agent's voice "
+                            "or model. Its author needs to choose another in the agent's settings."
+                        )
+                    case SpeechFailure.REJECTED:
+                        return steer(
+                            ctx,
+                            "The speech provider refused this request - the text, the voice or a "
+                            "setting. Rephrase or shorten the text, or answer without audio.",
+                        )
+                    case _:
+                        return steer(ctx, f"{exc.message} Try once more, or answer without audio.")
 
-        stored = await store_generated(ctx, speech.data, filename=f"speech.{speech.audio_format}")
-        return GeneratedSpeech(
-            filename=stored.filename,
-            url=stored.url,
-            media_type=MEDIA_TYPES[speech.audio_format],
-            voice=speaker,
-            characters=speech.characters,
-            workspace_path=stored.workspace_path,
-        ).model_dump_json()
+            stored = await store_generated(
+                ctx, speech.data, filename=f"speech.{speech.audio_format}", slot=slot
+            )
+            return GeneratedSpeech(
+                filename=stored.filename,
+                url=stored.url,
+                media_type=MEDIA_TYPES[speech.audio_format],
+                voice=speaker,
+                characters=speech.characters,
+                workspace_path=stored.workspace_path,
+            ).model_dump_json()
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     # One clip at a time: the budget is asked with a clip's price and reserves

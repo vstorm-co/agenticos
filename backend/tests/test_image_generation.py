@@ -180,6 +180,48 @@ async def test_an_organization_past_its_quota_is_told_so_before_anything_is_draw
     assert "operator can raise GENERATED_MEDIA_QUOTA_MB" in answer
 
 
+async def test_an_image_holds_its_estimate_until_it_is_stored(
+    generated_media_ledger: list[dict[str, object]],
+    generated_media_reservations: dict[object, dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Parallel calls in one response are measured against each other through
+    what each holds (#2310)."""
+    monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+    held: list[int] = []
+
+    async def watching(self: _FakeAgent, prompt: str) -> _FakeResult:
+        held.extend(int(str(c["size_bytes"])) for c in generated_media_reservations.values())
+        return _FakeResult(_IMAGE, RunUsage(input_tokens=7, output_tokens=0))
+
+    monkeypatch.setattr(_FakeAgent, "run", watching)
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    assert parse_generated_image(await _generate(toolset, _ctx(uuid4()))) is not None
+
+    assert held == [toolset_module.RESERVED_BYTES]
+    assert generated_media_reservations == {}
+    assert [row["size_bytes"] for row in generated_media_ledger] == [len(_IMAGE.data)]
+
+
+async def test_an_image_that_was_not_drawn_gives_its_hold_back(
+    generated_media_reservations: dict[object, dict[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+    _FakeAgent.raise_exc = UserError("refused")
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    with pytest.raises(ModelRetry):
+        await _generate(toolset, _ctx(uuid4()))
+
+    assert generated_media_reservations == {}
+
+
 async def test_a_quota_of_zero_never_refuses(
     generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
 ):

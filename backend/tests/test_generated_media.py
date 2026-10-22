@@ -16,12 +16,13 @@ from app.services import generated_media
 from app.services.generated_media import (
     GeneratedMediaService,
     StoredGeneratedMedia,
-    generated_media_quota_reached,
+    admit_generated_media,
     generated_media_url,
     keep_generated_media,
     load_generated_media,
     open_generated_media,
     organization_directory,
+    release_generated_media,
     save_generated_media,
     sweep_expired_generated_media,
 )
@@ -184,28 +185,94 @@ class TestKeeping:
         assert "generated_media_not_unlinked" in [record.message for record in caplog.records]
 
 
+MB = 1024 * 1024
+
+
 class TestTheQuota:
-    async def test_an_organization_under_its_quota_may_generate(
-        self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+    async def test_an_organization_under_its_quota_may_generate_and_holds_its_estimate(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        generated_media_reservations: dict[object, dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
     ):
         organization_id = uuid4()
-        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
-        generated_media_ledger.append(
-            {"organization_id": organization_id, "size_bytes": 1024 * 1024 - 1}
-        )
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 2)
+        generated_media_ledger.append({"organization_id": organization_id, "size_bytes": MB})
 
-        assert not await generated_media_quota_reached(organization_id)
+        admission = await admit_generated_media(organization_id, estimate_bytes=MB)
+
+        assert admission.admitted
+        assert generated_media_reservations == {
+            admission.reservation_id: {"organization_id": organization_id, "size_bytes": MB}
+        }
 
     async def test_an_organization_at_its_quota_may_not(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        generated_media_reservations: dict[object, dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        generated_media_ledger.append({"organization_id": organization_id, "size_bytes": MB})
+
+        admission = await admit_generated_media(organization_id, estimate_bytes=1)
+
+        assert admission == generated_media.Admission(admitted=False)
+        assert generated_media_reservations == {}
+
+    async def test_a_call_whose_estimate_would_pass_the_quota_is_refused(
         self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
     ):
         organization_id = uuid4()
         monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
-        generated_media_ledger.append(
-            {"organization_id": organization_id, "size_bytes": 1024 * 1024}
+        generated_media_ledger.append({"organization_id": organization_id, "size_bytes": MB // 2})
+
+        assert not (await admit_generated_media(organization_id, estimate_bytes=MB)).admitted
+
+    async def test_calls_in_flight_count_against_the_next(
+        self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+    ):
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+
+        first = await admit_generated_media(organization_id, estimate_bytes=MB // 2)
+        second = await admit_generated_media(organization_id, estimate_bytes=MB // 2)
+        third = await admit_generated_media(organization_id, estimate_bytes=1)
+
+        assert (first.admitted, second.admitted, third.admitted) == (True, True, False)
+
+    async def test_concurrent_calls_are_admitted_only_as_far_as_the_quota_goes(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        generated_media_reservations: dict[object, dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Each call used to read the total in a transaction of its own and record
+        its file minutes later, so every call started at once passed the same
+        check (#2310). Reading the claims yields here, as a query does, so the
+        calls interleave wherever nothing serializes them."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 2)
+        bytes_reserved = generated_media.generated_media_repo.bytes_reserved
+
+        async def slow_bytes_reserved(db: object, *, organization_id: object, since: object) -> int:
+            reserved = await bytes_reserved(db, organization_id=organization_id, since=since)
+            await asyncio.sleep(0)
+            return reserved
+
+        monkeypatch.setattr(
+            generated_media.generated_media_repo, "bytes_reserved", slow_bytes_reserved
         )
 
-        assert await generated_media_quota_reached(organization_id)
+        admissions = await asyncio.gather(
+            *(admit_generated_media(organization_id, estimate_bytes=MB) for _ in range(5))
+        )
+
+        assert sum(admission.admitted for admission in admissions) == 2
+        assert sum(int(str(c["size_bytes"])) for c in generated_media_reservations.values()) == (
+            2 * MB
+        )
 
     async def test_another_organizations_files_do_not_count(
         self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
@@ -213,7 +280,23 @@ class TestTheQuota:
         monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
         generated_media_ledger.append({"organization_id": uuid4(), "size_bytes": 10**9})
 
-        assert not await generated_media_quota_reached(uuid4())
+        assert (await admit_generated_media(uuid4(), estimate_bytes=1)).admitted
+
+    async def test_stale_claims_are_not_counted(
+        self, generated_media_ledger: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+    ):
+        """A claim older than its lifetime belongs to a call that died; it is
+        measured from the lifetime back from now."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        reserved = AsyncMock(return_value=0)
+        monkeypatch.setattr(generated_media.generated_media_repo, "bytes_reserved", reserved)
+        before = datetime.now(UTC)
+
+        await admit_generated_media(uuid4(), estimate_bytes=1)
+
+        assert reserved.await_args is not None
+        since = reserved.await_args.kwargs["since"]
+        assert before - generated_media.RESERVATION_LIFETIME <= since <= datetime.now(UTC)
 
     async def test_a_quota_of_zero_is_no_quota_and_reads_nothing(
         self, monkeypatch: pytest.MonkeyPatch
@@ -221,7 +304,83 @@ class TestTheQuota:
         monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 0)
         monkeypatch.setattr(generated_media, "get_db_context", None)
 
-        assert not await generated_media_quota_reached(uuid4())
+        assert await admit_generated_media(uuid4(), estimate_bytes=10**12) == (
+            generated_media.Admission(admitted=True)
+        )
+
+
+class TestTheReservation:
+    """An admitted call's claim is replaced by its file, or given back."""
+
+    async def test_keeping_the_file_replaces_the_claim_with_its_real_size(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        generated_media_reservations: dict[object, dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        admission = await admit_generated_media(organization_id, estimate_bytes=MB // 2)
+
+        await keep_generated_media(
+            organization_id,
+            b"clip",
+            filename="video.mp4",
+            conversation_id=None,
+            reservation_id=admission.reservation_id,
+        )
+
+        assert generated_media_reservations == {}
+        assert [row["size_bytes"] for row in generated_media_ledger] == [4]
+
+    async def test_a_file_that_cannot_be_recorded_leaves_the_claim_to_its_caller(
+        self,
+        generated_media_ledger: list[dict[str, object]],
+        generated_media_reservations: dict[object, dict[str, object]],
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """The record and the release are one transaction: rolled back together,
+        the claim is still there for the caller's release."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        admission = await admit_generated_media(organization_id, estimate_bytes=MB // 2)
+        monkeypatch.setattr(
+            generated_media.generated_media_repo,
+            "create",
+            AsyncMock(side_effect=RuntimeError("database gone")),
+        )
+
+        with pytest.raises(RuntimeError):
+            await keep_generated_media(
+                organization_id,
+                b"clip",
+                filename="video.mp4",
+                conversation_id=None,
+                reservation_id=admission.reservation_id,
+            )
+        assert admission.reservation_id in generated_media_reservations
+
+        assert admission.reservation_id is not None
+        await release_generated_media(organization_id, admission.reservation_id)
+
+        assert generated_media_reservations == {}
+
+    async def test_a_release_that_fails_is_logged_not_raised(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ):
+        """The claim stops counting after its lifetime anyway; the error that
+        ended the call is the one that goes on."""
+
+        @asynccontextmanager
+        async def broken() -> AsyncGenerator[MagicMock]:
+            raise RuntimeError("database gone")
+            yield MagicMock()  # pragma: no cover - never reached
+
+        monkeypatch.setattr(generated_media, "get_db_context", broken)
+
+        await release_generated_media(uuid4(), uuid4())
+
+        assert "generated_media_reservation_not_released" in [r.message for r in caplog.records]
 
 
 def _row(created_at: datetime | None = None) -> SimpleNamespace:
@@ -264,7 +423,7 @@ class TestForgetting:
             db, organization_id=organization_id, conversation_ids=[conversation_id]
         )
         queued.assert_awaited_once_with(
-            db, ["generated_x/a_video.mp4"], [], organization_id=organization_id
+            db, [], [], required_paths=["generated_x/a_video.mp4"], organization_id=organization_id
         )
 
     async def test_a_conversation_that_generated_nothing_queues_nothing(
@@ -302,8 +461,9 @@ class TestForgetting:
         deleted.assert_awaited_once_with(db, user_id=user_id)
         queued.assert_awaited_once_with(
             db,
-            ["generated_a/x_image.png", "generated_b/y_speech.mp3"],
             [],
+            [],
+            required_paths=["generated_a/x_image.png", "generated_b/y_speech.mp3"],
             organization_id=None,
         )
 
@@ -350,6 +510,11 @@ class TestTheRetentionSweep:
 
         deleted = AsyncMock(side_effect=delete_by_ids)
         monkeypatch.setattr(generated_media.generated_media_repo, "expired", expired)
+        monkeypatch.setattr(
+            generated_media.generated_media_repo,
+            "delete_stale_reservations",
+            AsyncMock(return_value=0),
+        )
         monkeypatch.setattr(generated_media.generated_media_repo, "delete_by_ids", deleted)
         return deleted
 
@@ -398,7 +563,7 @@ class TestTheRetentionSweep:
         with pytest.raises(asyncio.CancelledError):
             await sweep_expired_generated_media(now=self.NOW)
 
-        assert sessions.ended == ["commit", "rollback"]
+        assert sessions.ended == ["commit", "commit", "rollback"]
         assert deleted.await_args_list[0].kwargs["ids"] == [first.id]
 
     async def test_a_stuck_file_keeps_its_row_and_the_sweep_reads_past_it(
@@ -450,7 +615,7 @@ class TestTheRetentionSweep:
 
         assert await sweep_expired_generated_media(now=self.NOW) == 3
         assert expired.await_count == 3
-        assert sessions.ended == ["commit"] * 3
+        assert sessions.ended == ["commit"] * 4
 
     async def test_no_batch_starts_once_the_time_budget_is_spent(
         self, monkeypatch: pytest.MonkeyPatch
@@ -489,6 +654,27 @@ class TestTheRetentionSweep:
         )
         assert deleted.await_args is not None
         assert deleted.await_args.kwargs["ids"] == [unlinked.id]
+
+    async def test_claims_of_calls_that_died_go_before_the_files(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ):
+        """A call whose process died never released its claim; past its lifetime
+        it stops counting, and the sweep removes it."""
+        expired = AsyncMock(return_value=[])
+        self._repo(monkeypatch, expired)
+        stale = AsyncMock(return_value=2)
+        monkeypatch.setattr(
+            generated_media.generated_media_repo, "delete_stale_reservations", stale
+        )
+        self._storage(monkeypatch)
+        sessions = self._sessions(monkeypatch)
+
+        assert await sweep_expired_generated_media(now=self.NOW) == 0
+
+        assert stale.await_args is not None
+        assert stale.await_args.kwargs["before"] == self.NOW - timedelta(hours=1)
+        assert sessions.ended == ["commit", "commit"]
+        assert "generated_media_reservations_expired" in [r.message for r in caplog.records]
 
     async def test_the_worker_task_runs_the_sweep_and_logs_what_went(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture

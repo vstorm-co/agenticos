@@ -117,6 +117,7 @@ class TestQueueing:
             CleanupExternalState(storage_paths=["u/a.txt"], collections=[], restamps=[_restamp()])
         )
         assert "prefixes" not in dumped
+        assert "required_paths" not in dumped
         _PreviousCleanup.model_validate(dumped)
 
         with_prefix = CLEANUP_EXTERNAL_STATE.dump(
@@ -126,6 +127,32 @@ class TestQueueing:
         )
         assert with_prefix["prefixes"] == ["generated_org"]
         assert CLEANUP_EXTERNAL_STATE.load(with_prefix).prefixes == ["generated_org"]
+
+    async def test_required_paths_are_chunked_like_paths_and_kept_apart_from_them(self) -> None:
+        """A deleted conversation's generated media rides its own field, whose
+        failures fail the job (#2310)."""
+        required = [f"generated_o/{i}.png" for i in range(teardown_tasks._MAX_PATHS_PER_JOB + 1)]
+        first, second = (
+            call[2] for call in await self._queued(["u/a.txt"], [], required_paths=required)
+        )
+        assert first.storage_paths == ["u/a.txt"]
+        assert len(first.required_paths) == teardown_tasks._MAX_PATHS_PER_JOB
+        assert (second.storage_paths, second.required_paths) == ([], [required[-1]])
+
+    async def test_required_paths_are_dumped_only_when_there_are_some(self) -> None:
+        dumped = CLEANUP_EXTERNAL_STATE.dump(
+            CleanupExternalState(
+                storage_paths=[], collections=[], restamps=[], required_paths=["generated_o/a.png"]
+            )
+        )
+        assert dumped["required_paths"] == ["generated_o/a.png"]
+        assert CLEANUP_EXTERNAL_STATE.load(dumped).required_paths == ["generated_o/a.png"]
+        assert (
+            CleanupExternalState.model_validate(
+                {"storage_paths": [], "collections": [], "restamps": []}
+            ).required_paths
+            == []
+        )
 
 
 @asynccontextmanager
@@ -327,9 +354,48 @@ class TestPrefixes:
         with patches[0], patches[4], pytest.raises(ExternalServiceError) as failed:
             await cleanup_external_state(["u/a.txt"], [], [], ["generated_a", "generated_b"])
 
-        assert failed.value.details == {"prefixes": ["generated_a"]}
+        assert failed.value.details == {"prefixes": ["generated_a"], "storage_paths": []}
         assert storage.delete_prefix.await_count == 2
         storage.delete.assert_awaited_once_with("u/a.txt")
+
+
+class TestRequiredPaths:
+    async def test_a_required_path_the_store_refuses_fails_the_job_after_the_rest(self) -> None:
+        """Its row went with the delete that queued it, so the job's retries are
+        the only thing that will try it again (#2310) - unlike a plain path,
+        whose failure is only logged."""
+        from app.core.exceptions import ExternalServiceError
+
+        storage, _store, _engine, _release, patches = _patch_cleanup()
+
+        async def delete(path: str) -> None:
+            if path in {"u/plain.txt", "generated_o/a.png"}:
+                raise OSError("denied")
+
+        storage.delete = AsyncMock(side_effect=delete)
+        with patches[0], patches[4], pytest.raises(ExternalServiceError) as failed:
+            await cleanup_external_state(
+                ["u/plain.txt"],
+                [],
+                [],
+                [],
+                ["generated_o/a.png", "generated_o/b.png"],
+            )
+
+        assert failed.value.details == {"prefixes": [], "storage_paths": ["generated_o/a.png"]}
+        assert [call.args[0] for call in storage.delete.await_args_list] == [
+            "u/plain.txt",
+            "generated_o/a.png",
+            "generated_o/b.png",
+        ]
+
+    async def test_required_paths_that_all_go_complete_the_job(self) -> None:
+        storage, _store, _engine, _release, patches = _patch_cleanup()
+        with patches[0], patches[4]:
+            result = await cleanup_external_state([], [], [], [], ["generated_o/a.png"])
+
+        storage.delete.assert_awaited_once_with("generated_o/a.png")
+        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0}
 
 
 class TestTheJob:
@@ -341,7 +407,7 @@ class TestTheJob:
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
             result = await run_external_state_cleanup(job)
 
-        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()], [])
+        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()], [], [])
         assert result == {"unlinked": 1, "dropped": 1, "restamped": 1}
 
 

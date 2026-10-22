@@ -23,8 +23,11 @@ the run had one, and its size. That record is what bounds it:
 
 - a per-organization byte quota (`GENERATED_MEDIA_QUOTA_MB`), checked before each
   paid generation call, so a tenant past it is told so before anything is spent.
-  Every file counts, including one from a run with no conversation - a preview,
-  a test run, a channel `/btw` aside, an API run that named no thread;
+  An admitted call holds its estimated size (`generated_media_reservations`)
+  until its file is recorded, under a per-organization lock, so calls in flight
+  at once are measured against each other. Every file counts, including one from
+  a run with no conversation - a preview, a test run, a channel `/btw` aside, an
+  API run that named no thread;
 - deletion with the conversation it was generated in, and with the account
   whose conversations they were;
 - deletion after `GENERATED_MEDIA_RETENTION_DAYS`, by the daily
@@ -58,6 +61,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.db.locks import LockScope, hold_subject
 from app.db.session import get_db_context, get_worker_db_context
 from app.repositories import generated_media_repo
 from app.services.file_storage import get_file_storage
@@ -93,6 +97,15 @@ It counts against the quota, and no member can free it by deleting a thread, so
 this is what keeps a burst of previews, `/btw` asides or API runs from refusing
 the organization for longer than a week - and from being kept for good with
 retention off."""
+
+
+RESERVATION_LIFETIME = timedelta(hours=1)
+"""How long a call's claim on the quota counts before its file is recorded.
+
+Past the longest a generation call can take - a clip's time limit is at most 30
+minutes, and its download follows - so a claim this old belongs to a call whose
+process died before it could settle it. It stops counting then, and the sweep
+removes it."""
 
 
 def organization_directory(organization_id: UUID) -> str:
@@ -147,14 +160,22 @@ async def save_generated_media(organization_id: UUID, data: bytes, *, filename: 
 
 
 async def keep_generated_media(
-    organization_id: UUID, data: bytes, *, filename: str, conversation_id: UUID | None
+    organization_id: UUID,
+    data: bytes,
+    *,
+    filename: str,
+    conversation_id: UUID | None,
+    reservation_id: UUID | None = None,
 ) -> str:
     """Store one generated file and record it; returns the leaf it is served under.
 
     Recorded in a session of its own: this runs inside a tool call, which holds
-    none. A record that cannot be written removes the bytes again before the
-    error goes on - a file with no row is counted by nothing and swept by
-    nothing, which is the state #2310 exists to end.
+    none. The record replaces the call's reservation in the same transaction, so
+    the quota counts the file at its real size from the moment it stops counting
+    the estimate. A record that cannot be written removes the bytes again before
+    the error goes on - a file with no row is counted by nothing and swept by
+    nothing, which is the state #2310 exists to end - and leaves the reservation
+    for the caller to release.
 
     Args:
         organization_id: The organization the file belongs to.
@@ -162,6 +183,8 @@ async def keep_generated_media(
         filename: A name such as `image.png`; its extension types the file.
         conversation_id: The thread the run answers in, when it has one. The file
             is deleted with that thread.
+        reservation_id: The claim :func:`admit_generated_media` made for this
+            call, where it made one.
     """
     leaf = await save_generated_media(organization_id, data, filename=filename)
     storage_path = _storage_path(organization_id, leaf)
@@ -175,6 +198,10 @@ async def keep_generated_media(
                 storage_path=storage_path,
                 size_bytes=len(data),
             )
+            if reservation_id is not None:
+                await generated_media_repo.release(
+                    db, organization_id=organization_id, reservation_id=reservation_id
+                )
     except BaseException:
         # `BaseException`, because a person pressing Stop or a run timing out
         # cancels the call here, and that leaves the same unrecorded file. The
@@ -195,25 +222,86 @@ async def keep_generated_media(
     return leaf
 
 
-async def generated_media_quota_reached(organization_id: UUID) -> bool:
-    """Whether this organization has used its generated-media quota.
+@dataclass(frozen=True)
+class Admission:
+    """Whether one generation call may go ahead, and the quota it holds if so."""
+
+    admitted: bool
+    reservation_id: UUID | None = None
+    """The claim :func:`keep_generated_media` replaces and
+    :func:`release_generated_media` drops - `None` where nothing was held: a
+    refusal, or a deployment with no quota."""
+
+
+async def admit_generated_media(organization_id: UUID, *, estimate_bytes: int) -> Admission:
+    """Admit one generation call against this organization's quota, holding its estimate.
 
     Asked before a paid generation call rather than at the save, so a tenant at
     its limit is refused before anything is spent - a clip refused after it was
-    made would be money paid for nothing. The cost is that nothing is reserved:
-    every call admitted just under the limit - concurrent runs, or parallel
-    calls in one response - may finish, so the organization can end over it by
-    up to one file per call in flight. The next call after them is refused.
+    made would be money paid for nothing.
 
-    Every file counts (`bytes_used`). A member frees one made in a conversation
-    by deleting it; one made with none goes after `UNLINKED_MEDIA_LIFETIME`.
+    The check and the claim are one step to every other admission: the
+    organization's lock is taken before what is used is read, and an admitted
+    call writes a reservation of `estimate_bytes` before the lock goes with the
+    commit. What is used is every recorded file (`bytes_used`) plus every claim
+    of a call still in flight, so concurrent runs and parallel calls in one
+    response are measured against each other and cannot all pass on the same
+    figure. A call is refused when its estimate would carry the organization
+    past the quota. An estimate is a bound the tool sets from what it knows; a
+    file larger than its estimate is recorded at its real size, so it is the
+    file, not the admission, that may end over by the difference.
+
+    A claim not settled within `RESERVATION_LIFETIME` - a call whose process
+    died - stops counting and is removed by the sweep.
+
+    Every file counts. A member frees one made in a conversation by deleting
+    it; one made with none goes after `UNLINKED_MEDIA_LIFETIME`.
+
+    Args:
+        organization_id: The organization the file would belong to.
+        estimate_bytes: The most this call is expected to store.
     """
     quota_mb = settings.GENERATED_MEDIA_QUOTA_MB
     if quota_mb == 0:
-        return False
+        return Admission(admitted=True)
+    since = datetime.now(UTC) - RESERVATION_LIFETIME
     async with get_db_context() as db:
+        await hold_subject(db, LockScope.GENERATED_MEDIA_PER_ORG, organization_id)
         used = await generated_media_repo.bytes_used(db, organization_id=organization_id)
-    return used >= quota_mb * 1024 * 1024
+        used += await generated_media_repo.bytes_reserved(
+            db, organization_id=organization_id, since=since
+        )
+        if used + estimate_bytes > quota_mb * 1024 * 1024:
+            return Admission(admitted=False)
+        reservation_id = await generated_media_repo.reserve(
+            db, organization_id=organization_id, size_bytes=estimate_bytes
+        )
+    return Admission(admitted=True, reservation_id=reservation_id)
+
+
+async def release_generated_media(organization_id: UUID, reservation_id: UUID) -> None:
+    """Give back the quota a call held, for a call that stored nothing.
+
+    Shielded, because a call cancelled by Stop or a timeout releases here on its
+    way out, and a cancellation that interrupted it would hold the quota until
+    the claim expired. A release that fails is logged rather than raised, so the
+    error that ended the call is the one that goes on; the claim stops counting
+    after `RESERVATION_LIFETIME` either way.
+    """
+    with anyio.CancelScope(shield=True):
+        try:
+            async with get_db_context() as db:
+                await generated_media_repo.release(
+                    db, organization_id=organization_id, reservation_id=reservation_id
+                )
+        except Exception:
+            logger.exception(
+                "generated_media_reservation_not_released",
+                extra={
+                    "organization_id": str(organization_id),
+                    "reservation_id": str(reservation_id),
+                },
+            )
 
 
 async def load_generated_media(organization_id: UUID, filename: str) -> bytes:
@@ -297,7 +385,9 @@ class GeneratedMediaService:
         it: it runs only if the delete commits - an unlink before the commit is
         undone by a rollback as a file already gone (#1293) - and it survives
         the process, because the rows are the only record of the bytes and
-        nothing could find them again once a lost unlink left them behind.
+        nothing could find them again once a lost unlink left them behind. For
+        the same reason the paths go as `required_paths`: one the store refuses
+        fails the job, so it is retried, rather than logged and left.
         """
         paths = await generated_media_repo.paths_in_conversations(
             self.db, organization_id=organization_id, conversation_ids=conversation_ids
@@ -323,7 +413,9 @@ class GeneratedMediaService:
             return
         from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-        await queue_external_state_cleanup(self.db, paths, [], organization_id=organization_id)
+        await queue_external_state_cleanup(
+            self.db, [], [], required_paths=paths, organization_id=organization_id
+        )
 
     async def sweep_batch(
         self,
@@ -367,7 +459,9 @@ async def sweep_expired_generated_media(*, now: datetime | None = None) -> int:
     """Delete every generated file past its lifetime; answer how many.
 
     Past the retention period, or - for a file with no conversation - past
-    `UNLINKED_MEDIA_LIFETIME`, which applies with retention off too.
+    `UNLINKED_MEDIA_LIFETIME`, which applies with retention off too. Claims on
+    the quota older than `RESERVATION_LIFETIME` go first: their calls died
+    before they could settle them, and they already stopped counting.
 
     Each batch in a session of its own, committed before the next is read. One
     transaction for the whole run would be rolled back by the job's timeout,
@@ -384,6 +478,12 @@ async def sweep_expired_generated_media(*, now: datetime | None = None) -> int:
     cutoff = now - timedelta(days=days) if days else None
     unlinked_cutoff = now - UNLINKED_MEDIA_LIFETIME
     stop_at = time.monotonic() + SWEEP_TIME_BUDGET.total_seconds()
+    async with get_worker_db_context() as db:
+        stale = await generated_media_repo.delete_stale_reservations(
+            db, before=now - RESERVATION_LIFETIME
+        )
+    if stale:
+        logger.warning("generated_media_reservations_expired", extra={"count": stale})
     removed = 0
     after: tuple[datetime, UUID] | None = None
     for _ in range(SWEEP_MAX_BATCHES):

@@ -1,5 +1,5 @@
 ---
-source_sha: "332cbf2910d8"
+source_sha: "a695e09a60d4"
 ---
 
 # Protección de datos { #data-protection }
@@ -128,11 +128,12 @@ plano en esa misma transacción, así que los bytes se van solo si se van las fi
 y un reinicio tras el commit no pierde la desvinculación.
 
 Esa tarea reintenta un
-prefijo que el almacenamiento no elimina entero - el de una organización -, porque
-nada más podría volver a encontrar esos bytes. Un archivo suelto de una
-conversación o una cuenta borradas que el almacenamiento rechaza se registra en el
-log, no se reintenta; se queda sin fila bajo `generated_<org>/` hasta que se va su
-organización, y el informe de abajo lo cuenta.
+prefijo que el almacenamiento no elimina entero - el de una organización - y un
+archivo suelto de una conversación o una cuenta borradas que el almacenamiento
+rechaza, porque nada más podría volver a encontrar esos bytes. Un archivo que el
+almacenamiento sigue rechazando tras el último intento de la tarea se queda sin
+fila bajo `generated_<org>/` hasta que se va su organización, y el informe de
+abajo lo cuenta.
 
 El barrido borra primero
 el archivo y su fila solo cuando el archivo ya no está; un archivo que el

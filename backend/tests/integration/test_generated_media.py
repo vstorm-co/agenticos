@@ -5,18 +5,25 @@ tenant, whether `SET NULL` keeps a row when its thread goes, or whether a sum is
 scoped - and each of those is the difference between a quota and a leak.
 """
 
+import asyncio
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
-from app.db.models.generated_media import GeneratedMedia
+from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import generated_media_repo, retention_repo
+from app.services import generated_media
 
 pytestmark = pytest.mark.anyio
 
@@ -60,9 +67,14 @@ async def _conversation(db, organization: Organization) -> Conversation:
 
 
 async def _media(
-    db, organization: Organization, *, conversation_id: uuid.UUID | None = None, size: int = 10
+    db,
+    organization: Organization,
+    *,
+    conversation_id: uuid.UUID | None = None,
+    size: int = 10,
+    leaf: str | None = None,
 ) -> GeneratedMedia:
-    leaf = f"{uuid.uuid4().hex[:12]}_video.mp4"
+    leaf = leaf or f"{uuid.uuid4().hex[:12]}_video.mp4"
     return await generated_media_repo.create(
         db,
         organization_id=organization.id,
@@ -370,3 +382,111 @@ async def test_a_conversation_purged_by_retention_names_its_generated_files(db):
     )
 
     assert sorted(paths) == sorted(["user/a.pdf", row.storage_path])
+
+
+async def test_two_organizations_may_hold_the_same_leaf_name(db):
+    """A leaf is served inside the caller's own directory, so the name is unique
+    within an organization and nothing wider (#2310)."""
+    first, second = await _org(db), await _org(db)
+
+    await _media(db, first, leaf="abc_image.png")
+    await _media(db, second, leaf="abc_image.png")
+
+    assert len((await db.execute(select(GeneratedMedia.id))).scalars().all()) == 2
+
+
+async def test_one_organization_may_not_hold_a_leaf_name_twice(db):
+    organization = await _org(db)
+    await _media(db, organization, leaf="abc_image.png")
+
+    with pytest.raises(IntegrityError):
+        await _media(db, organization, leaf="abc_image.png")
+
+
+async def test_a_claim_counts_until_it_is_released_and_only_for_its_organization(db):
+    organization, other = await _org(db), await _org(db)
+    since = datetime.now(UTC) - timedelta(hours=1)
+
+    held = await generated_media_repo.reserve(db, organization_id=organization.id, size_bytes=500)
+    await generated_media_repo.reserve(db, organization_id=other.id, size_bytes=7)
+
+    assert (
+        await generated_media_repo.bytes_reserved(db, organization_id=organization.id, since=since)
+        == 500
+    )
+    # Another organization's release does not reach this one's claim.
+    await generated_media_repo.release(db, organization_id=other.id, reservation_id=held)
+    assert (
+        await generated_media_repo.bytes_reserved(db, organization_id=organization.id, since=since)
+        == 500
+    )
+
+    await generated_media_repo.release(db, organization_id=organization.id, reservation_id=held)
+
+    assert (
+        await generated_media_repo.bytes_reserved(db, organization_id=organization.id, since=since)
+        == 0
+    )
+    assert await generated_media_repo.bytes_reserved(db, organization_id=other.id, since=since) == 7
+
+
+async def test_a_stale_claim_stops_counting_and_the_sweep_removes_it(db):
+    """A call whose process died never released its claim (#2310)."""
+    organization = await _org(db)
+    stale = await generated_media_repo.reserve(db, organization_id=organization.id, size_bytes=9)
+    fresh = await generated_media_repo.reserve(db, organization_id=organization.id, size_bytes=4)
+    await db.execute(
+        GeneratedMediaReservation.__table__.update()
+        .where(GeneratedMediaReservation.id == stale)
+        .values(created_at=datetime.now(UTC) - timedelta(hours=2))
+    )
+    an_hour_ago = datetime.now(UTC) - timedelta(hours=1)
+
+    assert (
+        await generated_media_repo.bytes_reserved(
+            db, organization_id=organization.id, since=an_hour_ago
+        )
+        == 4
+    )
+    assert await generated_media_repo.delete_stale_reservations(db, before=an_hour_ago) == 1
+
+    remaining = (await db.execute(select(GeneratedMediaReservation.id))).scalars().all()
+    assert remaining == [fresh]
+    assert "size=4" in repr(await db.get(GeneratedMediaReservation, fresh))
+
+
+async def test_concurrent_admissions_are_serialized_by_the_organizations_lock(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """Each admission in a transaction of its own, as concurrent tool calls make
+    them: the advisory lock taken before the sum is what keeps all of them from
+    passing on the same figure (#2310)."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        organization = await _org(setup)
+        await setup.commit()
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    monkeypatch.setattr(generated_media, "get_db_context", session)
+    monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 2)
+
+    admissions = await asyncio.gather(
+        *(
+            generated_media.admit_generated_media(organization.id, estimate_bytes=1024 * 1024)
+            for _ in range(6)
+        )
+    )
+
+    assert sum(admission.admitted for admission in admissions) == 2
+    async with factory() as check:
+        assert (
+            await generated_media_repo.bytes_reserved(
+                check, organization_id=organization.id, since=datetime.now(UTC) - timedelta(hours=1)
+            )
+            == 2 * 1024 * 1024
+        )

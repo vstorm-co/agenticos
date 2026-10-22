@@ -61,7 +61,9 @@ Two things are versioned separately from this file and worth knowing about:
   recorded in a new `generated_media` table and counted against
   `GENERATED_MEDIA_QUOTA_MB` (default 5120) per organization, which a
   generation tool checks before spending anything; past it, the tool answers
-  that the organization has used its storage. A daily `sweep-generated-media`
+  that the organization has used its storage. An admitted call holds an
+  estimate of its file against the quota until the file is stored, so calls
+  in flight at once cannot together run past it. A daily `sweep-generated-media`
   job deletes files older than `GENERATED_MEDIA_RETENTION_DAYS` (default 90),
   whether or not their conversation is still there, and a file made with no
   conversation - a preview or test run, a channel `/btw` aside, an API run
@@ -74,10 +76,11 @@ Two things are versioned separately from this file and worth knowing about:
   age and no limit (a deleted conversation's files still go with it). Files
   generated before this release have no record: they are still served, but
   are neither counted nor swept, and go only with their organization.
-  **Operators:** an organization purge now queues a cleanup job that only
-  this release's worker can run, so upgrade the workers with the API hosts,
-  and do not roll back to an earlier worker while such a job is queued; every
-  other cleanup job stays readable by the previous worker (#2310).
+  **Operators:** an organization purge, and deleting a conversation or an
+  account that holds generated media, now queue a cleanup job that only this
+  release's worker can run, so upgrade the workers with the API hosts, and do
+  not roll back to an earlier worker while such a job is queued; every other
+  cleanup job stays readable by the previous worker (#2310).
 
 ### Changed
 
