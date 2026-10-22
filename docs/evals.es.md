@@ -1,5 +1,5 @@
 ---
-source_sha: "d38d76061f82"
+source_sha: "4b81c9932efa"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -310,7 +310,8 @@ del agent.
 
 Un brazo de baseline completado sustituye a ejecutar uno nuevo solo cuando
 coinciden su versión, la versión del dataset, el modelo, la puntuación y el
-juez, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. El run dice qué run
+juez, se ejecutó en el mismo entorno con los mismos `from_recordings` y
+`live_reads`, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. El run dice qué run
 reutilizó. Solo se reutilizan sus primeras respuestas: a un caso que cambia se
 le vuelve a preguntar en este run.
 

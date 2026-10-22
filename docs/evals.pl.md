@@ -1,5 +1,5 @@
 ---
-source_sha: "d38d76061f82"
+source_sha: "4b81c9932efa"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -309,7 +309,8 @@ z dnia na dzień, a regresja zmierzona względem odpowiedzi z zeszłego tygodnia
 może być winą providera, nie agenta.
 
 Zakończone ramię baseline'u zastępuje uruchomienie nowego tylko wtedy, gdy
-zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, a
+zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, działało
+w tym samym środowisku z tymi samymi `from_recordings` i `live_reads`, a
 skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
 wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
 się odwraca, jest mu w tym runie zadawany ponownie.

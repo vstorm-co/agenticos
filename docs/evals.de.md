@@ -1,5 +1,5 @@
 ---
-source_sha: "d38d76061f82"
+source_sha: "4b81c9932efa"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -327,8 +327,9 @@ gemessen an den Antworten der letzten Woche, kann am Provider liegen, nicht am
 Agent.
 
 Ein abgeschlossener Baseline-Arm ersetzt einen neuen Lauf nur, wenn Version,
-Dataset-Version, Modell, Scoring und Judge übereinstimmen und er innerhalb von
-`EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
+Dataset-Version, Modell, Scoring und Judge übereinstimmen, er in derselben
+Umgebung mit denselben `from_recordings` und `live_reads` lief und er
+innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
 wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
 der kippt, wird ihm in diesem Run erneut gestellt.
 

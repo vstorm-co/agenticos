@@ -33,6 +33,7 @@ from app.db.models.eval_run import (
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import dataset_repo, eval_run_repo
+from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.services.dataset import DatasetService
 
@@ -120,6 +121,8 @@ async def _run(
     model_profile_id: uuid.UUID | None = None,
     scoring_hash: str = "a" * 64,
     ended_at: datetime | None = None,
+    from_recordings: bool = False,
+    live_reads: bool = False,
 ) -> tuple[EvalRun, EvalRunArm]:
     run = EvalRun(
         agent_id=agent.id,
@@ -131,6 +134,8 @@ async def _run(
         scoring_hash=scoring_hash,
         estimate_usd=Decimal("1.00"),
         ended_at=ended_at,
+        from_recordings=from_recordings,
+        live_reads=live_reads,
     )
     arm = EvalRunArm(
         role=ArmRole.CANDIDATE.value,
@@ -265,6 +270,43 @@ async def test_listing_narrows_to_the_datasets_the_reader_may_see(db) -> None:
         )
         == []
     )
+
+
+async def test_a_cached_baseline_ran_the_way_the_candidate_will(db) -> None:
+    """Which test connections answered, and whether recordings did, decide the
+    baseline's answers as much as the version does."""
+    ctx, agent, versions, dataset, dataset_version, revisions, _run_v7, _arm = await _setup(db)
+    replayed, _ = await _run(
+        db,
+        ctx,
+        agent=agent,
+        version=versions[0],
+        dataset=dataset,
+        dataset_version=dataset_version,
+        revisions=revisions,
+        status=EvalRunStatus.COMPLETED,
+        ended_at=_NOW - timedelta(hours=1),
+        from_recordings=True,
+    )
+
+    def lookup(execution: RunExecution):
+        return eval_run_repo.latest_arm(
+            db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            agent_version_id=versions[0].id,
+            execution=execution,
+        )
+
+    found = await lookup(RunExecution(environment_id=None, from_recordings=True, live_reads=False))
+    assert found is not None and found[1].id == replayed.id
+    for other in (
+        RunExecution(environment_id=None, from_recordings=False, live_reads=False),
+        RunExecution(environment_id=None, from_recordings=True, live_reads=True),
+        RunExecution(environment_id=uuid.uuid4(), from_recordings=True, live_reads=False),
+    ):
+        assert await lookup(other) is None
 
 
 async def test_the_baseline_lookup_matches_what_it_is_asked_to_and_nothing_else(db) -> None:

@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, column, exists, func, or_, select, true, update
@@ -477,6 +477,15 @@ async def skip_pending(db: AsyncSession, eval_run_id: UUID, *, organization_id: 
     return int(result.rowcount or 0)  # ty: ignore[unresolved-attribute]
 
 
+class RunExecution(NamedTuple):
+    """What a run executed under besides the version: which environment's test
+    connections it reached, and whether recorded tool results answered its calls."""
+
+    environment_id: UUID | None
+    from_recordings: bool
+    live_reads: bool
+
+
 async def latest_arm(
     db: AsyncSession,
     *,
@@ -487,6 +496,7 @@ async def latest_arm(
     dataset_version_id: UUID | None = None,
     model_profile_id: UUID | None = None,
     scoring_hash: str | None = None,
+    execution: RunExecution | None = None,
     since: datetime | None = None,
     exclude_run_id: UUID | None = None,
 ) -> tuple[EvalRunArm, EvalRun] | None:
@@ -494,7 +504,8 @@ async def latest_arm(
 
     Each narrowing argument left `None` matches anything. With all of them it is
     the cached-baseline lookup; with none it is the default comparison's "the
-    last run of the previous version".
+    last run of the previous version". `execution` matches a run with no
+    environment only to one with none.
     """
     conditions = [
         EvalRunArm.organization_id == organization_id,
@@ -510,6 +521,12 @@ async def latest_arm(
         conditions.append(EvalRunArm.model_profile_id == model_profile_id)
     if scoring_hash is not None:
         conditions.append(EvalRun.scoring_hash == scoring_hash)
+    if execution is not None:
+        conditions += [
+            EvalRun.environment_id.is_not_distinct_from(execution.environment_id),
+            EvalRun.from_recordings.is_(execution.from_recordings),
+            EvalRun.live_reads.is_(execution.live_reads),
+        ]
     if since is not None:
         conditions.append(EvalRun.ended_at >= since)
     if exclude_run_id is not None:

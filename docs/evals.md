@@ -292,7 +292,8 @@ days, and a regression measured against last week's answers may be the
 provider's, not the agent's.
 
 A completed baseline arm stands in for running one only when its version,
-dataset version, model, scoring and judge all match, and it finished within
+dataset version, model, scoring and judge all match, it ran in the same
+environment with the same `from_recordings` and `live_reads`, and it finished within
 `EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
 answers are reused: a case that flips is asked of it again in this run.
 

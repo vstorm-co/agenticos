@@ -76,6 +76,7 @@ from app.repositories import (
     eval_suite_repo,
     organization_repo,
 )
+from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
     ArmEstimate,
@@ -444,6 +445,11 @@ class EvalRunService:
                     dataset_version=dataset_version,
                     arm=baseline,
                     scoring_hash=hashed,
+                    execution=RunExecution(
+                        environment_id=request.environment_id,
+                        from_recordings=request.from_recordings,
+                        live_reads=request.live_reads,
+                    ),
                     judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
                     judge_id=config.judge.agent_id,
                 )
@@ -646,13 +652,15 @@ class EvalRunService:
         dataset_version: DatasetVersion,
         arm: ArmPlan,
         scoring_hash: str,
+        execution: RunExecution,
         judged: bool,
         judge_id: UUID | None,
     ) -> tuple[EvalRunArm, EvalRun] | None:
         """A completed baseline arm that may stand in for running this one.
 
         Only one that matches on everything the comparison holds constant: the
-        version, the dataset version, the model, the scoring - and the judge,
+        version, the dataset version, the model, the scoring, the environment
+        whose test connections answered and whether recordings did - and the judge,
         whose published version and prompt must be the ones that graded every
         case, or no judge at all when none would grade now. Every first answer
         must be in and scored: a reused arm's cases are never asked again, so a
@@ -669,6 +677,7 @@ class EvalRunService:
             dataset_version_id=dataset_version.id,
             model_profile_id=arm.model_profile_id,
             scoring_hash=scoring_hash,
+            execution=execution,
             since=since,
         )
         if found is None:
