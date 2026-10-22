@@ -227,7 +227,9 @@ class VisualsToolset:
           `lib/agenticos-map-1.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
           cards for the stops. It draws on the deployment's map tiles, or as an outline
-          of the stops where there are none; your instructions say which.
+          of the stops where there are none; your instructions say which. It is its
+          own layout: put the element straight on the page, without a border or a
+          `min-height` around it, and do not list the stops again beside it.
 
         Controls run inside the drawing. A button may also continue the conversation
         with what the person picked: `agenticos.followUp("Plan day 2 in Kyoto")`. The

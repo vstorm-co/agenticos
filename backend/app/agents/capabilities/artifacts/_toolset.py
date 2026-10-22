@@ -170,7 +170,8 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         `lib/three-0.186.0/addons/controls/OrbitControls.js` under `three/addons/`);
         a map through `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js`
         and `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, on the
-        deployment's map tiles or as an outline without them);
+        deployment's map tiles or as an outline without them - its own layout, so no
+        border or `min-height` around its element and no second list of its stops);
         `lib/agenticos-1.css` stays served for pages published against it. Keep to the product's look: graphite,
         no accent colour, green and red only for better and worse, icons rather than
         emoji unless the person asked for emoji. Before building a page, load the

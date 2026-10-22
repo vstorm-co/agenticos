@@ -304,6 +304,13 @@ language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
 and the photo's `credit` and `creditUrl` - show the author and the licence for
 every photo you did not make. Two to twelve stops read best.
 
+The itinerary is a whole layout - map, controls and stop cards - sized by its own
+`height`. Put its element straight on the page: no border, background or
+`min-height` around it, and no second list of the same stops beside it - the
+cards are that list, and a framed box with a fixed height leaves the map touching
+its edges over a band of empty space. Put any day-by-day detail in the stops'
+`note`, or under the map.
+
 Start from `templates/itinerary.html`.
 
 ## Continue the conversation from a drawing
