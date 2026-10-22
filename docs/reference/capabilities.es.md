@@ -1,5 +1,5 @@
 ---
-source_sha: "9389f115faa2"
+source_sha: "9297492302fc"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1229,6 +1229,8 @@ haber hecho la imagen.
 | `seconds` | 5, o la más cercana del modelo | Dentro del rango del modelo; se rechaza para Gemini Omni, que decide su duración |
 | `max_seconds` | el clip más largo del modelo | El clip más largo que puede pedir el agente; se rechaza para Gemini Omni |
 | `audio` | la del provider | Por defecto activado o no; el agente puede pedir cualquiera de los dos en cada clip. Se rechaza cuando el sonido del modelo es fijo |
+| `alibaba_workspace` | ninguno: el endpoint compartido de DashScope | Solo Alibaba: el id del workspace de Model Studio, una etiqueta de host; Wan se llama entonces en `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Solo Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **Lo que puede hacer cada modelo son datos.** El catálogo indica el rango de

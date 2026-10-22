@@ -43,7 +43,9 @@ Two things are versioned separately from this file and worth knowing about:
   booked at its estimate if the run stops, or the clip cannot be fetched, before
   it arrives. In a voice call a clip is handed to the agent's text model, since
   a call cannot wait minutes in silence.
-  BytePlus keys are a new purpose in the vault (#2260).
+  BytePlus keys are a new purpose in the vault (#2260). An Alibaba binding can
+  name its Model Studio workspace and region, which Wan 3.0 is called through
+  (#2350).
 - **Agents can speak.** The new `text_to_speech` capability gives an agent a
   `generate_speech` tool that reads a text aloud through OpenAI, ElevenLabs or
   Gemini, chosen per agent with a model and a voice. The clip plays in the

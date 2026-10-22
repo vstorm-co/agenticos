@@ -37,6 +37,7 @@ async def generate_video(
     audio: bool | None = None,
     first_frame: FirstFrame | None = None,
     reached: Callable[[JobStage], None] | None = None,
+    base_url: str | None = None,
 ) -> Clip:
     """Make one clip with one provider's model, and return its bytes.
 
@@ -52,8 +53,10 @@ async def generate_video(
             decides its own length.
         audio: Whether the clip carries sound. Ignored where the model decides.
         first_frame: An image the clip starts from, for a model that takes one.
-        reached: Told how far the job got - `submitted`, then `made` - so a caller
+        reached: Told how far the job got - `sent`, `submitted`, then `made` - so a caller
             can book what the provider bills although no clip comes back.
+        base_url: Where to call the provider instead of the catalog's address -
+            an Alibaba workspace host.
 
     Raises:
         VideoProviderError: The provider refused, failed, timed out, or returned
@@ -74,7 +77,7 @@ async def generate_video(
         raise ValueError("There is no prompt")
     call = VideoCall(
         provider=provider.provider,
-        base_url=provider.base_url,
+        base_url=base_url or provider.base_url,
         api_key=api_key,
         model=model,
         prompt=prompt.strip(),

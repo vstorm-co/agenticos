@@ -1147,6 +1147,8 @@ the run must have made the image itself.
 | `seconds` | 5, or the nearest the model makes | Within the model's range; refused for Gemini Omni, which decides its own |
 | `max_seconds` | the model's longest | The longest clip the agent may ask for; refused for Gemini Omni |
 | `audio` | provider default | The default, on or off; the agent may ask for either per clip. Refused where the model's sound is fixed |
+| `alibaba_workspace` | none: the shared DashScope endpoint | Alibaba only: the Model Studio workspace id, one host label; Wan is then called at `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Alibaba only: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
 | `timeout_seconds` | `600` | 60–1800 |
 
 **What each model can make is data.** The catalog states each model's length

@@ -53,6 +53,15 @@ catalog lists resolutions default first rather than in order, so
 `resolution_lines` in `app/services/video_models.py` reads their height to compare
 them.
 
+## Where Alibaba is called
+
+Model Studio serves Wan 3.0 from a host named after the workspace and its
+region, `https://{workspace}.{region}.maas.aliyuncs.com/api/v1`, and keeps the
+shared DashScope host only for existing integrations. A binding names its
+workspace in `alibaba_workspace` and `alibaba_region`; left empty, the catalog's
+DashScope address is used. The workspace is held to one host label, because it
+becomes part of the host the key is sent to (#2350).
+
 ## A job, not a request
 
 Three of the four providers take a job and are polled for it; Gemini answers in
