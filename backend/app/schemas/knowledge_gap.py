@@ -41,10 +41,14 @@ MAX_DRAFT_SOURCES = 12
 
 
 class ClassifiedAnswer(BaseSchema):
-    """What a classifying model decided about one answer, cited by its number."""
+    """What a classifying model decided about one answer, cited by its number.
+
+    Its labels say what they mean to the model, rather than naming the signal a
+    gap is stored under: a weaker model read `answer` as "the agent answered".
+    """
 
     number: int
-    signal: Literal["answer", "rating", "none"]
+    signal: Literal["did_not_know", "missing_information", "no_gap"]
 
 
 class KnowledgeGapClassification(BaseSchema):

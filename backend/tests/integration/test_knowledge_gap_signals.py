@@ -50,13 +50,13 @@ pytestmark = pytest.mark.anyio
 _ANSWER = re.compile(r"## Answer (\d+)\n(.*?)(?=\n## Answer |\Z)", re.S)
 
 
-def _decide(block: str) -> Literal["answer", "rating", "none"]:
+def _decide(block: str) -> Literal["did_not_know", "missing_information", "no_gap"]:
     """What a careful model would say about one numbered answer."""
     if "don't know" in block or "nie wiem" in block:
-        return "answer"
+        return "did_not_know"
     if "missing" in block:
-        return "rating"
-    return "none"
+        return "missing_information"
+    return "no_gap"
 
 
 @contextmanager
@@ -298,7 +298,8 @@ async def test_an_answer_whose_asker_is_erased_during_the_check_leaves_no_miss(d
             AgentRun.__table__.update().where(AgentRun.id == run_id).values(user_id=None)
         )
         return SystemAgentResult(
-            output=Report(answers=[ClassifiedAnswer(number=1, signal="answer")]), run=classifier
+            output=Report(answers=[ClassifiedAnswer(number=1, signal="did_not_know")]),
+            run=classifier,
         )
 
     with patch(
@@ -331,6 +332,35 @@ async def test_only_the_newest_comments_on_an_answer_are_shown(db) -> None:
 
     prompt = run_it.await_args.kwargs["prompt"]
     assert [n for n in range(7) if f"comment {n}" in prompt] == [2, 3, 4, 5, 6]
+
+
+async def test_the_prompt_says_a_misapplied_rule_is_no_gap_and_such_an_answer_records_none(
+    db,
+) -> None:
+    """A weak model read the old `answer` label as "the agent answered", and took a
+    refund answer that applied the wrong rule for a gap in the knowledge base."""
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    run, answer = await _asked(
+        db,
+        ctx,
+        agent,
+        question="Refund my downloaded e-book?",
+        answer="Under our refund policy you have 30 days to return it.",
+    )
+    await _searched(db, ctx, run, kb, query="refund", top_similarity=0.9)
+    await _rated_down(db, answer, ctx.user_id, "Digital goods are never refundable")
+    classifier = await _classifier_run(db, ctx, agent)
+
+    (read, misses), run_it = await _check(db, ctx, kb, classifier)
+
+    prompt = run_it.await_args.kwargs["prompt"]
+    assert "`did_not_know`" in prompt and "`missing_information`" in prompt
+    assert "even when it applied it wrongly" in prompt
+    assert "misapplied a rule" in prompt
+    assert (read, misses) == (1, 0)
+    assert await _signals(db, kb) == {}
 
 
 async def test_a_run_whose_search_missed_is_already_counted_and_is_not_read(db) -> None:
@@ -429,9 +459,9 @@ async def test_a_number_naming_no_answer_is_dropped_and_a_skipped_answer_waits(d
     classifier = await _classifier_run(db, ctx, agent)
     report = Report(
         answers=[
-            ClassifiedAnswer(number=1, signal="answer"),
-            ClassifiedAnswer(number=1, signal="none"),
-            ClassifiedAnswer(number=7, signal="answer"),
+            ClassifiedAnswer(number=1, signal="did_not_know"),
+            ClassifiedAnswer(number=1, signal="no_gap"),
+            ClassifiedAnswer(number=7, signal="did_not_know"),
         ]
     )
 
