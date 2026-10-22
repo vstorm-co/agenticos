@@ -1,5 +1,5 @@
 ---
-source_sha: "d22e9f561f9c"
+source_sha: "7d3991430b9c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -58,6 +58,18 @@ niczego do konfigurowania.
     platformy, a nie jak adres do poprawienia
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting
     i wklejenie URL-a z `localhost` to przypadek zwyczajny, nie egzotyczny.
+
+    Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
+    wdrożenia, na przykład do usługi compose. W tym celu wpisuje jego host do
+    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Host z listy
+    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`,
+    a logowanie OAuth do niego nadal jest odrzucane.
+
+    Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
+    Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
+    usługi tego stacku, takiej jak `app`, `db` czy `redis`. Lista jest czytana
+    tylko przy zapisie połączenia: usunięcie hosta nie rozłącza zapisanego
+    połączenia.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
@@ -377,7 +389,7 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem.
+  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.

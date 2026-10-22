@@ -21,6 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
+  deployment's own network (#2349).** Before, the SSRF check refused every
+  connection URL whose host resolves to a private or loopback address, such as a
+  compose service. There was no way past it. Now an operator can list such
+  hosts. A listed host skips only the address check, when a connection is saved.
+  The match is exact and ignores case, and OAuth sign-in to a listed host is
+  still refused. Every account can reach every port on a listed host, so list
+  only a server that checks a token. A cloud metadata, link-local or loopback
+  entry (`localhost` too) is refused at startup. Empty, the default, changes
+  nothing. See [a connection](docs/mcp.md#a-connection).
 - **The desktop app looks and behaves like an application** (#2305). On macOS
   the console's sidebar holds the traffic lights and drags the window, the
   window remembers its size and place, closing it keeps the app in the menu
@@ -156,6 +166,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Android app shows the AgenticOS icon**, not Tauri's default: the
+  generated launcher icons had never been copied into the Android project.
+- **The desktop app opens on the console, not on the sign-in form.** It
+  opened the server's root, which sends everybody to the form, so a person
+  with a perfectly good session was asked to sign in on every launch.
+
+## [1.12.3] - 2026-10-22
+
+### Fixed
+
 - **The image packages describe themselves on GHCR (#2299).** The pages for
   `agenticos-backend`, `agenticos-frontend` and `agenticos-browser` said "No
   description provided": GHCR reads a multi-architecture package's description
@@ -163,11 +183,6 @@ Two things are versioned separately from this file and worth knowing about:
   images. The publish job now annotates each list with what the image is and a
   link to the docs. The pages update on the next publish; earlier tags keep
   their lists as they were.
-- **The Android app shows the AgenticOS icon**, not Tauri's default: the
-  generated launcher icons had never been copied into the Android project.
-- **The desktop app opens on the console, not on the sign-in form.** It
-  opened the server's root, which sends everybody to the form, so a person
-  with a perfectly good session was asked to sign in on every launch.
 
 ## [1.12.2] - 2026-10-22
 
