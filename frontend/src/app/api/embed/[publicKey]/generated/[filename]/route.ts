@@ -63,7 +63,7 @@ export async function GET(
   let response: Response;
   try {
     response = await fetch(
-      `${BACKEND_URL}/api/v1/embed/${publicKey}/generated/${filename}?token=${token}`,
+      `${BACKEND_URL}/api/v1/embed/${encodeURIComponent(publicKey)}/generated/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`,
       { headers: range ? { Range: range } : {}, cache: "no-store" },
     );
   } catch {
