@@ -235,7 +235,7 @@ class ScoringService:
         self.judge = SystemAgentRunner(db)
 
     async def set_scoring(
-        self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoring | DatasetScoringUpdate
+        self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoringUpdate
     ) -> DatasetRead:
         """Change how a dataset's cases are scored. Needs `datasets:edit` on it.
 

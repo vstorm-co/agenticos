@@ -211,7 +211,7 @@ class _JudgeSettings(BaseSchema):
 
 
 class JudgeScorerUpdate(_JudgeSettings):
-    """The judge's settings as a change to them names them.
+    """The judge's settings in a change to how a dataset is scored.
 
     The pass mark is checked against the scale only once merged with the settings
     a dataset keeps, so one sent alone is read on the stored scale.

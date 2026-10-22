@@ -298,8 +298,13 @@ async def _dataset(
             checks=[{"type": "json_schema", "schema": SCHEMA}],
         ),
     )
-    await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+    await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
     return dataset, case
+
+
+def _change(scoring: DatasetScoring) -> DatasetScoringUpdate:
+    """The settings `scoring` was given, as a change naming only those."""
+    return DatasetScoringUpdate.model_validate(scoring.model_dump(exclude_unset=True))
 
 
 def _rubric(**overrides) -> DatasetScoring:
@@ -408,7 +413,7 @@ class TestScoringARun:
         await scoring.set_scoring(
             tenant.ctx,
             dataset.id,
-            DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC[:1])),
+            _change(DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC[:1]))),
         )
         narrower = await scoring.score_run(
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
@@ -762,7 +767,7 @@ class TestADatasetsOwnJudge:
         await _model(db, tenant)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
         empty = await DatasetService(db).create(tenant.ctx, DatasetCreate(name="Tone"))
-        await ScoringService(db).set_scoring(tenant.ctx, empty.id, DatasetScoring())
+        await ScoringService(db).set_scoring(tenant.ctx, empty.id, _change(DatasetScoring()))
 
         made = await ScoringService(db).create_judge(
             tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
@@ -865,7 +870,11 @@ class TestADatasetsOwnJudge:
             await ScoringService(db).set_scoring(
                 tenant.ctx,
                 dataset.id,
-                DatasetScoring(judge=JudgeScorer(enabled=True, agent_id=mine.id, criteria=RUBRIC)),
+                _change(
+                    DatasetScoring(
+                        judge=JudgeScorer(enabled=True, agent_id=mine.id, criteria=RUBRIC)
+                    )
+                ),
             )
 
         assert refused.value.details["fields"][0]["field"] == "judge.agent_id"
@@ -884,7 +893,9 @@ class TestADatasetsOwnJudge:
         saved = await ScoringService(db).set_scoring(
             tenant.ctx,
             dataset.id,
-            DatasetScoring(judge=JudgeScorer(enabled=True, agent_id=other.id, criteria=RUBRIC)),
+            _change(
+                DatasetScoring(judge=JudgeScorer(enabled=True, agent_id=other.id, criteria=RUBRIC))
+            ),
         )
 
         assert (saved.scoring.judge.agent_id, saved.judge_name) == (other.id, "Tone judge")
@@ -1163,7 +1174,7 @@ class TestGradingAgain:
         )
         await scoring.set_verdict(tenant.ctx, dataset.id, failed.id, CaseVerdict(passed=False))
         await scoring.set_scoring(
-            tenant.ctx, dataset.id, DatasetScoring(judge=JudgeScorer(enabled=False))
+            tenant.ctx, dataset.id, _change(DatasetScoring(judge=JudgeScorer(enabled=False)))
         )
 
         result = await scoring.rescore(
@@ -2063,7 +2074,7 @@ class TestRefusals:
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
         with pytest.raises(NotFoundError):
-            await service.set_scoring(builder, dataset.id, DatasetScoring())
+            await service.set_scoring(builder, dataset.id, _change(DatasetScoring()))
 
     async def test_a_viewer_reads_scores_but_cannot_score_or_decide(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -2103,14 +2114,16 @@ class TestRefusals:
         saved = await ScoringService(db).set_scoring(
             mine.ctx,
             dataset.id,
-            DatasetScoring.model_validate(
-                {
-                    "judge": {
-                        "enabled": True,
-                        "criteria": [c.model_dump() for c in RUBRIC],
-                        "model_profile_id": str(foreign.id),
+            _change(
+                DatasetScoring.model_validate(
+                    {
+                        "judge": {
+                            "enabled": True,
+                            "criteria": [c.model_dump() for c in RUBRIC],
+                            "model_profile_id": str(foreign.id),
+                        }
                     }
-                }
+                )
             ),
         )
 
@@ -2137,7 +2150,7 @@ class TestRefusals:
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
 
         with pytest.raises(BadRequestError) as refused:
-            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
 
         assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
 
@@ -2157,7 +2170,7 @@ class TestRefusals:
         await db.flush()
 
         with pytest.raises(BadRequestError) as refused:
-            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
 
         assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
         assert "AI assistance is off" in refused.value.message
@@ -2171,7 +2184,7 @@ class TestRefusals:
         await db.flush()
 
         saved = await ScoringService(db).set_scoring(
-            tenant.ctx, dataset.id, _rubric(trajectory=TrajectoryScorer(enabled=False))
+            tenant.ctx, dataset.id, _change(_rubric(trajectory=TrajectoryScorer(enabled=False)))
         )
 
         assert (saved.scoring.judge.enabled, saved.scoring.trajectory.enabled) == (True, False)

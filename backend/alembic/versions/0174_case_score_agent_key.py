@@ -10,8 +10,9 @@ graded one before one nothing graded and then the newest, and the rest leave
 the queue undecided, as a replaced score does. A score with no agent to read
 waits once per case, beside the others.
 
-The downgrade drops the column and the index. Scores taken out of the queue
-stay out.
+The backfill is one statement over the whole table, unbatched: it rewrites
+every score that has an agent to read. The downgrade drops the column and the
+index. Scores taken out of the queue stay out.
 
 Revision ID: 0174_case_score_agent_key
 Revises: 0173_eval_job_pool

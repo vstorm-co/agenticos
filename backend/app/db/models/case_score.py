@@ -74,7 +74,8 @@ class CaseScore(Base):
     )
     run: Mapped[AgentRun | None] = relationship(lazy="selectin")
     # The agent that answered, kept apart from the run, which may be deleted: the
-    # review queue holds one score per case for each agent.
+    # review queue holds one score per case for each agent. No foreign key: one
+    # setting it null on delete could collide in the unique index on what waits.
     agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # The eval run that scored the answer; null for a score asked for by hand.
     eval_run_id: Mapped[uuid.UUID | None] = mapped_column(

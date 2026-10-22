@@ -882,6 +882,11 @@ class TestGrades:
 
         assert holds(answer, quote) is True
 
+    def test_a_quote_with_a_plain_dash_for_the_answer_s_long_one_is_held(self) -> None:
+        answer = "Refunds need approval \u2013 sorry\u00a0for the wait."
+
+        assert holds(answer, "approval - sorry for the wait.") is True
+
     @pytest.mark.parametrize(
         "quote",
         [
