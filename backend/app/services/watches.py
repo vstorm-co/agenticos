@@ -6,7 +6,6 @@ sweep before each look, since the organization may change its mind after.
 """
 
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +16,7 @@ from app.core.permissions import AuthContext
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization
 from app.db.models.watch import Watch
+from app.db.updates import writable
 from app.repositories import mcp_connection_repo, organization_repo, watch_repo
 from app.schemas.watch import WatchCreate, WatchRead, WatchStopped, WatchUpdate
 from app.services import watch_presets
@@ -158,7 +158,7 @@ class WatchService:
         person = self._person(ctx)
         organization = await self._organization(ctx)
         watch = await self._own(ctx, person, watch_id)
-        changes: dict[str, Any] = data.model_dump(exclude_unset=True)
+        changes = writable(data, over=Watch)
         if "interval_minutes" in changes:
             self._often_enough(organization, changes["interval_minutes"])
         if changes.get("is_active") is True and not watch.is_active:
