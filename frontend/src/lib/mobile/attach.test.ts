@@ -18,11 +18,12 @@ describe("the phone app's attach commands", () => {
         : null,
     );
     window.__TAURI__ = { core: { invoke }, event: { listen: vi.fn() } };
-    expect((await openAttachSheet())?.files[0]?.name).toBe("a.png");
+    expect((await openAttachSheet("photos"))?.files[0]?.name).toBe("a.png");
     expect(await offerRecentPhoto()).toBeNull();
     expect(invoke.mock.calls.map(([command]) => command)).toEqual([
       "attach_sheet",
       "offer_recent_photo",
     ]);
+    expect(invoke).toHaveBeenCalledWith("attach_sheet", { source: "photos" });
   });
 });

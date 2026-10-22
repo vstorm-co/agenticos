@@ -14,6 +14,7 @@
 //! a button there comes back as a link, and the console acts on it - a decision
 //! only once the person is through the lock.
 
+mod apns;
 mod live;
 mod managed;
 mod pin;
@@ -233,8 +234,8 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
 
 /// What the console - a remote page - may ask of the app: the unlock prompt
 /// again, its live activities, what was shared with the app, the widget's
-/// counts, an agent pinned to the home screen, and a haptic tap. Granted for the configured server's origin
-/// only, as the desktop shell grants its console's commands.
+/// counts, a pinned agent, push, and a haptic tap. Granted for the configured
+/// server's origin only, as the desktop shell grants its console's commands.
 fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
     let pattern = format!("{}/*", server.origin().ascii_serialization());
     app.add_capability(
@@ -254,6 +255,9 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-take-shared")
             .permission("allow-attach-sheet")
             .permission("allow-offer-recent-photo")
+            .permission("allow-apns-status")
+            .permission("allow-apns-register")
+            .permission("allow-apns-unregister")
             // A tap under the finger when a swipe decides or a pull refreshes.
             .permission("haptics:allow-impact-feedback")
             .permission("haptics:allow-notification-feedback")
@@ -443,17 +447,21 @@ fn take_shared(app: AppHandle) -> Result<Option<share::Shared>, String> {
     share::take(&app)
 }
 
-/// The composer's "+": the phone's attach sheet - the camera, the photo and file
-/// pickers, the latest photos to tick. Answers with what the person chose.
+/// The composer's "+": on Android the phone's attach sheet - the camera, the
+/// photo and file pickers, the latest photos to tick; on iOS the picker for the
+/// source the console's sheet named. Answers with what the person chose.
 #[tauri::command]
-async fn attach_sheet(app: AppHandle) -> Result<Option<share::Shared>, String> {
-    ask_unless_locked(app, "openSheet").await
+async fn attach_sheet(
+    app: AppHandle,
+    source: Option<share::Source>,
+) -> Result<Option<share::Shared>, String> {
+    ask_unless_locked(app, "openSheet", source).await
 }
 
 /// On opening the chat: a photo taken a moment ago, if the person adds it.
 #[tauri::command]
 async fn offer_recent_photo(app: AppHandle) -> Result<Option<share::Shared>, String> {
-    ask_unless_locked(app, "offerRecent").await
+    ask_unless_locked(app, "offerRecent", None).await
 }
 
 /// Ask the attach plugin, off the main thread - it answers when the person
@@ -461,6 +469,7 @@ async fn offer_recent_photo(app: AppHandle) -> Result<Option<share::Shared>, Str
 async fn ask_unless_locked(
     app: AppHandle,
     command: &'static str,
+    source: Option<share::Source>,
 ) -> Result<Option<share::Shared>, String> {
     let locked = app
         .state::<Lock>()
@@ -471,7 +480,7 @@ async fn ask_unless_locked(
     if locked {
         return Ok(None);
     }
-    tauri::async_runtime::spawn_blocking(move || share::ask(&app, command))
+    tauri::async_runtime::spawn_blocking(move || share::ask(&app, command, source))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -537,6 +546,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
         .plugin(tauri_plugin_haptics::init())
+        .plugin(apns::init())
         .plugin(live::init())
         .plugin(managed::init())
         .plugin(pin::init())
@@ -562,7 +572,10 @@ pub fn run() {
             pin::pin_shortcut,
             push::push_status,
             push::push_register,
-            push::push_unregister
+            push::push_unregister,
+            apns::apns_status,
+            apns::apns_register,
+            apns::apns_unregister
         ])
         .manage(PendingSignIn::default())
         .manage(Lock::default())

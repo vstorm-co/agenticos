@@ -5464,6 +5464,14 @@
           "on": "An, über {distributor}. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
           "turnOff": "Auf diesem Telefon ausschalten",
           "notRegistered": "ntfy hat keine Adresse übergeben. Öffne es und versuche es erneut."
+        },
+        "iphone": {
+          "title": "Benachrichtigungen bei geschlossener App",
+          "notConfigured": "Deine Organisation hat iPhone-Benachrichtigungen noch nicht eingerichtet. Eine Administratorin oder ein Administrator fügt den APNs-Schlüssel der Firma unter Admin, Einstellungen hinzu.",
+          "denied": "Benachrichtigungen für AgenticOS sind auf diesem iPhone aus. Schalte sie unter Einstellungen, Mitteilungen, AgenticOS ein und komm dann hierher zurück.",
+          "off": "Lass dich benachrichtigen, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist.",
+          "on": "Auf diesem iPhone an. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
+          "turnOff": "Auf diesem iPhone ausschalten"
         }
       }
     },
@@ -5651,6 +5659,31 @@
       "acknowledge": "Ich verstehe, dass die Kosten eines Diktats in keiner Organisation mehr durch seine maximale Länge begrenzt sind.",
       "cancel": "Nur PCM behalten",
       "confirm": "Komprimierte Aufnahmen annehmen"
+    },
+    "adminApns": {
+      "title": "iPhone-Benachrichtigungen",
+      "hint": "Push an die iOS-App läuft über Apple mit dem eigenen Schlüssel der Firma: dem Apple-Developer-Konto, mit dem die App signiert ist.",
+      "whose": "Schlüssel {key}, Team {team}, {environment}",
+      "environment": {
+        "production": "Produktion",
+        "sandbox": "Entwicklung"
+      },
+      "environmentLabel": "Apple-Dienst",
+      "keyId": "Key ID",
+      "keyIdHint": "Zehn Zeichen, neben dem Schlüssel unter Certificates, Identifiers & Profiles, Keys.",
+      "teamId": "Team ID",
+      "teamIdHint": "Zehn Zeichen, in den Mitgliedschaftsdetails des Entwicklerkontos.",
+      "topic": "Bundle ID",
+      "topicHint": "Die Kennung, mit der euer Build der App signiert ist.",
+      "file": "Schlüsseldatei (.p8)",
+      "fileHint": "Einmal beim Erstellen des Schlüssels heruntergeladen. Sie wird im Tresor versiegelt und nie wieder angezeigt.",
+      "save": "Schlüssel speichern",
+      "replace": "Ersetzen",
+      "remove": "Entfernen",
+      "cancel": "Abbrechen",
+      "saved": "Gespeichert. iPhones können Benachrichtigungen jetzt einschalten.",
+      "removed": "Entfernt. iPhones erhalten keine Benachrichtigungen, bis ein Schlüssel hinzugefügt wird.",
+      "failed": "Der Schlüssel konnte nicht gespeichert werden."
     }
   },
   "profile": {
@@ -8214,6 +8247,8 @@
     "toHomeScreen": "Zum Startbildschirm hinzufügen",
     "onHomeScreen": "Auf dem Startbildschirm. Tippen für einen neuen Chat.",
     "inLongPress": "Dein Launcher kann ihn nicht anheften, darum steht er in der Liste beim langen Drücken auf das AgenticOS-Symbol.",
-    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden."
+    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden.",
+    "toWidget": "An Widget anheften",
+    "inWidget": "Angeheftet. Füge das Widget „Angeheftete Agenten“ zum Home-Bildschirm hinzu; der Agent ist auch im Menü des AgenticOS-Symbols und in Kurzbefehle."
   }
 }

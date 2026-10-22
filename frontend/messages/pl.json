@@ -5357,6 +5357,14 @@
           "on": "Włączone, przez {distributor}. Które zdarzenia do Ciebie trafiają, ustawisz niżej, w kolumnie Push.",
           "turnOff": "Wyłącz na tym telefonie",
           "notRegistered": "ntfy nie przekazał adresu. Otwórz go i spróbuj ponownie."
+        },
+        "iphone": {
+          "title": "Powiadomienia przy zamkniętej aplikacji",
+          "notConfigured": "Twoja organizacja nie skonfigurowała jeszcze powiadomień na iPhone'a. Administrator dodaje klucz APNs firmy w Admin, Ustawienia.",
+          "denied": "Powiadomienia AgenticOS są wyłączone na tym iPhonie. Włącz je w Ustawieniach, Powiadomienia, AgenticOS i wróć tutaj.",
+          "off": "Dostawaj powiadomienia, gdy agent Cię potrzebuje, nawet przy zamkniętym AgenticOS.",
+          "on": "Włączone na tym iPhonie. Które zdarzenia do Ciebie docierają, ustawisz niżej, w sekcji Push.",
+          "turnOff": "Wyłącz na tym iPhonie"
         }
       }
     },
@@ -5544,6 +5552,31 @@
       "acknowledge": "Rozumiem, że w żadnej organizacji koszt dyktowania nie będzie już ograniczony jego maksymalną długością.",
       "cancel": "Zostaw tylko PCM",
       "confirm": "Przyjmuj skompresowane nagrania"
+    },
+    "adminApns": {
+      "title": "Powiadomienia na iPhone'a",
+      "hint": "Push do aplikacji iOS idzie przez Apple z własnym kluczem firmy: z konta Apple Developer, którym aplikacja jest podpisana.",
+      "whose": "Klucz {key}, zespół {team}, {environment}",
+      "environment": {
+        "production": "produkcja",
+        "sandbox": "deweloperskie"
+      },
+      "environmentLabel": "Usługa Apple",
+      "keyId": "Key ID",
+      "keyIdHint": "Dziesięć znaków, przy kluczu w Certificates, Identifiers & Profiles, Keys.",
+      "teamId": "Team ID",
+      "teamIdHint": "Dziesięć znaków, w szczegółach członkostwa konta deweloperskiego.",
+      "topic": "Bundle ID",
+      "topicHint": "Identyfikator, którym podpisany jest Wasz build aplikacji.",
+      "file": "Plik klucza (.p8)",
+      "fileHint": "Pobierany raz, przy tworzeniu klucza. Trafia zapieczętowany do vaulta i nie jest już nigdy pokazywany.",
+      "save": "Zapisz klucz",
+      "replace": "Zastąp",
+      "remove": "Usuń",
+      "cancel": "Anuluj",
+      "saved": "Zapisano. iPhone'y mogą już włączyć powiadomienia.",
+      "removed": "Usunięto. iPhone'y nie dostaną powiadomień, dopóki nie dodasz klucza.",
+      "failed": "Nie udało się zapisać klucza."
     }
   },
   "profile": {
@@ -8340,6 +8373,8 @@
     "toHomeScreen": "Dodaj do ekranu głównego",
     "onHomeScreen": "Jest na ekranie głównym. Stuknij, aby zacząć nowy czat.",
     "inLongPress": "Launcher nie pozwala go przypiąć, więc jest na liście po przytrzymaniu ikony AgenticOS.",
-    "failed": "Nie udało się dodać agenta do ekranu głównego."
+    "failed": "Nie udało się dodać agenta do ekranu głównego.",
+    "toWidget": "Przypnij do widżetu",
+    "inWidget": "Przypięty. Dodaj widżet Przypięte agenty do ekranu głównego; agent jest też w menu ikony AgenticOS i w Skrótach."
   }
 }

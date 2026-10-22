@@ -668,9 +668,9 @@ export function ChatInput({
     if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
 
-  // The phone app (#2097): "+" opens its own attach sheet, and opening the
-  // chat offers a photo taken a moment ago - both drawn by the app, which
-  // hands over only what the person tapped.
+  // The phone app (#2097): a tile in "+" opens the app's own picker for it,
+  // and opening the chat offers a photo taken a moment ago - both drawn by the
+  // app, which hands over only what the person tapped.
   const onPhone = isMobileShell(useShell());
   const tShare = useTranslations("mobile.share");
   const takeFromPhone = useCallback(
@@ -694,7 +694,7 @@ export function ChatInput({
       input.click();
       return;
     }
-    openAttachSheet()
+    openAttachSheet(source)
       .then(takeFromPhone)
       .catch((error: unknown) => reportShellFailure("could not open the attach sheet", error));
   };

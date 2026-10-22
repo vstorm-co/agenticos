@@ -5586,6 +5586,14 @@
           "on": "On, through {distributor}. Which events reach you is set below, under Push.",
           "turnOff": "Turn off on this phone",
           "notRegistered": "ntfy did not hand over an address. Open it and try again."
+        },
+        "iphone": {
+          "title": "Notifications while the app is closed",
+          "notConfigured": "Your organization has not set up iPhone notifications yet. An administrator adds the company's APNs key under Admin, Settings.",
+          "denied": "Notifications are off for AgenticOS on this iPhone. Turn them on in Settings, Notifications, AgenticOS, then come back here.",
+          "off": "Get notified when an agent needs you, even with AgenticOS closed.",
+          "on": "On for this iPhone. Which events reach you is set below, under Push.",
+          "turnOff": "Turn off on this iPhone"
         }
       }
     },
@@ -5773,6 +5781,31 @@
       "acknowledge": "I understand that a dictation's cost is no longer bounded by its maximum length, in any organization.",
       "cancel": "Keep PCM only",
       "confirm": "Accept compressed recordings"
+    },
+    "adminApns": {
+      "title": "iPhone notifications",
+      "hint": "Push to the iOS app goes through Apple with your company's own key: the Apple developer account the app is signed with.",
+      "whose": "Key {key}, team {team}, {environment}",
+      "environment": {
+        "production": "production",
+        "sandbox": "development"
+      },
+      "environmentLabel": "Apple service",
+      "keyId": "Key ID",
+      "keyIdHint": "Ten characters, shown beside the key in Certificates, Identifiers & Profiles, Keys.",
+      "teamId": "Team ID",
+      "teamIdHint": "Ten characters, in the developer account's Membership details.",
+      "topic": "Bundle ID",
+      "topicHint": "The identifier your build of the app is signed with.",
+      "file": "Key file (.p8)",
+      "fileHint": "Downloaded once when the key was made. It is sealed in the vault and never shown again.",
+      "save": "Save key",
+      "replace": "Replace",
+      "remove": "Remove",
+      "cancel": "Cancel",
+      "saved": "Saved. iPhones can turn notifications on now.",
+      "removed": "Removed. iPhones get no notifications until a key is added.",
+      "failed": "The key could not be saved."
     }
   },
   "profile": {
@@ -8555,6 +8588,8 @@
     "toHomeScreen": "Add to home screen",
     "onHomeScreen": "On your home screen. Tap it for a new chat.",
     "inLongPress": "Your launcher cannot pin it, so it is in the AgenticOS icon's long-press list.",
-    "failed": "The agent could not be added to the home screen."
+    "failed": "The agent could not be added to the home screen.",
+    "toWidget": "Pin to widget",
+    "inWidget": "Pinned. Add the Pinned agents widget to your home screen; the agent is also in the AgenticOS icon's menu and in Shortcuts."
   }
 }

@@ -1,12 +1,13 @@
 //! The organization's device management (#2097): Android's managed
 //! configuration - `serverUrl`, `serverLocked`, `biometricLock` - read through
 //! `ManagedConfigPlugin.kt`. The rules are the shared crate's
-//! `ManagedPolicy`; iOS's managed app configuration needs the Xcode project.
+//! `ManagedPolicy`; on iOS the same keys come as managed app configuration
+//! (AppConfig), read by `ManagedConfigPlugin.swift`.
 
 use agenticos_shell_core::ManagedPolicy;
 use serde::Deserialize;
 use tauri::plugin::{Builder, TauriPlugin};
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
@@ -28,8 +29,11 @@ fn policy(raw: Raw, lan_http: bool) -> Result<ManagedPolicy, String> {
     ManagedPolicy::new(raw.server_url.as_deref(), raw.server_locked, lock, lan_http)
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
+
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_managed_config);
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("managed-config")
@@ -39,7 +43,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 "co.vstorm.agenticos",
                 "ManagedConfigPlugin",
             )?));
-            #[cfg(not(target_os = "android"))]
+            #[cfg(target_os = "ios")]
+            app.manage(Native(api.register_ios_plugin(init_plugin_managed_config)?));
+            #[cfg(not(mobile))]
             let _ = (app, api);
             Ok(())
         })
@@ -49,7 +55,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 /// The policy in force. One that cannot be read is said and ignored: a broken
 /// policy must not lock anybody out of the app.
 pub fn load<R: Runtime>(app: &AppHandle<R>, lan_http: bool) -> ManagedPolicy {
-    #[cfg(target_os = "android")]
+    #[cfg(mobile)]
     let raw = app
         .try_state::<Native<R>>()
         .ok_or_else(|| "Managed configuration is not set up.".to_owned())
@@ -59,7 +65,7 @@ pub fn load<R: Runtime>(app: &AppHandle<R>, lan_http: bool) -> ManagedPolicy {
                 .run_mobile_plugin::<Raw>("read", ())
                 .map_err(|e| e.to_string())
         });
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(mobile))]
     let raw: Result<Raw, String> = {
         let _ = app;
         Ok(Raw::default())

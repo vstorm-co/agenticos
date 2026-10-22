@@ -1,8 +1,8 @@
-//! Push while the app is closed (#2097), through a UnifiedPush distributor -
-//! ntfy - rather than Firebase. The distributor hands the app a Web Push
-//! endpoint and keys, which the console subscribes with exactly as a browser
-//! does. Android's half is `UnifiedPushPlugin.kt` and `PushMessagingService.kt`;
-//! iOS gets APNs once there is an Xcode project to sign it with.
+//! Push while the Android app is closed (#2097), through a UnifiedPush
+//! distributor - ntfy - rather than Firebase. The distributor hands the app a
+//! Web Push endpoint and keys, which the console subscribes with exactly as a
+//! browser does. Android's half is `UnifiedPushPlugin.kt` and
+//! `PushMessagingService.kt`; an iPhone pushes through APNs instead (`apns`).
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};

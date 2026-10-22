@@ -23,9 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { AttachSource } from "@/lib/mobile/attach";
 
-/** Where a file comes from: a phone's camera, its photos, or anywhere. */
-export type AttachSource = "camera" | "photos" | "files";
+export type { AttachSource };
 
 interface ComposerSheetProps {
   onAttach: (source: AttachSource) => void;

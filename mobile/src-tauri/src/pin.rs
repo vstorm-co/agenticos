@@ -1,11 +1,12 @@
-//! An agent pinned to the phone's home screen (#2097): a launcher shortcut with
-//! the agent's face that opens a new chat with it. The console draws the face
-//! and names the agent; Android's half is `PinShortcutPlugin.kt`, and iOS's
-//! needs the Xcode project.
+//! An agent pinned to the phone (#2097), opening a new chat with it. The
+//! console draws the face and names the agent. Android's half,
+//! `PinShortcutPlugin.kt`, puts a launcher shortcut with that face on the home
+//! screen; iOS lets no app do that, so `PinShortcutPlugin.swift` keeps the
+//! agent for the Pinned agents widget, the app icon's menu and Shortcuts.
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
@@ -52,8 +53,11 @@ pub struct Pinned {
     pub pinned: bool,
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
+
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_pin_shortcut);
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("pin-shortcut")
@@ -63,7 +67,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 "co.vstorm.agenticos",
                 "PinShortcutPlugin",
             )?));
-            #[cfg(not(target_os = "android"))]
+            #[cfg(target_os = "ios")]
+            app.manage(Native(api.register_ios_plugin(init_plugin_pin_shortcut)?));
+            #[cfg(not(mobile))]
             let _ = (app, api);
             Ok(())
         })
@@ -73,7 +79,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 #[tauri::command]
 pub fn pin_shortcut<R: Runtime>(app: AppHandle<R>, shortcut: Shortcut) -> Result<Pinned, String> {
     let shortcut = validate(shortcut)?;
-    #[cfg(target_os = "android")]
+    #[cfg(mobile)]
     {
         let native = app
             .try_state::<Native<R>>()
@@ -83,7 +89,7 @@ pub fn pin_shortcut<R: Runtime>(app: AppHandle<R>, shortcut: Shortcut) -> Result
             .run_mobile_plugin("pin", shortcut)
             .map_err(|e| e.to_string())
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(mobile))]
     {
         let _ = (app, shortcut);
         Err("Pinning to the home screen needs the Android app for now.".to_owned())

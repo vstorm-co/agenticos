@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
@@ -74,12 +74,15 @@ struct EndPayload<'a> {
     id: &'a str,
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
 
-/// The plugin holding the native half. Android's is `LiveActivityPlugin.kt`;
-/// the iOS half - ActivityKit and a widget extension - needs the Xcode project,
-/// and until it lands an activity on an iPhone, as on a laptop, goes nowhere.
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_live_activity);
+
+/// The plugin holding the native half: Android's `LiveActivityPlugin.kt`, and
+/// on iOS `LiveActivityPlugin.swift` (ActivityKit), whose activities the
+/// widget extension draws. On a laptop an activity goes nowhere.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("live-activity")
         .setup(|app, api| {
@@ -88,14 +91,16 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 "co.vstorm.agenticos",
                 "LiveActivityPlugin",
             )?));
-            #[cfg(not(target_os = "android"))]
+            #[cfg(target_os = "ios")]
+            app.manage(Native(api.register_ios_plugin(init_plugin_live_activity)?));
+            #[cfg(not(mobile))]
             let _ = (app, api);
             Ok(())
         })
         .build()
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 fn run<R: Runtime, T: Serialize>(
     app: &AppHandle<R>,
     command: &str,
@@ -112,7 +117,7 @@ fn run<R: Runtime, T: Serialize>(
         .map_err(|e| e.to_string())
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(mobile))]
 fn run<R: Runtime, T: Serialize>(
     _app: &AppHandle<R>,
     _command: &str,

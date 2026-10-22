@@ -1,11 +1,12 @@
 //! The home-screen widget (#2097): approvals waiting and runs in flight, as
 //! the console last counted them. The app holds no session of its own, so the
 //! console sends the counts it already reads; the widget shows when they were
-//! counted. Android's half is `GlanceWidget.kt`; iOS's needs the Xcode project.
+//! counted. Android's half is `GlanceWidget.kt`; iOS's is `WidgetPlugin.swift`,
+//! read by the widget extension.
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
@@ -16,8 +17,11 @@ pub struct Glance {
     pub running: u32,
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
+
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_widget);
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("widget")
@@ -26,7 +30,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             app.manage(Native(
                 api.register_android_plugin("co.vstorm.agenticos", "WidgetPlugin")?,
             ));
-            #[cfg(not(target_os = "android"))]
+            #[cfg(target_os = "ios")]
+            app.manage(Native(api.register_ios_plugin(init_plugin_widget)?));
+            #[cfg(not(mobile))]
             let _ = (app, api);
             Ok(())
         })
@@ -36,7 +42,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 /// Keep the counts for the widget and redraw it.
 #[tauri::command]
 pub fn update_widget<R: Runtime>(app: AppHandle<R>, glance: Glance) -> Result<(), String> {
-    #[cfg(target_os = "android")]
+    #[cfg(mobile)]
     {
         let native = app
             .try_state::<Native<R>>()
@@ -47,7 +53,7 @@ pub fn update_widget<R: Runtime>(app: AppHandle<R>, glance: Glance) -> Result<()
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(mobile))]
     {
         let _ = (app, glance);
         Ok(())

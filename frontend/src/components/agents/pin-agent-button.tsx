@@ -13,9 +13,10 @@ import { pinToHomeScreen, type PinnableAgent } from "@/lib/mobile/pin";
 
 /**
  * Keep an agent one click from a new chat (#2305, #2097): in the desktop app,
- * "New Chat With" in the Dock icon's menu and the tray's; in the phone app, a
- * shortcut with its face on the home screen. Nothing in a browser, which has
- * neither.
+ * "New Chat With" in the Dock icon's menu and the tray's; in the Android app, a
+ * shortcut with its face on the home screen; on an iPhone, which lets no app
+ * place one, the Pinned agents widget, the app icon's menu and Shortcuts.
+ * Nothing in a browser, which has none of them.
  */
 export function PinAgentButton({
   agent,
@@ -28,7 +29,9 @@ export function PinAgentButton({
   if (isDesktopShell(shell) && shell.window === "main") {
     return <DesktopPin agent={agent} macos={shell.platform === "macos"} disabled={disabled} />;
   }
-  if (isMobileShell(shell)) return <PhonePin agent={agent} disabled={disabled} />;
+  if (isMobileShell(shell)) {
+    return <PhonePin agent={agent} iphone={shell.platform === "ios"} disabled={disabled} />;
+  }
   return null;
 }
 
@@ -60,13 +63,24 @@ function DesktopPin({
   );
 }
 
-function PhonePin({ agent, disabled }: { agent: PinnableAgent; disabled: boolean }) {
+function PhonePin({
+  agent,
+  iphone,
+  disabled,
+}: {
+  agent: PinnableAgent;
+  iphone: boolean;
+  disabled: boolean;
+}) {
   const t = useTranslations("agentPin");
   const [pinning, setPinning] = useState(false);
   const pin = () => {
     setPinning(true);
     pinToHomeScreen(agent)
-      .then((placed) => toast.success(placed ? t("onHomeScreen") : t("inLongPress")))
+      .then((placed) => {
+        if (placed) toast.success(t("onHomeScreen"));
+        else toast.success(iphone ? t("inWidget") : t("inLongPress"));
+      })
       .catch((error: unknown) => {
         reportShellFailure("could not pin an agent to the home screen", error);
         toast.error(t("failed"));
@@ -76,7 +90,7 @@ function PhonePin({ agent, disabled }: { agent: PinnableAgent; disabled: boolean
   return (
     <Button variant="outline" disabled={disabled || pinning} onClick={pin}>
       <Pin className="h-4 w-4" />
-      {t("toHomeScreen")}
+      {iphone ? t("toWidget") : t("toHomeScreen")}
     </Button>
   );
 }

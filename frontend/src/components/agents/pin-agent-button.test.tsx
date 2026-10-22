@@ -93,6 +93,17 @@ describe("PinAgentButton", () => {
     expect(env.success).toHaveBeenLastCalledWith(expect.stringContaining("long-press"));
   });
 
+  it("pins to the widget on an iPhone, which places nothing on the home screen", async () => {
+    env.shell = { ...PHONE, platform: "ios" };
+    env.pinToHomeScreen.mockResolvedValueOnce(false);
+    render(<PinAgentButton agent={AGENT} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pin to widget" }));
+
+    expect(env.pinToHomeScreen).toHaveBeenCalledWith(AGENT);
+    expect(env.success).toHaveBeenLastCalledWith(expect.stringContaining("Pinned agents widget"));
+  });
+
   it("says when the phone could not add it", async () => {
     env.shell = PHONE;
     env.pinToHomeScreen.mockRejectedValueOnce(new Error("no launcher"));

@@ -2,15 +2,16 @@
 //! the native half until the console takes it into a new message.
 //!
 //! Android's half is `ShareTargetPlugin.kt`, which reads the shared content
-//! where its read grant lives; the iOS share extension needs the Xcode project.
+//! where its read grant lives; on iOS the share extension copies it into the
+//! App Group's inbox and `ShareTargetPlugin.swift` reads it from there.
 //!
-//! The composer's attach sheet and the offer of a photo just taken
-//! (`AttachPlugin.kt`) answer in the same shape: the phone draws them, and the
+//! The composer's pickers and the offer of a photo just taken (`AttachPlugin`,
+//! in Kotlin and Swift) answer in the same shape: the phone draws them, and the
 //! console - a page of a server - is handed only what the person tapped.
 
 use serde::{Deserialize, Serialize};
 use tauri::plugin::{Builder, TauriPlugin};
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
 
@@ -34,18 +35,23 @@ pub struct SharedFile {
     pub data: String,
 }
 
-#[cfg(any(target_os = "android", test))]
+#[cfg(any(mobile, test))]
 impl Shared {
     fn is_empty(&self) -> bool {
         self.text.is_empty() && self.files.is_empty() && self.refused.is_empty()
     }
 }
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 struct Attach<R: Runtime>(tauri::plugin::PluginHandle<R>);
+
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_share_target);
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_attach);
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("share-target")
@@ -55,11 +61,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 "co.vstorm.agenticos",
                 "ShareTargetPlugin",
             )?));
+            #[cfg(target_os = "ios")]
+            app.manage(Native(api.register_ios_plugin(init_plugin_share_target)?));
             #[cfg(target_os = "android")]
             app.manage(Attach(
                 api.register_android_plugin("co.vstorm.agenticos", "AttachPlugin")?,
             ));
-            #[cfg(not(target_os = "android"))]
+            #[cfg(target_os = "ios")]
+            app.manage(Attach(api.register_ios_plugin(init_plugin_attach)?));
+            #[cfg(not(mobile))]
             let _ = (app, api);
             Ok(())
         })
@@ -67,7 +77,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 }
 
 /// What was shared since the last time, taken once; `None` when nothing was.
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 pub fn take<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Shared>, String> {
     let native = app
         .try_state::<Native<R>>()
@@ -79,33 +89,57 @@ pub fn take<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Shared>, String> {
     Ok((!shared.is_empty()).then_some(shared))
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(mobile))]
 pub fn take<R: Runtime>(_app: &AppHandle<R>) -> Result<Option<Shared>, String> {
     Ok(None)
 }
 
+/// Where the person wants a file from: the tile they tapped in the console's
+/// sheet. iOS opens that picker at once; Android's sheet offers all three.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    Camera,
+    Photos,
+    Files,
+}
+
+#[cfg(mobile)]
+#[derive(Serialize)]
+struct AskArgs {
+    source: Option<Source>,
+}
+
 /// What the attach sheet or the offer handed back, once the person answered.
 /// Blocks until then - call it off the main thread.
-#[cfg(target_os = "android")]
-pub fn ask<R: Runtime>(app: &AppHandle<R>, command: &str) -> Result<Option<Shared>, String> {
+#[cfg(mobile)]
+pub fn ask<R: Runtime>(
+    app: &AppHandle<R>,
+    command: &str,
+    source: Option<Source>,
+) -> Result<Option<Shared>, String> {
     let native = app
         .try_state::<Attach<R>>()
         .ok_or("Attaching is not set up.")?;
     let chosen: Shared = native
         .0
-        .run_mobile_plugin(command, ())
+        .run_mobile_plugin(command, AskArgs { source })
         .map_err(|e| e.to_string())?;
     Ok((!chosen.is_empty()).then_some(chosen))
 }
 
-#[cfg(not(target_os = "android"))]
-pub fn ask<R: Runtime>(_app: &AppHandle<R>, _command: &str) -> Result<Option<Shared>, String> {
+#[cfg(not(mobile))]
+pub fn ask<R: Runtime>(
+    _app: &AppHandle<R>,
+    _command: &str,
+    _source: Option<Source>,
+) -> Result<Option<Shared>, String> {
     Ok(None)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Shared;
+    use super::{Shared, Source};
 
     #[test]
     fn nothing_shared_reads_as_empty_and_a_share_in_the_shape_kotlin_sends() {
@@ -116,5 +150,12 @@ mod tests {
         assert!(!shared.is_empty());
         assert_eq!(shared.files[0].mime_type, "image/png");
         assert_eq!(shared.refused, vec!["big.mov".to_owned()]);
+    }
+
+    #[test]
+    fn a_source_is_read_as_the_console_names_it() {
+        let source: Source = serde_json::from_str(r#""camera""#).unwrap();
+        assert_eq!(source, Source::Camera);
+        assert!(serde_json::from_str::<Source>(r#""gallery""#).is_err());
     }
 }

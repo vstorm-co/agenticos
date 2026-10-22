@@ -63,6 +63,7 @@ describe("ChatInput in the phone app", () => {
     }));
     render(<ChatInput onSend={vi.fn()} />);
     await openSheet();
+    expect(env.sheet).toHaveBeenCalledWith("files");
     await waitFor(() => expect(env.upload).toHaveBeenCalledTimes(2));
     expect(env.warning).toHaveBeenCalledWith("Could not attach: huge.mov");
   });
