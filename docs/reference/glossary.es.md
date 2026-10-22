@@ -1,5 +1,5 @@
 ---
-source_sha: "c6c861b18c14"
+source_sha: "8ffb5cc3835a"
 ---
 
 # Glosario { #glossary }
@@ -30,8 +30,10 @@ tal como se ven en pantalla.
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
 | Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
 | System agent | Un agent que ejecuta la propia plataforma, como un juez, el gap drafter o el gap classifier; aparece aparte en **System agents** | `kind` distinto de `agent` |
-| Asistente de autoría | Sugiere cambios a un agent o un skill a partir de respuestas valoradas negativamente; una persona decide cada uno | `authoring` |
+| Asistente de autoría | Sugiere cambios a un agent, un skill o un archivo de contexto a partir de respuestas valoradas negativamente; una persona decide cada uno | `authoring` |
 | Sugerencia | Un cambio propuesto al draft, que se acepta, edita o descarta por separado | `spec_proposal_hunk` |
+| Cambio de ajuste | Una sugerencia de cambiar una parte de la configuración de un agent, como su modelo o una capability | hunk `spec_field` |
+| Cambio a un archivo de contexto | Un cuerpo nuevo que el asistente propone para un archivo de contexto, aplicado o descartado en la página Context | `context_proposal` |
 
 ## Dónde se ejecuta { #where-it-runs }
 

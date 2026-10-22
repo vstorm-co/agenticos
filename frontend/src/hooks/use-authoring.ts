@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -96,42 +96,53 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
   };
 }
 
-/** The assistant on one skill: its latest requests, and starting another. */
-export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
+/**
+ * The assistant on one organization resource whose change waits whole - a skill
+ * or a context file: its latest requests, starting another, and checking a change.
+ *
+ * The change it proposes is written when the request finishes, not when it is
+ * queued, so the waiting changes are read again once the one being worked on ends.
+ */
+function useResourceAuthoring(
+  base: string,
+  queryKey: readonly unknown[],
+  changes: readonly unknown[],
+  { enabled = true } = {},
+) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: qk.authoring.skill(skillId),
-    queryFn: () => apiClient.get<AuthoringRequest[]>(`/skills/${skillId}/authoring`),
+    queryKey,
+    queryFn: () => apiClient.get<AuthoringRequest[]>(`${base}/authoring`),
     enabled,
     refetchInterval: (current) => (working(current.state.data?.[0]) ? AUTHORING_POLL_MS : false),
   });
-  // The change it proposes is written when the request finishes, not when it is
-  // queued, so the waiting changes are read again once the one being worked on ends.
   const latest = query.data?.[0];
   const workingOn = latest !== undefined && working(latest) ? latest.id : null;
   const watched = useRef<string | null>(null);
   useEffect(() => {
     if (watched.current !== null && watched.current !== workingOn) {
-      void queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() });
+      void queryClient.invalidateQueries({ queryKey: changes });
     }
     watched.current = workingOn;
-  }, [workingOn, queryClient]);
+  }, [workingOn, queryClient, changes]);
   const estimate = useMutation({
     mutationFn: (body: AuthoringStart) =>
-      apiClient.post<AuthoringEstimate>(`/skills/${skillId}/authoring/estimate`, body),
+      apiClient.post<AuthoringEstimate>(`${base}/authoring/estimate`, body),
   });
   const start = useMutation({
     mutationFn: (body: AuthoringStart) =>
-      apiClient.post<AuthoringRequest>(`/skills/${skillId}/authoring`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.authoring.all() }),
+      apiClient.post<AuthoringRequest>(`${base}/authoring`, body),
+    onSuccess: (request) => {
+      queryClient.setQueryData<AuthoringRequest[]>(queryKey, (before = []) => [request, ...before]);
+      return queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
+    },
   });
   const checkEstimate = useMutation({
     mutationFn: (body: ProposalCheck) =>
-      apiClient.post<EvalRunEstimate>(`/skills/${skillId}/authoring/check/estimate`, body),
+      apiClient.post<EvalRunEstimate>(`${base}/authoring/check/estimate`, body),
   });
   const check = useMutation({
-    mutationFn: (body: ProposalCheck) =>
-      apiClient.post<EvalRun>(`/skills/${skillId}/authoring/check`, body),
+    mutationFn: (body: ProposalCheck) => apiClient.post<EvalRun>(`${base}/authoring/check`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
   });
   return {
@@ -142,6 +153,64 @@ export function useSkillAuthoring(skillId: string, { enabled = true } = {}) {
     checkEstimate,
     check,
   };
+}
+
+/** The assistant on one skill. */
+export function useSkillAuthoring(skillId: string, options: { enabled?: boolean } = {}) {
+  return useResourceAuthoring(
+    `/skills/${skillId}`,
+    qk.authoring.skill(skillId),
+    qk.skillChanges.all(),
+    options,
+  );
+}
+
+/** The assistant on one context file. */
+export function useContextAuthoring(contextId: string, options: { enabled?: boolean } = {}) {
+  return useResourceAuthoring(
+    `/context/${contextId}`,
+    qk.authoring.context(contextId),
+    qk.contextChanges.all(),
+    options,
+  );
+}
+
+/**
+ * Keeps reading every context file request this page has seen queued or running,
+ * after whatever started it is gone.
+ *
+ * Improve is started from a file's editor, and the editor can close while the
+ * assistant works; the change it then proposes still has to appear on the page.
+ */
+export function useContextAuthoringWatch() {
+  const queryClient = useQueryClient();
+  const [ids, setIds] = useState<string[]>([]);
+  const watched = useRef<string[]>([]);
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    const read = () => {
+      const now = cache
+        .findAll({ queryKey: qk.authoring.contexts() })
+        .filter((query) => working((query.state.data as AuthoringRequest[] | undefined)?.[0]))
+        .map((query) => String(query.queryKey[2]));
+      const before = watched.current;
+      if (now.length === before.length && now.every((id) => before.includes(id))) return;
+      if (before.some((id) => !now.includes(id))) {
+        void queryClient.invalidateQueries({ queryKey: qk.contextChanges.all() });
+      }
+      watched.current = now;
+      setIds(now);
+    };
+    read();
+    return cache.subscribe(read);
+  }, [queryClient]);
+  useQueries({
+    queries: ids.map((id) => ({
+      queryKey: qk.authoring.context(id),
+      queryFn: () => apiClient.get<AuthoringRequest[]>(`/context/${id}/authoring`),
+      refetchInterval: AUTHORING_POLL_MS,
+    })),
+  });
 }
 
 /** What the assistant proposed that the caller may decide, for the dashboard. */

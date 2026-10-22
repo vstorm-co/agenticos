@@ -2434,13 +2434,14 @@
       },
       "suggestions": {
         "title": "Suggestions waiting",
-        "description": "What the authoring assistant suggested for your agents and skills, waiting on your decision.",
+        "description": "What the authoring assistant suggested for your agents, skills and context files, waiting on your decision.",
         "empty": {
           "title": "Nothing waiting",
           "description": "Ask the assistant to improve an agent from its Build tab."
         },
-        "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}",
-        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review"
+        "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
+        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review",
+        "contexts": "{count, plural, =1 {1 context file change} other {# context file changes}} to review"
       }
     },
     "edit": {
@@ -8761,7 +8762,8 @@
     },
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
     "backToSuggestions": "Back to the suggestions",
-    "backToSkillChange": "Back to the skill change"
+    "backToSkillChange": "Back to the skill change",
+    "backToContextChange": "Back to the context file change"
   },
   "remoteAgents": {
     "title": "Remote agents",
@@ -8905,6 +8907,45 @@
       "dismiss": "Dismiss",
       "undo": "Undo"
     },
+    "field": {
+      "editLabel": "Your value",
+      "yes": "Yes",
+      "no": "No",
+      "description": "Description",
+      "model": "Model",
+      "maxSteps": "Step limit",
+      "setting": {
+        "temperature": "Temperature",
+        "top_p": "Top p",
+        "max_tokens": "Most output tokens",
+        "timeout": "Timeout",
+        "parallel_tool_calls": "Parallel tool calls"
+      },
+      "capabilityAdd": "Add capability {name}",
+      "capabilityRemove": "Remove capability {name}",
+      "collectionAdd": "Add knowledge base {name}",
+      "collectionRemove": "Remove knowledge base {name}",
+      "contextAdd": "Add context file {name}",
+      "contextRemove": "Remove context file {name}",
+      "mcpTools": "MCP tools of {name}",
+      "specialist": "Description of specialist {name}",
+      "capabilityConfig": "Settings of {name}",
+      "approval": "Approval for {name}",
+      "toolApproval": "Approval for tool {name}",
+      "unset": "Not set",
+      "adds": "Adds",
+      "removes": "Removes",
+      "cost": "A run costs about ${before} now and ${after} on the proposed model, priced on {runs, plural, =1 {1 recent run} other {# recent runs}}.",
+      "unpriced": "What a run would cost cannot be priced for one of these models.",
+      "rough": "A rough estimate, from {runs, plural, =0 {no runs} =1 {1 run} other {# runs}}.",
+      "writes": "Reaches tools that change things: {tools}. An eval holds them back, so a check does not measure what they do.",
+      "expects": "Expected: {effect}",
+      "blocked": {
+        "check_first": "A change of model is accepted once it pays off. Run Check with evals on these suggestions first.",
+        "inconclusive": "The last check of this model decided nothing. Grade the open answers or run the check again.",
+        "regression": "The last check of this model broke cases it used to pass. Fix the suggestions or dismiss this one."
+      }
+    },
     "evidence": {
       "none": "No evidence that could be checked.",
       "run": "run {id}",
@@ -8949,7 +8990,9 @@
       "title": "Check with evals",
       "body": "Runs a dataset against the draft as it would be with every waiting suggestion, beside the published version. Cases taken from the conversations behind the suggestions are left out. Nothing is accepted by checking.",
       "skillBody": "Runs a dataset on an agent that uses the skill, with its published version on both sides and only the skill's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
+      "contextBody": "Runs a dataset on an agent that uses the file, with its published version on both sides and only the file's body different. Cases taken from the conversations behind the change are left out. Nothing is applied by checking.",
       "agent": "Agent that uses the skill",
+      "contextAgent": "Agent that uses the file",
       "agentPlaceholder": "Pick an agent",
       "target": "Check against",
       "targetPlaceholder": "Pick a suite or a dataset",
@@ -8968,6 +9011,32 @@
       "working": "Reading the runs…",
       "aiOff": "AI assistance is off for this organization",
       "check": "Check with evals"
+    },
+    "context": {
+      "improve": "Improve with the assistant",
+      "working": "Reading the runs…",
+      "aiOff": "AI assistance is off for this organization",
+      "check": "Check with evals",
+      "saveFirst": "Save your changes first: the assistant reads the file as it is stored."
+    },
+    "contextChanges": {
+      "title": "Changes the assistant proposed",
+      "waiting": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Applying one is live for every agent that reads the file.",
+      "stale": "File changed since",
+      "staleHint": "Somebody edited this file after the change was proposed. Compare the two and edit the file by hand, or ask the assistant again.",
+      "usedBy": "Bound to {agents}",
+      "usedByNobody": "No agent you can see binds this file",
+      "show": "Show what changes in {name}",
+      "hide": "Hide",
+      "review": "Review",
+      "discard": "Discard",
+      "discardTo": "Discard the change to {name}",
+      "apply": "Apply",
+      "applyTo": "Apply the change to {name}",
+      "liveHint": "Applying is live: every agent that reads the file reads the new body on its next run.",
+      "expects": "Expected: {effect}",
+      "applied": "Applied the change to {name}",
+      "discarded": "Discarded the change to {name}"
     },
     "describe": {
       "label": "Or describe it, and {name} drafts it with you",

@@ -1,15 +1,16 @@
 ---
-source_sha: "380a4039d089"
+source_sha: "8fb435c85b91"
 title: "Asystent tworzenia"
-description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, opisach narzędzi i skillach. O każdej decyduje człowiek."
+description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
 
 # Asystent tworzenia { #authoring-assistant }
 
 **Asystent tworzenia** ulepsza agentów na podstawie dowodów. Czyta, co ludzie
 ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach
-agenta, w nazwach i opisach jego narzędzi oraz w skillach, których używa. Nigdy
-niczego nie zmienia sam: każda sugestia czeka na człowieka, przyjęta trafia do
+agenta, w nazwach i opisach jego narzędzi, w jego
+[konfiguracji](#configuration) oraz w skillach i plikach kontekstowych, których
+używa. Nigdy niczego nie zmienia sam: każda sugestia czeka na człowieka, przyjęta trafia do
 [draftu](concepts.md), a nic nie dociera do nikogo, dopóki draft nie zostanie
 opublikowany.
 
@@ -19,7 +20,8 @@ Robi trzy rzeczy:
   nieudanych runów.
 - **Sprawdza** Twoje zmiany: porównuje draft z opublikowaną wersją na tych samych
   dowodach i mówi, co zmiany poprawiają, czym ryzykują i co usunęły.
-- **Ulepsza skill**: sugeruje nową treść na podstawie runów, które go otworzyły.
+- **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
+  runów, które go czytały.
 
 Asystent jest osobnym [agentem systemowym](datasets.md#judge), widocznym razem z
 pozostałymi agentami systemowymi organizacji. Jego instrukcje można edytować jak
@@ -107,6 +109,55 @@ dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
 Każda sugestia podaje oczekiwany efekt. Pasek pokazuje go obok eval runów, które
 sprawdzały sugestie, więc możesz porównać przewidywanie z tym, co wykazały runy.
 
+## Konfiguracja { #configuration }
+
+Poza tekstem asystent może zasugerować zmianę w kilku częściach konfiguracji
+agenta. Każda jest sugestią jak każda inna, decydowaną osobno w pasku, i
+pokazaną z nazwy: modelu, bazy wiedzy, pliku kontekstowego, capability albo
+serwera MCP, do którego się odnosi, nigdy przez identyfikator.
+
+| Część | Co może zrobić sugestia |
+|---|---|
+| Opis | Ustawić go |
+| Model | Zmienić profil modelu |
+| Ustawienia modelu | Ustawić temperaturę, top-p, maksymalną liczbę tokenów, timeout albo równoległe wywołania narzędzi |
+| Limit kroków | Ustawić `max_steps` |
+| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień |
+| Zatwierdzanie | Sprawić, że capability albo jedno z jej narzędzi najpierw pyta |
+| Specjaliści | Przepisać opis wbudowanego [specjalisty](reference/capabilities.md#delegation) |
+| Bazy wiedzy | Podpiąć albo odpiąć jedną |
+| Pliki kontekstowe | Podpiąć albo odpiąć jeden |
+| Narzędzia MCP | Zmienić, które narzędzia podpiętego serwera agent może wywołać |
+
+Nic poza tym nie jest sugestią: zestawy evali i ich progi, datasety, budgety,
+obserwowalność i przypięty delegat nigdy nie są zmieniane przez asystenta.
+**Edytuj** działa na pojedynczej wartości albo tekście - ustawieniu, limicie
+kroków, opisie; wszystko inne przyjmuje się albo odrzuca tak, jak zasugerowano.
+
+### Nigdy nie poszerza dostępu { #never-widens-access }
+
+Sugestię, która podpina bazę wiedzy, plik kontekstowy, profil modelu albo serwer
+MCP, albo pozwala agentowi wywołać więcej narzędzi MCP, przyjmie tylko ktoś, kto
+mógłby wprowadzić tę zmianę ręcznie: przyjęcie jej przez kogokolwiek innego jest
+odrzucane, tak jak odrzuciłby je Builder. Zatwierdzanie tylko się zaostrza:
+sugestia może sprawić, że capability albo narzędzie najpierw pyta, nigdy że
+przestaje pytać. Capability dodana przez asystenta przychodzi z każdym swoim
+narzędziem, które coś zmienia, ustawionym na pytanie najpierw, a sugestia
+wymienia te narzędzia, tak jak wymienia narzędzia MCP, do których zmiana daje
+dostęp.
+
+### Zmiana modelu { #a-change-of-model }
+
+Sugestia zmiany modelu mówi, ile kosztowałby jeden run na każdym z modeli,
+wycenione na podstawie ostatnich runów agenta. Gdy wycena opiera się na mniej
+niż pięciu, mówi, że to przybliżone oszacowanie, i z ilu runów.
+
+Zmianę modelu przyjmuje się dopiero, gdy się opłaciła. **Przyjmij** pozostaje
+wyłączone i mówi dlaczego, dopóki [sprawdzenie evalami](#check-with-evals)
+czekających sugestii nie przejdzie na tym modelu bez potwierdzonej regresji.
+Sprawdzenie, które niczego nie rozstrzygnęło - odpowiedź bez oceny albo brak
+werdyktu - też ją wstrzymuje: oceń odpowiedzi albo uruchom sprawdzenie ponownie.
+
 ## Skille { #skills }
 
 Skill ulepsza się z jego workbencha w zakładce Skille. Asystent sugeruje całą
@@ -119,6 +170,21 @@ sprawdzić evalami na agencie, który go używa: obie strony uruchamiają
 opublikowaną wersję tego agenta, a różni się tylko treść skilla. Zmiana
 napisana dla starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie
 zmienił skill.
+
+## Pliki kontekstowe { #context-files }
+
+[Plik kontekstowy](context.md) ulepsza się z jego edytora na stronie Context, na
+podstawie runów agentów, które go czytają. Asystent sugeruje nową treść, a ta
+czeka nad listą na tej stronie, z uzasadnieniem i dowodami, oraz z agentami,
+do których plik jest podpięty - o ile możesz ich widzieć. Na każdy plik czeka naraz jedna
+zmiana.
+
+Zastosowanie jej działa od razu, jak w przypadku skilla: każdy agent podpięty do
+pliku czyta nową treść przy swoim następnym runie. Dlatego można ją najpierw
+sprawdzić evalami, na agencie, który używa pliku, gdzie różni się tylko treść
+pliku. Zmiany nie da się zastosować do pliku edytowanego po tym, jak ją
+zaproponowano: porównaj obie wersje i edytuj plik ręcznie albo poproś asystenta
+ponownie.
 
 ## Opisanie nowego agenta { #describing-a-new-agent }
 
@@ -143,8 +209,11 @@ ulepszenia**, niezależnie od kosztu evali.
 |---|---|
 | Uruchomić Ulepsz albo Sprawdź na agencie | `runs:view`, uprawnień edycji agenta i możliwości użycia asystenta |
 | Ulepszyć skill | `runs:view`, uprawnień edycji skilla i możliwości użycia asystenta |
+| Ulepszyć plik kontekstowy | `runs:view`, `context:edit` na pliku i możliwości użycia asystenta |
 | Przyjąć, odrzucić albo cofnąć sugestię | Uprawnień edycji agenta |
+| Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
 | Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu |
+| Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku |
 | Sprawdzić evalami | Tego, czego wymaga [eval run](evals.md#access), i uprawnień edycji agenta |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
@@ -153,7 +222,8 @@ agenta.
 ## Gdy wsparcie AI jest wyłączone { #when-ai-assistance-is-off }
 
 Gdy przełącznik **wsparcia AI** organizacji jest wyłączony, asystent nie działa:
-Ulepsz, Sprawdź i ulepszanie skilla są odrzucane przez serwer, a konsola
+Ulepsz, Sprawdź i ulepszanie skilla albo pliku kontekstowego są odrzucane przez
+serwer, a konsola
 pokazuje je jako wyłączone z linkiem do przełącznika. Sugestie, które już
 czekają, nadal można przyjmować, odrzucać i cofać, a eval run, który nie
 potrzebuje sędziego, nadal działa.

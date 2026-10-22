@@ -99,6 +99,8 @@ export interface EvalRunArm {
   spec_hash: string;
   /** The skills this side served a proposed body for instead of the stored one. */
   skill_ids?: string[];
+  /** The context files this side served a proposed body for instead of the stored one. */
+  context_ids?: string[];
   summary: ArmSummary;
   by_tag: Record<string, ArmSummary>;
   /** The cases this side's first answer was not graded on, by a scorer that reached no verdict. */

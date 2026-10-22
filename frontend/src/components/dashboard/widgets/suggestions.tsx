@@ -12,14 +12,16 @@ import type { DashboardWidgetProps } from "./types";
 
 /**
  * What the authoring assistant suggested and nobody has decided: per agent the
- * reader may edit, how many changes to its instructions and its tools wait, and
- * how many skill changes - each one click from where it is decided.
+ * reader may edit, how many changes to its instructions, tools and configuration
+ * wait, and how many skill and context file changes - each one click from where
+ * it is decided.
  */
 export function SuggestionsWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.suggestions");
   const { waiting, isLoading, error, refetch } = useWaitingSuggestions();
   const agents = waiting?.agents ?? [];
   const skills = waiting?.skills ?? 0;
+  const contexts = waiting?.contexts ?? 0;
 
   return (
     <WidgetFrame title={title} hint={hint} options={options}>
@@ -27,7 +29,7 @@ export function SuggestionsWidget({ title, hint, options }: DashboardWidgetProps
         <WidgetSkeleton />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
-      ) : agents.length === 0 && skills === 0 ? (
+      ) : agents.length === 0 && skills === 0 && contexts === 0 ? (
         <WidgetEmptyBody
           icon={Sparkles}
           title={t("empty.title")}
@@ -44,7 +46,11 @@ export function SuggestionsWidget({ title, hint, options }: DashboardWidgetProps
                 {row.name}
               </Link>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {t("counts", { instructions: row.instructions, tools: row.tools })}
+                {t("counts", {
+                  instructions: row.instructions,
+                  tools: row.tools,
+                  fields: row.fields ?? 0,
+                })}
               </span>
             </li>
           ))}
@@ -52,6 +58,13 @@ export function SuggestionsWidget({ title, hint, options }: DashboardWidgetProps
             <li className="py-2">
               <Link href={ROUTES.SKILLS} className="font-medium">
                 {t("skills", { count: skills })}
+              </Link>
+            </li>
+          )}
+          {contexts > 0 && (
+            <li className="py-2">
+              <Link href={ROUTES.CONTEXT} className="font-medium">
+                {t("contexts", { count: contexts })}
               </Link>
             </li>
           )}

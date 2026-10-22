@@ -1,15 +1,16 @@
 ---
-source_sha: "380a4039d089"
+source_sha: "8fb435c85b91"
 title: "Asistente de autoría"
-description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las descripciones de herramientas y los skills de un agent. Una persona decide cada uno."
+description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
 
 # Asistente de autoría { #authoring-assistant }
 
 El **asistente de autoría** mejora agents a partir de evidencia. Lee lo que la
 gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las
-instrucciones de un agent, a los nombres y descripciones de sus herramientas y a
-los skills que usa. Nunca cambia nada por su cuenta: cada sugerencia espera a una
+instrucciones de un agent, a los nombres y descripciones de sus herramientas, a su
+[configuración](#configuration) y a los skills y archivos de contexto que usa.
+Nunca cambia nada por su cuenta: cada sugerencia espera a una
 persona, una aceptada pasa al [draft](concepts.md), y nada llega a nadie hasta
 que se publica el draft.
 
@@ -20,8 +21,8 @@ Hace tres cosas:
 - **Verificar** tus propios cambios: comparar el draft con la versión publicada
   con la misma evidencia y decir qué mejoran los cambios, qué arriesgan y qué
   quitaron.
-- **Mejorar un skill**: sugerir un cuerpo nuevo a partir de los runs que lo
-  abrieron.
+- **Mejorar un skill** o un **archivo de contexto**: sugerir un cuerpo nuevo a
+  partir de los runs que lo leyeron.
 
 El asistente es un [agent de sistema](datasets.md#judge) propio, que aparece con
 los demás agents de sistema de la organización. Sus instrucciones se editan como
@@ -112,6 +113,58 @@ Cada sugerencia indica el efecto que espera. La barra lo muestra junto a los eva
 runs que comprobaron las sugerencias, para que puedas comparar la predicción con
 lo que encontraron los runs.
 
+## Configuración { #configuration }
+
+Además del texto, el asistente puede sugerir un cambio en algunas partes de la
+configuración de un agent. Cada uno es una sugerencia como cualquier otra, que se
+decide por separado en la barra y se muestra por su nombre: el modelo, la base de
+conocimiento, el archivo de contexto, la capability o el servidor MCP al que se
+refiere, nunca un identificador.
+
+| Parte | Qué puede hacer una sugerencia |
+|---|---|
+| Descripción | Fijarla |
+| Modelo | Cambiar el perfil de modelo |
+| Ajustes del modelo | Fijar la temperatura, top-p, el máximo de tokens, el timeout o las llamadas paralelas a herramientas |
+| Límite de pasos | Fijar `max_steps` |
+| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar |
+| Aprobación | Hacer que una capability o una de sus herramientas pregunte antes |
+| Especialistas | Reescribir la descripción de un [especialista](reference/capabilities.md#delegation) integrado |
+| Bases de conocimiento | Vincular o desvincular una |
+| Archivos de contexto | Vincular o desvincular uno |
+| Herramientas MCP | Cambiar qué herramientas de un servidor vinculado puede llamar el agent |
+
+Nada más es una sugerencia: las suites de evals y sus umbrales, los datasets, los
+budgets, la observabilidad y un delegado fijado nunca los cambia el asistente.
+**Editar** funciona sobre un único valor o un texto - un ajuste, el límite de
+pasos, una descripción; todo lo demás se acepta o se descarta tal como se
+sugirió.
+
+### Nunca amplía el acceso { #never-widens-access }
+
+Una sugerencia que vincula una base de conocimiento, un archivo de contexto, un
+perfil de modelo o un servidor MCP, o que deja al agent llamar a más herramientas
+MCP, solo la acepta quien podría hacer ese cambio a mano: aceptarla como
+cualquier otra persona se rechaza, como lo rechazaría el Builder. La aprobación
+solo se endurece: una sugerencia puede hacer que una capability o una
+herramienta pregunte antes, nunca que deje de preguntar. Una capability que añade
+el asistente llega con cada una de sus herramientas que cambia algo configurada
+para preguntar antes, y la sugerencia enumera esas herramientas, igual que
+enumera las herramientas MCP a las que un cambio da alcance.
+
+### Un cambio de modelo { #a-change-of-model }
+
+Una sugerencia de cambiar el modelo dice cuánto costaría un run con cada modelo,
+calculado a partir de los runs recientes del agent. Si se calcula con menos de
+cinco, dice que es una estimación aproximada y con cuántos runs.
+
+Un cambio de modelo solo se acepta cuando ha dado resultado. **Aceptar** sigue
+desactivado, y dice por qué, hasta que una
+[comprobación con evals](#check-with-evals) de las sugerencias en espera se haya
+ejecutado con ese modelo sin encontrar ninguna regresión confirmada. Una
+comprobación que no decidió nada - una respuesta sin calificar, o sin veredicto -
+también lo retiene: califica las respuestas o vuelve a ejecutar la comprobación.
+
 ## Skills { #skills }
 
 Un skill se mejora desde su banco de trabajo en Skills. Lo que sugiere el
@@ -124,6 +177,21 @@ antes con evals, en un agent que lo usa: los dos lados ejecutan la versión
 publicada de ese agent, y solo cambia el cuerpo del skill. Un cambio escrito para
 una versión anterior del skill se rechaza si alguien ha cambiado el skill desde
 entonces.
+
+## Archivos de contexto { #context-files }
+
+Un [archivo de contexto](context.md) se mejora desde su editor en la página
+Context, a partir de los runs de los agents que lo leen. Lo que sugiere el
+asistente es un cuerpo nuevo, y espera encima de la lista en esa página, con su
+justificación y su evidencia, y con los agents vinculados al archivo - en la medida
+en que puedas verlos. Por cada archivo espera un cambio a la vez.
+
+Aplicarlo tiene efecto inmediato, como con un skill: cada agent vinculado al
+archivo lee el cuerpo nuevo en su siguiente run. Por eso se puede comprobar antes
+con evals, en un agent que usa el archivo, con solo el cuerpo del archivo
+distinto. Un archivo editado después de proponerse el cambio no admite que se
+aplique: compara los dos y edita el archivo a mano, o vuelve a pedírselo al
+asistente.
 
 ## Describir un agent nuevo { #describing-a-new-agent }
 
@@ -148,8 +216,11 @@ mejoras**, separado de lo que costaron los evals.
 |---|---|
 | Iniciar Mejorar o Verificar en un agent | `runs:view`, permiso de edición del agent y poder usar el asistente |
 | Mejorar un skill | `runs:view`, permiso de edición del skill y poder usar el asistente |
+| Mejorar un archivo de contexto | `runs:view`, `context:edit` en el archivo y poder usar el asistente |
 | Aceptar, descartar o deshacer una sugerencia | Permiso de edición del agent |
+| Aceptar una sugerencia que vincula algo o da alcance a algo | También el acceso para vincularlo a mano |
 | Aplicar o descartar un cambio a un skill | `skills:edit` en el skill |
+| Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo |
 | Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
@@ -159,6 +230,6 @@ mejorar ese agent.
 
 Con el interruptor de **asistencia de IA** de la organización desactivado, el
 asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
-skill, y la consola los muestra desactivados con un enlace al interruptor. Las
+skill o un archivo de contexto, y la consola los muestra desactivados con un enlace al interruptor. Las
 sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
 y un eval run que no necesita juez sigue ejecutándose.

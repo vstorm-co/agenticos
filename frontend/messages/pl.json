@@ -2433,13 +2433,14 @@
       },
       "suggestions": {
         "title": "Oczekujące sugestie",
-        "description": "Co asystent tworzenia zasugerował dla Twoich agentów i skilli, czekając na Twoją decyzję.",
+        "description": "Co asystent tworzenia zasugerował dla Twoich agentów, skilli i plików kontekstu, czekając na Twoją decyzję.",
         "empty": {
           "title": "Nic nie czeka",
           "description": "Poproś asystenta o ulepszenie agenta na jego zakładce Build."
         },
-        "counts": "{instructions, plural, =0 {} one {1 zmiana instrukcji} few {# zmiany instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {1 zmiana narzędzia} few {# zmiany narzędzi} other {# zmian narzędzi}}}}",
-        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia"
+        "counts": "{instructions, plural, =0 {} one {# zmiana instrukcji} few {# zmiany instrukcji} many {# zmian instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {# zmiana narzędzia} few {# zmiany narzędzi} many {# zmian narzędzi} other {# zmian narzędzi}}}}{fields, plural, =0 {} other { · {fields, plural, one {# zmiana ustawień} few {# zmiany ustawień} many {# zmian ustawień} other {# zmian ustawień}}}}",
+        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia",
+        "contexts": "{count, plural, one {# zmiana pliku kontekstu} few {# zmiany plików kontekstu} many {# zmian plików kontekstu} other {# zmian plików kontekstu}} do przejrzenia"
       }
     },
     "edit": {
@@ -8004,7 +8005,8 @@
     },
     "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
     "backToSuggestions": "Wróć do sugestii",
-    "backToSkillChange": "Wróć do zmiany skilla"
+    "backToSkillChange": "Wróć do zmiany skilla",
+    "backToContextChange": "Wróć do zmiany pliku kontekstu"
   },
   "steps": {
     "skills-gallery": {
@@ -8681,6 +8683,45 @@
       "dismiss": "Odrzuć",
       "undo": "Cofnij"
     },
+    "field": {
+      "editLabel": "Twoja wartość",
+      "yes": "Tak",
+      "no": "Nie",
+      "description": "Opis",
+      "model": "Model",
+      "maxSteps": "Limit kroków",
+      "setting": {
+        "temperature": "Temperatura",
+        "top_p": "Top p",
+        "max_tokens": "Najwięcej tokenów odpowiedzi",
+        "timeout": "Limit czasu",
+        "parallel_tool_calls": "Równoległe wywołania narzędzi"
+      },
+      "capabilityAdd": "Dodaj capability {name}",
+      "capabilityRemove": "Usuń capability {name}",
+      "collectionAdd": "Dodaj bazę wiedzy {name}",
+      "collectionRemove": "Usuń bazę wiedzy {name}",
+      "contextAdd": "Dodaj plik kontekstu {name}",
+      "contextRemove": "Usuń plik kontekstu {name}",
+      "mcpTools": "Narzędzia MCP serwera {name}",
+      "specialist": "Opis specjalisty {name}",
+      "capabilityConfig": "Ustawienia {name}",
+      "approval": "Zatwierdzanie dla {name}",
+      "toolApproval": "Zatwierdzanie narzędzia {name}",
+      "unset": "Nie ustawiono",
+      "adds": "Dodaje",
+      "removes": "Usuwa",
+      "cost": "Run kosztuje teraz około ${before}, a na proponowanym modelu ${after}; wycena z {runs, plural, one {# ostatniego runu} few {# ostatnich runów} many {# ostatnich runów} other {# ostatnich runów}}.",
+      "unpriced": "Nie da się wycenić runu dla jednego z tych modeli.",
+      "rough": "Szacunek przybliżony, z {runs, plural, =0 {zera runów} one {# runu} few {# runów} many {# runów} other {# runów}}.",
+      "writes": "Sięga po narzędzia, które coś zmieniają: {tools}. Eval je wstrzymuje, więc sprawdzenie nie zmierzy ich skutków.",
+      "expects": "Oczekiwany efekt: {effect}",
+      "blocked": {
+        "check_first": "Zmianę modelu przyjmuje się, gdy się opłaca. Najpierw uruchom Sprawdź evalami na tych sugestiach.",
+        "inconclusive": "Ostatnie sprawdzenie tego modelu niczego nie rozstrzygnęło. Oceń otwarte odpowiedzi albo uruchom je ponownie.",
+        "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę."
+      }
+    },
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
       "run": "run {id}",
@@ -8725,7 +8766,9 @@
       "title": "Sprawdź evalami",
       "body": "Uruchamia dataset na drafcie z naniesionymi wszystkimi oczekującymi sugestiami, obok opublikowanej wersji. Case'y z rozmów, z których wzięły się sugestie, są pomijane. Sprawdzenie niczego nie przyjmuje.",
       "skillBody": "Uruchamia dataset na agencie, który używa skilla: po obu stronach jego opublikowana wersja, różni się tylko treść skilla. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
+      "contextBody": "Uruchamia dataset na agencie, który używa pliku: po obu stronach jego opublikowana wersja, różni się tylko treść pliku. Case'y z rozmów, z których wzięła się zmiana, są pomijane. Sprawdzenie niczego nie stosuje.",
       "agent": "Agent, który używa tego skilla",
+      "contextAgent": "Agent, który używa tego pliku",
       "agentPlaceholder": "Wybierz agenta",
       "target": "Sprawdź na",
       "targetPlaceholder": "Wybierz suitę albo dataset",
@@ -8744,6 +8787,32 @@
       "working": "Czytam runy…",
       "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
       "check": "Sprawdź evalami"
+    },
+    "context": {
+      "improve": "Ulepsz z asystentem",
+      "working": "Czytam runy…",
+      "aiOff": "Asystent AI jest wyłączony w tej organizacji",
+      "check": "Sprawdź evalami",
+      "saveFirst": "Najpierw zapisz zmiany: asystent czyta plik w zapisanej wersji."
+    },
+    "contextChanges": {
+      "title": "Zmiany zaproponowane przez asystenta",
+      "waiting": "{count, plural, one {Czeka # zmiana} few {Czekają # zmiany} many {Czeka # zmian} other {Czeka # zmian}}. Zastosowanie działa od razu dla każdego agenta, który czyta plik.",
+      "stale": "Plik zmienił się od tego czasu",
+      "staleHint": "Ktoś edytował ten plik po zaproponowaniu zmiany. Porównaj obie wersje i popraw plik ręcznie albo poproś asystenta ponownie.",
+      "usedBy": "Powiązany z: {agents}",
+      "usedByNobody": "Żaden agent, którego widzisz, nie ma podpiętego tego pliku",
+      "show": "Pokaż, co zmienia się w {name}",
+      "hide": "Ukryj",
+      "review": "Przejrzyj",
+      "discard": "Odrzuć",
+      "discardTo": "Odrzuć zmianę w {name}",
+      "apply": "Zastosuj",
+      "applyTo": "Zastosuj zmianę w {name}",
+      "liveHint": "Zastosowanie działa od razu: każdy agent, który czyta plik, przeczyta nową treść przy następnym runie.",
+      "expects": "Oczekiwany efekt: {effect}",
+      "applied": "Zastosowano zmianę w {name}",
+      "discarded": "Odrzucono zmianę w {name}"
     },
     "describe": {
       "label": "Albo opisz go, a {name} przygotuje draft razem z Tobą",

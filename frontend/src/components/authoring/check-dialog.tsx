@@ -40,6 +40,8 @@ import type { EvalRun, EvalRunEstimate } from "@/types/eval-runs";
 export function CheckDialog({
   agentId,
   proposalId,
+  subject = "skill",
+  agents: offered,
   estimate,
   start,
   onStarted,
@@ -48,6 +50,10 @@ export function CheckDialog({
   /** The agent the dataset runs on; null to pick one here, for a skill change. */
   agentId: string | null;
   proposalId?: string;
+  /** What a change checked by `proposalId` is to: a skill or a context file. */
+  subject?: "skill" | "context";
+  /** The agents to pick from, when only some may run the check; every agent otherwise. */
+  agents?: { id: string; name: string }[];
   estimate: (body: ProposalCheck) => Promise<EvalRunEstimate>;
   start: (body: ProposalCheck) => Promise<EvalRun>;
   onStarted: (run: EvalRun) => void;
@@ -56,7 +62,8 @@ export function CheckDialog({
   const t = useTranslations("authoring.check");
   const tErrors = useTranslations("errors");
   const { datasets } = useEveryDataset();
-  const { agents } = useEveryAgent({ enabled: agentId === null });
+  const every = useEveryAgent({ enabled: agentId === null && offered === undefined });
+  const agents = offered ?? every.agents;
   // `suite:<id>` or `dataset:<id>`: a suite brings its own dataset and environment.
   const [target, setTarget] = useState("");
   const [chosenAgent, setChosenAgent] = useState(agentId ?? "");
@@ -72,6 +79,7 @@ export function CheckDialog({
     ...(proposalId !== undefined && { proposal_id: proposalId }),
   };
   const ready = target !== "" && chosenAgent !== "";
+  const agentLabel = subject === "skill" ? t("agent") : t("contextAgent");
   const asked = JSON.stringify(body);
 
   useEffect(() => {
@@ -111,13 +119,17 @@ export function CheckDialog({
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
-            {proposalId === undefined ? t("body") : t("skillBody")}
+            {proposalId === undefined
+              ? t("body")
+              : subject === "skill"
+                ? t("skillBody")
+                : t("contextBody")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {agentId === null && (
             <div className="space-y-1.5">
-              <Label>{t("agent")}</Label>
+              <Label>{agentLabel}</Label>
               <Select
                 value={chosenAgent}
                 onValueChange={(agent) => {
@@ -126,7 +138,7 @@ export function CheckDialog({
                   if (kind === "suite") setTarget("");
                 }}
               >
-                <SelectTrigger aria-label={t("agent")}>
+                <SelectTrigger aria-label={agentLabel}>
                   <SelectValue placeholder={t("agentPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
