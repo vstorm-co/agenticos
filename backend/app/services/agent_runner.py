@@ -231,6 +231,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.db.locks import LockScope, try_hold_subject
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
@@ -4478,6 +4479,9 @@ class AgentRunnerService:
             # A gap is a question a person asked; an eval replays or generates them,
             # and a builder testing a draft is not asking.
             return
+        starter = None if run.initiated_by_publisher_fallback else run.user_id
+        if starter is not None and not await self._may_record_about(starter):
+            return
         try:
             async with self.db.begin_nested():
                 await knowledge_gap_repo.record_searches(
@@ -4489,6 +4493,22 @@ class AgentRunnerService:
                 )
         except Exception:
             logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
+
+    async def _may_record_about(self, user_id: UUID) -> bool:
+        """Whether a search made answering this person may still be written.
+
+        An erasure of the person takes `PERSONAL_DATA_PER_USER` before it purges
+        their searches, and the run's own project chat and row outlive the
+        account with no link back to them - so a search written after the purge
+        would be theirs and found by nothing. Taken without waiting: this
+        transaction already holds its run row, which the erasure updates after
+        taking the lock. Held, it lasts to the run's commit, and the purge that
+        follows removes what was written; not held, or the account gone, the
+        searches are dropped, as a gap nobody sees.
+        """
+        if not await try_hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id):
+            return False
+        return await user_repo.get_by_id(self.db, user_id) is not None
 
     async def _write_interceptions(self, prepared: PreparedRun) -> None:
         """Write what an isolated run held back, and forget it.

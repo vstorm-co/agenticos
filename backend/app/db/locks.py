@@ -111,6 +111,21 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     )
 
 
+async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
+    """Take the lock for one subject if it is free, until this transaction ends.
+
+    :func:`hold_subject` for a caller already holding row locks the other side
+    waits on after taking this lock: waiting here could close that cycle. True
+    means this transaction holds it; False means another one does right now.
+    """
+    result = await db.execute(
+        select(
+            func.pg_try_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer))
+        )
+    )
+    return bool(result.scalar_one())
+
+
 async def try_hold_subject_on_connection(
     connection: AsyncConnection, scope: LockScope, subject: UUID
 ) -> bool:

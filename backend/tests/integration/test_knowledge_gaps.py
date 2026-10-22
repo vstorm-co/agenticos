@@ -32,6 +32,8 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.agents.capabilities.knowledge import KnowledgeSearchLog
+from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AiAssistanceDisabledError,
     AuthorizationError,
@@ -64,6 +66,7 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapSource,
     KnowledgeSearchRecord,
 )
+from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.dataset import DatasetService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.personal_data import PersonalDataService
@@ -332,6 +335,67 @@ async def test_a_shared_chat_carries_each_members_searches_to_their_own_export_a
     assert [row["query"] for row in export.knowledge_searches] == ["theirs query"]
     assert removed == 1
     assert await _search_count(db, runs["colleagues"].id) == 1
+
+
+async def _a_run_that_searched(engine) -> tuple[async_sessionmaker, AgentRun, PreparedRun]:
+    """A run its starter started, one search waiting in its log, the run's own session."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        ctx = await _owner(setup)
+        kb = await _knowledge_base(setup, ctx)
+        run, _ = await _turn(setup, ctx, await _agent(setup, ctx))
+        run.user_id = (await _user(setup)).id
+        await setup.commit()
+    log = KnowledgeSearchLog(agent_id=run.agent_id, collections={kb.collection_name: kb.id})
+    log.record("parking", [kb.collection_name], [])
+    prepared = PreparedRun(
+        run=run,
+        agent=MagicMock(),
+        spec=AgentSpec(name="Clerk"),
+        built=MagicMock(),
+        approvals=MagicMock(),
+        knowledge_searches=log,
+    )
+    return factory, run, prepared
+
+
+async def test_a_search_written_while_its_starter_is_erased_is_dropped(engine) -> None:
+    """The erasure holds the person's lock from its purge to its commit; a search
+    written in that window would be theirs, after the purge, with nothing to find it."""
+    factory, run, prepared = await _a_run_that_searched(engine)
+    erasing = factory()
+    try:
+        await PersonalDataService(erasing).purge(run.user_id)
+        async with factory() as session:
+            await AgentRunnerService(session)._write_knowledge_searches(prepared)
+            await session.commit()
+    finally:
+        await erasing.rollback()
+        await erasing.close()
+
+    async with factory() as session:
+        assert await _search_count(session, run.id) == 0
+
+
+async def test_a_search_for_a_starter_whose_account_is_gone_is_dropped(engine) -> None:
+    factory, run, prepared = await _a_run_that_searched(engine)
+    async with factory() as session:
+        await session.execute(delete(User).where(User.id == run.user_id))
+        await session.commit()
+
+    async with factory() as session:
+        await AgentRunnerService(session)._write_knowledge_searches(prepared)
+        await session.commit()
+        assert await _search_count(session, run.id) == 0
+
+
+async def test_a_search_for_a_starter_who_is_here_is_written(engine) -> None:
+    factory, run, prepared = await _a_run_that_searched(engine)
+
+    async with factory() as session:
+        await AgentRunnerService(session)._write_knowledge_searches(prepared)
+        await session.commit()
+        assert await _search_count(session, run.id) == 1
 
 
 # Queries about one thing point one way, about another thing another way.
