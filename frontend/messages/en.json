@@ -9694,7 +9694,8 @@
         "not_grantable": "It adds something the person who asked may not grant",
         "dismissed_before": "Somebody dismissed it before",
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
-        "edit_not_in_diff": "The line it names is not part of the edit"
+        "edit_not_in_diff": "The line it names is not part of the edit",
+        "superseded": "A request started later had already replaced the suggestions"
       },
       "about": "About: {line}"
     }

@@ -77,7 +77,8 @@ export type Rejection =
   | "not_grantable"
   | "dismissed_before"
   | "unsupported"
-  | "edit_not_in_diff";
+  | "edit_not_in_diff"
+  | "superseded";
 
 export interface RejectedChange {
   kind: "instructions" | "tool_override" | "spec_field" | "finding";

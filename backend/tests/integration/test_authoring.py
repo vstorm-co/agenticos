@@ -570,6 +570,8 @@ class TestImprove:
         await db.refresh(late_row)
         assert late_row.status == "completed" and late_row.report is not None
         assert late_row.report["recorded"] == 0
+        # What it would have recorded is accounted for, not silently gone.
+        assert late_row.report["dropped"] == {"unknown_tool": 1, "superseded": 2}
 
 
 class TestVerify:

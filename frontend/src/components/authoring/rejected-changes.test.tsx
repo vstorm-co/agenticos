@@ -38,6 +38,7 @@ const REJECTED: RejectedChange[] = [
     reason: "edit_not_in_diff",
     change: { verdict: "risk", text: "It may answer in Klingon", edit: "" },
   },
+  { kind: "instructions", reason: "superseded", change: { old_text: "Be brief.", new_text: "" } },
 ];
 
 function report(values: Partial<NonNullable<AuthoringRequest["report"]>>) {
@@ -54,7 +55,7 @@ describe("RejectedChanges", () => {
 
   it("says how many were not recorded, why, and what each proposed", async () => {
     render(<RejectedChanges report={report({ rejected: REJECTED, rejected_more: 2 })} />);
-    await userEvent.click(screen.getByText("10 proposed changes were not recorded"));
+    await userEvent.click(screen.getByText("11 proposed changes were not recorded"));
 
     expect(screen.getByText("The passage it changes occurs more than once")).toBeVisible();
     expect(screen.getByText("within 30 days")).toBeVisible();
@@ -78,6 +79,9 @@ describe("RejectedChanges", () => {
     expect(screen.getByText("About: Greet the customer.")).toBeVisible();
     expect(screen.getByText("The line it names is not part of the edit")).toBeVisible();
     expect(screen.getByText("It may answer in Klingon")).toBeVisible();
+    expect(
+      screen.getByText("A request started later had already replaced the suggestions"),
+    ).toBeVisible();
   });
 
   it("counts one in the singular, and lists all when none is cut", () => {

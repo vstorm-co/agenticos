@@ -319,9 +319,11 @@ def _proposed(hunk: dict[str, Any]) -> dict[str, Any]:
             "value": hunk["new_value"],
             "rationale": hunk["rationale"],
         }
+    # An insertion keeps no `after`; the text it was anchored behind says the same.
     return {
         "old_text": hunk["old_text"],
         "new_text": hunk["new_text"],
+        "after": "" if hunk["old_text"] else hunk["context_before"],
         "rationale": hunk["rationale"],
     }
 
@@ -791,6 +793,8 @@ class AuthoringRun:
         )
         if current is not None:
             if current.source_started_at > started:
+                for hunk in hunks:
+                    self._reject(HunkKind(hunk["kind"]), Rejection.SUPERSEDED, _proposed(hunk))
                 return 0
             dismissed = {
                 _signature(

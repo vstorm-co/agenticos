@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from app.schemas.authoring import HunkDecision
 from app.services.authoring import AuthoringService
 from tests.integration.test_authoring import (
     COMMENT,
@@ -204,3 +205,34 @@ async def test_a_proposal_with_nothing_refused_says_nothing_about_refusals(db):
     assert request.report is not None
     assert request.report["recorded"] == 1
     assert "dropped" not in request.report and "rejected" not in request.report
+
+
+async def test_a_dismissed_insertion_is_listed_with_what_it_follows(db):
+    ctx, agent, run_id = await _refund_desk(db)
+    inserting = {
+        "summary": "s",
+        "expected_effect": "e",
+        "instructions": [
+            _instruction(
+                run_id,
+                old_text="",
+                new_text="\nState the policy outright.",
+                after="Answer in at most three sentences.",
+            )
+        ],
+        "tools": [],
+        "fields": [],
+    }
+    await _improve(db, ctx, agent, Improver(db, improve=inserting))
+    service = AuthoringService(db)
+    first = (await service.for_agent(ctx, agent.id)).batch
+    assert first is not None
+    await service.decide(ctx, agent.id, first.hunks[0].id, HunkDecision(action="dismiss"))
+
+    request = await _improve(db, ctx, agent, Improver(db, improve=inserting))
+
+    assert request.report is not None
+    (item,) = request.report["rejected"]
+    assert item["reason"] == "dismissed_before"
+    assert item["change"]["old_text"] == ""
+    assert item["change"]["after"].endswith("Answer in at most three sentences.")

@@ -9471,7 +9471,8 @@
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
         "dismissed_before": "Ktoś już ją wcześniej odrzucił",
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
-        "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji"
+        "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
+        "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie"
       },
       "about": "Dotyczy: {line}"
     }
