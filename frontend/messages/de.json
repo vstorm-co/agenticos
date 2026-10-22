@@ -1227,7 +1227,16 @@
       "commands": "Befehle",
       "commandsHint": "Aus einer Liste wählen - wie das Tippen von /",
       "project": "In einem Projekt arbeiten",
-      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen"
+      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen",
+      "closeSheet": "Schließen",
+      "source": {
+        "camera": "Kamera",
+        "photos": "Fotos",
+        "files": "Dateien"
+      },
+      "callAgent": "{agent} anrufen",
+      "modelAndApprovals": "Modell und Freigaben",
+      "contextUsed": "Genutzter Kontext"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",

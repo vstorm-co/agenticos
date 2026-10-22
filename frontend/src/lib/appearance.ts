@@ -41,8 +41,9 @@ export const VIBRANCY_ATTRIBUTE = "data-vibrancy";
  * transparent over the window's material, and a page inside the shell leaves
  * room for the traffic lights and is dragged by its own header; set a frame
  * late, the window flashes opaque or the sidebar jumps sideways. It reads the
- * theme store's persisted shape (`{"state":{"look":…}}`) and the shell's
- * announcement (`window.__AGENTICOS_SHELL__`), and `appearance.test.ts` runs it
+ * theme store's persisted shape (`{"state":{"look":…}}`), the shell's
+ * announcement (`window.__AGENTICOS_SHELL__`) and the Android app's measured
+ * status bar (`window.AgenticOSInsets`), and `appearance.test.ts` runs it
  * against the same cases the store and `parseShellInfo` answer. Storage that
  * throws leaves the look to `ThemeProvider`, which sets it once the app hydrates.
  */
@@ -55,4 +56,9 @@ export const APPEARANCE_BOOTSTRAP_SCRIPT =
   `d.setAttribute(${JSON.stringify(SHELL_ATTRIBUTE)},h.platform);` +
   `d.setAttribute(${JSON.stringify(SHELL_WINDOW_ATTRIBUTE)},String(h.window));` +
   `if(h.vibrancy===true)d.setAttribute(${JSON.stringify(VIBRANCY_ATTRIBUTE)},"")` +
+  // The Android app's status bar and gesture bar, measured by the app: its
+  // WebView reports no safe area, and both differ between phones.
+  ";try{var i=window.AgenticOSInsets,t=i&&Number(i.top()),b=i&&Number(i.bottom());" +
+  'if(t>0)d.style.setProperty("--shell-inset-top",t+"px");' +
+  'if(b>0)d.style.setProperty("--shell-inset-bottom",b+"px")}catch(e){}' +
   "}})()";

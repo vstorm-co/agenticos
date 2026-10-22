@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
+import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
@@ -18,7 +19,10 @@ export default function ChatPage() {
   return (
     <div className={cn("-mx-3 -mt-4 flex min-h-0 flex-1 sm:-mx-6 sm:-mt-8", SAFE_AREA_CLEARANCE)}>
       <ConversationSidebar />
-      <div className="min-w-0 flex-1">
+      {/* Room at the top of the transcript for
+          the buttons floating over it on a phone. */}
+      <div className="relative min-w-0 flex-1 max-md:[&_[data-transcript]]:pt-16">
+        <PhoneChatBar />
         <ChatContainer />
       </div>
     </div>

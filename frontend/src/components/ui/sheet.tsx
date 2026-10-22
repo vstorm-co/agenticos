@@ -71,7 +71,7 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
         "panel-strong fixed z-50 flex flex-col",
         "animate-in duration-300",
         side === "bottom"
-          ? "slide-in-from-bottom inset-x-0 bottom-0 rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+          ? "slide-in-from-bottom inset-x-0 bottom-0 rounded-t-2xl pb-[var(--safe-bottom)]"
           : "inset-y-0 w-72",
         side === "left" && "slide-in-from-left left-0",
         side === "right" && "slide-in-from-right right-0",

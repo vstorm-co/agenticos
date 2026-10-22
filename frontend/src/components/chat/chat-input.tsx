@@ -23,7 +23,7 @@ import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
 import { useChatStore } from "@/stores";
-import { ComposerSheet } from "./composer-sheet";
+import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
 /**
  * Render `row` where the page wants it, or in place when it named nowhere.
@@ -124,6 +124,10 @@ interface Attachment {
   pasted: boolean;
 }
 
+/** What the file picker offers: the types an attachment may be. */
+const ACCEPTED =
+  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml";
+
 interface ChatInputProps {
   onSend: (
     message: string,
@@ -178,6 +182,11 @@ interface ChatInputProps {
    * the width of the row and were read past on every message.
    */
   actionsSlot?: ReactNode;
+  /**
+   * The same controls as rows of the phone's `+` sheet, where the composer's one
+   * row has no room for them (#2066). The caller hides `actionsSlot` there.
+   */
+  phoneRows?: ReactNode;
   /**
    * The selected agent's dictation engine and, for `server`, the recording.
    * Absent, the microphone is the browser's own speech recognition.
@@ -235,6 +244,7 @@ export function ChatInput({
   controlsSlot,
   onProject,
   actionsSlot,
+  phoneRows,
   dictation,
   dictateNow = false,
   onDictateStarted,
@@ -673,9 +683,15 @@ export function ChatInput({
     },
     [tShare, uploadFiles],
   );
-  const attach = () => {
-    if (!onPhone) {
-      fileInputRef.current?.click();
+  const attach = (source: AttachSource = "files") => {
+    const input = fileInputRef.current;
+    if (!onPhone && input) {
+      // One input, told each time what to offer: a phone's browser opens the
+      // camera for `capture` and its photos for `image/*`.
+      input.accept = source === "files" ? ACCEPTED : "image/*";
+      if (source === "camera") input.setAttribute("capture", "environment");
+      else input.removeAttribute("capture");
+      input.click();
       return;
     }
     openAttachSheet()
@@ -875,7 +891,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
+          accept={ACCEPTED}
           multiple
           className="hidden"
         />
@@ -893,6 +909,7 @@ export function ChatInput({
               : undefined
           }
           onProject={onProject}
+          phoneRows={phoneRows}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}

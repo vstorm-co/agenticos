@@ -17,9 +17,18 @@ function boot() {
 
 const root = () => document.documentElement;
 
+declare global {
+  interface Window {
+    AgenticOSInsets?: { top: () => number; bottom: () => number };
+  }
+}
+
 afterEach(() => {
   localStorage.clear();
   delete window.__AGENTICOS_SHELL__;
+  delete window.AgenticOSInsets;
+  root().style.removeProperty("--shell-inset-top");
+  root().style.removeProperty("--shell-inset-bottom");
   for (const attribute of [
     LOOK_ATTRIBUTE,
     SHELL_ATTRIBUTE,
@@ -91,5 +100,31 @@ describe("the appearance bootstrap", () => {
     delete window.__AGENTICOS_SHELL__;
     boot();
     expect(root().hasAttribute(SHELL_ATTRIBUTE)).toBe(false);
+  });
+
+  it("keeps the room the Android app measured for its status and gesture bars, and its own when it measured none", () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "android",
+      version: "0.1.0",
+      window: "main",
+      vibrancy: false,
+    };
+    window.AgenticOSInsets = { top: () => 42, bottom: () => 24 };
+    boot();
+    expect(root().style.getPropertyValue("--shell-inset-top")).toBe("42px");
+    expect(root().style.getPropertyValue("--shell-inset-bottom")).toBe("24px");
+
+    root().style.removeProperty("--shell-inset-top");
+    window.AgenticOSInsets = { top: () => 0, bottom: () => 0 };
+    boot();
+    expect(root().style.getPropertyValue("--shell-inset-top")).toBe("");
+
+    window.AgenticOSInsets = {
+      top: () => {
+        throw new Error("gone");
+      },
+      bottom: () => 0,
+    };
+    expect(() => boot()).not.toThrow();
   });
 });

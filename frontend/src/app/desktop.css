@@ -317,3 +317,9 @@
 :root:is([data-shell="ios"], [data-shell="android"]) body {
   padding-top: var(--shell-inset-top);
 }
+
+/* The bottom edge's room: the system's safe area where it reports one, or what
+   the Android app measured for its gesture bar where it does not. */
+:root {
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--shell-inset-bottom, 0px));
+}

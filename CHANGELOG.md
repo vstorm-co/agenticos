@@ -117,6 +117,13 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **A cleaner chat on the phone** (#2097): no bar over the conversation - the
+  menu, the conversation list and New chat float over it as round buttons, the
+  menu marked while the inbox has something unread. The composer's row keeps
+  `+`, the agent, the microphone and Send; `+` opens a sheet with Camera,
+  Photos and Files, then voice input and commands, then the call, the model and
+  approvals and the context used. In the Android app the page now keeps clear of
+  the status bar and the gesture bar as the phone measures them.
 - **Pinned agents** (#2305, #2097): an agent's page offers Pin to Dock (Pin
   to tray on Windows and Linux) in the desktop app - a new chat with it from
   the Dock icon's right-click menu and the tray's "New Chat With", up to eight,

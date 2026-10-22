@@ -10,6 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
@@ -17,6 +18,7 @@ import { useAgents, useChat, useConversationWorkspace, useModelProviders } from 
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
+import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
 import { TypingIndicator } from "./typing-indicator";
@@ -1165,6 +1167,7 @@ function ChatUI({
         >
           <div
             ref={transcriptRef}
+            data-transcript
             className={cn(
               compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
@@ -1484,11 +1487,15 @@ function ChatUI({
                             agentFixed ? undefined : (
                               <>
                                 <AgentPicker />
-                                <ProjectChip
-                                  conversationId={conversationId}
-                                  pickerOpen={projectPickerOpen}
-                                  onPickerOpenChange={setProjectPickerOpen}
-                                />
+                                {/* A phone's row is the agent alone; the project is
+                                    picked from its `+` sheet. */}
+                                <span className="contents max-md:hidden">
+                                  <ProjectChip
+                                    conversationId={conversationId}
+                                    pickerOpen={projectPickerOpen}
+                                    onPickerOpenChange={setProjectPickerOpen}
+                                  />
+                                </span>
                               </>
                             )
                           }
@@ -1497,8 +1504,48 @@ function ChatUI({
                               ? undefined
                               : () => setProjectPickerOpen(true)
                           }
-                          actionsSlot={
+                          // A phone's row keeps +, the agent, the microphone and
+                          // send; these move into its `+` sheet as rows.
+                          phoneRows={
                             <>
+                              {offerCall && !onCall && (
+                                <SheetRow
+                                  icon={PhoneCall}
+                                  label={t("input.callAgent", {
+                                    agent: callAgent?.name ?? t("rail.agent"),
+                                  })}
+                                >
+                                  <VoiceCallButton
+                                    readiness={readiness}
+                                    failed={readinessFailed}
+                                    disabled={isProcessing || isArchived}
+                                    onStart={startCall}
+                                    setUpHref={agentCallsHref}
+                                  />
+                                </SheetRow>
+                              )}
+                              <SheetRow
+                                icon={SlidersHorizontal}
+                                label={t("input.modelAndApprovals")}
+                              >
+                                <ChatControls
+                                  onModelProfileChange={onModelProfileChange}
+                                  onApprovalModeChange={onApprovalModeChange}
+                                  agentModel={agentModel}
+                                />
+                              </SheetRow>
+                              <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                <UsageMeter
+                                  usage={lastUsage}
+                                  workspace={workspace}
+                                  total={conversationCost}
+                                  contextWindow={contextWindow}
+                                />
+                              </SheetRow>
+                            </>
+                          }
+                          actionsSlot={
+                            <span className="contents max-md:hidden">
                               {/* Wide screens only, as is the panel it opens. */}
                               <span ref={setFilesSlot} className="hidden lg:contents" />
                               <UsageMeter
@@ -1530,7 +1577,7 @@ function ChatUI({
                                   />
                                 </span>
                               )}
-                            </>
+                            </span>
                           }
                         />
                       </div>

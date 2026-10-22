@@ -1227,7 +1227,16 @@
       "commands": "Komendy",
       "commandsHint": "Wybierz z listy - to samo co wpisanie /",
       "project": "Pracuj w projekcie",
-      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami"
+      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami",
+      "closeSheet": "Zamknij",
+      "source": {
+        "camera": "Aparat",
+        "photos": "Zdjęcia",
+        "files": "Pliki"
+      },
+      "callAgent": "Zadzwoń: {agent}",
+      "modelAndApprovals": "Model i zatwierdzenia",
+      "contextUsed": "Wykorzystany kontekst"
     },
     "knowledgeBase": "Baza wiedzy",
     "link": "Link",

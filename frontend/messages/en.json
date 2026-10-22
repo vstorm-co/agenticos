@@ -1227,7 +1227,16 @@
       "commands": "Commands",
       "commandsHint": "Pick one from a list - the same as typing /",
       "project": "Work in a project",
-      "projectHint": "Start this chat in a project: its files and instructions"
+      "projectHint": "Start this chat in a project: its files and instructions",
+      "closeSheet": "Close",
+      "source": {
+        "camera": "Camera",
+        "photos": "Photos",
+        "files": "Files"
+      },
+      "callAgent": "Call {agent}",
+      "modelAndApprovals": "Model and approvals",
+      "contextUsed": "Context used"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
