@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "34a358928d88"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -25,9 +25,12 @@ Zakładka **Evals** agenta otwiera się wykresem liniowym jego odsetka zaliczeń
 run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z inną
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla draftu; najechanie na punkt
-mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run. Wykres
-otwiera się na ostatnich 12 runach; przeciągnij uchwyty zakresu pod nim albo
-przesuń je strzałkami, żeby zobaczyć więcej lub mniej.
+mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
+
+Oś podpisuje każdy punkt tym, co uruchomiono i kiedy - godziną dla dzisiejszego
+runu, datą dla wcześniejszych. Powyżej 12 runów pod wykresem pojawia się zakres,
+otwarty na ostatnich 12; przeciągnij jego uchwyty albo przesuń je strzałkami,
+żeby zobaczyć więcej lub mniej.
 
 Pod wykresem są jego runy, pogrupowane po datasecie, każdy z tym, co testowano
 względem czego, z werdyktem (Breaks 2, Worse overall · 4 broke, First result,
@@ -394,9 +397,9 @@ porównywane.
 
 **Suita** to eval run, o którego uruchomieniu nikt nie musi pamiętać. Wskazuje
 agenta, dataset, środowisko, którego wersję sprawdza, i próg, który musi
-spełnić każdy wynik, a potem działa sama. Karta **Suity** otwiera zakładkę
-Evale agenta: dataset każdej suity, kiedy się uruchamia i jak ostatnio
-wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
+spełnić każdy wynik, a potem działa sama. Karta **Suity** stoi pod runami na
+zakładce Evale agenta: dataset każdej suity, kiedy się uruchamia, jej próg i
+jak ostatnio wypadła. Po otwarciu suita pokazuje każdy wynik, powód, dla którego nie
 przeszedł, przypadki, które się zepsuły, i link do eval runa za nim; strona
 tego runa podaje suitę, która go uruchomiła.
 
