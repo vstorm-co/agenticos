@@ -3644,7 +3644,7 @@ class TestPostingTheAnswerToTeams:
             patch("app.services.agent_trigger.conversation_repo") as conversations,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
             patch(
-                "app.services.agent_trigger.teams_conversation_repo.get_shared",
+                "app.services.agent_trigger.teams_conversation_repo.get_postable",
                 new=AsyncMock(return_value=MagicMock()),
             ) as shared,
         ):
@@ -3667,7 +3667,7 @@ class TestPostingTheAnswerToTeams:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
             patch(
-                "app.services.agent_trigger.teams_conversation_repo.get_shared",
+                "app.services.agent_trigger.teams_conversation_repo.get_postable",
                 new=AsyncMock(return_value=None),
             ),
             pytest.raises(NotFoundError),

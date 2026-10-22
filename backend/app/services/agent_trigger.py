@@ -1994,10 +1994,11 @@ class AgentTriggerService:
     async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
         """Refuse a Teams conversation that is not one of this organization's to post into.
 
-        A team channel or group chat one of its bots is in. Another
-        organization's, or somebody's personal chat with a bot, is not found.
+        A team channel one of its bots is in. Another organization's, a group
+        chat - private to its participants, who need not include whoever sets up
+        the routine - or somebody's personal chat with a bot, is not found.
         """
-        target = await teams_conversation_repo.get_shared(
+        target = await teams_conversation_repo.get_postable(
             self.db, conversation_id, organization_id=ctx.organization_id
         )
         if target is None:

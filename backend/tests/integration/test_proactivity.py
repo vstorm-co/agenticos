@@ -432,3 +432,26 @@ class TestTheSuggestionHistory:
 
         reopened = await suggestion_repo.reopen(db, suggestion=first)
         assert (reopened.status, reopened.decided_at) == (SuggestionStatus.OPEN.value, None)
+
+
+class TestDeletingTheModelItRunsOn:
+    async def test_proactivity_running_on_it_is_switched_off_and_nothing_else(self, db) -> None:
+        from app.repositories import organization_repo
+
+        owner = await _person(db)
+        org = await _organization(db, owner)
+        await _turned_on(db, org)
+        model = org.proactive_model_profile_id
+        assert model is not None
+
+        await organization_repo.stop_proactivity_on(
+            db, organization_id=org.id, model_profile_id=uuid.uuid4()
+        )
+        await db.refresh(org)
+        assert org.proactive_enabled is True
+
+        await organization_repo.stop_proactivity_on(
+            db, organization_id=org.id, model_profile_id=model
+        )
+        await db.refresh(org)
+        assert org.proactive_enabled is False

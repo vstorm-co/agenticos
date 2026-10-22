@@ -37,7 +37,7 @@ from app.core.secret_kinds import (
 )
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
-from app.repositories import credential_repo, organization_secret_repo
+from app.repositories import credential_repo, organization_repo, organization_secret_repo
 from app.services.model_catalog import models_for
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
@@ -286,6 +286,13 @@ class ModelProfileService:
         return next((entry.context_length for entry in models if entry.id == model), None)
 
     async def delete_profile(self, ctx: AuthContext, profile_id: UUID) -> None:
+        # The organization's proactive work may run on this model. Its column
+        # clears itself on delete, and on without a model is off in practice - so
+        # it is switched off here, in the same transaction, rather than left
+        # saying it is on (Codex on #2324).
+        await organization_repo.stop_proactivity_on(
+            self.db, organization_id=ctx.organization_id, model_profile_id=profile_id
+        )
         deleted = await credential_repo.delete_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )

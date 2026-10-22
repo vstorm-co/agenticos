@@ -99,6 +99,8 @@ export interface PlatformMcpTool {
   writes: boolean;
   /** Runs without approval under every policy: it changes only the caller's own preference. */
   ungated?: boolean;
+  /** A read held for approval all the same: it releases a whole past conversation. */
+  held?: boolean;
 }
 
 export interface PlatformMcpToolList {

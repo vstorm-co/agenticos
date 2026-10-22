@@ -34,7 +34,7 @@ from app.services.proactive._nightly import (
     RepeatedRequest,
 )
 from app.services.proactive._thinker import ProactiveThinker
-from app.services.proactive.facade import _STARTER_SLUG, ProactiveService
+from app.services.proactive.facade import _STARTER_SLUG, ProactiveService, _its_time
 from app.services.role_packs import PACKS, pack, routines_of
 from app.worker.jobs import INSTALL_ROLE_PACK, THINK_FOR_PERSON, WELCOME_MEMBER
 
@@ -457,6 +457,35 @@ class TestTheNightlyLook:
 
 
 class TestTheSweep:
+    @pytest.mark.parametrize(
+        ("local", "due"),
+        [
+            # Monday 00:30 is not the tail of Monday 23:00: Sunday is not a day.
+            (datetime(2026, 10, 19, 0, 30, tzinfo=UTC), False),
+            (datetime(2026, 10, 19, 23, 30, tzinfo=UTC), True),
+            # Tuesday 01:30 is the tail of Monday's 23:00.
+            (datetime(2026, 10, 20, 1, 30, tzinfo=UTC), True),
+            (datetime(2026, 10, 20, 2, 0, tzinfo=UTC), False),
+            # Saturday 01:00 is the tail of Friday's 23:00; Saturday 23:00 is no day.
+            (datetime(2026, 10, 24, 1, 0, tzinfo=UTC), True),
+            (datetime(2026, 10, 24, 23, 30, tzinfo=UTC), False),
+        ],
+    )
+    def test_a_late_hour_is_its_own_day_not_the_next_mornings(self, local, due):
+        """Codex on #2324: an hour compared modulo 24 read Monday's first minutes
+        as Monday's 23:00 window, and ran the look before the weekend was over."""
+        candidate = SweepCandidate(
+            organization_id=ORG,
+            user_id=USER,
+            time_zone="UTC",
+            working_hours=None,
+            days=[1, 2, 3, 4, 5],
+            hour=23,
+            timing="fixed",
+        )
+
+        assert _its_time(candidate, local) is due
+
     async def test_each_person_is_queued_at_the_organizations_hour_in_their_own_zone(self):
         # Wednesday 03:30 UTC: 05:30 in Warsaw (summer), 23:30 Tuesday in New York,
         # 03:30 in UTC.
@@ -596,7 +625,15 @@ def _bot(platform: str, *, active: bool = True) -> MagicMock:
 
 class TestTheWelcome:
     async def _welcome(
-        self, bots_by_platform, adapters, *, user=None, shared=(), enabled=True, words=None
+        self,
+        bots_by_platform,
+        adapters,
+        *,
+        user=None,
+        shared=(),
+        enabled=True,
+        words=None,
+        member=True,
     ):
         async def by_platform(_db, platform, *, organization_id):
             return bots_by_platform.get(platform, [])
@@ -624,6 +661,10 @@ class TestTheWelcome:
             ),
             patch(
                 f"{WELCOME}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(
+                f"{WELCOME}.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock() if member else None),
             ),
             patch(f"{WELCOME}.channel_bot_repo.get_by_platform", new=by_platform),
             patch(
@@ -660,6 +701,13 @@ class TestTheWelcome:
         adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
 
         assert await self._welcome({"slack": [_bot("slack")]}, adapters, enabled=False) == 0
+        adapters["slack"].welcome.assert_not_awaited()
+
+    async def test_somebody_removed_before_the_greeting_went_out_is_not_greeted(self):
+        """Codex on #2324: the greeting is queued when they join and sent later."""
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+
+        assert await self._welcome({"slack": [_bot("slack")]}, adapters, member=False) == 0
         adapters["slack"].welcome.assert_not_awaited()
 
     async def test_the_organizations_own_words_are_said_with_only_its_names_filled_in(self):

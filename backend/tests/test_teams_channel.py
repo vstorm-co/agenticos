@@ -310,7 +310,7 @@ class TestATriggerPostsItsAnswer:
         service = AgentTriggerService(MagicMock())
         with (
             patch(
-                "app.services.agent_trigger.teams_conversation_repo.get_shared",
+                "app.services.agent_trigger.teams_conversation_repo.get_postable",
                 new=AsyncMock(return_value=None),
             ),
             pytest.raises(NotFoundError),
@@ -420,3 +420,12 @@ def test_a_teams_bot_reads_back_the_endpoint_to_paste_into_azure() -> None:
     assert teams_bot.messaging_endpoint is not None
     assert teams_bot.messaging_endpoint.endswith(f"/api/v1/teams/{teams_bot.id}/messages")
     assert read("slack").messaging_endpoint is None
+
+
+async def test_a_routine_is_offered_only_the_team_channels_to_post_into() -> None:
+    """A group chat is private to its participants (Codex on #2324)."""
+    listed = AsyncMock(return_value=[])
+    with patch("app.services.channel_bot.teams_conversation_repo.list_shared", new=listed):
+        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).teams_conversations()
+
+    assert listed.await_args.kwargs["types"] == ("channel",)

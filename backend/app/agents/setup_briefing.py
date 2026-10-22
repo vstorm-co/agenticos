@@ -122,6 +122,10 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
     return "\n".join(lines)
 
 
+# What `CapabilityRequest.reason` accepts, which the card's button posts.
+MAX_REASON_CHARS = 300
+
+
 class RequestCapabilityToolset(FunctionToolset[Any]):
     """The card an agent shows for a capability it lacks."""
 
@@ -153,12 +157,21 @@ class RequestCapabilityToolset(FunctionToolset[Any]):
                 f"{capability_id!r} is not one you lack. Use an id from the "
                 f'"Not switched on" list: {", ".join(sorted(self._missing))}.',
             )
+        said = " ".join(reason.split())
+        # The card's button posts this as `CapabilityRequest.reason`, which takes
+        # 1-300 characters: a card outside them would refuse every press (Codex
+        # on #2324), so the model is asked again instead.
+        if not said or len(said) > MAX_REASON_CHARS:
+            return steer(
+                ctx,
+                f"Give the reason as one sentence of at most {MAX_REASON_CHARS} characters.",
+            )
         return json.dumps(
             {
                 "agent_id": str(self._agent_id),
                 "capability_id": capability_id,
                 "name": name,
-                "reason": " ".join(reason.split()),
+                "reason": said,
             },
             ensure_ascii=False,
         )

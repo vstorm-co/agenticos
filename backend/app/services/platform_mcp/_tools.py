@@ -33,6 +33,15 @@ be the whole conversation. `app.agents.mcp` names the same set as
 """
 
 
+HELD = frozenset({"read_conversation"})
+"""Reads held for a person's approval under a binding's `writes` policy, like a write.
+
+Reading a whole past conversation releases what somebody said before, to a model
+that may also be reading a web page written to make it fetch that conversation
+and send it on - `list_runs` names the conversations, this returns them. The
+person sees which conversation before it is read (Codex on #2324).
+"""
+
 _TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
 """A connection's tools - what `list_my_connections` leaves out unless asked."""
 
@@ -45,6 +54,11 @@ class PlatformTool:
     """Whether it changes something. An MCP client is told so through the tool's
     read-only hint, which is also what holds the call for a person's approval
     under a binding's default `writes` policy."""
+
+    @property
+    def held(self) -> bool:
+        """Whether this read waits for approval as a write does - see `HELD`."""
+        return self.name in HELD
 
     @property
     def ungated(self) -> bool:

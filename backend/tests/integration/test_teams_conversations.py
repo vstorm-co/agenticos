@@ -69,7 +69,9 @@ async def test_a_second_activity_moves_the_service_and_keeps_the_name(db) -> Non
 
 
 @pytest.mark.security
-async def test_only_the_organizations_channels_and_group_chats_are_targets(db) -> None:
+async def test_only_the_organizations_channels_are_targets(db) -> None:
+    """A group chat is private to its participants: shared for finding somebody
+    to greet, never a place a routine posts into (Codex on #2324)."""
     bot = await _bot(db)
     other = await _bot(db)
     await _record(db, bot, "channel", "channel", "General")
@@ -77,16 +79,25 @@ async def test_only_the_organizations_channels_and_group_chats_are_targets(db) -
     await _record(db, bot, "personal", "personal", None)
     await _record(db, other, "elsewhere", "channel", "Theirs")
 
-    listed = await teams_conversation_repo.list_shared(db, organization_id=bot.organization_id)
-    assert {row.key for row in listed} == {"channel", "group"}
+    shared = await teams_conversation_repo.list_shared(db, organization_id=bot.organization_id)
+    assert {row.key for row in shared} == {"channel", "group"}
+    postable = await teams_conversation_repo.list_shared(
+        db,
+        organization_id=bot.organization_id,
+        types=teams_conversation_repo.POSTABLE_TYPES,
+    )
+    assert [row.key for row in postable] == ["channel"]
 
     personal = await teams_conversation_repo.get_by_key(db, "personal")
     elsewhere = await teams_conversation_repo.get_by_key(db, "elsewhere")
-    assert personal is not None and elsewhere is not None
+    group = await teams_conversation_repo.get_by_key(db, "group")
+    assert personal is not None and elsewhere is not None and group is not None
     org = bot.organization_id
-    assert await teams_conversation_repo.get_shared(db, personal.id, organization_id=org) is None
-    assert await teams_conversation_repo.get_shared(db, elsewhere.id, organization_id=org) is None
-    assert await teams_conversation_repo.get_shared(db, listed[0].id, organization_id=org)
+    for refused in (personal, elsewhere, group):
+        assert (
+            await teams_conversation_repo.get_postable(db, refused.id, organization_id=org) is None
+        )
+    assert await teams_conversation_repo.get_postable(db, postable[0].id, organization_id=org)
 
 
 async def test_a_switched_off_bots_conversations_are_not_offered(db) -> None:

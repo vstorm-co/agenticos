@@ -1,5 +1,5 @@
 ---
-source_sha: "fde346ad33ee"
+source_sha: "3f600cff5db6"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -189,7 +189,9 @@ La propia plantilla del Architect pide `writes` para el servidor
 de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
 vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
 con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida.
+Admin incluida. Una lectura espera como un cambio: `read_conversation`, que entrega
+al modelo una conversación pasada entera - una página que el agent leyó podría si
+no hacer que la pida y la envíe fuera.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin

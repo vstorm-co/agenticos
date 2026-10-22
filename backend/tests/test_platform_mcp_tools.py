@@ -559,6 +559,25 @@ class TestWhatNeverWaitsForApproval:
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 
+    def test_reading_a_whole_past_conversation_waits_like_a_write(self) -> None:
+        """Codex on #2324: `list_runs` names the conversations and this returns
+        them, so a page that injected both calls could carry one off."""
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
+        assert {name for name, tool in tools.items() if tool.held} == {"read_conversation"}
+        assert not tools["read_conversation"].writes
+        assert not tools["get_run"].held
+
+    async def test_a_held_read_is_announced_as_no_read_only_tool(self) -> None:
+        """The read-only hint is what the `writes` policy reads to let a call through."""
+        from app.services.platform_mcp import build_platform_mcp
+
+        server, _ = build_platform_mcp(MagicMock())
+        listed = {tool.name: tool for tool in await server.list_tools()}
+
+        assert listed["read_conversation"].annotations.readOnlyHint is False
+        assert listed["get_run"].annotations.readOnlyHint is True
+
     def test_the_agent_layer_names_the_same_set(self) -> None:
         from app.agents.mcp import PLATFORM_UNGATED_TOOLS
         from app.services.platform_mcp._tools import UNGATED

@@ -673,6 +673,13 @@ class PlatformMcpTool(BaseSchema):
             "only the caller's own preference, such as the console's language"
         ),
     )
+    held: bool = Field(
+        default=False,
+        description=(
+            "A read held for approval under `approval: writes` all the same - reading a "
+            "whole past conversation, which an injected instruction could carry off"
+        ),
+    )
 
 
 class PlatformMcpToolList(BaseSchema):

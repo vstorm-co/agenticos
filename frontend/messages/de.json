@@ -900,7 +900,8 @@
     "newStarter": "Neue erste Nachricht",
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
-    "platformUngatedBadge": "eigene Einstellung, ohne Freigabe"
+    "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
+    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

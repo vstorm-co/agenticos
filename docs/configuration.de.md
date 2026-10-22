@@ -1,5 +1,5 @@
 ---
-source_sha: "d094daa4a5c1"
+source_sha: "ff5687b5703f"
 ---
 
 # Konfiguration { #configuration }
@@ -529,7 +529,7 @@ es bewusst unangetastet lässt.
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `RUN_HEARTBEAT_SECONDS` | `15` | Wie oft der Prozess, der einen Run ausführt, ihn als lebendig stempelt, während sein Modell arbeitet |
-| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Wie lange ein Run auf `running` ohne Lebenszeichen bleiben darf, bevor der minütliche Durchlauf entscheidet, dass sein Prozess gestorben ist, und ihn als `failed` beendet. Null oder darunter schaltet den Durchlauf ab |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Wie lange ein Run auf `running` ohne Lebenszeichen bleiben darf, bevor der minütliche Durchlauf entscheidet, dass sein Prozess gestorben ist, und ihn als `failed` beendet. Mindestens dreimal `RUN_HEARTBEAT_SECONDS`, was der Start prüft; null oder darunter schaltet den Durchlauf ab |
 
 Die Zeile eines Runs wird committet, bevor sein Modell aufgerufen wird, ein
 mitten im Run getöteter Worker lässt sie also auf `running` zurück, ohne dass

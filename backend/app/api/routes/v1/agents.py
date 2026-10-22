@@ -223,6 +223,7 @@ async def list_platform_mcp_tools() -> Any:
             description=tool.summary,
             writes=tool.writes,
             ungated=tool.ungated,
+            held=tool.held,
         )
         for tool in platform_tool_catalog()
     ]

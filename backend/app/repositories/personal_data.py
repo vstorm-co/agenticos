@@ -34,6 +34,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
+from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
 
 
@@ -238,6 +239,16 @@ async def api_keys_of(db: AsyncSession, user_id: UUID) -> list[ApiKey]:
 async def oauth_grants_of(db: AsyncSession, user_id: UUID) -> list[OAuthGrant]:
     """Every consent they gave a client, revoked ones included."""
     result = await db.execute(select(OAuthGrant).where(OAuthGrant.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def suggestions_for(db: AsyncSession, user_id: UUID) -> list[Suggestion]:
+    """Every proposal the platform made them, dismissed ones included (#2301).
+
+    Drawn from their own requests and kept after a "Not now" so the same one is
+    not made twice - held about them either way.
+    """
+    result = await db.execute(select(Suggestion).where(Suggestion.user_id == user_id))
     return list(result.scalars().all())
 
 

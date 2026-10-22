@@ -1,5 +1,5 @@
 ---
-source_sha: "fde346ad33ee"
+source_sha: "3f600cff5db6"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -187,7 +187,9 @@ Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
 imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
 `writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora.
+pyta, również administratora. Jeden odczyt czeka jak zmiana: `read_conversation`,
+który oddaje modelowi całą wcześniejszą rozmowę - strona przeczytana przez agenta
+mogłaby inaczej kazać mu ją pobrać i wysłać dalej.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez

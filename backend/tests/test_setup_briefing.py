@@ -128,6 +128,16 @@ class TestTheCard:
         with pytest.raises(ModelRetry, match="not one you lack"):
             toolset.request_capability(ctx, "web_research", "search")
 
+    @pytest.mark.parametrize("reason", ["   ", "x" * 301])
+    def test_a_reason_the_cards_button_could_not_send_is_asked_for_again(self, reason) -> None:
+        """The press posts it as `CapabilityRequest.reason`, 1-300 characters - a
+        card outside them would refuse every press (Codex on #2324)."""
+        toolset = self._tool(_spec("clock"), uuid.uuid4())
+        assert toolset is not None
+
+        with pytest.raises(ModelRetry, match="at most 300 characters"):
+            toolset.request_capability(MagicMock(last_attempt=False), "web_research", reason)
+
     def test_no_card_without_an_agent_to_name_or_anything_to_ask_for(self) -> None:
         everything = [c.id for c in all_capabilities() if c.selectable]
 

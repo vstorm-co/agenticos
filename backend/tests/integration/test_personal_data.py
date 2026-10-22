@@ -265,6 +265,61 @@ class TestTheExport:
         assert "hashed_password" not in export.profile
         assert "is_app_admin" not in export.profile
 
+    async def test_the_profile_carries_what_agents_are_told_about_them(self, db):
+        """Codex on #2324: their role, their work, their hours, their language and
+        whether the nightly look may reach them are theirs to take away."""
+        user = await _person(db, "export-context@example.com")
+        user_id = user.id
+        user.job_title = "Head of sales"
+        user.about = "Runs the EMEA pipeline"
+        user.time_zone = "Europe/Warsaw"
+        user.locale = "pl"
+        user.working_hours = {"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00"}
+        user.personal_starters = ["Plan my week"]
+        user.proactive_opt_out = True
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert export.profile["job_title"] == "Head of sales"
+        assert export.profile["about"] == "Runs the EMEA pipeline"
+        assert export.profile["time_zone"] == "Europe/Warsaw"
+        assert export.profile["locale"] == "pl"
+        assert export.profile["working_hours"]["start"] == "09:00"
+        assert export.profile["personal_starters"] == ["Plan my week"]
+        assert export.profile["proactive_opt_out"] is True
+
+    async def test_it_carries_what_the_platform_proposed_to_them_declined_ones_too(self, db):
+        """Codex on #2324: a suggestion is drawn from their requests and kept after a
+        "Not now" - held about them either way."""
+        from app.db.models.suggestion import SuggestionStatus
+        from app.repositories import suggestion_repo
+
+        user = await _person(db, "export-suggestions@example.com")
+        user_id = user.id
+        other = await _person(db, "export-suggestions-other@example.com")
+        organization, _ = await _org_and_agent(db)
+        for person, key in ((user_id, "mine"), (other.id, "theirs")):
+            made = await suggestion_repo.propose(
+                db,
+                organization_id=organization.id,
+                user_id=person,
+                kind="routine",
+                title=f"Routine {key}",
+                detail="You asked three times",
+                payload={"prompt": "Summarise"},
+                dedupe_key=f"routine:{key}",
+            )
+            assert made is not None
+            if person == user_id:
+                await suggestion_repo.decide(db, suggestion=made, status=SuggestionStatus.DISMISSED)
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert [(row["title"], row["status"]) for row in export.suggestions] == [
+            ("Routine mine", "dismissed")
+        ]
+
     async def test_more_text_than_one_document_can_carry_is_refused(self, db, monkeypatch):
         """The document is assembled and serialized whole, so without a ceiling
         the caller decides how much memory a worker spends. A refusal, because a

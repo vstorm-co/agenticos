@@ -1,5 +1,5 @@
 ---
-source_sha: "d094daa4a5c1"
+source_sha: "ff5687b5703f"
 ---
 
 # Konfiguracja { #configuration }
@@ -506,7 +506,7 @@ rozstrzyga i co celowo zostawia w spokoju.
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `RUN_HEARTBEAT_SECONDS` | `15` | Jak często proces wykonujący run oznacza go jako żywy, gdy model pracuje |
-| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Jak długo run w stanie `running` może nie dawać znaku życia, zanim zamiatanie co minutę uzna, że jego proces umarł, i zakończy go jako `failed`. Zero lub mniej wyłącza zamiatanie |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Jak długo run w stanie `running` może nie dawać znaku życia, zanim zamiatanie co minutę uzna, że jego proces umarł, i zakończy go jako `failed`. Co najmniej trzy `RUN_HEARTBEAT_SECONDS`, co sprawdza start; zero lub mniej wyłącza zamiatanie |
 
 Wiersz runa jest commitowany przed wywołaniem jego modelu, więc worker zabity w
 trakcie runa zostawia go w stanie `running` bez niczego, co by go dokończyło. Sufit

@@ -68,19 +68,25 @@ async def get_by_key(db: AsyncSession, key: str) -> TeamsConversation | None:
 
 
 SHARED_TYPES = ("channel", "groupChat")
-"""The conversations a trigger may post into. A personal chat is somebody's own,
-and a trigger another member set up has no business writing there."""
+"""The conversations more than one person is in - where a bot may look a new
+member up to greet them. Not where a routine may post: see `POSTABLE_TYPES`."""
+
+POSTABLE_TYPES = ("channel",)
+"""The conversations a routine may post into: a team channel, which the team
+can read. A group chat is private to its participants, and a member who is not
+one could otherwise set up a routine that writes into it; a personal chat is
+somebody's own."""
 
 
-async def get_shared(
+async def get_postable(
     db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> TeamsConversation | None:
-    """A team channel or group chat of this organization's, or None."""
+    """A team channel of this organization's, or None."""
     result = await db.execute(
         select(TeamsConversation).where(
             TeamsConversation.id == conversation_id,
             TeamsConversation.organization_id == organization_id,
-            TeamsConversation.conversation_type.in_(SHARED_TYPES),
+            TeamsConversation.conversation_type.in_(POSTABLE_TYPES),
         )
     )
     return result.scalar_one_or_none()
@@ -90,14 +96,16 @@ async def get_by_id(db: AsyncSession, conversation_id: UUID) -> TeamsConversatio
     return await db.get(TeamsConversation, conversation_id)
 
 
-async def list_shared(db: AsyncSession, *, organization_id: UUID) -> list[TeamsConversation]:
-    """The channels and group chats an active bot of the organization is in, latest first."""
+async def list_shared(
+    db: AsyncSession, *, organization_id: UUID, types: tuple[str, ...] = SHARED_TYPES
+) -> list[TeamsConversation]:
+    """The conversations of `types` an active bot of the organization is in, latest first."""
     result = await db.execute(
         select(TeamsConversation)
         .join(ChannelBot, ChannelBot.id == TeamsConversation.bot_id)
         .where(
             TeamsConversation.organization_id == organization_id,
-            TeamsConversation.conversation_type.in_(SHARED_TYPES),
+            TeamsConversation.conversation_type.in_(types),
             ChannelBot.is_active.is_(True),
         )
         .order_by(TeamsConversation.last_activity_at.desc())

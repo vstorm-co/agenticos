@@ -1,5 +1,5 @@
 ---
-source_sha: "fde346ad33ee"
+source_sha: "3f600cff5db6"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -191,7 +191,10 @@ ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
 er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
 diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins.
+der Berechtigung dessen, der fragt, auch eines Admins. Ein Lesezugriff wartet wie
+eine Änderung: `read_conversation`, das dem Modell eine ganze frühere Unterhaltung
+gibt - eine Seite, die der Agent gelesen hat, könnte ihn sonst eine abrufen und
+weiterschicken lassen.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.

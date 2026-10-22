@@ -524,9 +524,14 @@ class ChannelBotService:
         )
 
     async def teams_conversations(self) -> list[TeamsConversation]:
-        """Where a trigger may post: the team channels and group chats this organization's
-        Teams bots are in. Personal chats are nobody else's to post into."""
-        return await teams_conversation_repo.list_shared(self.db, organization_id=self._org_id)
+        """Where a trigger may post: the team channels this organization's Teams bots
+        are in. A group chat is private to its participants and a personal chat is
+        somebody's own, so neither is offered."""
+        return await teams_conversation_repo.list_shared(
+            self.db,
+            organization_id=self._org_id,
+            types=teams_conversation_repo.POSTABLE_TYPES,
+        )
 
     async def slack_manifest(self, bot_id: UUID) -> dict[str, Any]:
         """The Slack app manifest for one of this organization's Slack bots (#2067).

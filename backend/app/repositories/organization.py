@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -244,6 +245,20 @@ async def set_proactivity(
     await db.flush()
     await db.refresh(org)
     return org
+
+
+async def stop_proactivity_on(
+    db: AsyncSession, *, organization_id: UUID, model_profile_id: UUID
+) -> None:
+    """Switch the organization's proactive work off if it runs on this model (#2301)."""
+    await db.execute(
+        sql_update(Organization)
+        .where(
+            Organization.id == organization_id,
+            Organization.proactive_model_profile_id == model_profile_id,
+        )
+        .values(proactive_enabled=False)
+    )
 
 
 async def set_welcome_dm(

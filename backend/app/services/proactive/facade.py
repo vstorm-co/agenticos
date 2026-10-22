@@ -5,7 +5,7 @@ nightly look at each person's week, installing a role pack they accepted, and
 greeting a new member in the chat apps. A request only ever queues one of these.
 """
 
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -38,14 +38,24 @@ def _its_time(candidate: SweepCandidate, now: datetime) -> bool:
 
     `before_work` aims an hour before the working hours their profile states and
     falls back to the organization's hour for a profile that states none.
+
+    Anchored on the day's actual occurrence, date and all - today's, or
+    yesterday's when a late hour's window runs past midnight - so the small
+    hours of Monday are not read as the tail of Monday's 23:00 (Codex on #2324).
     """
-    local = now.astimezone(ZoneInfo(candidate.time_zone or "UTC"))
-    if local.isoweekday() not in candidate.days:
-        return False
+    zone = ZoneInfo(candidate.time_zone or "UTC")
+    local = now.astimezone(zone)
     hour = candidate.hour
     if candidate.timing == "before_work" and candidate.working_hours is not None:
         hour = (WorkingHours.model_validate(candidate.working_hours).start_hour - 1) % 24
-    return (local.hour - hour) % 24 < _WINDOW_HOURS
+    for days_back in (0, 1):
+        day = local.date() - timedelta(days=days_back)
+        if day.isoweekday() not in candidate.days:
+            continue
+        start = datetime.combine(day, time(hour), tzinfo=zone)
+        if start <= local < start + timedelta(hours=_WINDOW_HOURS):
+            return True
+    return False
 
 
 class ProactiveService:

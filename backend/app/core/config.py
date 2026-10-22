@@ -832,6 +832,23 @@ class Settings(BaseSettings):
         self.map_tiles()
         return self
 
+    @model_validator(mode="after")
+    def validate_run_heartbeat(self) -> Settings:
+        """A stale-run ceiling a live run's own heartbeat cannot beat is refused at startup.
+
+        A run's first beat lands one interval after it starts, so a ceiling no
+        longer than a few intervals ends live runs mid-call - and a routine can
+        then start another on top of the one still answering (Codex on #2324).
+        Three intervals is the least that survives one missed beat.
+        """
+        ceiling = self.STALE_RUN_REAPED_AFTER_SECONDS
+        if 0 < ceiling < 3 * self.RUN_HEARTBEAT_SECONDS:
+            raise ValueError(
+                "STALE_RUN_REAPED_AFTER_SECONDS must be at least three "
+                "RUN_HEARTBEAT_SECONDS, or zero to switch the sweep off"
+            )
+        return self
+
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
     # anything inside the deployment's network and connects to the address it

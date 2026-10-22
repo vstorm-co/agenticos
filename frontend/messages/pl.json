@@ -900,7 +900,8 @@
     "newStarter": "Nowa pierwsza wiadomość",
     "newStarterPlaceholder": "W czym możesz mi pomóc?",
     "addStarter": "Dodaj",
-    "platformUngatedBadge": "własne ustawienie, bez zgody"
+    "platformUngatedBadge": "własne ustawienie, bez zgody",
+    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

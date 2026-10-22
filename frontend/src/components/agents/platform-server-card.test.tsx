@@ -86,6 +86,26 @@ describe("the AgenticOS server in the Builder", () => {
     expect(screen.getByText("your own setting, never asks")).toBeInTheDocument();
   });
 
+  it("marks the one read that asks first - a whole past conversation (Codex on #2324)", async () => {
+    tools.mockReturnValue({
+      tools: [
+        { name: "get_run", description: "One run.", writes: false },
+        {
+          name: "read_conversation",
+          description: "A whole conversation.",
+          writes: false,
+          held: true,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Asks before any change"));
+
+    expect(screen.getAllByText("reads past conversations, asks first")).toHaveLength(1);
+  });
+
   it("narrows the tools, and every tool chosen again is no limit at all", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);

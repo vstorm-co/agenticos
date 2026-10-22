@@ -21,7 +21,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models.channel_bot import ChannelBot
-from app.repositories import channel_bot_repo, organization_repo, teams_conversation_repo, user_repo
+from app.repositories import (
+    channel_bot_repo,
+    member_repo,
+    organization_repo,
+    teams_conversation_repo,
+    user_repo,
+)
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import ChannelAdapter
@@ -91,6 +97,10 @@ async def welcome(db: AsyncSession, organization_id: UUID, user_id: UUID) -> int
         or not user.is_active
         or not organization.welcome_dm_enabled
     ):
+        return 0
+    # Read again here, not trusted from when the greeting was queued: somebody
+    # removed in between is not welcomed to an organization they have left.
+    if await member_repo.get_active(db, organization_id=organization_id, user_id=user_id) is None:
         return 0
     bots = [
         bot
