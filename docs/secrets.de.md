@@ -1,5 +1,5 @@
 ---
-source_sha: "64b487154003"
+source_sha: "39262f89eb46"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -204,6 +204,20 @@ Key"; die `secret_id` eines Bindings sagt, welchen. Siehe
 
 **MCP-Verbindungen.** Bearer-Token und OAuth-Nutzlasten, versiegelt an die
 Organisation oder an das Mitglied. Siehe [MCP](mcp.md#authentication).
+
+<a id="connected-accounts"></a>
+
+**Verbundene Konten.** Ein Google-Konto, als das ein Ordner des
+[virtuellen Terminals](reference/capabilities.md#mirage) liest, verbunden auf der
+Vault-Seite. Eine Person verbindet ihre eigenen Konten, und ein Agent, der „die
+eigenen Konten jeder Person“ einbindet, findet sie, wenn diese Person mit ihm
+spricht. Die Konten der Organisation brauchen `mcp:manage` zum Verbinden oder
+Trennen und `connections:view` zum Auflisten, und ein Ordner nennt eines per ID.
+Die Einwilligung nutzt das `google_oauth_app`-Secret der Organisation und fragt
+Drive, Gmail, Kalender, Docs, Sheets und Slides auf einmal an. Google erlaubt, jede
+davon zu verweigern, und ein Ordner, der eine verweigerte braucht, sagt das. Die
+Freigabe ist eine OAuth-Payload, versiegelt wie die einer MCP-Verbindung, und eine
+Antwort nennt die Adresse des Kontos und die erteilten Scopes, nie ein Token.
 
 **Channel-Bots.** Alle Zugangsdaten auf der Zeile, versiegelt an die Organisation
 des Bots unter einer gemeinsamen `key_version`: das Bot-Token, das Signing Secret

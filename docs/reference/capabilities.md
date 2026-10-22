@@ -55,6 +55,7 @@ browser is pointed at the deployment's browser service
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
+| `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
@@ -949,6 +950,69 @@ Those files are writable, and what the agent writes does **not** become a skill.
 skill is instructions every agent bound to it follows on every run, so a change is
 recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
 see [Skills](../skills.md).
+
+## Virtual terminal { #mirage }
+
+The seven `sandbox` tools, prefixed `mirage_`, over the services an author mounts:
+a Google Drive, a GitHub repository, Notion, a Postgres database, an SSH server, a
+mailbox. [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) mounts each
+service as a folder and runs the shell over it through the service's own API, so
+the agent answers "which contracts mention Acme?" with a `grep` across a Drive
+folder. No container starts. An agent can have both this and a sandbox: the
+terminal's tools always reach the terminal, and `execute` still reaches the
+sandbox.
+
+| Config | Default | Values |
+|---|---|---|
+| `mounts` | required | One to ten folders, each described below |
+| `allowed_commands` | every command | Command names the shell may run, such as `ls`, `cat`, `grep` |
+| `hidden_paths` | none | Absolute paths the agent cannot see at all, such as `/drive/HR/` |
+
+**A folder is a path, a service and how it signs in.** The path is one lowercase
+name between slashes (`/drive/`). The service is one of the backends the
+deployment can mount, with that service's own options: a repository, a folder id,
+a host. A folder is read only unless the author makes it writable. A writable
+folder asks a person to approve each write unless the author turns that off. The
+Builder lists every service Mirage ships, and gives the reason for each one this
+deployment cannot mount.
+
+**How a folder signs in depends on the service:**
+
+| Credential | Services | What the spec holds |
+|---|---|---|
+| Vault keys | GitHub, Notion, Linear, Slack, Postgres, SSH, IMAP mail and the rest | An `api_key` secret per credential field (`token`, `dsn`, `password`) |
+| An Entra app | OneDrive, SharePoint | An `entra_app` secret, which the run signs in as for a Microsoft Graph token |
+| A Google account | Drive, Docs, Sheets, Slides, Gmail, Calendar | One of the organization's [connected accounts](../secrets.md#connected-accounts), or each person's own |
+| None | Scratch space (`ram`) | Nothing |
+
+**Each person's own accounts are found when that person talks to the agent.**
+Somebody with two Google accounts gets two folders under the mount, one named
+after each address. Somebody with none, such as an API key or a schedule, gets no
+folder, and the agent is told so. An organization's account answers for everybody
+who talks to the agent.
+
+**A spec never holds a credential, an endpoint override or a path on the API
+host.** Publishing refuses a secret the publisher may not lend, a secret of the
+wrong kind and an account the organization does not have. A host the author types
+must be on [`MIRAGE_ALLOWED_HOSTS`](../configuration.md), such as an SSH server or
+the host in a DSN. Publishing checks the typed host, and the run checks the hosts
+stored inside secrets.
+
+**Approval is per folder, not per tool.** `mirage_execute ls` and
+`mirage_execute rm /drive/q3.pdf` are the same tool, so gating the tool would ask
+about both. Instead, a call that would write into a folder marked "approve each
+write" goes to the [approval gate](../governance.md) before it runs. For
+`mirage_write_file` and `mirage_edit_file` the call's `path` decides. For
+`mirage_execute`, Mirage dry-runs the command line first, so a redirect, `cp`,
+`tee` and `rm` are all caught. A write that no dry run predicted, such as
+`echo x > $TARGET`, is refused unless the call was approved.
+
+**It is an optional install.** A deployment installs the terminal with the
+`mirage` extra (`EXTRAS="--extra mirage"`), and the build then installs a
+compiler for the shell parser. Without it, the Builder says the terminal is not installed
+and publishing refuses a spec that binds it. The S3 family, Box, LanceDB, Qdrant
+and Langfuse backends are not mountable in this release; the Builder gives the
+reason for each.
 
 ## Charts
 

@@ -82,7 +82,7 @@ whatever its instructions say.
 
 | The agent can… | Switch on |
 |---|---|
-| **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
+| **Answer from what your company knows** — your documents, your written procedures, whatever was attached to this conversation, and the services you mount as folders, such as a Drive or a repository | Knowledge search · Skills · Context · Virtual terminal |
 | **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory · Memory (mem0) · Past conversations |
 | **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Read web pages · Web browser |
 | **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Calculations · Sandbox · Charts · Image generation |

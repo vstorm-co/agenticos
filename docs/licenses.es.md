@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "2ca48c549207"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -39,6 +39,12 @@ dependencias `docs`, `devDependencies`) no están en las imágenes ni en los avi
 Las herramientas de compilación que se ejecutan en una fase de builder y no están
 en la capa final, como `uv`, quedan registradas en `licenses/components.toml` como
 no distribuidas.
+
+Los extras opcionales, `browser`, `kerberos` y `mirage`, tampoco están en las
+imágenes publicadas, así que los avisos los dejan fuera. Quien construye una imagen
+con `EXTRAS` distribuye también esos paquetes, bajo sus propias licencias. El extra
+`mirage` trae [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) y los
+clientes de servicios que usan sus backends.
 
 ## El inventario { #the-inventory }
 

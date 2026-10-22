@@ -179,6 +179,20 @@ says which one. See
 **MCP connections.** Bearer tokens and OAuth payloads, sealed to the organization
 or to the member. See [MCP](mcp.md#authentication).
 
+<a id="connected-accounts"></a>
+
+**Connected accounts.** A Google account a
+[virtual terminal](reference/capabilities.md#mirage) folder reads as, connected
+from the vault page. A person connects their own accounts, and an agent mounting
+"each person's own accounts" finds them when that person talks to it. The
+organization's accounts take `mcp:manage` to connect or disconnect and
+`connections:view` to list, and a folder names one by id. The consent uses the
+organization's `google_oauth_app` secret and asks for Drive, Gmail, Calendar,
+Docs, Sheets and Slides at once. Google lets a person withhold any of them, and a
+folder that needs a withheld one says so. The grant is an OAuth payload sealed
+like an MCP connection's, and a response names the account's address and its
+granted scopes, never a token.
+
 **Channel bots.** Every credential on the row, sealed to the bot's organization at
 one shared `key_version`: the bot token, a Slack app's signing secret and app
 token, and the shared secret an inbound webhook is authenticated against —

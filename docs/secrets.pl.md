@@ -1,5 +1,5 @@
 ---
-source_sha: "64b487154003"
+source_sha: "39262f89eb46"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -197,6 +197,19 @@ może odbierać rozmów, dopóki nie zostanie wybrany inny.
 
 **Połączenia MCP.** Tokeny bearer i ładunki OAuth, pieczętowane dla organizacji
 albo dla członka. Zobacz [MCP](mcp.md#authentication).
+
+<a id="connected-accounts"></a>
+
+**Podłączone konta.** Konto Google, jako które czyta folder
+[wirtualnego terminala](reference/capabilities.md#mirage), podłączone na stronie
+vaulta. Osoba podłącza własne konta, a agent montujący „własne konta każdej osoby”
+znajduje je, gdy ta osoba z nim rozmawia. Konta organizacji wymagają `mcp:manage`
+do podłączenia lub odłączenia i `connections:view` do wyświetlenia listy, a folder
+wskazuje jedno z nich po id. Zgoda używa sekretu `google_oauth_app` organizacji i
+prosi naraz o Dysk, Gmail, Kalendarz, Dokumenty, Arkusze i Prezentacje. Google
+pozwala odmówić dowolnego z nich, a folder, który potrzebuje odmówionego, mówi o
+tym. Zgoda to payload OAuth zapieczętowany jak w połączeniu MCP, a odpowiedź
+podaje adres konta i przyznane zakresy, nigdy token.
 
 **Boty kanałów.** Każde poświadczenie w wierszu, zapieczętowane dla organizacji
 bota jednym wspólnym `key_version`: token bota, signing secret i app token

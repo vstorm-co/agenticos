@@ -1,5 +1,5 @@
 ---
-source_sha: "8bdf39c42a5d"
+source_sha: "9833e468f549"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -62,6 +62,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
@@ -1004,6 +1005,70 @@ Te pliki są zapisywalne, a to, co agent zapisze, **nie** staje się skillem. Sk
 to instrukcje, za którymi idzie każdy powiązany z nim agent przy każdym runie, więc
 zmiana jest zapisywana jako propozycja, a ktoś z `skills:edit` ją przyjmuje albo
 odrzuca — zobacz [Skille](../skills.md).
+
+## Wirtualny terminal { #mirage }
+
+Siedem narzędzi `sandbox` z prefiksem `mirage_`, działających na usługach, które
+autor montuje: Dysk Google, repozytorium GitHub, Notion, baza Postgres, serwer SSH,
+skrzynka pocztowa. [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0)
+montuje każdą usługę jako folder i uruchamia na nim powłokę przez API samej
+usługi, więc agent odpowiada na pytanie „które umowy wspominają Acme?” poleceniem
+`grep` po folderze na Dysku. Żaden kontener się nie uruchamia. Agent może mieć
+jednocześnie tę capability i sandbox: narzędzia terminala zawsze trafiają do
+terminala, a `execute` nadal trafia do sandboksa.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `mounts` | wymagane | Od jednego do dziesięciu folderów, każdy opisany niżej |
+| `allowed_commands` | każde polecenie | Nazwy poleceń, które powłoka może uruchomić, np. `ls`, `cat`, `grep` |
+| `hidden_paths` | brak | Ścieżki bezwzględne, których agent w ogóle nie widzi, np. `/drive/HR/` |
+
+**Folder to ścieżka, usługa i sposób logowania.** Ścieżka to jedna nazwa małymi
+literami między ukośnikami (`/drive/`). Usługa to jeden z backendów, które
+wdrożenie potrafi zamontować, z jej własnymi opcjami: repozytorium, id folderu,
+host. Folder jest tylko do odczytu, chyba że autor pozwoli w nim zapisywać.
+Folder z zapisem prosi osobę o zatwierdzenie każdego zapisu, chyba że autor to
+wyłączy. Builder pokazuje każdą usługę, którą ma Mirage, i podaje powód przy
+każdej, której to wdrożenie nie może zamontować.
+
+**Sposób logowania folderu zależy od usługi:**
+
+| Poświadczenie | Usługi | Co zawiera spec |
+|---|---|---|
+| Klucze w vaulcie | GitHub, Notion, Linear, Slack, Postgres, SSH, poczta IMAP i pozostałe | Sekret `api_key` dla każdego pola poświadczenia (`token`, `dsn`, `password`) |
+| Aplikacja Entra | OneDrive, SharePoint | Sekret `entra_app`, jako który run loguje się po token Microsoft Graph |
+| Konto Google | Dysk, Dokumenty, Arkusze, Prezentacje, Gmail, Kalendarz | Jedno z [podłączonych kont](../secrets.md#connected-accounts) organizacji albo własne konta każdej osoby |
+| Brak | Przestrzeń robocza (`ram`) | Nic |
+
+**Własne konta każdej osoby są wyszukiwane, gdy ta osoba rozmawia z agentem.**
+Ktoś z dwoma kontami Google dostaje pod punktem montowania dwa foldery, nazwane
+od każdego adresu. Ktoś bez konta, np. klucz API albo harmonogram, nie dostaje
+folderu, a agent dowiaduje się o tym. Konto organizacji odpowiada za każdego,
+kto rozmawia z agentem.
+
+**Spec nigdy nie zawiera poświadczenia, nadpisanego endpointu ani ścieżki na
+hoście API.** Publikacja odrzuca sekret, którego publikujący nie może użyczyć,
+sekret złego rodzaju i konto, którego organizacja nie ma. Host wpisany przez
+autora musi być w [`MIRAGE_ALLOWED_HOSTS`](../configuration.md), np. serwer SSH
+albo host w DSN. Publikacja sprawdza wpisany host, a run sprawdza hosty zapisane
+w sekretach.
+
+**Zatwierdzanie działa per folder, a nie per narzędzie.** `mirage_execute ls` i
+`mirage_execute rm /drive/q3.pdf` to to samo narzędzie, więc bramka na narzędziu
+pytałaby o oba. Zamiast tego wywołanie, które zapisałoby do folderu z
+zatwierdzaniem każdego zapisu, trafia do [bramki zatwierdzeń](../governance.md),
+zanim się wykona. Dla `mirage_write_file` i `mirage_edit_file` decyduje `path`
+wywołania. Dla `mirage_execute` Mirage najpierw wykonuje linię poleceń na sucho,
+więc przekierowanie, `cp`, `tee` i `rm` są wychwytywane. Zapis, którego żadna
+próba na sucho nie przewidziała, np. `echo x > $TARGET`, jest odrzucany, chyba
+że wywołanie zatwierdzono.
+
+**To instalacja opcjonalna.** Wdrożenie instaluje terminal z extra `mirage`
+(`EXTRAS="--extra mirage"`), a build instaluje wtedy kompilator dla parsera
+powłoki. Bez tego Builder informuje, że terminal nie jest zainstalowany, a
+publikacja odrzuca spec, który go wiąże. Backendów z rodziny S3, Box, LanceDB,
+Qdrant i Langfuse nie da się zamontować w tym wydaniu; Builder podaje powód przy
+każdym.
 
 ## Wykresy { #charts }
 
