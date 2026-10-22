@@ -143,3 +143,19 @@ export function skipText(result: EvalSuiteResult, t: Translate): string | null {
   }
   return result.summary?.message ?? result.reason;
 }
+
+/**
+ * Why a result came out as it did, a line each: the threshold's reasons for a
+ * failure or an inconclusive verdict, and the result's own reason where it has
+ * no threshold to fall short of - a run that was cancelled, one that never ran.
+ */
+export function resultReasons(result: EvalSuiteResult, t: Translate, locale: string): string[] {
+  const reasons = result.summary?.reasons ?? [];
+  if ((result.status === "failed" || result.status === "inconclusive") && reasons.length > 0) {
+    return reasons.map((reason) => reasonText(reason, t, locale));
+  }
+  if (["inconclusive", "skipped", "error"].includes(result.status)) {
+    return [skipText(result, t)].filter((text): text is string => text !== null);
+  }
+  return [];
+}
