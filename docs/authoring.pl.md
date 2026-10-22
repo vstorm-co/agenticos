@@ -1,5 +1,5 @@
 ---
-source_sha: "8fb435c85b91"
+source_sha: "cb389d355ac7"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -81,6 +81,14 @@ przyjęty tekst został potem zmieniony ręcznie: wyrzuciłoby to tę zmianę.
 Nowsze Ulepsz zastępuje oczekujące sugestie; Sprawdź dodaje do nich swoje.
 Opublikowanie draftu je zamyka: decyzje stają się ostateczne, a pasek zachowuje
 je jako zapis.
+
+Zmiana zaproponowana przez asystenta, której nie da się zapisać, nie znika po
+cichu. Pasek wymienia ją pod **proponowane zmiany nie zostały zapisane**, z
+powodem: fragmentu, który zmienia, nie ma w instrukcjach albo występuje więcej
+niż raz, agent nie ma takiego narzędzia, tego ustawienia asystent nie może
+zmieniać. Worker loguje te same powody. Fragment skopiowany z wyprostowanymi
+cudzysłowami, bez backticków albo ze złączonymi liniami nadal trafia na tekst
+draftu.
 
 ### Sprawdź evalami { #check-with-evals }
 

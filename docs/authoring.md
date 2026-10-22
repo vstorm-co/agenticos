@@ -79,6 +79,13 @@ A newer Improve replaces the waiting suggestions; Verify adds its suggestions to
 them instead. Publishing the draft closes them: their decisions are final, and
 the strip keeps them as a record.
 
+A change the assistant proposes that cannot be recorded is not dropped
+silently. The strip lists it under **proposed changes were not recorded**, with
+why: the passage it changes is not in the instructions or occurs more than once,
+the agent has no such tool, the setting is not one it may change. The worker logs
+the same reasons. A passage copied with its quotes straightened, its backticks
+dropped or its lines joined still finds the draft's own text.
+
 ### Check with evals { #check-with-evals }
 
 **Check with evals** runs a [dataset](datasets.md) against the draft as it would
