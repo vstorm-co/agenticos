@@ -36,9 +36,9 @@ class ArtifactsConfig(BaseModel):
         "Let the agent publish a finished page - a report, a small dashboard, a one-page "
         "summary - under a link people open in a browser. Publishing again under the same "
         "name updates the page behind the same link and keeps the earlier versions, and the "
-        "agent can list its pages, read one back to change part of it, and preview one to "
-        "see it as a reader would. A new page is private to the person the run was for "
-        "until they share it."
+        "agent can list its pages, read one back to change part of it, preview one to "
+        "see it as a reader would, and ask for one to be shared, which its owner approves. "
+        "A new page is private to the person the run was for until they share it."
     ),
     tools=(
         CapabilityToolInfo(
@@ -64,6 +64,14 @@ class ArtifactsConfig(BaseModel):
                 "See a page you published as somebody opening it would: a picture, and what "
                 "went wrong."
             ),
+        ),
+        CapabilityToolInfo(
+            id="share_artifact",
+            description=(
+                "Ask for a page you published to be shared with more people; this shares "
+                "nothing itself."
+            ),
+            side_effecting=False,
         ),
     ),
     config_schema=ArtifactsConfig,

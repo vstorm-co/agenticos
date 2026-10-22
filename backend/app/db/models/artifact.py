@@ -34,6 +34,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -70,6 +71,37 @@ class ArtifactMediaType(StrEnum):
 
     MARKDOWN = "text/markdown"
     """Rendered to HTML when served; the source is what is stored."""
+
+
+class ConsentState(StrEnum):
+    """Where a version stands on its owner's consent to share the data it reads.
+
+    The page and its data travel together: a viewer who only views the page - its
+    audience - is served the newest version that is `consented` or `not_needed`,
+    and its data only while that consent is still good (see
+    :mod:`app.services.artifact_consent`).
+    """
+
+    NOT_NEEDED = "not_needed"
+    """No bindings: the page reads no data, so there is nothing to consent to."""
+
+    PENDING = "pending"
+    """Bound, and nobody has confirmed what it shares yet."""
+
+    CONSENTED = "consented"
+    """Confirmed - by the owner, an admin for them, or automatically."""
+
+    DECLINED = "declined"
+    """Refused by the owner: the audience stays on the version before it."""
+
+    WITHDRAWN = "withdrawn"
+    """Reserved for a consent taken back. Withdrawal is recorded on the page as a
+    cut-off (`Artifact.consent_withdrawn_at`) rather than on every row, so nothing
+    writes this today; the read side derives it for a consent the cut-off voided."""
+
+
+SERVED_STATES = (ConsentState.CONSENTED.value, ConsentState.NOT_NEEDED.value)
+"""The states a version the audience may be served is in."""
 
 
 class Artifact(Base, TimestampMixin):
@@ -152,6 +184,17 @@ class Artifact(Base, TimestampMixin):
     # grants and its name - so the agent's next publish is refused rather than
     # starting a second page - but nothing serves it until it is restored.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "Don't ask for consent on republish": a version the owner's own run publishes
+    # is consented automatically. Turned on only by the owner, as themselves.
+    auto_consent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # When an editor last withdrew consent to share the page's data. Every consent
+    # given at or before it is void, whichever version it is on - one write, where
+    # marking each row would have to find every one of them under the lock.
+    consent_withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         Index(
@@ -214,6 +257,44 @@ class ArtifactVersion(Base, TimestampMixin):
     bindings: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
+    # The member whose run published it, or who restored it; null for a run with
+    # nobody behind it. The membership as well as the person: what they could do
+    # is what they held then.
+    published_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    published_by_membership_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    # The digest of the page queries, their reach included (`artifact_bindings.
+    # fingerprint`); null when it has none. What a consent is given to, and what
+    # a republish is compared with to carry one forward.
+    query_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    consent_state: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=ConsentState.NOT_NEEDED.value,
+        server_default=ConsentState.NOT_NEEDED.value,
+    )
+    consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Who confirmed it - the owner, or an admin for them; null for an automatic one.
+    consented_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # The owner's membership the consent was given under, whoever gave it. A
+    # number, not a key: removing and re-inviting the owner makes a new membership,
+    # and the consents of the old one must stay void rather than vanish.
+    consented_by_membership_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    consent_automatic: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # The editor whose `edit_data` grant consented automatically. Unused until
+    # that grant level exists.
+    consent_via_grant: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     __table_args__ = (
         UniqueConstraint("artifact_id", "number", name="uq_artifact_version_number"),
@@ -221,6 +302,21 @@ class ArtifactVersion(Base, TimestampMixin):
             "media_type IN ('text/html', 'text/markdown')", name="ck_artifact_version_media_type"
         ),
         CheckConstraint("size_bytes >= 0", name="ck_artifact_version_size"),
+        CheckConstraint(
+            "consent_state IN ('not_needed', 'pending', 'consented', 'declined', 'withdrawn')",
+            name="ck_artifact_version_consent_state",
+        ),
+        CheckConstraint(
+            "consent_state <> 'consented' OR consented_by_membership_id IS NOT NULL",
+            name="ck_artifact_version_consent_membership",
+        ),
+        # What the audience is served: the newest version in one of these states.
+        Index(
+            "ix_artifact_versions_served",
+            "artifact_id",
+            text("number DESC"),
+            postgresql_where=text("consent_state IN ('consented', 'not_needed')"),
+        ),
     )
 
     def __repr__(self) -> str:

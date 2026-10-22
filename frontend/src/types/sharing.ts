@@ -10,8 +10,13 @@
 /** How widely a resource is exposed inside its organization. */
 export type Visibility = "private" | "team" | "org";
 
-/** What a grant lets its subject do. Ordered read < use < edit. */
-export type GrantLevel = "read" | "use" | "edit";
+/**
+ * What a grant lets its subject do. Ordered read < use < edit < edit_data.
+ *
+ * `edit_data` is a page's level only ("Can edit, data included"): an edit whose
+ * republishes the page's owner has consented to in advance.
+ */
+export type GrantLevel = "read" | "use" | "edit" | "edit_data";
 
 /** The resource kinds that carry an owner, a visibility and a grant list. */
 export type SharingResourceType =
@@ -64,5 +69,9 @@ export interface ResourceSharing {
  * Share with a member or a group, or change the level of a share that already
  * exists. One subject key or the other, never both.
  */
-export type ShareInput =
-  { subject_user_id: string; level: GrantLevel } | { subject_group_id: string; level: GrantLevel };
+export type ShareInput = (
+  { subject_user_id: string; level: GrantLevel } | { subject_group_id: string; level: GrantLevel }
+) & {
+  /** Granting `edit_data`: the id of the text the person confirmed; see `EDIT_DATA_WORDING`. */
+  confirmed?: string;
+};

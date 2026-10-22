@@ -51,6 +51,15 @@ export function originLines(text: string): string[] {
     .filter((line) => line !== "");
 }
 
+/**
+ * A version the link may show: one the page's audience could be served. A version
+ * waiting for its owner's consent, or declined, is never shown to strangers before
+ * members, and the server refuses the pin.
+ */
+export function pinnable(version: ArtifactVersion): boolean {
+  return version.consent_state !== "pending" && version.consent_state !== "declined";
+}
+
 interface PublicLinkSettingsProps {
   link: ArtifactPublicLink;
   /** The kept versions, newest first - what the link may be pinned to. */
@@ -102,7 +111,7 @@ export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLin
         <FormField
           htmlFor="public-link-version"
           label={t("linkVersion")}
-          description={t("linkVersionWhy")}
+          description={`${t("linkVersionWhy")} ${t("linkLatestWhy")}`}
           error={problems.pinned_version_id}
         >
           <Select value={pinned} onValueChange={setPinned}>
@@ -111,7 +120,7 @@ export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLin
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={LATEST}>{t("latestVersion")}</SelectItem>
-              {versions.map((version) => (
+              {versions.filter(pinnable).map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   {t("versionBadge", { version: version.number })}
                 </SelectItem>

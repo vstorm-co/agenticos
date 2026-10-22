@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, Clock, RefreshCw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import type { BridgeStatus, DataBridge } from "@/components/artifacts/artifact-frame";
@@ -40,6 +40,18 @@ function superseded(status: BridgeStatus): boolean {
 }
 
 /**
+ * Every source waits for the owner's consent, as the address said when it was minted
+ * for a page served with its data: known before any read, and for any viewer. Once
+ * a read answers, it is the read that says.
+ */
+function waiting(status: BridgeStatus): boolean {
+  const { served } = status;
+  return (
+    status.data === undefined && served !== null && served.bindings > 0 && served.awaitingConsent
+  );
+}
+
+/**
  * Whether polling this page can bring anything: not after a refusal, and not
  * when the last read answered with no source available.
  *
@@ -52,6 +64,7 @@ function superseded(status: BridgeStatus): boolean {
 function stopsAutoRefresh(status: BridgeStatus): boolean {
   if (refused(status)) return true;
   if (status.error !== null || superseded(status)) return false;
+  if (waiting(status)) return true;
   const bindings = Object.values(status.data?.bindings ?? {});
   return bindings.length > 0 && bindings.every((binding) => binding.status === "unavailable");
 }
@@ -67,6 +80,7 @@ function stopsAutoRefresh(status: BridgeStatus): boolean {
 export function liveHealth(status: BridgeStatus): LiveHealth | null {
   if (refused(status)) return null;
   if (status.error !== null || superseded(status)) return "steady";
+  if (waiting(status)) return null;
   const bindings = Object.values(status.data?.bindings ?? {});
   if (bindings.length === 0) return "steady";
   const unavailable = bindings.filter((binding) => binding.status === "unavailable").length;
@@ -166,6 +180,8 @@ interface ViewerNoticeProps {
   tone: keyof typeof TONES;
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   children: React.ReactNode;
+  /** The `data-tour` anchor, for a notice the onboarding walk points at. */
+  tour?: string;
 }
 
 /**
@@ -173,10 +189,11 @@ interface ViewerNoticeProps {
  * page needs attention. Themed through the console's tokens, so it follows the
  * console's theme switch rather than the operating system's.
  */
-export function ViewerNotice({ tone, icon: Icon, children }: ViewerNoticeProps) {
+export function ViewerNotice({ tone, icon: Icon, children, tour }: ViewerNoticeProps) {
   return (
     <div
       role="status"
+      data-tour={tour}
       className={cn(
         "text-foreground flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2 text-sm",
         TONES[tone],
@@ -197,6 +214,10 @@ interface LiveDataNoticeProps {
  * What is wrong with the page's live data, if anything: refused, busy, or some
  * sources unavailable. A reader is told how many; an editor (`can_edit`, the
  * server's answer) also why, and where to fix each.
+ *
+ * Data waiting for the owner's consent is said once, for the whole page, and only
+ * to its audience: a caller served the latest version has the consent strip
+ * (`ConsentNotice`) saying it, with what to do.
  */
 export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
   const t = useTranslations("artifacts");
@@ -210,7 +231,19 @@ export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
   if (status.error !== null || superseded(status)) return null;
   const bindings = Object.entries(status.data?.bindings ?? {});
   const unavailable = bindings.filter(([, binding]) => binding.status === "unavailable");
-  if (unavailable.length === 0) return null;
+  const awaiting =
+    waiting(status) ||
+    (unavailable.length > 0 &&
+      unavailable.every(([, binding]) => binding.reason === "awaiting_consent"));
+  if (unavailable.length === 0 && !awaiting) return null;
+  if (awaiting) {
+    if (artifact.consent !== null) return null;
+    return (
+      <ViewerNotice tone="info" icon={Clock}>
+        {t("consent.awaitingForYou")}
+      </ViewerNotice>
+    );
+  }
   return (
     <ViewerNotice tone="warning" icon={AlertTriangle}>
       <span>
@@ -225,16 +258,13 @@ export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
                 {t.rich("liveSourceCause", {
                   name,
                   reason: binding.reason ?? "",
+                  changed: binding.changed ?? "",
                   b: (chunks) => <span className="font-medium">{chunks}</span>,
                 })}
               </span>
               {bound !== undefined && (
                 <Button asChild size="sm" variant="outline" className="h-6 px-2">
-                  <Link
-                    href={`${ROUTES.TABLE_DETAIL(bound.table_id)}?viewId=${encodeURIComponent(bound.view_id)}`}
-                  >
-                    {t("openTable")}
-                  </Link>
+                  <Link href={ROUTES.TABLE_DETAIL(bound.table_id)}>{t("openTable")}</Link>
                 </Button>
               )}
             </span>

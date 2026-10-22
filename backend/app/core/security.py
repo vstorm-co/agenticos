@@ -1,7 +1,8 @@
 """Security utilities for JWT authentication."""
 
+import hashlib
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import bcrypt
@@ -98,7 +99,9 @@ def create_refresh_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | None:
+def verify_token(
+    token: str, *, verify_exp: bool = True, audience: tuple[str, ...] | None = None
+) -> dict[str, Any] | None:
     """Verify a JWT token and return payload.
 
     `verify_exp=False` decodes a signature-valid token whose `exp` has passed. It
@@ -109,12 +112,17 @@ def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | Non
     running (#1437). Revocation is judged from the session and account state
     instead. The signature is still verified; every other caller keeps expiry
     enforced.
+
+    A token that carries an `aud` claim is refused unless the caller names it in
+    `audience`, so a token minted for one purpose (an artifact's content address)
+    is never read as another.
     """
     try:
         return jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            audience=list(audience) if audience is not None else None,
             options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
@@ -207,39 +215,64 @@ def create_magic_link_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+ArtifactTokenAudience = Literal["member", "public"]
+"""Who an artifact content address was minted for: a signed-in member, or a public link."""
+
+
 def create_artifact_view_token(
-    version_id: UUID, *, expires_in: timedelta, nonce: str, live: bool
+    version_id: UUID,
+    *,
+    expires_in: timedelta,
+    nonce: str,
+    live: bool,
+    audience: ArtifactTokenAudience,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+    inject: bool = False,
+    public_key: str | None = None,
 ) -> str:
     """A short-lived address for one artifact version's bytes.
 
     The content route authenticates nothing else, which is the point: the page is
     served where no cookie reaches, so the access decision is taken when the token
     is minted - by a member's grant or by a public link - and the token carries
-    only its outcome. It names a version rather than an artifact, so a frame that
-    was drawn for version 3 still shows version 3 after version 4 lands.
+    who it was minted for. It names a version rather than an artifact, so a frame
+    that was drawn for version 3 still shows version 3 after version 4 lands.
 
-    `n` is the nonce the served page and the console match their messages on, so
-    a late reply meant for one load of the frame is dropped by the next. `live`
-    says whether the page asks the console for its bindings' data at all; no
-    viewer identity rides in the token, since the console fetches that data as
-    the viewer.
+    Claims: `aud` is `member` or `public`. A member token carries the viewer
+    (`uid`, `org`) and `inj` - whether the page is served with its data written
+    in, which the route decides afresh for that viewer on every load. A public
+    token carries `pk`, a hash of the link's key, and never data. `n` is the
+    nonce the served page and the console match their messages on, and `live`
+    says whether the page asks the console for its bindings' data at all.
     """
     expire = datetime.now(UTC) + expires_in
-    to_encode = {
+    to_encode: dict[str, Any] = {
         "exp": expire,
         "sub": str(version_id),
         "type": "artifact_view",
+        "aud": audience,
         "n": nonce,
         "live": live,
     }
+    if audience == "member":
+        if user_id is None or organization_id is None:
+            raise ValueError("A member's artifact address names the member and their organization")
+        to_encode.update(uid=str(user_id), org=str(organization_id), inj=inject)
+    elif public_key is not None:
+        to_encode["pk"] = hashlib.sha256(public_key.encode()).hexdigest()
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_special_token(token: str, expected_type: str) -> dict[str, Any] | None:
+def verify_special_token(
+    token: str, expected_type: str, *, audience: tuple[str, ...] | None = None
+) -> dict[str, Any] | None:
     """Verify a non-access JWT (password_reset, magic_link) and require a
     specific `type` claim. Returns payload on success, None otherwise.
+
+    A token with an `aud` claim passes only for a caller that names it in `audience`.
     """
-    payload = verify_token(token)
+    payload = verify_token(token, audience=audience)
     if payload is None:
         return None
     if payload.get("type") != expected_type:

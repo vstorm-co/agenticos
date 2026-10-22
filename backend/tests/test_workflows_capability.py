@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from app.agents.capabilities._members import acting_member
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.workflows import Workflows, WorkflowsConfig
+from app.services.access import acting_member
 
 
 def _built(config: WorkflowsConfig | None):

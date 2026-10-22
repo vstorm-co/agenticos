@@ -14,7 +14,13 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.access import COLLECTION
-from app.services.sharing import SharingService
+from app.services.sharing import (
+    _GUARDS,
+    Deferred,
+    ShareChange,
+    SharingService,
+    register_sharing_guard,
+)
 
 
 def _ctx(role: str, org_id=None, user_id=None) -> AuthContext:
@@ -431,3 +437,138 @@ class TestVisibility:
         assert [call.kwargs["action"] for call in audit.call_args_list] == [
             "resource.visibility_changed"
         ]
+
+
+class TestSharingGuard:
+    """A guard registered for a resource type is asked before a visibility change and owns
+    adoption; a type without one keeps the generic behaviour (tests above)."""
+
+    @staticmethod
+    def _guard(refuse: bool = False):
+        guard = MagicMock()
+        guard.before_visibility = AsyncMock(
+            side_effect=AuthorizationError(message="nope") if refuse else None
+        )
+        guard.before_share = AsyncMock(return_value=None)
+        guard.adopt = AsyncMock()
+        return guard
+
+    @pytest.mark.anyio
+    async def test_the_guard_is_asked_before_the_change_and_may_refuse_it(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(ctx.organization_id, owner_user_id=None, visibility=Visibility.ORG)
+        guard = self._guard(refuse=True)
+
+        with (
+            patch.dict("app.services.sharing._GUARDS", {COLLECTION.key: guard}),
+            pytest.raises(AuthorizationError),
+        ):
+            await SharingService(_db()).set_visibility(
+                ctx, resource, resource_type=COLLECTION, visibility=Visibility.PRIVATE
+            )
+
+        guard.before_visibility.assert_awaited_once()
+        guard.adopt.assert_not_awaited()
+        assert resource.visibility == Visibility.ORG.value
+        assert resource.owner_user_id is None
+
+    @pytest.mark.anyio
+    async def test_the_guard_adopts_an_ownerless_row_in_place_of_the_generic_claim(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(ctx.organization_id, owner_user_id=None, visibility=Visibility.ORG)
+        guard = self._guard()
+
+        with (
+            patch.dict("app.services.sharing._GUARDS", {COLLECTION.key: guard}),
+            patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+        ):
+            await SharingService(_db()).set_visibility(
+                ctx, resource, resource_type=COLLECTION, visibility=Visibility.PRIVATE
+            )
+
+        guard.adopt.assert_awaited_once()
+        assert resource.owner_user_id is None  # the guard's `adopt` sets it, not the service
+        assert [call.kwargs["action"] for call in audit.call_args_list] == [
+            "resource.visibility_changed"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_row_with_an_owner_is_not_adopted(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(
+            ctx.organization_id, owner_user_id=uuid.uuid4(), visibility=Visibility.ORG
+        )
+        guard = self._guard()
+
+        with (
+            patch.dict("app.services.sharing._GUARDS", {COLLECTION.key: guard}),
+            patch("app.services.sharing.record_audit", new=AsyncMock()),
+        ):
+            await SharingService(_db()).set_visibility(
+                ctx, resource, resource_type=COLLECTION, visibility=Visibility.PRIVATE
+            )
+
+        guard.adopt.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_guard_that_defers_a_grant_stops_it_being_applied(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
+        subject, group = uuid.uuid4(), uuid.uuid4()
+        guard = self._guard()
+        deferred = Deferred(request_id=uuid.uuid4(), waiting_for=None)
+        guard.before_share = AsyncMock(return_value=deferred)
+
+        with (
+            patch.dict("app.services.sharing._GUARDS", {COLLECTION.key: guard}),
+            patch("app.services.sharing.member_repo.get", new=AsyncMock(return_value=object())),
+            patch("app.services.sharing.group_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch("app.services.sharing.resource_grant_repo.upsert", new=AsyncMock()) as person,
+            patch(
+                "app.services.sharing.resource_grant_repo.upsert_for_group", new=AsyncMock()
+            ) as groups,
+            patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+        ):
+            shared = await SharingService(_db()).share(
+                ctx,
+                resource,
+                resource_type=COLLECTION,
+                subject_user_id=subject,
+                level=GrantLevel.READ,
+            )
+            with_group = await SharingService(_db()).share_with_group(
+                ctx, resource, resource_type=COLLECTION, group_id=group, level=GrantLevel.EDIT
+            )
+
+        assert shared is deferred and with_group is deferred
+        asked = [call.args[3] for call in guard.before_share.await_args_list]
+        assert asked[0] == ShareChange(subject_user_id=subject, level=GrantLevel.READ)
+        assert asked[1].subject_group_id is not None and asked[1].level is GrantLevel.EDIT
+        assert person.await_count == groups.await_count == audit.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_a_guard_that_defers_a_visibility_leaves_it_as_it_was(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
+        guard = self._guard()
+        deferred = Deferred(request_id=uuid.uuid4(), waiting_for=None)
+        guard.before_share = AsyncMock(return_value=deferred)
+
+        with (
+            patch.dict("app.services.sharing._GUARDS", {COLLECTION.key: guard}),
+            patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+        ):
+            changed = await SharingService(_db()).set_visibility(
+                ctx, resource, resource_type=COLLECTION, visibility=Visibility.ORG
+            )
+
+        assert changed is deferred
+        assert resource.visibility == Visibility.PRIVATE.value
+        assert audit.await_count == 0
+        assert guard.before_share.await_args.args[3] == ShareChange(visibility=Visibility.ORG)
+
+    def test_registering_a_guard_installs_it_for_its_type(self):
+        guard = self._guard()
+        with patch.dict("app.services.sharing._GUARDS", clear=False):
+            register_sharing_guard(COLLECTION, guard)
+            assert _GUARDS[COLLECTION.key] is guard

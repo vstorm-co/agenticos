@@ -21,7 +21,7 @@ import type { NotificationPreference } from "@/lib/notification-preferences-api"
  * `useNotificationPreferences` is mocked here rather than exercised for real
  * - its own wiring to `GET`/`PATCH /notifications/preferences` is
  * `use-notification-preferences.test.ts`'s job - so what this file pins for
- * it is that the page renders exactly the sixteen togglable pairs the
+ * it is that the page renders exactly the twenty togglable pairs the
  * backend's `_TOGGLABLE_PAIRS` produces, in the shape the hook hands back.
  */
 
@@ -96,14 +96,15 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the sixteen togglable pairs the backend produces", () => {
+  it("offers exactly the twenty togglable pairs the backend produces", () => {
     render(<NotificationsSettingsPage />);
 
     // run_completed, run_failed, ingestion_completed, ingestion_failed,
-    // announcement and workflow_notification each offer both channels
-    // (6*2 = 12); budget_exceeded, approval_requested, usage_report and
-    // agent_usage_report offer only in-app (4*1 = 4). 12 + 4 = 16, plus the
-    // three legacy email switches above = 19 switches on the page total.
+    // announcement, workflow_notification, artifact_owner_changed and
+    // artifact_share_requested each offer both channels (8*2 = 16);
+    // budget_exceeded, approval_requested, usage_report and agent_usage_report
+    // offer only in-app (4*1 = 4). 16 + 4 = 20, plus the three legacy email
+    // switches above = 23 switches on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -115,7 +116,16 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Workflow notifications - Email" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(19);
+    expect(
+      screen.getByRole("switch", { name: "Page ownership changes - In-app" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Page sharing requests - In-app" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Page sharing requests - Email" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(23);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

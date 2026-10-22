@@ -289,7 +289,6 @@
     unavailable: "No data available.",
     empty: "Nothing to show.",
     truncated: "Showing the first {count} records.",
-    filtersDropped: "A filter of this view no longer applies, so the list may include more than it should.",
     yes: "Yes",
     no: "No",
   };
@@ -363,7 +362,7 @@
    * "outline"}}), `format` ({field: function (value, record) -> string}) and
    * `text`, the words for the states in the reader's language: `loading`,
    * `unavailable`, `empty`, `truncated` ("{count}" is the number shown),
-   * `filtersDropped`, `yes`, `no`. Returns the table, or null for a state.
+   * `yes`, `no`. Returns the table, or null for a state.
    */
   function records(target, binding, options) {
     var host = typeof target === "string" ? document.querySelector(target) : target;
@@ -378,7 +377,6 @@
 
     function notes() {
       if (binding.truncated) host.append(tag("p", "ao-note", fill(words.truncated, { count: binding.count })));
-      if (binding.filters_dropped) host.append(tag("p", "ao-note", words.filtersDropped));
     }
 
     if (!binding) {

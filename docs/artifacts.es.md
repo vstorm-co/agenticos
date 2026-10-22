@@ -1,5 +1,5 @@
 ---
-source_sha: "3394e53d70df"
+source_sha: "70cee67a20ae"
 ---
 
 # Artefactos { #artifacts }
@@ -18,7 +18,7 @@ cuenta.
 
 ## Publicar uno { #publishing-one }
 
-Activa la capability **Artifacts** para el agent. Añade cuatro herramientas:
+Activa la capability **Artifacts** para el agent. Añade cinco herramientas:
 `publish_artifact`, que el modelo llama cuando el resultado es algo que una
 persona debería abrir en lugar de leerlo una vez en el chat; `read_artifact`,
 que vuelve a leer una página publicada; `list_artifacts`, que nombra las páginas
@@ -78,54 +78,62 @@ nadie con sesión iniciada, como un widget público, no enumera nada.
 
 Una página puede mostrar registros de [Virtual Tables](virtual-tables.md) que se
 mantienen al día, en lugar de la copia con la que se publicó. El agent pasa
-`bindings` a `publish_artifact`: cada binding es un nombre, una [vista guardada](virtual-tables.md#saved-views)
-y las columnas que la página lee de ella. `list_views` da al agent el id y las
-columnas de cada vista. La página llama a `agenticos.onData(render)`, y
-`render(data)` se ejecuta con los primeros datos y de nuevo en cada refresco.
-`agenticos.data` es una Promise de los primeros datos.
+`bindings` a `publish_artifact`: cada binding es un nombre y una **page query** — una
+tabla, los campos que la página lee de ella y, opcionalmente, filtros, un orden y un
+límite. La página llama a `agenticos.onData(render)`, y `render(data)` se ejecuta con los
+primeros datos y de nuevo en cada refresco. `agenticos.data` es una Promise de los
+primeros datos.
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
+  // data.tickets = { status, records, fields, count, truncated, limit }
 });
 ```
 
 Cada binding llega como `status` (`ok` o `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (etiqueta, tipo, opciones y estado de cada uno),
-`count`, `truncated`, `limit` y `filters_dropped`, que vale true cuando un filtro
-de la vista apuntaba a una columna que ya no existe, de modo que los registros
-abarcan más de lo que la vista pretendía.
+`count`, `truncated` y `limit`. Una página que no recibe respuesta en 10 segundos ve
+todos sus bindings `unavailable`; un listener añadido después de eso pregunta una vez más.
 
-Una página que no recibe respuesta en 10
-segundos ve todos sus bindings `unavailable`; un listener añadido después de eso
-pregunta una vez más.
+**Todos los que abren una página en vivo leen los mismos registros**, sea cual sea su
+propio acceso a las tablas. La query se lee con el acceso del [propietario](#who-owns-a-page)
+de la página, y solo cuando el propietario ha aceptado compartirla
+([consentimiento](#consent-the-owner-decides-who-reads-the-data)). Así, una página es para
+datos que pueden ver todos los que puedan abrirla. Los registros se leen cuando alguien mira
+la página y nunca se guardan en ella.
 
-Un binding es `unavailable` cuando este lector no puede leer su vista
-o la vista ya no existe. Un campo cuya columna se eliminó se sirve con su nombre de
-campo como campo `text` con valor `null` y estado `missing`; una columna archivada
-da `null` con estado `archived`.
+### Lo que congela un binding { #what-a-binding-freezes }
 
-Los registros se leen **cuando alguien mira la página, con el acceso de ese
-lector**, y nunca se guardan en ella. Dos personas que abren la misma página pueden
-ver filas distintas. El resultado de la publicación enumera cada campo como
-`Label (type)`, para que el agent compruebe que vinculó la columna que pretendía;
-un binding que se arrastra sin cambios dice `kept`.
+Una page query no es un enlace a una vista guardada. El agent nombra una `table`, o una
+[vista guardada](virtual-tables.md#saved-views) por id o nombre exacto, y la plataforma
+**copia** los filtros y el orden de la vista a la página al publicar. Editar o borrar la
+vista después no cambia nada en la página.
 
-Una vista privada solo sirve a su propietario. Vincular una no impide publicar la
-página, y el `warning` del resultado recibe una línea que dice que solo esa
-persona ve sus registros hasta que la vista se comparta, y el agent se lo
-comunica. Si un compañero los verá se decide donde se comparte la página:
-consulta [Quién ve los registros de una página en vivo](#who-sees-a-live-pages-records).
+| En el binding | Significado |
+|---|---|
+| `table` o `view` | La tabla que leer, o una vista cuyos filtros y orden se copian. No ambas |
+| `fields` | Cada nombre que lee la página, asignado a una columna por id o etiqueta |
+| `filters` | `{column, op, value}`, todos deben cumplirse; se suman a los filtros de la vista |
+| `sort` | `{by, direction}`; sustituye el orden de la vista |
+| `limit` | Como máximo 1.000, que es también el valor por defecto; sustituye el de la vista |
 
-La versión 3 del [kit de páginas](#the-library-set) dibuja un binding por el
-agent: `AO.records("#tickets", data.tickets)` dentro de `agenticos.onData`
-muestra los registros como una tabla con una cabecera formada por las etiquetas
-de los campos, los números y las fechas alineados a la derecha, las opciones como
-insignias y cada valor escrito como texto. Antes de los datos muestra una línea
-de carga, y un binding `unavailable` o vacío, una lista cortada y un filtro
-descartado reciben cada uno su propio mensaje. En la versión 3, `AO.onData` es la
-misma llamada que `agenticos.onData`. Una página vinculada cuyo script nunca pide
-sus datos se publica igualmente, con un [aviso](#the-page-contract-and-the-publish-warnings).
+Los `visible_columns` y `group_by` de una vista se ignoran: los `fields` del binding deciden
+las columnas. Un filtro puede nombrar una columna que la página no lee, y se avisa al
+propietario de cuál. Una page query no tiene búsqueda de texto libre, así que una vista con
+búsqueda **no se puede vincular**; la publicación se rechaza y la nombra. Una vista cuyo
+filtro nombra una columna que ya no existe se rechaza igual.
+
+Se permiten fórmulas, lookups, rollups y etiquetas de enlace. Leen más que la columna que
+nombra la página, así que la query registra todo lo que alcanza: las columnas de entrada de una
+fórmula, el enlace y el destino de un lookup o rollup, cada tabla vinculada y la columna por la
+que cada tabla vinculada etiqueta sus registros. El spec del agent debe conceder lectura sobre
+la tabla, y la persona detrás del run debe leer cada tabla que alcanza la query, porque nadie
+puede vincular lo que no puede leer.
+
+El resultado de la publicación describe cada query en palabras — su tabla, filtros, orden,
+límite y cada campo con lo que lee (`Status (single_select)`, `Pay band: formula over Salary,
+Level`). Es el texto que acepta el propietario, así que el agent comprueba que es lo que
+pretendía. Un binding que se arrastra sin cambios dice `kept`.
 
 El nombre de un binding son letras minúsculas, dígitos y `_`. Un campo puede
 llamarse como está rotulada su columna: palabras de letras en mayúsculas o
@@ -133,6 +141,245 @@ minúsculas, dígitos y `_`, separadas por un solo espacio, como `Status` o
 `Created At`. Ambos tienen hasta 64 caracteres, y `__proto__`, `constructor` y
 `prototype` están reservados para ambos (`id` también, para un campo). Una página
 tiene como máximo 5 bindings, y un binding como máximo 50 campos.
+
+La versión 3 del [kit de páginas](#the-library-set) dibuja un binding por el
+agent: `AO.records("#tickets", data.tickets)` dentro de `agenticos.onData`
+muestra los registros como una tabla con una cabecera formada por las etiquetas
+de los campos, los números y las fechas alineados a la derecha, las opciones como
+insignias y cada valor escrito como texto. Antes de los datos muestra una línea
+de carga, y un binding `unavailable` o vacío y una lista cortada reciben cada uno
+su propio mensaje. En la versión 3, `AO.onData` es la misma llamada que
+`agenticos.onData`. Una página vinculada cuyo script nunca pide sus datos se
+publica igualmente, con un [aviso](#the-page-contract-and-the-publish-warnings).
+
+### Quién ve qué { #who-sees-what }
+
+Qué versión se sirve a un lector, y si se leen sus datos para él, depende de quién es.
+
+| Lector | Se le sirve | Sus datos |
+|---|---|---|
+| El propietario de la página | La última versión | Siempre |
+| Owner, Admin, Builder y Operator, aunque solo puedan ver | La última versión | Siempre, para los roles que leen todas las tablas (`tables:view` con alcance ALL) |
+| Cualquier otro que pueda editar la página | La última versión, para que el agent de un editor siga editando lo vigente | Mientras se mantenga el consentimiento del propietario a esa versión |
+| Todos los demás que pueden abrirla (la **audiencia**) | La versión más reciente que alguna vez tuvo consentimiento, o que no lee datos | Mientras se mantenga el consentimiento del propietario a ella |
+
+A la audiencia nunca se le sirve una versión que nadie aceptó compartir. Cuando el
+consentimiento a los datos ya no se mantiene — un editor lo retiró, o cambió el
+propietario —, la audiencia sigue recibiendo esa **página completa**, y cada binding llega
+`unavailable` con el motivo `awaiting_consent`; la página dice «This page's data appears once
+its owner confirms sharing it.» Cuando ninguna versión tiene consentimiento ni está libre de
+datos, la audiencia ve «This page isn't available yet» y nada más.
+
+Un binding también es `unavailable` cuando lo que lee cambió desde que se publicó la página.
+El motivo solo se le dice a quien puede editar la página; un lector ve cuántas fuentes no
+están disponibles.
+
+| Motivo | Qué ocurrió |
+|---|---|
+| `creator_gone` | El propietario de la página ya no es un miembro activo |
+| `creator_lost_access` | El propietario ya no puede leer una tabla que alcanza la query |
+| `source_changed` | Cambió el significado de una columna (su tipo, una fórmula, el destino de un enlace o lookup, un agregado, una opción archivada o restaurada), se archivó una columna o tabla, o una tabla vinculada ahora etiqueta sus registros por otra columna. Se nombra la etiqueta actual de la columna |
+| `awaiting_consent` | El propietario no ha confirmado compartir los datos de esta versión, o se retiró |
+
+Que un binding pase a `unavailable` deja funcionando a los demás. A la página nunca se le
+bloquea un cambio de tabla: nada impide cambiar una columna, y el binding deja de servir hasta
+que el agent vuelve a publicar la página, lo que resuelve la query contra la tabla tal como
+está ahora. Renombrar una columna no cambia un binding; la página sigue leyéndola por el
+nombre que le dio el agent. Añadir una opción a un select, o renombrar una, tampoco.
+
+### Consentimiento: el propietario decide quién lee los datos { #consent-the-owner-decides-who-reads-the-data }
+
+Los datos de una página se leen con el acceso de su propietario, así que el propietario decide
+quién más los lee, por versión. Esa decisión es el **consentimiento**: el propietario revisa
+las page queries en palabras — la tabla, filtros, orden, límite y campos de cada query, cada
+tabla vinculada que alcanza y quién la leerá — y confirma.
+
+La revisión nombra quién lee la página, ahora y más adelante: los roles que abren todas las
+páginas (Owner, Admin, Builder y Operator), la visibilidad de la página, las personas con las
+que se comparte y los grupos, incluido quien se una a ellos. El propietario solo puede
+confirmar lo que él mismo lee.
+
+Los datos de una versión están en uno de estos estados:
+
+| Estado | Significado |
+|---|---|
+| `not_needed` | La versión no tiene bindings |
+| `pending` | Nadie la ha confirmado. La audiencia conserva la versión que tenía |
+| `consented` | El propietario la confirmó, o se consintió automáticamente |
+| `declined` | Se rechazó una solicitud para confirmarla |
+| `withdrawn` | Un consentimiento que ya no se mantiene: un editor lo retiró, o su propietario ya no es el de la página |
+
+Una versión nueva se consiente **automáticamente** cuando sus page queries — y todo lo que
+alcanzan — son las que el propietario ya había consentido. Si no, queda `pending`: eso incluye
+la primera versión vinculada, salvo que el propietario tenga activado el
+[consentimiento automático](#auto-consent).
+
+El propietario, y solo él como él mismo, confirma en el visor. Mientras la última versión
+espera, la franja bajo el título de la página lo dice, con **Confirm data**: abre lo que la
+versión comparte y con quién, y la confirmación lleva una huella de exactamente lo que se
+mostró. Si la página se volvió a publicar entretanto, o sus queries cambiaron, la confirmación
+se rechaza y el propietario vuelve a mirar. Confirmar también comprueba que el propietario
+sigue pudiendo leer cada tabla que alcanza la query.
+
+Un Owner o Admin puede confirmar por el propietario. Se audita como consentido por él en nombre
+del propietario, y el acceso del propietario sigue respaldando los datos. Quien tenga un grant
+`edit` no puede: un grant para editar la página no da autoridad sobre los datos de quién lee.
+
+**Retirarlo** quita el consentimiento. Cualquiera que pueda editar la página, como él mismo,
+usa **Stop sharing data** en el menú del visor. Todos los consentimientos dados hasta ahora
+quedan anulados, no solo el último, y el consentimiento automático se desactiva. Cada grant
+`edit_data` de la página baja también a `edit`, de modo que la siguiente republicación de un
+editor de datos espera al propietario en lugar de deshacer la retirada. La audiencia conserva
+la página y pierde sus datos hasta que el propietario vuelva a confirmar. Retirar solo
+estrecha quién lee, por lo que todo editor puede hacerlo.
+
+Cuando el propietario deja la organización, sus consentimientos caducan con su membresía. Un
+propietario al que se elimina y se vuelve a invitar empieza de cero. Un propietario al que se
+desactiva y se reactiva recupera sus consentimientos: reactivar es un acto de toda la cuenta,
+en cada organización a la que pertenece.
+
+#### Volver a publicar { #republishing }
+
+Cuando un editor que no es el propietario publica una versión que lee datos distintos, la
+versión queda `pending` y la plataforma presenta una **solicitud de versión** para el
+propietario — consulta [Solicitudes de compartir](#share-requests). Hasta que el propietario
+decide, la audiencia sigue viendo la versión anterior. El resultado de la publicación dice
+«The audience still sees v2 until Alex confirms this version's data in the console.» (con el
+nombre del propietario, o «the page's owner»).
+
+Un run sin persona detrás solo puede volver a publicar una página vinculada sin cambios — los
+mismos bytes y las mismas queries, lo que no necesita persona ni consentimiento. No puede
+cambiar el código que recibe los registros del propietario. La publicación de un editor se
+rechaza cuando el propietario de la página no puede leer una tabla que alcanza la query.
+
+#### Consentimiento automático { #auto-consent }
+
+El propietario puede activar **Don't ask for consent on republish** para una página. Está
+desactivado por defecto y solo el propietario, como él mismo, lo activa, nunca un agent.
+Primero pregunta: «Any change your runs make to this page's data, new columns and tables
+included, reaches everyone who can open it without asking you - API runs too.» La entrada de
+auditoría registra el texto confirmado.
+
+Cubre solo las republicaciones del propio propietario. La republicación de un editor sigue
+esperando. Los consentimientos automáticos se registran como automáticos, y cuando uno alcanza
+más que la versión servida antes, la franja del propietario lo lista: «v4 was consented
+automatically and reads more: +Deals, +Salary». El propietario, o un Owner o Admin, lo
+desactiva, y retirar la página o entregarla a otra persona también lo desactiva.
+
+#### Editores de datos { #data-editors }
+
+El diálogo de compartir tiene un nivel de grant por encima de `edit`: **Can edit, data
+included** (`edit_data`), solo para páginas. Es un consentimiento permanente a las
+republicaciones de esa persona, incluido un cambio de query. Solo el propietario, o un Owner o
+Admin, como ellos mismos, lo concede, tras una ventana: «Alex can change what data this page
+shows to everyone who can open it, including new tables and columns, without asking you; that
+includes their API runs.» Para un grupo, la ventana dice «Everyone in Sales, now and later».
+El grant se audita con el texto confirmado.
+
+Una republicación de alguien con `edit_data` se consiente automáticamente, registrada como
+hecha mediante su grant. Aun así tiene que leer cada tabla que alcanza la query, y el
+propietario también. El alcance de rol de Owner o Admin nunca lo implica. Cualquiera que pueda
+editar la página lo baja o lo quita, y un cambio de propietario baja cada grant `edit_data` a
+`edit`.
+
+### Quién es el propietario de una página { #who-owns-a-page }
+
+El propietario de una página es la persona en cuyo nombre actuó el primer run que publicó. Nunca
+cambia por sí solo y es el único propietario de datos de la página: la persona cuyo acceso lee
+los datos y cuyo consentimiento los comparte. Si se elimina al propietario, la página se queda
+sin él. Nadie puede reclamar una página.
+
+El propietario la entrega a otro miembro activo de la organización con **Change owner** en el
+menú del visor, y un Owner o Admin puede reasignar cualquier página, incluida una cuyo
+propietario ya no está. Cada uno lo hace como él mismo, no suplantando a nadie. Un grant para
+editar la página no lo permite. No hay una herramienta de agent para ello.
+
+El cambio es inmediato, sin paso de aceptación. Los datos de la página dejan de llegar a la
+audiencia hasta que el nuevo propietario los confirme, todos los consentimientos dados quedan
+anulados para siempre (de modo que devolver la página nunca revive uno antiguo), el
+consentimiento automático se desactiva, toda solicitud pendiente se anula, cada grant
+`edit_data` baja a `edit`, y se notifica al propietario anterior y al nuevo, salvo a quien hizo
+el cambio. Se audita como `artifact.owner_changed`.
+
+Dar a una página sin propietario la visibilidad `private` cuenta como tomarla, y solo está
+abierto a un Owner o Admin. Pasa por las mismas reglas.
+
+### Solicitudes de compartir { #share-requests }
+
+Ampliar quién puede abrir una página que lee datos — una visibilidad más amplia, o un grant
+nuevo o un nivel más alto — es decisión del propietario, o de un Owner o Admin por el
+propietario. Estrechar está abierto a todo editor. Una página que no lee datos conserva las
+reglas de compartir ordinarias.
+
+Cualquier otro que pueda editar la página e intente ampliarla no recibe una negativa. La
+plataforma presenta una solicitud. Hay tres tipos:
+
+| Tipo | La hace | Pide |
+|---|---|---|
+| `audience` | Un editor, en el diálogo de compartir o mediante el `share_artifact` de su agent | Ampliar quién abre la página |
+| `access` | Un miembro de la organización de la página que abre su enlace sin acceso | Abrir la página, con una nota opcional |
+| `version` | La publicación de otro editor cuya versión lee datos distintos | Confirmar esa versión |
+
+Un miembro puede tener una solicitud `audience` y una `access` pendientes por página, y una
+página tiene una solicitud `version` pendiente; una más reciente sustituye a la anterior. Las
+solicitudes `audience` y `access` están limitadas, por defecto, a diez por hora por persona y
+organización ([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); las
+solicitudes `version` no cuentan. Decide el propietario de la página. Cuando ya no tiene
+propietario, los Owners y Admins pueden rechazar; para aprobar, primero entregan la página a un
+miembro (**Change owner**), que confirma los datos. Una solicitud queda anulada sin decisión
+cuando cambian las queries de la página, cambia el propietario o se archiva la página.
+
+Se notifica al propietario en la consola y por correo, según lo configurado en **Settings →
+Notifications** («Page sharing requests»). La notificación nombra la página y al solicitante,
+nunca sus datos.
+
+Se responden en una sección **Requests** del diálogo de compartir, y un botón **Requests** en la
+franja del visor muestra cuántas esperan. Aprobar una solicitud `audience` o `access` aplica la
+visibilidad y los grants que pedía, cada uno solo donde aún amplía. **Nunca consiente los
+datos**: cuando la versión que se sirve a la audiencia no tiene un consentimiento vigente,
+aprobar se rechaza con «Confirm the page's data before sharing it», y el propietario confirma
+primero los datos y luego aprueba. Rechazar no comparte nada.
+
+Al solicitante no se le avisa de la decisión: que la página se abra o no es la respuesta. Una
+página que no lee datos admite una solicitud `access` simple, que puede aprobar cualquier
+editor.
+
+#### Solicitar acceso { #requesting-access }
+
+Un miembro de la organización que abre el enlace de una página que no puede abrir ve «You don't
+have access to this page», un campo de nota y **Request access**. No se revela nada más: ni
+título, ni propietario, ni agent. Un visitante sin sesión o alguien de otra organización recibe
+el not-found habitual.
+
+#### Revisar una versión cambiada { #reviewing-a-changed-version }
+
+Una solicitud `version` abre la página para el propietario en la versión pendiente, con sus
+datos reales. La franja dice quién cambió lo que lee la versión, con **Review data change**. El
+panel compara las page queries de la versión con la que ve ahora la audiencia, binding por
+binding y en palabras: campos, filtros, orden, límite y tablas vinculadas añadidos, quitados o
+cambiados, cada uno marcado **Reads more**, **Reads less** o sin cambio, los bindings nuevos
+con su divulgación completa y los que no cambian plegados.
+
+Un interruptor, **Audience sees now**, muestra la página tal como la tiene la audiencia. El
+panel nombra quién publicó la versión y cuándo, y enlaza a la conversación cuando el propietario
+puede abrirla. **Approve** confirma la versión. **Decline** mantiene a la audiencia en la
+versión anterior y marca la versión `declined` en su historial; una republicación posterior
+vuelve a preguntar. En la lista de Requests una solicitud de versión ofrece **Review data
+change**, no Approve: se confirma desde la revisión.
+
+### Compartir una página desde un agent { #sharing-a-page-from-an-agent }
+
+`share_artifact(name, visibility?, people?)` permite a un agent pedir que se comparta una
+página: `visibility` es `team` u `org`, `people` son miembros por nombre completo o correo y
+grupos por nombre, cada uno pedido con nivel de vista. **Nunca comparte nada**. Presenta una
+solicitud `audience` para la persona a la que sirve el run — también el run del propio
+propietario — y responde «Waiting for Alex to approve in the page's Share dialog». La
+aprobación es una persona en la consola, con sesión iniciada como ella misma, nunca una llamada
+a una herramienta.
+
+Un nombre que no coincide con nadie, o con varias personas, se devuelve como informe, nunca se
+adivina. No pide nada público: el enlace público solo se crea en la consola. Un run sin persona
+detrás, como un visitante de un widget, no puede pedirlo.
 
 ### Lo que ve el lector { #what-the-viewer-sees }
 
@@ -156,23 +403,36 @@ responde. Un fallo que no dice nada de la página, como un error del servidor, l
 mantiene consultando. Una respuesta de ocupado (429) se reintenta dos veces, con un
 segundo entre medias, antes de decir al lector "Busy, try again in a moment."
 
-Bajo la barra aparece una línea solo cuando algo requiere atención. Una página
+Bajo la barra aparece una línea solo cuando algo requiere atención: una versión que espera
+confirmación, una solicitud que revisar o fuentes que no se pueden leer. Una página
 rechazada dice "This page's live data is not available to you." Un lector cuyas
-fuentes no se pueden leer ve cuántas ("2 of 3 sources unavailable to you"). Un
-editor, es decir, cualquiera que pueda editar la página, ve además el motivo de
-cada fuente (por ejemplo, que su vista guardada ya no existe, que su tabla está
-archivada, que al agent no se le concedió la tabla o que no puedes leer su vista
-guardada) con un enlace **Open the table** a la vista vinculada.
+fuentes no se pueden leer ve cuántas ("2 of 3 sources unavailable to you"). Un editor
+ve además el motivo de cada fuente, con un enlace **Open the table** a la tabla vinculada.
 
 Cuando un agent publica una versión nueva mientras alguien tiene abierta la actual,
 la siguiente lectura (un refresco, manual o automático) lleva al lector a la versión
-nueva: la página se vuelve a cargar desde esa versión, con sus propios datos. Un
+que ahora se le sirve: la página se vuelve a cargar, con sus propios datos. Un
 lector que eligió una versión en el menú de versiones se queda en ella.
 
 En una versión anterior no se leen datos en vivo. El visor dice "Live data only on
 the current version." con **Open current** y, para un editor, **Restore** para esa
-versión. Restaurar una versión cuyas fuentes en vivo no están disponibles dice
-cuáles.
+versión. Una restauración resuelve las page queries de la versión contra las tablas tal
+como están ahora, así que es una query nueva cuando una tabla ha cambiado, y espera el
+consentimiento como cualquier otra republicación.
+
+### Cómo llegan los datos a la página { #how-the-data-reaches-the-page }
+
+Cuando la consola abre una página pide una dirección firmada que lleva quién es el lector. La
+ruta de contenido lee cada binding **una vez, al cargar**, y escribe el resultado en el script
+de plataforma de la página, de modo que la primera llamada a `onData` ya tiene sus datos y no
+sigue ningún viaje de ida y vuelta. No se inyecta nada para una miniatura, una tarjeta ni una
+versión del historial.
+
+El refresco y el refresco automático siguen usando la ruta de datos y un `postMessage` de la
+consola, que ahora responde las mismas filas de page query a todos los que se sirve esa versión.
+La ruta nunca se almacena en caché, la dirección es de vida corta y el contenido de un registro
+se mantiene fuera de los logs. Un binding que no se puede leer a tiempo o que falla en la base
+de datos se inyecta `unavailable` y la página se dibuja igualmente.
 
 ### Límites { #limits }
 
@@ -186,29 +446,34 @@ Toda respuesta está acotada, así que una sola página no puede tumbar el despl
 | Una consulta | como máximo 2 s |
 | Una página | plazo de 5 s |
 | Cargas de datos | 30 por minuto por lector, una en curso por lector y un tope por proceso |
+| Solicitudes de compartir | 10 por hora por persona y organización (audience y access) |
 
 Un binding cortado dice `truncated: true`, con `limit` a `records` o `bytes` y
 `count` como el número de registros servidos. `bytes` cubre también una lectura
 cuyo coste medido se agotó antes de que los datos formados llenaran la parte que le
 corresponde de la página.
 
-El plazo se cumple sin cancelar ninguna consulta: cada consulta dura como máximo lo
-menor entre 2 s y lo que queda de los 5 s, y ninguna consulta empieza una vez
-agotados los 5 s, así que una página responde en unos 5 s. Pasado un límite de
-peticiones la ruta responde 429; la consola reintenta dos veces una respuesta de
-ocupado. Con Redis caído, el suelo del límite de peticiones y el límite de cargas
-en curso cuentan por worker de la API, y el tope por proceso sigue acotando cada
-worker.
+El plazo se comprueba antes de cada consulta, sin cancelar ninguna: cada consulta dura como
+máximo lo menor entre 2 s y lo que queda de los 5 s, y ninguna consulta empieza una vez
+agotados los 5 s, así que una página responde en unos 5 s y el tiempo real puede llegar a unos
+7 s.
+
+Las cargas inyectadas cuentan para los 30 por minuto, igual que los refrescos. Pasado un
+límite de peticiones la ruta de datos responde 429, la consola reintenta dos veces una
+respuesta de ocupado, y una página servida con sus datos recibe bindings `busy`. Con Redis
+caído, el suelo del límite de peticiones y el límite de cargas en curso cuentan por worker de
+la API, y el tope por proceso sigue acotando cada worker.
 
 ### Quién puede publicar una página vinculada { #who-may-publish-a-bound-page }
 
 Una página se vincula a una tabla solo si el spec del agent que la publica concede
-lectura sobre ella, y eso se comprueba al publicar la página o al restaurar una
-versión. Revocar el grant más tarde no detiene las páginas ya publicadas, y cada
-lector sigue leyendo solo lo que su propio acceso le permite.
+lectura sobre ella, y la persona detrás del run lee cada tabla que alcanza la query,
+y eso se comprueba al publicar la página o al restaurar una versión. Revocar cualquiera de
+las dos más tarde no detiene las páginas ya publicadas; el acceso del propietario se vuelve a
+comprobar en cada carga.
 
-Una página vinculada solo puede volver a publicarla un run que actúe en nombre de un
-miembro: el miembro con sesión iniciada (chat web, API HTTP), un remitente de canal
+Una página vinculada solo puede **cambiarla** un run que actúe en nombre de miembro (una republicación sin cambios, con los mismos bytes y queries, no necesita
+persona): el miembro con sesión iniciada (chat web, API HTTP), un remitente de canal
 vinculado o el creador de una programación. Un visitante de un widget, un embed o
 una página alojada, un remitente de canal no vinculado y la entrega de un trigger de
 eventos de un agent (GitHub, correo, relé de webhooks) no cuentan, ni tampoco un run
@@ -390,7 +655,11 @@ renderizador responde.
 
 Un artefacto nuevo es **privado** para la persona en nombre de la cual actuó el
 run que lo publicó: la persona del chat, o el creador de un trigger. Una página
-privada también es visible para los roles Owner, Admin, Builder y Operator.
+privada también es visible para los roles Owner, Admin, Builder y Operator: su
+`artifacts:view` tiene alcance `ALL`, así que abren todas las páginas de la organización
+sea cual sea su visibilidad y sus grants (consulta los [alcances](permissions.md#scope)). Un
+Member o Viewer solo abre lo que se comparte con él. Esos cuatro roles forman siempre parte de
+la audiencia de una página, y toda divulgación los nombra.
 
 Su enlace - al que apuntan la tarjeta del chat y la respuesta del agente - abre
 la propia página (desde la tarjeta del chat, en una pestaña nueva), a toda la
@@ -404,7 +673,7 @@ En **Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras
 
 | Alcance | Cómo | Quién |
 |---|---|---|
-| Personas concretas | Un grant, con `read` o `edit` | Esos miembros, en esta organización |
+| Personas concretas | Un grant, con `read`, `edit` o, para una página, `edit_data` («Can edit, data included») | Esos miembros, en esta organización |
 | La organización | Visibilidad fijada a toda la organización | Todo miembro cuyo rol alcance los artefactos compartidos |
 | Cualquiera con el enlace | **Create a public link** | Cualquiera que tenga la dirección, sin cuenta |
 
@@ -414,23 +683,22 @@ y los skills; consulta [Permisos](permissions.md). Gestionar un artefacto
 requiere `artifacts:edit` sobre ese artefacto, desde el rol o desde un grant
 `edit`. Abrirlo requiere `artifacts:view`.
 
-El agent no puede ampliar quién lee una página. Publica; una persona decide quién
-la ve. Por eso la capability no pide aprobación por defecto: una primera
-publicación es privada, y lo que muestra una página vinculada lo decide en el
-momento de verla el propio acceso de cada lector. Un autor que quiera que una
-persona apruebe cada nueva publicación de una página ya compartida, o de una página
-vinculada, fija `tool_approval` en `publish_artifact` en el spec. Una página
-vinculada solo puede volver a publicarla un run que actúe en nombre de un miembro
-(consulta [Datos en vivo](#live-data)).
+El agent no puede ampliar quién lee una página. Publica, y `share_artifact` solo presenta una
+solicitud; una persona decide quién la ve. Por eso la capability no pide aprobación por defecto:
+una primera publicación es privada, y lo que muestra una página vinculada lo condiciona el
+[consentimiento](#consent-the-owner-decides-who-reads-the-data) de su propietario. Un autor que
+quiera que una persona apruebe cada nueva publicación de una página ya compartida, o de una
+página vinculada, fija `tool_approval` en `publish_artifact` en el spec. Una página vinculada
+solo puede volver a publicarla un run que actúe en nombre de un miembro (consulta
+[Datos en vivo](#live-data)).
 
-### Quién ve los registros de una página en vivo { #who-sees-a-live-pages-records }
+### Compartir una página en vivo { #sharing-a-live-page }
 
-Compartir una [página en vivo](#live-data) deja que una persona la abra, pero los
-registros de cada binding se leen con su propio acceso. Para verlos necesita
-además acceso de lectura a la tabla del binding, y una vista compartida o propia.
-Por eso una página vinculada a una vista privada solo muestra sus registros al
-propietario de la vista; el resultado de la publicación se lo dice al agent, para
-que lo transmita.
+Abrir una [página en vivo](#live-data) muestra sus datos a cualquiera a quien se sirva, leídos
+con el acceso del propietario y no con el suyo, así que ampliar quién puede abrirla es decisión
+del propietario. El propietario, o un Owner o Admin por él, la amplía directamente en el diálogo
+de compartir una vez confirmados los datos; el intento de cualquier otro editor se convierte en
+una [solicitud](#share-requests). Estrechar está abierto a todo editor.
 
 ### El enlace público { #the-public-link }
 
@@ -512,12 +780,14 @@ consola ni a la persona que lo mira:
   petición y nunca un permiso: la persona que lee la dirección es lo que se
   interpone entre una página manipulada por prompt injection y la dirección a la
   que enviaría sus cifras.
-- Los datos en vivo llegan por `postMessage` desde la consola, que los obtiene
-  como el lector. La ruta de contenido nunca lleva registros. La petición de la
-  página lleva un nonce que permite a la consola emparejar cada respuesta con la
-  carga de página correcta; eso es **correlación, no control de acceso**. El
-  acceso es la propia sesión del lector en la ruta de datos, así que una página
-  solo recibe lo que el lector puede leer.
+- Los datos en vivo llegan a la página de un miembro de dos maneras, ambas decididas por lector
+  en el servidor. Al cargar, la ruta de contenido escribe los registros de cada binding en el
+  script de plataforma de la página para el miembro que nombra la dirección firmada; un refresco
+  llega por `postMessage` desde la consola, que lo obtiene de la ruta de datos con la propia
+  sesión del lector. La petición de la página lleva un nonce que permite a la consola emparejar
+  cada respuesta con la carga de página correcta; eso es **correlación, no control de
+  acceso**. Un enlace público o un embed nunca recibe datos. Consulta
+  [la página de seguridad](security.md#a-pages-data-and-its-address).
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
@@ -607,6 +877,12 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   unos 5 s por carga; consulta los [límites](#limits). Los datos que no están
   vinculados son la página tal como se publicó, y cambian cuando el agent vuelve a
   publicar.
+- **Todos leen la vista del propietario de los datos.** Una page query se lee con el
+  acceso del propietario, así que una página es para datos que pueden ver todos los que puedan
+  abrirla. Una page query no tiene búsqueda de texto libre, ni filtro por lector como «me» o
+  «today», ni límite de fila o de columna más allá de la propia query.
+- **Un enlace público o un embed no recibe datos.** Una página vinculada muestra «unavailable»
+  ahí; servir datos mediante un enlace público es un trabajo aparte (#1975).
 - **Nada en la página actúa.** Un formulario o un botón no tiene adónde enviar lo
   que recoge.
 - **Una página abierta sobrevive a una revocación durante la vida de una
@@ -625,18 +901,21 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 
 ## Resumen { #recap }
 
-- Una capability, cuatro herramientas: `publish_artifact`, desde un archivo del
+- Una capability, cinco herramientas: `publish_artifact`, desde un archivo del
   workspace, en línea o como cambios; `read_artifact` para volver a leer una
-  página; `list_artifacts` para encontrar una; y `preview_artifact` para verla
-  dibujada, con sus errores.
+  página; `list_artifacts` para encontrar una; `preview_artifact` para verla
+  dibujada, con sus errores; y `share_artifact` para pedir que se comparta una página.
 - El agent, el entorno y el nombre son la identidad; volver a publicar conserva el
   enlace y añade una versión, y cualquier versión conservada se puede restaurar.
 - Privado por defecto; compartido por una persona mediante grants, la
   organización o un enlace público. El enlace público puede caducar, fijar una
   versión, pedir una contraseña e incrustarse en los sitios enumerados.
-- Una página puede vincularse a vistas guardadas de tablas y mostrar datos en vivo,
-  leídos en el momento de verla con el propio acceso del lector y nunca guardados
-  en la página.
+- Una página puede vincularse a una page query — una tabla, filtros, un orden, un límite y
+  campos — y mostrar datos en vivo, leídos en el momento de verla con el acceso de su
+  propietario, solo cuando el propietario ha confirmado compartirlos, y nunca guardados en la
+  página. Cualquiera con edit puede retirar ese consentimiento; ampliar quién puede abrir una
+  página vinculada es del propietario, o una solicitud.
+- El propietario puede entregar una página a otro miembro, que debe volver a confirmar sus datos.
 - Un breve contrato de página en las instrucciones de cada agent con Artifacts,
   y avisos en el resultado de la publicación sobre lo que parece estar mal en el
   marcado.

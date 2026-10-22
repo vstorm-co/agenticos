@@ -17,19 +17,32 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact_share_request import ShareRequestKind, ShareRequestStatus
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.schemas.artifact import ArtifactBinding, ArtifactVersionRead, BindingReach
+from app.schemas.artifact_share_request import (
+    ArtifactAccessRequested,
+    ArtifactShareRequestList,
+    ArtifactShareRequestRead,
+    ArtifactVersionReview,
+)
+from app.schemas.virtual_table import ColumnDef
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.artifact_request_service import ArtifactRequestService
+from app.services.sharing import Deferred, SharingService
+from app.services.virtual_tables import BoundRows, TableSource, VirtualTableService
 
 pytestmark = pytest.mark.anyio
 
@@ -70,6 +83,7 @@ def _version(
         storage_path="artifacts/x/y/z.html",
         run_id=None,
         bindings=bindings or [],
+        consent_state="pending" if bindings else "not_needed",
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
@@ -84,6 +98,9 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
     app.dependency_overrides[deps.get_artifact_service] = lambda: ArtifactService(MagicMock())
+    app.dependency_overrides[deps.get_artifact_request_service] = lambda: ArtifactRequestService(
+        MagicMock()
+    )
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:
@@ -161,6 +178,7 @@ class TestMembers:
         version = _version(row, number=2)
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.list_versions", new=AsyncMock(return_value=[version])),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
         ):
@@ -171,6 +189,20 @@ class TestMembers:
         assert view.status_code == 200
         assert "/artifact-content/" in view.json()["url"]
         assert view.json()["version"]["id"] == str(version.id)
+
+    async def test_a_view_asks_for_data_only_with_the_flag(self, client: OpenClient) -> None:
+        row = _artifact()
+        version = _version(row, number=2, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=object())),
+        ):
+            async with client() as http:
+                plain = await http.get(_url(f"/{row.id}/view"))
+                with_data = await http.get(_url(f"/{row.id}/view?data=true"))
+        assert plain.json()["injected"] is False
+        assert with_data.json()["injected"] is True
 
     async def test_the_public_link_is_turned_on_and_off(self, client: OpenClient) -> None:
         row = _artifact()
@@ -199,9 +231,7 @@ class TestStrangers:
         row = _artifact(public_key="k" * 32)
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
-            patch(
-                f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=_version(row))
-            ),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         ):
             async with client() as http:
@@ -236,7 +266,7 @@ class TestTheContentRoute:
         row = _artifact()
         version = _version(row)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<script>document.title='x'</script>")
@@ -270,18 +300,14 @@ class TestTheContentRoute:
         later, by message, from a console that checked the viewer."""
         app.dependency_overrides.pop(deps.get_auth_context)
         row = _artifact()
-        view_id, table_id, column_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        binding = {
-            "name": "open_deals",
-            "view_id": str(view_id),
-            "table_id": str(table_id),
-            "fields": {"stage": str(column_id)},
-            "status": "ok",
-            "reason": None,
-        }
+        binding = _binding("open_deals")
         version = _version(row, bindings=[binding])
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="nonce-xyz", live=True
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="nonce-xyz",
+            live=True,
+            audience="public",
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<p id=out></p>")
@@ -299,7 +325,8 @@ class TestTheContentRoute:
         assert '"names": ["open_deals"]' in body
         assert '"n": "nonce-xyz"' in body
         assert '"live": true' in body
-        for stored in (str(view_id), str(table_id), str(column_id), "stage"):
+        stage = binding["fields"]["stage"]
+        for stored in (binding["table_id"], stage, *binding["reach"]["tables"], "stage"):
             assert stored not in body
 
     @pytest.mark.security
@@ -309,7 +336,7 @@ class TestTheContentRoute:
         app.dependency_overrides.pop(deps.get_auth_context)
         refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
         token = create_artifact_view_token(
-            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         read = AsyncMock()
         with (
@@ -327,7 +354,11 @@ class TestTheContentRoute:
     @pytest.mark.security
     async def test_an_expired_address_is_not_found(self, client: OpenClient) -> None:
         token = create_artifact_view_token(
-            uuid.uuid4(), expires_in=timedelta(seconds=-1), nonce="n0", live=False
+            uuid.uuid4(),
+            expires_in=timedelta(seconds=-1),
+            nonce="n0",
+            live=False,
+            audience="public",
         )
         async with client() as http:
             response = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
@@ -365,6 +396,7 @@ class TestWhatAPageGained:
             patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=kept)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=current)),
+            patch(f"{PATH}.consent_for", new=AsyncMock(return_value=MagicMock())),
             patch(
                 f"{PATH}._append_version", new=AsyncMock(return_value=_version(row, number=3))
             ) as append,
@@ -427,9 +459,7 @@ class TestStrangersWithAPassword:
         row.public_password_hash = get_password_hash("right-one")
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
-            patch(
-                f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=_version(row))
-            ),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
         ):
             async with client() as http:
                 asked = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
@@ -491,9 +521,7 @@ class TestTheEmbedRoute:
         row.embed_origins = ["https://intranet.example.com"]
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
-            patch(
-                f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=_version(row))
-            ),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         ):
             async with client() as http:
@@ -584,6 +612,146 @@ class TestTheDataRoute:
         read.assert_not_awaited()
 
 
+def _binding(name: str = "deals") -> dict[str, Any]:
+    """A page query as a version stores it: the stage of every record of one table."""
+    table_id, stage = uuid.uuid4(), uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"stage": stage},
+        reach=BindingReach(tables={table_id: {stage: 0}}),
+    ).model_dump(mode="json")
+
+
+class TestWhoIsServedAPagesData:
+    """Everyone served a page's data reads its query as the page's owner (#1974)."""
+
+    async def _load(
+        self,
+        viewer: AuthContext,
+        row: Artifact,
+        owner: AuthContext,
+        *,
+        can_edit: bool,
+        state: str = "pending",
+    ) -> tuple[Any, AsyncMock]:
+        version = _version(row, bindings=[_binding()])
+        membership = uuid.uuid4()
+        version.consent_state = state
+        if state == "consented":
+            version.consented_by_membership_id = membership
+            version.consented_at = datetime(2026, 10, 1, tzinfo=UTC)
+        stage = UUID(version.bindings[0]["fields"]["stage"])
+        source = TableSource(
+            id=UUID(version.bindings[0]["table_id"]),
+            name="Deals",
+            archived=False,
+            columns=[ColumnDef(id=stage, label="Stage", type="text")],
+        )
+        read = AsyncMock(
+            return_value=BoundRows(
+                records=[{"id": "r1", "stage": "Won"}],
+                sizes=[24],
+                bytes=24,
+                columns=source.columns,
+                stopped_by=None,
+            )
+        )
+
+        async def access(_db: Any, _ctx: Any, _row: Any, perm: Perm, **_kw: Any) -> bool:
+            return perm is Perm.ARTIFACTS_VIEW or can_edit
+
+        app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{PATH}.artifact_repo.latest_served",
+                new=AsyncMock(return_value=None if state == "pending" else version),
+            ),
+            patch(
+                f"{PATH}.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock(id=membership)),
+            ),
+            patch(f"{PATH}.resolve_access", new=access),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)),
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.virtual_table_repo.restore_statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.page_source", new=AsyncMock(return_value=source)),
+            patch.object(VirtualTableService, "read_bound", new=read),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                response = await http.get(_url(f"/{row.id}/versions/{version.id}/data"))
+        if response.status_code != 200:
+            return response, read
+        return response.json()["bindings"]["deals"], read
+
+    def _owner(self, row: Artifact) -> AuthContext:
+        return AuthContext(
+            user_id=row.owner_user_id, organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+
+    @pytest.mark.security
+    async def test_an_admin_reads_the_owner_s_query_not_their_own_access(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        owner = self._owner(row)
+        admin = AuthContext(
+            user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.ADMIN
+        )
+
+        served, read = await self._load(admin, row, owner, can_edit=True)
+
+        assert (served["status"], served["records"]) == ("ok", [{"id": "r1", "stage": "Won"}])
+        assert read.await_args.args[0] is owner
+
+    async def test_a_member_reads_a_version_its_owner_consented_to(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+
+        served, read = await self._load(
+            _member_context(), row, self._owner(row), can_edit=False, state="consented"
+        )
+
+        assert served["status"] == "ok"
+        read.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_member_is_told_the_data_awaits_consent_once_it_is_withdrawn(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        row.consent_withdrawn_at = datetime(2026, 10, 2, tzinfo=UTC)
+
+        served, read = await self._load(
+            _member_context(), row, self._owner(row), can_edit=False, state="consented"
+        )
+
+        assert (served["status"], served["reason"], served["records"]) == (
+            "unavailable",
+            "awaiting_consent",
+            [],
+        )
+        read.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_member_never_opens_a_version_waiting_for_consent(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+
+        response, read = await self._load(_member_context(), row, self._owner(row), can_edit=False)
+
+        assert response.status_code == 404
+        read.assert_not_awaited()
+
+
 def _member_context() -> AuthContext:
     """A Member: they edit only their own pages, unless a grant says otherwise."""
     return AuthContext(
@@ -607,11 +775,13 @@ class TestArchive:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(f"{PATH}.void_all", new=AsyncMock()) as voided,
             patch(f"{PATH}.record_audit", new=audit),
         ):
             async with client() as http:
                 response = await http.post(_url(f"/{row.id}/archive"))
         assert response.status_code == 200
+        voided.assert_awaited_once()
         body = response.json()
         assert body["archived_at"] is not None
         assert body["public_url"] is None
@@ -678,6 +848,7 @@ class TestArchive:
             patch(f"{PATH}.resource_grant_repo.get_level", new=AsyncMock(return_value="edit")),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(f"{PATH}.void_all", new=AsyncMock()),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
         ):
             async with client() as http:
@@ -701,7 +872,7 @@ class TestArchive:
         row.archived_at = datetime(2026, 10, 1, tzinfo=UTC)
         version = _version(row)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
@@ -728,3 +899,402 @@ class TestArchive:
                 await http.get(_url())
                 await http.get(_url("?include_archived=true"))
         assert [call.kwargs["include_archived"] for call in listed.await_args_list] == [False, True]
+
+
+class TestConsentRoutes:
+    """Confirm data, withdraw and the auto-consent switch: what each answers (#1974).
+
+    The decisions are `tests/test_artifact_consent_actions.py`'s; these prove the routes
+    carry them to the status codes the console reads.
+    """
+
+    def _bound(self, row: Artifact) -> ArtifactVersion:
+        version = _version(row, number=2, bindings=[_binding()])
+        version.query_fingerprint = "a" * 64
+        return version
+
+    @pytest.mark.security
+    async def test_a_confirm_for_page_queries_other_than_shown_is_a_409(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        version = self._bound(row)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.update_version", new=AsyncMock()) as written,
+        ):
+            async with client() as http:
+                response = await http.post(
+                    _url(f"/{row.id}/versions/{version.id}/consent"),
+                    json={"fingerprint": "b" * 64},
+                )
+        assert response.status_code == 409
+        written.assert_not_awaited()
+
+    async def test_a_fingerprint_that_is_not_a_digest_is_refused_at_the_edge(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/versions/{uuid.uuid4()}/consent"),
+                json={"fingerprint": "short"},
+            )
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_an_editor_by_grant_is_refused_the_disclosure_with_a_403(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        editor = _member_context()
+        app.dependency_overrides[deps.get_auth_context] = lambda: editor
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            async with client() as http:
+                response = await http.get(_url(f"/{row.id}/versions/{uuid.uuid4()}/disclosure"))
+        assert response.status_code == 403
+
+    async def test_withdrawing_answers_the_page_with_its_consent_void(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        version = self._bound(row)
+        version.consent_state = "consented"
+        version.consented_by_membership_id = uuid.uuid4()
+        version.consented_at = datetime(2026, 10, 1, tzinfo=UTC)
+        audit = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.update", new=_set),
+            patch(
+                f"{PATH}.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock(id=version.consented_by_membership_id)),
+            ),
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.record_audit", new=audit),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"/{row.id}/consent"))
+        assert response.status_code == 200
+        consent = response.json()["consent"]
+        assert (consent["state"], consent["shared"]) == ("withdrawn", False)
+        assert consent["withdrawn_at"] is not None
+        assert audit.await_args.kwargs["action"] == "artifact.data_withdrawn"
+
+    async def test_auto_consent_on_without_confirming_the_text_is_a_400(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        owner = AuthContext(
+            user_id=row.owner_user_id, organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+        app.dependency_overrides[deps.get_auth_context] = lambda: owner
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.update", new=_set),
+        ):
+            async with client() as http:
+                response = await http.patch(_url(f"/{row.id}/auto-consent"), json={"enabled": True})
+        assert response.status_code == 400
+        assert row.auto_consent is not True
+
+
+class TestChangeOwnerRoute:
+    """`PUT /artifacts/{id}/owner`: what each caller is answered (#1974). The effects are
+    `tests/integration/test_artifact_ownership.py`'s, on real rows."""
+
+    OWNERSHIP = "app.services.artifact_ownership"
+
+    def _as_owner(self, row: Artifact) -> None:
+        owner = AuthContext(
+            user_id=row.owner_user_id, organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+        app.dependency_overrides[deps.get_auth_context] = lambda: owner
+
+    async def test_the_owner_hands_the_page_over_and_it_is_audited(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        self._as_owner(row)
+        new_owner = uuid.uuid4()
+        audit = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{self.OWNERSHIP}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{self.OWNERSHIP}.artifact_repo.update", new=_set),
+            patch(f"{self.OWNERSHIP}.void_all", new=AsyncMock()),
+            patch(
+                f"{self.OWNERSHIP}.resource_grant_repo.lower_edit_data",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                f"{self.OWNERSHIP}.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{self.OWNERSHIP}.user_repo.get_by_id", new=AsyncMock()),
+            patch(f"{self.OWNERSHIP}.NotificationService") as notifications,
+            patch(f"{self.OWNERSHIP}.record_audit", new=audit),
+        ):
+            notifications.return_value.artifact_owner_changed = AsyncMock()
+            async with client() as http:
+                response = await http.put(
+                    _url(f"/{row.id}/owner"), json={"user_id": str(new_owner)}
+                )
+        assert response.status_code == 200
+        assert response.json()["owner_user_id"] == str(new_owner)
+        assert audit.await_args.kwargs["action"] == "artifact.owner_changed"
+
+    @pytest.mark.security
+    async def test_an_editor_by_grant_is_a_403(self, client: OpenClient) -> None:
+        row = _artifact()
+        editor = _member_context()
+        app.dependency_overrides[deps.get_auth_context] = lambda: editor
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            async with client() as http:
+                response = await http.put(
+                    _url(f"/{row.id}/owner"), json={"user_id": str(editor.user_id)}
+                )
+        assert response.status_code == 403
+        assert row.owner_user_id != editor.user_id
+
+    async def test_a_new_owner_who_is_not_an_active_member_is_a_400(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        self._as_owner(row)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{self.OWNERSHIP}.artifact_repo.lock", new=AsyncMock(return_value=row)),
+            patch(f"{self.OWNERSHIP}.member_repo.get_active", new=AsyncMock(return_value=None)),
+        ):
+            async with client() as http:
+                response = await http.put(
+                    _url(f"/{row.id}/owner"), json={"user_id": str(uuid.uuid4())}
+                )
+        assert response.status_code == 400
+
+
+def _request_read(row: Artifact, *, kind: str = "access") -> ArtifactShareRequestRead:
+    return ArtifactShareRequestRead(
+        id=uuid.uuid4(),
+        artifact_id=row.id,
+        kind=ShareRequestKind(kind),
+        status=ShareRequestStatus.PENDING,
+        requester_user_id=uuid.uuid4(),
+        created_at=datetime(2026, 10, 22, tzinfo=UTC),
+        can_decide=True,
+    )
+
+
+class TestShareRequestRoutes:
+    """Requests to share a page, or to confirm a version: what each route answers (#1974).
+
+    The rules are `tests/integration/test_artifact_requests.py`'s, on real rows; these prove
+    the routes carry them to the status codes and bodies the console reads.
+    """
+
+    SERVICE = "app.services.artifact_request_service"
+
+    async def _as_member(self) -> None:
+        app.dependency_overrides[deps.get_auth_context] = _member_context
+
+    @pytest.mark.security
+    async def test_a_member_who_cannot_open_a_page_is_told_they_may_ask_and_nothing_else(
+        self, client: OpenClient
+    ) -> None:
+        await self._as_member()
+        row = _artifact()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.member_repo.get_active", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{PATH}.artifact_share_request_repo.pending", new=AsyncMock(return_value=None)),
+        ):
+            async with client() as http:
+                response = await http.get(_url(f"/{row.id}"))
+        assert response.status_code == 403
+        error = response.json()["error"]
+        assert error["code"] == "ACCESS_REQUESTABLE"
+        assert error["details"] == {"artifact_id": str(row.id), "requested": False}
+        assert row.title not in response.text and row.name not in response.text
+
+    @pytest.mark.security
+    async def test_somebody_who_is_no_member_gets_the_plain_not_found(
+        self, client: OpenClient
+    ) -> None:
+        await self._as_member()
+        row = _artifact()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.member_repo.get_active", new=AsyncMock(return_value=None)),
+        ):
+            async with client() as http:
+                response = await http.get(_url(f"/{row.id}"))
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "NOT_FOUND"
+
+    async def test_asking_for_access_is_a_201(self, client: OpenClient) -> None:
+        row = _artifact()
+        answer = ArtifactAccessRequested(
+            id=uuid.uuid4(),
+            kind=ShareRequestKind.ACCESS,
+            status=ShareRequestStatus.PENDING,
+            created_at=datetime(2026, 10, 22, tzinfo=UTC),
+            note="for Monday",
+        )
+        with patch.object(
+            ArtifactRequestService, "request_access", new=AsyncMock(return_value=answer)
+        ) as asked:
+            async with client() as http:
+                response = await http.post(
+                    _url(f"/{row.id}/access-requests"), json={"note": "for Monday"}
+                )
+        assert response.status_code == 201
+        assert set(response.json()) == {"id", "kind", "status", "created_at", "note"}
+        assert asked.await_args.args[2].note == "for Monday"
+
+    async def test_a_note_past_its_limit_is_refused_at_the_edge(self, client: OpenClient) -> None:
+        async with client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/access-requests"), json={"note": "x" * 501}
+            )
+        assert response.status_code == 422
+
+    async def test_listing_deciding_and_reviewing_carry_their_answers(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        answer = _request_read(row)
+        listing = ArtifactShareRequestList(items=[answer], total=1)
+        review = ArtifactVersionReview(
+            version=ArtifactVersionRead(
+                id=uuid.uuid4(),
+                number=2,
+                media_type="text/html",
+                size_bytes=1,
+                consent_state="pending",
+                created_at=datetime(2026, 10, 22, tzinfo=UTC),
+            ),
+            bindings=[],
+            unchanged=[],
+            widens=False,
+        )
+        with (
+            patch.object(
+                ArtifactRequestService, "list_requests", new=AsyncMock(return_value=listing)
+            ) as listed,
+            patch.object(ArtifactRequestService, "approve", new=AsyncMock(return_value=answer)),
+            patch.object(ArtifactRequestService, "decline", new=AsyncMock(return_value=answer)),
+            patch.object(ArtifactRequestService, "review", new=AsyncMock(return_value=review)),
+        ):
+            async with client() as http:
+                everything = await http.get(
+                    _url(f"/{row.id}/share-requests"), params={"include_decided": "true"}
+                )
+                pending = await http.get(_url(f"/{row.id}/share-requests"))
+                approved = await http.post(_url(f"/{row.id}/share-requests/{answer.id}/approve"))
+                declined = await http.post(_url(f"/{row.id}/share-requests/{answer.id}/decline"))
+                reviewed = await http.get(_url(f"/{row.id}/versions/{uuid.uuid4()}/review"))
+        assert [r.status_code for r in (everything, pending, approved, declined, reviewed)] == [
+            200,
+            200,
+            200,
+            200,
+            200,
+        ]
+        assert [call.kwargs["pending_only"] for call in listed.await_args_list] == [False, True]
+        assert everything.json()["items"][0]["can_decide"] is True
+        assert reviewed.json()["version"]["number"] == 2
+
+    @pytest.mark.security
+    async def test_a_share_that_became_a_request_answers_202_with_the_request(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        body = Deferred(request_id=uuid.uuid4(), waiting_for="Olga")
+        service = MagicMock(spec=SharingService)
+        service.set_visibility = AsyncMock(return_value=body)
+        service.share = AsyncMock(return_value=body)
+        service.share_with_group = AsyncMock(return_value=body)
+        app.dependency_overrides[deps.get_sharing_service] = lambda: service
+        with patch("sqlalchemy.ext.asyncio.AsyncSession.get", new=AsyncMock(return_value=row)):
+            async with client() as http:
+                visibility = await http.patch(
+                    _url(f"/{row.id}/sharing/visibility"), json={"visibility": "org"}
+                )
+                person = await http.put(
+                    _url(f"/{row.id}/sharing/grants"),
+                    json={"subject_user_id": str(uuid.uuid4()), "level": "read"},
+                )
+                group = await http.put(
+                    _url(f"/{row.id}/sharing/grants"),
+                    json={"subject_group_id": str(uuid.uuid4()), "level": "read"},
+                )
+        for response in (visibility, person, group):
+            assert response.status_code == 202
+            assert response.json()["status"] == "requested"
+            assert response.json()["waiting_for"] == "Olga"
+            assert response.json()["request_id"] == str(body.request_id)
+
+
+class TestGrantingEditData:
+    @pytest.mark.security
+    async def test_the_confirmed_text_travels_with_the_level_to_the_service(
+        self, client: OpenClient
+    ) -> None:
+        row = _artifact()
+        person, group = uuid.uuid4(), uuid.uuid4()
+        granted = MagicMock(
+            id=uuid.uuid4(),
+            subject_user_id=person,
+            subject_group_id=None,
+            resource_type="artifact",
+            resource_id=row.id,
+            level="edit_data",
+        )
+        service = MagicMock(spec=SharingService)
+        service.share = AsyncMock(return_value=granted)
+        service.share_with_group = AsyncMock(return_value=granted)
+        app.dependency_overrides[deps.get_sharing_service] = lambda: service
+        with patch("sqlalchemy.ext.asyncio.AsyncSession.get", new=AsyncMock(return_value=row)):
+            async with client() as http:
+                one = await http.put(
+                    _url(f"/{row.id}/sharing/grants"),
+                    json={
+                        "subject_user_id": str(person),
+                        "level": "edit_data",
+                        "confirmed": "edit_data.person.v1",
+                    },
+                )
+                many = await http.put(
+                    _url(f"/{row.id}/sharing/grants"),
+                    json={
+                        "subject_group_id": str(group),
+                        "level": "edit_data",
+                        "confirmed": "edit_data.group.v1",
+                    },
+                )
+                unknown = await http.put(
+                    _url(f"/{row.id}/sharing/grants"),
+                    json={"subject_user_id": str(person), "level": "owner"},
+                )
+
+        assert (one.status_code, many.status_code, unknown.status_code) == (200, 200, 422)
+        assert one.json()["level"] == "edit_data"
+        assert service.share.await_args.kwargs["confirmed"] == "edit_data.person.v1"
+        assert service.share_with_group.await_args.kwargs["confirmed"] == "edit_data.group.v1"

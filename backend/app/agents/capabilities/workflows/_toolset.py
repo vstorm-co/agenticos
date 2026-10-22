@@ -29,7 +29,6 @@ from pydantic_ai.toolsets import FunctionToolset
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._members import acting_member
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, Perm
@@ -39,7 +38,7 @@ from app.db.models.workflow_run import WorkflowRunTrigger
 from app.db.session import get_db_context
 from app.repositories import workflow as workflow_repo
 from app.schemas.workflow_run import WorkflowRunRead
-from app.services.access import WORKFLOW, resolve_access
+from app.services.access import WORKFLOW, acting_member, resolve_access
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.triggers import BY_HAND, DECLARES_FIELDS, WORKFLOW_CALL
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9b76aacfbfa5"
+source_sha: "f1a4f0e2fb23"
 ---
 
 # Seguridad { #security }
@@ -169,6 +169,64 @@ de conversaciones de un colega es legítimo unas dos veces al año y serio cada 
 — y `DELETE /admin/users/{id}`, donde el motivo es opcional porque una salida
 ordinaria no suele tener nada que explicar.
 
+## Los datos de una página y su dirección { #a-pages-data-and-its-address }
+
+Una [página publicada](artifacts.md#live-data) puede leer datos de tabla. Es el único sitio
+donde los datos de un miembro llegan a otros miembros por el trabajo de un agent, así que los
+controles se listan aquí y no solo como filas de la matriz.
+
+**La lectura delegada.** Cada lector de una página vinculada lee los mismos registros,
+mediante las page queries congeladas de la página, **con el acceso del propietario de la
+página**. Es una delegación deliberada del acceso a las tablas del propietario a la audiencia
+de la página. Sus controles:
+
+- Los datos se comparten solo con el [consentimiento](artifacts.md#consent-the-owner-decides-who-reads-the-data)
+  del propietario, dado por versión, tras leer las queries en palabras y cada tabla vinculada
+  que alcanzan, y ligado a la membresía del propietario y a una huella de lo que se mostró.
+  Una republicación que lee algo distinto espera ese consentimiento. Cualquier editor puede
+  retirarlo, lo que además baja a `edit` cada concesión `edit_data` de la página.
+- El propietario se vuelve a comprobar en cada servicio: un miembro activo, con `read` sobre
+  cada tabla que alcanzan las queries. Un propietario que pierde el acceso, o que se va,
+  oscurece los datos de la página.
+- Una query se resuelve a ids al publicar y se compara en cada carga con las tablas tal como
+  están: una columna cuyo significado cambió o que se archivó, una tabla archivada, o una tabla
+  vinculada etiquetada por otra columna, no sirve nada hasta que se publica la página de nuevo.
+- Ampliar quién abre una página así es decisión del propietario, o de un Owner o Admin por él;
+  un editor, o un agent mediante `share_artifact`, solo puede presentar una solicitud. Los
+  admins son de confianza y actúan directamente; los controles apuntan a agents, suplantación y
+  ajenos.
+- El consentimiento automático y `edit_data` son los dos consentimientos permanentes. El
+  consentimiento automático solo lo activa el propietario, como él mismo. `edit_data` lo
+  concede el propietario o un Owner o Admin, como ellos mismos. Ambos siguen a una ventana
+  cuyo texto queda registrado en la entrada de auditoría.
+
+**La dirección de contenido.** La página de un miembro se carga desde
+`/artifact-content/<token>`. El token está firmado, nombra una versión y lleva una audiencia,
+`member` o `public`; la ruta acepta ambas. El `frame-ancestors` de toda respuesta de contenido
+incluye la consola, porque la consola enmarca la página para un miembro y para la propia página
+de un enlace público (`/a/<key>`), que vive ahí. El origen del documento de embed y los sitios
+de embed listados de un enlace se añaden solo para una página que se puede incrustar: una con
+enlace público y sin contraseña. Solo un token `member` puede llevar datos. Cuando la consola
+pide datos al cargar, ese token también lo dice, y la ruta lee los bindings para el lector que
+nombra, tal como se sirven ahora: el miembro se busca de nuevo, aún debe tener permitida la
+página, y recibe datos solo de la versión que se le sirve. Un token `public`, las miniaturas,
+las tarjetas y las versiones del historial no reciben ninguno.
+
+**La URL es una credencial al portador.** Durante su vida útil — cinco minutos por defecto
+(`ARTIFACT_VIEW_TTL_SECONDS`), como máximo diez cargas por minuto por dirección — quien tenga la
+dirección de la página de un miembro acuñada para datos la carga con los registros inyectados de
+ese lector, desde cualquier sitio, y la respuesta nunca se almacena en caché. Por eso se
+mantiene fuera de los logs y el límite de peticiones la cuenta por su digest. No pegues una
+dirección así en un ticket ni en un chat. Una dirección pública nunca lleva datos.
+
+**No es una acción.** `share_artifact` no comparte nada. Presenta una solicitud para el
+propietario, que responde en la consola, con sesión iniciada como él mismo; así, una página a la
+que han convencido de pedir no puede ampliarse a sí misma.
+
+**No se registra.** Los valores de un registro nunca llegan a logs, trazas ni entradas de
+auditoría: el registro de auditoría contiene la huella, la versión, quién consintió y qué texto
+confirmó, nunca una fila ni un valor de filtro.
+
 ## Matriz de controles { #controls-matrix }
 
 Una fila por control, el mecanismo que lo satisface y el test que lo sostiene.
@@ -239,9 +297,11 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | TLS hacia PostgreSQL y Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` informa del estado en vivo de Postgres desde `pg_stat_ssl` | Postgres, sobre una conexión real: `test_store_tls.py`; Redis, al construir la URL y en `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Cabeceras de framing y MIME en cada respuesta; CSP en todas salvo los endpoints de la referencia de la API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), cuyos `exclude_paths` quitan la CSP — no el framing ni el MIME — para OpenAPI, Swagger y ReDoc; más la CSP propia del frontend por deployment (`frontend/src/middleware.ts`), cuyo `script-src` lleva un nonce por petición y `'strict-dynamic'` en vez de `'unsafe-inline'` | `test_security_headers.py`, incluido `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS y HSTS | Terminados en el reverse proxy — el `nginx/nginx.conf` incluido pone HSTS; la aplicación no, por diseño | Asunto del deployment; ver la lista de endurecimiento |
-| Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — ni `allow-popups`, más `connect-src 'none'`, ninguna fuente remota salvo la ruta de bibliotecas del propio despliegue, y `frame-ancestors` nombrando solo la consola (y, para una página pública que se puede incrustar, el documento de incrustación y los sitios listados); un enlace de la página se abre solo después de que una persona confirme su dirección; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`); los datos en vivo nunca viajan por la ruta de contenido — la consola los obtiene como el lector, desde una ruta de datos tras la propia sesión del lector, y los envía a la página, con un nonce que empareja cada respuesta con su carga de página (correlación, no control de acceso) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
-| Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed, las páginas alojadas, los enlaces públicos de artefactos y sus direcciones de contenido firmadas, y la ruta de datos en vivo de una página — 30 cargas por minuto por lector, una en curso por lector y un tope por proceso (`app/services/rate_limit.py`); con Redis caído, el suelo del límite de peticiones y el límite de cargas en curso cuentan por worker de la API, y el tope por proceso sigue acotando cada worker; límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; el límite del bot de canal está implementado, pero poco testeado |
-| Una página vinculada muestra solo lo que su lector puede leer | Los datos de una página se leen en el momento de verla como el lector, y nunca se guardan en la página. El grant de tabla del agent se comprueba solo al publicar y al restaurar, así que revocarlo no detiene las páginas ya publicadas; los lectores siguen leyendo solo con su propio acceso. El código de una página puede haberlo escrito alguien distinto del lector o del propietario de la vista que lee: aun así, los datos que recibe son solo lo que el lector puede leer, y solo pueden salir de la página por un enlace que el lector confirme | `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — ni `allow-popups`, más `connect-src 'none'`, ninguna fuente remota salvo la ruta de bibliotecas del propio despliegue, y `frame-ancestors` nombrando solo la consola (y, para una página pública que se puede incrustar, el documento de incrustación y los sitios listados); un enlace de la página se abre solo después de que una persona confirme su dirección; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`); una dirección pública nunca lleva datos, y la de un miembro lleva los registros de la página solo como describe [la sección de abajo](#a-pages-data-and-its-address); un refresco lo obtiene la consola desde una ruta de datos tras la propia sesión del lector y lo envía a la página, con un nonce que empareja cada respuesta con su carga de página (correlación, no control de acceso) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed, las páginas alojadas, los enlaces públicos de artefactos y sus direcciones de contenido firmadas, la ruta de datos en vivo de una página y sus cargas con datos inyectados — 30 cargas por minuto por lector, una en curso por lector y un tope por proceso; las solicitudes para compartir una página — 10 por hora por persona y organización (`app/services/rate_limit.py`); con Redis caído, el suelo del límite de peticiones y el límite de cargas en curso cuentan por worker de la API, y el tope por proceso sigue acotando cada worker; límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; el límite del bot de canal está implementado, pero poco testeado |
+| Los datos de una página vinculada se leen con la autoridad del propietario, y solo el propietario los comparte | A cada lector se le sirven los registros de la página mediante sus page queries, leídos con el acceso del **propietario** de la página y nunca guardados en ella. El propietario debe ser un miembro activo que lea cada tabla que alcanza la query, en cada carga (`creator_gone`, `creator_lost_access`); a quien publica se le exige lo mismo al publicar; una columna o tabla que cambió desde la publicación no sirve nada (`source_changed`). Los registros llegan a cualquiera más allá del propietario y de los roles que leen todas las tablas solo mientras se mantiene el consentimiento por versión del propietario; a la audiencia nunca se le sirve una versión sin consentimiento | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
+| El consentimiento es un acto propio del propietario | Confirmar datos, activar el consentimiento automático, conceder `edit_data` y entregar una página se hacen con sesión iniciada como la persona, nunca suplantando y nunca mediante una herramienta de agent; un Owner o Admin puede confirmar por el propietario y se audita que lo hizo; la confirmación lleva la huella de lo que se mostró a la persona y se rechaza si las queries cambiaron | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
+| Ampliar una página vinculada está vigilado | Una visibilidad más amplia, una concesión nueva o un nivel más alto en una página que lee datos requiere al propietario (o a un Owner o Admin) y un consentimiento vigente; el intento de cualquier otro editor, y una llamada a `share_artifact`, se presenta como solicitud y no aplica nada | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |
 | Un run sin una persona detrás no vincula ni inicia nada | Un binding de página solo puede publicarlo un run que actúe en nombre de un miembro: el miembro con sesión iniciada (chat web, API HTTP), un remitente de canal vinculado o el creador de una programación. Un visitante de un widget, un embed o una página alojada, un remitente de canal no vinculado, la entrega de un trigger de eventos de un agent (GitHub, correo, relé de webhooks) y un run de workflow admitido por una puerta pública no cuentan. Las puertas públicas son un webhook, un formulario público, un mensaje de canal, un mensaje de Gmail y un evento de GitHub. El origen sigue a la cadena: un workflow llamado, un run disparado por una tabla o por un fallo bajo un run público, un reintento de cualquiera de ellos y un run disparado por una tabla a partir de un registro que escribió un run sin un miembro detrás se ejecutan todos sin persona. `run_workflow` y las herramientas de vistas guardadas se rechazan ahí | `test_artifact_bindings.py`, `test_workflow_calls.py`, `test_table_triggers.py` |
 
 ### Los rechazos como conjunto { #the-refusals-as-a-set }

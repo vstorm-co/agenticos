@@ -3,7 +3,7 @@
 from typing import Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
@@ -420,3 +420,22 @@ async def update_role(
 async def delete(db: AsyncSession, member: OrganizationMember) -> None:
     await db.delete(member)
     await db.flush()
+
+
+async def find_active(
+    db: AsyncSession, *, organization_id: UUID, term: str
+) -> list[tuple[UUID, str, str | None]]:
+    """The active members whose address or full name is `term`, ignoring case, as
+    `(user_id, email, full_name)` - more than one when a name is shared."""
+    wanted = term.lower()  # as Postgres `lower()` folds it, not `casefold()`
+    result = await db.execute(
+        select(User.id, User.email, User.full_name)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            User.is_active.is_(True),
+            or_(func.lower(User.email) == wanted, func.lower(User.full_name) == wanted),
+        )
+        .order_by(User.email)
+    )
+    return [(row[0], row[1], row[2]) for row in result.all()]

@@ -28,7 +28,7 @@ tools listed.
 | `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
 | `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
+| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
@@ -48,7 +48,7 @@ tools listed.
 | `compaction` | Context management | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -967,6 +967,8 @@ was written.*
 newest first.*
 `preview_artifact` — *See a page you published as somebody opening it would: a
 picture, and what went wrong.*
+`share_artifact` — *Ask for a page you published to be shared with more people; this
+shares nothing itself.*
 
 Publishes one self-contained HTML or Markdown document as an
 [artifact](../artifacts.md): a shared resource with an owner, a visibility and
@@ -1035,16 +1037,43 @@ and the result's `warning` lists what looks wrong, one problem a line - see
 [the page contract and the publish warnings](../artifacts.md#the-page-contract-and-the-publish-warnings).
 A warning never stops a publish.
 
-**Live data.** `bindings` on `publish_artifact` bind an HTML page to saved
-[table views](../virtual-tables.md#saved-views) as `{name: {view, fields}}`, where
-`fields` maps each name the page reads to a column by id or label. The agent's
-spec must grant read on the table. The page calls `agenticos.onData(render)`,
-which runs with the first data and on every refresh; `agenticos.data` is a Promise
-of the first data. Records are read when somebody views the page, with the
-viewer's own access, and are never stored in it. A binding the viewer cannot read
-arrives `unavailable`. Names are `^[a-z_][a-z0-9_]{0,63}$`, at most 5 bindings and
-50 fields each. The result echoes each field as `Label (type)`, and `kept` for a
-binding carried forward. [Live data](../artifacts.md#live-data) has the limits.
+**Live data.** `bindings` on `publish_artifact` bind an HTML page to table data as
+`{name: query}`. A query names a `table` (id or exact name, from `list_tables`) or a saved
+`view` (id or exact name, from `list_views`), never both, and `fields`, which maps each name
+the page reads to a column by id or label. Optional: `filters` (`[{column, op, value}]`, all of
+which must hold, added to a view's; a choice by its label), `sort` (`{by, direction}`) and
+`limit` (at most and by default 1,000), which replace the view's. A view's filters and sort are
+**copied** when the page is published, and later edits to the view change nothing; its
+`visible_columns` and `group_by` are ignored, and a view that has a free-text search, or a
+filter on a column that is gone, is refused. Omit `bindings` to keep the page's current ones;
+`{}` removes them.
+
+The agent's spec must grant read on the table, and the person behind the run must read every
+table the query reaches, linked ones included. The page calls `agenticos.onData(render)`,
+which runs with the first data and on every refresh; `agenticos.data` is a Promise of the first
+data. **Everyone who opens the page reads the same records, read with its owner's access**, once
+the owner has confirmed sharing them; bind only what all of them may see. A binding that
+cannot be served arrives `unavailable`. Names are `^[a-z_][a-z0-9_]{0,63}$`, at most 5 bindings
+and 50 fields each. [Live data](../artifacts.md#live-data) has the limits.
+
+**The publish result.** It echoes each query in words - `table`, `filters`, `sort`, `limit`
+and each field with what it reads (`Status (single_select)`, `Pay band: formula over Salary,
+Level`) - or `kept` for a binding carried forward; that echo is what the owner consents to, so the
+agent checks it. `consent` says where the version's data stands (`not_needed`, `pending`,
+`consented`, `declined`, `withdrawn`), and `audience` says what everyone else sees while it
+waits: "the audience still sees v2 until Alex confirms". A `pending` version is for the person to
+confirm in the console; the agent tells them. A new page is private to the person the run is
+for.
+
+**`share_artifact(name, visibility?, people?)`.** Asks for a page to be shared. It never
+shares anything and is **not** gated by a tool approval: it files an `audience`
+[request](../artifacts.md#share-requests) as the run's person - the owner's own run
+included - and answers "Waiting for Alex to approve in the page's Share dialog". The owner
+answers in the console, signed in as themselves. `visibility` is `team` or `org`, there is no
+`public`, and `people` are members by full name or email and groups by name, each asked at view
+level; a name that matches nobody or several is reported, never guessed. A run with no person
+behind it, and a group chat's page that is not organization-wide, cannot ask. It is
+`side_effecting=False`: the call applies nothing.
 
 **A run with no person.** A page with bindings is published only by a run acting
 for a member: the signed-in member (web chat, HTTP API), a linked channel sender
@@ -1052,7 +1081,9 @@ or a schedule's creator. A widget, embed or hosted-page visitor, an unlinked
 channel sender, an agent event trigger's delivery (GitHub, email, webhook relay)
 and a workflow run admitted by a public door, or anywhere in such a run's chain,
 publish no bound page. An author who wants each republish of a bound page
-approved sets `tool_approval` on `publish_artifact`.
+approved sets `tool_approval` on `publish_artifact`. A run with no person may republish a
+bound page only unchanged, and an editor's publish is refused when the page's owner cannot
+read a table it reaches.
 
 ## Delegation
 
@@ -1487,12 +1518,11 @@ unshared or a role narrowed mid-run stops the next call.
 for the rest of that run.
 
 `list_views` returns the saved views of the tables the agent may read, with each
-view's id, its columns and whether it is shared; a page binds to a view by that id.
-`share_view` makes a private view visible to everyone who can see the table, which
-a page for other people needs. Only the view's owner can share it. It waits for
-the approval prompt by default; a capability-wide `approval` on `virtual_tables`
-decides it too, and only `tool_approval.share_view` targets it alone. Both need a
-run acting for a member.
+view's id, its columns and whether it is shared. A page can start its query from one, which
+copies the view's filters and sort; nothing about the view is linked afterwards, and a view
+with a search cannot be bound. [Pages and views](../virtual-tables.md#views-for-pages) says how a
+page reads a table. The `share_view` tool no longer exists, and a spec that still gates or renames it
+loads without it, with a warning in the log.
 
 The write tools are side-effecting per tool, so an approval policy gates them and
 not the reads. A write's operation key comes from the run and the tool call, so a

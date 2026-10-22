@@ -8,7 +8,13 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
-from app.repositories import group_repo, member_repo, organization_repo, user_repo
+from app.repositories import (
+    group_repo,
+    member_repo,
+    organization_repo,
+    resource_grant_repo,
+    user_repo,
+)
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -196,6 +202,9 @@ class MemberService:
             self.db, organization_id=organization_id, user_id=target_user_id
         )
         await member_repo.delete(self.db, target)
+        await resource_grant_repo.lower_edit_data(
+            self.db, organization_id=organization_id, owner_user_id=target_user_id
+        )
         await record_audit(
             self.db,
             actor_user_id=requester_id,
@@ -228,6 +237,9 @@ class MemberService:
             self.db, organization_id=organization_id, user_id=requester_id
         )
         await member_repo.delete(self.db, membership)
+        await resource_grant_repo.lower_edit_data(
+            self.db, organization_id=organization_id, owner_user_id=requester_id
+        )
 
     async def transfer_ownership(
         self,

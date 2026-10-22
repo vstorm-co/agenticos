@@ -372,14 +372,14 @@ export interface ActionRequest {
   tool_name: string;
   args: Record<string, unknown>;
   /**
-   * The stable id the capability declares the tool under - `share_view` for a
-   * binding that renamed it `share_saved_view`. The card's sentence is looked up by
+   * The stable id the capability declares the tool under - `update_record` for a
+   * binding that renamed it `change_order`. The card's sentence is looked up by
    * this, never by `tool_name`. Null or absent for a tool no capability owns.
    */
   capability_tool_id?: string | null;
   /**
-   * The ids in `args` as names the run's person may see - `{view, table}` for
-   * `share_view` - for the sentence the card leads with. Null or absent when the
+   * The ids in `args` as names the run's person may see - `{table}` for
+   * `update_record` - for the sentence the card leads with. Null or absent when the
    * tool has no describer or describing it failed; the card then shows the
    * arguments alone, as it always did.
    */

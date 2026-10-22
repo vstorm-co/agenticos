@@ -1,5 +1,5 @@
 ---
-source_sha: "5682a9e15af4"
+source_sha: "d5e3a28da8db"
 ---
 
 # Berechtigungen { #permissions }
@@ -274,6 +274,7 @@ ihn sieht, nicht was er tut.
 | `read` | die Konfiguration zu sehen |
 | `use` | sie außerdem auszuführen oder anzuhängen |
 | `edit` | sie außerdem zu ändern |
+| `edit_data` | außerdem zu ändern, welche Daten die Seite zeigt - [nur bei Seiten](#a-page-that-reads-data) |
 
 Ein Grant an eine Gruppe erreicht, wer in dem Moment in der Gruppe ist, in dem der
 Zugriff geprüft wird: Der Gruppe beizutreten heißt also, den Zugriff zu gewinnen,
@@ -414,6 +415,59 @@ zusätzlich `workflows:edit`. Hat sich daran etwas geändert, schlägt der Run m
 `PRINCIPAL_REVOKED` fehl, bevor der Handler des Knotens läuft. Ein Run braucht
 eine Person, in deren Namen er handelt, also kann ein Kontext ohne Subjekt keinen
 starten.
+
+## Eine Seite, die Daten liest { #a-page-that-reads-data }
+
+Eine veröffentlichte [Seite, die an Tabellendaten gebunden ist](artifacts.md#live-data),
+ist der eine Ort, an dem eine Person eine Tabelle **mit der Befugnis eines anderen**
+liest. Jedem Betrachter werden die Datensätze der Seite über ihre Seitenabfragen
+ausgeliefert, gelesen mit dem Zugriff des **Besitzers** der Seite, gleich welche
+Rolle oder Grants er selbst auf der Tabelle hat. Die Schichten oben entscheiden
+also, wer die Seite öffnen darf, und ein weiterer Satz Regeln entscheidet, wer das
+erweitern darf.
+
+**Der Zugriff des Besitzers deckt jedes Laden.** Der Besitzer der Seite muss ein
+aktives Mitglied sein und bei jeder Auslieferung `read` auf jeder Tabelle haben,
+die die Abfragen erreichen; andernfalls sind die Daten `unavailable`
+(`creator_gone`, `creator_lost_access`). Wer veröffentlicht, muss beim
+Veröffentlichen ebenfalls jede Tabelle lesen können, damit niemand bindet, was er
+nicht lesen darf.
+
+**Die Einwilligung teilt sie.** Das Einverständnis des Besitzers, die Daten einer
+Version zu teilen, gilt pro Version, wird als er selbst erteilt (nicht unter
+Impersonation, nicht über einen API-Key, nie durch ein Agent-Tool) und mit der
+Mitgliedschaft des Besitzers gespeichert. Ein Owner oder Admin - `artifacts:edit`
+im Scope `ALL` - darf für den Besitzer bestätigen, entsprechend auditiert. Ein
+Grant zum Bearbeiten der Seite genügt nicht. Jeder Editor darf sie zurückziehen,
+da das Zurückziehen nur einschränkt; dabei fällt auch jeder `edit_data`-Grant auf
+der Seite auf `edit`.
+
+**`edit_data` ist eine Grant-Stufe, keine Rolle.** „Can edit, data included“ liegt
+über `edit` und wird nur für Seiten akzeptiert (eine Datenbank-Constraint lehnt es
+anderswo ab). Es ist eine dauerhafte Einwilligung in die erneuten
+Veröffentlichungen dieser Person oder dieser Gruppe. Nur der Besitzer oder ein
+Owner oder Admin, als er selbst, erteilt oder erhöht es, nachdem er bestätigt hat,
+was es erlaubt. Wer bearbeiten darf, senkt es. Es wird als Grant-Stufe
+(`grant_level`) gelesen, nie über `resolve_access`, und kein Rollenscope
+impliziert es.
+
+**Der Besitzer wird gewechselt, nie beansprucht.** Der Besitzer oder für jede Seite
+ein Owner oder Admin übergibt sie als er selbst an ein aktives Mitglied; ein Grant
+zum Bearbeiten erlaubt das nicht. Der Wechsel macht jede Einwilligung ungültig,
+senkt `edit_data`-Grants auf `edit` und schaltet die automatische Einwilligung aus.
+Eine Seite ohne Besitzer zu übernehmen, indem man sie privat macht, ist derselbe
+Vorgang und dieselbe Regel.
+
+**Erweitern ist abgesichert.** Vor den generischen Freigabe-Routen sitzt ein Wächter
+für Seiten, die Daten lesen: Eine weitere Sichtbarkeit, ein neuer Grant oder eine
+höhere Stufe ist die Entscheidung des Besitzers oder die eines Owners oder Admins
+für ihn, sobald die Daten bestätigt sind. Jeder andere mit `edit` bekommt statt
+einer Ablehnung eine [Anfrage](artifacts.md#share-requests). Einschränken steht
+jedem Editor offen, und eine Seite, die keine Daten liest, behält die generischen
+Regeln. Admins handeln direkt, statt eine Anfrage zu stellen. Die drei Berechtigungen,
+die eine Seite nutzt, sind `artifacts:view`, `artifacts:edit` und, für Tabellen,
+`tables:view`; Owner, Admin, Builder und Operator halten die erste und die letzte
+im Scope `ALL`, weshalb sie zur Zielgruppe jeder Seite gehören.
 
 ## Wo die Tore sitzen { #where-the-gates-go }
 
@@ -586,6 +640,9 @@ ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
   erweitert; er verengt nie.**
 - `require(...)` gehört an **Collection**-Routen. Alles, was auf einer Zeile
   handelt, übergibt die Entscheidung einem Service, der `resolve_access` aufruft.
+- Eine Seite, die Tabellendaten liest, wird mit dem Zugriff ihres **Besitzers**
+  gelesen und nur mit dessen Einwilligung geteilt; sie zu erweitern ist Sache des
+  Besitzers, und jeder andere stellt eine Anfrage.
 - Eine Oberfläche, vor der niemand steht, läuft als **wer sie veröffentlicht
   hat**, mit Rückfall auf `viewer`, wenn diese Person gegangen ist oder
   deaktiviert wurde.

@@ -141,6 +141,22 @@ Records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
 next time the record is edited.
 
+Each column carries a read-only **`revision`**, which is `0` for a new column and for
+every column that existed before it was added. It counts the changes to what the
+column's values *mean*, so a published [page](artifacts.md#live-data) can tell that
+the column it was published against is no longer that one. It goes up by one on:
+
+- a type conversion;
+- a change to a formula, compared after a rename has been written through it, so renaming
+  a column that a formula reads does not count, but another column taking over the label does;
+- a different link, lookup or rollup target, or a different aggregate;
+- archiving or restoring the column, or archiving or restoring one of its select options.
+
+A new label, default or requiredness, a relabelled select option and a new option leave it
+as it was. A filter holds option ids, so none of those changes what a filter matches. A
+`TableRead` column can be sent back in a schema change as it came: the field is accepted and
+ignored, and only the change itself sets it.
+
 A record write and a schema change or archive of the same table take turns: the write
 waits for one in flight and is then judged against what it committed, so a record never
 lands in a table archived a moment earlier.
@@ -403,20 +419,34 @@ view is read: a filter on it goes, a sort by it falls back to `created_at`, a
 grouping by it is cleared, and it leaves `visible_columns` - a view left showing none
 of its chosen columns shows every live one. The stored config is not rewritten.
 
-### Views as a data contract for pages { #views-for-pages }
+### Pages and views { #views-for-pages }
 
-A published [artifact](artifacts.md#live-data) binds to saved views, and the view
-is what it reads: the view's filters, sort and search decide the rows, and the
-binding's `fields` decide the columns, whether or not the view shows them. An
-agent with this capability finds views with `list_views`, which returns each
-view's id, its columns and whether it is shared, for tables it may read.
+A published [artifact](artifacts.md#live-data) does not read through a view. Its
+bindings are **page queries**: a table, filters, a sort, a limit and the fields the
+page reads, which the platform stores on the version of the page when it is published.
+A binding may start from a saved view - an agent finds one with `list_views`, which
+returns each view's id, its columns and whether it is shared, for tables it may read -
+but the view's filters and sort are **copied** into the page then. Editing, sharing,
+renaming or deleting the view afterwards changes nothing on the page, and a view's
+`visible_columns` and `group_by` are ignored: the binding's `fields` decide the columns.
 
-A private view serves only its owner, so a page that others open needs a shared
-one. `share_view` makes a view visible to everyone who can see the table, and only
-the view's owner can share it. It waits for the approval prompt by default. A
-capability-wide `approval` on `virtual_tables` decides it too, and only
-`tool_approval.share_view` targets it alone. A viewer of the page still reads
-only what their own access to the table allows.
+A view with a free-text search cannot be bound, because a search matches every
+live text column and so would widen as columns are added; the publish is refused and names
+the view. So is a view whose filter names a column that is gone.
+
+Who may read the page's records is not decided by the view. They are read with the access
+of the page's owner, once the owner has consented, and a table's access is all or nothing:
+`read` gives every row and every live column. A page query is how a table's rows reach people
+who could not open it, and the owner is asked first. See
+[Artifacts](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+
+A page query records the `revision` of every column it reaches: its fields, its filter
+and sort columns, a formula's inputs, a lookup's or rollup's link and target, and the column
+each linked table labels its records by. A binding goes `unavailable` (`source_changed`) when
+one of those moved on or was archived, or when a table it reaches was archived, and the
+other bindings keep working. Nothing stops a table change for it: a page is not a
+dependency that blocks an archive. `share_view` no longer exists; there is no private view
+to share for a page.
 
 ## Triggers { #triggers }
 

@@ -1,17 +1,18 @@
 # Artifacts
 
-Exposes four tools. `publish_artifact` publishes a finished page - a report, a small
+Exposes five tools. `publish_artifact` publishes a finished page - a report, a small
 dashboard, a one-page summary - as an **artifact**: a shared resource with an owner,
 a visibility and grants, opened in a browser under a link that stays put.
 `read_artifact` reads the current version back, so a small change is an edit rather
 than the whole page again. `list_artifacts` names the pages a run may open, and
-`preview_artifact` draws one and says what went wrong while it ran.
+`preview_artifact` draws one and says what went wrong while it ran. `share_artifact`
+asks for one to be shared; it never shares anything itself (see below).
 
 ## Layout
 
 | File | Holds |
 |---|---|
-| `_toolset.py` | `build_artifacts_toolset`: the four tools, their prompts, the preview report, reading the page out of the workspace, `apply_edits`; `PAGE_CONTRACT`; `PublishedArtifactResult`/`parse_published_artifact`, the wire format the chat card reads |
+| `_toolset.py` | `build_artifacts_toolset`: the five tools, their prompts, the preview report, reading the page out of the workspace, `apply_edits`; `PAGE_CONTRACT`; `PublishedArtifactResult`/`parse_published_artifact`, the wire format the chat card reads |
 | `_capability.py` | The `Artifacts` dataclass, `get_instructions()` (the page contract) and `get_toolset()` |
 | `__init__.py` | The registry entry, `ArtifactsConfig` and exports |
 
@@ -130,10 +131,11 @@ dialogs, then the publish lint - and the picture as an image part beside it
 (`ToolReturn`), so the transcript and the chat step keep the text and not a
 megabyte of base64.
 
-The data is read as `member_context(audience.user_id)`. In a group chat only a
-page the list would show there - an organization-wide one - is opened at all
-(`room_may_see`), and it is drawn without data, since a picture of one member's records would be read by
-the whole channel. Without a renderer, or without the `browser` extra, the report
+The data is what `member_context(audience.user_id)` would be served: each page
+query read with the page owner's access, for a viewer the page serves data at all.
+In a group chat only a page the list would show there - an organization-wide one -
+is opened at all (`room_may_see`), and it is drawn without data, since a picture of
+the page's records would be read by the whole channel. Without a renderer, or without the `browser` extra, the report
 comes back alone and says so: every deployment gets the lint, and those running
 the browser get the picture. `preview_screenshot: false` keeps the picture from a
 model that cannot read images; the report still comes back, because a page that
@@ -156,6 +158,25 @@ inlining 200 KB of Chart.js into every page. And a **link** to another site asks
 the frame's parent to open it: the page has no `allow-popups`, and a person reads
 the address before anything opens. See `docs/artifacts.md`.
 
+## Sharing is a request, never an action
+
+`share_artifact(name, visibility?, people?)` files an `audience` share request
+(`app/services/artifact_requests.py`) as the run's person and answers "Waiting for
+<owner> to approve in the page's Share dialog". It is the same request an editor's
+Share dialog files when they are not the one who decides, and it is filed for the
+owner's own run too: one mechanism, so an approval is always a person in the console, as
+themselves, never a tool call that a prompt-injected page could talk into widening
+itself. For that reason it is not a tool approval either - nothing parks unless an operator gates it - and it is
+declared `side_effecting=False`: the call applies nothing.
+
+`visibility` is `team` or `org`; there is no `public`, and the public link is never
+touched. `people` are members' full names or addresses and groups' names, compared whole
+and ignoring case, each asked for at view level; a name that matches nobody or several is
+reported back, never guessed. A run with no person behind it (an outsider's input, a
+widget visitor) cannot ask. A group chat opens only organization-wide pages, as
+`read_artifact` does. An unbound page is no exception: the owner, or an Owner or Admin
+when it has none, decides every widening, so the request is filed in all cases.
+
 ## Deliberately not side-effecting
 
 `side_effecting` would put every publication behind the approval gate, which would
@@ -164,13 +185,13 @@ private to the person the run was for, and making it visible to anyone else is a
 person's decision in the console, not the model's. An author who wants a person to
 approve each republish of an already-shared page sets `tool_approval` on
 `publish_artifact` in the agent's spec. `read_artifact`, `list_artifacts` and
-`preview_artifact` change nothing.
+`preview_artifact` change nothing, and `share_artifact` only files a request.
 
 ## Deliberately not here
 
-- **Choosing visibility, the public link or its settings.** Sharing is a decision a
-  member makes with their own grant; an agent that could widen who reads a page
-  would be an agent that could leak one.
+- **Applying a share, or touching the public link or its settings.** Sharing is a decision
+  a member makes in the console; an agent that could widen who reads a page would be an
+  agent that could leak one. `share_artifact` only asks.
 - **Multi-file bundles.** One self-contained HTML or Markdown document per
   version, plus the served library set. A bundle means a manifest, path routing and
   per-file limits for a benefit an inlined page already delivers.

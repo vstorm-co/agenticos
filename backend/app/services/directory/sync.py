@@ -39,7 +39,7 @@ from app.core.audit import record_audit
 from app.core.permissions import OrgRoleName
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.organization import MembershipSource
-from app.repositories import directory_mapping_repo, group_repo, member_repo
+from app.repositories import directory_mapping_repo, group_repo, member_repo, resource_grant_repo
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,9 @@ class DirectorySyncService:
                 self.db, organization_id=membership.organization_id, user_id=user_id
             )
             await member_repo.delete(self.db, membership)
+            await resource_grant_repo.lower_edit_data(
+                self.db, organization_id=membership.organization_id, owner_user_id=user_id
+            )
             await self._audit(
                 "directory.member_removed",
                 user_id,

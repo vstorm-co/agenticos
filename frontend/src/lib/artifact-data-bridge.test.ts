@@ -18,6 +18,7 @@ interface BridgeConfig {
   n: string;
   live: boolean;
   names: string[];
+  initial?: unknown;
 }
 
 type Bindings = Record<string, unknown>;
@@ -48,7 +49,6 @@ const UNAVAILABLE = {
   truncated: false,
   limit: null,
   count: 0,
-  filters_dropped: false,
 };
 
 const OK = {
@@ -58,7 +58,6 @@ const OK = {
   truncated: false,
   limit: null,
   count: 1,
-  filters_dropped: false,
 };
 
 function start(
@@ -268,5 +267,98 @@ describe("the artifact data bridge", () => {
       expect(run.loads).toHaveLength(0);
       expect(run.parent.postMessage).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("the artifact data bridge answered at load", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const initial = [
+    ["deals", OK],
+    ["owners", UNAVAILABLE],
+  ];
+
+  it("has its data on load, with nobody asked", async () => {
+    const { agenticos, parent } = start({ initial });
+    await expect(agenticos.data).resolves.toEqual({ deals: OK, owners: UNAVAILABLE });
+    vi.advanceTimersByTime(20_000);
+    expect(parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("calls an onData listener at once and says it subscribes", () => {
+    const { agenticos, parent } = start({ initial });
+    const seen = vi.fn();
+    agenticos.onData(seen);
+    expect(seen).toHaveBeenCalledWith({ deals: OK, owners: UNAVAILABLE });
+    expect(parent.postMessage).toHaveBeenCalledTimes(1);
+    expect(parent.postMessage).toHaveBeenLastCalledWith(...ready(true));
+  });
+
+  it("never gives up or resends, and keeps the injected data", async () => {
+    const { agenticos, parent } = start({ initial });
+    vi.advanceTimersByTime(60_000);
+    expect(parent.postMessage).not.toHaveBeenCalled();
+    await expect(agenticos.data).resolves.toEqual({ deals: OK, owners: UNAVAILABLE });
+  });
+
+  it("still takes a later answer - a refresh - and calls every listener", async () => {
+    const { agenticos, dispatch } = start({ initial });
+    const seen = vi.fn();
+    agenticos.onData(seen);
+    const fresh = { ...OK, count: 2 };
+    dispatch({ type: "agenticos:data", n: "nonce-1", bindings: { deals: fresh, owners: OK } });
+    expect(seen).toHaveBeenCalledTimes(2);
+    expect(seen).toHaveBeenLastCalledWith({ deals: fresh, owners: OK });
+    // `data` is the first answer: the one written in.
+    await expect(agenticos.data).resolves.toEqual({ deals: OK, owners: UNAVAILABLE });
+  });
+
+  it("ignores a later answer from another window or nonce", () => {
+    const { agenticos, dispatch } = start({ initial });
+    const seen = vi.fn();
+    agenticos.onData(seen);
+    dispatch({ type: "agenticos:data", n: "nonce-1", bindings: { deals: OK } }, {});
+    dispatch({ type: "agenticos:data", n: "nonce-0", bindings: { deals: OK } });
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("says ready once the page has loaded, so the console knows it listens", () => {
+    const { agenticos, parent, load } = start({ initial });
+    agenticos.onData(vi.fn());
+    load();
+    expect(parent.postMessage).toHaveBeenCalledTimes(2);
+    expect(parent.postMessage).toHaveBeenLastCalledWith(...ready(true));
+  });
+
+  it("keeps a name such as __proto__ an own key, and fills a missing one unavailable", async () => {
+    const { agenticos } = start({
+      names: ["deals", "owners", "__proto__"],
+      initial: [["deals", OK], ["__proto__", OK], ["undeclared", OK], "not a pair", [3, OK]],
+    });
+    const data = await agenticos.data;
+    expect(Object.keys(data)).toEqual(["deals", "owners", "__proto__"]);
+    expect(Object.getPrototypeOf(data)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(data, "__proto__")?.value).toEqual(OK);
+    expect(data.owners).toEqual(UNAVAILABLE);
+    expect("undeclared" in data).toBe(false);
+  });
+
+  it("is answered at load even without a parent or when not live", async () => {
+    for (const run of [start({ initial }, { orphan: true }), start({ initial, live: false })]) {
+      await expect(run.agenticos.data).resolves.toEqual({ deals: OK, owners: UNAVAILABLE });
+      expect(run.listeners).toHaveLength(0);
+      expect(run.parent.postMessage).not.toHaveBeenCalled();
+    }
+  });
+
+  it("asks as before when the page carries no initial data", () => {
+    const { parent } = start({ initial: undefined });
+    expect(parent.postMessage).toHaveBeenLastCalledWith(...ready(false));
   });
 });

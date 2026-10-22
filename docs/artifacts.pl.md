@@ -1,5 +1,5 @@
 ---
-source_sha: "3394e53d70df"
+source_sha: "70cee67a20ae"
 ---
 
 # Artefakty { #artifacts }
@@ -17,7 +17,7 @@ można mu nadać publiczny link dla kogoś bez konta.
 
 ## Publikowanie artefaktu { #publishing-one }
 
-Włącz agentowi capability **Artifacts**. Dodaje ona cztery narzędzia:
+Włącz agentowi capability **Artifacts**. Dodaje ona pięć narzędzi:
 `publish_artifact`, które model wywołuje, gdy wynik jest czymś, co człowiek
 powinien otworzyć, a nie przeczytać raz w czacie; `read_artifact`, które
 odczytuje opublikowaną stronę z powrotem; `list_artifacts`, które wymienia
@@ -76,60 +76,314 @@ na przykład publiczny widget, nie wymienia niczego.
 
 Strona może pokazywać rekordy z [Virtual Tables](virtual-tables.md), które są
 aktualne, zamiast kopii, z którą ją opublikowano. Agent przekazuje `bindings` do
-`publish_artifact`: każdy binding to nazwa, [zapisany widok](virtual-tables.md#saved-views)
-i kolumny, które strona z niego czyta. `list_views` daje agentowi id i kolumny
-każdego widoku. Strona wywołuje `agenticos.onData(render)`, a `render(data)` działa
-z pierwszymi danymi i ponownie przy każdym odświeżeniu. `agenticos.data` to Promise
-pierwszych danych.
+`publish_artifact`: każdy binding to nazwa i **zapytanie strony** — tabela, pola,
+które strona z niej czyta, i opcjonalnie filtry, sortowanie i limit. Strona wywołuje
+`agenticos.onData(render)`, a `render(data)` działa z pierwszymi danymi i ponownie
+przy każdym odświeżeniu. `agenticos.data` to Promise pierwszych danych.
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
+  // data.tickets = { status, records, fields, count, truncated, limit }
 });
 ```
 
 Każdy binding przychodzi jako `status` (`ok` albo `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (etykieta, typ, opcje i stan każdego pola),
-`count`, `truncated`, `limit` i `filters_dropped`, ustawione na true, gdy filtr
-widoku wskazuje kolumnę, której już nie ma — wtedy rekordy obejmują więcej, niż
-widok zakładał.
+`count`, `truncated` i `limit`. Strona, która nie dostanie odpowiedzi w ciągu
+10 sekund, widzi każdy binding jako `unavailable`; listener dodany później pyta
+jeszcze raz.
 
-Strona, która nie dostanie odpowiedzi w ciągu 10 sekund, widzi każdy
-binding jako `unavailable`; listener dodany później pyta jeszcze raz.
+**Każdy, kto otwiera stronę na żywo, czyta te same rekordy**, niezależnie od własnego
+dostępu do tabel. Zapytanie jest czytane z dostępem [właściciela](#who-owns-a-page)
+strony i dopiero gdy właściciel zgodził się je udostępnić
+([zgoda](#consent-the-owner-decides-who-reads-the-data)). Strona jest więc dla danych,
+które może zobaczyć każdy, kto może ją otworzyć. Rekordy są czytane, gdy ktoś ogląda
+stronę, i nigdy nie są w niej przechowywane.
 
-Binding jest `unavailable`, gdy ten oglądający nie może czytać jego widoku albo
-widok zniknął. Pole, którego kolumnę usunięto, jest serwowane pod swoją nazwą pola
-jako pole `text` o wartości `null` i stanie `missing`; zarchiwizowana kolumna daje
-`null` ze stanem `archived`.
+### Co zamraża binding { #what-a-binding-freezes }
 
-Rekordy są czytane **wtedy, gdy ktoś ogląda stronę, z własnym dostępem tego
-oglądającego**, i nigdy nie są w niej przechowywane. Dwie osoby, które otworzą tę
-samą stronę, mogą zobaczyć różne wiersze. Wynik publikacji wymienia każde pole
-jako `Label (type)`, więc agent może sprawdzić, czy związał kolumnę, o którą mu
-chodziło; binding przeniesiony bez zmian mówi `kept`.
+Zapytanie strony nie jest linkiem do zapisanego widoku. Agent podaje `table` albo
+[zapisany widok](virtual-tables.md#saved-views) po id lub dokładnej nazwie, a platforma
+**kopiuje** filtry i sortowanie widoku do strony przy publikacji. Późniejsza edycja
+albo usunięcie widoku niczego na stronie nie zmienia.
 
-Prywatny widok obsługuje tylko swojego właściciela. Związanie strony z takim
-widokiem nadal ją publikuje, a `warning` w wyniku dostaje wiersz mówiący, że
-dopóki widok nie zostanie udostępniony, rekordy widzi tylko ta osoba — agent jej
-to przekazuje. Czy zobaczy je kolega, rozstrzyga się tam, gdzie strona jest
-udostępniana: zobacz
-[Kto widzi rekordy strony na żywo](#who-sees-a-live-pages-records).
+| W bindingu | Znaczenie |
+|---|---|
+| `table` albo `view` | Tabela do czytania albo widok, którego filtry i sortowanie są kopiowane. Nie oba naraz |
+| `fields` | Każda nazwa, którą czyta strona, przypisana do kolumny po id albo etykiecie |
+| `filters` | `{column, op, value}`, wszystkie muszą być spełnione; dodawane do filtrów widoku |
+| `sort` | `{by, direction}`; zastępuje sortowanie widoku |
+| `limit` | Najwyżej 1000, co jest też wartością domyślną; zastępuje limit widoku |
 
-Wersja 3 [biblioteki stron](#the-library-set) rysuje binding za agenta:
-`AO.records("#tickets", data.tickets)` wewnątrz `agenticos.onData` renderuje
-rekordy jako tabelę z nagłówkiem z etykiet pól, liczbami i datami wyrównanymi do
-prawej, wyborami jako plakietkami i każdą wartością wpisaną jako tekst. Zanim
-przyjdą dane, pokazuje wiersz ładowania, a binding `unavailable` albo pusty,
-ucięta lista i pominięty filtr dostają każdy własny komunikat. `AO.onData` w
-wersji 3 to to samo wywołanie co `agenticos.onData`. Strona z bindingami, której
-skrypt nigdy nie prosi o dane, nadal się publikuje, z
-[ostrzeżeniem](#the-page-contract-and-the-publish-warnings).
+`visible_columns` i `group_by` widoku są ignorowane: o kolumnach decyduje `fields`
+bindingu. Filtr może wskazywać kolumnę, której strona nie czyta, a właściciel jest
+informowany, którą. Zapytanie strony nie ma wyszukiwania pełnotekstowego, więc widoku
+z wyszukiwaniem **nie można powiązać**; publikacja jest odrzucana i go nazywa. Tak
+samo odrzucany jest widok, którego filtr wskazuje kolumnę, której już nie ma.
+
+Formuły, lookupy, rollupy i etykiety linków są dozwolone. Czytają więcej niż kolumna,
+którą nazywa strona, więc zapytanie zapisuje wszystko, do czego sięga: kolumny
+wejściowe formuły, link i cel lookupu albo rollupu, każdą powiązaną tabelę oraz
+kolumnę, którą każda powiązana tabela etykietuje swoje rekordy. Spec agenta musi
+przyznawać odczyt tabeli, a osoba, w imieniu której działa run, musi czytać każdą
+tabelę, do której sięga zapytanie, bo nikt nie może powiązać tego, czego nie może
+przeczytać.
+
+Wynik publikacji opisuje każde zapytanie słowami — jego tabelę, filtry, kolejność,
+limit i każde pole z tym, co czyta (`Status (single_select)`, `Pay band: formula over
+Salary, Level`). To tekst, na który zgadza się właściciel, więc agent sprawdza, czy
+to jest to, o co mu chodziło. Binding przeniesiony bez zmian mówi `kept`.
 
 Nazwa bindingu składa się z małych liter, cyfr i `_`. Pole można nazwać tak, jak
 podpisana jest jego kolumna: słowami z liter dowolnej wielkości, cyfr i `_`,
 rozdzielonymi pojedynczą spacją, np. `Status` albo `Created At`. Obie nazwy mają
 najwyżej 64 znaki, a `__proto__`, `constructor` i `prototype` są zarezerwowane dla
 obu (dla pola także `id`). Strona ma najwyżej 5 bindingów, a binding najwyżej 50 pól.
+
+Wersja 3 [biblioteki stron](#the-library-set) rysuje binding za agenta:
+`AO.records("#tickets", data.tickets)` wewnątrz `agenticos.onData` renderuje
+rekordy jako tabelę z nagłówkiem z etykiet pól, liczbami i datami wyrównanymi do
+prawej, wyborami jako plakietkami i każdą wartością wpisaną jako tekst. Zanim
+przyjdą dane, pokazuje wiersz ładowania, a binding `unavailable` albo pusty
+i ucięta lista dostają każdy własny komunikat. `AO.onData` w wersji 3 to to samo
+wywołanie co `agenticos.onData`. Strona z bindingami, której skrypt nigdy nie prosi
+o dane, nadal się publikuje, z
+[ostrzeżeniem](#the-page-contract-and-the-publish-warnings).
+
+### Kto co widzi { #who-sees-what }
+
+To, którą wersję oglądający dostaje i czy jej dane są dla niego czytane, zależy od
+tego, kim jest.
+
+| Oglądający | Dostaje | Jego dane |
+|---|---|---|
+| Właściciel strony | Najnowszą wersję | Zawsze |
+| Owner, Admin, Builder i Operator, nawet tylko do podglądu | Najnowszą wersję | Zawsze, dla ról czytających każdą tabelę (`tables:view` w zakresie ALL) |
+| Każdy inny, kto może edytować stronę | Najnowszą wersję, żeby agent edytora nadal edytował to, co aktualne | Dopóki obowiązuje zgoda właściciela na tę wersję |
+| Wszyscy pozostali, którzy mogą ją otworzyć (**odbiorcy**) | Najnowszą wersję, na którą kiedykolwiek wyrażono zgodę, albo która nie czyta danych | Dopóki obowiązuje zgoda właściciela na nią |
+
+Odbiorcy nigdy nie dostają wersji, na której udostępnienie nikt się nie zgodził. Gdy
+zgoda na dane już nie obowiązuje — edytor ją wycofał albo zmienił się właściciel —
+odbiorcy nadal dostają **całą stronę**, a każdy binding przychodzi jako `unavailable`
+z powodem `awaiting_consent`; strona mówi „This page's data appears once its owner
+confirms sharing it." Gdy żadna wersja w ogóle nie ma zgody ani nie jest wolna od
+danych, odbiorcy widzą „This page isn't available yet" i nic więcej.
+
+Binding jest też `unavailable`, gdy to, co czyta, zmieniło się od opublikowania
+strony. Powód widzi tylko ten, kto może edytować stronę; czytelnik widzi, ile źródeł
+jest niedostępnych.
+
+| Powód | Co się stało |
+|---|---|
+| `creator_gone` | Właściciel strony nie jest już aktywnym członkiem |
+| `creator_lost_access` | Właściciel nie może już czytać tabeli, do której sięga zapytanie |
+| `source_changed` | Znaczenie kolumny się zmieniło (jej typ, formuła, cel linku albo lookupu, agregat, zarchiwizowana albo przywrócona opcja), albo zarchiwizowano kolumnę lub tabelę, albo powiązana tabela etykietuje teraz swoje rekordy inną kolumną. Podawana jest bieżąca etykieta kolumny |
+| `awaiting_consent` | Właściciel nie potwierdził udostępnienia danych tej wersji albo zostało wycofane |
+
+Jeden binding, który staje się `unavailable`, nie psuje pozostałych. Strona nigdy nie
+jest blokowana przez zmianę tabeli: nic nie powstrzymuje zmiany kolumny, a binding
+przestaje serwować, dopóki agent nie opublikuje strony ponownie, co rozwiązuje
+zapytanie względem tabeli takiej, jaka jest teraz. Zmiana nazwy kolumny nie zmienia
+bindingu; strona czyta ją dalej pod nazwą, którą nadał agent. Dodanie opcji do
+pola wyboru albo zmiana etykiety jednej z nich też nie.
+
+### Zgoda: właściciel decyduje, kto czyta dane { #consent-the-owner-decides-who-reads-the-data }
+
+Dane strony są czytane z dostępem jej właściciela, więc to właściciel decyduje, kto
+jeszcze je czyta, per wersja. Ta decyzja to **zgoda**: właściciel przegląda słowami
+zapytania strony — tabelę, filtry, kolejność, limit i pola każdego zapytania, każdą
+powiązaną tabelę, do której sięgają, i to, kto będzie je czytał — i potwierdza.
+
+Przegląd nazywa, kto czyta stronę, teraz i później: role, które otwierają każdą
+stronę (Owner, Admin, Builder i Operator), widoczność strony, osoby, którym jest
+udostępniona, i grupy, razem z każdym, kto do nich dołączy. Właściciel może
+potwierdzić tylko to, co sam przeczytał.
+
+Dane wersji są w jednym z tych stanów:
+
+| Stan | Znaczenie |
+|---|---|
+| `not_needed` | Wersja nie ma bindingów |
+| `pending` | Nikt jej nie potwierdził. Odbiorcy zachowują wersję, którą mieli |
+| `consented` | Właściciel ją potwierdził albo wyrażono na nią zgodę automatycznie |
+| `declined` | Prośbę o jej potwierdzenie odrzucono |
+| `withdrawn` | Zgoda, która już nie obowiązuje: edytor ją cofnął albo jej właściciel nie jest już właścicielem strony |
+
+Nowa wersja dostaje zgodę **automatycznie**, gdy jej zapytania strony — i wszystko,
+do czego sięgają — są tymi, na które właściciel już się zgodził. W przeciwnym razie
+jest `pending`: dotyczy to także pierwszej wersji z bindingami, chyba że właściciel
+ma włączoną [auto-zgodę](#auto-consent).
+
+Potwierdza właściciel, i tylko on jako on sam, w podglądzie. Gdy najnowsza wersja
+czeka, pasek pod tytułem strony mówi o tym, z przyciskiem **Confirm data**: otwiera
+to, co wersja udostępnia i komu, a potwierdzenie niesie odcisk dokładnie tego, co
+pokazano. Jeśli strona została w międzyczasie opublikowana ponownie albo jej zapytania
+się zmieniły, potwierdzenie jest odrzucane i właściciel patrzy jeszcze raz.
+Potwierdzenie sprawdza też, czy właściciel nadal może czytać każdą tabelę, do której
+sięga zapytanie.
+
+Owner albo Admin może potwierdzić za właściciela. Jest to audytowane jako zgoda
+wyrażona przez niego za właściciela, a dane nadal stoją na dostępie właściciela.
+Nie może tego zrobić nikt z grantem `edit`: grant na edycję strony nie daje władzy
+nad tym, czyje dane ona czyta.
+
+**Wycofanie** cofa zgodę. Każdy, kto może edytować stronę, jako on sam, używa
+**Stop sharing data** w menu podglądu. Każda dotychczasowa zgoda staje się nieważna,
+nie tylko ostatnia, a auto-zgoda się wyłącza. Każdy grant `edit_data` na stronie
+spada też do `edit`, więc następna republikacja edytora danych czeka na właściciela
+zamiast cofać wycofanie. Odbiorcy zachowują stronę i tracą jej dane, dopóki
+właściciel nie potwierdzi ponownie. Wycofanie tylko zawęża, kto czyta, dlatego może
+je wykonać każdy edytor.
+
+Gdy właściciel opuszcza organizację, jego zgody wygasają wraz z jego członkostwem.
+Właściciel usunięty i zaproszony ponownie zaczyna od zera. Właściciel dezaktywowany
+i reaktywowany przywraca swoje zgody: reaktywacja jest aktem dotyczącym całego
+konta, w każdej organizacji, do której konto należy.
+
+#### Ponowna publikacja { #republishing }
+
+Gdy edytor inny niż właściciel publikuje wersję, która czyta inne dane, wersja jest
+`pending`, a platforma składa **prośbę o wersję** do właściciela — zobacz
+[Prośby o udostępnienie](#share-requests). Dopóki właściciel nie zdecyduje, odbiorcy
+nadal widzą wcześniejszą wersję. Wynik publikacji mówi „The audience still sees v2
+until Alex confirms this version's data in the console." (z imieniem właściciela albo
+„the page's owner").
+
+Run bez osoby może ponownie opublikować stronę z bindingami tylko bez zmian — te same
+bajty i te same zapytania, co nie wymaga osoby ani zgody. Nie może podmienić kodu,
+który otrzymuje rekordy właściciela. Publikacja edytora jest odrzucana, gdy właściciel
+strony nie może czytać tabeli, do której sięga zapytanie.
+
+#### Auto-zgoda { #auto-consent }
+
+Właściciel może włączyć dla strony **Don't ask for consent on republish**. Domyślnie
+jest wyłączone i tylko właściciel, jako on sam, może to włączyć, nigdy agent. Najpierw
+pyta: „Any change your runs make to this page's data, new columns and tables
+included, reaches everyone who can open it without asking you - API runs too." Wpis
+audytu zapisuje potwierdzony tekst.
+
+Obejmuje tylko własne republikacje właściciela. Republikacja edytora nadal czeka.
+Auto-zgody są zapisywane jako automatyczne, a gdy któraś sięga dalej niż wersja
+serwowana przed nią, pasek właściciela ją wymienia: „v4 was consented automatically
+and reads more: +Deals, +Salary". Właściciel albo Owner lub Admin może ją wyłączyć,
+a wyłącza ją także wycofanie albo przekazanie strony komuś innemu.
+
+#### Edytorzy danych { #data-editors }
+
+Okno udostępniania ma poziom grantu ponad `edit`: **Can edit, data included**
+(`edit_data`), tylko dla stron. To stała zgoda na republikacje tej osoby, łącznie ze
+zmianą zapytania. Tylko właściciel, albo Owner lub Admin, jako oni sami, go nadaje,
+po oknie: „Alex can change what data this page shows to everyone who can open it,
+including new tables and columns, without asking you; that includes their API
+runs." Dla grupy okno mówi „Everyone in Sales, now and later". Grant jest
+audytowany z potwierdzonym tekstem.
+
+Republikacja osoby z `edit_data` dostaje zgodę automatycznie, zapisaną jako
+dokonaną przez jej grant. Nadal musi czytać każdą tabelę, do której sięga zapytanie,
+i właściciel też musi. Zakres roli Owner albo Admin nigdy go nie implikuje. Każdy, kto
+może edytować stronę, go obniża albo usuwa, a zmiana właściciela obniża każdy grant
+`edit_data` do `edit`.
+
+### Kto jest właścicielem strony { #who-owns-a-page }
+
+Właścicielem strony jest osoba, w imieniu której działał pierwszy run publikujący.
+Nigdy nie zmienia się sam i jest jedynym właścicielem danych strony: osobą, której
+dostęp czyta dane i której zgoda je udostępnia. Jeśli właściciel zostanie usunięty,
+strona go nie ma. Nikt nie może przejąć strony.
+
+Właściciel przekazuje ją innemu aktywnemu członkowi organizacji przez **Change owner**
+w menu podglądu, a Owner albo Admin może przypisać dowolną stronę, także taką, której
+właściciela już nie ma. Każdy robi to jako on sam, nie przez impersonację. Grant
+na edycję strony tego nie dopuszcza. Nie ma do tego narzędzia agenta.
+
+Zmiana jest natychmiastowa, bez kroku akceptacji. Dane strony przestają docierać do
+odbiorców, dopóki nowy właściciel ich nie potwierdzi, każda dotychczasowa zgoda jest
+nieważna na stałe (więc oddanie strony nie przywraca starej), auto-zgoda się
+wyłącza, każda oczekująca prośba jest unieważniana, każdy grant `edit_data` spada
+do `edit`, a dawny i nowy właściciel dostają powiadomienie, poza tym, kto dokonał
+zmiany. Jest audytowana jako `artifact.owner_changed`.
+
+Nadanie stronie bez właściciela widoczności `private` jest uznawane za jej przejęcie
+i jest dostępne tylko dla Ownera albo Admina. Przechodzi przez te same reguły.
+
+### Prośby o udostępnienie { #share-requests }
+
+Poszerzenie tego, kto może otworzyć stronę czytającą dane — szersza widoczność albo
+nowy grant lub wyższy poziom — to decyzja właściciela albo Ownera lub Admina w jego
+imieniu. Zawężanie jest otwarte dla każdego edytora. Strona, która nie czyta danych,
+zachowuje zwykłe reguły udostępniania.
+
+Każdy inny, kto może edytować stronę i próbuje ją poszerzyć, nie dostaje odmowy.
+Platforma składa prośbę. Są trzy rodzaje:
+
+| Rodzaj | Składa | Prosi o |
+|---|---|---|
+| `audience` | Edytor, w oknie Share albo przez `share_artifact` swojego agenta | Poszerzenie tego, kto otwiera stronę |
+| `access` | Członek organizacji strony, który otwiera jej link bez dostępu | Możliwość otwarcia strony, z opcjonalną notatką |
+| `version` | Publikacja innego edytora, którego wersja czyta inne dane | Potwierdzenie tej wersji |
+
+Członek może mieć jedną oczekującą prośbę `audience` i jedną `access` na stronę,
+a strona ma jedną oczekującą prośbę `version`; nowsza zastępuje starszą. Prośby
+`audience` i `access` są domyślnie ograniczone do dziesięciu na godzinę na osobę
+na organizację
+([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); próśb `version`
+się nie liczy. Decyduje właściciel strony. Gdy nie ma już właściciela, Ownerzy i Admini
+mogą odrzucać; żeby zatwierdzić, najpierw przekazują stronę członkowi (**Change
+owner**), który potwierdza dane. Prośba staje się nieważna bez decyzji, gdy zapytania
+strony się zmienią, zmieni się właściciel albo strona zostanie zarchiwizowana.
+
+Właściciel dostaje powiadomienie w konsoli i e-mailem, zgodnie z ustawieniem w
+**Settings → Notifications** („Page sharing requests"). Powiadomienie nazywa stronę
+i proszącego, nigdy jej danych.
+
+Odpowiada się na nie w sekcji **Requests** okna Share, a przycisk **Requests** na
+pasku podglądu pokazuje, ile czeka. Zatwierdzenie prośby `audience` albo `access`
+stosuje widoczność i granty, o które prosiła, każde tylko tam, gdzie nadal poszerza.
+**Nigdy nie wyraża zgody na dane**: gdy wersja serwowana odbiorcom nie ma obowiązującej
+zgody, zatwierdzenie jest odrzucane z „Confirm the page's data before sharing it",
+a właściciel najpierw potwierdza dane, potem zatwierdza. Odrzucenie niczego nie
+udostępnia.
+
+Proszący nie jest informowany o decyzji: odpowiedzią jest to, że strona się otwiera
+albo nie. Strona, która nie czyta danych, przyjmuje zwykłą prośbę `access`, którą
+może zatwierdzić każdy jej edytor.
+
+#### Prośba o dostęp { #requesting-access }
+
+Członek organizacji, który otwiera link strony, której nie może otworzyć, widzi „You
+don't have access to this page", pole notatki i **Request access**. Nic więcej nie
+jest ujawniane: ani tytuł, ani właściciel, ani agent. Niezalogowany odwiedzający albo
+ktoś z innej organizacji dostaje zwykłe „nie znaleziono".
+
+#### Przegląd zmienionej wersji { #reviewing-a-changed-version }
+
+Prośba `version` otwiera właścicielowi stronę na oczekującej wersji, z jej prawdziwymi
+danymi. Pasek mówi, kto zmienił to, co wersja czyta, z przyciskiem **Review data
+change**. Panel porównuje zapytania strony wersji z tym, które odbiorcy widzą teraz,
+binding po bindingu i słowami: dodane, usunięte albo zmienione pola, filtry, kolejność,
+limit i powiązane tabele, każde oznaczone **Reads more**, **Reads less** albo bez
+zmiany, nowe bindingi z pełnym ujawnieniem, a niezmienione zwinięte.
+
+Przełącznik **Audience sees now** pokazuje stronę taką, jaką mają odbiorcy. Panel
+nazywa, kto opublikował wersję i kiedy, i linkuje do rozmowy, gdy właściciel może ją
+otworzyć. **Approve** potwierdza wersję. **Decline** zostawia odbiorców przy wcześniejszej
+wersji i oznacza wersję jako `declined` w jej historii; kolejna republikacja pyta
+ponownie. Na liście Requests prośba o wersję oferuje **Review data change**, nie
+Approve: potwierdza się ją z przeglądu.
+
+### Udostępnianie strony przez agenta { #sharing-a-page-from-an-agent }
+
+`share_artifact(name, visibility?, people?)` pozwala agentowi poprosić o udostępnienie
+strony: `visibility` to `team` albo `org`, `people` to członkowie po pełnym imieniu
+i nazwisku albo e-mailu oraz grupy po nazwie, każdy z prośbą o poziom podglądu.
+**Nigdy niczego nie udostępnia.** Składa prośbę `audience` dla osoby, w imieniu której
+działa run — także gdy to run samego właściciela — i odpowiada „Waiting for Alex to
+approve in the page's Share dialog". Zatwierdzeniem jest człowiek w konsoli,
+zalogowany jako on sam, nigdy wywołanie narzędzia.
+
+Nazwa, która nie pasuje do nikogo albo do kilku osób, jest zgłaszana z powrotem,
+nigdy zgadywana. Nie prosi o nic publicznego: publiczny link ustawia się tylko w
+konsoli. Run bez osoby, taki jak odwiedzający widget, nie może prosić.
 
 ### Co widzi oglądający { #what-the-viewer-sees }
 
@@ -154,23 +408,38 @@ serwera, nie przerywa odpytywania. Odpowiedź „zajęty” (429) jest ponawiana
 razy, co sekundę, zanim oglądający zobaczy komunikat „Busy, try again in a
 moment.”
 
-Wiersz pod paskiem pojawia się tylko wtedy, gdy coś wymaga uwagi. Strona, do której
-dostępu odmówiono, mówi „This page's live data is not available to you.” Czytelnik,
-którego źródeł nie da się odczytać, widzi, ilu („2 of 3 sources unavailable to
-you”). Edytor, czyli każdy, kto może edytować stronę, widzi też dla każdego źródła
-powód (na przykład jego zapisanego widoku już nie ma, jego tabela jest zarchiwizowana,
-agent nie dostał grantu na tabelę albo nie możesz czytać jego zapisanego widoku) z
-linkiem **Open the table** do związanego widoku.
+Wiersz pod paskiem pojawia się tylko wtedy, gdy coś wymaga uwagi: wersja czekająca
+na potwierdzenie, prośba do przejrzenia albo źródła, których nie da się odczytać.
+Strona, do której dostępu odmówiono, mówi „This page's live data is not available to
+you.” Czytelnik, którego źródeł nie da się odczytać, widzi, ilu („2 of 3 sources
+unavailable to you”). Edytor widzi też dla każdego źródła powód, z linkiem **Open the
+table** do związanej tabeli.
 
 Gdy agent opublikuje nową wersję, a ktoś ma otwartą bieżącą, najbliższy odczyt
-(odświeżenie, ręczne albo automatyczne) przenosi podgląd na nową wersję: strona
-ładuje się ponownie z nowej wersji, z jej własnymi danymi. Oglądający, który wybrał
+(odświeżenie, ręczne albo automatyczne) przenosi podgląd na wersję, którą teraz
+dostaje: strona ładuje się ponownie, z własnymi danymi. Oglądający, który wybrał
 wersję z menu wersji, zostaje przy niej.
 
 Na starszej wersji dane na żywo nie są czytane. Podgląd mówi „Live data only on the
 current version.” z przyciskiem **Open current**, a edytorowi pokazuje też
-**Restore** dla tej wersji. Przywrócenie wersji, której źródła danych na żywo są
-niedostępne, mówi, które to są.
+**Restore** dla tej wersji. Przywrócenie rozwiązuje zapytania strony tej wersji
+względem tabel takich, jakie są teraz, więc jest nowym zapytaniem, gdy tabela poszła
+dalej, i czeka na zgodę jak każda inna republikacja.
+
+### Jak dane docierają do strony { #how-the-data-reaches-the-page }
+
+Gdy konsola otwiera stronę, prosi o podpisany adres, który niesie, kim jest
+oglądający. Trasa treści czyta każdy binding **raz, przy ładowaniu**, i wpisuje wynik
+do platformowego skryptu strony, więc pierwsze wywołanie `onData` ma już swoje dane
+i nie następuje żadna dodatkowa wymiana. Nic nie jest wstrzykiwane dla miniatury,
+karty ani wersji z historii.
+
+Odświeżenie i automatyczne odświeżanie nadal używają trasy danych i `postMessage` z
+konsoli, która teraz odpowiada tymi samymi wierszami zapytania strony każdemu, komu
+serwowana jest ta wersja. Trasa nigdy nie jest cache'owana, adres jest krótkożyjący, a
+treść rekordu nie trafia do logów. Binding, którego nie da się odczytać w czasie albo
+który zawodzi w bazie, jest wstrzykiwany jako `unavailable`, a strona nadal się
+renderuje.
 
 ### Limity { #limits }
 
@@ -184,28 +453,33 @@ Każda odpowiedź jest ograniczona, więc jedna strona nie położy wdrożenia:
 | Jedno zapytanie | najwyżej 2 s |
 | Jedna strona | termin 5 s |
 | Ładowania danych | 30 na minutę na oglądającego, jedno w toku na oglądającego i limit na proces |
+| Prośby o udostępnienie | 10 na godzinę na osobę na organizację (audience i access) |
 
 Ucięty binding mówi `truncated: true`, z `limit` ustawionym na `records` albo
 `bytes` i `count` równym liczbie podanych rekordów. `bytes` obejmuje też odczyt,
 którego zmierzony koszt wyczerpał się, zanim ukształtowane dane wypełniły przypadającą
 na binding część strony.
 
-Termin jest egzekwowany bez anulowania żadnego zapytania: każde zapytanie trwa
-najwyżej krócej z 2 s i czasu pozostałego z 5 s, a po wyczerpaniu 5 s żadne nowe
-zapytanie nie startuje, więc strona odpowiada w około 5 s. Po przekroczeniu limitu
-zapytań trasa odpowiada 429; konsola ponawia odpowiedź „zajęty” dwa razy. Gdy Redis
-nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się per worker API,
-a limit na proces nadal ogranicza każdy worker.
+Termin jest sprawdzany przed każdym zapytaniem, bez anulowania żadnego: każde zapytanie
+trwa najwyżej krócej z 2 s i czasu pozostałego z 5 s, a po wyczerpaniu 5 s żadne nowe
+zapytanie nie startuje, więc strona odpowiada w około 5 s, a czas rzeczywisty może
+dojść do około 7 s. Wstrzyknięte ładowania wliczają się do 30 na minutę, tak jak
+odświeżenia. Po przekroczeniu limitu zapytań trasa danych odpowiada 429, konsola
+ponawia odpowiedź „zajęty” dwa razy, a strona serwowana z danymi dostaje bindingi
+`busy`. Gdy Redis nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się
+per worker API, a limit na proces nadal ogranicza każdy worker.
 
 ### Kto może opublikować stronę z bindingami { #who-may-publish-a-bound-page }
 
 Strona wiąże się z tabelą tylko wtedy, gdy spec publikującego agenta przyznaje
-odczyt tej tabeli, co jest sprawdzane przy publikacji strony albo przywróceniu
-wersji. Późniejsze odebranie grantu nie zatrzymuje stron już opublikowanych, a każdy
-oglądający nadal czyta tylko to, na co pozwala mu jego własny dostęp.
+odczyt tej tabeli, a osoba, w imieniu której działa run, czyta każdą tabelę, do której
+sięga zapytanie, co jest sprawdzane przy publikacji strony albo przywróceniu wersji.
+Późniejsze odebranie któregokolwiek z tych uprawnień nie zatrzymuje stron już
+opublikowanych; dostęp właściciela jest sprawdzany od nowa przy każdym załadowaniu.
 
-Stronę z bindingami może ponownie opublikować tylko run działający w imieniu
-członka: zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z kanału
+Stronę z bindingami może **zmienić** tylko run działający w imieniu członka
+(ponowna publikacja bez zmian, z tymi samymi bajtami i zapytaniami, nie wymaga
+osoby): zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z kanału
 albo twórcy harmonogramu. Odwiedzający widget, embed albo hostowaną stronę,
 niepowiązany nadawca z kanału i dostarczenie triggera zdarzeniowego agenta (GitHub,
 e-mail, przekaźnik webhooków) się nie liczą, podobnie jak run workflow przyjęty
@@ -374,7 +648,11 @@ nadal wraca. `agenticos cmd doctor` mówi, czy renderer odpowiada.
 
 Nowy artefakt jest **prywatny** dla osoby, w imieniu której działał publikujący
 run: dla osoby na czacie albo dla twórcy triggera. Prywatną stronę widzą też
-role Owner, Admin, Builder i Operator.
+role Owner, Admin, Builder i Operator: ich `artifacts:view` ma zakres `ALL`, więc
+otwierają każdą stronę w organizacji, niezależnie od jej widoczności i grantów
+(zobacz [zakresy](permissions.md#scope)). Member albo Viewer otwiera tylko to, co
+zostało mu udostępnione. Te cztery role są zawsze częścią odbiorców strony i każde
+ujawnienie je wymienia.
 
 Jego link - ten, na który wskazują karta w czacie i odpowiedź agenta - otwiera
 samą stronę (karta w czacie otwiera ją w nowej karcie), na całe okno, pod
@@ -388,7 +666,7 @@ na trzy sposoby:
 
 | Zasięg | Jak | Kto |
 |---|---|---|
-| Konkretne osoby | Grant, na poziomie `read` albo `edit` | Ci członkowie, w tej organizacji |
+| Konkretne osoby | Grant, na poziomie `read`, `edit` albo, dla strony, `edit_data` („Can edit, data included”) | Ci członkowie, w tej organizacji |
 | Organizacja | Widoczność ustawiona na całą organizację | Każdy członek, którego rola sięga do udostępnionych artefaktów |
 | Każdy, kto ma link | **Create a public link** | Każdy, kto zna adres, bez konta |
 
@@ -398,22 +676,24 @@ udostępnianie go, jego publiczny link i jego ustawienia, przywracanie wersji,
 usuwanie — wymaga `artifacts:edit` na tym artefakcie, z roli albo z grantu `edit`.
 Otwarcie go wymaga `artifacts:view`.
 
-Agent nie może poszerzyć grona czytelników strony. Agent publikuje; o tym, kto ją
-widzi, decyduje człowiek. Dlatego capability domyślnie nie prosi o zatwierdzenie:
-pierwsza publikacja jest prywatna, a o tym, co pokazuje strona z bindingami,
-decyduje w chwili oglądania własny dostęp każdego oglądającego. Autor, który chce,
+Agent nie może poszerzyć grona czytelników strony. Publikuje, a `share_artifact`
+tylko składa prośbę; o tym, kto ją widzi, decyduje człowiek. Dlatego capability
+domyślnie nie prosi o zatwierdzenie: pierwsza publikacja jest prywatna, a to, co
+pokazuje strona z bindingami, jest bramkowane [zgodą](#consent-the-owner-decides-who-reads-the-data)
+jej właściciela. Autor, który chce,
 żeby człowiek zatwierdzał każdą ponowną publikację już udostępnionej strony albo
 strony z bindingami, ustawia `tool_approval` na `publish_artifact` w specu. Stronę
 z bindingami może ponownie opublikować tylko run działający w imieniu członka
 (zobacz [Dane na żywo](#live-data)).
 
-### Kto widzi rekordy strony na żywo { #who-sees-a-live-pages-records }
+### Udostępnianie strony na żywo { #sharing-a-live-page }
 
-Udostępnienie [strony na żywo](#live-data) pozwala komuś ją otworzyć, ale rekordy
-każdego bindingu są czytane z jego własnym dostępem. Żeby je zobaczyć, potrzebuje
-też prawa odczytu tabeli bindingu i widoku udostępnionego albo własnego. Strona
-związana z prywatnym widokiem pokazuje więc rekordy tylko właścicielowi widoku;
-wynik publikacji mówi to agentowi, żeby przekazał to dalej.
+Otwarcie [strony na żywo](#live-data) pokazuje jej dane każdemu, komu jest
+serwowana, czytane z dostępem właściciela, a nie jego własnym, więc poszerzenie
+tego, kto może ją otworzyć, jest decyzją właściciela. Właściciel, albo Owner lub
+Admin w jego imieniu, poszerza to bezpośrednio w oknie Share, gdy dane są
+potwierdzone; próba każdego innego edytora staje się [prośbą](#share-requests).
+Zawężanie jest otwarte dla każdego edytora.
 
 ### Publiczny link { #the-public-link }
 
@@ -490,12 +770,14 @@ ani osoby, która go ogląda:
   osadzenia robi to samo w pasku pod stroną. Strona mogłaby wysłać tę wiadomość
   sama, więc jest ona prośbą, a nigdy zgodą — to człowiek czytający adres stoi
   między stroną po prompt injection a adresem, pod który wysłałaby swoje liczby.
-- Dane na żywo przychodzą przez `postMessage` z konsoli, która pobiera je jako
-  oglądający. Trasa treści nigdy nie niesie rekordów. Żądanie strony niesie nonce,
-  dzięki któremu konsola dopasowuje każdą odpowiedź do właściwego załadowania
-  strony; to **korelacja, a nie kontrola dostępu**. Dostępem jest własna sesja
-  oglądającego na trasie danych, więc strona dostaje zawsze tylko to, co
-  oglądający może czytać.
+- Dane na żywo docierają do strony członka na dwa sposoby, oba rozstrzygane per
+  oglądający na serwerze. Przy ładowaniu trasa treści wpisuje rekordy każdego bindingu
+  do platformowego skryptu strony, dla członka, którego nazywa podpisany adres;
+  odświeżenie przychodzi przez `postMessage` z konsoli, która pobiera je z trasy
+  danych z własną sesją oglądającego. Żądanie strony niesie nonce, dzięki któremu
+  konsola dopasowuje każdą odpowiedź do właściwego załadowania strony; to
+  **korelacja, a nie kontrola dostępu**. Publiczny link ani embed nigdy nie dostają
+  danych. Zobacz [stronę o bezpieczeństwie](security.md#a-pages-data-and-its-address).
 - Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
@@ -582,6 +864,13 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - **Dane na żywo są ograniczone.** Pięć bindingów, po 1000 rekordów i około 5 s
   na załadowanie; zobacz [limity](#limits). Dane, które nie są związane, to strona
   taka, jak ją opublikowano, i zmieniają się, gdy agent opublikuje ją ponownie.
+- **Wszyscy czytają dane z widoku właściciela.** Zapytanie strony jest czytane z
+  dostępem właściciela, więc strona jest dla danych, które może zobaczyć każdy, kto
+  może ją otworzyć. Zapytanie strony nie ma wyszukiwania pełnotekstowego, filtra
+  per oglądający, takiego jak „ja” czy „dziś”, ani ograniczenia na poziomie wiersza
+  czy kolumny poza samym zapytaniem.
+- **Publiczny link albo embed nie dostają danych.** Strona z bindingami pokazuje tam
+  „unavailable”; serwowanie danych przez publiczny link to osobna praca (#1975).
 - **Nic na stronie nie działa.** Formularz albo przycisk nie mają dokąd wysłać
   tego, co zbiorą.
 - **Otwarta strona przeżywa odwołanie o jeden czas życia podpisanego adresu**,
@@ -599,18 +888,24 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 
 ## Podsumowanie { #recap }
 
-- Jedna capability, cztery narzędzia: `publish_artifact`, z pliku w workspace'ie,
+- Jedna capability, pięć narzędzi: `publish_artifact`, z pliku w workspace'ie,
   inline albo jako edycje; `read_artifact` do odczytania strony z powrotem;
-  `list_artifacts` do jej odnalezienia; oraz `preview_artifact`, żeby zobaczyć ją
-  narysowaną, razem z jej błędami.
+  `list_artifacts` do jej odnalezienia; `preview_artifact`, żeby zobaczyć ją
+  narysowaną, razem z jej błędami; oraz `share_artifact`, żeby poprosić o jej
+  udostępnienie.
 - Agent, środowisko i nazwa to tożsamość; ponowna publikacja zachowuje link i
   dodaje wersję, a każdą zachowaną wersję można przywrócić.
 - Domyślnie prywatny; udostępniany grantami, organizacji albo publicznym linkiem —
   przez człowieka. Publiczny link może wygasnąć, przypiąć wersję, pytać o hasło i
   być osadzony na wymienionych witrynach.
-- Strona może związać się z zapisanymi widokami tabel i pokazywać dane na żywo,
-  czytane w chwili oglądania z własnym dostępem oglądającego i nigdy nie
-  przechowywane w stronie.
+- Strona może związać się z zapytaniem strony — tabelą, filtrami, sortowaniem,
+  limitem i polami — i pokazywać dane na żywo, czytane w chwili oglądania z
+  dostępem swojego właściciela, dopiero gdy właściciel potwierdzi ich udostępnienie,
+  i nigdy nie przechowywane w stronie. Każdy, kto może edytować, może tę zgodę
+  wycofać; poszerzenie tego, kto otwiera stronę z bindingami, należy do właściciela
+  albo jest prośbą.
+- Właściciel może przekazać stronę innemu członkowi, który musi ponownie potwierdzić
+  jej dane.
 - Krótki kontrakt strony w instrukcjach każdego agenta z Artifacts i ostrzeżenia w
   wyniku publikacji o tym, co wygląda źle w znacznikach.
 - Serwowany z trasy bez ciasteczek, w nieprzezroczystym originie bez sieci poza

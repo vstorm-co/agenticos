@@ -397,3 +397,204 @@ def test_an_archived_formula_is_kept_without_being_checked_again():
     built = build_columns([ColumnInput(id=price.id, label="Price", type="text")], [price, total])
 
     assert built[1].archived and built[1].formula == "{Price} * 2"
+
+
+class TestRevision:
+    """A column's `revision` moves when what its values mean changes, and only then."""
+
+    LINKED = uuid.uuid4()
+
+    def _resubmit(self, column: ColumnDef, **change) -> ColumnInput:
+        """`column` as a client reads it and sends it back, `revision` included, with `change`."""
+        return ColumnInput.model_validate({**column.model_dump(mode="json"), **change})
+
+    def test_a_stored_column_without_one_loads_as_zero(self):
+        stored = {"id": str(uuid.uuid4()), "label": "Name", "type": "text"}
+
+        assert ColumnDef.model_validate(stored).revision == 0
+
+    def test_a_new_column_starts_at_zero_whatever_the_client_sends(self):
+        (built,) = build_columns(
+            [ColumnInput.model_validate({"label": "Name", "type": "text", "revision": 7})], []
+        )
+
+        assert built.revision == 0
+
+    def test_a_read_column_sent_back_unchanged_keeps_its_revision_and_changes_nothing(self):
+        old = _existing("Name", revision=3)
+
+        built = build_columns([self._resubmit(old, revision=9)], [old])
+
+        assert built == [old]
+
+    @pytest.mark.parametrize(
+        "change",
+        [{"label": "Full name"}, {"nullable": False, "default": "-"}, {"default": "x"}],
+    )
+    def test_a_label_default_or_requiredness_leaves_it(self, change):
+        old = _existing("Name", revision=2)
+
+        (built,) = build_columns([self._resubmit(old, **change)], [old])
+
+        assert built.revision == 2
+
+    def test_a_type_conversion_bumps_it(self):
+        old = _existing("Amount", revision=1)
+
+        (built,) = build_columns([self._resubmit(old, type="long_text")], [old])
+
+        assert built.revision == 2
+
+    def test_archiving_restoring_and_leaving_out_a_column_each_bump_it(self):
+        old = _existing("Name")
+
+        (archived,) = build_columns([self._resubmit(old, archived=True)], [old])
+        (restored,) = build_columns([self._resubmit(archived, archived=False)], [archived])
+        (left_out,) = build_columns([], [restored])
+        (still_out,) = build_columns([], [left_out])
+
+        assert [archived.revision, restored.revision, left_out.revision] == [1, 2, 3]
+        assert still_out.revision == 3
+
+    def test_what_a_reference_reads_bumps_it(self):
+        link = ColumnDef(id=uuid.uuid4(), label="Items", type="link", link_table_id=self.LINKED)
+        other = ColumnDef(id=uuid.uuid4(), label="More", type="link", link_table_id=self.LINKED)
+        rollup = ColumnDef(
+            id=uuid.uuid4(),
+            label="Total",
+            type="rollup",
+            link_column_id=link.id,
+            target_column_id=uuid.uuid4(),
+            aggregate="sum",
+        )
+        previous = [link, other, rollup]
+
+        def rebuilt(**change) -> ColumnDef:
+            links = [self._resubmit(link), self._resubmit(other)]
+            return build_columns([*links, self._resubmit(rollup, **change)], previous)[2]
+
+        assert rebuilt().revision == 0
+        assert rebuilt(aggregate="max").revision == 1
+        assert rebuilt(target_column_id=str(uuid.uuid4())).revision == 1
+        assert rebuilt(link_column_id=str(other.id)).revision == 1
+        assert rebuilt(aggregate="count", target_column_id=None).revision == 1
+
+    def test_a_rename_rewrites_formulas_without_bumping_them_and_an_edit_bumps(self):
+        price = _existing("Price", revision=4)
+        total = ColumnDef(
+            id=uuid.uuid4(), label="Total", type="formula", formula="{Price} * 2", revision=1
+        )
+        previous = [price, total]
+
+        renamed_price, kept = build_columns(
+            [self._resubmit(price, label="Cost"), self._resubmit(total)], previous
+        )
+        _, edited = build_columns(
+            [self._resubmit(price), self._resubmit(total, formula="{Price} * 3")], previous
+        )
+
+        assert kept.formula == "{Cost} * 2"
+        assert (renamed_price.revision, kept.revision) == (4, 1)
+        assert edited.revision == 2
+
+    def test_a_formula_sent_with_the_new_label_is_no_edit_either(self):
+        price = _existing("Price")
+        total = ColumnDef(id=uuid.uuid4(), label="Total", type="formula", formula="{Price} * 2")
+
+        _, kept = build_columns(
+            [
+                self._resubmit(price, label="Cost"),
+                self._resubmit(total, formula="{ Cost } * 2"),
+            ],
+            [price, total],
+        )
+
+        assert kept.revision == 0
+
+    def test_archiving_or_restoring_an_option_bumps_it_and_adding_or_relabelling_one_does_not(
+        self,
+    ):
+        kept, other = OptionDef(id=uuid.uuid4(), label="a"), OptionDef(id=uuid.uuid4(), label="b")
+        column = _select([kept, other])
+
+        def rebuilt(*options: OptionInput) -> ColumnDef:
+            return build_columns(_submit(column, list(options)), [column])[0]
+
+        both = (OptionInput(id=kept.id, label="a"), OptionInput(id=other.id, label="b"))
+        assert rebuilt(*both, OptionInput(label="c")).revision == 0
+        assert rebuilt(*both, OptionInput(label="d", archived=True)).revision == 0
+        assert rebuilt(OptionInput(id=kept.id, label="A"), both[1]).revision == 0
+        assert rebuilt(both[0], OptionInput(id=other.id, label="b", archived=True)).revision == 1
+        assert rebuilt(both[0]).revision == 1
+
+        archived = rebuilt(both[0])
+        (restored,) = build_columns(
+            [self._resubmit(archived, options=[o.model_dump(mode="json") for o in column.options])],
+            [archived],
+        )
+        assert restored.revision == 2
+
+    def _formula(self, formula: str) -> ColumnDef:
+        return ColumnDef(id=uuid.uuid4(), label="Total", type="formula", formula=formula)
+
+    def test_swapped_labels_bump_a_formula_only_when_it_reads_other_columns(self):
+        price, cost = _existing("Price"), _existing("Cost")
+        total = self._formula("{Price} * 2")
+        previous = [price, cost, total]
+        swapped = [self._resubmit(price, label="Cost"), self._resubmit(cost, label="Price")]
+
+        *_, kept = build_columns([*swapped, self._resubmit(total)], previous)
+        # Sent in the labels it was read with, so `{Cost}` is the column then called Cost.
+        *_, repointed = build_columns(
+            [*swapped, self._resubmit(total, formula="{Cost} * 2")], previous
+        )
+
+        assert (kept.formula, kept.revision) == ("{Cost} * 2", 0)
+        assert (repointed.formula, repointed.revision) == ("{Price} * 2", 1)
+
+    def test_several_renames_at_once_leave_a_formula_reading_them(self):
+        price, count = _existing("Price"), _existing("Count")
+        total = self._formula("{Price} * {Count}")
+
+        *_, kept = build_columns(
+            [
+                self._resubmit(price, label="Unit price"),
+                self._resubmit(count, label="Quantity"),
+                self._resubmit(total),
+            ],
+            [price, count, total],
+        )
+
+        assert (kept.formula, kept.revision) == ("{Unit price} * {Quantity}", 0)
+
+    def test_a_rename_and_a_formula_edit_in_one_change_bump_it(self):
+        price = _existing("Price")
+        total = self._formula("{Price} * 2")
+
+        _, edited = build_columns(
+            [self._resubmit(price, label="Cost"), self._resubmit(total, formula="{Price} * 3")],
+            [price, total],
+        )
+
+        assert (edited.formula, edited.revision) == ("{Cost} * 3", 1)
+
+    def test_a_label_taken_over_by_a_new_column_bumps_the_formula_reading_it(self):
+        price = _existing("Price")
+        total = self._formula("{Price} * 2")
+
+        _, rebuilt, archived = build_columns(
+            [ColumnInput(label="Price", type="text"), self._resubmit(total)], [price, total]
+        )
+
+        assert archived.id == price.id and archived.archived
+        assert (rebuilt.formula, rebuilt.revision) == ("{Price} * 2", 1)
+
+    def test_a_label_taken_over_by_a_renamed_column_bumps_the_formula_reading_it(self):
+        price, cost = _existing("Price"), _existing("Cost")
+        total = self._formula("{Price} + {Cost}")
+
+        rebuilt, *_ = build_columns(
+            [self._resubmit(total), self._resubmit(cost, label="Price")], [price, cost, total]
+        )
+
+        assert (rebuilt.formula, rebuilt.revision) == ("{Price} + {Price}", 1)

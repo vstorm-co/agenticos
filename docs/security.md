@@ -156,6 +156,60 @@ colleague's entire conversation history is legitimate about twice a year and
 serious every time — and `DELETE /admin/users/{id}`, where a reason is optional
 because an offboarding usually has nothing to explain.
 
+## A page's data and its address { #a-pages-data-and-its-address }
+
+A [published page](artifacts.md#live-data) can read table data. That is the one
+place where a member's data reaches other members by an agent's work, so the
+controls are listed here rather than only as matrix rows.
+
+**The delegated read.** Every viewer of a bound page reads the same records, through
+the page's frozen page queries, **with the page owner's access**. That is a
+deliberate delegation of the owner's table access to the page's audience. Its
+controls:
+
+- The data is shared only by the owner's [consent](artifacts.md#consent-the-owner-decides-who-reads-the-data),
+  made per version, after reading the queries in words and every linked table they
+  reach, and bound to the owner's membership and to a fingerprint of what was shown.
+  A republish that reads anything different waits for it. Any editor may withdraw it,
+  which also lowers every `edit_data` grant on the page to `edit`.
+- The owner is rechecked on every serve: an active member, with `read` on every table
+  the queries reach. An owner who loses access, or leaves, darkens the page's data.
+- A query is resolved to ids at publish and compared on every load with the tables as
+  they are: a column whose meaning changed or that was archived, an archived table, or a
+  linked table labelled by another column, serves nothing until the page is published again.
+- Widening who opens such a page is the owner's, or an Owner's or Admin's for them; an
+  editor, or an agent through `share_artifact`, can only file a request. Admins are trusted
+  and act directly; the controls are aimed at agents, impersonation and outsiders.
+- Auto-consent and `edit_data` are the two standing consents. Auto-consent is turned on only
+  by the owner, as themselves. `edit_data` is granted by the owner or an Owner or Admin, as
+  themselves. Both follow a popup whose text is recorded in the audit entry.
+
+**The content address.** A member's page loads from `/artifact-content/<token>`. The
+token is signed, names one version and carries an audience, `member` or `public`; the
+route accepts both. Every content response's `frame-ancestors` includes the console, because the
+console frames the page for a member and for a public link's own page (`/a/<key>`), which
+lives there. The embed document's origin and a link's listed embed sites are added only for an embeddable page: one with a
+public link and no password. Only a `member` token can carry data. When the console asks
+for data on load, that token also says so, and the route reads the bindings for the viewer
+it names, as they are served now: the member is looked up again, must still be allowed the
+page, and gets data only for the version they are served. A `public` token, thumbnails, cards
+and history versions get none.
+
+**The URL is a bearer credential.** For its lifetime - five minutes by default
+(`ARTIFACT_VIEW_TTL_SECONDS`), at most ten loads a minute per address - anyone who
+holds the address of a member's page that was minted for data loads it with that
+viewer's injected records, from anywhere, and the response is never cached. It is
+therefore kept out of logs and the rate limit counts it by its digest. Do not paste
+such an address into a ticket or a chat. A public address never carries data.
+
+**Not an action.** `share_artifact` shares nothing. It files a request for the owner,
+who answers in the console, signed in as themselves; so a page that has been talked
+into asking cannot widen itself.
+
+**Not logged.** A record's values never reach logs, traces or audit entries: the audit
+trail holds the fingerprint, the version, who consented and what text they confirmed,
+never a row or a filter value.
+
 ## Controls matrix
 
 One row per control, the mechanism that satisfies it, and the test that holds it
@@ -228,9 +282,11 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports Postgres's live state from `pg_stat_ssl` | Postgres, on a live connection: `test_store_tls.py`; Redis, at URL construction and in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`), whose `script-src` carries a per-request nonce and `'strict-dynamic'` rather than `'unsafe-inline'` | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
-| Agent-authored pages cannot reach the console | A published [artifact](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address; optionally from its own registrable domain (`ARTIFACT_ORIGIN`); live data never rides the content route - the console fetches it as the viewer, from a data route behind the viewer's own session, and posts it to the page, with a nonce that matches each reply to its page load (correlation, not access control) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
-| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public artifact links and their signed content addresses, and a page's live data route - 30 loads a minute per viewer, one in flight per viewer and a per-process cap (`app/services/rate_limit.py`); with Redis down the rate limit's floor and the in-flight limit count per API worker, and the per-process cap still bounds each worker; per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; the channel-bot limit is implemented but thinly tested |
-| A bound page shows only what its viewer may read | A page's data is read at view time as the viewer, never stored in the page. The agent's table grant is checked at publish and restore only, so revoking it does not stop pages already published; viewers still read only with their own access. A page's code may have been written by someone other than the viewer or the owner of the view it reads: the data it receives is still only what the viewer may read, and it can leave the page only through a link the viewer confirms | `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Agent-authored pages cannot reach the console | A published [artifact](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address; optionally from its own registrable domain (`ARTIFACT_ORIGIN`); a public address never carries data, and a member's carries the page's records only as [the section below](#a-pages-data-and-its-address) describes; a refresh is fetched by the console from a data route behind the viewer's own session and posted to the page, with a nonce that matches each reply to its page load (correlation, not access control) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public artifact links and their signed content addresses, and a page's live data route and its injected loads - 30 loads a minute per viewer, one in flight per viewer and a per-process cap; requests to share a page - 10 an hour per person per organization (`app/services/rate_limit.py`); with Redis down the rate limit's floor and the in-flight limit count per API worker, and the per-process cap still bounds each worker; per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; the channel-bot limit is implemented but thinly tested |
+| A bound page's data is read on the owner's authority, and shared only by the owner | Every viewer is served the page's records through its page queries, read with the page **owner's** access and never stored in the page. The owner must be an active member reading every table the query reaches, on every load (`creator_gone`, `creator_lost_access`); the publisher is held to the same at publish; a column or table that changed since publish serves nothing (`source_changed`). The records reach anyone beyond the owner and the roles that read every table only while the owner's per-version consent holds; the audience is never served an unconsented version | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
+| Consent is the owner's own act | Confirming data, turning auto-consent on, granting `edit_data` and handing a page over are made signed in as the person, never while impersonating and never by an agent tool; an Owner or Admin may confirm for the owner and is audited as doing so; the confirmation carries the fingerprint of what the person was shown and is refused if the queries moved | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
+| Widening a bound page is guarded | A wider visibility, a new grant or a higher level on a page that reads data needs the owner (or an Owner or Admin) and a consent that holds; any other editor's attempt, and a `share_artifact` call, is filed as a request and applies nothing | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |
 | A run with no person behind it binds and starts nothing | A page binding can be published only by a run acting for a member: the signed-in member (web chat, HTTP API), a linked channel sender or a schedule's creator. A widget, embed or hosted-page visitor, an unlinked channel sender, an agent event trigger's delivery (GitHub, email, webhook relay) and a workflow run admitted by a public door do not count. The public doors are a webhook, a public form, a channel message, a Gmail message and a GitHub event. The origin follows the chain: a called workflow, a table- or failure-triggered run under a public run, a retry of any of them, and a table-triggered run fired by a record that a run with no member behind it wrote all run with no person. `run_workflow` and saved-view tools refuse there | `test_artifact_bindings.py`, `test_workflow_calls.py`, `test_table_triggers.py` |
 
 ### The refusals as a set

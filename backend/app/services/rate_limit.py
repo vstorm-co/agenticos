@@ -276,6 +276,15 @@ def artifact_data_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE)
 
 
+def artifact_share_request_limit() -> Limit:
+    """How many requests to share a page or to open one a member may file per hour.
+
+    Each one lands in the page owner's notifications, so the thing rationed is how
+    often one person can interrupt somebody else.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR, window_seconds=3600)
+
+
 _held_here: set[str] = set()
 """The in-flight claims this process holds while the shared Redis cannot take them."""
 

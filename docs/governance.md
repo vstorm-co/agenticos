@@ -943,8 +943,7 @@ Four properties worth knowing:
   saying what to change. What stops is an agent whose operator asked for an
   approval nobody was ever being asked for.
 - **A parked call can name what its ids stand for.** A tool may describe its own
-  call: `share_view` gives the view and table names, and the table writes give the
-  table's name. A record is never named, because a record's label is the text of
+  call: the table writes give the table's name. A record is never named, because a record's label is the text of
   one of its cells, and the approval keeps it. The names are resolved as the run's
   person when the call parks, so nothing that person may not see is named, and
   are stored on the approval as `context`. The chat card and the Approvals page
@@ -1150,6 +1149,27 @@ run, which goes on by the answer. A decision is final and is recorded in the aud
 trail with what was asked. A step that names its approvers can be decided only by
 them. One nobody decides in time expires, and a cancelled run cancels its requests.
 
+### Artifact entries
+
+A page that reads table data is shared on its owner's consent, and each step of that
+leaves an entry with the person who took it. None of them carries a record, a filter
+value or a row: they hold versions, fingerprints, request ids and the words a person
+confirmed.
+
+| Action | Recorded when |
+|---|---|
+| `artifact.published` | A version was published, with its number and the fingerprint of its page queries |
+| `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
+| `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
+| `artifact.auto_consent_changed` | The owner turned "Don't ask for consent on republish" on or off, with the text they confirmed |
+| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, data included", with the text they confirmed |
+| `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
+| `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
+| `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |
+
+Widening a page's visibility or grants is recorded as `resource.share`, `resource.unshare` and
+`resource.visibility_changed` entries, as for any other resource. The tool `share_view` is gone, and with it the approval that gated it.
+
 ## Alerts
 
 Every alert here is about a run nobody is looking at. A chat run that stops on its
@@ -1169,7 +1189,8 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended, a document's
+event the inbox delivers (including a page-sharing request and a page changing owner, each
+naming the page and the person, never its data): a run finishing or failing unattended, a document's
 ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both

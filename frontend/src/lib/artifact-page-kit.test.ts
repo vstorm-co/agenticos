@@ -23,7 +23,6 @@ interface Binding {
   count: number;
   truncated: boolean;
   limit: "records" | "bytes" | null;
-  filters_dropped: boolean;
 }
 
 interface RecordsOptions {
@@ -94,7 +93,6 @@ function binding(overrides: Partial<Binding> = {}): Binding {
     count: 0,
     truncated: false,
     limit: null,
-    filters_dropped: false,
     ...overrides,
   };
 }
@@ -224,21 +222,13 @@ describe("AO.records", () => {
     expect(cells[2]!.textContent).toBe(hostile);
   });
 
-  it("says when the list is cut and when a filter no longer applies", () => {
-    load().records("#tickets", {
-      ...TICKETS,
-      truncated: true,
-      limit: "records",
-      filters_dropped: true,
-    });
+  it("says when the list is cut", () => {
+    load().records("#tickets", { ...TICKETS, truncated: true, limit: "records" });
 
     const notes = [...document.querySelectorAll("#tickets > .ao-note")].map(
       (note) => note.textContent,
     );
-    expect(notes).toEqual([
-      "Showing the first 2 records.",
-      "A filter of this view no longer applies, so the list may include more than it should.",
-    ]);
+    expect(notes).toEqual(["Showing the first 2 records."]);
   });
 
   it("draws into a table wrap it is given, notes included, and draws afresh each time", () => {

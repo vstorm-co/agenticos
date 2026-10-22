@@ -71,6 +71,13 @@ export const TABLE_DETAIL = "table-detail";
 export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
 
 /**
+ * An artifact's page, `/artifacts/<id>`, collapsed to one identity. It is the
+ * viewer, outside the dashboard layout: its strip carries its own "?" and the
+ * walk is mounted in the viewer's layout, "?"-only and shown in place.
+ */
+export const ARTIFACT_DETAIL = "artifact-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -345,6 +352,47 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.ARTIFACTS,
     target: "artifacts-list",
     permission: Perm.artifactsView,
+  },
+  // One page, `/artifacts/<id>`: "?"-only and shown in place, from the "?" in its
+  // strip. The anchors sit in the strip, never in a dialog or a menu: the walk
+  // opens a tab, not a dialog, so a stop cannot reveal what a click would. The
+  // first, on the strip's own header, is always there, so "?" never closes without
+  // showing anything; the rest are `optional` - the consent warning is drawn only
+  // while a version waits for consent, the Requests button and the data-change
+  // notice only while one waits, and the owner menu only for who may change the owner.
+  {
+    id: "artifact-strip",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-strip",
+    permission: Perm.artifactsView,
+  },
+  {
+    id: "artifact-consent",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-consent",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-requests",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-requests",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-review",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-review",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-change-owner",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-change-owner",
+    permission: Perm.artifactsView,
+    optional: true,
   },
 
   {
@@ -677,6 +725,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
+  if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
   if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
   return path;
 }

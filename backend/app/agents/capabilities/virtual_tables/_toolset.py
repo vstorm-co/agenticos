@@ -15,7 +15,6 @@ transaction.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 from uuid import UUID
@@ -25,7 +24,6 @@ from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._members import acting_member
 from app.agents.capabilities.virtual_tables._access import (
     Mistake,
     Refused,
@@ -41,7 +39,7 @@ from app.agents.deps import AgentDeps
 from app.core.exceptions import AppException, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.session import get_db_context
-from app.schemas.table_view import TableViewConfig, TableViewRead, TableViewUpdate
+from app.schemas.table_view import TableViewConfig, TableViewRead
 from app.schemas.virtual_table import (
     ColumnDef,
     ColumnInput,
@@ -53,6 +51,7 @@ from app.schemas.virtual_table import (
     RecordUpsert,
     TableCreate,
 )
+from app.services.access import acting_member
 from app.services.virtual_tables.facade import TableViewService, VirtualTableService
 from app.services.virtual_tables.presentation import (
     describe_filters,
@@ -61,8 +60,6 @@ from app.services.virtual_tables.presentation import (
     schema,
 )
 from app.services.virtual_tables.receipts import derived_operation_key
-
-logger = logging.getLogger(__name__)
 
 Grants = dict[UUID, frozenset[TableOperation]]
 
@@ -228,10 +225,10 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
 
     @toolset.tool
     async def list_views(ctx: RunContext[AgentDeps], table_id: UUID) -> str:
-        """List a table's saved views, to bind a page to one.
+        """List a table's saved views, to start a page's query from one.
 
-        A private view serves data only to you; offer to share it with share_view
-        before binding a page others will open to it.
+        Binding a page to a view copies its filters and sort into the page: later
+        changes to the view change nothing there. A view with a search can't be bound.
 
         Args:
             table_id: The table's id, from list_tables.
@@ -254,39 +251,6 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                     "views": [_view_json(view, table.columns, person) for view in listed.items],
                 }
             )
-
-        return await _call_as_person(ctx, work)
-
-    @toolset.tool
-    async def share_view(ctx: RunContext[AgentDeps], view_id: UUID, reason: str) -> str:
-        """Share one of your own private views with the organization.
-
-        Only the view's owner can: sharing lets everyone who may read the table see
-        the view's filters and the rows it selects. The person is asked to approve it,
-        and `reason` is what tells them why.
-
-        Args:
-            view_id: The view's id, from list_views.
-            reason: One sentence for the person approving, naming what needs it, e.g.
-                "So everyone who opens the page My closed tickets sees its records."
-
-        Returns:
-            The view as list_views returns it, now shared.
-        """
-
-        async def work(
-            views: TableViewService, service: VirtualTableService, person: AuthContext
-        ) -> str:
-            bound = await views.find_view(person, view_id)
-            require(grants, bound.table_id, TableOperation.READ)
-            # Before update_view, which also lets a caller with ALL-scope edit manage it.
-            if bound.view.owner_user_id != person.subject_id:
-                raise Refused("Only the view's owner can share it.")
-            shared = await views.update_view(
-                person, bound.table_id, view_id, TableViewUpdate(visibility="shared")
-            )
-            logger.info("View %s shared by its owner: %s", view_id, reason)
-            return as_json(_view_json(shared, bound.columns, person))
 
         return await _call_as_person(ctx, work)
 
@@ -344,7 +308,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 auth,
                 table_id,
                 RecordQuery(
-                    filters=filters_by_label(table, filters or []),
+                    filters=filters_by_label(table.columns, filters or []),
                     sort=RecordSort(by=sort_by, direction="desc" if descending else "asc"),
                     skip=skip,
                     limit=limit,

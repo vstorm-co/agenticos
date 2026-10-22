@@ -18,6 +18,7 @@ from sqlalchemy import select, text, update
 
 from app.core.permissions import AuthContext
 from app.db.models.announcement import Announcement
+from app.db.models.artifact import Artifact
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
@@ -1363,6 +1364,86 @@ class TestReadGateCollectionsView:
             _ctx(member, org, role="member"), after=None, limit=10
         )
         assert member_rows == []
+
+
+class TestReadGateArtifactsView:
+    """`artifact_owner_changed` names a page: shown only to someone who may open it now."""
+
+    async def _page(self, db, org, owner, visibility="private") -> Artifact:
+        page = Artifact(
+            organization_id=org.id,
+            owner_user_id=owner.id,
+            visibility=visibility,
+            name="pipeline",
+            title="Pipeline",
+        )
+        db.add(page)
+        await db.flush()
+        return page
+
+    async def _write(self, service, org, recipients, render_context):
+        await service.write(
+            recipients=recipients,
+            event_type=NotificationEventType.ARTIFACT_OWNER_CHANGED,
+            occurrence_id=str(uuid.uuid4()),
+            summary="Olga made you the owner of Pipeline.",
+            render_context=render_context,
+            organization_id=org.id,
+        )
+
+    async def test_whoever_may_still_open_the_page_sees_it_and_nobody_else(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        page = await self._page(db, org, owner)
+        outsider = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await self._write(service, org, [owner.id, outsider.id], {"artifact_id": str(page.id)})
+
+        seen, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        hidden, _, _ = await service.list_inbox(
+            _ctx(outsider, org, role="member"), after=None, limit=10
+        )
+
+        assert len(seen) == 1
+        assert hidden == []
+
+    async def test_the_previous_owner_still_sees_the_row_that_took_their_access(self, db):
+        """Handing a private page over takes the old owner's access: the row they were
+        told of is still theirs - in the inbox and for the email's own recheck."""
+        previous = await _user(db)
+        org = await _org(db, previous)
+        new_owner = await _member(db, org, role="member")
+        bystander = await _member(db, org, role="member")
+        page = await self._page(db, org, new_owner)
+        # A member with no access of their own, as the old owner now is.
+        previous_member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        context = {"artifact_id": str(page.id), "previous_owner_id": str(previous_member.id)}
+        await self._write(service, org, [previous_member.id, bystander.id], context)
+
+        seen, _, _ = await service.list_inbox(
+            _ctx(previous_member, org, role="member"), after=None, limit=10
+        )
+        hidden, _, _ = await service.list_inbox(
+            _ctx(bystander, org, role="member"), after=None, limit=10
+        )
+        gate = await service.gate_for(_ctx(previous_member, org, role="member"), seen[0])
+
+        assert len(seen) == 1
+        assert hidden == []
+        assert gate.visible is True
+
+    async def test_a_page_that_is_gone_or_a_malformed_id_hides_the_row(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await self._write(service, org, [owner.id], {"artifact_id": str(uuid.uuid4())})
+        await self._write(service, org, [owner.id], {"artifact_id": "not-a-uuid"})
+        await self._write(service, org, [owner.id], {})
+
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+
+        assert rows == []
 
 
 class TestReadGateAnnouncementAudience:

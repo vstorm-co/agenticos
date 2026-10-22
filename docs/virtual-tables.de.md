@@ -1,5 +1,5 @@
 ---
-source_sha: "35553e722018"
+source_sha: "98c1d7098b28"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -160,6 +160,26 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
 Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
+
+Jede Spalte trägt eine schreibgeschützte **`revision`**, die für eine neue Spalte und
+für jede Spalte, die vor ihrem Hinzufügen existierte, `0` ist. Sie zählt die
+Änderungen daran, was die Werte der Spalte *bedeuten*, sodass eine veröffentlichte
+[Seite](artifacts.md#live-data) erkennen kann, dass die Spalte, gegen die sie
+veröffentlicht wurde, nicht mehr dieselbe ist. Sie steigt um eins bei:
+
+- einer Typkonvertierung;
+- einer Änderung an einer Formel, verglichen, nachdem eine Umbenennung durch sie
+  hindurchgeschrieben wurde; eine Spalte umzubenennen, die eine Formel liest, zählt
+  also nicht, wohl aber, wenn eine andere Spalte das Label übernimmt;
+- einem anderen Link-, Lookup- oder Rollup-Ziel oder einem anderen Aggregat;
+- dem Archivieren oder Wiederherstellen der Spalte oder dem Archivieren oder
+  Wiederherstellen einer ihrer Select-Optionen.
+
+Ein neues Label, ein neuer Standardwert oder eine neue Pflichtigkeit, eine
+umbenannte Select-Option und eine neue Option lassen sie, wie sie war. Ein Filter
+hält Options-IDs, daher ändert nichts davon, was ein Filter trifft. Eine
+`TableRead`-Spalte kann in einer Schemaänderung so zurückgeschickt werden, wie sie
+kam: Das Feld wird akzeptiert und ignoriert, und nur die Änderung selbst setzt es.
 
 Ein Schreibzugriff auf einen Datensatz und eine Schemaänderung oder Archivierung derselben
 Tabelle kommen nacheinander dran: Der Schreibzugriff wartet auf eine laufende und wird
@@ -462,22 +482,43 @@ der Ansicht weggelassen: ein Filter darauf entfällt, eine Sortierung danach fä
 `visible_columns` - eine Ansicht, die keine ihrer gewählten Spalten mehr zeigt, zeigt
 alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
 
-### Ansichten als Datenvertrag für Seiten { #views-for-pages }
+### Seiten und Ansichten { #views-for-pages }
 
-Ein veröffentlichtes [Artefakt](artifacts.md#live-data) bindet sich an gespeicherte
-Ansichten, und die Ansicht ist das, was es liest: Filter, Sortierung und Suche der
-Ansicht bestimmen die Zeilen, und die `fields` des Bindings bestimmen die Spalten,
-ob die Ansicht sie zeigt oder nicht. Ein Agent mit
-dieser Capability findet Ansichten mit `list_views`, das für die Tabellen, die er
-lesen darf, die ID jeder Ansicht, ihre Spalten und ob sie geteilt ist liefert.
+Ein veröffentlichtes [Artefakt](artifacts.md#live-data) liest nicht über eine
+Ansicht. Seine Bindings sind **Seitenabfragen**: eine Tabelle, Filter, eine
+Sortierung, ein Limit und die Felder, die die Seite liest, die die Plattform beim
+Veröffentlichen auf der Version der Seite speichert. Ein Binding kann von einer
+gespeicherten Ansicht ausgehen - ein Agent findet eine mit `list_views`, das für
+die Tabellen, die er lesen darf, die ID jeder Ansicht, ihre Spalten und ob sie
+geteilt ist liefert -, aber die Filter und die Sortierung der Ansicht werden dann
+in die Seite **kopiert**.
 
-Eine private Ansicht liefert nur an ihren Besitzer, eine Seite, die andere öffnen,
-braucht also eine geteilte. `share_view` macht eine Ansicht für jeden sichtbar, der
-die Tabelle sehen kann, und nur der Besitzer der Ansicht kann sie teilen. Es wartet
-standardmäßig auf eine Freigabe. Ein `approval` für die ganze Capability auf
-`virtual_tables` entscheidet auch darüber, und nur `tool_approval.share_view` zielt
-allein auf dieses Tool. Ein Betrachter der Seite liest weiterhin nur, was sein
-eigener Zugriff auf die Tabelle erlaubt.
+Die Ansicht danach zu bearbeiten, zu teilen, umzubenennen
+oder zu löschen, ändert nichts an der Seite, und `visible_columns` und `group_by`
+einer Ansicht werden ignoriert: Die `fields` des Bindings bestimmen die Spalten.
+
+Eine Ansicht mit Freitextsuche lässt sich nicht binden, weil eine Suche jede
+aktive Textspalte trifft und mit jeder hinzugefügten Spalte breiter würde; das
+Veröffentlichen wird abgelehnt und nennt die Ansicht. Ebenso eine Ansicht, deren
+Filter eine nicht mehr vorhandene Spalte nennt.
+
+Wer die Datensätze der Seite lesen darf, entscheidet nicht die Ansicht. Sie werden
+mit dem Zugriff des Besitzers der Seite gelesen, sobald der Besitzer eingewilligt
+hat, und der Zugriff auf eine Tabelle gilt ganz oder gar nicht: `read` gibt jede
+Zeile und jede aktive Spalte. Eine Seitenabfrage ist der Weg, auf dem die Zeilen
+einer Tabelle Personen erreichen, die sie nicht öffnen könnten, und der Besitzer
+wird zuvor gefragt. Siehe
+[Artefakte](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+
+Eine Seitenabfrage hält die `revision` jeder Spalte fest, die sie erreicht: ihre
+Felder, ihre Filter- und Sortierspalten, die Eingaben einer Formel, den Link und das
+Ziel eines Lookups oder Rollups und die Spalte, nach der jede verknüpfte Tabelle
+ihre Datensätze beschriftet. Ein Binding wird `unavailable` (`source_changed`),
+wenn eine davon sich weiterentwickelt hat oder archiviert wurde oder wenn eine
+Tabelle, die es erreicht, archiviert wurde; die anderen Bindings arbeiten weiter.
+Nichts hindert dafür eine Tabellenänderung: Eine Seite ist keine Abhängigkeit, die
+ein Archivieren blockiert. `share_view` gibt es nicht mehr; es gibt keine private
+Ansicht, die für eine Seite zu teilen wäre.
 
 ## Trigger { #triggers }
 

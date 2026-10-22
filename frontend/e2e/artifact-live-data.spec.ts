@@ -24,20 +24,27 @@ import {
   nowMatching,
   rowsAt,
   signInAs,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
 /**
- * A page bound to a saved view, from the run that publishes it to the viewer
- * that refreshes it - and to everyone who must not get its records.
+ * A page bound to a page query, from the run that publishes it to the people
+ * who may and may not read its records.
  *
  * Nothing here is set up by writing an artifact row: an agent publishes the
  * page through a real run, the stub model calling `publish_artifact` with the
  * page and its bindings this spec spelled out (`CALL-TOOL` in
- * `stub-model-server.ts`). So the binding the console reads is one the
- * capability resolved against the agent's own table grant and the view the
- * seed shared.
+ * `stub-model-server.ts`). A binding names the seeded shared view, whose filters
+ * the capability copies into the page's own query, so what the console reads is
+ * a query the capability resolved against the agent's own table grant.
+ *
+ * Everyone who opens the page reads that query with its **owner's** access, once
+ * the owner has confirmed sharing it. The journey follows that consent: the owner
+ * alone reads a new page's data; a colleague asks to open it and is let in only
+ * after the owner confirms the data; the owner withdraws and confirms again; and
+ * an editor's republish that reads more waits as a request the owner reviews.
  *
  * **What is asserted is inside the page**, because the strip around it renders
  * the same whether or not a record ever crossed: `#state` is what the page's
@@ -189,6 +196,12 @@ interface Fixture {
   agentId: string;
   profileId: string;
   colleagueId: string;
+  /** The page's name, which an editor's republish must repeat to update the same page. */
+  pageName: string;
+  /** The saved view the page's binding copies, and the colleague's grants to undo. */
+  viewId: string;
+  grantedTable: boolean;
+  grantedAgent: boolean;
 }
 
 let fixture: Fixture;
@@ -199,12 +212,26 @@ async function ownerRequest(browser: Browser): Promise<APIRequestContext> {
   return owner.request;
 }
 
-/** A 2xx, or a failure that says what the API answered. */
-async function ok(response: APIResponse, what: string): Promise<void> {
-  if (!response.ok()) {
-    expect(response.ok(), `${what} answered ${response.status()}: ${await response.text()}`).toBe(
-      true,
-    );
+let colleagueContext: BrowserContext | undefined;
+
+/** The colleague's own signed-in context, made once and closed at the teardown. */
+async function asColleague(browser: Browser): Promise<BrowserContext> {
+  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  return colleagueContext;
+}
+
+/**
+ * A 2xx, or a failure that says what the API answered. `status` pins the exact code:
+ * a 202 is a grant held back for confirmation, which is a 2xx and not what a caller
+ * that needed the grant applied asked for.
+ */
+async function ok(response: APIResponse, what: string, status?: number): Promise<void> {
+  const accepted = status === undefined ? response.ok() : response.status() === status;
+  if (!accepted) {
+    expect(
+      accepted,
+      `${what} answered ${response.status()}${status === undefined ? "" : ` instead of ${status}`}: ${await response.text()}`,
+    ).toBe(true);
   }
 }
 
@@ -294,6 +321,10 @@ test.describe("artifact live data", () => {
       agentId: "",
       profileId: ((await profile.json()) as { id: string }).id,
       colleagueId: String(colleague!.user_id),
+      pageName: `e2e-live-${stamp}`,
+      viewId: String(view!.id),
+      grantedTable: false,
+      grantedAgent: false,
     };
 
     // The agent: Artifacts to publish, and read on the one table its page binds.
@@ -320,7 +351,7 @@ test.describe("artifact live data", () => {
 
     // Two runs, one version each. The signed-in owner is the person behind them,
     // which is what lets a run bind a page to live data at all.
-    const name = `e2e-live-${stamp}`;
+    const name = fixture.pageName;
     for (const marker of ["v1", "v2"]) {
       const run = await request.post(`/api/agents/${agentId}/run`, {
         data: {
@@ -329,7 +360,7 @@ test.describe("artifact live data", () => {
             title,
             content: pageHtml(marker),
             bindings: {
-              [BINDING]: { view: view!.id, fields: { title: "Title", status: "Status" } },
+              [BINDING]: { view: view!.id, fields: { title: "Title" } },
             },
           }),
         },
@@ -354,6 +385,18 @@ test.describe("artifact live data", () => {
     const request = await ownerRequest(browser);
     if (fixture !== undefined) {
       await retitle(request, LIVE_RECORD_TITLE);
+      // What the editor journey lent the colleague, taken back: the table and the
+      // agent outlive this spec, the page does not.
+      const lent = [
+        fixture.grantedTable &&
+          `/api/tables/${fixture.tableId}/sharing/grants/${fixture.colleagueId}`,
+        fixture.grantedAgent &&
+          `/api/agents/${fixture.agentId}/sharing/grants/${fixture.colleagueId}`,
+      ].filter((path): path is string => typeof path === "string");
+      for (const path of lent) {
+        const revoked = await request.delete(path);
+        expect(revoked.ok(), `${path} answered ${revoked.status()} at teardown`).toBe(true);
+      }
       // In dependency order, as `delegation.spec.ts` does: the artifact names the
       // agent, the agent the profile.
       const paths = [
@@ -367,6 +410,7 @@ test.describe("artifact live data", () => {
       }
     }
     await owner?.close();
+    await colleagueContext?.close();
   });
 
   // After each test rather than at its end, so a test that already failed - a
@@ -394,6 +438,13 @@ test.describe("artifact live data", () => {
       "title",
       /^Updated /,
     );
+    // The owner reads the data at once; nobody else does until they confirm it.
+    await expect(
+      page.getByText("Nobody has confirmed sharing the data v2 reads yet."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status").getByRole("button", { name: "Confirm data" }),
+    ).toBeVisible();
   });
 
   test("Refresh updates the page in place", async ({ page }) => {
@@ -419,6 +470,10 @@ test.describe("artifact live data", () => {
     await expect(frame.locator("#rows")).not.toContainText(LIVE_RECORD_TITLE);
     await expect(frame.locator("#load"), "Refresh reloaded the page").toHaveText(load!);
     expect(views, "Refresh minted a new address for the frame, so it reloaded").toEqual([]);
+
+    // The tests after this one read the seeded title, so it goes back here, not only
+    // at the teardown.
+    await retitle(page.request, LIVE_RECORD_TITLE);
   });
 
   test("auto-refresh fetches on its interval and remembers the choice", async ({ page }) => {
@@ -450,35 +505,151 @@ test.describe("artifact live data", () => {
     await page.getByRole("menuitemradio", { name: "Off" }).click();
   });
 
-  test("a member without the table sees unavailable", async ({ page, browser }) => {
-    // Shared at the lowest level: the page opens for the colleague, and the
-    // table behind it stays the owner's.
-    await ok(
-      await page.request.put(`/api/artifacts/${fixture.artifactId}/sharing/grants`, {
-        data: { subject_user_id: fixture.colleagueId, level: "read" },
-      }),
-      "sharing the artifact with the colleague",
-    );
-
-    const context = await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  test("a member without access can ask the owner to open the page", async ({ browser }) => {
+    const colleague = await (await asColleague(browser)).newPage();
     try {
-      const colleague = await context.newPage();
-      await watch(colleague);
-      const failures: string[] = [];
-      colleague.on("response", (response) => {
-        if (response.status() >= 500) failures.push(`${response.status()} ${response.url()}`);
-      });
       await colleague.goto(`/artifacts/${fixture.artifactId}`);
 
-      const frame = framedPage(colleague, fixture.title);
-      await expect(frame.locator("#state")).toHaveText("unavailable");
-      await expect(frame.locator("#rows")).not.toContainText(LIVE_RECORD_TITLE);
-      await expect(colleague.getByText("1 of 1 sources unavailable to you.")).toBeVisible();
-      // A reader is told how many, never why: the cause is for an editor.
-      await expect(colleague.getByRole("link", { name: "Open the table" })).toHaveCount(0);
-      expect(failures).toEqual([]);
+      // Nothing of the page is told: not its title, its owner or its agent.
+      await expect(colleague.getByText("You don't have access to this page")).toBeVisible();
+      await expect(colleague.getByText(fixture.title)).toHaveCount(0);
+      await colleague.getByLabel("Note for the owner (optional)").fill("For the Monday review");
+      await colleague.getByRole("button", { name: "Request access" }).click();
+      await expect(colleague.getByText("Access requested")).toBeVisible();
     } finally {
-      await context.close();
+      await colleague.close();
+    }
+
+    const ownerApi = await ownerRequest(browser);
+    const asked = await nowMatching(
+      ownerApi,
+      `/api/artifacts/${fixture.artifactId}/share-requests`,
+      (row) => row.kind === "access" && row.note === "For the Monday review",
+      "a pending request for access with the colleague's note",
+    );
+    expect(asked.requester_user_id).toBe(fixture.colleagueId);
+  });
+
+  test("a request cannot be approved until the owner confirms the data", async ({ page }) => {
+    const pending = await json<{ items: { id: string; kind: string }[] }>(
+      page.request,
+      `/api/artifacts/${fixture.artifactId}/share-requests`,
+    );
+    const request = pending.items.find((item) => item.kind === "access")!;
+    const refused = await page.request.post(
+      `/api/artifacts/${fixture.artifactId}/share-requests/${request.id}/approve`,
+    );
+    expect(refused.status(), "approving opened a page whose data nobody confirmed").toBe(409);
+    expect(((await refused.json()) as { error?: { code?: string } }).error?.code).toBe(
+      "CONSENT_REQUIRED",
+    );
+
+    await watch(page);
+    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.getByRole("status").getByRole("button", { name: "Confirm data" }).click();
+    const dialog = page.getByRole("dialog", { name: /Confirm the data v2 shares/ });
+    // The words come from the query the capability resolved, not from the page.
+    await expect(dialog).toContainText(LIVE_TABLE_NAME);
+    await expect(dialog).toContainText("Title (Text)");
+    await submitDialog(page, {
+      dialog,
+      submit: dialog.getByRole("button", { name: "Confirm data" }),
+      path: `/api/artifacts/${fixture.artifactId}/versions/`,
+    });
+    await expect(
+      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
+    ).toBeVisible();
+    await expect(page.getByText("Nobody has confirmed sharing the data")).toHaveCount(0);
+
+    const detail = await json<{ consent: { state: string; shared: boolean } }>(
+      page.request,
+      `/api/artifacts/${fixture.artifactId}`,
+    );
+    expect(detail.consent).toMatchObject({ state: "consented", shared: true });
+  });
+
+  test("the owner approves the request and the member reads the records", async ({
+    page,
+    browser,
+  }) => {
+    await watch(page);
+    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.getByRole("button", { name: /request.* waiting for you/ }).click();
+    const share = page.getByRole("dialog");
+    await expect(share.getByText("Requests", { exact: true })).toBeVisible();
+    await expect(share.getByText("For the Monday review")).toBeVisible();
+    await share.getByRole("button", { name: /^Approve the request from/ }).click();
+    await expect(page.getByText("Request approved")).toBeVisible();
+
+    const colleague = await (await asColleague(browser)).newPage();
+    try {
+      await watch(colleague);
+      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      const frame = framedPage(colleague, fixture.title);
+      // Read with the owner's access: the colleague holds no grant on the table.
+      await expect(frame.locator("#state")).toHaveText("ok");
+      await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
+      await expect(frame.locator("#rows")).not.toContainText(LIVE_CLOSED_RECORD_TITLE);
+    } finally {
+      await colleague.close();
+    }
+  });
+
+  test("withdrawing the data leaves the audience the page without it until it is confirmed again", async ({
+    page,
+    browser,
+  }) => {
+    await watch(page);
+    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Stop sharing data" }).click();
+    const stop = page.locator('[role="dialog"], [role="alertdialog"]');
+    await submitDialog(page, {
+      dialog: stop,
+      submit: stop.getByRole("button", { name: "Stop sharing data" }),
+      path: `/api/artifacts/${fixture.artifactId}/consent`,
+      method: "DELETE",
+    });
+    await expect(
+      page.getByText("Sharing stopped. Everyone keeps the page, without its data."),
+    ).toBeVisible();
+
+    const colleague = await (await asColleague(browser)).newPage();
+    try {
+      await watch(colleague);
+      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      const frame = framedPage(colleague, fixture.title);
+      await expect(frame.locator("#marker")).toHaveText("v2");
+      await expect(frame.locator("#state")).toHaveText("unavailable");
+      await expect(frame.locator("#rows")).toBeEmpty();
+      await expect(
+        colleague.getByText("This page's data appears once its owner confirms sharing it."),
+      ).toBeVisible();
+    } finally {
+      await colleague.close();
+    }
+
+    // The same query, so the confirmation is the one the owner was shown before.
+    await page.getByRole("status").getByRole("button", { name: "Confirm data" }).click();
+    const reconfirm = page.getByRole("dialog", { name: /Confirm the data v2 shares/ });
+    await submitDialog(page, {
+      dialog: reconfirm,
+      submit: reconfirm.getByRole("button", { name: "Confirm data" }),
+      path: `/api/artifacts/${fixture.artifactId}/versions/`,
+    });
+    await expect(
+      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
+    ).toBeVisible();
+
+    const again = await (await asColleague(browser)).newPage();
+    try {
+      await watch(again);
+      await again.goto(`/artifacts/${fixture.artifactId}`);
+      const frame = framedPage(again, fixture.title);
+      await expect(frame.locator("#state")).toHaveText("ok");
+      await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
+    } finally {
+      await again.close();
     }
   });
 
@@ -557,5 +728,99 @@ test.describe("artifact live data", () => {
     await expect(thumbnail.locator("#state")).toHaveText("unavailable");
     await expect(thumbnail.locator("#rows")).toBeEmpty();
     expect(reads, "the list read a page's live data").toEqual([]);
+  });
+
+  test("an editor's republish that reads more waits for the owner's review", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(SETUP_TIMEOUT);
+    // The colleague edits the page, runs the agent and reads the table: the
+    // three things an editor's own publish needs, none of which is the owner's consent.
+    const grants = [
+      [`/api/artifacts/${fixture.artifactId}/sharing/grants`, "edit"],
+      [`/api/agents/${fixture.agentId}/sharing/grants`, "use"],
+      [`/api/tables/${fixture.tableId}/sharing/grants`, "read"],
+    ] as const;
+    for (const [path, level] of grants) {
+      await ok(
+        await page.request.put(path, {
+          data: { subject_user_id: fixture.colleagueId, level },
+        }),
+        `granting ${level} at ${path}`,
+        200,
+      );
+    }
+    fixture.grantedAgent = true;
+    fixture.grantedTable = true;
+
+    const editor = await asColleague(browser);
+    const run = await editor.request.post(`/api/agents/${fixture.agentId}/run`, {
+      data: {
+        prompt: publishPrompt({
+          name: fixture.pageName,
+          title: fixture.title,
+          content: pageHtml("v3"),
+          // One more column than v1 and v2 read.
+          bindings: {
+            [BINDING]: { view: fixture.viewId, fields: { title: "Title", status: "Status" } },
+          },
+        }),
+      },
+      timeout: SETUP_TIMEOUT,
+    });
+    await ok(run, "the editor's run");
+
+    const waiting = await nowMatching(
+      page.request,
+      `/api/artifacts/${fixture.artifactId}/share-requests`,
+      (row) => row.kind === "version" && row.version_number === 3,
+      "a pending version request for v3",
+    );
+    expect(waiting.requester_user_id).toBe(fixture.colleagueId);
+    // The audience keeps v2 while v3 waits.
+    const before = await json<{ consent: { audience_version: number; state: string } }>(
+      page.request,
+      `/api/artifacts/${fixture.artifactId}`,
+    );
+    expect(before.consent).toMatchObject({ audience_version: 2, state: "pending" });
+
+    await watch(page);
+    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await expect(page.getByText(/changed what v3 reads/)).toBeVisible();
+    await page.getByRole("button", { name: "Review data change" }).click();
+    const review = page.getByRole("region", { name: "Review data change" });
+    await expect(review).toContainText("Compared with v2");
+    // The extra column is named, and marked as reading more.
+    await expect(review).toContainText("Status");
+    await expect(review).toContainText("Reads more");
+    await review.getByRole("button", { name: "Approve" }).click();
+    await expect(
+      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
+    ).toBeVisible();
+
+    await expect
+      .poll(
+        async () =>
+          (
+            await json<{ consent: { audience_version: number } }>(
+              page.request,
+              `/api/artifacts/${fixture.artifactId}`,
+            )
+          ).consent.audience_version,
+        { message: "the audience was never moved to v3 after the owner approved it" },
+      )
+      .toBe(3);
+
+    const colleague = await editor.newPage();
+    try {
+      await watch(colleague);
+      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      const frame = framedPage(colleague, fixture.title);
+      await expect(frame.locator("#marker")).toHaveText("v3");
+      await expect(frame.locator("#state")).toHaveText("ok");
+    } finally {
+      await colleague.close();
+    }
   });
 });

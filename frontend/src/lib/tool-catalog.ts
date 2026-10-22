@@ -192,6 +192,13 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "previewingArtifact",
     displayNameKey: "previewArtifact",
   },
+  // Files a request the owner answers in the Share dialog; nothing is shared by the call.
+  share_artifact: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sharingArtifact",
+    displayNameKey: "shareArtifact",
+  },
 
   // browser_choice - a whole browse. The step card stays generic because the live
   // view is its own panel beside the transcript: a frame per step folded into the
@@ -320,12 +327,6 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
   describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
   list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
-  share_view: {
-    kind: "edit",
-    render: "generic",
-    captionKey: "viewsSharing",
-    approvalSummary: { key: "approveShareView", needs: ["view", "table"] },
-  },
   create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
   record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
   list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },

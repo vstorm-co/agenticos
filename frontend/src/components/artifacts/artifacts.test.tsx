@@ -55,6 +55,7 @@ function version(number: number, overrides: Partial<ArtifactVersion> = {}): Arti
     size_bytes: 10,
     run_id: null,
     restored_from: null,
+    consent_state: "not_needed",
     created_at: "2026-09-22T10:00:00Z",
     ...overrides,
   };
@@ -138,7 +139,7 @@ describe("the frame", () => {
       data: { url: "https://x/c/t", nonce: "n", live: false, version: version(2) },
     });
     render(<ArtifactFrame artifactId="a1" versionId="v2" title="Report" />);
-    expect(useArtifactViewMock).toHaveBeenCalledWith("a1", "v2", true);
+    expect(useArtifactViewMock).toHaveBeenCalledWith("a1", "v2", true, false);
     // A page with no bindings asks for nothing.
     expect(useArtifactDataMock).toHaveBeenCalledWith("a1", "v2", false);
     expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://x/c/t");
@@ -252,8 +253,23 @@ describe("a link inside the page", () => {
   });
 });
 
-function liveView(nonce: string, number = 3, live = true): ArtifactView {
-  return { url: `https://c/${nonce}`, nonce, live, expires_at: "", version: version(number) };
+function liveView(
+  nonce: string,
+  number = 3,
+  live = true,
+  injected = false,
+  awaitingConsent = false,
+): ArtifactView {
+  return {
+    url: `https://c/${nonce}`,
+    nonce,
+    live,
+    injected,
+    awaiting_consent: awaitingConsent,
+    bindings: live ? 1 : 0,
+    expires_at: "",
+    version: version(number),
+  };
 }
 
 function bound(overrides: Partial<BindingData> = {}): BindingData {
@@ -263,7 +279,6 @@ function bound(overrides: Partial<BindingData> = {}): BindingData {
     truncated: false,
     limit: null,
     count: 1,
-    filters_dropped: false,
     fields: {},
     records: [{ id: "r1", region: "North" }],
     ...overrides,
@@ -320,7 +335,10 @@ async function dataArrived(times = 1) {
   await act(async () => {});
 }
 
-type Bridge = { refresh: () => Promise<void>; status: { subscribes: boolean } };
+type Bridge = {
+  refresh: () => Promise<void>;
+  status: { subscribes: boolean; data?: ArtifactData; served: unknown };
+};
 
 describe("the page's live data", () => {
   beforeEach(async () => {
@@ -501,7 +519,12 @@ describe("the page's live data", () => {
     expect(first.post).toHaveBeenCalledTimes(1);
 
     await act(() => onBridge.mock.lastCall![0].refresh());
-    expect(paths()).toEqual(["/artifacts/a1/view", DATA_PATH, DATA_PATH, "/artifacts/a1/view"]);
+    expect(paths()).toEqual([
+      "/artifacts/a1/view?data=true",
+      DATA_PATH,
+      DATA_PATH,
+      "/artifacts/a1/view?data=true",
+    ]);
     // The page that does not listen was not handed the new read in place.
     expect(first.post).toHaveBeenCalledTimes(1);
 
@@ -514,6 +537,133 @@ describe("the page's live data", () => {
       { type: "agenticos:data", n: "n2", bindings: { sales: forPage(bound({ count: 2 })) } },
       "*",
     );
+  });
+
+  it("reads nothing for a page served with its data, and refreshes it in place", async () => {
+    let reads = 0;
+    serve((path) => {
+      if (path !== DATA_PATH) return liveView("n1", 3, true, true);
+      reads += 1;
+      return answer({ sales: bound({ count: reads }) });
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame, post } = await loadedFrame("https://c/n1");
+    await act(async () => {});
+    // The page carries its data: no first read, and its ready is answered with nothing.
+    expect(paths()).toEqual(["/artifacts/a1/view?data=true"]);
+    postFromFrame(frame, ready("n1", true));
+    expect(post).not.toHaveBeenCalled();
+    expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(true);
+
+    // A refresh still reads through the data route and posts in place.
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(paths()).toEqual(["/artifacts/a1/view?data=true", DATA_PATH]);
+    expect(post).toHaveBeenLastCalledWith(
+      { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 1 })) } },
+      "*",
+    );
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
+  });
+
+  it("never posts or shows a read cached from before an injected load was minted", async () => {
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) return answer({ sales: bound({ count: 1 }) });
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const first = await loadedFrame("https://c/n1");
+    postFromFrame(first.frame, ready("n1", true));
+    // A refresh caches a read, and posts it in place to the page that listens.
+    await act(() => onBridge.mock.lastCall![0].refresh());
+    await waitFor(() => expect(first.post).toHaveBeenCalledTimes(1));
+    expect(onBridge.mock.lastCall![0].status).toMatchObject({ data: { current: true } });
+
+    // Consent confirmed or withdrawn: the page is minted again, its data is not read.
+    await act(() => client.invalidateQueries({ queryKey: qk.artifacts.all() }));
+    const second = await loadedFrame("https://c/n2");
+    postFromFrame(second.frame, ready("n2", false));
+    await act(async () => {});
+
+    expect(second.post).not.toHaveBeenCalled();
+    expect(onBridge.mock.lastCall![0].status.data).toBeUndefined();
+    expect(paths().filter((path) => path === DATA_PATH)).toHaveLength(1);
+  });
+
+  it("reads again for an editor a read that settled before the load was minted", async () => {
+    let mints = 0;
+    let reads = 0;
+    serve((path) => {
+      if (path === DATA_PATH) {
+        reads += 1;
+        return answer({ sales: bound({ count: reads }) });
+      }
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    const { client } = renderLive(
+      <ArtifactFrame
+        artifactId="a1"
+        versionId={null}
+        title="Report"
+        onBridge={onBridge}
+        fetchReasons
+      />,
+    );
+    await loadedFrame("https://c/n1");
+    await dataArrived(1);
+
+    await act(() => client.invalidateQueries({ queryKey: qk.artifacts.all() }));
+    await loadedFrame("https://c/n2");
+
+    await dataArrived(2);
+    expect(onBridge.mock.lastCall![0].status.data?.bindings.sales?.count).toBe(2);
+  });
+
+  it("tells the strip what the minted address says when nothing was read", async () => {
+    serve(() => ({ ...liveView("n1", 3, true, true, true), bindings: 2 }));
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await loadedFrame("https://c/n1");
+
+    expect(onBridge.mock.lastCall![0].status).toMatchObject({
+      data: undefined,
+      served: { bindings: 2, awaitingConsent: true },
+    });
+    expect(paths()).toEqual(["/artifacts/a1/view?data=true"]);
+  });
+
+  it("loads a page served with its data again, without a read of its own, when it does not subscribe", async () => {
+    let mints = 0;
+    serve((path) => {
+      if (path === DATA_PATH) return answer({ sales: bound() });
+      mints += 1;
+      return liveView(`n${mints}`, 3, true, true);
+    });
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    await loadedFrame("https://c/n1");
+
+    await act(() => onBridge.mock.lastCall![0].refresh());
+
+    // The new load carries the data itself, so there is no read beside it.
+    await loadedFrame("https://c/n2");
+    expect(paths()).toEqual(["/artifacts/a1/view?data=true", "/artifacts/a1/view?data=true"]);
   });
 
   it("reloads a page with no live data without reading any", async () => {
@@ -531,14 +681,14 @@ describe("the page's live data", () => {
     await act(() => onBridge.mock.lastCall![0].refresh());
 
     await loadedFrame("https://c/n2");
-    expect(paths()).toEqual(["/artifacts/a1/view", "/artifacts/a1/view"]);
+    expect(paths()).toEqual(["/artifacts/a1/view?data=true", "/artifacts/a1/view?data=true"]);
   });
 
   it("drops a reply whose nonce belongs to the previous version", async () => {
     let releaseOld!: (data: ArtifactData) => void;
     const old = new Promise<ArtifactData>((resolve) => (releaseOld = resolve));
     serve((path) => {
-      if (path === "/artifacts/a1/view") return liveView("n1", 3);
+      if (path === "/artifacts/a1/view?data=true") return liveView("n1", 3);
       if (path === "/artifacts/a1/view?version_id=v2") return liveView("n2", 2);
       if (path === DATA_PATH) return old;
       return answer({ older: bound({ count: 2 }) });
@@ -665,7 +815,7 @@ describe("the page's live data", () => {
     await waitFor(() => expect(paths()).toContain(NEWER));
 
     expect(first.post).toHaveBeenCalledTimes(1);
-    expect(paths().filter((path) => path === "/artifacts/a1/view")).toHaveLength(2);
+    expect(paths().filter((path) => path === "/artifacts/a1/view?data=true")).toHaveLength(2);
     expect(client.getQueryState(qk.artifacts.detail("a1"))?.isInvalidated).toBe(true);
     expect(client.getQueryState(qk.artifacts.versions("a1"))?.isInvalidated).toBe(true);
     postFromFrame(second.frame, ready("n2", true));
@@ -676,7 +826,7 @@ describe("the page's live data", () => {
       ),
     );
     await act(async () => {});
-    expect(paths().filter((path) => path === "/artifacts/a1/view")).toHaveLength(2);
+    expect(paths().filter((path) => path === "/artifacts/a1/view?data=true")).toHaveLength(2);
   });
 
   it("keeps a picked version where it is when a newer one is published", async () => {
@@ -1170,7 +1320,16 @@ describe("the public page", () => {
     password_required: false as const,
     title: "Weekly report",
     published_at: "2026-09-22T10:00:00Z",
-    view: { url: "https://api/c/t", expires_at: "", nonce: "n", live: false, version: version(3) },
+    view: {
+      url: "https://api/c/t",
+      expires_at: "",
+      nonce: "n",
+      live: false,
+      injected: false,
+      awaiting_consent: false,
+      bindings: 0,
+      version: version(3),
+    },
   };
   const locked = {
     password_required: true as const,

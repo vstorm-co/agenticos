@@ -76,7 +76,7 @@ parent's check.
 | `context_files` | Standing knowledge a builder wrote for agents | Whatever the author put there - and it reaches the prompt verbatim. See [Context files](context.md) | Instructions and facts an agent should always know |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | The rows of a [Virtual Table](virtual-tables.md) and the trail of every change to them | Whatever the organization put in its cells, which can be personal data. The current values (records); the whole record on a create and a delete and only the cells that changed on an update (history); the whole record as a keyed write returned it (receipts); the ids and external id of each created record (outbox, no values). A record delete removes only the current row: history and receipts keep the values until the daily retention sweep removes them, receipts after 24 hours, dispatched outbox rows after 3 days and history after 365 days, all deployment settings. Deleting an account removes its receipts and clears it as the actor on history; deleting the organization removes all four | Typed records for agents and workflows, safe retries of a write, and the hand-off of a created record |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | A table's [triggers](virtual-tables.md#triggers), every configuration each has had, and what each decided about a created record | The member a trigger runs as; its filter values and mapping keys, which can hold personal data if a builder typed some (a filter on an email address). A decision holds a status, a coarse reason and the run it started, never the record's values. No retention class sweeps them: they go with their table and trigger, and deleting an account clears it as the member, after which the trigger starts nothing | Running a workflow when a record is added |
-| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read - or, for a page bound to table views, the binding (view and columns) with the records themselves read at view time with the viewer's own access and never stored in the page; the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Artifacts](artifacts.md) | Sharing a result under a stable link |
+| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read - or, for a page bound to table data, its page queries (table, filters, sort, limit and columns, each resolved to ids) with the records themselves read at view time with the page owner's access and never stored in the page; per version, who published it and the owner's consent to share its data (a fingerprint of the queries, the owner's membership and when); the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Artifacts](artifacts.md) | Sharing a result under a stable link |
 | `agent_memory_files` | Notes an agent wrote about a person or a group chat | Whatever the agent decided was worth remembering, keyed to `person:<user_id>` or a chat room | Continuity between conversations |
 | `rag_documents`, `knowledge_bases` and one vector table per collection | Uploaded and synced documents, their chunks and embeddings | The document text and its vectors, the file's original path in the source | Retrieval |
 | `agent_runs`, `tool_approvals`, `run_manifests` | What each run cost and did | The system prompt and last request handed to the model, tool arguments awaiting approval, the deciding person and their note. Beside the arguments, `tool_approvals.context` holds the names a parked call's ids stand for - a view's and a table's name, never a record's contents - resolved as the run's person when the call parked. It is kept with the approval row, after the view or table is renamed or gone, and read by whoever may decide approvals, whatever their own access to that table | Budgets, approvals, run history |
@@ -138,6 +138,37 @@ Sync connectors run the other way: a Google Drive or S3 source pulls documents
 are the deployment's copy and follow the rules above. The people who can read
 what a source ingested is
 [a decision the source row makes](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Table data shown on a page { #table-data-on-a-page }
+
+A published [page](artifacts.md#live-data) can show records from a table, and those
+records may be personal data. This is **a flow inside the deployment, from the
+page's owner to everyone who can open the page** - not a destination outside it - but it
+bypasses the table's own access control, so it is listed here.
+
+- **What flows.** Only the columns a page query names, and the rows its filters
+  select, up to 1,000 a binding. A filter may use a column the page does not show, and
+  the owner is told which. Formulas, lookups, rollups and link labels carry data from
+  linked tables too, and the consent names those tables.
+- **On whose authority.** The page owner's. Every viewer is served the same records,
+  whatever their own access to the table. The data leaves the table only once the owner has
+  confirmed it, after reading the queries in words and who can open the page now
+  and later (the roles that open every page, the visibility, people and groups). The
+  data is read again on every load, never stored in the page, and not cached.
+- **What is stored about it.** Per page version: who published it, a fingerprint of its
+  queries, whether the owner consented, when and under which membership. Share requests keep
+  the requester, the kind, an optional note, the decision and who made it. The audit trail
+  records consent, withdrawal, auto-consent, `edit_data` grants, ownership changes and
+  requests, with the text a person confirmed.
+- **What is never logged.** Record values, filter values and the content address of a
+  page served with its data. The audit entries and notifications name the page and the
+  people, never a row.
+- **What does not reach it.** A public link or an embed is served no data. A deleted
+  member's consent lapses with their membership, and a page whose owner left serves no data
+  until another owner confirms it.
+
+A deployment that must keep a table's rows from some of its members should not bind
+a page to it that those members can open; the confirmation names who they are.
 
 ## Controls, and where each is proved
 

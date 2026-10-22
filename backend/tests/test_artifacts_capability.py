@@ -45,11 +45,14 @@ from app.core.exceptions import (
     BadRequestError,
     ConcurrentChangeError,
     ConfigurationError,
+    ConflictError,
     ExternalServiceError,
     NotFoundError,
+    RateLimitError,
 )
 from app.db.models.artifact import ArtifactMediaType
-from app.schemas.artifact import BindingData, BindingRequest
+from app.db.models.resource_grant import Visibility
+from app.schemas.artifact import BindingData, BindingDisclosure, BindingRequest
 from app.services.artifact import (
     ARTIFACT_LIBRARY,
     ArtifactListing,
@@ -57,6 +60,7 @@ from app.services.artifact import (
     ArtifactSource,
     ListedArtifact,
     PublishedArtifact,
+    RunShare,
 )
 from app.services.artifact_lint import KIT_CLASSES, lint_page
 from app.services.artifact_render import Rendered
@@ -105,6 +109,15 @@ def _published(**overrides: Any) -> PublishedArtifact:
     }
     values.update(overrides)
     return PublishedArtifact(**values)
+
+
+_DISCLOSED = BindingDisclosure(
+    table="Support tickets",
+    filters=['Status is "Open"'],
+    sort="when created, descending",
+    limit=50,
+    fields={"status": "Status (single_select)", "band": "Pay band: formula over Salary, Level"},
+)
 
 
 def _page(body: str, *, kit: int = 3) -> str:
@@ -197,7 +210,10 @@ class TestPublishing:
         table_id, person = uuid.uuid4(), uuid.uuid4()
         grants = {table_id: frozenset({"read"})}
         requested = {"tickets": BindingRequest(view=uuid.uuid4(), fields={"status": "Status"})}
-        echo = {"tickets": {"status": "Status (single_select)"}}
+        echo: dict[str, BindingDisclosure | str] = {
+            "tickets": _DISCLOSED,
+            "kept_one": "kept",
+        }
         tool = build_artifacts_toolset(table_grants=grants).tools["publish_artifact"].function
         with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))) as publish:
             result = await tool(
@@ -210,6 +226,16 @@ class TestPublishing:
         parsed = parse_published_artifact(result)
         assert parsed is not None
         assert parsed.bindings == echo
+        assert json.loads(result)["bindings"]["tickets"] == {
+            "table": "Support tickets",
+            "filters": ['Status is "Open"'],
+            "sort": "when created, descending",
+            "limit": 50,
+            "fields": {
+                "status": "Status (single_select)",
+                "band": "Pay band: formula over Salary, Level",
+            },
+        }
 
     @pytest.mark.parametrize(
         ("script", "kit", "warned"),
@@ -227,7 +253,7 @@ class TestPublishing:
     async def test_a_bound_page_that_never_asks_for_its_data_is_warned(
         self, script: str, kit: int, warned: bool
     ) -> None:
-        echo = {"tickets": {"status": "Status (single_select)"}}
+        echo: dict[str, BindingDisclosure | str] = {"tickets": _DISCLOSED}
         with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))):
             result = await _tool()(
                 _ctx(_deps(run_person=uuid.uuid4())),
@@ -260,23 +286,6 @@ class TestPublishing:
         lines = parsed.warning.split("\n")
         assert lines == lint_page(page.encode())
         assert len(lines) == 4
-
-    async def test_a_private_view_is_a_line_of_the_warning_after_the_page_s_own(self) -> None:
-        private = "Binding tickets reads your private view 'Open': only you see its records."
-        page = "<h1>Tickets</h1>"
-        with patch(PUBLISH, new=AsyncMock(return_value=_published(warnings=[private]))):
-            result = await _tool()(_ctx(_deps()), name="r", content=page)
-        parsed = parse_published_artifact(result)
-        assert parsed is not None and parsed.warning is not None
-        assert parsed.warning.split("\n") == [*lint_page(page.encode()), private]
-
-    async def test_a_private_view_warns_a_markdown_page_too(self) -> None:
-        private = "Binding tickets reads your private view 'Open'."
-        with patch(PUBLISH, new=AsyncMock(return_value=_published(warnings=[private]))):
-            result = await _tool()(_ctx(_deps()), name="r", content="# x", format="markdown")
-        parsed = parse_published_artifact(result)
-        assert parsed is not None
-        assert parsed.warning == private
 
     async def test_a_markdown_page_is_not_linted(self) -> None:
         with patch(PUBLISH, new=AsyncMock(return_value=_published())):
@@ -432,6 +441,7 @@ class TestRegistration:
             "read_artifact",
             "list_artifacts",
             "preview_artifact",
+            "share_artifact",
         }
 
 
@@ -890,7 +900,6 @@ def _binding_data(**overrides: Any) -> BindingData:
         "status": "ok",
         "truncated": False,
         "count": 2,
-        "filters_dropped": False,
         "fields": {},
         "records": [],
     }
@@ -1005,15 +1014,19 @@ class TestPreviewing:
     async def test_each_binding_says_what_it_was_served(self) -> None:
         bindings = {
             "one": _binding_data(count=1),
-            "cut": _binding_data(truncated=True, limit="records", filters_dropped=True),
-            "hidden": _binding_data(status="unavailable", reason="no_access", count=0),
+            "cut": _binding_data(truncated=True, limit="records"),
+            "hidden": _binding_data(status="unavailable", reason="creator_lost_access", count=0),
+            "moved": _binding_data(
+                status="unavailable", reason="source_changed", changed="Status", count=0
+            ),
             "gone": _binding_data(status="unavailable", count=0),
         }
         result, _, _ = await _previewed(_preview(bindings=bindings), _drawn())
         report = result.return_value
         assert "- one: 1 record\n" in report
-        assert "- cut: 2 records, cut at the records limit, and a filter" in report
-        assert "- hidden: unavailable (no_access)" in report
+        assert "- cut: 2 records, cut at the records limit\n" in report
+        assert "- hidden: unavailable (creator_lost_access)" in report
+        assert "- moved: unavailable (source_changed: Status)" in report
         assert "- gone: unavailable\n" in report
 
     async def test_data_that_was_not_read_says_why(self) -> None:
@@ -1096,3 +1109,122 @@ class TestPreviewing:
     async def test_a_run_with_no_agent_has_nothing_to_preview(self, missing: str) -> None:
         result, _, _ = await _previewed(_preview(), _drawn(), deps=_deps(**{missing: None}))
         assert "no saved agent" in result
+
+
+REQUEST_SHARE = "app.services.artifact.request_share"
+
+
+def _sharer() -> Any:
+    return build_artifacts_toolset(table_grants={}).tools["share_artifact"].function
+
+
+def _shared(**overrides: Any) -> RunShare:
+    values: dict[str, Any] = {
+        "name": "weekly-report",
+        "asked": ["org", "Ada Lovelace"],
+        "already": [],
+        "unknown": [],
+        "ambiguous": [],
+        "waiting_for": "Grace Hopper",
+        "filed": True,
+    }
+    values.update(overrides)
+    return RunShare(**values)
+
+
+class TestSharing:
+    async def test_it_files_a_request_and_says_who_decides_it(self) -> None:
+        person = uuid.uuid4()
+        deps = _deps(run_person=person)
+        with patch(REQUEST_SHARE, new=AsyncMock(return_value=_shared())) as filed:
+            result = await _sharer()(_ctx(deps), "weekly-report", "org", ["Ada Lovelace"])
+
+        assert result == (
+            "Waiting for Grace Hopper to approve in the page's Share dialog: `weekly-report` "
+            "would be shared with org, Ada Lovelace."
+        )
+        kwargs = filed.await_args.kwargs
+        assert kwargs["run_person"] == person
+        assert kwargs["visibility"] == Visibility.ORG
+        assert kwargs["people"] == ["Ada Lovelace"]
+        assert kwargs["room"] is False
+
+    async def test_an_ownerless_page_waits_for_an_owner_or_admin(self) -> None:
+        deps = _deps(run_person=uuid.uuid4())
+        with patch(REQUEST_SHARE, new=AsyncMock(return_value=_shared(waiting_for=None))):
+            result = await _sharer()(_ctx(deps), "weekly-report", "team")
+        assert result.startswith("Waiting for an Owner or Admin to approve")
+
+    async def test_names_it_could_not_match_are_reported_not_guessed(self) -> None:
+        deps = _deps(run_person=uuid.uuid4())
+        shared = _shared(already=["team"], unknown=["Nobody"], ambiguous=["Sam"])
+        with patch(REQUEST_SHARE, new=AsyncMock(return_value=shared)):
+            result = await _sharer()(_ctx(deps), "weekly-report", None, ["Nobody", "Sam"])
+        assert "Already shared with team." in result
+        assert "No member or group is named 'Nobody'." in result
+        assert (
+            "More than one member or group is named 'Sam'; name a group by its exact name, or a person by email address."
+            in result
+        )
+
+    async def test_with_nothing_left_to_ask_no_request_is_reported(self) -> None:
+        deps = _deps(run_person=uuid.uuid4())
+        shared = _shared(asked=[], already=["org"], filed=False, waiting_for=None)
+        with patch(REQUEST_SHARE, new=AsyncMock(return_value=shared)):
+            result = await _sharer()(_ctx(deps), "weekly-report", "org")
+        assert result == "Nothing to ask for: `weekly-report` is shared that widely already."
+
+    @pytest.mark.security
+    async def test_a_run_with_nobody_behind_it_cannot_ask(self) -> None:
+        with patch(REQUEST_SHARE, new=AsyncMock()) as filed:
+            result = await _sharer()(_ctx(_deps(run_person=None)), "weekly-report", "org")
+        assert "no signed-in person" in result
+        filed.assert_not_awaited()
+
+    @pytest.mark.parametrize("missing", ["organization_id", "agent_id"])
+    async def test_a_run_with_no_agent_has_nothing_to_share(self, missing: str) -> None:
+        deps = _deps(run_person=uuid.uuid4(), **{missing: None})
+        with patch(REQUEST_SHARE, new=AsyncMock()) as filed:
+            result = await _sharer()(_ctx(deps), "weekly-report", "org")
+        assert result.startswith("Publishing is not available here")
+        filed.assert_not_awaited()
+
+    async def test_asking_for_nothing_steers_the_model(self) -> None:
+        deps = _deps(run_person=uuid.uuid4())
+        with patch(REQUEST_SHARE, new=AsyncMock()) as filed, pytest.raises(ModelRetry):
+            await _sharer()(_ctx(deps), "weekly-report", None, [])
+        filed.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_group_chat_is_asked_as_a_room(self) -> None:
+        person = uuid.uuid4()
+        deps = _deps(
+            run_person=person,
+            audience=RunAudience(user_id=person, room_key="room:slack:C1"),
+        )
+        with patch(REQUEST_SHARE, new=AsyncMock(return_value=_shared())) as filed:
+            await _sharer()(_ctx(deps), "weekly-report", "org")
+        assert filed.await_args.kwargs["room"] is True
+
+    @pytest.mark.parametrize(
+        "refusal",
+        [
+            NotFoundError(message="There is no artifact named 'x' that this run may open."),
+            AuthorizationError(message="This run's person may not change its sharing."),
+            ConflictError(message="This page is archived."),
+            RateLimitError(message="Too many requests in the last hour."),
+        ],
+    )
+    async def test_a_refusal_is_returned_not_retried(self, refusal: Exception) -> None:
+        deps = _deps(run_person=uuid.uuid4())
+        with patch(REQUEST_SHARE, new=AsyncMock(side_effect=refusal)):
+            result = await _sharer()(_ctx(deps), "x", "org")
+        assert result == refusal.message
+
+    def test_there_is_no_public_value_and_it_is_never_gated_for_approval(self) -> None:
+        tool = build_artifacts_toolset(table_grants={}).tools["share_artifact"]
+        visibility = tool.function_schema.json_schema["properties"]["visibility"]
+        assert {"enum": ["team", "org"], "type": "string"} in visibility["anyOf"]
+        assert "public" not in tool.function_schema.json_schema["properties"]
+        (info,) = [info for info in registry.get("artifacts").tools if info.id == "share_artifact"]
+        assert info.side_effecting is False

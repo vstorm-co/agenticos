@@ -1,5 +1,5 @@
 ---
-source_sha: "9b76aacfbfa5"
+source_sha: "f1a4f0e2fb23"
 ---
 
 # Sicherheit { #security }
@@ -174,6 +174,74 @@ Gesprächshistorie einer Kollegin zu lesen ist etwa zweimal im Jahr legitim und
 jedes Mal ernst — und `DELETE /admin/users/{id}`, wo eine Begründung optional
 ist, weil ein Offboarding meist nichts zu erklären hat.
 
+## Die Daten einer Seite und ihre Adresse { #a-pages-data-and-its-address }
+
+Eine [veröffentlichte Seite](artifacts.md#live-data) kann Tabellendaten lesen.
+Das ist der eine Ort, an dem die Daten eines Mitglieds durch die Arbeit eines Agents
+andere Mitglieder erreichen, deshalb sind die Kontrollen hier aufgeführt und nicht
+nur als Zeilen der Matrix.
+
+**Das delegierte Lesen.** Jeder Betrachter einer gebundenen Seite liest dieselben
+Datensätze, über die eingefrorenen Seitenabfragen der Seite, **mit dem Zugriff des
+Besitzers der Seite**. Das ist eine bewusste Delegation des Tabellenzugriffs des
+Besitzers an die Zielgruppe der Seite. Ihre Kontrollen:
+
+- Die Daten werden nur mit der [Einwilligung](artifacts.md#consent-the-owner-decides-who-reads-the-data)
+  des Besitzers geteilt, pro Version erteilt, nachdem er die Abfragen in Worten und
+  jede verknüpfte Tabelle, die sie erreichen, gelesen hat, und gebunden an die
+  Mitgliedschaft des Besitzers und an einen Fingerabdruck dessen, was gezeigt wurde.
+  Eine erneute Veröffentlichung, die etwas anderes liest, wartet darauf. Jeder
+  Editor darf sie zurückziehen, wodurch auch jeder `edit_data`-Grant auf der Seite
+  auf `edit` fällt.
+- Der Besitzer wird bei jeder Auslieferung neu geprüft: ein aktives Mitglied mit
+  `read` auf jeder Tabelle, die die Abfragen erreichen. Ein Besitzer, der den
+  Zugriff verliert oder geht, macht die Daten der Seite dunkel.
+- Eine Abfrage wird beim Veröffentlichen zu IDs aufgelöst und bei jedem Laden mit
+  den Tabellen verglichen, wie sie sind: Eine Spalte, deren Bedeutung sich
+  geändert hat oder die archiviert wurde, eine archivierte Tabelle oder eine
+  verknüpfte Tabelle, die nach einer anderen Spalte beschriftet wird, liefert
+  nichts, bis die Seite erneut veröffentlicht wird.
+- Zu erweitern, wer eine solche Seite öffnet, ist Sache des Besitzers oder die
+  eines Owners oder Admins für ihn; ein Editor oder ein Agent über
+  `share_artifact` kann nur eine Anfrage stellen. Admins sind vertrauenswürdig und
+  handeln direkt; die Kontrollen zielen auf Agents, Impersonation und Außenstehende.
+- Die automatische Einwilligung und `edit_data` sind die beiden dauerhaften
+  Einwilligungen. Die automatische Einwilligung schaltet nur der Besitzer ein, als er
+  selbst. `edit_data` erteilt der Besitzer oder ein Owner oder Admin, als er selbst.
+  Beide folgen einem Popup, dessen Text im Audit-Eintrag festgehalten wird.
+
+**Die Inhaltsadresse.** Die Seite eines Mitglieds lädt von
+`/artifact-content/<token>`. Das Token ist signiert, nennt eine Version und trägt
+eine Zielgruppe, `member` oder `public`; die Route akzeptiert beide. Das
+`frame-ancestors` jeder Inhaltsantwort enthält die Konsole, weil die Konsole die
+Seite für ein Mitglied und für die eigene Seite eines öffentlichen Links (`/a/<key>`)
+einbettet, die dort liegt. Der Origin des Embed-Dokuments und die aufgeführten
+Embed-Websites eines Links werden nur für eine einbettbare Seite hinzugefügt: eine
+mit öffentlichem Link und ohne Passwort. Nur ein `member`-Token kann Daten tragen.
+Bittet die Konsole beim Laden um Daten, sagt das Token das ebenfalls, und die Route
+liest die Bindings für den Betrachter, den es nennt, wie sie jetzt ausgeliefert
+werden: Das Mitglied wird erneut nachgeschlagen, muss die Seite weiterhin öffnen
+dürfen und bekommt Daten nur für die Version, die ihm ausgeliefert wird. Ein
+`public`-Token, Vorschaubilder, Karten und Versionen aus dem Verlauf bekommen keine.
+
+**Die URL ist ein Bearer-Credential.** Für ihre Lebensdauer - standardmäßig fünf
+Minuten (`ARTIFACT_VIEW_TTL_SECONDS`), höchstens zehn Ladevorgänge pro Minute je
+Adresse - lädt jeder, der die Adresse einer Mitgliedsseite hat, die für Daten
+ausgestellt wurde, sie von überall mit den eingefügten Datensätzen dieses
+Betrachters, und die Antwort wird nie gecacht. Deshalb bleibt sie aus den Logs
+heraus, und das Rate-Limit zählt sie an ihrem Digest. Fügen Sie eine solche
+Adresse nicht in ein Ticket oder einen Chat ein. Eine öffentliche Adresse trägt nie
+Daten.
+
+**Keine Aktion.** `share_artifact` teilt nichts. Es stellt eine Anfrage für den
+Besitzer, der in der Konsole antwortet, als er selbst angemeldet; eine Seite, die
+dazu überredet wurde, zu fragen, kann sich also nicht selbst erweitern.
+
+**Nicht protokolliert.** Die Werte eines Datensatzes erreichen nie Logs, Traces oder
+Audit-Einträge: Der Audit-Trail hält den Fingerabdruck, die Version, wer
+eingewilligt hat und welchen Text er bestätigt hat, nie eine Zeile oder einen
+Filterwert.
+
 ## Kontrollmatrix { #controls-matrix }
 
 Eine Zeile pro Kontrolle, der Mechanismus, der sie erfüllt, und der Test, der sie
@@ -245,9 +313,11 @@ SOC 2 CC6–CC8.
 | TLS zu PostgreSQL und Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` meldet den Live-Zustand von Postgres aus `pg_stat_ssl` | Postgres, an einer echten Verbindung: `test_store_tls.py`; Redis, beim Bau der URL und in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Framing- und MIME-Header auf jeder Antwort; CSP auf allen außer den API-Referenz-Endpunkten | `SecurityHeadersMiddleware` (`app/core/middleware.py`), dessen `exclude_paths` die CSP fallen lassen — nicht Framing oder MIME — für OpenAPI, Swagger und ReDoc; dazu die eigene CSP des Frontends pro Deployment (`frontend/src/middleware.ts`), deren `script-src` eine Nonce pro Request und `'strict-dynamic'` trägt statt `'unsafe-inline'` | `test_security_headers.py`, inkl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS und HSTS | Am Reverse Proxy terminiert — die mitgelieferte `nginx/nginx.conf` setzt HSTS; die Anwendung bewusst nicht | Sache des Deployments; siehe die Härtungs-Checkliste |
-| Von Agents verfasste Seiten können die Konsole nicht erreichen | Ein veröffentlichtes [Artefakt](artifacts.md) wird von einer Route ohne Cookies hinter einem kurzlebigen signierten Token ausgeliefert, unter `Content-Security-Policy: sandbox` ohne `allow-same-origin` — ein opaker Origin — und ohne `allow-popups`, plus `connect-src 'none'`, keine entfernte Quelle außer dem eigenen Bibliothekspfad des Deployments und `frame-ancestors`, das nur die Konsole nennt (und für eine einbettbare öffentliche Seite das Einbettungsdokument und die gelisteten Sites); ein Link in der Seite öffnet erst, nachdem eine Person seine Adresse bestätigt hat; optional von einer eigenen registrierbaren Domain (`ARTIFACT_ORIGIN`); Live-Daten laufen nie über die Content-Route — die Konsole ruft sie als der Betrachter von einer Daten-Route hinter dessen eigener Session ab und schickt sie an die Seite, mit einer Nonce, die jede Antwort ihrem Laden der Seite zuordnet (Korrelation, keine Zugriffskontrolle) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
-| Rate-Limits auf öffentlichen Oberflächen | Redis-gestützte Limits auf der Run-API, dem Embed-Widget, den gehosteten Seiten, öffentlichen Artefakt-Links und deren signierten Inhaltsadressen und der Live-Daten-Route einer Seite — 30 Ladevorgänge pro Minute je Betrachter, einer gleichzeitig je Betrachter und eine Obergrenze pro Prozess (`app/services/rate_limit.py`); ist Redis ausgefallen, zählen die Untergrenze des Rate-Limits und das Limit gleichzeitiger Ladevorgänge pro API-Worker, und die Obergrenze pro Prozess begrenzt weiterhin jeden Worker; Limits pro Absender auf Kanal-Bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; das Limit der Kanal-Bots ist implementiert, aber dünn getestet |
-| Eine gebundene Seite zeigt nur, was ihr Betrachter lesen darf | Die Daten einer Seite werden beim Ansehen als der Betrachter gelesen und nie in der Seite gespeichert. Die Tabellen-Freigabe des Agents wird nur beim Veröffentlichen und Wiederherstellen geprüft, ihr Entzug hält bereits veröffentlichte Seiten also nicht an; Betrachter lesen weiterhin nur mit ihrem eigenen Zugriff. Der Code einer Seite kann von jemand anderem stammen als dem Betrachter oder dem Besitzer der Ansicht, die sie liest: Die Daten, die sie bekommt, sind trotzdem nur, was der Betrachter lesen darf, und sie können die Seite nur über einen Link verlassen, den der Betrachter bestätigt | `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Von Agents verfasste Seiten können die Konsole nicht erreichen | Ein veröffentlichtes [Artefakt](artifacts.md) wird von einer Route ohne Cookies hinter einem kurzlebigen signierten Token ausgeliefert, unter `Content-Security-Policy: sandbox` ohne `allow-same-origin` - ein opaker Origin - und ohne `allow-popups`, dazu `connect-src 'none'`, keine entfernte Quelle außer dem eigenen Bibliothekspfad des Deployments und `frame-ancestors`, das nur die Konsole nennt (und, für eine einbettbare öffentliche Seite, das Embed-Dokument und seine aufgeführten Websites); ein Link in der Seite öffnet sich erst, nachdem eine Person seine Adresse bestätigt hat; optional von einer eigenen registrierbaren Domain (`ARTIFACT_ORIGIN`); eine öffentliche Adresse trägt nie Daten, und die eines Mitglieds trägt die Datensätze der Seite nur so, wie [der Abschnitt unten](#a-pages-data-and-its-address) es beschreibt; eine Aktualisierung holt die Konsole von einer Daten-Route hinter der eigenen Session des Betrachters und schickt sie an die Seite, mit einer Nonce, die jede Antwort dem Laden ihrer Seite zuordnet (Korrelation, keine Zugriffskontrolle) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Rate-Limits auf öffentlichen Oberflächen | Redis-gestützte Limits auf der Run-API, dem Embed-Widget, den gehosteten Seiten, öffentlichen Artefakt-Links und deren signierten Inhaltsadressen und der Live-Daten-Route einer Seite samt ihren eingefügten Ladevorgängen - 30 Ladevorgänge pro Minute je Betrachter, einer gleichzeitig je Betrachter und eine Obergrenze pro Prozess; Anfragen zum Teilen einer Seite - 10 pro Stunde je Person und Organisation (`app/services/rate_limit.py`); ist Redis ausgefallen, zählen die Untergrenze des Rate-Limits und das Limit gleichzeitiger Ladevorgänge pro API-Worker, und die Obergrenze pro Prozess begrenzt weiterhin jeden Worker; Limits pro Absender bei Channel-Bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; das Limit der Channel-Bots ist implementiert, aber dünn getestet |
+| Die Daten einer gebundenen Seite werden mit der Befugnis des Besitzers gelesen und nur vom Besitzer geteilt | Jedem Betrachter werden die Datensätze der Seite über ihre Seitenabfragen ausgeliefert, gelesen mit dem Zugriff des **Besitzers** der Seite und nie in der Seite gespeichert. Der Besitzer muss bei jedem Laden ein aktives Mitglied sein, das jede Tabelle liest, die die Abfrage erreicht (`creator_gone`, `creator_lost_access`); wer veröffentlicht, wird beim Veröffentlichen an dasselbe gehalten; eine Spalte oder Tabelle, die sich seit dem Veröffentlichen geändert hat, liefert nichts (`source_changed`). Die Datensätze erreichen jeden über den Besitzer und die Rollen hinaus, die jede Tabelle lesen, nur solange die Einwilligung des Besitzers für die Version gilt; der Zielgruppe wird nie eine Version ausgeliefert, der nicht eingewilligt wurde | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
+| Die Einwilligung ist der eigene Akt des Besitzers | Daten zu bestätigen, die automatische Einwilligung einzuschalten, `edit_data` zu erteilen und eine Seite zu übergeben, geschieht als die Person angemeldet, nie unter Impersonation und nie durch ein Agent-Tool; ein Owner oder Admin darf für den Besitzer bestätigen und wird dabei auditiert; die Bestätigung trägt den Fingerabdruck dessen, was der Person gezeigt wurde, und wird abgelehnt, wenn sich die Abfragen verschoben haben | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
+| Eine gebundene Seite zu erweitern ist abgesichert | Eine weitere Sichtbarkeit, ein neuer Grant oder eine höhere Stufe auf einer Seite, die Daten liest, braucht den Besitzer (oder einen Owner oder Admin) und eine Einwilligung, die gilt; der Versuch jedes anderen Editors und ein Aufruf von `share_artifact` wird als Anfrage gestellt und wendet nichts an | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |
 | Ein Run ohne Person dahinter bindet und startet nichts | Ein Seiten-Binding kann nur ein Run veröffentlichen, der für ein Mitglied handelt: das angemeldete Mitglied (Web-Chat, HTTP-API), ein verknüpfter Absender in einem Kanal oder der Ersteller eines Zeitplans. Der Besucher eines Widgets, eines Embeds oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die Zustellung eines Ereignis-Triggers eines Agents (GitHub, E-Mail, Webhook-Relay) und ein Workflow-Run, den ein öffentlicher Eingang zugelassen hat, zählen nicht. Die öffentlichen Eingänge sind ein Webhook, ein öffentliches Formular, eine Kanalnachricht, eine Gmail-Nachricht und ein GitHub-Ereignis. Die Herkunft folgt der Kette: Ein aufgerufener Workflow, ein durch eine Tabelle oder einen Fehlschlag ausgelöster Run unter einem öffentlichen Run, ein Retry eines davon und ein durch eine Tabelle ausgelöster Run, den ein Datensatz angestoßen hat, den ein Run ohne Mitglied dahinter geschrieben hat, laufen alle ohne Person. `run_workflow` und die Tools für gespeicherte Ansichten lehnen dort ab | `test_artifact_bindings.py`, `test_workflow_calls.py`, `test_table_triggers.py` |
 
 ### Die Refusals als Menge { #the-refusals-as-a-set }

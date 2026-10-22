@@ -28,6 +28,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Auth, DBSession, SharingSvc
@@ -37,10 +39,22 @@ from app.schemas.resource_grant import (
     ResourceGrantRead,
     ResourceGrantUpsert,
     ResourceSharing,
+    SharingDeferred,
     VisibilityUpdate,
 )
 from app.services.access import ResourceType
-from app.services.sharing import SharingService
+from app.services.sharing import Deferred, SharingService
+
+_REQUESTED = (
+    "For resource types whose guard defers widening: a request was filed instead of sharing, "
+    "and nothing is applied until it is decided"
+)
+
+
+def _requested(deferred: Deferred) -> JSONResponse:
+    body = SharingDeferred(request_id=deferred.request_id, waiting_for=deferred.waiting_for)
+    return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content=jsonable_encoder(body))
+
 
 # Loads one row of this resource type inside the caller's organization, or raises 404.
 ResourceLoader = Callable[[AsyncSession, UUID, AuthContext], Awaitable[Any]]
@@ -87,7 +101,11 @@ def build_sharing_router(
         """Owner, visibility, and who this is shared with."""
         return await _sharing_of(service, ctx, await _resolve(db, resource_id, ctx))
 
-    @router.put("/{resource_id}/sharing/grants", response_model=ResourceGrantRead)
+    @router.put(
+        "/{resource_id}/sharing/grants",
+        response_model=ResourceGrantRead,
+        responses={202: {"model": SharingDeferred, "description": _REQUESTED}},
+    )
     async def share(
         resource_id: UUID,
         data: ResourceGrantUpsert,
@@ -95,7 +113,12 @@ def build_sharing_router(
         service: SharingSvc,
         ctx: Auth,
     ) -> Any:
-        """Share with a member or a group, or change the level they already have."""
+        """Share with a member or a group, or change the level they already have.
+
+        Answers 202 with the request filed, and applies nothing, for a resource type whose
+        guard defers widening to someone else (a page that reads live data, when the
+        caller may edit it but is not the one who decides who sees its data).
+        """
         resource = await _resolve(db, resource_id, ctx)
         if data.subject_group_id is not None:
             grant = await service.share_with_group(
@@ -104,6 +127,7 @@ def build_sharing_router(
                 resource_type=resource_type,
                 group_id=data.subject_group_id,
                 level=GrantLevel(data.level),
+                confirmed=data.confirmed,
             )
         else:
             # `ResourceGrantUpsert` guarantees exactly one subject, so with no
@@ -115,7 +139,10 @@ def build_sharing_router(
                 resource_type=resource_type,
                 subject_user_id=data.subject_user_id,
                 level=GrantLevel(data.level),
+                confirmed=data.confirmed,
             )
+        if isinstance(grant, Deferred):
+            return _requested(grant)
         return ResourceGrantRead.of(grant, emails={}, group_names={})
 
     @router.delete(
@@ -152,7 +179,11 @@ def build_sharing_router(
         resource = await _resolve(db, resource_id, ctx)
         await service.revoke_group(ctx, resource, resource_type=resource_type, group_id=group_id)
 
-    @router.patch("/{resource_id}/sharing/visibility", response_model=ResourceSharing)
+    @router.patch(
+        "/{resource_id}/sharing/visibility",
+        response_model=ResourceSharing,
+        responses={202: {"model": SharingDeferred, "description": _REQUESTED}},
+    )
     async def set_visibility(
         resource_id: UUID,
         data: VisibilityUpdate,
@@ -160,11 +191,16 @@ def build_sharing_router(
         service: SharingSvc,
         ctx: Auth,
     ) -> Any:
-        """Make it private, team-visible or org-visible."""
+        """Make it private, team-visible or org-visible.
+
+        Widening a resource whose guard defers it answers 202, as for a grant.
+        """
         resource = await _resolve(db, resource_id, ctx)
-        await service.set_visibility(
+        changed = await service.set_visibility(
             ctx, resource, resource_type=resource_type, visibility=Visibility(data.visibility)
         )
+        if isinstance(changed, Deferred):
+            return _requested(changed)
         return await _sharing_of(service, ctx, resource)
 
     return router

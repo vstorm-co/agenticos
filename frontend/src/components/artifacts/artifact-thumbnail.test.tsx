@@ -49,6 +49,17 @@ describe("ArtifactThumbnail", () => {
     expect(container.querySelector("iframe")).toBeNull();
   });
 
+  it("never asks for the page's data, whichever version it shows", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    vi.stubGlobal("ResizeObserver", undefined);
+    useArtifactViewMock.mockReturnValue({ data: undefined });
+
+    render(<ArtifactThumbnail artifactId="a1" title="Report" versionId="v2" />);
+
+    // The fourth argument is the data flag; a thumbnail leaves it off.
+    expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", "v2", false);
+  });
+
   it("loads the page, inert and sandboxed, once near, scaled to fit, and fades it in", () => {
     const seen = installObservers();
     useArtifactViewMock.mockReturnValue({ data: undefined });

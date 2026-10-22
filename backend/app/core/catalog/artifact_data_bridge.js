@@ -2,8 +2,10 @@ function agenticosDataBridge(window, document, config) {
   "use strict";
   // The page side of a bound artifact's data (#1974). The console fetches the
   // bindings as the viewer and posts them here; this page never reaches the
-  // network. `config` is `{n, live, names}`: the nonce the console matches its
-  // replies on, whether to ask at all, and the binding names the page declares.
+  // network. `config` is `{n, live, names, initial?}`: the nonce the console
+  // matches its replies on, whether to ask at all, the binding names the page
+  // declares and, for a page served with its data, `initial` - `[name, binding]`
+  // pairs answered at load. Later answers (a refresh) are still posted.
   // Timers go through `window` so a test can drive them.
   var FIRST_RESEND_MS = 100;
   var LONGEST_RESEND_MS = 2000;
@@ -27,7 +29,7 @@ function agenticosDataBridge(window, document, config) {
   function unavailable() {
     return {
       status: "unavailable", records: [], fields: {}, truncated: false,
-      limit: null, count: 0, filters_dropped: false
+      limit: null, count: 0
     };
   }
 
@@ -85,10 +87,21 @@ function agenticosDataBridge(window, document, config) {
 
   window.agenticos = { data: data, onData: onData };
 
-  if (!asking) {
+  // Answered at load: the server wrote the data in, so there is nothing to wait
+  // for. Names are only ever own keys of the answer (`put`), whatever they are.
+  var injected = Array.isArray(config.initial);
+  if (injected) {
+    var given = {};
+    for (var j = 0; j < config.initial.length; j++) {
+      var pair = config.initial[j];
+      if (Array.isArray(pair) && typeof pair[0] === "string") put(given, pair[0], pair[1]);
+    }
+    answered = true;
+    deliver(shaped(given));
+  } else if (!asking) {
     deliver(shaped({}));
-    return;
   }
+  if (!asking) return;
 
   window.addEventListener("message", function (event) {
     var message = event.data;
@@ -116,6 +129,7 @@ function agenticosDataBridge(window, document, config) {
     });
   }
 
+  if (injected) return;
   giveUpTimer = window.setTimeout(function () {
     stopAsking();
     if (!answered) deliver(shaped({}));

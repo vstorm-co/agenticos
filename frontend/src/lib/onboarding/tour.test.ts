@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_BUILDER,
+  ARTIFACT_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -402,6 +403,45 @@ describe("the Routines page", () => {
 
     expect(refused).toEqual(["routines-list"]);
     expect(allowed).toEqual(["routines-list", "routines-create"]);
+  });
+});
+
+describe("an artifact's page", () => {
+  it("collapses every artifact route onto one identity, apart from the list", () => {
+    expect(pageKey("/artifacts/some-id")).toBe(ARTIFACT_DETAIL);
+    expect(pageKey(ROUTES.ARTIFACTS)).toBe(ROUTES.ARTIFACTS);
+  });
+
+  it("walks the strip, then consent, requests, review and the owner, all but the strip optional", () => {
+    const steps = stepsForPage("/artifacts/some-id", () => true);
+
+    expect(steps.map((step) => step.id)).toEqual([
+      "artifact-strip",
+      "artifact-consent",
+      "artifact-requests",
+      "artifact-review",
+      "artifact-change-owner",
+    ]);
+    expect(steps.filter((step) => step.optional !== true).map((step) => step.id)).toEqual([
+      "artifact-strip",
+    ]);
+    expect(pageHasSteps("/artifacts/some-id")).toBe(true);
+  });
+
+  it("shows a plain reader the strip stop, and stays out of the first-run tour", () => {
+    const viewer = stepsForPage(
+      "/artifacts/some-id",
+      (permission) => permission === Perm.artifactsView,
+    );
+
+    expect(viewer.map((step) => step.id)).toEqual([
+      "artifact-strip",
+      "artifact-consent",
+      "artifact-requests",
+      "artifact-review",
+      "artifact-change-owner",
+    ]);
+    expect(visibleTourSteps(() => true).some((step) => step.page === ARTIFACT_DETAIL)).toBe(false);
   });
 });
 

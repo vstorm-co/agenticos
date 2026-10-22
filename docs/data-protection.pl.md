@@ -1,5 +1,5 @@
 ---
-source_sha: "09ff8d8b1ce8"
+source_sha: "6e4e53c11fad"
 ---
 
 # Ochrona danych { #data-protection }
@@ -80,7 +80,7 @@ przez sprawdzenie rodzica.
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Wiersze [Virtual Table](virtual-tables.md) i ślad każdej zmiany w nich | Cokolwiek organizacja umieściła w komórkach, w tym potencjalnie dane osobowe. Bieżące wartości (records); cały rekord przy create i delete, a przy update tylko komórki, które się zmieniły (history); cały rekord tak, jak zwrócił go zapis z kluczem (receipts); id i external id każdego utworzonego rekordu (outbox, bez wartości). Usunięcie rekordu usuwa tylko bieżący wiersz: history i receipts zachowują wartości, dopóki nie usunie ich codzienny sweep retencji: receipts po 24 godzinach, wysłane wiersze outbox po 3 dniach, a history po 365 dniach, wszystko jako ustawienia wdrożenia. Usunięcie konta usuwa jego receipts i czyści je jako autora w history; usunięcie organizacji usuwa wszystkie cztery | Typowane rekordy dla agentów i workflow, bezpieczne ponawianie zapisu i przekazanie utworzonego rekordu |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | [Wyzwalacze](virtual-tables.md#triggers) tabeli, każda konfiguracja, jaką miały, i to, co każdy zdecydował o utworzonym rekordzie | Członek, jako który działa wyzwalacz; wartości jego filtrów i klucze mapowania, które mogą zawierać dane osobowe, jeśli builder jakieś wpisał (filtr po adresie e-mail). Decyzja trzyma status, ogólny powód i run, który uruchomiła, nigdy wartości rekordu. Żadna klasa retencji ich nie usuwa: znikają razem z tabelą i wyzwalaczem, a usunięcie konta czyści je jako członka, po czym wyzwalacz niczego nie uruchamia | Uruchamianie workflow, gdy przybędzie rekord |
-| `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać — albo, dla strony powiązanej z widokami tabel, powiązanie (widok i kolumny), przy czym same rekordy są czytane w chwili oglądania, z własnym dostępem oglądającego, i nigdy nie są przechowywane w stronie; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Artefakty](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
+| `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać — albo, dla strony powiązanej z danymi tabel, jej zapytania strony (tabela, filtry, sortowanie, limit i kolumny, każde rozwiązane do identyfikatorów), przy czym same rekordy są czytane w chwili oglądania, z dostępem właściciela strony, i nigdy nie są przechowywane w stronie; dla każdej wersji — kto ją opublikował i zgoda właściciela na udostępnienie jej danych (odcisk zapytań, członkostwo właściciela i kiedy); właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Artefakty](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |
 | `rag_documents`, `knowledge_bases` i jedna tabela wektorowa na kolekcję | Wgrane i zsynchronizowane dokumenty, ich chunki i embeddingi | Tekst dokumentu i jego wektory, oryginalna ścieżka pliku w źródle | Wyszukiwanie |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka. Obok argumentów `tool_approvals.context` przechowuje nazwy, które oznaczają id zaparkowanego wywołania - nazwę widoku i tabeli, nigdy zawartość rekordu - ustalone jako osoba runa w chwili parkowania wywołania. Zostają z wierszem zatwierdzenia także po zmianie nazwy albo zniknięciu widoku czy tabeli i czyta je każdy, kto może rozstrzygać zatwierdzenia, niezależnie od własnego dostępu do tej tabeli | Budżety, zatwierdzenia, historia runów |
@@ -142,6 +142,39 @@ zaciąga dokumenty **do środka**, uwierzytelnione sekretem `connector`, a od te
 chwili dokumenty są kopią wdrożenia i podlegają regułom powyżej. To, kto może
 przeczytać, co zaciągnęło źródło, jest
 [decyzją, którą podejmuje wiersz źródła](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Dane tabel pokazywane na stronie { #table-data-on-a-page }
+
+Opublikowana [strona](artifacts.md#live-data) może pokazywać rekordy z tabeli,
+a te rekordy mogą być danymi osobowymi. To **przepływ wewnątrz wdrożenia, od
+właściciela strony do każdego, kto może ją otworzyć** — nie cel poza nim — ale
+omija on własną kontrolę dostępu tabeli, więc jest tu wymieniony.
+
+- **Co przepływa.** Tylko kolumny, które nazywa zapytanie strony, i wiersze, które
+  wybierają jego filtry, do 1000 na binding. Filtr może używać kolumny, której strona
+  nie pokazuje, a właściciel dowiaduje się, której. Formuły, lookupy, rollupy
+  i etykiety linków niosą też dane z powiązanych tabel, a zgoda wymienia te tabele.
+- **Z czyjego upoważnienia.** Właściciela strony. Każdy oglądający dostaje te same
+  rekordy, niezależnie od własnego dostępu do tabeli. Dane opuszczają tabelę dopiero
+  wtedy, gdy właściciel to potwierdzi, po przeczytaniu zapytań słowami i tego, kto
+  może otworzyć stronę teraz i później (role, które otwierają każdą stronę,
+  widoczność, osoby i grupy). Dane są czytane od nowa przy każdym załadowaniu,
+  nigdy nie są przechowywane w stronie i nie są cache'owane.
+- **Co się o tym przechowuje.** Dla każdej wersji strony: kto ją opublikował, odcisk jej
+  zapytań, czy właściciel wyraził zgodę, kiedy i pod jakim członkostwem. Prośby
+  o udostępnienie zachowują proszącego, rodzaj, opcjonalną notatkę, decyzję i to, kto
+  ją podjął. Ślad audytu zapisuje zgodę, jej wycofanie, auto-zgodę, granty `edit_data`,
+  zmiany właściciela i prośby, razem z tekstem, który człowiek potwierdził.
+- **Czego nigdy się nie loguje.** Wartości rekordów, wartości filtrów i adres treści
+  strony serwowanej z danymi. Wpisy audytu i powiadomienia nazywają stronę i osoby,
+  nigdy wiersz.
+- **Co tam nie dociera.** Publiczny link ani embed nie dostają żadnych danych. Zgoda
+  usuniętego członka wygasa wraz z jego członkostwem, a strona, której właściciel
+  odszedł, nie serwuje danych, dopóki inny właściciel ich nie potwierdzi.
+
+Wdrożenie, które musi zachować wiersze tabeli przed niektórymi swoimi członkami,
+nie powinno wiązać z nią strony, którą ci członkowie mogą otworzyć; potwierdzenie
+wymienia, kim są.
 
 ## Kontrole i gdzie każda jest dowiedziona { #controls-and-where-each-is-proved }
 

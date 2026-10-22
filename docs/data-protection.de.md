@@ -1,5 +1,5 @@
 ---
-source_sha: "09ff8d8b1ce8"
+source_sha: "6e4e53c11fad"
 ---
 
 # Datenschutz { #data-protection }
@@ -85,7 +85,7 @@ des Elternteils.
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Die Zeilen einer [Virtual Table](virtual-tables.md) und die Spur jeder Änderung daran | Was die Organisation in ihre Zellen geschrieben hat, darunter möglicherweise personenbezogene Daten. Die aktuellen Werte (Records); der ganze Datensatz bei Create und Delete, bei einem Update nur die geänderten Zellen (History); der ganze Datensatz, wie ihn ein Schreibzugriff mit Schlüssel zurückgab (Receipts); die ids und die external id jedes erstellten Datensatzes (Outbox, keine Werte). Ein Löschen des Datensatzes entfernt nur die aktuelle Zeile: History und Receipts behalten die Werte, bis der tägliche Aufbewahrungs-Sweep sie entfernt: Receipts nach 24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History nach 365 Tagen, alles Einstellungen des Deployments. Das Löschen eines Kontos entfernt seine Receipts und löscht es als Akteur in der History; das Löschen der Organisation entfernt alle vier | Typisierte Datensätze für Agents und Workflows, sichere Wiederholungen eines Schreibzugriffs und die Übergabe eines erstellten Datensatzes |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | Die [Trigger](virtual-tables.md#triggers) einer Tabelle, jede Konfiguration, die sie hatten, und was jeder über einen angelegten Datensatz entschieden hat | Das Mitglied, als das ein Trigger läuft; seine Filterwerte und Zuordnungsschlüssel, die personenbezogene Daten enthalten können, wenn ein Builder welche eingetragen hat (ein Filter auf eine E-Mail-Adresse). Eine Entscheidung enthält einen Status, einen groben Grund und den gestarteten Run, nie die Werte des Datensatzes. Keine Aufbewahrungsklasse räumt sie auf: Sie gehen mit ihrer Tabelle und ihrem Trigger, und das Löschen eines Kontos entfernt es als Mitglied, danach startet der Trigger nichts mehr | Einen Workflow ausführen, wenn ein Datensatz hinzukommt |
-| `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte — oder, bei einer an Tabellenansichten gebundenen Seite, das Binding (Ansicht und Spalten), während die Datensätze selbst beim Ansehen mit dem eigenen Zugriff des Betrachters gelesen und nie in der Seite gespeichert werden; der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
+| `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte — oder, bei einer an Tabellendaten gebundenen Seite, ihre Seitenabfragen (Tabelle, Filter, Sortierung, Limit und Spalten, jeweils zu IDs aufgelöst), während die Datensätze selbst beim Ansehen mit dem Zugriff des Besitzers der Seite gelesen und nie in der Seite gespeichert werden; je Version, wer sie veröffentlicht hat, und die Einwilligung des Besitzers, ihre Daten zu teilen (ein Fingerabdruck der Abfragen, die Mitgliedschaft des Besitzers und wann); der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
 | `agent_memory_files` | Notizen, die ein Agent über eine Person oder einen Gruppenchat geschrieben hat | Was der Agent für merkenswert hielt, geschlüsselt auf `person:<user_id>` oder einen Chatraum | Kontinuität zwischen Conversations |
 | `rag_documents`, `knowledge_bases` und eine Vektortabelle je Collection | Hochgeladene und synchronisierte Dokumente, ihre Chunks und Embeddings | Der Dokumenttext und seine Vektoren, der ursprüngliche Pfad der Datei in der Quelle | Retrieval |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Was jeder Run gekostet und getan hat | Der System-Prompt und die letzte an das Model übergebene Anfrage, Tool-Argumente, die auf Freigabe warten, die entscheidende Person und ihre Notiz. Neben den Argumenten hält `tool_approvals.context` die Namen, für die die IDs eines geparkten Aufrufs stehen - den Namen einer Ansicht und einer Tabelle, nie den Inhalt eines Datensatzes -, aufgelöst als die Person des Runs, als der Aufruf geparkt wurde. Er bleibt bei der Freigabe-Zeile, auch nachdem die Ansicht oder Tabelle umbenannt wurde oder verschwunden ist, und wird von jedem gelesen, der über Freigaben entscheiden darf, unabhängig von seinem eigenen Zugriff auf diese Tabelle | Budgets, Freigaben, Run-Historie |
@@ -148,6 +148,45 @@ Dokumente **herein**, authentifiziert durch ein `connector`-Secret, und von da a
 sind die Dokumente die Kopie des Deployments und folgen den Regeln oben. Wer
 lesen kann, was eine Quelle aufgenommen hat, ist
 [eine Entscheidung der Quellzeile](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Tabellendaten auf einer Seite { #table-data-on-a-page }
+
+Eine veröffentlichte [Seite](artifacts.md#live-data) kann Datensätze aus einer
+Tabelle zeigen, und diese Datensätze können personenbezogene Daten sein. Das ist
+**ein Fluss innerhalb des Deployments, vom Besitzer der Seite zu allen, die die
+Seite öffnen können** - kein Ziel außerhalb davon -, aber er umgeht die eigene
+Zugriffskontrolle der Tabelle und ist deshalb hier aufgeführt.
+
+- **Was fließt.** Nur die Spalten, die eine Seitenabfrage nennt, und die Zeilen,
+  die ihre Filter auswählen, bis zu 1.000 pro Binding. Ein Filter darf eine Spalte
+  nutzen, die die Seite nicht zeigt, und der Besitzer erfährt, welche. Formeln,
+  Lookups, Rollups und Link-Labels tragen auch Daten aus verknüpften Tabellen, und
+  die Einwilligung nennt diese Tabellen.
+- **Auf wessen Befugnis.** Der des Besitzers der Seite. Jedem Betrachter werden
+  dieselben Datensätze ausgeliefert, gleich welchen eigenen Zugriff er auf die
+  Tabelle hat. Die Daten verlassen die Tabelle erst, wenn der Besitzer sie
+  bestätigt hat, nachdem er die Abfragen in Worten gelesen hat und wer die Seite
+  jetzt und später öffnen kann (die Rollen, die jede Seite öffnen, die
+  Sichtbarkeit, Personen und Gruppen). Die Daten werden bei jedem Laden erneut
+  gelesen, nie in der Seite gespeichert und nicht gecacht.
+- **Was darüber gespeichert wird.** Je Seitenversion: wer sie veröffentlicht hat,
+  ein Fingerabdruck ihrer Abfragen, ob der Besitzer eingewilligt hat, wann und mit
+  welcher Mitgliedschaft. Freigabeanfragen halten den Anfragenden, die Art, eine
+  optionale Notiz, die Entscheidung und wer sie getroffen hat. Der Audit-Trail
+  erfasst Einwilligung, Zurückziehen, automatische Einwilligung, `edit_data`-Grants,
+  Besitzerwechsel und Anfragen, mit dem Text, den eine Person bestätigt hat.
+- **Was nie protokolliert wird.** Datensatzwerte, Filterwerte und die
+  Inhaltsadresse einer Seite, die mit ihren Daten ausgeliefert wird. Die
+  Audit-Einträge und Benachrichtigungen nennen die Seite und die Personen, nie
+  eine Zeile.
+- **Was sie nicht erreicht.** Ein öffentlicher Link oder ein Embed bekommt keine
+  Daten ausgeliefert. Die Einwilligung eines gelöschten Mitglieds verfällt mit
+  seiner Mitgliedschaft, und eine Seite, deren Besitzer gegangen ist, liefert
+  keine Daten aus, bis ein anderer Besitzer sie bestätigt.
+
+Ein Deployment, das die Zeilen einer Tabelle vor einigen seiner Mitglieder
+schützen muss, sollte keine Seite an sie binden, die diese Mitglieder öffnen
+können; die Bestätigung nennt, wer sie sind.
 
 ## Kontrollen, und wo jede nachgewiesen ist { #controls-and-where-each-is-proved }
 

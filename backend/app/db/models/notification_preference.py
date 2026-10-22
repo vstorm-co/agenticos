@@ -45,7 +45,8 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
-            "'announcement', 'workflow_notification')",
+            "'announcement', 'workflow_notification', 'artifact_owner_changed', "
+            "'artifact_share_requested')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

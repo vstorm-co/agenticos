@@ -5,6 +5,7 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -15,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
-from app.db.models.artifact import Artifact, ArtifactVersion
+from app.db.models.artifact import SERVED_STATES, Artifact, ArtifactVersion, ConsentState
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
 
@@ -27,6 +28,20 @@ async def get(db: AsyncSession, artifact_id: UUID, *, organization_id: UUID) -> 
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_by_ids(
+    db: AsyncSession, artifact_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[Artifact]:
+    """The artifacts among `artifact_ids` that belong to the organization."""
+    if not artifact_ids:
+        return []
+    result = await db.execute(
+        select(Artifact).where(
+            Artifact.id.in_(artifact_ids), Artifact.organization_id == organization_id
+        )
+    )
+    return list(result.scalars())
 
 
 def _identity(
@@ -364,6 +379,96 @@ async def latest_versions(
     return {version.artifact_id: version for version in result.scalars().all()}
 
 
+async def latest_served(db: AsyncSession, artifact_id: UUID) -> ArtifactVersion | None:
+    """The newest version that is consented or reads no data - what the audience is served."""
+    result = await db.execute(
+        select(ArtifactVersion)
+        .where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .order_by(ArtifactVersion.number.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def latest_served_versions(
+    db: AsyncSession, artifact_ids: list[UUID]
+) -> dict[UUID, ArtifactVersion]:
+    """:func:`latest_served` for each artifact, in one query for a whole listing page."""
+    if not artifact_ids:
+        return {}
+    newest = (
+        select(
+            ArtifactVersion.artifact_id,
+            func.max(ArtifactVersion.number).label("number"),
+        )
+        .where(
+            ArtifactVersion.artifact_id.in_(artifact_ids),
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .group_by(ArtifactVersion.artifact_id)
+        .subquery()
+    )
+    result = await db.execute(
+        select(ArtifactVersion).join(
+            newest,
+            and_(
+                ArtifactVersion.artifact_id == newest.c.artifact_id,
+                ArtifactVersion.number == newest.c.number,
+            ),
+        )
+    )
+    return {version.artifact_id: version for version in result.scalars().all()}
+
+
+async def served_before(db: AsyncSession, artifact_id: UUID, number: int) -> ArtifactVersion | None:
+    """The newest version older than `number` that the audience could be served."""
+    result = await db.execute(
+        select(ArtifactVersion)
+        .where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.number < number,
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .order_by(ArtifactVersion.number.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def latest_consent(
+    db: AsyncSession, artifact_id: UUID, *, membership_id: UUID, after: datetime | None
+) -> ArtifactVersion | None:
+    """The newest version consented under this membership after `after`, a withdrawal.
+
+    `None` for `after` when nothing was ever withdrawn.
+    """
+    where: list[Any] = [
+        ArtifactVersion.artifact_id == artifact_id,
+        ArtifactVersion.consent_state == ConsentState.CONSENTED.value,
+        ArtifactVersion.consented_by_membership_id == membership_id,
+    ]
+    if after is not None:
+        where.append(ArtifactVersion.consented_at > after)
+    result = await db.execute(
+        select(ArtifactVersion).where(*where).order_by(ArtifactVersion.number.desc()).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_version(
+    db: AsyncSession, *, version: ArtifactVersion, update_data: dict[str, Any]
+) -> ArtifactVersion:
+    for field, value in update_data.items():
+        setattr(version, field, value)
+    db.add(version)
+    await db.flush()
+    await db.refresh(version)
+    return version
+
+
 async def get_version(
     db: AsyncSession, version_id: UUID, *, artifact_id: UUID | None = None
 ) -> ArtifactVersion | None:
@@ -413,7 +518,9 @@ async def create_version(
     run_id: UUID | None,
     bindings: list[dict[str, Any]],
     restored_from: int | None = None,
+    consent: dict[str, Any] | None = None,
 ) -> ArtifactVersion:
+    """A new version row. `consent` holds its publisher and consent columns by name."""
     version = ArtifactVersion(
         artifact_id=artifact_id,
         number=number,
@@ -424,6 +531,7 @@ async def create_version(
         run_id=run_id,
         bindings=bindings,
         restored_from=restored_from,
+        **(consent or {}),
     )
     db.add(version)
     await db.flush()
@@ -432,12 +540,17 @@ async def create_version(
 
 
 async def versions_beyond(
-    db: AsyncSession, artifact_id: UUID, *, keep: int, pinned: int | None = None
+    db: AsyncSession,
+    artifact_id: UUID,
+    *,
+    keep: int,
+    pinned: int | None = None,
+    served: int | None = None,
 ) -> list[ArtifactVersion]:
     """Every version older than the newest `keep` - what pruning removes.
 
-    `pinned` is a version number the public link shows, which is never among
-    them however old it is.
+    `pinned` is a version number the public link shows, and `served` the one the
+    page's audience is served; neither is among them however old it is.
     """
     result = await db.execute(
         select(ArtifactVersion)
@@ -445,7 +558,7 @@ async def versions_beyond(
         .order_by(ArtifactVersion.number.desc())
         .offset(keep)
     )
-    return [version for version in result.scalars().all() if version.number != pinned]
+    return [version for version in result.scalars().all() if version.number not in (pinned, served)]
 
 
 async def get_version_by_number(
@@ -475,7 +588,12 @@ async def storage_paths(db: AsyncSession, artifact_id: UUID) -> list[str]:
 
 async def lock(db: AsyncSession, artifact_id: UUID) -> Artifact | None:
     """The artifact locked until the transaction ends, for a write that adds a version."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id).with_for_update())
+    result = await db.execute(
+        select(Artifact)
+        .where(Artifact.id == artifact_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 

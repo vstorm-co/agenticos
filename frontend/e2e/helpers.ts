@@ -295,7 +295,7 @@ export async function submitDialog(
     submit: Locator;
     /** Where the write goes, as a path prefix: `/api/secrets` also matches a PATCH to one. */
     path: string;
-    method?: "POST" | "PATCH";
+    method?: "POST" | "PATCH" | "DELETE";
   },
 ): Promise<void> {
   // Registered before the click, not after: a fast answer can arrive before

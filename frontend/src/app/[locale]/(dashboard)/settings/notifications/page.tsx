@@ -12,6 +12,8 @@ import {
   Megaphone,
   PieChart,
   UserPlus,
+  GitPullRequest,
+  UserRoundCog,
   Workflow,
   XCircle,
 } from "lucide-react";
@@ -138,6 +140,18 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "workflow_notification",
     words: "prefWorkflowNotification",
     icon: Workflow,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "artifact_owner_changed",
+    words: "prefArtifactOwnerChanged",
+    icon: UserRoundCog,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "artifact_share_requested",
+    words: "prefArtifactShareRequested",
+    icon: GitPullRequest,
     channels: ["in_app", "email"],
   },
 ];

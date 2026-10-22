@@ -1,5 +1,6 @@
 """Tables and their schemas: create, list, describe, rename, archive, restore, change columns."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -40,6 +41,7 @@ from app.schemas.virtual_table import (
 from app.services.access import TABLE, accessible_ids, visible_resource_ids
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.conversions import convert, option_labels
+from app.services.virtual_tables.deadline import ReadDeadline
 from app.services.virtual_tables.dependencies import find_dependents
 from app.services.virtual_tables.exceptions import (
     InvalidSchemaError,
@@ -52,6 +54,17 @@ from app.services.virtual_tables.schema import build_columns, diff
 from app.services.virtual_tables.types import COMPUTED_TYPES, READ_THROUGH_LINK, CellProblem
 
 _OPERATION_KEY = TypeAdapter(OperationKey)
+
+
+@dataclass(frozen=True)
+class TableSource:
+    """A table as a page query reads it: its name, whether it is archived, and its columns."""
+
+    id: UUID
+    name: str
+    archived: bool
+    columns: list[ColumnDef]
+    """The columns of its current schema version, archived ones included."""
 
 
 def _checked_key(value: str | None) -> str | None:
@@ -200,6 +213,25 @@ class TableOperations(Operations):
             await self._columns(table),
             can_edit=await self._can_edit(ctx, table),
             can_restore=await self._can_restore(ctx, table),
+        )
+
+    async def table_source(
+        self, ctx: AuthContext, table_id: UUID, *, deadline: ReadDeadline | None = None
+    ) -> TableSource:
+        """The table as a page query reads it, if `ctx` may read it; an archived one too.
+
+        With a `deadline`, each statement is armed with it first.
+
+        Raises:
+            NotFoundError: No such table in `ctx`'s organization, or one `ctx` may not read.
+            DeadlineReached: Too little of `deadline` is left for the next statement.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW, deadline=deadline)
+        return TableSource(
+            id=table.id,
+            name=table.name,
+            archived=table.archived_at is not None,
+            columns=await self._columns(table, deadline=deadline),
         )
 
     async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:

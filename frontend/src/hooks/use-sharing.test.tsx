@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSharing } from "./use-sharing";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
+import { toast } from "sonner";
 import type { ResourceSharing } from "@/types/sharing";
 
 vi.mock("@/lib/api-client", () => ({
@@ -253,5 +255,71 @@ describe("useSharing", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(apiClient.get).toHaveBeenCalledWith("/kb/c1/sharing");
+  });
+});
+
+describe("useSharing for a page whose data needs its owner's say", () => {
+  const DEFERRED = { status: "requested", request_id: "req1", waiting_for: "Olga Owner" };
+  const needsConsent = new ApiError(409, "Confirm the page's data before sharing it", {
+    error: { code: "CONSENT_REQUIRED", message: "Confirm", details: null },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ ...SHARING, resource_type: "artifact" });
+  });
+
+  it("says who a share's request waits on, and does not report it as shared", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue(DEFERRED);
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_user_id: "u-sam", level: "read" });
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Request sent to Olga Owner"));
+    expect(toast.success).not.toHaveBeenCalledWith("Sharing updated");
+  });
+
+  it("says so when nobody is left to decide a visibility request", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...DEFERRED, waiting_for: null });
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Request sent. Nobody is left to decide it yet."),
+    );
+    expect(toast.success).not.toHaveBeenCalledWith("Visibility updated");
+  });
+
+  it("hands missing consent to the caller instead of a toast", async () => {
+    vi.mocked(apiClient.put).mockRejectedValue(needsConsent);
+    vi.mocked(apiClient.patch).mockRejectedValue(needsConsent);
+    const onConsentRequired = vi.fn();
+    const { result } = renderHook(() => useSharing("artifact", "a1", { onConsentRequired }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share
+      .mutateAsync({ subject_user_id: "u-sam", level: "read" })
+      .catch(() => undefined);
+    await result.current.setVisibility.mutateAsync("org").catch(() => undefined);
+
+    await waitFor(() => expect(onConsentRequired).toHaveBeenCalledTimes(2));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("toasts the refusal when nobody offered a way through", async () => {
+    vi.mocked(apiClient.put).mockRejectedValue(needsConsent);
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share
+      .mutateAsync({ subject_user_id: "u-sam", level: "read" })
+      .catch(() => undefined);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });

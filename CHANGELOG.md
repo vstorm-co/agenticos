@@ -19,6 +19,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A published page can show live table data, shared on its owner's consent.**
+  An agent binds a page to **page queries** - a table, or a saved view whose filters
+  and sort are copied, with fields, filters, a sort and a limit - and the page's
+  `agenticos.onData` is handed the records, already in the page on load and again
+  on every refresh. Everyone who opens the page reads the same records with its
+  **owner's** access, so the data reaches anyone beyond the owner and the roles that
+  open every page only after the owner confirms it: **Confirm data** shows the queries in
+  words, every linked table they reach and who will read them, and the page's audience
+  keeps the last version that was consented to, or sees "This page isn't available yet",
+  until then. Anyone who can edit the page can stop sharing its data; the owner can
+  turn on **Don't ask for consent on republish** for their own republishes, and give
+  a person or group **Can edit, data included**. A binding goes unavailable when the
+  owner leaves or loses access, or when a column it reads changes meaning: columns now
+  carry a read-only `revision`. The owner hands a page to another member with **Change
+  owner**, which asks the new owner to confirm its data again. Widening who opens a page
+  that reads data is the owner's call; anyone else files a request, answered in a
+  **Requests** section of the Share dialog, and an editor's republish that reads more
+  waits as a request with a **Review data change** panel. A member who opens a page they
+  cannot see can **Request access**. Agents get `share_artifact`, which only asks. New
+  `artifact_share_requests`, consent columns on `artifact_versions`, `artifacts.auto_consent`,
+  the `edit_data` grant level, the `artifact_share_requested` and `artifact_owner_changed`
+  notifications (migrations `0142_artifact_consent`, `0143_artifact_owner_changed`,
+  `0144_artifact_share_requests`, `0145_grant_edit_data`) and audit entries
+  `artifact.data_consented`, `artifact.data_withdrawn`, `artifact.auto_consent_changed`,
+  `artifact.owner_changed`, `artifact.share_requested`, `artifact.share_request_approved`,
+  `artifact.share_request_declined` and `artifact.edit_data_granted`. A public link or an
+  embed still carries no data. A page takes up to 5 bindings, 1,000 records each and 4 MiB,
+  a 5 s deadline and 30 loads a minute per viewer, and a bound page is changed only by a run
+  acting for a member (a signed-in member, a linked channel sender or a schedule's creator).
+  The viewer's strip has Refresh and an auto-refresh each viewer chooses; cards, the
+  dashboard and the viewer mark live pages. `list_views` finds a view to start a query from.
+  (#1974) [Artifacts](docs/artifacts.md#live-data) has the rules.
+
 - **A workflow run reads on the canvas.** Each step carries a pill on its
   corner - Pending, Starting, Running with a ticking time, Waiting, Failed,
   Needs attention, Skipped, Not reached, or the time a step that succeeded took -
@@ -59,12 +92,10 @@ Two things are versioned separately from this file and worth knowing about:
   `restored_from` on the version read and `artifact_versions.restored_from`
   (migration `0139_artifact_restored_from`).
 
-- **Tool-call approvals say what they will do in names.** A gated `share_view`
-  or table write is parked with its ids resolved, as the run's person, to the
-  view, table and record names that person may see, and the chat's approval
-  card and the Approvals page lead with a sentence such as "Share the view
-  Closed tickets of Support with everyone who may read the table" above the
-  arguments. A capability declares the describers with `describers=` on
+- **Tool-call approvals say what they will do in names.** A gated table
+  write is parked with its ids resolved, as the run's person, to the table and
+  record names that person may see, and the chat's approval card and the
+  Approvals page lead with a sentence naming them above the arguments. A capability declares the describers with `describers=` on
   `register(...)`; one that fails or is slow parks the call without a sentence.
   New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
   `tool_approval_required` frame, and `tool_approvals.context` (migration
@@ -100,26 +131,6 @@ Two things are versioned separately from this file and worth knowing about:
   `ARTIFACT_RENDER_CDP_URL` and shipped as the opt-in `artifact-render` compose
   profile on a network with no egress, and the `browser` extra; without them the
   report comes alone. `agenticos cmd doctor` checks the renderer.
-
-- **Binding a private view publishes the page.** Records are read with each
-  viewer's own access, so only the view's owner sees them until it is shared; a
-  line in the publish result's `warning` tells the agent to say so.
-
-- **Pages that stay current.** An agent can bind a published page to saved
-  Virtual Table views with `bindings`, and the page draws them from
-  `agenticos.onData`. Records are read when somebody views the page, with that
-  viewer's own access, and never stored in it. The viewer's strip has Refresh
-  and an auto-refresh each viewer chooses; cards, the dashboard and the viewer
-  mark live pages. Up to 5 bindings, 1,000 records each and 4 MiB per page, a
-  5 s deadline and 30 loads a minute per viewer. `list_views` finds a view and
-  `share_view` shares a private one; `share_view` waits for approval by
-  default, a capability-wide `approval` on `virtual_tables` decides it too, and
-  only `tool_approval.share_view` targets it alone. A page with bindings is
-  published only by a run acting for a member: the signed-in member (web chat,
-  HTTP API), a linked channel sender or a schedule's creator; a widget, embed
-  or hosted-page visitor, an unlinked channel sender, an agent event trigger's
-  delivery and a workflow run admitted by a public door, or anywhere in such a
-  run's chain, do not count.
 
 - **A Workflows card on the dashboard.** Real runs, failures and cost over the
   dashboard's period across every workflow the reader can see, the five

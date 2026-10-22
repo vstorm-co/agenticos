@@ -674,6 +674,7 @@ def get_table_trigger_service(db: DBSession) -> TableTriggerService:
 TableTriggerSvc = Annotated[TableTriggerService, Depends(get_table_trigger_service)]
 
 from app.services.artifact import ArtifactService
+from app.services.artifact_request_service import ArtifactRequestService
 
 
 def get_artifact_service(db: DBSession) -> ArtifactService:
@@ -682,6 +683,14 @@ def get_artifact_service(db: DBSession) -> ArtifactService:
 
 
 ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
+
+def get_artifact_request_service(db: DBSession) -> ArtifactRequestService:
+    """Create ArtifactRequestService instance with database session."""
+    return ArtifactRequestService(db)
+
+
+ArtifactRequestSvc = Annotated[ArtifactRequestService, Depends(get_artifact_request_service)]
 
 from app.services.memory import MemoryService
 

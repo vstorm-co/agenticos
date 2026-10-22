@@ -20,7 +20,14 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 ColumnTypeName = Literal[
     "text",
@@ -163,6 +170,15 @@ class ColumnDef(_Schema):
         description="A formula column: an expression over the record's other columns, "
         "each named by its label in braces, such as {Price} * {Quantity}.",
     )
+    revision: int = Field(
+        default=0,
+        ge=0,
+        description="Read-only. Counts the changes to what the column's values mean: its "
+        "type, a formula, what a link, lookup or rollup reads, a rollup's aggregate, "
+        "archiving or restoring the column or one of its options. A new label, default "
+        "or requiredness leaves it as it was. Pages bound to the table compare it to "
+        "notice a column that no longer means what they were published against.",
+    )
 
 
 class ColumnInput(_Request):
@@ -170,8 +186,7 @@ class ColumnInput(_Request):
 
     Send the `id` of an existing column to change it, and omit it to add one.
     An existing column left out of a change is archived, never deleted. A column's
-    `type` cannot change: values already stored under the old type would no longer
-    mean what they did.
+    `type` changes only to one its values read as, and the change rewrites them.
     """
 
     id: UUID | None = None
@@ -202,6 +217,19 @@ class ColumnInput(_Request):
         description="A formula column: an expression over the record's other columns, "
         "each named by its label in braces, such as {Price} * {Quantity}.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_revision(cls, data: object) -> object:
+        """Drop a column's `revision`, which only the schema change itself sets.
+
+        Accepted so a column read from a `TableRead` can be sent back unchanged,
+        which `extra="forbid"` would otherwise refuse; never a field, so a client
+        cannot set it and no schema advertises it.
+        """
+        if isinstance(data, dict) and "revision" in data:
+            return {key: value for key, value in data.items() if key != "revision"}
+        return data
 
 
 class TableCreate(_Request):

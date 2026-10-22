@@ -1,5 +1,5 @@
 ---
-source_sha: "11c9ebdbd803"
+source_sha: "392bcbea8374"
 ---
 
 # Governance { #governance }
@@ -994,8 +994,8 @@ Cuatro propiedades que conviene conocer:
   que dice qué cambiar. Lo que se detiene es un agent cuyo operador pidió una
   aprobación que nunca se le estaba pidiendo a nadie.
 - **Una llamada aparcada puede nombrar lo que representan sus ids.** Una
-  herramienta puede describir su propia llamada: `share_view` da los nombres de la
-  vista y de la tabla, y las escrituras en tablas dan el nombre de la tabla. Nunca
+  herramienta puede describir su propia llamada: las escrituras en tablas dan el
+  nombre de la tabla. Nunca
   se nombra un registro, porque la etiqueta de un registro es el texto de una de
   sus celdas, y la aprobación la conservaría. Los nombres se resuelven como la
   persona del run cuando la llamada se aparca, así que no se nombra nada que esa
@@ -1214,6 +1214,28 @@ definitiva y queda en el registro de auditoría junto con lo que se preguntó. U
 paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
 que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
 
+### Entradas de artefactos { #artifact-entries }
+
+Una página que lee datos de tabla se comparte con el consentimiento de su propietario, y
+cada paso de eso deja una entrada con la persona que lo dio. Ninguna lleva un registro, un
+valor de filtro ni una fila: contienen versiones, huellas, ids de solicitud y las palabras
+que una persona confirmó.
+
+| Acción | Se registra cuando |
+|---|---|
+| `artifact.published` | Se publicó una versión, con su número y la huella de sus page queries |
+| `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
+| `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
+| `artifact.auto_consent_changed` | El propietario activó o desactivó «Don't ask for consent on republish», con el texto que confirmó |
+| `artifact.edit_data_granted` | El propietario, o un Owner o Admin, dio a una persona o a un grupo «Can edit, data included», con el texto que confirmó |
+| `artifact.owner_changed` | Una página cambió de manos: el propietario anterior y el nuevo, quién lo hizo y las concesiones `edit_data` que se descartaron |
+| `artifact.share_requested` | Se presentó una solicitud — de tipo `audience`, `access` o `version` — por una persona o por el run de su agent |
+| `artifact.share_request_approved` y `artifact.share_request_declined` | Se decidió una solicitud, y quién |
+
+Ampliar la visibilidad o las concesiones de una página se registra como entradas
+`resource.share`, `resource.unshare` y `resource.visibility_changed`, como en cualquier otro
+recurso. La herramienta `share_view` ya no existe, y con ella la aprobación que la protegía.
+
 ## Alertas { #alerts }
 
 Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que se
@@ -1233,8 +1255,12 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
-cada uno de los demás eventos que entrega el buzón: un run que termina o falla
+las aprobaciones y apagar su correo, o al revés.
+
+La misma página lleva además
+cada uno de los demás eventos que entrega el buzón (incluidos una solicitud para compartir una página
+y el cambio de propietario de una página, cada uno con el nombre de la página y de la persona, nunca
+sus datos): un run que termina o falla
 desatendido, la ingesta de un documento que **falla**, la cifra propia de un
 ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en

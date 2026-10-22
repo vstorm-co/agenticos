@@ -270,6 +270,27 @@ async def member_context(
     )
 
 
+async def acting_member(
+    db: AsyncSession, organization_id: UUID | None, user_id: str | None
+) -> AuthContext | None:
+    """The member a run acts for, with the role they hold now - or `None` when the run
+    acts for no member, or they are no longer an active one.
+
+    :func:`member_context` for a run's own identifiers, which arrive as text, or not at
+    all: a capability that acts in the organization on a member's behalf - a table
+    write, a workflow started, a page bound to data - acts as who they are at the
+    moment of the call, so someone removed mid-conversation stops acting through it at
+    once.
+    """
+    if organization_id is None or user_id is None:
+        return None
+    try:
+        member_id = UUID(user_id)
+    except ValueError:
+        return None
+    return await member_context(db, organization_id=organization_id, user_id=member_id)
+
+
 async def publisher_context(
     db: AsyncSession,
     *,

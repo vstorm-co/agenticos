@@ -1,5 +1,5 @@
 ---
-source_sha: "de3d15f1689a"
+source_sha: "f8874fc2f345"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -32,7 +32,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
 | `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`, `share_view` | `tables:read` | — |
+| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
 | `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
@@ -52,7 +52,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
 | `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact` | — | — |
+| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -1030,6 +1030,8 @@ como se escribió.*
 abrir, de la más reciente a la más antigua.*
 `preview_artifact` — *Mira una página que publicaste como la vería quien la abre:
 una imagen, y lo que salió mal.*
+`share_artifact` — *Pide que una página que publicaste se comparta con más gente; esto no
+comparte nada por sí mismo.*
 
 Publica un único documento HTML o Markdown autocontenido como
 [artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
@@ -1107,18 +1109,46 @@ enumera lo que parece estar mal, un problema por línea; consulta
 [el contrato de página y los avisos de publicación](../artifacts.md#the-page-contract-and-the-publish-warnings).
 Un aviso nunca detiene una publicación.
 
-**Datos en vivo.** Los `bindings` de `publish_artifact` vinculan una página HTML a
-[vistas de tabla](../virtual-tables.md#saved-views) guardadas como
-`{name: {view, fields}}`, donde `fields` asigna cada nombre que lee la página a una
-columna por id o etiqueta. El spec del agent tiene que conceder lectura sobre la
-tabla. La página llama a `agenticos.onData(render)`, que se ejecuta con los primeros
-datos y en cada refresco; `agenticos.data` es una Promise de los primeros datos. Los
-registros se leen cuando alguien mira la página, con el acceso propio del lector, y
-nunca se guardan en ella. Un binding que el lector no puede leer llega
-`unavailable`. Los nombres son `^[a-z_][a-z0-9_]{0,63}$`, con como máximo 5 bindings
-y 50 campos cada uno. El resultado devuelve cada campo como `Label (type)`, y `kept`
-para un binding que se arrastra. [Datos en vivo](../artifacts.md#live-data) tiene los
-límites.
+**Datos en vivo.** Los `bindings` de `publish_artifact` vinculan una página HTML a datos de
+tabla como `{name: query}`. Una query nombra una `table` (id o nombre exacto, de
+`list_tables`) o una `view` guardada (id o nombre exacto, de `list_views`), nunca las dos, y
+`fields`, que asigna cada nombre que lee la página a una columna por id o etiqueta. Opcionales:
+`filters` (`[{column, op, value}]`, todos deben cumplirse, se suman a los de una vista; una
+opción se elige por su etiqueta), `sort` (`{by, direction}`) y `limit` (como máximo y por
+defecto 1.000), que sustituyen a los de la vista. Los filtros y el orden de una vista se
+**copian** al publicar la página, y las ediciones posteriores de la vista no cambian nada; sus
+`visible_columns` y `group_by` se ignoran, y se rechaza una vista con búsqueda de texto libre o
+con un filtro sobre una columna que ya no existe. Omite `bindings` para conservar los actuales
+de la página; `{}` los elimina.
+
+El spec del agent tiene que conceder lectura sobre la tabla, y la persona detrás del run tiene
+que leer cada tabla que alcanza la query, incluidas las vinculadas. La página llama a
+`agenticos.onData(render)`, que se ejecuta con los primeros datos y en cada refresco;
+`agenticos.data` es una Promise de los primeros datos. **Todos los que abren la página leen los
+mismos registros, leídos con el acceso de su propietario**, una vez que este ha confirmado
+compartirlos; vincula solo lo que todos ellos pueden ver. Un binding que no se puede servir
+llega `unavailable`. Los nombres son `^[a-z_][a-z0-9_]{0,63}$`, con como máximo 5 bindings y
+50 campos cada uno. [Datos en vivo](../artifacts.md#live-data) tiene los límites.
+
+**El resultado de la publicación.** Devuelve cada query en palabras - `table`, `filters`,
+`sort`, `limit` y cada campo con lo que lee (`Status (single_select)`, `Pay band: formula over
+Salary, Level`) - o `kept` para un binding que se arrastra; ese resumen es lo que consiente el
+propietario, así que el agent lo comprueba. `consent` indica en qué punto están los datos de la
+versión (`not_needed`, `pending`, `consented`, `declined`, `withdrawn`), y `audience` dice qué
+ve el resto mientras espera: «the audience still sees v2 until Alex confirms». Una versión
+`pending` la debe confirmar la persona en la consola; el agent se lo dice. Una página nueva es
+privada para la persona a la que sirve el run.
+
+**`share_artifact(name, visibility?, people?)`.** Pide que se comparta una página. Nunca
+comparte nada y **no** la protege una aprobación de herramienta: presenta una
+[solicitud](../artifacts.md#share-requests) `audience` como la persona del run - también si es
+el run del propio propietario - y responde «Waiting for Alex to approve in the page's Share
+dialog». El propietario responde en la consola, con sesión iniciada como él mismo. `visibility`
+es `team` u `org`, no existe `public`, y `people` son miembros por nombre completo o correo y
+grupos por nombre, cada uno pedido con nivel de vista; un nombre que no coincide con nadie o
+con varios se informa, nunca se adivina. Un run sin persona detrás, y la página de un chat de
+grupo que no es de toda la organización, no pueden pedirlo. Es `side_effecting=False`: la
+llamada no aplica nada.
 
 **Un run sin persona.** Una página con bindings solo la publica un run que actúa en
 nombre de un miembro: el miembro con sesión iniciada (chat web, API HTTP), un
@@ -1128,7 +1158,9 @@ entrega de un trigger de eventos de un agent (GitHub, correo, relé de webhooks)
 run de workflow admitido por una puerta pública, o cualquier punto de la cadena de
 ese run, no publican ninguna página vinculada. Un autor que quiera aprobar cada
 nueva publicación de una página vinculada fija `tool_approval` en
-`publish_artifact`.
+`publish_artifact`. Un run sin persona solo puede republicar una página vinculada sin
+cambios, y la publicación de un editor se rechaza cuando el propietario de la página no
+puede leer una tabla que esta alcanza.
 
 ## Delegación { #delegation }
 
@@ -1599,13 +1631,11 @@ o un rol reducido detiene la llamada siguiente.
 crea el agent se puede usar el resto de ese run.
 
 `list_views` devuelve las vistas guardadas de las tablas que el agent puede leer, con
-el id de cada vista, sus columnas y si está compartida; una página se vincula a una
-vista por ese id. `share_view` hace visible una vista privada para todos los que
-pueden ver la tabla, algo que necesita una página para otras personas. Solo el
-propietario de la vista puede compartirla. Por defecto espera la solicitud de
-aprobación; una `approval` de toda la capability en `virtual_tables` también la
-decide, y solo `tool_approval.share_view` la apunta a ella sola. Las dos necesitan un
-run que actúe en nombre de un miembro.
+el id de cada vista, sus columnas y si está compartida. Una página puede partir de una para
+su query, lo que copia los filtros y el orden de la vista; después no queda nada vinculado a
+ella, y una vista con búsqueda no se puede vincular. [Páginas y vistas](../virtual-tables.md#views-for-pages)
+explica cómo lee una página una tabla. La herramienta `share_view` ya no existe, y un spec que
+aún la protege o la renombra se carga sin ella, con un aviso en el log.
 
 Las herramientas de escritura tienen efectos secundarios por herramienta, así que una
 política de aprobación las cubre a ellas y no a las lecturas. La clave de operación

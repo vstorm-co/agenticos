@@ -76,11 +76,11 @@ export function readyFrom(
 }
 
 /** A binding as the page receives it. */
-type PageBinding = Omit<BindingData, "reason">;
+type PageBinding = Omit<BindingData, "reason" | "changed">;
 
 /**
- * The bindings without `reason`, which says why a source is unavailable to the
- * editor's strip and is never the page's to show.
+ * The bindings without `reason` and `changed`, which say why a source is
+ * unavailable to the editor's strip and are never the page's to show.
  *
  * Names are read only as own keys (`Object.entries`) and written back by
  * `Object.fromEntries`, which defines each one: a binding called `__proto__`
@@ -89,7 +89,10 @@ type PageBinding = Omit<BindingData, "reason">;
  */
 function forPage(bindings: Record<string, BindingData>): Record<string, PageBinding> {
   return Object.fromEntries(
-    Object.entries(bindings).map(([name, { reason: _reason, ...binding }]) => [name, binding]),
+    Object.entries(bindings).map(([name, { reason: _reason, changed: _changed, ...binding }]) => [
+      name,
+      binding,
+    ]),
   );
 }
 
@@ -262,6 +265,18 @@ export interface BridgeStatus {
   fetching: boolean;
   /** The page listens, so a refresh lands in place rather than reloading it. */
   subscribes: boolean;
+  /**
+   * What the address says about the page's data, when it was served with it and so
+   * nothing was read here: everyone may know that, unlike why a source is empty.
+   */
+  served: ServedSummary | null;
+}
+
+/** What minting the page's address told, for a strip that has read nothing. */
+export interface ServedSummary {
+  bindings: number;
+  /** The data waits for its owner's consent, so every binding is empty. */
+  awaitingConsent: boolean;
 }
 
 /** What the frame lends the strip above it. */
@@ -287,6 +302,11 @@ interface ArtifactFrameProps {
    * same object until one does, so a caller may keep it in state.
    */
   onBridge?: (bridge: DataBridge) => void;
+  /**
+   * Read the data once after a page served with it, for the reasons a source is
+   * empty: an editor's strip says why, and only the data route tells them.
+   */
+  fetchReasons?: boolean;
 }
 
 /**
@@ -296,7 +316,8 @@ interface ArtifactFrameProps {
  * version was pruned or access was withdrawn a moment ago - both are "this is not
  * available", and neither is worth a retry.
  *
- * A live version's records are read here, as the viewer, and posted to the page
+ * A live version's records come with the page when it is served with them
+ * (`injected`); otherwise they are read here, as the viewer, and posted to the page
  * when it asks (`useDataBridge`). `refresh` reads them again: a page that listens
  * gets them in place, and one that does not is minted and loaded again once the
  * read is in, so the `ready` of the new load is answered with it. A read that
@@ -309,32 +330,79 @@ export function ArtifactFrame({
   title,
   className,
   onBridge,
+  fetchReasons = false,
 }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
   const frame = useRef<HTMLIFrameElement>(null);
-  const view = useArtifactView(artifactId, versionId, true);
+  // Only the page the viewer is served is opened with its data; a version picked from
+  // the history is a preview of the past and carries none.
+  const view = useArtifactView(artifactId, versionId, true, versionId === null);
   const live = view.data?.live === true;
-  const data = useArtifactData(artifactId, view.data?.version.id, live);
+  // A page served with its data already has it: the first load reads nothing here,
+  // but for an editor's strip. `refresh` still reads it - `refetch` runs a disabled
+  // query - and posts it.
+  const injected = view.data?.injected === true;
+  const data = useArtifactData(
+    artifactId,
+    view.data?.version.id,
+    live && (!injected || fetchReasons),
+  );
+  // A read cached from before this load was minted - a refresh, then a confirm or a
+  // withdrawal that minted again - describes a page nobody sees any more. An injected
+  // load already carries its own data, so such a read is neither posted nor shown.
+  const fresh =
+    !injected || Math.max(data.dataUpdatedAt, data.errorUpdatedAt) >= view.dataUpdatedAt;
   // A read of a version no longer current, while the frame follows the current
   // one, is never posted: `useArtifactData` has the frame minted onto the newer
   // version, and its page is answered with that version's data.
   const moving = versionId === null && data.data?.current === false;
+  const payload = !fresh
+    ? undefined
+    : data.isError
+      ? NO_DATA
+      : moving
+        ? undefined
+        : data.data?.bindings;
   const { subscribes, onLoad } = useDataBridge(
     frame,
     view.data?.nonce ?? "",
-    data.isError ? NO_DATA : moving ? undefined : data.data?.bindings,
+    payload,
     data.dataUpdatedAt,
   );
 
-  const { refetch: refetchData } = data;
+  const { refetch: refetchData, isFetching: fetchingData } = data;
   const { refetch: refetchView } = view;
+  // The editor's one read after an injected load: one that settled before the load was
+  // minted is read again, so the strip shows why for the page they are looking at.
+  useEffect(() => {
+    if (injected && fetchReasons && !fresh && !fetchingData) void refetchData();
+  }, [injected, fetchReasons, fresh, fetchingData, refetchData]);
   const refresh = useCallback(async () => {
-    if (live) await refetchData();
+    // A page that does not listen is loaded again, and the new load carries the
+    // data itself: reading it here as well would be a second read for nothing.
+    if (live && (subscribes || !injected)) await refetchData();
     if (!subscribes) await refetchView();
-  }, [live, subscribes, refetchData, refetchView]);
+  }, [live, injected, subscribes, refetchData, refetchView]);
+  const awaitingConsent = view.data?.awaiting_consent === true;
+  const bindingCount = view.data?.bindings ?? 0;
   const status = useMemo<BridgeStatus>(
-    () => ({ data: data.data, error: data.error, fetching: data.isFetching, subscribes }),
-    [data.data, data.error, data.isFetching, subscribes],
+    () => ({
+      data: fresh ? data.data : undefined,
+      error: fresh ? data.error : null,
+      fetching: data.isFetching,
+      subscribes,
+      served: injected ? { bindings: bindingCount, awaitingConsent } : null,
+    }),
+    [
+      fresh,
+      data.data,
+      data.error,
+      data.isFetching,
+      subscribes,
+      injected,
+      bindingCount,
+      awaitingConsent,
+    ],
   );
   // One object per change of either, and the callback read from a ref: a caller
   // passing an inline `onBridge` that stores the bridge in state would otherwise

@@ -575,7 +575,7 @@ async def test_a_record_with_no_text_is_named_by_its_external_id_and_reads_choic
     assert read.values[cid(orders, "Sizes")] == [2]
 
 
-# -- reading a view for a page -------------------------------------------------
+# -- reading a page query ------------------------------------------------------
 
 
 def _deadline() -> ReadDeadline:
@@ -585,7 +585,10 @@ def _deadline() -> ReadDeadline:
 async def _read(service, ctx, bound, named, *, max_bytes=4 * 1024 * 1024, deadline=None):
     return await service.read_bound(
         ctx,
-        bound,
+        table_id=bound.table_id,
+        columns=bound.columns,
+        filters=bound.config.filters,
+        sort=bound.config.sort,
         column_ids=named,
         shape=shaper(bound.columns, named),
         max_records=1_000,

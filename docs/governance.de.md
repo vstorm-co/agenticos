@@ -1,5 +1,5 @@
 ---
-source_sha: "11c9ebdbd803"
+source_sha: "392bcbea8374"
 ---
 
 # Governance { #governance }
@@ -1084,8 +1084,7 @@ Vier Eigenschaften, die man kennen sollte:
   ändern ist. Was aufhört, ist ein Agent, dessen Betreiber um eine Freigabe bat,
   um die nie jemand gebeten wurde.
 - **Ein geparkter Aufruf kann nennen, wofür seine IDs stehen.** Ein Tool kann
-  seinen eigenen Aufruf beschreiben: `share_view` nennt die Namen der Ansicht und
-  der Tabelle, und die Schreibvorgänge in Tabellen nennen den Namen der Tabelle.
+  seinen eigenen Aufruf beschreiben: die Schreibvorgänge in Tabellen nennen den Namen der Tabelle.
   Ein Datensatz wird nie genannt, denn das Label eines Datensatzes ist der Text
   einer seiner Zellen, und die Freigabe bewahrt es auf. Die Namen werden als die
   Person des Runs aufgelöst, wenn der Aufruf parkt, sodass nichts genannt wird,
@@ -1324,6 +1323,30 @@ Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
 Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
 bricht seine Anfragen ab.
 
+### Artefakt-Einträge { #artifact-entries }
+
+Eine Seite, die Tabellendaten liest, wird mit der Einwilligung ihres Besitzers
+geteilt, und jeder Schritt davon hinterlässt einen Eintrag mit der Person, die ihn
+getan hat. Keiner trägt einen Datensatz, einen Filterwert oder eine Zeile: Sie
+halten Versionen, Fingerabdrücke, Anfrage-IDs und die Worte, die eine Person
+bestätigt hat.
+
+| Aktion | Aufgezeichnet, wenn |
+|---|---|
+| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer und dem Fingerabdruck ihrer Seitenabfragen |
+| `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
+| `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
+| `artifact.auto_consent_changed` | Der Besitzer „Don't ask for consent on republish“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
+| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, data included“ gegeben hat, mit dem Text, den er bestätigt hat |
+| `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
+| `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
+| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
+
+Die Sichtbarkeit oder die Grants einer Seite zu erweitern, wird wie bei jeder
+anderen Ressource als Einträge `resource.share`, `resource.unshare` und
+`resource.visibility_changed` aufgezeichnet. Das Tool `share_view` gibt es nicht
+mehr, und damit auch nicht die Freigabe, die es abgesichert hat.
+
 ## Alerts { #alerts }
 
 Jeder Alert hier handelt von einem Run, auf den niemand schaut. Ein Chat-Run, der
@@ -1345,7 +1368,9 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
-trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+trägt auch jedes andere Ereignis, das das Postfach zustellt (darunter eine
+Anfrage zum Teilen einer Seite und der Besitzerwechsel einer Seite, jeweils mit
+Nennung der Seite und der Person, nie ihrer Daten): einen Run, der
 unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine

@@ -12,7 +12,7 @@ or a skill, and it can be given a public link for somebody with no account.
 
 ## Publishing one
 
-Turn on the **Artifacts** capability for the agent. It adds four tools:
+Turn on the **Artifacts** capability for the agent. It adds five tools:
 `publish_artifact`, which the model calls when the result is something a person
 should open rather than read once in the chat; `read_artifact`, which reads a
 published page back; `list_artifacts`, which names the pages a run may open; and
@@ -69,52 +69,61 @@ nothing.
 
 A page can show records from [Virtual Tables](virtual-tables.md) that stay
 current, instead of the copy it was published with. The agent passes `bindings` to
-`publish_artifact`: each binding is a name, a [saved view](virtual-tables.md#saved-views)
-and the columns the page reads from it. `list_views` gives the agent each view's
-id and columns. The page calls `agenticos.onData(render)`, and `render(data)` runs
-with the first data and again on every refresh. `agenticos.data` is a Promise of
-the first data.
+`publish_artifact`: each binding is a name and a **page query** - a table, the
+fields the page reads from it, and optionally filters, a sort and a limit. The
+page calls `agenticos.onData(render)`, and `render(data)` runs with the first
+data and again on every refresh. `agenticos.data` is a Promise of the first data.
 
 ```js
 agenticos.onData((data) => {
-  // data.tickets = { status, records, fields, count, truncated, limit, filters_dropped }
+  // data.tickets = { status, records, fields, count, truncated, limit }
 });
 ```
 
 Each binding arrives as `status` (`ok` or `unavailable`), `records`
 (`{id, <field>: value}`), `fields` (label, type, options and state for each),
-`count`, `truncated`, `limit` and `filters_dropped`, which is true when a filter of
-the view named a column that is gone, so the records match more than the view
-meant.
+`count`, `truncated` and `limit`. A page that gets no reply within 10 seconds
+sees every binding `unavailable`; a listener added after that asks once more.
 
-A page that gets no reply within 10 seconds sees every binding
-`unavailable`; a listener added after that asks once more.
+**Everyone who opens a live page reads the same records**, whatever their own
+access to the tables. The query is read with the access of the page's
+[owner](#who-owns-a-page), and only once the owner has agreed to share it
+([consent](#consent-the-owner-decides-who-reads-the-data)). So a page is for
+data everyone who can open it may see. The records are read when somebody views
+the page, and are never stored in it.
 
-A binding is `unavailable` when this viewer may not read its view or the view is
-gone. A field whose column was removed is served under its field name as a
-`text` field with value `null` and state `missing`; an archived column gives
-`null` with state `archived`.
+### What a binding freezes
 
-The records are read **when somebody views the page, with that viewer's own
-access**, and are never stored in it. Two people opening the same page can see
-different rows. The publish result lists each field as `Label (type)`, so the
-agent can check it bound the column it meant; a binding carried forward unchanged
-says `kept`.
+A page query is not a link to a saved view. The agent names a `table`, or a
+[saved view](virtual-tables.md#saved-views) by id or exact name, and the platform
+**copies** the view's filters and sort into the page when it publishes. Editing
+or deleting the view later changes nothing on the page.
 
-A private view serves only its owner. Binding one still publishes the page, and the
-result's `warning` gets a line saying that only the person sees its records until
-the view is shared, which the agent tells them. Whether a colleague will see them
-is answered where the page is shared: see
-[Who sees a live page's records](#who-sees-a-live-pages-records).
+| In the binding | Meaning |
+|---|---|
+| `table` or `view` | The table to read, or a view whose filters and sort are copied. Not both |
+| `fields` | Each name the page reads, mapped to a column by id or label |
+| `filters` | `{column, op, value}`, all of which must hold; added to the view's filters |
+| `sort` | `{by, direction}`; replaces the view's sort |
+| `limit` | At most 1,000, which is also the default; replaces the view's |
 
-Version 3 of the [page kit](#the-library-set) draws a binding for the agent:
-`AO.records("#tickets", data.tickets)` inside `agenticos.onData` renders the
-records as a table with a head from the fields' labels, numbers and dates
-right-aligned, choices as badges and every value written as text. Before the
-data it shows a loading line, and an `unavailable` or empty binding, a cut list
-and a dropped filter each get their own message. `AO.onData` in version 3 is
-the same call as `agenticos.onData`. A bound page whose script never asks for
-its data still publishes, with a [warning](#the-page-contract-and-the-publish-warnings).
+A view's `visible_columns` and `group_by` are ignored: the binding's `fields`
+decide the columns. A filter may name a column the page does not read, and the
+owner is told which. There is no free-text search on a page query, so a view that
+has a search **cannot be bound**; the publish is refused and names it. A view
+whose filter names a column that is gone is refused the same way.
+
+Formulas, lookups, rollups and link labels are allowed. They read more than the
+column the page names, so the query records everything it reaches: a formula's
+input columns, a lookup's or rollup's link and target, each linked table, and
+the column each linked table labels its records by. The agent's spec must grant
+read on the table, and the person behind the run must read every table the query
+reaches, because nobody can bind what they cannot read.
+
+The publish result describes each query in words - its table, filters, order,
+limit, and each field with what it reads (`Status (single_select)`, `Pay band:
+formula over Salary, Level`). It is the text the owner agrees to, so the agent
+checks it is what it meant. A binding carried forward unchanged says `kept`.
 
 A binding name is lower-case letters, digits and `_`. A field name may be written
 as its column is labelled: words of letters in any case, digits and `_`, with single
@@ -122,6 +131,246 @@ spaces between them, such as `Status` or `Created At`. Both are at most 64
 characters, and `__proto__`, `constructor` and `prototype` are reserved for both
 (`id` too, for a field). A page has at most 5 bindings, and a binding at most 50
 fields.
+
+Version 3 of the [page kit](#the-library-set) draws a binding for the agent:
+`AO.records("#tickets", data.tickets)` inside `agenticos.onData` renders the
+records as a table with a head from the fields' labels, numbers and dates
+right-aligned, choices as badges and every value written as text. Before the
+data it shows a loading line, and an `unavailable` or empty binding and a cut list
+each get their own message. `AO.onData` in version 3 is
+the same call as `agenticos.onData`. A bound page whose script never asks for
+its data still publishes, with a [warning](#the-page-contract-and-the-publish-warnings).
+
+### Who sees what
+
+Which version a viewer is served, and whether its data is read for them, depends
+on who they are.
+
+| Viewer | Served | Its data |
+|---|---|---|
+| The page's owner | The latest version | Always |
+| Owner, Admin, Builder and Operator, even view-only | The latest version | Always, for the roles that read every table (`tables:view` at ALL) |
+| Anyone else who can edit the page | The latest version, so an editor's agent keeps editing what is current | While the owner's consent to that version holds |
+| Everyone else who can open it (the **audience**) | The newest version that was ever consented to, or that reads no data | While the owner's consent to it holds |
+
+The audience is never served a version nobody agreed to share. When the data's
+consent no longer holds - an editor withdrew it, or the owner changed - the
+audience still gets that **whole page**, and every binding arrives `unavailable`
+with the reason `awaiting_consent`; the page says "This page's data appears once
+its owner confirms sharing it." When no version at all is consented or free of
+data, the audience sees "This page isn't available yet" and nothing else.
+
+A binding is also `unavailable` when what it reads changed since the page was
+published. The reason is told only to someone who can edit the page; a reader
+sees how many sources are unavailable.
+
+| Reason | What happened |
+|---|---|
+| `creator_gone` | The page's owner is no longer an active member |
+| `creator_lost_access` | The owner can no longer read a table the query reaches |
+| `source_changed` | A column's meaning changed (its type, a formula, a link or lookup target, an aggregate, an archived or restored option), or a column or table was archived, or a linked table now labels its records by another column. The column's current label is named |
+| `awaiting_consent` | The owner has not confirmed sharing this version's data, or it was withdrawn |
+
+One binding going `unavailable` leaves the others working. The page is never
+blocked from a table change: nothing stops a column from being changed, and the
+binding stops serving until the agent publishes the page again, which resolves the
+query against the table as it is now. Renaming a column does not change a binding;
+the page keeps reading it by the name the agent gave. Adding an option to a select,
+or relabelling one, does not either.
+
+### Consent: the owner decides who reads the data
+
+A page's data is read with its owner's access, so the owner decides who else
+reads it, per version. That decision is **consent**: the owner reviews the page
+queries in words - each query's table, filters, order, limit and fields, every
+linked table it reaches, and who will read it - and confirms.
+
+The review names who reads the page, now and later: the roles that open every
+page (Owner, Admin, Builder and Operator), the page's visibility, the people it is
+shared with and the groups, including whoever joins them. The owner can only
+confirm what they read themselves.
+
+A version's data is in one of these states:
+
+| State | Meaning |
+|---|---|
+| `not_needed` | The version has no bindings |
+| `pending` | Nobody has confirmed it. The audience keeps the version it had |
+| `consented` | The owner confirmed it, or it was consented to automatically |
+| `declined` | A request to confirm it was declined |
+| `withdrawn` | A consent that no longer holds: an editor took it back, or its owner is no longer the page's owner |
+
+A new version is consented **automatically** when its page queries - and
+everything they reach - are the ones the owner already consented to. Otherwise it
+is `pending`: that includes the first bound version, unless the owner has
+[auto-consent](#auto-consent) on.
+
+The owner, and the owner alone as themselves, confirms in the viewer. While the
+latest version waits, the strip under the page's title says so, with **Confirm data**:
+it opens what the version shares and with whom, and the confirmation carries a
+fingerprint of exactly what was shown. If the page was republished in between, or its
+queries moved, the confirmation is refused and the owner looks again. Confirming
+also checks that the owner can still read every table the query reaches.
+
+An Owner or Admin may confirm for the owner. It is audited as consented by them
+for the owner, and the owner's access still backs the data. Anyone with an `edit`
+grant cannot: a grant to edit the page is no authority over whose data it reads.
+
+**Withdrawing** takes the consent back. Anyone who can edit the page, as
+themselves, uses **Stop sharing data** in the viewer's menu. Every consent given
+so far is void, not only the latest, and auto-consent turns off. Every
+`edit_data` grant on the page drops to `edit` as well, so a data editor's next
+republish waits for the owner instead of undoing the withdrawal. The audience
+keeps the page and loses its data until the owner confirms again. Withdrawing
+only narrows who reads, which is why every editor may do it.
+
+When the owner leaves the organization, their consents lapse with their
+membership. An owner who is removed and invited again starts fresh. An owner who
+is deactivated and reactivated revives their consents: reactivating is an
+account-wide act, in every organization the account belongs to.
+
+#### Republishing
+
+When an editor other than the owner publishes a version that reads different
+data, the version is `pending` and the platform files a **version request**
+for the owner - see [Share requests](#share-requests). Until the owner decides,
+the audience still sees the earlier version. The publish result says "The audience
+still sees v2 until Alex confirms this version's data in the console." (with the
+owner's name, or "the page's owner").
+
+A run with no person behind it can republish a bound page only unchanged - the same
+bytes and the same queries, which needs no person and no consent. It cannot swap
+the code that receives the owner's records. A publish by an editor is refused when
+the page's owner cannot read a table the query reaches.
+
+#### Auto-consent
+
+The owner can switch on **Don't ask for consent on republish** for a page. It is
+off by default and only the owner, as themselves, turns it on, never an agent. It
+asks first: "Any change your runs make to this page's data, new columns and tables
+included, reaches everyone who can open it without asking you - API runs too."
+The audit entry records the confirmed text.
+
+It covers only the owner's own republishes. An editor's republish still waits.
+Auto-consents are recorded as automatic, and when one reaches more than the version
+served before it, the owner's strip lists it: "v4 was consented automatically and
+reads more: +Deals, +Salary". The owner or an Owner or Admin turns it off, and
+withdrawing or handing the page to someone else turns it off too.
+
+#### Data editors
+
+The sharing dialog has a grant level above `edit`: **Can edit, data included**
+(`edit_data`), for pages only. It is a standing consent to that person's
+republishes, a change of query included. Only the owner, or an Owner or Admin, as
+themselves, grants it, after a popup: "Alex can change what data this page shows
+to everyone who can open it, including new tables and columns, without asking
+you; that includes their API runs." For a group the popup says "Everyone in Sales,
+now and later". The grant is audited with the confirmed text.
+
+A republish by someone with `edit_data` is consented automatically, recorded as made
+through their grant. They still have to read every table the query reaches, and the
+owner still has to. The role scope of Owner or Admin never implies it. Anyone who can
+edit the page lowers or removes it, and an ownership switch drops every
+`edit_data` grant to `edit`.
+
+### Who owns a page
+
+A page's owner is the person the first publishing run acted for. It never changes
+by itself and it is the page's single data owner: the person whose access reads
+the data and whose consent shares it. If the owner is deleted, the page has none.
+Nobody can claim a page.
+
+The owner hands it to another active member of the organization with **Change
+owner** in the viewer's menu, and an Owner or Admin may reassign any page, one
+whose owner is gone included. Each does it as themselves, not by impersonating
+someone. A grant to edit the page does not allow it. There is no agent tool for it.
+
+The switch is immediate, with no acceptance step. The page's data stops reaching
+the audience until the new owner confirms it, every consent so far is void for good
+(so handing the page back never revives an old one), auto-consent turns off, any
+pending request is voided, every `edit_data` grant drops to `edit`, and the old and
+the new owner are notified, except whoever made the switch. It is audited as
+`artifact.owner_changed`.
+
+Giving an owner-less page visibility `private` counts as taking it over, and is open
+only to an Owner or Admin. It goes through the same rules.
+
+### Share requests
+
+Widening who can open a page that reads data - a wider visibility, or a new
+grant or a higher level - is the owner's decision, or an Owner's or Admin's for the
+owner. Narrowing is open to every editor. A page that reads no data keeps the
+ordinary sharing rules.
+
+Anyone else who can edit the page and tries to widen it does not get a refusal.
+The platform files a request. There are three kinds:
+
+| Kind | Made by | Asks |
+|---|---|---|
+| `audience` | An editor, in the Share dialog or through their agent's `share_artifact` | To widen who opens the page |
+| `access` | A member of the page's organization who opens its link without access | To open the page, with an optional note |
+| `version` | The publish of another editor whose version reads different data | To confirm that version |
+
+A member can have one pending `audience` and one pending `access` request per page,
+and a page has one pending `version` request; a newer one replaces the older.
+`audience` and `access` requests are limited to ten an hour per person per
+organization by default
+([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); `version`
+requests are not counted. The page's owner decides. When it has no owner left, the
+Owners and Admins can decline; to approve, they first hand the page to a member
+(**Change owner**), who confirms the data. A request goes void without a decision when the page's queries change, the owner changes or the page is
+archived.
+
+The owner is notified in the console and by email, as set in **Settings →
+Notifications** ("Page sharing requests"). The notification names the page and the
+requester, never its data.
+
+They are answered in a **Requests** section of the Share dialog, and a **Requests** button in
+the viewer's strip shows how many wait. Approving an `audience` or `access` request
+applies the visibility and grants it asked for, each only where it still widens.
+**It never consents to data**: when the version the audience is served has no consent
+that holds, approving is refused with "Confirm the page's data before sharing it", and
+the owner confirms the data first, then approves. Declining shares nothing.
+
+The requester is not told when it is decided: the page opening, or not, is the
+answer. A page that reads no data takes a plain `access` request, which any
+editor of it may approve.
+
+#### Requesting access
+
+A member of the organization who opens the link of a page they cannot open sees "You
+don't have access to this page", a note field and **Request access**. Nothing else
+is revealed: no title, owner or agent. A signed-out visitor or somebody from another
+organization gets the ordinary not-found.
+
+#### Reviewing a changed version
+
+A `version` request opens the page for the owner on the pending version, with its real
+data. The strip says who changed what the version reads, with **Review data
+change**. The panel compares the version's page queries with the one the audience
+sees now, binding by binding and in words: fields, filters, order, limit and linked
+tables added, removed or changed, each marked **Reads more**, **Reads less** or no
+change, new bindings with their full disclosure, and unchanged ones collapsed.
+
+A toggle, **Audience sees now**, shows the page as the audience has it. The panel names
+who published the version and when, and links to the conversation when the owner may
+open it. **Approve** confirms the version. **Decline** keeps the audience on the earlier
+version and marks the version `declined` in its history; a later republish asks again.
+In the Requests list a version request offers **Review data change**, not Approve:
+it is confirmed from the review.
+
+### Sharing a page from an agent
+
+`share_artifact(name, visibility?, people?)` lets an agent ask for a page to be
+shared: `visibility` is `team` or `org`, `people` are members by full name or
+email and groups by name, each asked at view level. It **never shares anything**. It
+files an `audience` request for the person the run is for - the owner's own run
+included - and answers "Waiting for Alex to approve in the page's Share dialog".
+The approval is a person in the console, signed in as themselves, never a tool call.
+
+A name that matches nobody, or several people, is reported back, never guessed. It
+asks for nothing public: the public link is only set up in the console. A run with
+no person behind it, such as a widget visitor, cannot ask.
 
 ### What the viewer sees
 
@@ -144,22 +393,36 @@ page, such as a server error, keeps it polling. A busy answer (429) is tried
 again twice, a second apart, before the viewer is told "Busy, try again in a
 moment."
 
-A line under the strip appears only when something needs attention. A refused
-page says "This page's live data is not available to you." A reader whose sources
-cannot be read sees how many ("2 of 3 sources unavailable to you"). An editor,
-meaning anyone who can edit the page, also sees why for each source (for example
-its saved view is gone, its table is archived, the agent was not granted the
-table, or you cannot read its saved view) with an **Open the table** link to the
-bound view.
+A line under the strip appears only when something needs attention: a version
+waiting for confirmation, a request to review, or sources that cannot be read. A
+refused page says "This page's live data is not available to you." A reader whose
+sources cannot be read sees how many ("2 of 3 sources unavailable to you"). An editor
+also sees why for each source, with an **Open the table** link to the bound table.
 
 When an agent publishes a new version while somebody has the current one open,
-the next read (a refresh, manual or automatic) moves the viewer to the new
-version: the page is loaded again from the new version, with its own data. A
-viewer who picked a version from the version menu stays on it.
+the next read (a refresh, manual or automatic) moves the viewer to the version
+they are now served: the page is loaded again, with its own data. A viewer who
+picked a version from the version menu stays on it.
 
 On an older version, live data is not read. The viewer says "Live data only on the
 current version." with **Open current**, and, for an editor, **Restore** for that
-version. Restoring a version whose live sources are unavailable says which.
+version. A restore resolves the version's page queries against the tables as they
+are now, so it is a new query when a table moved on, and it waits for consent like
+any other republish.
+
+### How the data reaches the page
+
+When the console opens a page it asks for a signed address that carries who the viewer
+is. The content route reads each binding **once, on load**, and writes the result
+into the page's platform script, so the first `onData` call already has its data
+and no round trip follows. Nothing is injected for a thumbnail, a card or a version
+from the history.
+
+Refresh and auto-refresh keep using the data route and a `postMessage` from the console,
+which now answers the same page-query rows for everyone served that version. The route
+is never cached, the address is short-lived, and a record's content is kept out of logs.
+A binding that cannot be read in time or fails in the database is injected `unavailable`
+and the page still renders.
 
 ### Limits
 
@@ -173,27 +436,30 @@ Every answer is bounded, so one page cannot take the deployment down:
 | One query | at most 2 s |
 | One page | 5 s deadline |
 | Data loads | 30 a minute per viewer, one in flight per viewer, and a cap per process |
+| Share requests | 10 an hour per person per organization (audience and access) |
 
 A cut binding says `truncated: true`, with `limit` set to `records` or `bytes`
 and `count` as the number of records served. `bytes` also covers a read whose
 measured cost ran out before the shaped data filled the page's share.
 
-The deadline is enforced without cancelling any query: each query runs at most the
-smaller of 2 s and the time left of the 5 s, and no query starts once the 5 s are
-spent, so a page answers in about 5 s. Past a rate limit the route answers 429;
-the console retries a busy answer twice. When Redis is down, the rate limit's
-floor and the in-flight limit count per API worker, and the per-process cap
-still bounds each worker.
+The deadline is checked before each query, without cancelling any: each query runs
+at most the smaller of 2 s and the time left of the 5 s, and no query starts once
+the 5 s are spent, so a page answers in about 5 s and the wall clock can reach about
+7 s. Injected loads count against the 30 a minute, like refreshes. Past a rate limit
+the data route answers 429, the console retries a busy answer twice, and a page served with
+its data gets `busy` bindings. When Redis is down, the rate limit's floor and the
+in-flight limit count per API worker, and the per-process cap still bounds each worker.
 
 ### Who may publish a bound page
 
-A page binds to a table only if the publishing agent's spec grants read on it,
-checked when the page is published or a version restored. Revoking the grant
-later does not stop pages already published, and each viewer still reads only
-what their own access allows.
+A page binds to a table only if the publishing agent's spec grants read on it, and
+the person behind the run reads every table the query reaches, checked when the
+page is published or a version restored. Revoking either later does not stop
+pages already published; the owner's access is checked again on every load.
 
-A bound page can be republished only by a run
-acting for a member: the signed-in member (web chat, HTTP API), a linked channel
+A bound page can be **changed** only by a run
+acting for a member (an unchanged republish, with the same bytes and queries, needs
+no person): the signed-in member (web chat, HTTP API), a linked channel
 sender or a schedule's creator. A widget, embed or hosted-page visitor, an
 unlinked channel sender and an agent event trigger's delivery (GitHub, email,
 webhook relay) do not count, and neither does a workflow run admitted by a public
@@ -357,7 +623,11 @@ answers.
 
 A new artifact is **private** to the person the publishing run acted for: the
 person in the chat, or the creator of a trigger. A private page is also visible
-to the Owner, Admin, Builder and Operator roles.
+to the Owner, Admin, Builder and Operator roles: their `artifacts:view` is at scope
+`ALL`, so they open every page in the organization whatever its visibility and
+grants (see [scopes](permissions.md#scope)). A Member or Viewer opens only what is
+shared with them. Those four roles are always part of a page's audience, and every
+disclosure names them.
 
 Its link - the one the chat card and the agent's reply point at - opens the page
 itself (from the chat card, in a new tab), filling the window under one strip with its title, its version and
@@ -369,7 +639,7 @@ Under **Share**, anybody who may manage it can share it three ways:
 
 | Reach | How | Who |
 |---|---|---|
-| Specific people | A grant, at `read` or `edit` | Those members, in this organization |
+| Specific people | A grant, at `read`, `edit`, or for a page, `edit_data` ("Can edit, data included") | Those members, in this organization |
 | The organization | Visibility set to the whole organization | Every member whose role reaches shared artifacts |
 | Anyone with the link | **Create a public link** | Anybody holding the address, without an account |
 
@@ -379,21 +649,22 @@ its public link and its settings, restoring a version, deleting it - needs
 `artifacts:edit` on that artifact, from the role or from an `edit` grant.
 Opening it needs `artifacts:view`.
 
-The agent cannot widen who reads a page. It publishes; a person decides who sees
-it. This is why the capability does not ask for approval by default: a first
-publication is private, and what a bound page shows is decided at view time by
-each viewer's own access. An author who wants a person to approve each republish
+The agent cannot widen who reads a page. It publishes, and `share_artifact` only
+files a request; a person decides who sees it. This is why the capability does not
+ask for approval by default: a first publication is private, and what a bound page
+shows is gated by its owner's [consent](#consent-the-owner-decides-who-reads-the-data).
+An author who wants a person to approve each republish
 of an already shared page, or of a bound page, sets `tool_approval` on
 `publish_artifact` in the spec. A bound page can be republished only by a run
 acting for a member (see [Live data](#live-data)).
 
-### Who sees a live page's records
+### Sharing a live page
 
-Sharing a [live page](#live-data) lets a person open it, but each binding's records
-are read with their own access. To see them they also need read access to the
-binding's table, and a view that is shared or their own. A page bound to a private
-view therefore shows its records only to the view's owner; the publish result tells
-the agent so, for it to pass on.
+Opening a [live page](#live-data) shows its data to anyone served it, read with the
+owner's access rather than their own, so widening who can open it is the owner's
+decision. The owner, or an Owner or Admin for them, widens it directly in the Share
+dialog once the data is confirmed; any other editor's attempt becomes a
+[request](#share-requests). Narrowing is open to every editor.
 
 ### The public link
 
@@ -468,11 +739,14 @@ the person looking at it:
   under the page. The page could send that message itself, so it is a request and
   never a permission - the person reading the address is what stands between a
   prompt-injected page and the address it would send its numbers to.
-- Live data arrives by `postMessage` from the console, which fetches it as the
-  viewer. The content route never carries records. The page's request carries a
-  nonce that lets the console match each reply to the right page load; that is
-  **correlation, not access control**. Access is the viewer's own session on the
-  data route, so a page only ever receives what the viewer may read.
+- Live data reaches a member's page in two ways, both decided per viewer on the
+  server. On load, the content route writes each binding's records into the page's
+  platform script for the member the signed address names; a refresh arrives by
+  `postMessage` from the console, which fetches it from the data route with the
+  viewer's own session. The page's request carries a nonce that lets the console
+  match each reply to the right page load; that is **correlation, not access
+  control**. A public link or an embed never gets data. See
+  [the security page](security.md#a-pages-data-and-its-address).
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
   fresh address each time they draw the frame, and minting one through a public
@@ -558,6 +832,12 @@ under `artifacts/<organization>/<artifact>/`.
 - **Live data is bounded.** Five bindings, 1,000 records each and about 5 s a
   load; see the [limits](#limits). Data that is not bound is the page as
   published, and changes when the agent publishes again.
+- **Everyone reads the owner's view of the data.** A page query is read with the
+  owner's access, so a page is for data everyone who can open it may see. A page
+  query has no free-text search, no per-viewer filter such as "me" or "today", and
+  no row- or column-level limit beyond the query itself.
+- **A public link or an embed gets no data.** A bound page shows "unavailable" there;
+  serving data through a public link is a separate piece of work (#1975).
 - **Nothing on the page acts.** A form or a button has nowhere to send what it
   collects.
 - **An open page outlives a revocation by one signed-address lifetime**, five
@@ -575,16 +855,20 @@ under `artifacts/<organization>/<artifact>/`.
 
 ## Recap
 
-- One capability, four tools: `publish_artifact`, from a workspace file, inline
+- One capability, five tools: `publish_artifact`, from a workspace file, inline
   or as edits; `read_artifact` to read a page back; `list_artifacts` to find
-  one; and `preview_artifact` to see it drawn, with its errors.
+  one; `preview_artifact` to see it drawn, with its errors; and `share_artifact`
+  to ask for a page to be shared.
 - The agent, the environment and the name are the identity; publishing again
   keeps the link and adds a version, and any kept version can be restored.
 - Private by default; shared with grants, the organization or a public link, by
   a person. The public link can expire, pin a version, ask for a password and be
   embedded on listed sites.
-- A page can bind to saved table views and show live data, read at view time with
-  the viewer's own access and never stored in the page.
+- A page can bind to a page query - a table, filters, a sort, a limit and fields -
+  and show live data, read at view time with its owner's access, only once the owner
+  has confirmed sharing it, and never stored in the page. Anyone with edit can
+  withdraw that consent; widening who can open a bound page is the owner's, or a request.
+- The owner can hand a page to another member, who must confirm its data again.
 - A short page contract in every Artifacts agent's instructions, and warnings in
   the publish result for what looks wrong in the markup.
 - Served from a cookieless route in an opaque origin with no network but the

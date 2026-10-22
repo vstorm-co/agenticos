@@ -1,5 +1,5 @@
 ---
-source_sha: "5682a9e15af4"
+source_sha: "d5e3a28da8db"
 ---
 
 # Permisos { #permissions }
@@ -268,6 +268,7 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `read` | ver la configuración |
 | `use` | además ejecutarlo o adjuntarlo |
 | `edit` | además cambiarlo |
+| `edit_data` | además cambiar qué datos muestra la página - [solo páginas](#a-page-that-reads-data) |
 
 Una concesión a un grupo alcanza a quien esté en el grupo en el momento en que se
 comprueba el acceso, así que entrar en el grupo es ganar el acceso y salir de él
@@ -402,6 +403,49 @@ Si algo de eso
 ha cambiado, el run falla con `PRINCIPAL_REVOKED` antes de que se ejecute el
 handler del nodo. Un run necesita a una persona en cuyo nombre actuar, así que
 un contexto sin sujeto no puede iniciarlo.
+
+## Una página que lee datos { #a-page-that-reads-data }
+
+Una [página publicada vinculada a datos de tabla](artifacts.md#live-data) es el único sitio
+donde una persona lee una tabla **con la autoridad de otra**. A cada lector se le sirven los
+registros de la página mediante sus page queries, leídos con el acceso del **propietario** de
+la página, sea cual sea su propio rol o sus concesiones sobre la tabla. Así, las capas de arriba
+deciden quién puede abrir la página, y un conjunto más de reglas decide quién puede ampliar eso.
+
+**El acceso del propietario respalda cada carga.** El propietario de la página debe ser un
+miembro activo y tener `read` sobre cada tabla que alcanzan las queries, en cada servicio; si
+no, los datos quedan `unavailable` (`creator_gone`, `creator_lost_access`). A quien publica
+también se le exige leer cada tabla, al publicar, para que nadie vincule lo que no puede leer.
+
+**El consentimiento lo comparte.** El acuerdo del propietario para compartir los datos de una
+versión es por versión, se da como él mismo (no bajo suplantación, no con una clave de API, nunca
+mediante una herramienta de agent) y se guarda con la membresía del propietario. Un Owner o
+Admin - `artifacts:edit` con alcance `ALL` - puede confirmar por el propietario, con auditoría
+como tal. Una concesión para editar la página no basta. Cualquier editor puede retirarlo, ya que
+retirar solo estrecha; además baja a `edit` cada concesión `edit_data` de la página.
+
+**`edit_data` es un nivel de concesión, no un rol.** «Can edit, data included» está por encima
+de `edit` y solo se acepta para páginas (una restricción de la base de datos lo rechaza en
+otros recursos). Es un consentimiento permanente para las republicaciones de esa persona o de
+ese grupo. Solo el propietario, o un Owner o Admin, como ellos mismos, lo concede o lo sube,
+tras confirmar lo que permite. Quien puede editar lo baja. Se lee como nivel de concesión
+(`grant_level`), nunca mediante `resolve_access`, y ningún alcance de rol lo implica.
+
+**La propiedad se cambia, nunca se reclama.** El propietario, o un Owner o Admin en cualquier
+página, la entrega a un miembro activo como ellos mismos; una concesión para editar no lo
+permite. El cambio anula todos los consentimientos, baja las concesiones `edit_data` a `edit`
+y desactiva el consentimiento automático. Tomar una página sin propietario haciéndola privada es
+el mismo acto y la misma regla.
+
+**Ampliar está vigilado.** Delante de las rutas genéricas de compartir hay una guarda para las
+páginas que leen datos: una visibilidad más amplia, una concesión nueva o un nivel más alto es
+decisión del propietario, o de un Owner o Admin por él, una vez confirmados los datos. Cualquier
+otro con `edit` recibe una [solicitud](artifacts.md#share-requests) en lugar de una negativa.
+Estrechar está abierto a todo editor, y una página que no lee datos conserva las reglas
+genéricas. Los admins actúan directamente en lugar de presentar una solicitud. Los tres permisos
+que usa una página son `artifacts:view`, `artifacts:edit` y, para las tablas, `tables:view`;
+Owner, Admin, Builder y Operator tienen el primero y el último con alcance `ALL`, por lo que
+forman parte de la audiencia de toda página.
 
 ## Dónde van las puertas { #where-the-gates-go }
 
@@ -561,6 +605,9 @@ que ignore estas APIs no gana nada.
   amplía; nunca estrecha.**
 - `require(...)` va en las rutas de **colección**. Cualquier cosa que actúe sobre
   una fila le entrega la decisión a un servicio que llama a `resolve_access`.
+- Una página que lee datos de tabla se lee con el acceso de su **propietario** y solo se
+  comparte con el consentimiento del propietario; ampliarla es cosa del propietario, y
+  cualquier otro presenta una solicitud.
 - Una superficie sin nadie delante se ejecuta como **quien la publicó**, cayendo
   a `viewer` cuando esa persona se fue o fue desactivada.
 

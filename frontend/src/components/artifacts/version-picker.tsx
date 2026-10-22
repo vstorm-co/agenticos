@@ -39,7 +39,8 @@ interface VersionPickerProps {
  * A menu rather than a select, because a version is more than its number: when
  * it was published, how large it is, and whether it is the newest - which a
  * select could only fit as one run-on line of text. A version a person made by
- * restoring an older one names that one, since no run wrote it.
+ * restoring an older one names that one, since no run wrote it, and a version
+ * that reads data says where its owner's consent stands.
  */
 export function VersionPicker({ versions, value, onChange, live = false }: VersionPickerProps) {
   const t = useTranslations("artifacts");
@@ -105,8 +106,13 @@ export function VersionPicker({ versions, value, onChange, live = false }: Versi
                           source: version.restored_from,
                         })}
                   </span>
-                  <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                    {timeAgo(version.created_at, tTime, locale)}
+                  <span className="text-muted-foreground flex min-w-0 flex-1 flex-col text-xs">
+                    <span className="truncate">{timeAgo(version.created_at, tTime, locale)}</span>
+                    {version.consent_state !== "not_needed" && (
+                      <span className="truncate">
+                        {t("consent.versionState", { state: version.consent_state })}
+                      </span>
+                    )}
                   </span>
                   {version.id === newest?.id ? (
                     <span className="bg-muted text-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">

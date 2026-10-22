@@ -1,5 +1,5 @@
 ---
-source_sha: "9b76aacfbfa5"
+source_sha: "f1a4f0e2fb23"
 ---
 
 # Bezpieczeństwo { #security }
@@ -162,6 +162,64 @@ rozmów kolegi jest uzasadnione jakieś dwa razy w roku i za każdym razem powa�
 oraz `DELETE /admin/users/{id}`, gdzie powód jest opcjonalny, bo offboarding
 zwykle nie ma czego tłumaczyć.
 
+## Dane strony i jej adres { #a-pages-data-and-its-address }
+
+[Opublikowana strona](artifacts.md#live-data) może czytać dane tabel. To jedyne
+miejsce, w którym dane członka docierają do innych członków dzięki pracy agenta,
+więc kontrole są wymienione tu, a nie tylko jako wiersze macierzy.
+
+**Delegowany odczyt.** Każdy oglądający powiązaną stronę czyta te same rekordy,
+przez zamrożone zapytania strony, **z dostępem właściciela strony**. To świadoma
+delegacja dostępu właściciela do tabel na odbiorców strony. Jej kontrole:
+
+- Dane są udostępniane tylko za [zgodą](artifacts.md#consent-the-owner-decides-who-reads-the-data)
+  właściciela, wyrażoną per wersja, po przeczytaniu zapytań słowami i każdej
+  powiązanej tabeli, do której sięgają, oraz związaną z członkostwem właściciela
+  i odciskiem tego, co pokazano. Republikacja, która czyta cokolwiek innego, czeka
+  na nią. Każdy edytor może ją wycofać, co obniża też każdy grant `edit_data` na
+  stronie do `edit`.
+- Właściciel jest sprawdzany od nowa przy każdym serwowaniu: aktywny członek z `read`
+  na każdej tabeli, do której sięgają zapytania. Właściciel, który traci dostęp albo
+  odchodzi, ciemni dane strony.
+- Zapytanie jest rozwiązywane do identyfikatorów przy publikacji i porównywane przy
+  każdym załadowaniu z tabelami takimi, jakie są: kolumna, której znaczenie się zmieniło
+  albo którą zarchiwizowano, zarchiwizowana tabela albo powiązana tabela etykietowana
+  inną kolumną nie serwuje niczego, dopóki strona nie zostanie opublikowana ponownie.
+- Poszerzanie tego, kto otwiera taką stronę, należy do właściciela, albo Ownera lub
+  Admina w jego imieniu; edytor albo agent przez `share_artifact` może tylko złożyć
+  prośbę. Admini są zaufani i działają bezpośrednio; kontrole są wymierzone w agentów,
+  impersonację i osoby z zewnątrz.
+- Auto-zgoda i `edit_data` to dwie stałe zgody. Auto-zgodę włącza tylko właściciel,
+  jako on sam. `edit_data` nadaje właściciel albo Owner lub Admin, jako oni sami.
+  Obie poprzedza okno, którego tekst jest zapisany we wpisie audytu.
+
+**Adres treści.** Strona członka ładuje się z `/artifact-content/<token>`. Token jest
+podpisany, nazywa jedną wersję i niesie odbiorcę, `member` albo `public`; trasa
+przyjmuje oba. `frame-ancestors` każdej odpowiedzi z treścią zawiera konsolę, bo
+konsola ramkuje stronę dla członka i własną stronę publicznego linku (`/a/<key>`),
+która tam mieszka. Origin dokumentu osadzenia i wskazane witryny osadzające linku są
+dodawane tylko dla strony, którą można osadzić: z publicznym linkiem i bez hasła.
+Dane może nieść tylko token `member`. Gdy konsola prosi o dane przy ładowaniu, token
+mówi to także, a trasa czyta bindingi dla oglądającego, którego nazywa, tak jak są
+serwowane teraz: członek jest wyszukiwany od nowa, nadal musi mieć dostęp do strony
+i dostaje dane tylko dla wersji, którą mu serwowano. Token `public`, miniatury, karty
+i wersje historii nie dostają żadnych.
+
+**URL to poświadczenie na okaziciela.** Przez swoje życie — domyślnie pięć minut
+(`ARTIFACT_VIEW_TTL_SECONDS`), najwyżej dziesięć załadowań na minutę na adres — każdy,
+kto ma adres strony członka wystawiony dla danych, ładuje ją z wstrzykniętymi rekordami
+tego oglądającego, skądkolwiek, a odpowiedź nigdy nie jest cache'owana. Dlatego jest
+trzymany poza logami, a limit zapytań liczy go po skrócie. Nie wklejaj takiego adresu
+do zgłoszenia ani na czat. Adres publiczny nigdy nie niesie danych.
+
+**Nie akcja.** `share_artifact` niczego nie udostępnia. Składa prośbę do właściciela,
+który odpowiada w konsoli, zalogowany jako on sam; strona, którą nakłoniono do prośby,
+nie może więc poszerzyć samej siebie.
+
+**Nie logowane.** Wartości rekordu nigdy nie trafiają do logów, śladów ani wpisów
+audytu: ślad audytu zawiera odcisk, wersję, kto wyraził zgodę i jaki tekst potwierdził,
+nigdy wiersz ani wartość filtra.
+
 ## Macierz kontroli { #controls-matrix }
 
 Jeden wiersz na kontrolę, mechanizm, który ją realizuje, i test, który trzyma ją
@@ -232,9 +290,11 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | TLS do PostgreSQL i Redisa | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` raportuje żywy stan Postgresa z `pg_stat_ssl` | Postgres, na żywym połączeniu: `test_store_tls.py`; Redis, przy budowie URL-a i w `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`), którego `script-src` niesie nonce per żądanie i `'strict-dynamic'` zamiast `'unsafe-inline'` | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
-| Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`); dane na żywo nigdy nie idą trasą treści — konsola pobiera je jako oglądający, z trasy danych za własną sesją oglądającego, i przekazuje je stronie, z nonce, który dopasowuje każdą odpowiedź do jej załadowania strony (korelacja, nie kontrola dostępu) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
-| Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach artefaktów i ich podpisanych adresach treści oraz na trasie danych na żywo strony — 30 załadowań na minutę na oglądającego, jedno w toku na oglądającego i limit na proces (`app/services/rate_limit.py`); gdy Redis nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się per worker API, a limit na proces nadal ogranicza każdy worker; limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
-| Strona z bindingami pokazuje tylko to, co jej oglądający może czytać | Dane strony są czytane w chwili oglądania, jako oglądający, i nigdy nie są przechowywane w stronie. Grant agenta na tabelę jest sprawdzany tylko przy publikacji i przywróceniu, więc jego odebranie nie zatrzymuje stron już opublikowanych; oglądający nadal czytają tylko z własnym dostępem. Kod strony mógł napisać ktoś inny niż oglądający albo właściciel widoku, który strona czyta: dane, które dostaje, to nadal tylko to, co oglądający może czytać, i mogą opuścić stronę wyłącznie przez link, który oglądający potwierdzi | `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`); publiczny adres nigdy nie niesie danych, a adres członka niesie rekordy strony tylko tak, jak opisuje [sekcja poniżej](#a-pages-data-and-its-address); odświeżenie pobiera konsola z trasy danych za własną sesją oglądającego i przekazuje je stronie, z nonce, który dopasowuje każdą odpowiedź do jej załadowania strony (korelacja, nie kontrola dostępu) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach artefaktów i ich podpisanych adresach treści oraz na trasie danych na żywo strony i jej wstrzykniętych załadowaniach — 30 załadowań na minutę na oglądającego, jedno w toku na oglądającego i limit na proces; prośby o udostępnienie strony — 10 na godzinę na osobę na organizację (`app/services/rate_limit.py`); gdy Redis nie działa, dolny próg limitu zapytań i limit żądań w toku liczą się per worker API, a limit na proces nadal ogranicza każdy worker; limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
+| Dane powiązanej strony są czytane z upoważnienia właściciela i udostępniane tylko przez niego | Każdy oglądający dostaje rekordy strony przez jej zapytania strony, czytane z dostępem **właściciela** strony i nigdy nie przechowywane w stronie. Właściciel musi być aktywnym członkiem czytającym każdą tabelę, do której sięga zapytanie, przy każdym załadowaniu (`creator_gone`, `creator_lost_access`); publikujący podlega temu samemu przy publikacji; kolumna albo tabela, która zmieniła się od publikacji, nie serwuje niczego (`source_changed`). Rekordy docierają do kogokolwiek poza właścicielem i rolami czytającymi każdą tabelę tylko dopóki obowiązuje zgoda właściciela per wersja; odbiorcom nigdy nie serwuje się wersji bez zgody | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
+| Zgoda jest własnym aktem właściciela | Potwierdzenie danych, włączenie auto-zgody, nadanie `edit_data` i przekazanie strony dzieją się po zalogowaniu jako ta osoba, nigdy podczas impersonacji i nigdy przez narzędzie agenta; Owner albo Admin może potwierdzić za właściciela i jest audytowany jako ten, który to robi; potwierdzenie niesie odcisk tego, co osobie pokazano, i jest odrzucane, jeśli zapytania się zmieniły | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
+| Poszerzanie powiązanej strony jest strzeżone | Szersza widoczność, nowy grant albo wyższy poziom na stronie czytającej dane wymaga właściciela (albo Ownera lub Admina) i obowiązującej zgody; próba każdego innego edytora i wywołanie `share_artifact` są składane jako prośba i niczego nie stosują | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |
 | Run, za którym nie stoi żadna osoba, niczego nie wiąże i niczego nie uruchamia | Binding strony może opublikować tylko run działający w imieniu członka: zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z kanału albo twórcy harmonogramu. Odwiedzający widget, embed albo hostowaną stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta (GitHub, e-mail, przekaźnik webhooków) i run workflow przyjęty przez publiczne wejście się nie liczą. Publiczne wejścia to webhook, publiczny formularz, wiadomość z kanału, wiadomość z Gmaila i zdarzenie z GitHuba. Pochodzenie idzie za łańcuchem: wywołany workflow, run uruchomiony przez tabelę albo przez niepowodzenie pod publicznym runem, ponowienie któregokolwiek z nich i run uruchomiony przez tabelę z rekordu, który zapisał run bez członka, działają wszystkie bez osoby. `run_workflow` i narzędzia zapisanych widoków odmawiają w takim runie | `test_artifact_bindings.py`, `test_workflow_calls.py`, `test_table_triggers.py` |
 
 ### Odmowy jako zbiór { #the-refusals-as-a-set }

@@ -1,5 +1,5 @@
 ---
-source_sha: "09ff8d8b1ce8"
+source_sha: "6e4e53c11fad"
 ---
 
 # Protección de datos { #data-protection }
@@ -83,7 +83,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Las filas de una [Virtual Table](virtual-tables.md) y el rastro de cada cambio en ellas | Lo que la organización puso en sus celdas, que puede ser dato personal. Los valores actuales (records); el registro completo en un create y un delete, y solo las celdas que cambiaron en un update (history); el registro completo tal como lo devolvió una escritura con clave (receipts); los ids y el external id de cada registro creado (outbox, sin valores). Borrar un registro elimina solo la fila actual: history y receipts conservan los valores hasta que el barrido diario de retención los elimina: los receipts a las 24 horas, las filas de outbox despachadas a los 3 días y el history a los 365 días, todo como ajustes del deployment. Borrar una cuenta elimina sus receipts y la borra como actor en history; borrar la organización elimina las cuatro | Registros tipados para agents y workflows, reintentos seguros de una escritura y el traspaso de un registro creado |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | Los [triggers](virtual-tables.md#triggers) de una tabla, cada configuración que han tenido y lo que cada uno decidió sobre un registro creado | El miembro con el que se ejecuta un trigger; los valores de sus filtros y las claves de su mapeo, que pueden contener datos personales si un builder los escribió (un filtro por una dirección de correo). Una decisión guarda un estado, un motivo general y el run que inició, nunca los valores del registro. Ninguna clase de retención los barre: se van con su tabla y su trigger, y borrar una cuenta la quita como miembro, tras lo cual el trigger no inicia nada | Ejecutar un workflow cuando se añade un registro |
-| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer — o, para una página vinculada a vistas de tabla, el binding (vista y columnas), con los propios registros leídos en el momento de verla con el acceso del lector y nunca guardados en la página; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
+| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer — o, para una página vinculada a datos de tabla, sus page queries (tabla, filtros, orden, límite y columnas, cada una resuelta a ids), con los propios registros leídos en el momento de verla con el acceso del propietario de la página y nunca guardados en ella; por versión, quién la publicó y el consentimiento del propietario para compartir sus datos (una huella de las queries, la membresía del propietario y cuándo); el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |
 | `rag_documents`, `knowledge_bases` y una tabla vectorial por colección | Documentos subidos y sincronizados, sus chunks y sus embeddings | El texto del documento y sus vectores, la ruta original del archivo en el origen | Recuperación |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota. Junto a los argumentos, `tool_approvals.context` guarda los nombres que representan los ids de una llamada aparcada (el nombre de una vista y el de una tabla, nunca el contenido de un registro), resueltos como la persona del run cuando la llamada se aparcó. Se conserva con la fila de aprobación aunque la vista o la tabla cambien de nombre o desaparezcan, y lo lee quien pueda decidir aprobaciones, tenga o no acceso propio a esa tabla | Budgets, aprobaciones, historial de runs |
@@ -145,6 +145,39 @@ trae documentos **hacia dentro**, autenticado por un secreto `connector`, y a
 partir de ahí los documentos son la copia del deployment y siguen las reglas de
 arriba. Quién acaba pudiendo leer lo que un origen ha ingerido es
 [una decisión que toma la fila del origen](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Datos de tabla mostrados en una página { #table-data-on-a-page }
+
+Una [página](artifacts.md#live-data) publicada puede mostrar registros de una tabla, y
+esos registros pueden ser datos personales. Es **un flujo dentro del deployment, del
+propietario de la página a todos los que pueden abrirla** — no un destino fuera de él —,
+pero salta el control de acceso propio de la tabla, así que se lista aquí.
+
+- **Qué fluye.** Solo las columnas que nombra una page query y las filas que seleccionan
+  sus filtros, hasta 1.000 por binding. Un filtro puede usar una columna que la página no
+  muestra, y se avisa al propietario de cuál. Las fórmulas, lookups, rollups y etiquetas de
+  enlace llevan también datos de las tablas vinculadas, y el consentimiento nombra esas tablas.
+- **Con qué autoridad.** La del propietario de la página. A cada lector se le sirven los
+  mismos registros, sea cual sea su acceso a la tabla. Los datos salen de la tabla solo cuando
+  el propietario los ha confirmado, tras leer las queries en palabras y quién puede abrir la
+  página ahora y más adelante (los roles que abren todas las páginas, la visibilidad, personas
+  y grupos). Los datos se leen de nuevo en cada carga, nunca se guardan en la página y no se
+  almacenan en caché.
+- **Qué se guarda al respecto.** Por versión de la página: quién la publicó, una huella de sus
+  queries, si el propietario consintió, cuándo y con qué membresía. Las solicitudes de compartir
+  guardan al solicitante, el tipo, una nota opcional, la decisión y quién la tomó. El registro de
+  auditoría recoge el consentimiento, su retirada, el consentimiento automático, las concesiones
+  `edit_data`, los cambios de propietario y las solicitudes, con el texto que una persona confirmó.
+- **Qué no se registra nunca.** Los valores de los registros, los valores de los filtros y la
+  dirección de contenido de una página servida con sus datos. Las entradas de auditoría y las
+  notificaciones nombran la página y a las personas, nunca una fila.
+- **Qué no llega.** Un enlace público o un embed no recibe datos. El consentimiento de un
+  miembro eliminado caduca con su membresía, y una página cuyo propietario se fue no sirve datos
+  hasta que otro propietario la confirme.
+
+Un deployment que deba mantener las filas de una tabla fuera del alcance de algunos de sus
+miembros no debería vincularle una página que esos miembros puedan abrir; la confirmación
+indica quiénes son.
 
 ## Controles, y dónde se prueba cada uno { #controls-and-where-each-is-proved }
 

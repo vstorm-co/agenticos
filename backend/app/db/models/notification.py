@@ -49,6 +49,10 @@ class NotificationEventType(enum.StrEnum):
     # own recipient list, already checked against the workflow's reach, rather
     # than a setting on an agent (#1789).
     WORKFLOW_NOTIFICATION = "workflow_notification"
+    # A page changed hands: told to its old and its new owner (#1974).
+    ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
+    # Somebody asked a page's owner to share it, or to confirm a version (#1974).
+    ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -140,7 +144,8 @@ class Notification(Base, TimestampMixin):
             "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
-            "'announcement', 'workflow_notification')",
+            "'announcement', 'workflow_notification', 'artifact_owner_changed', "
+            "'artifact_share_requested')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

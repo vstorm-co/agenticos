@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { exceptOpenPage, qk } from "@/lib/query-keys";
+import { isConsentRequired } from "@/hooks/use-artifact-requests";
+import type { SharingDeferred } from "@/types/artifact";
 import type {
   GrantSubject,
   ResourceGrant,
@@ -53,6 +55,19 @@ const RESOURCE_KEYS = {
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
 
 /**
+ * A resource type's guard may turn a widening into a request for its owner to decide
+ * (202), which applies nothing: the body says so where a grant or the sharing never would.
+ */
+function isDeferred(result: unknown): result is SharingDeferred {
+  return typeof result === "object" && result !== null && "request_id" in result;
+}
+
+interface SharingOptions {
+  /** A page's data has no consent that would let it be shared: the caller offers Confirm data. */
+  onConsentRequired?: () => void;
+}
+
+/**
  * Who reaches one resource: its owner, its visibility, and its explicit grants.
  *
  * Mutations invalidate rather than patch. Changing a visibility can change the
@@ -60,7 +75,11 @@ const RESOURCE_KEYS = {
  * result the client cannot derive - guessing is how a panel starts showing a
  * share that was never written.
  */
-export function useSharing(resourceType: SharingResourceType, resourceId: string | null) {
+export function useSharing(
+  resourceType: SharingResourceType,
+  resourceId: string | null,
+  { onConsentRequired }: SharingOptions = {},
+) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("sharing");
   const queryClient = useQueryClient();
@@ -83,13 +102,30 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     await queryClient.invalidateQueries({ queryKey });
   }, [queryClient, resourceType, resourceId]);
 
+  // A refusal for want of consent is the dialog's to offer a way out of; the rest toast.
+  const refused = (error: unknown) => {
+    if (onConsentRequired !== undefined && isConsentRequired(error)) onConsentRequired();
+    else toast.error(getErrorMessage(error, tErrors));
+  };
+  // Nothing was applied: the request is what changed, and the Requests section lists it.
+  const requested = async (deferred: SharingDeferred) => {
+    await queryClient.invalidateQueries({ queryKey: qk.artifacts.requestsAll(resourceId ?? "") });
+    toast.success(
+      deferred.waiting_for === null
+        ? t("requestSentNobody")
+        : t("requestSent", { name: deferred.waiting_for }),
+    );
+  };
+
   const share = useMutation({
-    mutationFn: (input: ShareInput) => apiClient.put<ResourceGrant>(`${base}/grants`, input),
-    onSuccess: async () => {
+    mutationFn: (input: ShareInput) =>
+      apiClient.put<ResourceGrant | SharingDeferred>(`${base}/grants`, input),
+    onSuccess: async (result) => {
+      if (isDeferred(result)) return requested(result);
       await invalidate();
       toast.success(t("sharingUpdated"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: refused,
   });
 
   // Two endpoints rather than one keyed on a kind, because a user id and a group
@@ -109,8 +145,9 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
 
   const setVisibility = useMutation({
     mutationFn: (visibility: Visibility) =>
-      apiClient.patch<ResourceSharing>(`${base}/visibility`, { visibility }),
-    onSuccess: async () => {
+      apiClient.patch<ResourceSharing | SharingDeferred>(`${base}/visibility`, { visibility }),
+    onSuccess: async (result) => {
+      if (isDeferred(result)) return requested(result);
       await invalidate();
       // An artifact open beside the panel keeps its page: who else may open it
       // changes nothing the viewer is reading.
@@ -120,7 +157,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       });
       toast.success(t("visibilityUpdated"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: refused,
   });
 
   return { sharing: data, isLoading, share, revoke, setVisibility };

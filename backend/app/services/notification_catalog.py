@@ -37,6 +37,7 @@ class ContentGate(enum.Enum):
     RUNS_VIEW = "runs_view"
     COLLECTIONS_VIEW = "collections_view"
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
+    ARTIFACTS_VIEW = "artifacts_view"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -52,6 +53,12 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.SECURITY_EVENT: ContentGate.ORG_ADMIN_OR_APP_ADMIN,
     NotificationEventType.CONFIGURATION_CHANGED: ContentGate.APP_ADMIN,
     NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
+    # Names a page and who switched its owner, never what it shows: only someone
+    # who may still open the page is shown the row.
+    NotificationEventType.ARTIFACT_OWNER_CHANGED: ContentGate.ARTIFACTS_VIEW,
+    # Names a page, who asked and what - never what the page reads: only someone who
+    # may open the page is shown the row.
+    NotificationEventType.ARTIFACT_SHARE_REQUESTED: ContentGate.ARTIFACTS_VIEW,
 }
 
 # `security_event` and `configuration_changed` bypass preference entirely on

@@ -14,6 +14,7 @@ import type {
   ArtifactAgent,
   ArtifactData,
   ArtifactDetail,
+  ArtifactDisclosure,
   ArtifactList,
   ArtifactPublicLinkUpdate,
   ArtifactVersionList,
@@ -202,17 +203,6 @@ export function useArtifact(artifactId: string) {
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("versionRestored", { version: artifact.current_version?.number ?? 0 }));
-      // Restoring re-checks the version's bindings, and an editor - the only one
-      // who may restore - should hear at once which no longer read anything.
-      const unavailable = artifact.bindings.filter((binding) => binding.status === "unavailable");
-      if (unavailable.length > 0) {
-        toast.warning(
-          t("restoredUnavailable", {
-            count: unavailable.length,
-            names: unavailable.map((binding) => binding.name).join(", "),
-          }),
-        );
-      }
     },
     onError: fail,
   });
@@ -243,6 +233,51 @@ export function useArtifact(artifactId: string) {
     },
     onError: fail,
   });
+  // Both reload the page: whose data it shows is what they change. A refused
+  // confirm is the dialog's to show, so it toasts nothing - except a 409: a newer
+  // version landed or the queries moved, so the page is read again (the strip
+  // moves to the new latest, the disclosure with it) and the dialog closes.
+  const confirmData = useMutation({
+    mutationFn: ({ versionId, fingerprint }: { versionId: string; fingerprint: string }) =>
+      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/versions/${versionId}/consent`, {
+        fingerprint,
+      }),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: true });
+      toast.success(t("consent.confirmed"));
+    },
+    onError: (error) => {
+      if (!(error instanceof ApiError && error.status === 409)) return;
+      void queryClient.invalidateQueries({ queryKey: qk.artifacts.detail(artifactId) });
+      void queryClient.invalidateQueries({ queryKey: qk.artifacts.requestsAll(artifactId) });
+      fail(error);
+    },
+  });
+  const withdrawConsent = useMutation({
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/consent`),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: true });
+      toast.success(t("consent.withdrawn"));
+    },
+    onError: fail,
+  });
+  const setAutoConsent = useMutation({
+    mutationFn: (changes: { enabled: boolean; confirmed?: string }) =>
+      apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/auto-consent`, changes),
+    onSuccess: (artifact) => settle(artifact, { reloadPage: false }),
+    onError: fail,
+  });
+
+  // Reloads the page: whose data it shows is what a new owner changes.
+  const changeOwner = useMutation({
+    mutationFn: (userId: string) =>
+      apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/owner`, { user_id: userId }),
+    onSuccess: (artifact) => {
+      settle(artifact, { reloadPage: true });
+      toast.success(t("changeOwner.changed"));
+    },
+    onError: fail,
+  });
 
   return {
     artifact: detail.data ?? null,
@@ -257,7 +292,30 @@ export function useArtifact(artifactId: string) {
     archive,
     unarchive,
     remove,
+    confirmData,
+    withdrawConsent,
+    setAutoConsent,
+    changeOwner,
   };
+}
+
+/**
+ * What confirming a version's data would share, and with whom, read when the
+ * dialog opens. Never cached: it is what the person agrees to, so it is read as
+ * the tables are now.
+ */
+export function useArtifactDisclosure(artifactId: string, versionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.artifacts.disclosure(artifactId, versionId),
+    queryFn: () =>
+      apiClient.get<ArtifactDisclosure>(
+        `/artifacts/${artifactId}/versions/${versionId}/disclosure`,
+      ),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
 }
 
 /**
@@ -266,12 +324,24 @@ export function useArtifact(artifactId: string) {
  * Never cached past its own expiry: the address is valid for minutes, so a
  * frame redrawn from a stale one would load nothing. `staleTime: 0` and no
  * retry, because a refusal here is the page being gone rather than a blip.
+ *
+ * `withData` asks for the page served with its bindings' data written in - only
+ * the page viewer does. Thumbnails, cards and previews leave it off, and their
+ * pages get none.
  */
-export function useArtifactView(artifactId: string, versionId: string | null, enabled: boolean) {
+export function useArtifactView(
+  artifactId: string,
+  versionId: string | null,
+  enabled: boolean,
+  withData = false,
+) {
   return useQuery({
-    queryKey: qk.artifacts.view(artifactId, versionId),
+    queryKey: qk.artifacts.view(artifactId, versionId, withData),
     queryFn: () => {
-      const query = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
+      const params: string[] = [];
+      if (versionId) params.push(`version_id=${encodeURIComponent(versionId)}`);
+      if (withData) params.push("data=true");
+      const query = params.length > 0 ? `?${params.join("&")}` : "";
       return apiClient.get<ArtifactView>(`/artifacts/${artifactId}/view${query}`);
     },
     enabled,
@@ -315,7 +385,7 @@ export function useArtifactData(
         for (const queryKey of [
           qk.artifacts.detail(artifactId),
           qk.artifacts.versions(artifactId),
-          qk.artifacts.view(artifactId, null),
+          qk.artifacts.view(artifactId, null, true),
         ]) {
           void queryClient.invalidateQueries({ queryKey, exact: true });
         }

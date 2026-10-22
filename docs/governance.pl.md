@@ -1,5 +1,5 @@
 ---
-source_sha: "11c9ebdbd803"
+source_sha: "392bcbea8374"
 ---
 
 # Governance { #governance }
@@ -1016,8 +1016,7 @@ Cztery właściwości, które warto znać:
   z komunikatem mówiącym, co zmienić. Zatrzymuje się agent, którego operator
   poprosił o zatwierdzenie, o które nigdy nikogo nie proszono.
 - **Zaparkowane wywołanie może nazwać to, co oznaczają jego id.** Narzędzie może
-  opisać własne wywołanie: `share_view` podaje nazwy widoku i tabeli, a zapisy do
-  tabel podają nazwę tabeli. Rekord nigdy nie jest nazywany, bo etykieta rekordu
+  opisać własne wywołanie: zapisy do tabel podają nazwę tabeli. Rekord nigdy nie jest nazywany, bo etykieta rekordu
   to tekst jednej z jego komórek, a zatwierdzenie by go przechowało. Nazwy są
   ustalane jako osoba runa w chwili parkowania wywołania, więc nie pojawia się nic,
   czego ta osoba nie może zobaczyć, i są zapisywane w zatwierdzeniu jako
@@ -1240,6 +1239,28 @@ z tym, o co pytano. Krok, który wskazuje zatwierdzających, mogą rozstrzygną�
 oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
 swoje prośby.
 
+### Wpisy artefaktów { #artifact-entries }
+
+Strona czytająca dane tabel jest udostępniana za zgodą swojego właściciela i każdy
+krok tego procesu zostawia wpis z osobą, która go wykonała. Żaden z nich nie niesie
+rekordu, wartości filtra ani wiersza: zawierają wersje, odciski, identyfikatory
+próśb i słowa, które osoba potwierdziła.
+
+| Akcja | Zapisywana, gdy |
+|---|---|
+| `artifact.published` | Opublikowano wersję, z jej numerem i odciskiem jej zapytań strony |
+| `artifact.data_consented` | Właściciel potwierdził dane wersji albo wyrażono na nie zgodę automatycznie (`automatic`). Nazywa wersję i odcisk, `for_owner`, gdy potwierdził za niego Owner lub Admin, oraz `via_grant`, gdy dał ją grant `edit_data` |
+| `artifact.data_withdrawn` | Edytor zatrzymał udostępnianie danych przez stronę; nazywa wersję, którą serwowano odbiorcom, i czy auto-zgoda była włączona, oraz ile grantów `edit_data` obniżono do `edit` |
+| `artifact.auto_consent_changed` | Właściciel włączył albo wyłączył „Don't ask for consent on republish", z tekstem, który potwierdził |
+| `artifact.edit_data_granted` | Właściciel, albo Owner lub Admin, nadał osobie albo grupie „Can edit, data included", z tekstem, który potwierdził |
+| `artifact.owner_changed` | Strona zmieniła właściciela: dawny i nowy właściciel, kto to zrobił i jakie granty `edit_data` odrzucono |
+| `artifact.share_requested` | Złożono prośbę — typu `audience`, `access` albo `version` — przez osobę albo przez run jej agenta |
+| `artifact.share_request_approved` i `artifact.share_request_declined` | Prośbę rozstrzygnięto i kto to zrobił |
+
+Poszerzenie widoczności albo grantów strony jest zapisywane jako wpisy
+`resource.share`, `resource.unshare` i `resource.visibility_changed`, jak dla każdego
+innego zasobu. Narzędzie `share_view` zniknęło, a wraz z nim zatwierdzenie, które je bramkowało.
+
 ## Alerty { #alerts }
 
 Każdy alert tutaj dotyczy runa, na którego nikt nie patrzy. Run czatu, który
@@ -1259,7 +1280,8 @@ SMTP — a drugi nigdy się o tym nie dowie.
 Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
 zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
-każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
+każde inne zdarzenie, które dostarcza skrzynka (w tym prośbę o udostępnienie strony
+i zmianę jej właściciela, każde z nazwą strony i osoby, nigdy jej danych): nienadzorowane zakończenie albo
 błąd runa, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do

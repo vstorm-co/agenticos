@@ -157,7 +157,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             return refusal(tool_def.name, "this surface cannot ask anyone to approve it")
 
         # As JSON, which is how the queue stores them and a person reads them: a tool
-        # taking a `UUID` - `share_view`, every table write - otherwise failed to be
+        # taking a `UUID` - every table write - otherwise failed to be
         # asked about at all.
         asked = to_jsonable_python(args)
         # Only a capability's own tool is named or described, so an MCP tool sharing

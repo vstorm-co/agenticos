@@ -15,11 +15,15 @@ import {
 } from "@/components/ui";
 import type { Group } from "@/types/groups";
 import type { OrganizationMember } from "@/types";
-import type { GrantLevel, ShareInput } from "@/types/sharing";
-import { LEVEL_OPTIONS, parseSubject, shareInput, toLevel } from "./grants";
+import type { GrantLevel, ShareInput, SharingResourceType } from "@/types/sharing";
+import { EditDataConfirm } from "./edit-data-confirm";
+import { encodeSubject, levelOptions, parseSubject, shareInput, toLevel } from "./grants";
 import { SubjectPicker } from "./subject-picker";
 
 interface AddShareProps {
+  resourceType: SharingResourceType;
+  /** Whether the caller may give "data included" - the server's answer, never worked out here. */
+  mayGrantEditData: boolean;
   /** Members who do not reach the resource yet - the owner and the shared already left out. */
   members: OrganizationMember[];
   /** Groups the resource is not shared with yet. */
@@ -35,16 +39,36 @@ interface AddShareProps {
  * reach this" is one question whichever kind of answer it gets - searched by
  * typing a name or an address.
  */
-export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
+export function AddShare({
+  resourceType,
+  mayGrantEditData,
+  members,
+  groups,
+  pending,
+  onShare,
+}: AddShareProps) {
   const t = useTranslations("sharing");
   const [subject, setSubject] = useState("");
   const [level, setLevel] = useState<GrantLevel>("read");
+  const [asking, setAsking] = useState(false);
   const empty = members.length === 0 && groups.length === 0;
 
-  function submit() {
+  function send() {
     onShare(shareInput(parseSubject(subject), level));
     setSubject("");
   }
+
+  // The names the confirmation says, as the picker shows them, by the picker's own values.
+  const names = new Map<string, string>([
+    ...members.map((member): [string, string] => [
+      encodeSubject({ kind: "user", id: member.user_id }),
+      member.full_name || member.email,
+    ]),
+    ...groups.map((group): [string, string] => [
+      encodeSubject({ kind: "group", id: group.id }),
+      group.name,
+    ]),
+  ]);
 
   return (
     <div className="flex flex-wrap items-end gap-3 border-t pt-4">
@@ -67,7 +91,7 @@ export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LEVEL_OPTIONS.map((option) => (
+            {levelOptions(resourceType, { mayGrantEditData }).map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {t(option.words)}
               </SelectItem>
@@ -75,10 +99,25 @@ export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
           </SelectContent>
         </Select>
       </div>
-      <Button onClick={submit} disabled={subject === "" || pending}>
+      <Button
+        onClick={() => (level === "edit_data" ? setAsking(true) : send())}
+        disabled={subject === "" || pending}
+      >
         <UserPlus className="h-4 w-4" />
         {t("share")}
       </Button>
+      {asking && (
+        <EditDataConfirm
+          open
+          onOpenChange={setAsking}
+          name={names.get(subject) ?? subject}
+          kind={parseSubject(subject).kind}
+          onConfirm={() => {
+            setAsking(false);
+            send();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1142,10 +1142,10 @@ class TestReadingWhatARunIsParkedOn:
                     ParkedCall(
                         id=shared_id,
                         tool_call_id="call-2",
-                        tool_name="share_saved_view",
-                        tool_args={"view_id": "6f1c"},
-                        capability_tool_id="share_view",
-                        context={"view": "Closed tickets", "table": "Support"},
+                        tool_name="change_ticket",
+                        tool_args={"table_id": "6f1c"},
+                        capability_tool_id="update_record",
+                        context={"table": "Support"},
                     ),
                 ]
 
@@ -1170,10 +1170,10 @@ class TestReadingWhatARunIsParkedOn:
                 "id": str(shared_id),
                 "tool_call_id": "call-2",
                 # Renamed by its binding: the stable id is what the card words it by.
-                "tool_name": "share_saved_view",
-                "tool_args": {"view_id": "6f1c"},
-                "capability_tool_id": "share_view",
-                "context": {"view": "Closed tickets", "table": "Support"},
+                "tool_name": "change_ticket",
+                "tool_args": {"table_id": "6f1c"},
+                "capability_tool_id": "update_record",
+                "context": {"table": "Support"},
             },
         ]
 
@@ -1206,10 +1206,10 @@ class TestTheQueueNamesWhatItAsks:
             run_id=uuid4(),
             agent_id=uuid4(),
             agent_name="Support",
-            tool_id="share_saved_view",
-            tool_args={"view_id": "6f1c"},
-            capability_tool_id="share_view",
-            context={"view": "Closed tickets", "table": "Support"},
+            tool_id="change_ticket",
+            tool_args={"table_id": "6f1c"},
+            capability_tool_id="update_record",
+            context={"table": "Support"},
             subagent_name=None,
             subagent_agent_id=None,
             status="pending",
@@ -1233,9 +1233,9 @@ class TestTheQueueNamesWhatItAsks:
 
         assert response.status_code == 200
         [item] = response.json()["items"]
-        assert item["context"] == {"view": "Closed tickets", "table": "Support"}
-        assert item["tool_args"] == {"view_id": "6f1c"}
-        assert (item["tool_id"], item["capability_tool_id"]) == ("share_saved_view", "share_view")
+        assert item["context"] == {"table": "Support"}
+        assert item["tool_args"] == {"table_id": "6f1c"}
+        assert (item["tool_id"], item["capability_tool_id"]) == ("change_ticket", "update_record")
 
 
 class TestResumeConveysAFailedContinuation:

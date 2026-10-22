@@ -67,7 +67,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             auth,
             table.id,
             RecordQuery(
-                filters=filters_by_label(table, config.filters),
+                filters=filters_by_label(table.columns, config.filters),
                 sort=config.sort,
                 skip=config.skip,
                 limit=config.limit,

@@ -8,6 +8,9 @@ import {
   Globe,
   Lock,
   MoreHorizontal,
+  ShieldOff,
+  UserRoundCog,
+  GitPullRequest,
   Trash2,
   UserPlus,
 } from "lucide-react";
@@ -23,6 +26,7 @@ import {
   IconButton,
 } from "@/components/ui";
 import { LiveBadge, type LiveHealth } from "@/components/artifacts/live-badge";
+import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { ROUTES } from "@/lib/constants";
 import type { ArtifactDetail } from "@/types/artifact";
 
@@ -59,6 +63,14 @@ interface ArtifactViewerBarProps {
   onShare?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
+  /** Stops the audience reading the page's data; offered while it does. */
+  onWithdrawConsent?: () => void;
+  /** Opens the dialog that hands the page to another member; offered to who may. */
+  onChangeOwner?: () => void;
+  /** How many requests wait on the caller to decide; a badge draws only above zero. */
+  waitingRequests?: number;
+  /** Opens the Share dialog on its Requests. */
+  onRequests?: () => void;
 }
 
 /**
@@ -75,6 +87,10 @@ export function ArtifactViewerBar({
   onShare,
   onArchive,
   onDelete,
+  onWithdrawConsent,
+  onChangeOwner,
+  waitingRequests = 0,
+  onRequests,
 }: ArtifactViewerBarProps) {
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
@@ -85,7 +101,7 @@ export function ArtifactViewerBar({
           <ArrowLeft className="h-4 w-4" />
         </Link>
       </IconButton>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3" data-tour="artifact-strip">
         {artifact !== null && (
           <>
             <h1 className="text-foreground truncate text-sm font-medium">{artifact.title}</h1>
@@ -106,6 +122,24 @@ export function ArtifactViewerBar({
       {artifact !== null && (
         <div className="flex shrink-0 items-center gap-2">
           {children}
+          <RestartTourButton />
+          {waitingRequests > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={t("requests.waiting", { count: waitingRequests })}
+              data-tour="artifact-requests"
+              onClick={onRequests}
+            >
+              <GitPullRequest className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only" aria-hidden>
+                {t("requests.title")}
+              </span>
+              <Badge variant="warning" aria-hidden>
+                {waitingRequests}
+              </Badge>
+            </Button>
+          )}
           {artifact.archived_at === null && (
             <Button size="sm" onClick={onShare}>
               <UserPlus className="h-3.5 w-3.5" />
@@ -113,27 +147,44 @@ export function ArtifactViewerBar({
               <span className="sr-only sm:not-sr-only">{t("share")}</span>
             </Button>
           )}
-          {artifact.can_edit && (
+          {(artifact.can_edit || artifact.may_change_owner) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <IconButton aria-label={t("moreActions")}>
+                <IconButton
+                  aria-label={t("moreActions")}
+                  data-tour={artifact.may_change_owner ? "artifact-change-owner" : undefined}
+                >
                   <MoreHorizontal className="h-4 w-4" />
                 </IconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {artifact.archived_at === null && (
+                {artifact.consent?.may_withdraw === true && artifact.consent.shared && (
+                  <DropdownMenuItem onSelect={onWithdrawConsent}>
+                    <ShieldOff className="h-4 w-4" />
+                    {t("consent.withdraw")}
+                  </DropdownMenuItem>
+                )}
+                {artifact.may_change_owner && (
+                  <DropdownMenuItem onSelect={onChangeOwner}>
+                    <UserRoundCog className="h-4 w-4" />
+                    {t("changeOwner.menu")}
+                  </DropdownMenuItem>
+                )}
+                {artifact.can_edit && artifact.archived_at === null && (
                   <DropdownMenuItem onSelect={onArchive}>
                     <Archive className="h-4 w-4" />
                     {t("archive")}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {tc("delete")}
-                </DropdownMenuItem>
+                {artifact.can_edit && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={onDelete}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {tc("delete")}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

@@ -329,9 +329,15 @@ export const qk = {
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
-    view: (id: string, versionId: string | null) =>
-      ["artifacts", id, "view", versionId ?? "current"] as const,
+    view: (id: string, versionId: string | null, withData = false) =>
+      ["artifacts", id, "view", versionId ?? "current", withData ? "data" : "plain"] as const,
     data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
+    disclosure: (id: string, versionId: string) =>
+      ["artifacts", id, "disclosure", versionId] as const,
+    requestsAll: (id: string) => ["artifacts", id, "requests"] as const,
+    requests: (id: string, includeDecided: boolean) =>
+      ["artifacts", id, "requests", includeDecided ? "all" : "pending"] as const,
+    review: (id: string, versionId: string) => ["artifacts", id, "review", versionId] as const,
     public: (key: string) => ["artifacts", "public", key] as const,
   },
   context: {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Trash2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -12,11 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import type { GrantSubject, ResourceGrant, ShareInput } from "@/types/sharing";
-import { LEVEL_OPTIONS, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
+import type { GrantSubject, ResourceGrant, ShareInput, SharingResourceType } from "@/types/sharing";
+import { EditDataConfirm } from "./edit-data-confirm";
+import { levelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
 
 interface GrantRowProps {
   grant: ResourceGrant;
+  resourceType: SharingResourceType;
+  /** Whether the caller may give "data included" - the server's answer, never worked out here. */
+  mayGrantEditData: boolean;
+  /** The member's full name, when they have one: the confirmation names them as the audit does. */
+  fullName?: string | null;
   canManage: boolean;
   revoking: boolean;
   onShare: (input: ShareInput) => void;
@@ -29,9 +36,19 @@ interface GrantRowProps {
  * A level change is the same call that created the share - the endpoint is an
  * upsert keyed on the subject - so the row sends the subject back with it.
  */
-export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: GrantRowProps) {
+export function GrantRow({
+  grant,
+  resourceType,
+  mayGrantEditData,
+  fullName,
+  canManage,
+  revoking,
+  onShare,
+  onRevoke,
+}: GrantRowProps) {
   const t = useTranslations("sharing");
   const tc = useTranslations("common");
+  const [asking, setAsking] = useState(false);
   const subject = subjectOf(grant);
   const name = subjectLabel(grant);
   const id = `level-${grant.id}`;
@@ -51,19 +68,34 @@ export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: Gran
       <Select
         value={grant.level}
         disabled={!canManage}
-        onValueChange={(value) => onShare(shareInput(subject, toLevel(value)))}
+        onValueChange={(value) => {
+          const level = toLevel(value);
+          // "Data included" says what it does first; any other level goes at once.
+          if (level === "edit_data") setAsking(true);
+          else onShare(shareInput(subject, level));
+        }}
       >
         <SelectTrigger id={id} className="w-36">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {LEVEL_OPTIONS.map((option) => (
+          {levelOptions(resourceType, { mayGrantEditData, held: grant.level }).map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {t(option.words)}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      <EditDataConfirm
+        open={asking}
+        onOpenChange={setAsking}
+        name={fullName || name}
+        kind={subject.kind}
+        onConfirm={() => {
+          setAsking(false);
+          onShare(shareInput(subject, "edit_data"));
+        }}
+      />
       {canManage && (
         <Button
           variant="ghost"

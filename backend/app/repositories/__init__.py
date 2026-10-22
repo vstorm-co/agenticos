@@ -48,6 +48,7 @@ from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
 from app.repositories import artifact as artifact_repo
+from app.repositories import artifact_share_request as artifact_share_request_repo
 from app.repositories import context as context_repo
 from app.repositories import virtual_table as virtual_table_repo
 from app.repositories import table_view as table_view_repo
@@ -119,6 +120,7 @@ __all__ = [
     "retention_repo",
     "skill_repo",
     "artifact_repo",
+    "artifact_share_request_repo",
     "context_repo",
     "virtual_table_repo",
     "table_view_repo",

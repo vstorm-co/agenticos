@@ -200,12 +200,12 @@ data rather than starting from an empty page:
   their change, a tabbed chart, a table, a footer.
 - `templates/report.html` - something to read: the answer in a callout, key
   facts, sections, a table, next steps.
-- `templates/live-table.html` - records from a table view that stay current: a
+- `templates/live-table.html` - records from a table that stay current: a
   binding drawn with `AO.records`, with its loading, empty and unavailable states.
 
 Keep static data in one `const data = {...}` at the top of the script, as numbers
 rather than formatted strings, so the next refresh changes one place. Data you
-bound to a table view does not live there: it comes from `onData`.
+bound to a table does not live there: it comes from `onData`.
 
 ## Rules for the content
 
@@ -235,9 +235,11 @@ wider than the screen.
 
 ## Live data
 
-When the page shows records from a Virtual Table, bind it to saved views
-instead of copying the records in: pass `bindings` to `publish_artifact`
-(`list_views` gives each view's id and columns), then read them in the page.
+When the page shows records from a Virtual Table, bind it to a query instead of
+copying the records in: pass `bindings` to `publish_artifact` - a table, or a
+saved view whose filters and sort are copied, plus the fields, filters, sort and
+limit you need - then read them in the page. Everyone who opens the page reads
+the same records, with its owner's access.
 For a table of records, let the kit draw it:
 
 ```js
@@ -255,9 +257,9 @@ agenticos.onData(function (data) {
 there: a `thead` from the fields' labels and a `tbody` of the records, numbers
 and dates formatted and right-aligned, a single or multiple choice as badges,
 every value written as text. With no binding it draws `ao-loading`; an
-`unavailable` binding and an empty one draw `ao-empty`; a cut list and a dropped
-filter add an `ao-note`. `options.text` takes `loading`, `unavailable`, `empty`,
-`truncated` (`{count}` is the number shown), `filtersDropped`, `yes` and `no`;
+`unavailable` binding and an empty one draw `ao-empty`; a cut list adds an
+`ao-note`. `options.text` takes `loading`, `unavailable`, `empty`, `truncated`
+(`{count}` is the number shown), `yes` and `no`;
 `options.labels` renames a heading and `options.format` (`{field: (value,
 record) => text}`) writes a column your way. `AO.onData` is the same call as
 `agenticos.onData`.
@@ -268,25 +270,29 @@ Drawing something else - stats, a chart, cards - from the records:
   every refresh, so draw from scratch each time. `agenticos.data` is a Promise
   of the first data only.
 - **Draw a loading state first** (`ao-loading` or `ao-skeleton`), then the data.
-- **Draw `unavailable`.** A binding whose `status` is `unavailable` means this
-  viewer cannot read it. Show `ao-empty` "No data", not an empty chart.
+- **Draw `unavailable`.** A binding whose `status` is `unavailable` serves this
+  viewer nothing. Show `ao-empty` "No data", not an empty chart.
 - **Show a cut list.** When `truncated` is true, say the list is cut and why:
   `limit` is `records` or `bytes`. `count` is how many records you got.
-- **Say when a filter was dropped.** When `filters_dropped` is true, a filter of
-  the view named a column that is gone, so the records match more than the view
-  meant. Say the list is unfiltered there rather than presenting it as filtered.
 - **Never `innerHTML` with record text.** Use `textContent`; a record is
   whatever somebody typed.
 - Each record is `{id, <field>: value}`. Each field in `fields` has its `label`,
-  `type`, `options` and `state`; a field whose column was removed has a `null`
-  value and state `missing`, an archived one state `archived`.
+  `type`, `options` and `state`.
 - Binding names: lower-case letters, digits and `_`. Field names: words of
   letters, digits and `_` with single spaces, any case - `Status` and `Created At`
   work, read as `record["Created At"]`. Both at most 64 characters; at most 5
   bindings and 50 fields per binding.
 
-A private view serves only its owner, so a page for other people needs a shared
-view. Data you need once still goes inline.
+Data you need once still goes inline.
+
+**Binding data is a decision for the page's owner.** Everyone who can open the page
+reads the records, whatever their own access to the table, so bind only what all of
+them may see - and the check you cannot make is the owner's. The publish result lists
+each query in words; read it, because it is what the owner agrees to. When its
+`consent` is `pending`, tell the person the owner still has to confirm the data in the
+console, and that everyone else sees `audience` until then. A binding whose reason is
+`awaiting_consent` is not a bug in the page. To share the page, call `share_artifact`:
+it only asks, and the owner answers in the console.
 
 ## Changing a page you published
 

@@ -99,10 +99,12 @@ from app.db.models.virtual_table_trigger import (
     VirtualTableTriggerRevision,
 )
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
     "Artifact",
     "ArtifactMediaType",
+    "ArtifactShareRequest",
     "ArtifactVersion",
     "User",
     "Session",

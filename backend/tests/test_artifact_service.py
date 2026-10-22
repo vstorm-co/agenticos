@@ -9,6 +9,7 @@ document - HTML as written, Markdown rendered with its raw HTML escaped.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from collections.abc import Iterator
@@ -26,10 +27,12 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import ArtifactUpdate
+from app.schemas.artifact import ArtifactBinding, ArtifactData, ArtifactUpdate, BindingReach
 from app.services import artifact as artifacts
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import Reason, Unavailable, page_data
+from app.services.artifact_consent import Served
 from app.services.virtual_tables.exceptions import DeadlineReached
 
 pytestmark = pytest.mark.anyio
@@ -53,6 +56,7 @@ def _artifact(ctx: AuthContext, *, public_key: str | None = None) -> Artifact:
         public_key=public_key,
         public_view_count=0,
         embed_origins=[],
+        auto_consent=False,
         published_at=datetime(2026, 9, 22, tzinfo=UTC),
         created_at=datetime(2026, 9, 1, tzinfo=UTC),
     )
@@ -64,6 +68,7 @@ def _version(
     number: int = 1,
     media_type: str = ArtifactMediaType.HTML.value,
     bindings: list[dict[str, Any]] | None = None,
+    consent_state: str = "not_needed",
 ) -> ArtifactVersion:
     return ArtifactVersion(
         id=uuid.uuid4(),
@@ -75,6 +80,7 @@ def _version(
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/x.html",
         run_id=None,
         bindings=bindings or [],
+        consent_state=consent_state,
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
@@ -83,19 +89,23 @@ def _service() -> ArtifactService:
     return ArtifactService(MagicMock())
 
 
-def _binding(name: str = "deals") -> dict[str, Any]:
-    return {
-        "name": name,
-        "view_id": str(uuid.uuid4()),
-        "table_id": str(uuid.uuid4()),
-        "fields": {"stage": str(uuid.uuid4())},
-        "status": "ok",
-        "reason": None,
-    }
+def _binding(name: str = "deals", table_id: uuid.UUID | None = None) -> dict[str, Any]:
+    """A page query as a version stores it."""
+    table_id = table_id or uuid.uuid4()
+    stage = uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"stage": stage},
+        reach=BindingReach(tables={table_id: {stage: 0}}),
+    ).model_dump(mode="json")
 
 
 def _claims(url: str) -> dict[str, Any]:
-    claims = verify_special_token(url.rsplit("/", 1)[1], "artifact_view")
+    claims = verify_special_token(
+        url.rsplit("/", 1)[1], "artifact_view", audience=("member", "public")
+    )
     assert claims is not None
     return claims
 
@@ -293,30 +303,40 @@ class TestRead:
     ) -> None:
         ctx = _ctx()
         artifact = _artifact(ctx)
-        view_id, table_id = uuid.uuid4(), uuid.uuid4()
-        binding = {
-            "name": "tickets",
-            "view_id": str(view_id),
-            "table_id": str(table_id),
-            "fields": {"status": str(uuid.uuid4()), "title": str(uuid.uuid4())},
-            "status": "unavailable",
-            "reason": "field_missing",
-        }
-        version = _version(artifact, bindings=[binding])
+        table_id = uuid.uuid4()
+        status, title = uuid.uuid4(), uuid.uuid4()
+        binding = ArtifactBinding(
+            name="tickets",
+            table_id=table_id,
+            limit=1000,
+            fields={"status": status, "title": title},
+            reach=BindingReach(tables={table_id: {status: 0, title: 2}}),
+        ).model_dump(mode="json")
+        version = _version(artifact, bindings=[binding], consent_state="pending")
+        version.query_fingerprint = "f" * 64
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.member_repo.get_active", new=AsyncMock(return_value=MagicMock())),
+            patch(
+                f"{PATH}.user_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(full_name="Ada Lovelace")),
+            ),
         ):
             read = await _service().read(ctx, artifact.id)
         assert read.live is True
+        assert read.consent is not None
+        assert (read.consent.state, read.consent.fingerprint) == ("pending", "f" * 64)
+        assert (read.consent.audience_version, read.consent.owner_name) == (None, "Ada Lovelace")
+        assert read.consent.may_confirm is True
         [shown] = read.bindings
-        assert (shown.name, shown.view_id, shown.table_id) == ("tickets", view_id, table_id)
-        assert (shown.fields, shown.status, shown.reason) == (
-            ["status", "title"],
-            "unavailable",
-            "field_missing",
-        )
+        assert shown.model_dump() == {
+            "name": "tickets",
+            "table_id": table_id,
+            "fields": ["status", "title"],
+        }
 
     async def test_a_page_with_no_version_is_not_live(self) -> None:
         ctx = _ctx()
@@ -401,6 +421,7 @@ class TestListing:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=kept[0])),
             patch(f"{PATH}.artifact_repo.list_versions", new=AsyncMock(return_value=kept)),
         ):
             result = await _service().versions(ctx, artifact.id)
@@ -497,11 +518,11 @@ class TestView:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(
-                f"{PATH}.artifact_repo.get_version",
+                f"{PATH}.artifact_repo.latest_version",
                 new=AsyncMock(return_value=_version(artifact)),
             ),
         ):
-            view = await _service().view(ctx, artifact.id, version_id=uuid.uuid4())
+            view = await _service().view(ctx, artifact.id)
         assert view.url.startswith("https://content.example.net/api/v1/artifact-content/")
 
     async def test_a_pruned_version_is_not_found(self) -> None:
@@ -510,6 +531,10 @@ class TestView:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{PATH}.artifact_repo.latest_version",
+                new=AsyncMock(return_value=_version(artifact)),
+            ),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=None)),
             pytest.raises(NotFoundError, match="no longer kept"),
         ):
@@ -535,6 +560,79 @@ class TestView:
             assert len(view.nonce) >= 16
         # A nonce per frame, so a late reply for one load cannot reach the next.
         assert current.nonce != named.nonce
+
+    @pytest.mark.security
+    async def test_a_view_names_the_member_and_asks_for_data_only_when_told_to(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, number=4, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+        ):
+            plain = await _service().view(ctx, artifact.id)
+            with_data = await _service().view(ctx, artifact.id, data=True)
+        assert plain.injected is False
+        assert with_data.injected is True
+        assert (with_data.bindings, with_data.awaiting_consent) == (1, False)
+        for view, inject in ((plain, False), (with_data, True)):
+            claims = _claims(view.url)
+            assert claims["aud"] == "member"
+            assert claims["uid"] == str(ctx.user_id)
+            assert claims["org"] == str(ctx.organization_id)
+            assert claims["inj"] is inject
+
+    @pytest.mark.security
+    async def test_a_view_injects_only_for_an_active_member_of_the_pages_organization(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, number=4, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=None)),
+        ):
+            view = await _service().view(ctx, artifact.id, data=True)
+        assert view.injected is False
+        assert view.live is True
+        assert _claims(view.url)["inj"] is False
+
+    async def test_a_view_tells_everyone_whether_the_data_waits_for_consent(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, number=4, bindings=[_binding("a"), _binding("b")])
+        waiting = Served(version=version, data=False, latest=False)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+            patch.object(ArtifactService, "_served", new=AsyncMock(return_value=waiting)),
+        ):
+            view = await _service().view(ctx, artifact.id, data=True)
+        assert (view.bindings, view.awaiting_consent) == (2, True)
+        # The page is still served its (empty) data: it says the data waits.
+        assert view.injected is True
+
+    @pytest.mark.security
+    async def test_a_page_with_nothing_bound_and_an_older_version_never_inject(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        unbound = _version(artifact, number=4)
+        older = _version(artifact, number=3, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=unbound)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=older)),
+        ):
+            current = await _service().view(ctx, artifact.id, data=True)
+            history = await _service().view(ctx, artifact.id, version_id=older.id, data=True)
+        assert current.injected is False
+        assert history.injected is False
+        assert _claims(history.url)["inj"] is False
 
     async def test_an_older_version_mints_a_token_that_is_not_live(self) -> None:
         ctx = _ctx()
@@ -579,7 +677,7 @@ class TestPublicView:
         artifact = _artifact(_ctx(), public_key="k")
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
-            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=None)),
             pytest.raises(NotFoundError),
         ):
             await _service().public_view("k")
@@ -589,7 +687,7 @@ class TestPublicView:
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
             patch(
-                f"{PATH}.artifact_repo.latest_version",
+                f"{PATH}.artifact_repo.latest_served",
                 new=AsyncMock(return_value=_version(artifact)),
             ),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()) as counted,
@@ -604,17 +702,22 @@ class TestPublicView:
     async def test_a_public_link_and_an_embed_are_never_live(self) -> None:
         artifact = _artifact(_ctx(), public_key="k")
         artifact.embed_origins = ["https://a.example.com"]
-        version = _version(artifact, bindings=[_binding()])
+        version = _version(artifact, bindings=[_binding()], consent_state="consented")
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
-            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         ):
             public = await _service().public_view("k")
             embed = await _service().embed("k")
         assert public.view is not None
         assert public.view.live is False
+        assert public.view.injected is False
         assert _claims(public.view.url)["live"] is False
+        assert _claims(public.view.url)["aud"] == "public"
+        assert "inj" not in _claims(public.view.url)
+        assert "uid" not in _claims(public.view.url)
+        assert _claims(public.view.url)["pk"] == hashlib.sha256(b"k").hexdigest()
         frame = re.search(r'src="([^"]*/artifact-content/[^"]+)"', embed.document.decode())
         assert frame is not None
         assert _claims(frame.group(1))["live"] is False
@@ -625,7 +728,7 @@ class TestContent:
         artifact = _artifact(_ctx())
         version = _version(artifact)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<h1>hi</h1>")
@@ -651,7 +754,11 @@ class TestContent:
         version_id = uuid.uuid4()
         token = {
             "expired": create_artifact_view_token(
-                version_id, expires_in=timedelta(seconds=-5), nonce="n0", live=False
+                version_id,
+                expires_in=timedelta(seconds=-5),
+                nonce="n0",
+                live=False,
+                audience="public",
             ),
             "forged": "not-a-token",
             "wrong-type": create_password_reset_token(str(version_id)),
@@ -669,7 +776,7 @@ class TestContent:
         artifact = _artifact(_ctx())
         version = _version(artifact)
         token = create_artifact_view_token(
-            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False
+            version.id, expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         storage = MagicMock()
         storage.load = AsyncMock(side_effect=FileNotFoundError(version.storage_path))
@@ -696,6 +803,7 @@ class TestContent:
                 "exp": datetime.now(UTC) + timedelta(minutes=5),
                 "sub": str(version.id),
                 "type": "artifact_view",
+                "aud": "public",
                 "live": True,
             },
             artifacts.settings.SECRET_KEY,
@@ -718,7 +826,7 @@ class TestContent:
 
     async def test_an_address_to_a_pruned_version_is_not_found(self) -> None:
         token = create_artifact_view_token(
-            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
         )
         with (
             patch(
@@ -727,6 +835,109 @@ class TestContent:
             pytest.raises(NotFoundError),
         ):
             await _service().content(token)
+
+
+class TestContentAudience:
+    def _served(self, audience: str) -> tuple[Any, Any, str]:
+        artifact = _artifact(_ctx(), public_key="k")
+        artifact.embed_origins = ["https://a.example.com"]
+        version = _version(artifact, bindings=[_binding()])
+        kwargs: dict[str, Any] = {}
+        if audience == "member":
+            kwargs = {"user_id": uuid.uuid4(), "organization_id": artifact.organization_id}
+        token = create_artifact_view_token(
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=True,
+            audience=audience,
+            public_key="k",
+            **kwargs,
+        )
+        return artifact, version, token
+
+    async def _content(self, artifact: Any, version: Any, token: str) -> Any:
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<h1>hi</h1>")
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            return await _service().content(token)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("audience", "origins"), [("member", []), ("public", ["https://a.example.com"])]
+    )
+    async def test_member_tokens_name_the_console_and_public_ones_the_embedding_sites(
+        self, audience: str, origins: list[str]
+    ) -> None:
+        artifact, version, token = self._served(audience)
+        served = await self._content(artifact, version, token)
+        assert served.embed_origins == origins
+
+    @pytest.mark.security
+    async def test_a_token_with_no_audience_opens_nothing(self) -> None:
+        artifact, version, _ = self._served("public")
+        token = jwt.encode(
+            {
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+                "sub": str(version.id),
+                "type": "artifact_view",
+                "n": "n0",
+                "live": False,
+            },
+            artifacts.settings.SECRET_KEY,
+            algorithm=artifacts.settings.ALGORITHM,
+        )
+        with pytest.raises(NotFoundError):
+            await self._content(artifact, version, token)
+
+    @pytest.mark.security
+    async def test_a_public_token_is_never_served_data_whatever_it_claims(self) -> None:
+        artifact, version, _ = self._served("public")
+        token = jwt.encode(
+            {
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+                "sub": str(version.id),
+                "type": "artifact_view",
+                "aud": "public",
+                "n": "n0",
+                "live": True,
+                "inj": True,
+                "uid": str(uuid.uuid4()),
+                "org": str(artifact.organization_id),
+            },
+            artifacts.settings.SECRET_KEY,
+            algorithm=artifacts.settings.ALGORITHM,
+        )
+        with patch.object(ArtifactService, "_injection", new=AsyncMock()) as injection:
+            served = await self._content(artifact, version, token)
+        injection.assert_not_awaited()
+        assert b'"initial"' not in served.document
+
+
+class TestViewToken:
+    def test_a_member_address_without_the_member_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="names the member"):
+            create_artifact_view_token(
+                uuid.uuid4(),
+                expires_in=timedelta(minutes=5),
+                nonce="n0",
+                live=False,
+                audience="member",
+            )
+
+    @pytest.mark.security
+    def test_a_token_with_an_audience_is_not_another_kind_of_token(self) -> None:
+        token = create_artifact_view_token(
+            uuid.uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
+        )
+        assert verify_special_token(token, "artifact_view") is None
+        assert verify_special_token(token, "artifact_view", audience=("public",)) is not None
 
 
 class TestRender:
@@ -936,6 +1147,10 @@ class TestData:
         artifact = _artifact(ctx)
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(
+                f"{PATH}.artifact_repo.latest_version",
+                new=AsyncMock(return_value=_version(artifact)),
+            ),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=None)),
             pytest.raises(NotFoundError) as missing,
         ):
@@ -958,6 +1173,7 @@ class TestData:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
             patch(
                 f"{PATH}.virtual_table_repo.statement_timeout",
                 new=AsyncMock(side_effect=stopped),
@@ -977,6 +1193,7 @@ class TestData:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
             patch(
                 f"{PATH}.virtual_table_repo.statement_timeout",
                 new=AsyncMock(side_effect=broken),
@@ -984,3 +1201,306 @@ class TestData:
             pytest.raises(DBAPIError),
         ):
             await service.data(ctx, artifact.id, version.id)
+
+    async def _served(
+        self,
+        viewer: AuthContext,
+        artifact: Artifact,
+        *,
+        owner: AuthContext | None,
+        source: Any,
+        can_edit: bool = True,
+    ) -> tuple[ArtifactData, AsyncMock]:
+        """One page load of a one-binding page, its owner's read stubbed at `page_source`."""
+        version = _version(artifact, bindings=[_binding()])
+        read = AsyncMock(return_value=source)
+
+        async def access(_db: Any, _ctx: Any, _row: Any, perm: Perm, **_kw: Any) -> bool:
+            return perm is Perm.ARTIFACTS_VIEW or can_edit
+
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.resolve_access", new=access),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)),
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.virtual_table_repo.restore_statement_timeout", new=AsyncMock()),
+            patch(f"{PATH}.page_source", new=read),
+        ):
+            data = await ArtifactService(_session()).data(viewer, artifact.id, version.id)
+        return data, read
+
+    @pytest.mark.security
+    async def test_a_member_who_is_not_the_owner_awaits_consent_and_nothing_is_read(
+        self,
+    ) -> None:
+        """Until the owner consents, a page's data reaches only them and the roles that
+        read every table: a Member opening a page shared with them sees it without."""
+        owner = _ctx()
+        artifact = _artifact(owner)
+        member = _ctx(OrgRoleName.MEMBER, org_id=owner.organization_id)
+
+        data, read = await self._served(member, artifact, owner=owner, source=None)
+
+        assert (data.bindings["deals"].status, data.bindings["deals"].reason) == (
+            "unavailable",
+            "awaiting_consent",
+        )
+        read.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "role", [OrgRoleName.ADMIN, OrgRoleName.BUILDER, OrgRoleName.OPERATOR, OrgRoleName.OWNER]
+    )
+    async def test_a_role_that_reads_every_table_reads_the_owner_s_query(self, role: str) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        viewer = _ctx(role, org_id=owner.organization_id)
+
+        data, read = await self._served(
+            viewer, artifact, owner=owner, source=Unavailable("creator_lost_access")
+        )
+
+        assert data.bindings["deals"].reason == "creator_lost_access"
+        assert read.await_args.args[1] is owner
+
+    @pytest.mark.security
+    async def test_an_owner_who_is_no_longer_a_member_backs_no_data(self) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
+        artifact = _artifact(admin)
+        artifact.owner_user_id = uuid.uuid4()
+
+        data, read = await self._served(admin, artifact, owner=None, source=None)
+
+        assert data.bindings["deals"].reason == "creator_gone"
+        read.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_an_owner_who_was_deleted_backs_no_data(self) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
+        artifact = _artifact(admin)
+        artifact.owner_user_id = None
+
+        data, _read = await self._served(admin, artifact, owner=admin, source=None)
+
+        assert data.bindings["deals"].reason == "creator_gone"
+
+    async def test_an_editor_is_told_what_changed_and_a_reader_is_not(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        changed = Unavailable("source_changed", "Status")
+
+        told, _ = await self._served(owner, artifact, owner=owner, source=changed)
+        untold, _ = await self._served(owner, artifact, owner=owner, source=changed, can_edit=False)
+
+        assert (told.bindings["deals"].reason, told.bindings["deals"].changed) == (
+            "source_changed",
+            "Status",
+        )
+        assert (untold.bindings["deals"].reason, untold.bindings["deals"].changed) == (None, None)
+
+
+class TestInjection:
+    """What `content` writes into a member's page, branch by branch, with the reads stubbed."""
+
+    def _claims(self, viewer: AuthContext, *, org: uuid.UUID | None = None) -> dict[str, Any]:
+        return {"uid": str(viewer.user_id), "org": str(org or viewer.organization_id)}
+
+    async def _run(
+        self,
+        *,
+        claims: dict[str, Any],
+        artifact: Artifact,
+        version: ArtifactVersion,
+        reader: AuthContext | None,
+        found: Artifact | type[NotFoundError] | None = None,
+        served_version: ArtifactVersion | None = None,
+        allowed: bool = True,
+        in_flight: bool = False,
+        gate_locked: bool = False,
+    ) -> dict[str, Any]:
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def claim(*_a: Any, **_k: Any) -> Any:
+            if in_flight:
+                raise RateLimitError(message="held")
+            yield
+
+        gate = MagicMock()
+        gate.locked.return_value = gate_locked
+        gate.__aenter__ = AsyncMock()
+        gate.__aexit__ = AsyncMock(return_value=False)
+        read = AsyncMock(return_value={"deals": "READ"})
+        with (
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=reader)) as lookup,
+            patch(
+                f"{PATH}.ArtifactService.get",
+                new=AsyncMock(side_effect=NotFoundError(message="x"))
+                if found is NotFoundError
+                else AsyncMock(return_value=artifact),
+            ),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{PATH}.served",
+                new=AsyncMock(
+                    return_value=artifacts.Served(version=served_version, data=True, latest=True)
+                ),
+            ),
+            patch(
+                f"{PATH}.rate_limit.consume_with_local_floor",
+                new=AsyncMock(return_value=MagicMock(allowed=allowed)),
+            ),
+            patch(f"{PATH}.rate_limit.one_in_flight", claim),
+            patch(f"{PATH}._load_gate", return_value=gate),
+            patch(f"{PATH}.ArtifactService._read_page", new=read),
+        ):
+            result = await _service()._injection(claims, artifact, version)
+        self.looked_up = lookup
+        self.read = read
+        return {name: getattr(value, "reason", value) for name, value in result.items()}
+
+    def _page(self) -> tuple[AuthContext, Artifact, ArtifactVersion]:
+        viewer = _ctx()
+        artifact = _artifact(viewer)
+        return viewer, artifact, _version(artifact, bindings=[_binding()])
+
+    @pytest.mark.security
+    async def test_a_token_for_another_organization_reads_nothing_and_looks_nobody_up(self) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(
+            claims=self._claims(viewer, org=uuid.uuid4()),
+            artifact=artifact,
+            version=version,
+            reader=viewer,
+        )
+        assert result == {"deals": None}
+        self.looked_up.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_token_naming_nobody_reads_nothing(self) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(claims={}, artifact=artifact, version=version, reader=viewer)
+        assert result == {"deals": None}
+        self.looked_up.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_viewer_who_is_no_longer_a_member_reads_nothing(self) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(
+            claims=self._claims(viewer), artifact=artifact, version=version, reader=None
+        )
+        assert result == {"deals": None}
+        self.read.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_viewer_who_may_no_longer_open_the_page_reads_nothing(self) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(
+            claims=self._claims(viewer),
+            artifact=artifact,
+            version=version,
+            reader=viewer,
+            found=NotFoundError,
+        )
+        assert result == {"deals": None}
+        self.read.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("served_version", [None, "another"])
+    async def test_a_version_they_are_not_served_reads_nothing(
+        self, served_version: str | None
+    ) -> None:
+        viewer, artifact, version = self._page()
+        other = _version(artifact, number=9, bindings=[_binding()]) if served_version else None
+        result = await self._run(
+            claims=self._claims(viewer),
+            artifact=artifact,
+            version=version,
+            reader=viewer,
+            served_version=other,
+        )
+        # Told to an editor, as on the data route.
+        assert result == {"deals": "not_current"}
+        self.read.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("how", ["limit", "in_flight", "gate"])
+    async def test_a_load_over_the_viewer_s_limits_is_busy_and_reads_nothing(
+        self, how: str
+    ) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(
+            claims=self._claims(viewer),
+            artifact=artifact,
+            version=version,
+            reader=viewer,
+            served_version=version,
+            allowed=how != "limit",
+            in_flight=how == "in_flight",
+            gate_locked=how == "gate",
+        )
+        assert result == {"deals": "busy"}
+        self.read.assert_not_awaited()
+
+    async def test_a_viewer_who_is_served_the_version_gets_the_read(self) -> None:
+        viewer, artifact, version = self._page()
+        result = await self._run(
+            claims=self._claims(viewer),
+            artifact=artifact,
+            version=version,
+            reader=viewer,
+            served_version=version,
+        )
+        assert result == {"deals": "READ"}
+        assert self.read.await_args.kwargs["isolate_failures"] is True
+        assert self.read.await_args.kwargs["current"] is True
+
+
+class TestReadPageFailures:
+    async def _read(self, *, isolate: bool) -> dict[str, Any]:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        broken = DBAPIError("SELECT 1", {}, MagicMock(sqlstate="40001"))
+        with (
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+            patch(f"{PATH}.ArtifactService._read_binding", new=AsyncMock(side_effect=broken)),
+        ):
+            return await _service()._read_page(
+                artifact,
+                version,
+                artifacts.Served(version=version, data=True, latest=True),
+                can_edit=True,
+                current=True,
+                isolate_failures=isolate,
+            )
+
+    async def test_a_failed_read_is_that_binding_unavailable_when_isolated(self) -> None:
+        bindings = await self._read(isolate=True)
+        assert bindings["deals"].status == "unavailable"
+        assert bindings["deals"].reason == "failed"
+
+    async def test_a_failed_read_is_raised_otherwise(self) -> None:
+        with pytest.raises(DBAPIError):
+            await self._read(isolate=False)
+
+
+class TestWhoIsToldWhyABindingIsEmpty:
+    @pytest.mark.parametrize(
+        ("reason", "reader_told"),
+        [
+            ("awaiting_consent", True),
+            ("not_current", True),
+            ("creator_gone", False),
+            ("source_changed", False),
+        ],
+    )
+    def test_only_a_reason_that_says_nothing_of_the_tables_reaches_a_reader(
+        self, reason: Reason, reader_told: bool
+    ) -> None:
+        reads = {"deals": Unavailable(reason)}
+        reader = page_data(reads, max_bytes=1000, can_edit=False)["deals"]
+        editor = page_data(reads, max_bytes=1000, can_edit=True)["deals"]
+        assert reader.reason == (reason if reader_told else None)
+        assert editor.reason == reason

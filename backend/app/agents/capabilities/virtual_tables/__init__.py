@@ -48,8 +48,7 @@ def _writes(tool_id: str, description: str) -> CapabilityToolInfo:
             "describe_table",
             "Describe a table's live columns: id, label, type, and options for a select.",
         ),
-        _reads("list_views", "List a table's saved views, to bind a page to one."),
-        _writes("share_view", "Share one of your own private views with the organization."),
+        _reads("list_views", "List a table's saved views, to start a page's query from one."),
         _writes("create_table", "Create a new table with the given columns."),
         _reads(
             "record_exists",
@@ -66,8 +65,8 @@ def _writes(tool_id: str, description: str) -> CapabilityToolInfo:
     ),
     config_schema=VirtualTablesConfig,
     scopes=("tables:read",),
-    # Names for the ids a gated write or `share_view` carries, so its approval card
-    # reads "Share the view Closed tickets of Support" rather than a UUID.
+    # Names for the table a gated write carries, so its approval card reads "Update a
+    # record in Support" rather than a UUID.
     describers=APPROVAL_DESCRIBERS,
 )
 def _build(ctx: CapabilityBuildContext) -> VirtualTables | None:

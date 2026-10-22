@@ -1,5 +1,5 @@
 ---
-source_sha: "35553e722018"
+source_sha: "98c1d7098b28"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -148,6 +148,23 @@ ją z bieżącymi kolumnami:
 Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
 domyślną przy najbliższej edycji rekordu.
+
+Każda kolumna ma tylko do odczytu **`revision`**, równe `0` dla nowej kolumny i dla
+każdej kolumny, która istniała, zanim je dodano. Zlicza zmiany tego, co wartości
+kolumny *oznaczają*, żeby opublikowana [strona](artifacts.md#live-data) mogła
+rozpoznać, że kolumna, względem której ją opublikowano, nie jest już tą samą. Rośnie o jeden przy:
+
+- konwersji typu;
+- zmianie formuły, porównywanej po tym, jak przez nią przepisano zmianę nazwy, więc
+  zmiana nazwy kolumny, którą czyta formuła, się nie liczy, ale przejęcie etykiety przez
+  inną kolumnę tak;
+- innym celu linku, lookupu albo rollupu, albo innym agregacie;
+- archiwizacji albo przywróceniu kolumny, albo archiwizacji albo przywróceniu jednej z jej opcji wyboru.
+
+Nowa etykieta, wartość domyślna czy wymaganie, zmiana etykiety opcji wyboru i nowa
+opcja zostawiają je bez zmian. Filtr trzyma id opcji, więc żadna z tych zmian nie
+zmienia tego, co filtr dopasowuje. Kolumnę `TableRead` można odesłać w zmianie schematu
+tak, jak przyszła: pole jest przyjmowane i ignorowane, a ustawia je dopiero sama zmiana.
 
 Zapis rekordu oraz zmiana schematu lub archiwizacja tej samej tabeli czekają na siebie:
 zapis czeka na trwającą zmianę i jest potem oceniany według tego, co ona zatwierdziła,
@@ -429,22 +446,37 @@ grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns` - wido
 który nie pokazuje już żadnej z wybranych kolumn, pokazuje wszystkie żywe. Zapisana
 konfiguracja nie jest przepisywana.
 
-### Widoki jako kontrakt danych dla stron { #views-for-pages }
+### Strony i widoki { #views-for-pages }
 
-Opublikowany [artefakt](artifacts.md#live-data) wiąże się z zapisanymi widokami, a
-widok jest tym, co strona czyta: filtry, sortowanie i wyszukiwanie widoku decydują
-o wierszach, a `fields` bindingu o kolumnach, niezależnie od tego, czy widok je
-pokazuje. Agent z tą capability znajduje
-widoki przez `list_views`, które dla tabel, które agent może czytać, zwraca id
-każdego widoku, jego kolumny i to, czy jest współdzielony.
+Opublikowany [artefakt](artifacts.md#live-data) nie czyta przez widok. Jego bindingi
+to **zapytania strony**: tabela, filtry, sortowanie, limit i pola, które strona
+czyta, a które platforma zapisuje w wersji strony przy publikacji. Binding może
+wystartować od zapisanego widoku — agent znajduje go przez `list_views`, które dla
+tabel, które może czytać, zwraca id każdego widoku, jego kolumny i to, czy jest
+współdzielony — ale filtry i sortowanie widoku są wtedy **kopiowane** do strony.
+Późniejsza edycja, udostępnienie, zmiana nazwy czy usunięcie widoku niczego na
+stronie nie zmienia, a `visible_columns` i `group_by` widoku są ignorowane: o kolumnach
+decyduje `fields` bindingu.
 
-Prywatny widok obsługuje tylko swojego właściciela, więc strona, którą otwierają
-inni, potrzebuje widoku współdzielonego. `share_view` udostępnia widok każdemu, kto
-widzi tabelę, a udostępnić go może tylko właściciel widoku. Domyślnie czeka na
-prośbę o zatwierdzenie. Decyduje o nim także `approval` ustawione dla całej
-capability `virtual_tables`, a tylko `tool_approval.share_view` dotyczy wyłącznie
-jego. Oglądający stronę nadal czyta tylko to, na co pozwala mu jego własny dostęp
-do tabeli.
+Widoku z wyszukiwaniem pełnotekstowym nie można powiązać, bo wyszukiwanie dopasowuje
+każdą żywą kolumnę tekstową i poszerzałoby się wraz z dodawaniem kolumn; publikacja
+jest odrzucana i nazywa widok. Tak samo widok, którego filtr wskazuje kolumnę, której już nie ma.
+
+O tym, kto może czytać rekordy strony, nie decyduje widok. Są czytane z dostępem
+właściciela strony, gdy właściciel wyraził zgodę, a dostęp do tabeli jest wszystko
+albo nic: `read` daje każdy wiersz i każdą żywą kolumnę. Zapytanie strony to sposób,
+w jaki wiersze tabeli docierają do osób, które nie mogłyby jej otworzyć, i właściciel
+jest o to najpierw pytany. Zobacz
+[Artefakty](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+
+Zapytanie strony zapisuje `revision` każdej kolumny, do której sięga: jej pola,
+kolumny filtra i sortowania, wejścia formuły, link i cel lookupu albo rollupu oraz
+kolumnę, którą każda powiązana tabela etykietuje swoje rekordy. Binding staje się
+`unavailable` (`source_changed`), gdy któraś z nich poszła dalej albo została
+zarchiwizowana, albo gdy zarchiwizowano tabelę, do której sięga, a pozostałe bindingi
+nadal działają. Nic nie blokuje z tego powodu zmiany tabeli: strona nie jest
+zależnością, która blokuje archiwizację. `share_view` już nie istnieje; dla strony
+nie ma prywatnego widoku do udostępnienia.
 
 ## Wyzwalacze { #triggers }
 

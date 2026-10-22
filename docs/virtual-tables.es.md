@@ -1,5 +1,5 @@
 ---
-source_sha: "35553e722018"
+source_sha: "98c1d7098b28"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -149,6 +149,23 @@ las columnas actuales:
 Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
 defecto la próxima vez que se edita el registro.
+
+Cada columna lleva una **`revision`** de solo lectura, que es `0` para una columna nueva y
+para toda columna que existía antes de añadirla. Cuenta los cambios en lo que *significan* los
+valores de la columna, para que una [página](artifacts.md#live-data) publicada pueda saber que
+la columna contra la que se publicó ya no es esa. Sube una unidad con:
+
+- una conversión de tipo;
+- un cambio en una fórmula, comparada después de propagar un renombrado, de modo que renombrar
+  una columna que lee una fórmula no cuenta, pero que otra columna tome la etiqueta sí;
+- un destino distinto de un enlace, lookup o rollup, o un agregado distinto;
+- archivar o restaurar la columna, o archivar o restaurar una de sus opciones de selección.
+
+Una etiqueta, un valor por defecto o una obligatoriedad nuevos, una opción de selección
+renombrada y una opción nueva la dejan como estaba. Un filtro guarda ids de opción, así que
+ninguno de esos cambios altera lo que coincide con un filtro. Una columna de `TableRead` se
+puede devolver en un cambio de esquema tal como llegó: el campo se acepta y se ignora, y solo
+el propio cambio la fija.
 
 Una escritura de registro y un cambio de esquema o el archivado de la misma tabla se
 turnan: la escritura espera a la que está en curso y se juzga luego según lo que esta
@@ -431,22 +448,36 @@ agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya n
 muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
 guardada no se reescribe.
 
-### Las vistas como contrato de datos para páginas { #views-for-pages }
+### Páginas y vistas { #views-for-pages }
 
-Un [artefacto](artifacts.md#live-data) publicado se vincula a vistas guardadas, y la
-vista es lo que lee: los filtros, el orden y la búsqueda de la vista deciden las
-filas, y los `fields` del binding deciden las columnas, las muestre o no la vista.
-Un agent con esta capability encuentra
-vistas con `list_views`, que devuelve el id de cada vista, sus columnas y si está
-compartida, para las tablas que puede leer.
+Un [artefacto](artifacts.md#live-data) publicado no lee a través de una vista. Sus bindings
+son **page queries**: una tabla, filtros, un orden, un límite y los campos que lee la página,
+que la plataforma guarda en la versión de la página al publicarla. Un binding puede partir de
+una vista guardada - un agent encuentra una con `list_views`, que devuelve el id de cada vista,
+sus columnas y si está compartida, para las tablas que puede leer - pero los filtros y el orden
+de la vista se **copian** entonces a la página.
 
-Una vista privada solo sirve a su propietario, así que una página que abren otros
-necesita una compartida. `share_view` hace visible una vista para todos los que
-pueden ver la tabla, y solo el propietario de la vista puede compartirla. Por
-defecto espera la solicitud de aprobación. Una `approval` de toda la capability en
-`virtual_tables` también la decide, y solo `tool_approval.share_view` la apunta a
-ella sola. Quien mira la página sigue leyendo solo lo que le permite su propio
-acceso a la tabla.
+Editar, compartir, renombrar o borrar la vista
+después no cambia nada en la página, y los `visible_columns` y `group_by` de una vista se
+ignoran: los `fields` del binding deciden las columnas.
+
+Una vista con búsqueda de texto libre no se puede vincular, porque una búsqueda coincide con
+todas las columnas de texto vivas y se ampliaría al añadir columnas; la publicación se rechaza
+y nombra la vista. Lo mismo ocurre con una vista cuyo filtro nombra una columna que ya no existe.
+
+Quién puede leer los registros de la página no lo decide la vista. Se leen con el acceso del
+propietario de la página, una vez que este ha consentido, y el acceso a una tabla es todo o
+nada: `read` da todas las filas y todas las columnas vivas. Una page query es la forma en que
+las filas de una tabla llegan a gente que no podría abrirla, y primero se pregunta al
+propietario. Consulta [Artefactos](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+
+Una page query registra la `revision` de cada columna que alcanza: sus campos, las columnas de
+sus filtros y de su orden, las entradas de una fórmula, el enlace y el destino de un lookup o
+rollup, y la columna por la que cada tabla vinculada etiqueta sus registros. Un binding pasa a
+`unavailable` (`source_changed`) cuando una de esas columnas cambió de significado o se archivó,
+o cuando se archivó una tabla que alcanza, y los demás bindings siguen funcionando. Nada
+impide por ello un cambio de tabla: una página no es una dependencia que bloquee un archivado.
+`share_view` ya no existe; no hay una vista privada que compartir para una página.
 
 ## Triggers { #triggers }
 

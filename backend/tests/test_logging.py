@@ -229,7 +229,7 @@ def _log_a_request(path: str) -> None:
 
 def _view_token() -> str:
     return create_artifact_view_token(
-        uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False
+        uuid4(), expires_in=timedelta(minutes=5), nonce="n0", live=False, audience="public"
     )
 
 

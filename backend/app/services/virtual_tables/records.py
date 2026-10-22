@@ -59,6 +59,7 @@ from app.schemas.virtual_table import (
     RecordList,
     RecordQuery,
     RecordRead,
+    RecordSort,
     RecordUpdate,
     RecordUpsert,
 )
@@ -82,7 +83,6 @@ from app.services.virtual_tables.exceptions import (
     RevisionRequiredError,
 )
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
-from app.services.virtual_tables.table_views import BoundView
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
     OPTION_TYPES,
@@ -271,6 +271,16 @@ def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterC
     )
 
 
+def check_query(columns: list[ColumnDef], filters: list[RecordFilter], sort: RecordSort) -> None:
+    """Whether `filters` and `sort` can be answered by a table of `columns`.
+
+    Raises:
+        InvalidQueryError: The first filter, or the sort, that cannot, naming it by
+            its path - `filters.2` or `sort.by`.
+    """
+    _clauses(columns, RecordQuery(filters=filters, sort=sort))
+
+
 def _search(columns: list[ColumnDef], term: str | None) -> SearchClause | None:
     """What a search box's `term` looks for in this table, or `None` for no search.
 
@@ -344,15 +354,15 @@ def _cell_text(column: ColumnDef, value: CellValue) -> str:
 
 
 BOUND_CHUNK = 200
-"""Records a page binding measures the links of, and loads, at a time."""
+"""Records a page query measures the links of, and loads, at a time."""
 
 
 @dataclass(frozen=True)
 class BoundRows:
-    """A view's records as a page binding reads them, within its record and byte limits."""
+    """A page query's records as a binding reads them, within its record and byte limits."""
 
     records: list[dict[str, Any]]
-    """Each record as the caller's `shape` made it, in the view's order."""
+    """Each record as the caller's `shape` made it, in the query's order."""
     sizes: list[int]
     """The bytes of each shaped record, as compact JSON."""
     bytes: int
@@ -360,7 +370,7 @@ class BoundRows:
     columns: list[ColumnDef]
     """The table's columns as read, archived ones included."""
     stopped_by: Literal["records", "bytes"] | None
-    """Which limit left records out, or `None` when the view's every record is here."""
+    """Which limit left records out, or `None` when every record the query matches is here."""
 
 
 def _referenced(values: Mapping[str, Any], links: Mapping[UUID, UUID]) -> dict[UUID, set[UUID]]:
@@ -383,7 +393,7 @@ def _failure(index: int, refused: AppException) -> RecordBatchFailure:
 
 
 class _BoundWalk:
-    """What `read_bound` knows of the linked records as it walks a view's records.
+    """What `read_bound` knows of the linked records as it walks a page query's records.
 
     Holds the link cells of one chunk at a time and the measured size of every linked
     record it has seen - ids and integers, never a linked record's cells.
@@ -393,7 +403,8 @@ class _BoundWalk:
         self,
         db: AsyncSession,
         ctx: AuthContext,
-        bound: BoundView,
+        table_id: UUID,
+        columns: Sequence[ColumnDef],
         *,
         tables: Mapping[UUID, LinkedTable],
         targets: Mapping[UUID, frozenset[UUID]],
@@ -402,13 +413,13 @@ class _BoundWalk:
     ) -> None:
         self._db = db
         self._ctx = ctx
-        self._table_id = bound.table_id
+        self._table_id = table_id
         self._tables = tables
         self._targets = targets
         self._deadline = deadline
         self._links: dict[UUID, UUID] = {
             column.id: linked_table
-            for column in bound.columns
+            for column in columns
             if (linked_table := column.link_table_id) is not None
             and linked_table in tables
             and column.id in reached
@@ -590,21 +601,24 @@ class RecordOperations(Operations):
     async def read_bound(
         self,
         ctx: AuthContext,
-        bound: BoundView,
         *,
+        table_id: UUID,
+        columns: list[ColumnDef],
+        filters: list[RecordFilter],
+        sort: RecordSort,
         column_ids: Sequence[UUID],
         shape: Callable[[RecordRead], dict[str, Any]],
         max_records: int,
         max_bytes: int,
         deadline: ReadDeadline,
     ) -> BoundRows:
-        """A view's records for a page: the cells `column_ids` take, shaped, within the limits.
+        """A page query's records: the cells `column_ids` take, shaped, within the limits.
 
-        `bound` must come from `TableViewService.find_view` for this same `ctx`, in this
-        transaction: that is where the view and its table are checked, so they are not
-        checked again here. Linked tables are checked as `ctx`, once each.
+        The caller has already checked that `ctx` may read `table_id`, whose current
+        `columns` these are, and every table the query reaches, in this transaction:
+        they are not checked again here. Linked tables are read as `ctx`.
 
-        Nothing past a limit is loaded. The view's query runs once and returns only each
+        Nothing past a limit is loaded. The query runs once and returns only each
         record's id and the size of the cells it takes. Records are then loaded
         `BOUND_CHUNK` at a time, as many as those sizes, and the sizes of the linked
         records they newly name, say fit what is left of `max_bytes`; a linked record
@@ -613,37 +627,38 @@ class RecordOperations(Operations):
         size. Every statement is armed with `deadline` first.
 
         Raises:
-            InvalidQueryError: The view's filters or sort no longer fit the table.
+            InvalidQueryError: The filters or the sort do not fit the table.
             DeadlineReached: The deadline left too little time for the next statement.
         """
-        query = RecordQuery(
-            filters=bound.config.filters, sort=bound.config.sort, search=bound.config.search
-        )
-        filters, sort = _clauses(bound.columns, query)
-        reached = reach(bound.columns, column_ids)
+        query = RecordQuery(filters=filters, sort=sort)
+        clauses, order = _clauses(columns, query)
+        reached = reach(columns, column_ids)
         keys = sorted(str(column_id) for column_id in reached.columns)
         await deadline.arm(self.db)
         measured = await virtual_table_repo.list_record_sizes(
             self.db,
-            table_id=bound.table_id,
+            table_id=table_id,
             organization_id=ctx.organization_id,
-            filters=filters,
-            search=_search(bound.columns, query.search),
-            sort=sort,
+            filters=clauses,
+            search=None,
+            sort=order,
             limit=max_records + 1,
             keys=keys,
         )
         tables: dict[UUID, LinkedTable | None] = {}
         if measured:
-            for table_id in reached.linked:
-                tables[table_id] = await linked_table_access(
-                    self.db, ctx, table_id, deadline=deadline
+            for linked_id in reached.linked:
+                tables[linked_id] = await linked_table_access(
+                    self.db, ctx, linked_id, deadline=deadline
                 )
         walk = _BoundWalk(
             self.db,
             ctx,
-            bound,
-            tables={table_id: linked for table_id, linked in tables.items() if linked is not None},
+            table_id,
+            columns,
+            tables={
+                linked_id: linked for linked_id, linked in tables.items() if linked is not None
+            },
             targets=reached.linked,
             reached=reached.columns,
             deadline=deadline,
@@ -668,7 +683,7 @@ class RecordOperations(Operations):
                 read = await read_through(
                     self.db,
                     ctx,
-                    bound.columns,
+                    columns,
                     cells,
                     linked_keys=reached.linked,
                     linked_ids=walk.linked_ids(fitting),
@@ -696,7 +711,7 @@ class RecordOperations(Operations):
             records=records,
             sizes=sizes,
             bytes=used,
-            columns=bound.columns,
+            columns=columns,
             stopped_by=stopped_by,
         )
 
