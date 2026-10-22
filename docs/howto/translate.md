@@ -226,6 +226,29 @@ When a sentence states what the platform refuses, translate the refusal
 literally. Do not soften "is refused" into "may not work", and do not turn a
 statement about what cannot happen into advice about what you should not do.
 
+## The words the eval screens use
+
+An agent's Evals tab, a dataset and an eval run's verdict name each of these
+one way, and a sentence that names a tab names it as the tab does. The console's
+catalogs hold them, and `frontend/messages/eval-terms.test.ts` refuses the mixed
+forms they replaced in the eval namespaces. A page quoting one of these screens
+uses the same word.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft | wersja robocza | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+
+A draft is still never the published version: the pair in the table above keeps
+its distinction, whatever word the draft takes.
+
 ## The four files GitHub renders, not this site
 
 `README.md`, `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md` are

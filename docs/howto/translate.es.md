@@ -1,5 +1,5 @@
 ---
-source_sha: "ebf0345cff8e"
+source_sha: "0e46a522e862"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -235,6 +235,30 @@ Cuando una frase afirma qué rechaza la plataforma, traduce el rechazo
 literalmente. No suavices "is refused" a "puede que no funcione", y no conviertas
 una afirmación sobre lo que no puede ocurrir en un consejo sobre lo que no
 deberías hacer.
+
+## Las palabras de las pantallas de evals { #the-words-the-eval-screens-use }
+
+La pestaña Evals de un agent, un dataset y el veredicto de un eval run nombran
+cada uno de estos conceptos de una sola manera, y una frase que nombra una
+pestaña la nombra como lo hace la pestaña. Los catálogos de la consola los
+guardan, y `frontend/messages/eval-terms.test.ts` rechaza en los espacios de
+nombres de evals las formas mezcladas a las que sustituyeron. Una página que cita
+una de estas pantallas usa la misma palabra.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft | wersja robocza | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+
+Un borrador sigue sin ser nunca la versión publicada: el par de la tabla anterior
+conserva su distinción, sea cual sea la palabra que tome el borrador.
 
 ## Los cuatro archivos que renderiza GitHub, no este sitio { #the-four-files-github-renders-not-this-site }
 
