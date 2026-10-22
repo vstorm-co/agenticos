@@ -1,0 +1,291 @@
+"""Improvement sessions - the Improve pipeline run in the background, step by step.
+
+Two tables:
+
+- `improvement_runs` is one session on one agent: who started it, the base,
+  dataset and grading it is pinned to, the budget it may spend, where it is now
+  and why it stopped. An agent has at most one queued or running session.
+- `improvement_iterations` is one round of a session: the authoring request that
+  proposed changes, the candidate batch they landed in, what the policy dropped,
+  the eval runs that checked the candidate and the verdict. It holds counts and
+  ids only, never the text of a question or an answer, which stays with the eval
+  run and is masked there.
+
+**A session never writes an agent.** It ends at `ready` with a candidate batch a
+person accepts and publishes; the draft, versions and environments are untouched.
+"""
+
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from enum import StrEnum
+from typing import Any
+
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+class ImprovementStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    READY = "ready"
+    """A checked candidate waits for a person to accept, publish or reject it."""
+
+    STOPPED = "stopped"
+    """Ended without a candidate worth accepting - the reason is in `stop_reason`."""
+
+    FAILED = "failed"
+    """A step broke - `stop_reason` names it, `error` says how."""
+
+    CANCELLED = "cancelled"
+    STALE = "stale"
+    """The draft, the published version, the grading or the agent changed under it."""
+
+    ACCEPTED = "accepted"
+    PUBLISHED = "published"
+    REJECTED = "rejected"
+
+    @property
+    def active(self) -> bool:
+        """Still moving on its own: one of these per agent at a time."""
+        return self in {ImprovementStatus.QUEUED, ImprovementStatus.RUNNING}
+
+    @property
+    def terminal(self) -> bool:
+        return not self.active and self is not ImprovementStatus.READY
+
+
+class ImprovementStage(StrEnum):
+    """The step a session is on, or was on when it stopped."""
+
+    ANALYZING = "analyzing"
+    PROPOSING = "proposing"
+    FILTERING = "filtering"
+    EVALUATING = "evaluating"
+    JUDGING = "judging"
+
+
+class StopReason(StrEnum):
+    NO_DATA = "no_data"
+    NO_PROPOSAL = "no_proposal"
+    BUDGET = "budget"
+    INCONCLUSIVE = "inconclusive"
+    REGRESSION = "regression"
+    NO_CHANGE = "no_change"
+    PERMISSION = "permission"
+    STALE = "stale"
+    STALLED = "stalled"
+    PROPOSAL = "proposal"
+    """The authoring request failed or went stale."""
+
+    EVAL = "eval"
+    """The eval run failed or was cancelled by someone else."""
+
+    SUPERSEDED = "superseded"
+    """A newer candidate or a person's own Improve replaced this one."""
+
+
+class ImprovementVerdict(StrEnum):
+    BETTER = "better"
+    NO_CHANGE = "no_change"
+    REGRESSION = "regression"
+    INCONCLUSIVE = "inconclusive"
+
+
+def _values(enum: type[StrEnum]) -> str:
+    return ", ".join(f"'{member.value}'" for member in enum)
+
+
+class ImprovementRun(Base):
+    """One improvement session on one agent, from start to a person's decision."""
+
+    __tablename__ = "improvement_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # A key-started session acts as that key on every step, so its scopes keep
+    # applying while the person who minted it is away.
+    created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ImprovementStatus.QUEUED.value
+    )
+    stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    # The base, the dataset and its grading are pinned at start: every check
+    # compares against them, and a change to any of them makes the session stale
+    # rather than quietly measuring something else.
+    base_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="SET NULL"), nullable=True
+    )
+    base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True
+    )
+    dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    suite_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("eval_suites.id", ondelete="SET NULL"), nullable=True
+    )
+    scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    spent_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    best_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_iterations.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
+    stop_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    stage_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN ({_values(ImprovementStatus)})", name="ck_improvement_run_status"
+        ),
+        CheckConstraint(
+            f"stage IS NULL OR stage IN ({_values(ImprovementStage)})",
+            name="ck_improvement_run_stage",
+        ),
+        CheckConstraint(
+            f"stop_reason IS NULL OR stop_reason IN ({_values(StopReason)})",
+            name="ck_improvement_run_stop_reason",
+        ),
+        CheckConstraint(
+            "max_iterations BETWEEN 1 AND 10 AND iteration BETWEEN 1 AND max_iterations",
+            name="ck_improvement_run_iterations",
+        ),
+        CheckConstraint(
+            "estimate_usd >= 0 AND budget_usd >= 0 AND spent_usd >= 0",
+            name="ck_improvement_run_money",
+        ),
+        # One session moving per agent, held where two concurrent starts cannot
+        # both slip past it.
+        Index(
+            "uq_improvement_runs_active",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+        ),
+        Index("ix_improvement_runs_agent", "organization_id", "agent_id", "created_at"),
+        Index(
+            "ix_improvement_runs_open",
+            "status",
+            postgresql_where=text("status IN ('queued', 'running', 'ready')"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ImprovementRun(id={self.id}, agent={self.agent_id}, status={self.status}, "
+            f"stage={self.stage})>"
+        )
+
+
+class ImprovementIteration(Base):
+    """One round of a session: a proposal, its candidate and the check of it."""
+
+    __tablename__ = "improvement_iterations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    authoring_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("authoring_requests.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("spec_proposal_batches.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    candidate_spec_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    dropped_hunk_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    # Why each dropped hunk was dropped, as `{"hunk_id", "reason"}` objects.
+    dropped: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    # Every eval run that checked this round's candidate, oldest first; the last
+    # one is the one the verdict reads. An inconclusive check is run once more.
+    eval_run_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    verdict_detail: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "number", name="uq_improvement_iterations_number"),
+        CheckConstraint(
+            f"verdict IS NULL OR verdict IN ({_values(ImprovementVerdict)})",
+            name="ck_improvement_iteration_verdict",
+        ),
+        CheckConstraint("number >= 1", name="ck_improvement_iteration_number"),
+        CheckConstraint("cost_usd >= 0", name="ck_improvement_iteration_cost"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ImprovementIteration(id={self.id}, run={self.run_id}, number={self.number}, "
+            f"verdict={self.verdict})>"
+        )
