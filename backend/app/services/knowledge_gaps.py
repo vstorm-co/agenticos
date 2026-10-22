@@ -228,11 +228,12 @@ def _classification_prompt(knowledge_base: str, candidates: list[CandidateRow]) 
         "- `did_not_know`: the answer says, in any words or language, that the agent "
         "does not know, could not find the information, or has nothing on it.\n"
         "- `missing_information`: the answer does not say so, but a reader's comment "
-        "says information was missing, outdated or incomplete.\n"
-        "- `no_gap`: anything else. An answer that states a policy, a rule or a fact is "
-        "`no_gap` even when it applied it wrongly; a comment that says the answer was "
-        "wrong, misapplied a rule, should have refused, or is about tone, length or "
-        "format is `no_gap`; so is a refusal of a question the agent is not for.",
+        "says the information it needed was missing, outdated or incomplete - content "
+        "to add or bring up to date.\n"
+        "- `no_gap`: anything else. An answer that applied a policy or a rule wrongly is "
+        "`no_gap`: the rule was there and the agent misused it. So is a comment about "
+        "that, about tone, length or format, or saying the answer should have refused, "
+        "and so is a refusal of a question the agent is not for.",
     ]
     for number, candidate in enumerate(candidates, start=1):
         comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)

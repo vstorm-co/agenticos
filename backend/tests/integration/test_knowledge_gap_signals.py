@@ -357,8 +357,8 @@ async def test_the_prompt_says_a_misapplied_rule_is_no_gap_and_such_an_answer_re
 
     prompt = run_it.await_args.kwargs["prompt"]
     assert "`did_not_know`" in prompt and "`missing_information`" in prompt
-    assert "even when it applied it wrongly" in prompt
-    assert "misapplied a rule" in prompt
+    assert "applied a policy or a rule wrongly is `no_gap`" in prompt
+    assert "outdated or incomplete - content to add or bring up to date" in prompt
     assert (read, misses) == (1, 0)
     assert await _signals(db, kb) == {}
 

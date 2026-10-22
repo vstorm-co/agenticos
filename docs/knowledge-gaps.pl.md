@@ -1,5 +1,5 @@
 ---
-source_sha: "34594a8fb388"
+source_sha: "dce04e2d4523"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -65,7 +65,7 @@ możliwości:
 |---|---|
 | Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
-| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie. Odpowiedź, która podaje politykę, regułę albo fakt, nie jest luką nawet wtedy, gdy zastosowała je źle: to błąd do poprawienia, a nie treść, której brakuje w bazie wiedzy |
+| Brak luki | Wszystko inne: poprawna odpowiedź, odmowa pytania, do którego agent nie służy, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który

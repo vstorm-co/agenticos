@@ -63,7 +63,7 @@ decides one of three things:
 |---|---|
 | The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
-| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake. An answer that states a policy, a rule or a fact is no gap even when it applied it wrongly: that is a mistake to fix, not content the knowledge base lacks |
+| No gap | Anything else: a correct answer, a refusal of a question the agent is not for, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the

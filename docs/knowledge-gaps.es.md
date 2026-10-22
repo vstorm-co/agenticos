@@ -1,5 +1,5 @@
 ---
-source_sha: "34594a8fb388"
+source_sha: "dce04e2d4523"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -69,7 +69,7 @@ negativamente, y decide una de tres cosas:
 |---|---|
 | El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
-| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error. Una respuesta que da una política, una regla o un hecho no es una laguna aunque la haya aplicado mal: es un error que corregir, no contenido que le falte a la base de conocimiento |
+| Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de una pregunta para la que el agent no está, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda

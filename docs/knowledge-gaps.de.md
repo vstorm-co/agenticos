@@ -1,5 +1,5 @@
 ---
-source_sha: "34594a8fb388"
+source_sha: "dce04e2d4523"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -68,7 +68,7 @@ haben, und entscheidet eines von drei Dingen:
 |---|---|
 | Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
-| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie, eine Regel oder eine Tatsache nennt, ist keine Lücke, auch wenn sie sie falsch angewendet hat: Das ist ein Fehler, den man behebt, kein Inhalt, der der Wissensbasis fehlt |
+| Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung einer Frage, für die der Agent nicht da ist, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
