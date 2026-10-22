@@ -38,7 +38,7 @@ export function WizardSteps({ steps, current, compact = false }: WizardStepsProp
   const currentIdx = steps.findIndex((step) => step.id === current);
   if (compact) {
     return (
-      <div className="mt-3 flex items-center justify-center gap-2.5">
+      <div className="mt-2 flex items-center justify-center gap-2.5">
         <ol className="flex h-5 items-center gap-1.5">
           {steps.map((step, i) => {
             const active = i === currentIdx;

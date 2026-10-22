@@ -15,6 +15,8 @@ import {
   Input,
   Label,
   MarkdownEditor,
+  MarkdownModeToggle,
+  type MarkdownMode,
   Select,
   SelectContent,
   SelectItem,
@@ -68,7 +70,13 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_FRAMED, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import {
+  DIALOG_CONFIRM,
+  DIALOG_FORM,
+  DIALOG_FRAMED,
+  DIALOG_SCROLL,
+  DIALOG_WIDE,
+} from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -689,8 +697,10 @@ export function TriggerFormDialog({
           white under the last caption and the Continue button pinned to the
           bottom of the screen (#1069). The grid rows still pin the header and the
           nav and give the body whatever is between. */}
-      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_FORM)}>
-        <DialogHeader className="border-foreground/10 border-b px-6 py-4">
+      {/* `gap-0`: the three bands pad themselves, and the dialog's own grid gap
+          on top of the body's padding left a band of nothing over the first field. */}
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_WIDE, "gap-0")}>
+        <DialogHeader className="border-foreground/10 border-b px-6 pt-4 pb-3">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
           </DialogTitle>
@@ -700,7 +710,7 @@ export function TriggerFormDialog({
 
         {/* Keyed on the step, so each one slides in rather than swapping in place -
             the eye follows the wizard forward instead of re-reading the frame. */}
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-4">
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -835,9 +845,15 @@ function PromptField({
   rows?: number;
 }) {
   const t = useTranslations("triggers");
+  const [mode, setMode] = useState<MarkdownMode>("source");
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+      {/* The label and the source/preview toggle on one row, rather than the
+          toggle on a row of its own between them. */}
+      <div className="flex items-end justify-between gap-2">
+        <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+        <MarkdownModeToggle mode={mode} onChange={setMode} />
+      </div>
       <MarkdownEditor
         id="trigger-prompt"
         label={t("prompt")}
@@ -846,6 +862,7 @@ function PromptField({
         placeholder={t("promptPlaceholder")}
         rows={rows}
         describedBy="trigger-prompt-desc"
+        mode={mode}
       />
       <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
         {t("promptHelp")}
