@@ -5329,7 +5329,16 @@
         "test": "Wyślij test",
         "testSent": "Wysłane. Powinno pojawić się za chwilę.",
         "testNotSent": "Usługa push nie przyjęła testu. Wyłącz i włącz push w tej przeglądarce.",
-        "failed": "Nie udało się zmienić ustawienia push w tej przeglądarce."
+        "failed": "Nie udało się zmienić ustawienia push w tej przeglądarce.",
+        "phone": {
+          "title": "Powiadomienia przy zamkniętej aplikacji",
+          "noDistributor": "AgenticOS dostarcza je przez ntfy, bez serwerów Google. Zainstaluj ntfy ze Sklepu Play albo F-Droid, otwórz je raz i wróć tutaj.",
+          "off": "Dostawaj powiadomienie, gdy agent Cię potrzebuje, nawet przy zamkniętym AgenticOS. Przychodzą przez {distributor}.",
+          "failed": "{distributor} nie przyjął rejestracji. Otwórz go, sprawdź, czy łączy się ze swoim serwerem, i spróbuj ponownie.",
+          "on": "Włączone, przez {distributor}. Które zdarzenia do Ciebie trafiają, ustawisz niżej, w kolumnie Push.",
+          "turnOff": "Wyłącz na tym telefonie",
+          "notRegistered": "ntfy nie przekazał adresu. Otwórz go i spróbuj ponownie."
+        }
       }
     },
     "skills": {

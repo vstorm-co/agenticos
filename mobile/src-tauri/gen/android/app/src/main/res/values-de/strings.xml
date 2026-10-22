@@ -45,4 +45,5 @@
         <item quantity="one">%d Foto hinzufügen</item>
         <item quantity="other">%d Fotos hinzufügen</item>
     </plurals>
+    <string name="push_channel">Benachrichtigungen</string>
 </resources>

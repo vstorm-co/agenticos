@@ -75,6 +75,9 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    // Push while the app is closed, through a UnifiedPush distributor (ntfy)
+    // rather than Firebase (#2097). Apache-2.0.
+    implementation("org.unifiedpush.android:connector:3.3.5")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")

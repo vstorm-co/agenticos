@@ -72,6 +72,15 @@
                 android:resource="@xml/widget_glance_info" />
         </receiver>
 
+        <!-- What a UnifiedPush distributor (ntfy) delivers while the app is closed. -->
+        <service
+            android:name=".PushMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".AskTileService"
             android:exported="true"

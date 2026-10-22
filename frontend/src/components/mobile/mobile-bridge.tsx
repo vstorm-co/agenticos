@@ -26,6 +26,7 @@ import {
 } from "@/lib/mobile/live-activities";
 import { takeShared } from "@/lib/mobile/shared";
 import { updateWidget } from "@/lib/mobile/widget";
+import { phonePushStatus, syncPhonePush } from "@/lib/mobile/push";
 import { recordSessionApp } from "@/lib/session-app";
 import { useAuthStore, useComposerIntentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
@@ -115,6 +116,15 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     recordSessionApp(shell).catch((error: unknown) =>
       reportShellFailure("could not tell the server which app this is", error),
     );
+  }, [shell]);
+
+  // A distributor can hand over a new endpoint at any time; the server is told
+  // the current one whenever the console arrives, as a browser's is.
+  useEffect(() => {
+    if (shell.platform !== "android") return;
+    phonePushStatus()
+      .then(syncPhonePush)
+      .catch((error: unknown) => reportShellFailure("could not sync push", error));
   }, [shell]);
 
   const shown = useRef(new Map<string, string>());

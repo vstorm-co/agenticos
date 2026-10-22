@@ -107,6 +107,12 @@ Two things are versioned separately from this file and worth knowing about:
   the last few minutes ("Add the photo you just took?"). The app draws both, so
   the server never sees the gallery: only the photos you tap reach the message.
   Recent photos are asked for from the sheet, the first time it is opened.
+- **Notifications while the Android app is closed** (#2097), through ntfy
+  rather than Google's servers: Settings → Notifications in the app turns them
+  on with the ntfy app on the phone (against ntfy.sh or a company's own ntfy
+  server), sends a test, or turns them off. The server pushes to it as to a
+  browser; a push endpoint may now be any public https address, checked
+  against the deployment's SSRF policy when stored and at every send.
 - **Push notifications in the browser** (#2097): Settings → Notifications turns
   push on for this browser - or for AgenticOS added to a phone's home screen -
   sends a test, and adds a Push column to the per-event choices, on by default

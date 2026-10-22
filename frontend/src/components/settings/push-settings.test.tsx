@@ -21,6 +21,7 @@ vi.mock("@/lib/web-push", () => ({
   sendTestPush: env.test,
 }));
 vi.mock("sonner", () => ({ toast: { success: env.success, error: env.error } }));
+vi.mock("@/components/mobile/phone-push", () => ({ PhonePush: () => <p>phone push</p> }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,10 +30,18 @@ beforeEach(() => {
 });
 
 describe("PushSettings", () => {
-  it("is not offered inside the desktop or phone app", () => {
+  it("is not offered in the desktop app or on an iPhone, and is the phone's own on Android", () => {
     env.shell = { platform: "macos", version: "0.2.0", window: "main", vibrancy: true };
-    const { container } = render(<PushSettings />);
-    expect(container).toBeEmptyDOMElement();
+    const desktop = render(<PushSettings />);
+    expect(desktop.container).toBeEmptyDOMElement();
+    desktop.unmount();
+    env.shell = { platform: "ios", version: "0.1.0", window: "main", vibrancy: false };
+    const iphone = render(<PushSettings />);
+    expect(iphone.container).toBeEmptyDOMElement();
+    iphone.unmount();
+    env.shell = { platform: "android", version: "0.1.0", window: "main", vibrancy: false };
+    render(<PushSettings />);
+    expect(screen.getByText("phone push")).toBeInTheDocument();
     expect(env.state).not.toHaveBeenCalled();
   });
 

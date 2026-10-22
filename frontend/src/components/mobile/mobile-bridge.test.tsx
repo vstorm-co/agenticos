@@ -30,6 +30,8 @@ const env = vi.hoisted(() => ({
   failed: null as unknown,
   updateWidget: vi.fn(async (_glance: unknown) => {}),
   recordApp: vi.fn(async (_shell: unknown) => {}),
+  pushStatus: vi.fn(async (): Promise<unknown> => ({ subscription: null })),
+  syncPush: vi.fn(async (_status: unknown) => {}),
 }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => env.can }) }));
@@ -66,6 +68,10 @@ vi.mock("@/lib/mobile/live-activities", async (original) => ({
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
 vi.mock("@/lib/mobile/widget", () => ({ updateWidget: env.updateWidget }));
 vi.mock("@/lib/session-app", () => ({ recordSessionApp: env.recordApp }));
+vi.mock("@/lib/mobile/push", () => ({
+  phonePushStatus: env.pushStatus,
+  syncPhonePush: env.syncPush,
+}));
 vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
 vi.mock("@/lib/desktop/shell", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/shell")>()),
@@ -174,6 +180,17 @@ describe("MobileBridge", () => {
   it("tells the server which app this is", () => {
     mount();
     expect(env.recordApp).toHaveBeenCalledWith(PHONE);
+    expect(env.pushStatus).not.toHaveBeenCalled();
+  });
+
+  it("keeps the server's copy of an Android phone's push endpoint current", async () => {
+    env.shell = { ...PHONE, platform: "android" };
+    env.syncPush.mockRejectedValueOnce(new Error("offline"));
+    mount();
+    await waitFor(() => expect(env.syncPush).toHaveBeenCalledWith({ subscription: null }));
+    await waitFor(() =>
+      expect(env.report).toHaveBeenCalledWith("could not sync push", expect.any(Error)),
+    );
   });
 
   it("keeps at most three runs live", () => {

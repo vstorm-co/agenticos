@@ -5558,7 +5558,16 @@
         "test": "Send a test",
         "testSent": "Sent. It should appear in a moment.",
         "testNotSent": "The push service did not take the test. Turn push off and on again in this browser.",
-        "failed": "Push could not be changed in this browser."
+        "failed": "Push could not be changed in this browser.",
+        "phone": {
+          "title": "Notifications while the app is closed",
+          "noDistributor": "AgenticOS delivers these through ntfy, without Google's servers. Install ntfy from the Play Store or F-Droid, open it once, then come back here.",
+          "off": "Get notified when an agent needs you, even with AgenticOS closed. They come through {distributor}.",
+          "failed": "{distributor} did not take the registration. Open it, check it can reach its server, and try again.",
+          "on": "On, through {distributor}. Which events reach you is set below, under Push.",
+          "turnOff": "Turn off on this phone",
+          "notRegistered": "ntfy did not hand over an address. Open it and try again."
+        }
       }
     },
     "skills": {

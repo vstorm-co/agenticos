@@ -5436,7 +5436,16 @@
         "test": "Test senden",
         "testSent": "Gesendet. Er sollte gleich erscheinen.",
         "testNotSent": "Der Push-Dienst hat den Test nicht angenommen. Schalte Push in diesem Browser aus und wieder ein.",
-        "failed": "Push konnte in diesem Browser nicht geändert werden."
+        "failed": "Push konnte in diesem Browser nicht geändert werden.",
+        "phone": {
+          "title": "Benachrichtigungen bei geschlossener App",
+          "noDistributor": "AgenticOS stellt sie über ntfy zu, ohne Googles Server. Installiere ntfy aus dem Play Store oder F-Droid, öffne es einmal und komm hierher zurück.",
+          "off": "Werde benachrichtigt, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist. Sie kommen über {distributor}.",
+          "failed": "{distributor} hat die Registrierung nicht angenommen. Öffne es, prüfe die Verbindung zu seinem Server und versuche es erneut.",
+          "on": "An, über {distributor}. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
+          "turnOff": "Auf diesem Telefon ausschalten",
+          "notRegistered": "ntfy hat keine Adresse übergeben. Öffne es und versuche es erneut."
+        }
       }
     },
     "skills": {

@@ -16,6 +16,7 @@
 
 mod live;
 mod managed;
+mod push;
 mod share;
 mod widget;
 
@@ -244,6 +245,9 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-show-activity")
             .permission("allow-end-activity")
             .permission("allow-update-widget")
+            .permission("allow-push-status")
+            .permission("allow-push-register")
+            .permission("allow-push-unregister")
             .permission("allow-take-activity-action")
             .permission("allow-take-shared")
             .permission("allow-attach-sheet")
@@ -528,6 +532,7 @@ pub fn run() {
         .plugin(tauri_plugin_biometric::init())
         .plugin(live::init())
         .plugin(managed::init())
+        .plugin(push::init())
         .plugin(share::init())
         .plugin(widget::init());
     // The camera scanner is a phone's; the same app on a laptop types the address.
@@ -545,7 +550,10 @@ pub fn run() {
             offer_recent_photo,
             live::show_activity,
             live::end_activity,
-            widget::update_widget
+            widget::update_widget,
+            push::push_status,
+            push::push_register,
+            push::push_unregister
         ])
         .manage(PendingSignIn::default())
         .manage(Lock::default())

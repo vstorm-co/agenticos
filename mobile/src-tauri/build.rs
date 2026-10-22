@@ -16,6 +16,9 @@ fn main() {
             "show_activity",
             "end_activity",
             "update_widget",
+            "push_status",
+            "push_register",
+            "push_unregister",
         ]),
     ))
     .expect("failed to run tauri-build");
