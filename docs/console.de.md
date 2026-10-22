@@ -1,5 +1,5 @@
 ---
-source_sha: "60b512b4cb58"
+source_sha: "03f4d67793b1"
 ---
 
 # Die Konsole { #the-console }
@@ -577,7 +577,8 @@ annehmen kann (`GET /agents/{id}/voice`), damit niemand das Mikrofon freigibt,
 nur um abgelehnt zu werden. Die Antwort nennt, was fehlt: keine Stimme am Agent
 eingerichtet, das Modell nicht mehr angeboten, oder kein Schlüssel.
 
-Die **Anruftaste** steht im Eingabefeld des Chats neben dem Mikrofon, bei jedem
+Die **Anruftaste** steht im Eingabefeld des Chats an der Stelle von Senden,
+solange das Feld leer ist - ist etwas getippt, kommt Senden zurück -, bei jedem
 Agent. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
 Hovern, Fokussieren oder Drücken sagt, warum. Wer den Agent bearbeiten darf,
 bekommt **Im Agent Builder öffnen**, was seine Karte Stimme (Voice) auf dem

@@ -47,8 +47,8 @@ outside the budgets like a dictation, so it is limited per person
 (`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) and cached for a week per voice and
 language.
 
-**Every agent offers the button.** In `/chat` the call button sits beside the
-microphone for every agent. For one with no voice, or a key that can no longer
+**Every agent offers the button.** In `/chat` the call button stands in Send's
+place while the box is empty, and Send comes back once something is typed. For one with no voice, or a key that can no longer
 hold a call, it is crossed out, and its reason links whoever may edit the agent
 to the Calls tab of its Voice card.
 

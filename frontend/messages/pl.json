@@ -1234,7 +1234,8 @@
       "commands": "Komendy",
       "commandsHint": "Wybierz z listy - to samo co wpisanie /",
       "project": "Pracuj w projekcie",
-      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami"
+      "projectHint": "Zacznij ten czat w projekcie: z jego plikami i instrukcjami",
+      "reconnecting": "Łączenie ponownie…"
     },
     "knowledgeBase": "Baza wiedzy",
     "link": "Link",

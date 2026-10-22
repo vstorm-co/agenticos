@@ -26,6 +26,26 @@ describe("VoiceCallButton", () => {
     expect(onStart).toHaveBeenCalledOnce();
   });
 
+  it("is drawn like Send when it stands in Send's place (#2301)", () => {
+    const { rerender } = render(
+      <VoiceCallButton readiness={READY} failed={false} onStart={vi.fn()} setUpHref={null} />,
+    );
+    const quiet = screen.getByRole("button", { name: NAME }).className;
+
+    rerender(
+      <VoiceCallButton
+        readiness={READY}
+        failed={false}
+        onStart={vi.fn()}
+        setUpHref={null}
+        prominent
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: NAME }).className).not.toBe(quiet);
+    expect(screen.getByRole("button", { name: NAME }).className).toContain("active:scale-90");
+  });
+
   it("can be held off while something else is under way", () => {
     render(
       <VoiceCallButton

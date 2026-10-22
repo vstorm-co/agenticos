@@ -167,6 +167,16 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
+   * Drawn in Send's place while there is nothing to send - the call button, so
+   * an empty box offers a call and a written one sends it (#2301).
+   */
+  idleSlot?: ReactNode;
+  /**
+   * The socket is down: the box says it is reconnecting where it would ask for a
+   * message - the one place a person looks when they cannot send (#2301).
+   */
+  offline?: boolean;
+  /**
    * The selected agent's dictation engine and, for `server`, the recording.
    * Absent, the microphone is the browser's own speech recognition.
    */
@@ -218,6 +228,8 @@ export function ChatInput({
   controlsSlot,
   onProject,
   actionsSlot,
+  idleSlot,
+  offline = false,
   dictation,
   onListeningChange,
   incoming = null,
@@ -773,7 +785,7 @@ export function ChatInput({
         onChange={typed}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder={t("placeholder")}
+        placeholder={offline ? t("reconnecting") : t("placeholder")}
         idle={
           hints && !disabled ? (
             <ComposerHints
@@ -858,6 +870,8 @@ export function ChatInput({
               <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
               <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
+          ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
+            idleSlot
           ) : (
             <Button
               type="submit"

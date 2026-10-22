@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "e5f62723a4c7"
+source_sha: "518f778feaa6"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -55,7 +55,8 @@ wie ein Diktat, also ist sie pro Person begrenzt
 Sprache im Cache.
 
 **Jeder Agent bietet die Taste an.** In `/chat` steht die Anruftaste bei jedem
-Agent neben dem Mikrofon. Für einen ohne Stimme, oder mit einem Schlüssel, der
+Agent an der Stelle von Senden, solange das Feld leer ist; sobald etwas getippt
+ist, kommt Senden zurück. Für einen ohne Stimme, oder mit einem Schlüssel, der
 keinen Anruf mehr halten kann, ist sie durchgestrichen, und ihr Grund verlinkt
 für alle, die den Agent bearbeiten dürfen, den Reiter Anrufe seiner Karte Stimme
 (Voice).

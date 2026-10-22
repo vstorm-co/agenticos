@@ -512,8 +512,8 @@ Before offering a call, the console asks whether this agent can take one
 The answer names what is missing: no voice set up on the agent, the model no
 longer offered, or no key.
 
-The **call button** sits in the chat composer, beside the microphone, for every
-agent. Where this agent cannot take a call it is crossed out, and hovering,
+The **call button** stands in the chat composer where Send is, for every agent,
+while the box is empty; type something and Send comes back. Where this agent cannot take a call it is crossed out, and hovering,
 focusing or pressing it says why. Somebody who may edit the agent gets **Open in
 the Agent Builder**, which opens its Voice card on the Calls tab; anybody else is
 told to ask someone who can.

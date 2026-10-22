@@ -1130,6 +1130,21 @@ function ChatUI({
     if (scroller === null || userScrolledUpRef.current || empty) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length, voice.call.phase]);
+  const callReady = offerCall && readiness?.available === true;
+  // Hidden, not unmounted, during a call: the pill holds its controls, and focus
+  // comes back here when it ends.
+  const callButton = (
+    <span ref={callButtonRef} className={onCall ? "hidden" : "contents"}>
+      <VoiceCallButton
+        readiness={readiness}
+        failed={readinessFailed}
+        disabled={isProcessing || isArchived}
+        onStart={startCall}
+        setUpHref={agentCallsHref}
+        prominent={callReady}
+      />
+    </span>
+  );
   return (
     <div className="relative flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the
@@ -1465,6 +1480,7 @@ function ChatUI({
                           incoming={incoming}
                           onTyping={onTyping}
                           onDraftChange={setDrafting}
+                          offline={!isConnected}
                           projects={projectMentions.items}
                           onPickProject={projectMentions.pick}
                           mic={mic}
@@ -1510,31 +1526,22 @@ function ChatUI({
                                   agentModel={agentModel}
                                 />
                               </div>
-                              {offerCall && (
-                                // Hidden, not unmounted, during a call: the pill holds
-                                // its controls, and focus comes back here when it ends.
-                                <span
-                                  ref={callButtonRef}
-                                  className={onCall ? "hidden" : "contents"}
-                                >
-                                  <VoiceCallButton
-                                    readiness={readiness}
-                                    failed={readinessFailed}
-                                    disabled={isProcessing || isArchived}
-                                    onStart={startCall}
-                                    setUpHref={agentCallsHref}
-                                  />
-                                </span>
-                              )}
+                              {/* A call that cannot start says why, beside the
+                                  microphone; one that can stands in Send's place -
+                                  except during the call, when it waits here,
+                                  hidden, for focus to come back to. */}
+                              {offerCall && (!callReady || onCall) && callButton}
                             </>
                           }
+                          // Not during a call: the box is closed then, Send with it.
+                          idleSlot={callReady && !onCall ? callButton : undefined}
                         />
                       </div>
                     </div>
                   </Beam>
                 </div>
               </div>
-              <ComposerStatus isConnected={isConnected} compact={compact} />
+              <ComposerStatus isConnected={isConnected} />
             </div>
           </div>
         </div>

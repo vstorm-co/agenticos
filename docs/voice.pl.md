@@ -1,5 +1,5 @@
 ---
-source_sha: "e5f62723a4c7"
+source_sha: "518f778feaa6"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -49,8 +49,8 @@ budżetami jak dyktowanie, więc jest limitowana na osobę
 (`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) i trzymana w cache przez tydzień per
 głos i język.
 
-**Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi obok mikrofonu przy
-każdym agencie. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
+**Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi w miejscu
+„Wyślij”, dopóki pole jest puste, a „Wyślij” wraca, gdy coś wpiszesz. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
 rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
 agenta, do zakładki Rozmowy na jego karcie Głos (Voice).
 

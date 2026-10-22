@@ -149,9 +149,13 @@ Two things are versioned separately from this file and worth knowing about:
   `@claude-code-like` agent as it is - an agent's handle never changes - and
   rerunning bootstrap there installs AgenticOS beside it.
 - **Less under the chat's composer.** The "AI can make mistakes" line is gone,
-  the "?" that replays the chat's tips moved into the chat settings, and the
-  composer takes a card's light shadow instead of a dark drop. What stays under
-  it is the connection, and only when it is offline.
+  the "?" that replays the chat's tips moved into the chat settings, the
+  composer takes a card's light shadow instead of a dark drop, and a lost
+  connection is said by the box itself - "Reconnecting…" where it asks for a
+  message - instead of a red "Offline" line under it.
+- **The call button stands in Send's place.** While the box is empty, an agent
+  that takes calls offers the call where Send is; type something and Send comes
+  back. Dictation stays where it was.
 - **Map kit version 2, `lib/agenticos-map-2.js`.** An itinerary shows its whole
   route on load and drops the pins one by one only on request (`autoplay: true`
   plays them on load); the map is 16:9 of the page's width, never lower than its

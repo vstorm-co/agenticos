@@ -1,5 +1,5 @@
 ---
-source_sha: "60b512b4cb58"
+source_sha: "03f4d67793b1"
 ---
 
 # La consola { #the-console }
@@ -537,8 +537,8 @@ Antes de ofrecer una llamada, la consola pregunta si este agent puede atenderla
 rechazado. La respuesta dice qué falta: ninguna voz configurada en el agent, el
 modelo ya no se ofrece, o no hay clave.
 
-El **botón de llamada** está en el compositor del chat, junto al micrófono, en
-cada agent. Cuando este agent no puede atender una llamada aparece tachado, y al
+El **botón de llamada** ocupa en el compositor del chat el lugar de Enviar
+mientras el cuadro está vacío - al escribir algo vuelve Enviar -, en cada agent. Cuando este agent no puede atender una llamada aparece tachado, y al
 pasar por encima, enfocarlo o pulsarlo dice por qué. Quien puede editar el agent
 recibe **Open in the Agent Builder**, que abre su tarjeta Voice en la pestaña de
 llamadas; a cualquier otra persona se le dice que pregunte a quien pueda.

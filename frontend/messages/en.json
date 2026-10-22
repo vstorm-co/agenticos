@@ -1234,7 +1234,8 @@
       "commands": "Commands",
       "commandsHint": "Pick one from a list - the same as typing /",
       "project": "Work in a project",
-      "projectHint": "Start this chat in a project: its files and instructions"
+      "projectHint": "Start this chat in a project: its files and instructions",
+      "reconnecting": "Reconnecting…"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",

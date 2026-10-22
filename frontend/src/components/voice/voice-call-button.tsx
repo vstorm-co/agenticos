@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
 const REASON_KEYS: Record<VoiceUnavailable, string> = {
@@ -24,6 +25,8 @@ interface VoiceCallButtonProps {
   onStart: () => void;
   /** The agent's Voice card in the Builder, for whoever may edit it; null for everyone else. */
   setUpHref: string | null;
+  /** Standing in Send's place, so drawn like it (#2301). */
+  prominent?: boolean;
 }
 
 /** How long the reason stays open after the pointer leaves, so it can reach the link. */
@@ -47,6 +50,7 @@ export function VoiceCallButton({
   disabled,
   onStart,
   setUpHref,
+  prominent = false,
 }: VoiceCallButtonProps) {
   const t = useTranslations("chat.voice");
   const [open, setOpen] = useState(false);
@@ -71,16 +75,16 @@ export function VoiceCallButton({
     return (
       <Button
         type="button"
-        variant="ghost"
+        variant={prominent ? "default" : "ghost"}
         size="icon"
         onClick={onStart}
         disabled={disabled}
         data-tour="chat-voice-call"
         aria-label={t("start")}
         title={t("start")}
-        className={BUTTON}
+        className={cn(BUTTON, prominent && "transition-transform active:scale-90")}
       >
-        <Phone className="text-muted-foreground h-4 w-4" />
+        <Phone className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />
       </Button>
     );
   }

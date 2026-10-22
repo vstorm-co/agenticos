@@ -4,24 +4,16 @@ import { describe, expect, it } from "vitest";
 import { ComposerStatus } from "./composer-status";
 
 describe("ComposerStatus", () => {
-  it("draws nothing for a live connection, and still reads it aloud", () => {
-    // "LIVE" on every message was a reading everybody read past to learn that
-    // nothing was wrong.
-    render(<ComposerStatus isConnected />);
+  it.each([
+    [true, "Live"],
+    [false, "Offline"],
+  ])("reads the connection aloud and draws nothing (connected: %s)", (isConnected, said) => {
+    // The box says it is reconnecting; a red line under it said it twice (#2301).
+    render(<ComposerStatus isConnected={isConnected} />);
 
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Live");
+    expect(status).toHaveTextContent(said);
     expect(status.className).toBe("sr-only");
-  });
-
-  it("draws the word when the connection is gone", () => {
-    // A composer that cannot send otherwise looks the same as one that can.
-    render(<ComposerStatus isConnected={false} compact />);
-
-    const status = screen.getByRole("status");
-    expect(status.className).not.toContain("sr-only");
-    expect(status).toHaveTextContent("Offline");
-    expect(status.className).toContain("text-destructive");
   });
 
   it("carries no disclaimer and no page help (#2301)", () => {

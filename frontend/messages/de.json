@@ -1234,7 +1234,8 @@
       "commands": "Befehle",
       "commandsHint": "Aus einer Liste wählen - wie das Tippen von /",
       "project": "In einem Projekt arbeiten",
-      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen"
+      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen",
+      "reconnecting": "Verbindung wird wiederhergestellt…"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",

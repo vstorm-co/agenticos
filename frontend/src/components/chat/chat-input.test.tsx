@@ -101,6 +101,36 @@ describe("ChatInput typing", () => {
   });
 });
 
+describe("ChatInput offline", () => {
+  it("says it is reconnecting where it would ask for a message (#2301)", () => {
+    render(<ChatInput onSend={vi.fn()} offline disabled />);
+
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+  });
+});
+
+describe("ChatInput idle slot", () => {
+  it("offers the call in Send's place until there is something to send (#2301)", async () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        idleSlot={
+          <button type="button" aria-label="Start a call">
+            call
+          </button>
+        }
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Start a call" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+
+    expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start a call" })).toBeNull();
+  });
+});
+
 describe("ChatInput paste", () => {
   it("turns a long paste into an attachment and leaves the composer empty", async () => {
     // The point of the whole feature: the question somebody is about to type has

@@ -1,5 +1,5 @@
 ---
-source_sha: "60b512b4cb58"
+source_sha: "03f4d67793b1"
 ---
 
 # Konsola { #the-console }
@@ -528,7 +528,8 @@ Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
 to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: głosu ustawionego w
 agencie, modelu, który nadal jest oferowany, albo klucza.
 
-**Przycisk rozmowy** stoi w kompozytorze czatu, obok mikrofonu, przy każdym
+**Przycisk rozmowy** stoi w kompozytorze czatu w miejscu „Wyślij”, dopóki pole
+jest puste - po wpisaniu czegoś wraca „Wyślij” - przy każdym
 agencie. Gdy ten agent nie może odebrać rozmowy, przycisk jest przekreślony, a
 najechanie, fokus albo naciśnięcie mówi dlaczego. Ktoś, kto może edytować
 agenta, dostaje **Otwórz w Agent Builderze**, co otwiera jego kartę Głos (Voice)
