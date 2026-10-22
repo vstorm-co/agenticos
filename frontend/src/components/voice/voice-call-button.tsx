@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, PhoneOff } from "lucide-react";
+import { AudioLines, AudioLinesOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
@@ -84,7 +84,7 @@ export function VoiceCallButton({
         title={t("start")}
         className={cn(BUTTON, prominent && "transition-transform active:scale-90")}
       >
-        <Phone className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />
+        <AudioLines className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />
       </Button>
     );
   }
@@ -131,7 +131,7 @@ export function VoiceCallButton({
             window.requestAnimationFrame(() => link.current?.focus());
           }}
         >
-          <PhoneOff className="text-muted-foreground h-4 w-4" />
+          <AudioLinesOff className="text-muted-foreground h-4 w-4" />
           <span id={describedBy} className="sr-only">
             {title} {body}
           </span>

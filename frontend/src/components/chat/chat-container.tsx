@@ -1131,6 +1131,7 @@ function ChatUI({
     scroller.scrollTop = scroller.scrollHeight;
   }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length, voice.call.phase]);
   const callReady = offerCall && readiness?.available === true;
+  const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
   // comes back here when it ends.
   const callButton = (
@@ -1526,15 +1527,17 @@ function ChatUI({
                                   agentModel={agentModel}
                                 />
                               </div>
-                              {/* A call that cannot start says why, beside the
-                                  microphone; one that can stands in Send's place -
-                                  except during the call, when it waits here,
-                                  hidden, for focus to come back to. */}
-                              {offerCall && (!callReady || onCall) && callButton}
+                              {/* The call stands in Send's place, as one that can
+                                  start or one that says why it cannot - except
+                                  during the call, when it waits here, hidden, for
+                                  focus to come back to. */}
+                              {onCall && callButton}
                             </>
                           }
                           // Not during a call: the box is closed then, Send with it.
-                          idleSlot={callReady && !onCall ? callButton : undefined}
+                          // Nor while readiness loads, when the button draws
+                          // nothing and the slot would leave no Send at all.
+                          idleSlot={callShown && !onCall ? callButton : undefined}
                         />
                       </div>
                     </div>

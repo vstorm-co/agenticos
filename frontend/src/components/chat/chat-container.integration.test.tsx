@@ -712,6 +712,8 @@ describe("the chat container - a voice call (#54)", () => {
         }),
       ).toHaveAttribute("aria-disabled", "true"),
     );
+    // In Send's place all the same: an empty composer has nothing to send.
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
   });
 
   it("turns the composer into the call bar while the call is on, so nothing is sent beside it", async () => {
