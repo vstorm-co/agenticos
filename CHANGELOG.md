@@ -127,11 +127,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
 - **The Android app shows the AgenticOS icon**, not Tauri's default: the
   generated launcher icons had never been copied into the Android project.
 - **The desktop app opens on the console, not on the sign-in form.** It
   opened the server's root, which sends everybody to the form, so a person
   with a perfectly good session was asked to sign in on every launch.
+
+## [1.12.1] - 2026-10-22
+
+### Security
+
+- **Dependency alerts match the backend's locked versions again.** Dependabot
+  cannot read a project that requires Python 3.15, so since 1.9.0 its graph kept
+  the versions locked before, and fourteen alerts for Pillow, certifi and
+  virtualenv stayed open although `backend/uv.lock` already held the fixed
+  releases. A new workflow, `.github/workflows/dependency-graph.yml`, submits
+  the graph from the lock on every push to `main` that moves it. See
+  [Dependency updates](docs/branching.md#dependency-updates).
 
 ## [1.12.0] - 2026-10-22
 
