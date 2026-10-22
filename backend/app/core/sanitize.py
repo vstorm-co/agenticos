@@ -10,6 +10,20 @@ from urllib.parse import urlparse
 
 WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
 
+METADATA_HOSTS = frozenset(
+    {
+        "metadata.google.internal",
+        "metadata.goog",
+        "metadata",
+        "instance-data",
+    }
+)
+"""Names that only ever mean a cloud instance-metadata service.
+
+Blocked by name as well as by address because a name is what somebody types and
+`169.254.169.254` is what it resolves to. Neither is ever a service anybody runs.
+"""
+
 # Shared Address Space (RFC 6598) - CGNAT range.
 # Python 3.11+ no longer classifies 100.64.0.0/10 as private or reserved,
 # so we block it explicitly. Covers cloud metadata endpoints like
@@ -95,7 +109,9 @@ def resolve_pinned_url(
     The policy is the whole of this module's SSRF policy - allowed scheme, no
     userinfo, and no private, reserved, loopback, link-local or CGNAT address -
     and :func:`validate_webhook_url` is this function with the answer thrown
-    away.
+    away, plus one exemption a caller names (`trusted_hosts`). This function has
+    no exemption and must not get one: every `PinnedAsyncClient` request, and so
+    every OAuth discovery hop, is checked here, and dials the `ips` it returns.
 
     **Only a caller that dials the returned `ip` is protected from DNS
     rebinding.** A caller that takes the hostname back and connects by name
@@ -134,7 +150,20 @@ def resolve_pinned_url(
     """
     if allowed_schemes is None:
         allowed_schemes = WEBHOOK_ALLOWED_SCHEMES
+    return _pinned(*_checked_target(url, allowed_schemes))
 
+
+def _checked_target(url: str, allowed_schemes: frozenset[str]) -> tuple[str, int]:
+    """The form half of the policy: scheme, hostname, no userinfo, a valid port.
+
+    Returns:
+        The hostname, as `urlparse` spells it, and the port to connect to.
+
+    Raises:
+        SSRFBlockedError: If the scheme is not allowed or the URL has userinfo.
+        UrlRefusedError: If the URL cannot be parsed, or has no hostname or an
+            invalid port.
+    """
     try:
         parsed = urlparse(url)
     except Exception as err:
@@ -168,7 +197,15 @@ def resolve_pinned_url(
         # Read before the IP-literal branch so an unrequestable port is refused
         # there too, and so that branch's `except ValueError` cannot swallow it.
         raise UrlRefusedError("The URL has an invalid port") from err
+    return hostname, port
 
+
+def _pinned(hostname: str, port: int) -> PinnedAddress:
+    """The address half of the policy: an IP literal, or every DNS answer, must not be blocked.
+
+    Raises:
+        SSRFBlockedError: If the address is blocked, or the name does not resolve.
+    """
     try:
         addr = ipaddress.ip_address(hostname)
     except ValueError:
@@ -203,11 +240,12 @@ def resolve_pinned_url(
     return PinnedAddress(hostname=hostname, port=port, ips=tuple(dict.fromkeys(ips)))
 
 
-def validate_webhook_url(url: str) -> str:
+def validate_webhook_url(url: str, *, trusted_hosts: frozenset[str] = frozenset()) -> str:
     """Refuse a URL that points inside the deployment's network.
 
     :func:`resolve_pinned_url` with the answer discarded - same policy, same
-    refusals, for the callers that only want a yes or no.
+    refusals, except for a host the caller names in `trusted_hosts` - for the
+    callers that only want a yes or no.
 
     **This is not DNS-rebinding protection, and for these callers it cannot be.**
     The validated URL is returned as the string it came in as, so both of them
@@ -224,8 +262,18 @@ def validate_webhook_url(url: str) -> str:
     checked (#860), and a URL a *model* picked belongs in Pydantic AI's
     `safe_download`.
 
+    The MCP client is also the one caller that passes `trusted_hosts`: a
+    connection's own address may name a host the operator listed in
+    `MCP_ALLOWED_HOSTS`, and for that host there is no address check at all -
+    the list is the operator vouching for whatever the name resolves to.
+
     Args:
         url: The webhook URL to validate; http or https.
+        trusted_hosts: Hostnames or IP literals spelled exactly as
+            `urlparse(url).hostname` spells them - lower case, an IPv6 address
+            without brackets, a trailing dot kept. The caller normalizes them;
+            nothing here folds case. A listed host passes the form checks and
+            is then neither resolved nor range-checked.
 
     Returns:
         The validated URL string.
@@ -240,5 +288,7 @@ def validate_webhook_url(url: str) -> str:
         >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
         Raises SSRFBlockedError
     """
-    resolve_pinned_url(url)
+    hostname, port = _checked_target(url, WEBHOOK_ALLOWED_SCHEMES)
+    if hostname not in trusted_hosts:
+        _pinned(hostname, port)
     return url

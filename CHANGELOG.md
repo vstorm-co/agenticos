@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
+  deployment's own network.** Before, the SSRF check refused every connection
+  URL whose host resolves to a private or loopback address, such as a compose
+  service. There was no way past it. Now an operator can list such hosts. A
+  listed host skips only the address check, when a connection is saved. The
+  match is exact and ignores case, and OAuth sign-in to a listed host is still
+  refused. Every account can reach every port on a listed host, so list only a
+  server that checks a token. A cloud metadata or link-local entry is refused
+  at startup. Empty, the default, changes nothing. See
+  [a connection](docs/mcp.md#a-connection).
+
 ### Fixed
 
 - **A dead job's ending is settled once (#2334).** When a job died for good,

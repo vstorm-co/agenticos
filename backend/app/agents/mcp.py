@@ -41,6 +41,7 @@ from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
 from app.agents.spec import McpApproval
+from app.core.config import settings
 from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,24 @@ class McpProbeError(Exception):
     """
 
 
-async def validate_mcp_url(url: str) -> str:
+def _allowed_hosts() -> frozenset[str]:
+    """`MCP_ALLOWED_HOSTS`, spelled the way `urlparse` spells a host.
+
+    Each entry is trimmed and lower-cased, a leading `[` and a trailing `]` are
+    dropped (each on its own, for an IPv6 address listed with brackets), and a
+    blank entry is skipped rather than read as a host. Nothing else is
+    folded: not a trailing dot, a port or a glob, so an entry matches one host
+    spelled exactly that way. Read on every call, so a test's monkeypatch is
+    seen and there is nothing to invalidate.
+    """
+    hosts = (
+        entry.strip().removeprefix("[").removesuffix("]").lower()
+        for entry in settings.MCP_ALLOWED_HOSTS
+    )
+    return frozenset(host for host in hosts if host)
+
+
+async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
     For a URL an operator typed: the connection's own address, and the consent
@@ -101,8 +119,23 @@ async def validate_mcp_url(url: str) -> str:
     goes through :class:`app.core.pinned_http.PinnedAsyncClient` instead, which
     connects to the address it checked rather than handing the name back to be
     resolved again (#860).
+
+    Args:
+        url: The URL to check; http or https.
+        honour_allowlist: Pass `True` only for a connection's own address, as
+            `mcp_connection._checked_url` saves it. A host on
+            `MCP_ALLOWED_HOSTS` then skips the address check and is not
+            resolved. A URL a remote server chose keeps the strict default.
+
+    Returns:
+        The URL, unchanged.
+
+    Raises:
+        SSRFBlockedError: If the URL is blocked by SSRF protection.
+        UrlRefusedError: If the URL is malformed.
     """
-    return await asyncio.to_thread(validate_webhook_url, url)
+    trusted = _allowed_hosts() if honour_allowlist else frozenset()
+    return await asyncio.to_thread(validate_webhook_url, url, trusted_hosts=trusted)
 
 
 @dataclass(frozen=True)

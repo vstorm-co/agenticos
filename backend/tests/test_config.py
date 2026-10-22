@@ -135,3 +135,46 @@ class TestStoreTls:
 
     def test_a_plaintext_redis_url_carries_no_tls_parameters(self):
         assert "?" not in Settings(REDIS_SSL=False, REDIS_PASSWORD="pw").REDIS_URL
+
+
+class TestMcpAllowedHosts:
+    """Read from the environment as a JSON list, like `CORS_ORIGINS`.
+
+    `_env_file=None` keeps a developer's `backend/.env` out of the answer.
+    """
+
+    def test_a_deployment_that_never_set_it_lists_nothing(self, monkeypatch):
+        """Empty is what keeps every internal address refused, so it has to be
+        the default and not a value somebody remembered to write."""
+        monkeypatch.delenv("MCP_ALLOWED_HOSTS", raising=False)
+
+        assert Settings(_env_file=None).MCP_ALLOWED_HOSTS == []
+
+    def test_the_environment_names_the_hosts_as_a_json_list(self, monkeypatch):
+        monkeypatch.setenv("MCP_ALLOWED_HOSTS", '["postgres-mcp"]')
+
+        assert Settings(_env_file=None).MCP_ALLOWED_HOSTS == ["postgres-mcp"]
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "169.254.169.254",
+            "[fe80::1]",
+            "fe80::1",
+            "metadata.google.internal",
+            "Metadata.Google.Internal.",
+            " instance-data ",
+        ],
+    )
+    def test_a_metadata_or_link_local_entry_stops_the_settings_loading(self, entry):
+        """A listed host is never range-checked, so these would hand any
+        connection the instance's credentials. Refused however it is spelled."""
+        with pytest.raises(ValidationError, match="cloud metadata or link-local"):
+            Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry])
+
+    @pytest.mark.parametrize("entry", ["postgres-mcp", "10.0.0.5", "fd00::1"])
+    def test_a_private_address_is_still_allowed(self, entry):
+        """A private address is the reason the setting exists."""
+        hosts = Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry]).MCP_ALLOWED_HOSTS
+
+        assert hosts == [entry]
