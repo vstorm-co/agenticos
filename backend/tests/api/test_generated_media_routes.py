@@ -285,6 +285,7 @@ class TestStreamingRatherThanLoading:
         assert response.headers["content-range"] == "bytes 7-9/10"
         assert store.ranges == ["bytes=7-9"]
 
+    @pytest.mark.security
     async def test_an_object_store_answers_another_tenant_with_a_not_found(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ):

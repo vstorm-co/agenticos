@@ -158,6 +158,7 @@ async def test_an_accounts_conversations_give_up_their_media_in_every_organizati
     assert remaining == {kept.id, unlinked.id}
 
 
+@pytest.mark.security
 async def test_forgetting_conversations_reaches_only_theirs_in_this_tenant(db):
     organization, other = await _org(db), await _org(db)
     gone, kept = await _conversation(db, organization), await _conversation(db, organization)
@@ -215,6 +216,7 @@ async def test_an_empty_list_of_anything_reads_and_deletes_nothing(db):
     assert len((await db.execute(select(GeneratedMedia.id))).scalars().all()) == 1
 
 
+@pytest.mark.security
 async def test_rows_are_deleted_by_path_in_this_tenant_only(db):
     organization, other = await _org(db), await _org(db)
     row = await _media(db, organization)
