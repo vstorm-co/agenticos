@@ -293,12 +293,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // The list query auto-fetches and dedupes; force a fresh pull here to keep
     // the previous explicit-refresh semantics (e.g. after a new conversation is
     // created over WS).
-    await invalidateLists();
     // URL ?id= param always takes priority: select that conversation and load
-    // its messages if it isn't already the current one.
-    const startedAs = useAuthStore.getState().user?.id;
+    // its messages if it isn't already the current one. Read before the wait
+    // below: the address this call was made for, and a caller that does not
+    // await it - a mount effect - may be gone, with its window, when it resumes.
     // A scoped chat owns no part of the address: `?id=` is the main chat's thread.
     const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
+    await invalidateLists();
+    const startedAs = useAuthStore.getState().user?.id;
     if (urlId && conversationApi.getState().currentConversationId !== urlId) {
       setCurrentConversationId(urlId);
       clearMessages();
