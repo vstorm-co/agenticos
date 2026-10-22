@@ -30,6 +30,7 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_gap import KnowledgeGapTopic
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.schemas.knowledge_gap import (
@@ -420,6 +421,8 @@ async def test_a_draft_a_person_changes_is_theirs_and_an_unchanged_one_stays_the
     ):
         await service.draft(ctx, topic_id)
 
+    drafted = await db.get(KnowledgeGapTopic, topic_id)
+    assert drafted is not None and drafted.draft_by_model is True
     kept = await service.save_content(
         ctx, topic_id, KnowledgeGapContent(title="Parking", content="Visitors park on level -1.")
     )
@@ -435,6 +438,8 @@ async def test_a_draft_a_person_changes_is_theirs_and_an_unchanged_one_stays_the
         False,
         [],
     )
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+    assert topic is not None and topic.draft_by_model is False
 
 
 async def test_a_covered_topic_takes_no_second_document(db, uploads) -> None:

@@ -214,6 +214,11 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Whether a model wrote the draft's text, rather than a person: its run may be
+    # gone with retention while the text stays the model's.
+    draft_by_model: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     draft_already_covered: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
