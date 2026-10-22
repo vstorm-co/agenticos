@@ -64,6 +64,7 @@ from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
+from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
 from app.services.system_agent_runner import SystemAgentRunner
 
@@ -718,7 +719,10 @@ class TestCheck:
         service = AuthoringService(db)
         evals = EvalRunService(db)
 
-        started = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+        # One read of the suite: its dataset, environment and threshold of one moment.
+        read_suite = EvalSuiteService.get
+        with patch.object(EvalSuiteService, "get", autospec=True, side_effect=read_suite) as reads:
+            started = await service.check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
         waiting = await evals.get(ctx, started.id)
         suite.name, suite.min_pass_rate = "renamed", Decimal("0")
         await db.flush()
@@ -728,6 +732,7 @@ class TestCheck:
         gone = await evals.get(ctx, started.id)
         by_dataset = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
 
+        assert reads.call_count == 1
         assert waiting.suite_check is not None
         assert (waiting.suite_check.name, waiting.suite_check.status) == ("nightly", None)
         assert judged.suite_check is not None
