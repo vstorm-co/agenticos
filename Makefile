@@ -524,18 +524,10 @@ desktop-check:
 AUDIT_ATTEMPTS ?= 3
 AUDIT_TIMEOUT ?= 30
 
-# Advisories accepted on purpose, each with why, and each to be dropped when it can
-# be fixed. GHSA-vxj4-q4g9-crj7 (virtualenv's bash `activate` running `\$(...)` in an
-# environment name) is fixed in 21.14.7, which needs packaging>=26.3, and xai-sdk -
-# under pydantic-ai's xAI support - pins packaging<26. virtualenv is a dev-only
-# dependency of pre-commit, whose environments have fixed names, and is not in the
-# image (`uv sync --no-dev`).
-PIP_AUDIT_IGNORE ?= --ignore-vuln GHSA-vxj4-q4g9-crj7
-
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
 	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
-		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT) -- $(PIP_AUDIT_IGNORE)
+		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
 # The frontend half of the same job. `make audit` reads `backend/uv.lock`; this
 # reads `frontend/bun.lock`, which nothing checked until #1415 - `bun audit` was
