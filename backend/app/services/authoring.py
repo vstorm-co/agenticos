@@ -833,7 +833,7 @@ class AuthoringService:
                 raise BadRequestError(
                     message="That value cannot be accepted here", details={"reason": staged}
                 )
-            value = staged[1]
+            value = staged.new
         written = authoring_hunks.apply_field(spec, hunk, value)
         if written is None:
             raise self._stale()

@@ -19,10 +19,18 @@ edited.
 
 **Approval only tightens.** Loosening a gate widens what runs unattended, which
 is a governance decision rather than a quality one, so a proposal may move a
-capability or a tool from `never` towards `required` and not back. A capability
-the proposal adds arrives with every tool that writes gated. A safeguard - a
-capability the registry marks `protective` - may be added, and never removed or
-reconfigured, for the same reason.
+capability or a tool from `never` towards `required` and not back. A safeguard -
+a capability the registry marks `protective` - may be added, and never removed or
+reconfigured, for the same reason, whether the change names it by id or by its
+binding.
+
+**Access may widen, never unattended.** A proposal may add a capability, a
+knowledge collection, a context file or MCP tools; `Staged.adds` names each
+thing it adds, for the card to mark. A capability it adds arrives with every tool
+that writes set to `required`, whatever the proposal set them to, and widening an
+MCP binding's tools raises a binding that asks for nothing to ask for the tools
+that write. Undoing that widening leaves the approval where it was raised:
+lowering it again is a loosening no person decided.
 
 **A configuration is a target only where the capability opts in.** A capability
 the registry marks `tunable` has a configuration about quality alone; any other
@@ -35,7 +43,7 @@ description is the one part of them a proposal may change.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -71,6 +79,29 @@ class _Missing:
 
 
 MISSING = _Missing()
+
+
+@dataclass(frozen=True)
+class Access:
+    """One thing a change gives the agent that it could not reach before.
+
+    `tools` are a capability's tools that write, each gated, or the MCP tools a
+    binding newly allows - empty for a binding widened to every tool its server
+    offers.
+    """
+
+    kind: Literal["capability", "collection", "context", "mcp_tools"]
+    id: str
+    tools: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Staged:
+    """A change that may be proposed, as it is stored, and what it gives access to."""
+
+    base: Any
+    new: Any
+    adds: tuple[Access, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -240,6 +271,10 @@ def apply(spec: AgentSpec, path: str, op: str, base: Any, new: Any) -> AgentSpec
         if read(document, address) != base:
             return None
         _write(document, address, new)
+        if address.pattern == "mcp_servers/{server}/allowed_tools" and _widens(base, new):
+            server = _server_or_fail(document, address)
+            if server.get("approval", "none") == "none":
+                server["approval"] = "writes"
     elif op == FieldOp.ADD.value:
         if _index(document, address, new) is not None:
             return None
@@ -284,9 +319,11 @@ def writing_tools(capability: str) -> list[str]:
 
 
 def gated(binding: dict[str, Any]) -> dict[str, Any]:
-    """A binding the proposal adds, with every tool that writes waiting for a person."""
-    if binding.get("approval") == "required":
-        return binding
+    """A binding the proposal adds, with every tool that writes waiting for a person.
+
+    A tool's own setting outranks the binding's, so each one is set even where the
+    binding already asks for every call.
+    """
     approvals = dict(binding.get("tool_approval") or {})
     for tool in writing_tools(str(binding.get("id"))):
         approvals[tool] = "required"
@@ -341,7 +378,7 @@ def weakens_protection(path: str, op: str, base: Any) -> bool:
     load_builtins()
     parts = path.split("/")
     if path == "capabilities" and op == FieldOp.REMOVE.value:
-        capability = base.get("id") if isinstance(base, dict) else None
+        capability = base.get("id") if isinstance(base, dict) else base
     elif len(parts) == 3 and parts[0] == "capabilities" and parts[2] == "config":
         capability = parts[1]
     else:
@@ -350,12 +387,14 @@ def weakens_protection(path: str, op: str, base: Any) -> bool:
     return definition is not None and definition.protective
 
 
-def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | str:
-    """The `(base, new)` a proposed change is stored with, or why it may not be staged.
+def stage(spec: AgentSpec, path: str, op: str, value: Any) -> Staged | str:
+    """The change as it would be stored, or why it may not be staged.
 
-    `set` keeps the draft's value as `base`; `remove` keeps the whole item it
-    takes out, so Undo can put it back; an added capability arrives gated, in the
-    form the spec stores it. Refused is everything that can be told from the spec
+    The one policy every proposed field change passes, the assistant's and the
+    improvement pipeline's alike. `set` keeps the draft's value as `base`;
+    `remove` keeps the whole item it takes out, so Undo can put it back; an
+    added capability arrives gated, in the form the spec stores it; `adds` names
+    what the change gives the agent access to. Refused is everything that can be told from the spec
     alone: a path that is not a target, an operation it does not allow, approval
     that does not tighten, a safeguard removed or reconfigured, a capability that
     does not exist, a configuration that does not validate, a change that does
@@ -399,7 +438,27 @@ def stage(spec: AgentSpec, path: str, op: str, value: Any) -> tuple[Any, Any] | 
         return "invalid_config"
     if apply(spec, path, op, base, new) is None:
         return "does_not_apply"
-    return base, new
+    return Staged(base, new, _adds(address, op, base, new))
+
+
+def _widens(base: Any, new: Any) -> bool:
+    """Whether an MCP binding's tools reach further: `None` is every tool offered."""
+    if base is None:
+        return False
+    return new is None or bool(set(new) - set(base))
+
+
+def _adds(address: Address, op: str, base: Any, new: Any) -> tuple[Access, ...]:
+    if op == FieldOp.ADD.value and address.pattern == "capabilities":
+        capability = str(new["id"])
+        return (Access("capability", capability, tuple(writing_tools(capability))),)
+    if op == FieldOp.ADD.value:
+        kind = "collection" if address.pattern == "collection_ids" else "context"
+        return (Access(kind, str(new)),)
+    if address.pattern == "mcp_servers/{server}/allowed_tools" and _widens(base, new):
+        added = () if new is None else tuple(sorted(set(new) - set(base)))
+        return (Access("mcp_tools", str(address.server), added),)
+    return ()
 
 
 def _binding_as_stored(value: dict[str, Any]) -> dict[str, Any] | str:

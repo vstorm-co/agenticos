@@ -136,7 +136,10 @@ async def test_a_widened_binding_says_which_newly_reached_tools_write(db):
         origin=HunkOrigin.IMPROVE,
     )
 
-    assert widened["effect"] == {"writes": ["update"]}
+    assert widened["effect"] == {
+        "adds": [{"kind": "mcp_tools", "id": str(connection.id), "tools": []}],
+        "writes": ["update"],
+    }
     assert narrowed["effect"] is None
     # A personal account's server is somebody's own, and lists nothing to read here.
     assert [(hunk["new_value"], hunk["effect"]) for hunk in personal] == [(["search"], None)]
@@ -228,3 +231,45 @@ async def test_the_registry_asks_only_about_what_a_change_adds(db):
         await registry.reference_problems(ctx, spec, path="capabilities/missing/config", op="set")
         == []
     )
+
+
+async def test_widening_any_binding_names_the_tools_it_adds_and_those_that_may_write(db):
+    """The platform's own tools say whether they write; a personal account's server is
+    each person's own, so a tool it adds may write and counts as one that does."""
+    ctx = await _owner(db)
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Clerk",
+            "instructions": "Answer.",
+            "mcp_servers": [
+                {"account": "personal", "catalog_key": "notion", "allowed_tools": ["search"]},
+                {"account": "platform", "allowed_tools": ["whoami"]},
+            ],
+        }
+    )
+
+    staged, refused = await ConfigurationService(db).stage(
+        ctx,
+        agent_id=uuid.uuid4(),
+        spec=spec,
+        changes=[
+            _field("mcp_servers/personal:notion/allowed_tools", "set", ["search", "create_page"]),
+            _field("mcp_servers/platform:/allowed_tools", "set", ["whoami", "list_agents"]),
+            _field("mcp_servers/platform:/allowed_tools", "set", ["whoami", "create_agent_draft"]),
+        ],
+        pack=EvidencePack(),
+        origin=HunkOrigin.IMPROVE,
+    )
+
+    assert refused == []
+    assert [hunk["effect"] for hunk in staged] == [
+        {
+            "adds": [{"kind": "mcp_tools", "id": "personal:notion", "tools": ["create_page"]}],
+            "writes": ["create_page"],
+        },
+        {"adds": [{"kind": "mcp_tools", "id": "platform:", "tools": ["list_agents"]}]},
+        {
+            "adds": [{"kind": "mcp_tools", "id": "platform:", "tools": ["create_agent_draft"]}],
+            "writes": ["create_agent_draft"],
+        },
+    ]
