@@ -1,5 +1,5 @@
 ---
-source_sha: "032462f776bb"
+source_sha: "b10b296e4ad1"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -279,6 +279,10 @@ todo número o código de cuatro o más dígitos, o de tres con una letra, como 
 número de pedido. Una cifra como «30 días» o «$500» se queda. Nada de lo que
 escribe una persona se modifica. Consulta
 [Protección de datos](data-protection.md#where-personal-data-lives).
+
+Borrar a una persona elimina los borradores que un modelo escribió a partir de
+sus preguntas. El contenido que una persona escribió o cambió se queda, igual que
+un documento añadido a partir de él.
 
 Un documento añadido desde un tema llega a todas las personas a las que
 responden los agents de su base de conocimiento, así que antes de añadirlo se

@@ -1,5 +1,5 @@
 ---
-source_sha: "032462f776bb"
+source_sha: "b10b296e4ad1"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -279,6 +279,10 @@ jede Zahl oder jeder Code mit vier oder mehr Ziffern oder mit drei Ziffern und
 einem Buchstaben, etwa eine Bestellnummer. Eine Angabe wie „30 Tage“ oder
 „$500“ bleibt. Nichts, was ein Mensch schreibt, wird verändert. Siehe
 [Datenschutz](data-protection.md#where-personal-data-lives).
+
+Das Löschen einer Person entfernt die Entwürfe, die ein Modell aus ihren Fragen
+geschrieben hat. Inhalt, den ein Mensch geschrieben oder geändert hat, bleibt,
+ebenso ein daraus hinzugefügtes Dokument.
 
 Ein Dokument, das aus einem Thema hinzugefügt wird, erreicht alle, denen die
 Agents seiner Wissensdatenbank antworten. Deshalb wird der Inhalt vor dem

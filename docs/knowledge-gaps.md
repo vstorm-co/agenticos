@@ -256,6 +256,9 @@ or code of four digits or more, or three with a letter, such as an order number.
 A figure like "30 days" or "$500" stays. Nothing a person writes is changed. See
 [Data protection](data-protection.md#where-personal-data-lives).
 
+Erasing a person removes the drafts a model wrote from their questions.
+Content a person wrote or changed stays, and so does a document added from it.
+
 A document added from a topic reaches everybody its knowledge base's agents
 answer, so before it is added the content is checked for personal data and for
 any such number or code it repeats from the topic's questions, answers or

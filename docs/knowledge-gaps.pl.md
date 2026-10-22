@@ -1,5 +1,5 @@
 ---
-source_sha: "032462f776bb"
+source_sha: "b10b296e4ad1"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -261,6 +261,10 @@ i rachunków bankowych oraz każdej liczby albo kodu z co najmniej czterema
 cyframi albo z trzema cyframi i literą, jak numer zamówienia. Wartość taka jak
 „30 dni” albo „$500” zostaje. Nic, co pisze człowiek, nie jest zmieniane. Zobacz
 [Ochrona danych](data-protection.md#where-personal-data-lives).
+
+Usunięcie osoby usuwa szkice, które model napisał na podstawie jej pytań.
+Treść napisana albo zmieniona przez człowieka zostaje, tak jak dodany z niej
+dokument.
 
 Dokument dodany z tematu trafia do każdego, komu odpowiadają agenci jego bazy
 wiedzy, więc przed dodaniem treść jest sprawdzana pod kątem danych osobowych i
