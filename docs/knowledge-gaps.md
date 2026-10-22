@@ -63,7 +63,7 @@ decides one of four things:
 |---|---|
 | The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information. A fair question the agent turned down because it had nothing on it is this, not a refusal |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
-| Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too, in every knowledge base the run searched: a refusal is about the request, not about one knowledge base |
+| Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too - in that knowledge base, and in another one a missed search also covered, since a refusal is about the request, not about one knowledge base |
 | No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
@@ -175,7 +175,9 @@ passage or FAQ entry the knowledge base is missing. It is one run of the
 organization has. The drafter is shown the topic's 20 newest questions: what
 each person asked, what the agent searched for and found, the answer the
 person got, and any comment left with a thumbs-down. What identifies people is
-taken out first (see [Personal data](#personal-data)). It is also shown the
+taken out first (see [Personal data](#personal-data)); from what the search
+found, the knowledge base's own text, only personal data is, so its figures
+stay. It is also shown the
 [context files](context.md) the topic's agents read in their published
 versions, those you may read, so the draft follows the rules the agents
 already follow.

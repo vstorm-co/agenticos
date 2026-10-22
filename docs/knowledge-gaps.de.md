@@ -1,5 +1,5 @@
 ---
-source_sha: "b10b296e4ad1"
+source_sha: "0fa40513ea5c"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -68,7 +68,7 @@ haben, und entscheidet eines von vier Dingen:
 |---|---|
 | Der Agent wusste es nicht | Die Antwort sagt, in beliebigen Worten und Sprachen, dass der Agent es nicht wusste oder die Information nicht fand. Eine berechtigte Frage, die der Agent abgelehnt hat, weil er nichts dazu hatte, gehört hierher, nicht zu den Ablehnungen |
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
-| Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken, in jeder Wissensdatenbank, die der Run durchsucht hat: Eine Ablehnung betrifft die Anfrage, nicht eine Wissensdatenbank |
+| Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken - in dieser Wissensdatenbank und in einer anderen, die eine verfehlte Suche mit abdeckte, denn eine Ablehnung betrifft die Anfrage, nicht eine Wissensdatenbank |
 | Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
@@ -189,7 +189,9 @@ ein Run des **Knowledge gap drafter**, eines
 die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
 gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
 Kommentar zu einer negativen Bewertung. Was Personen identifiziert, wird
-vorher entfernt (siehe [Personenbezogene Daten](#personal-data)). Er sieht
+vorher entfernt (siehe [Personenbezogene Daten](#personal-data)); aus dem, was
+die Suche gefunden hat, dem eigenen Text der Wissensdatenbank, nur
+personenbezogene Daten, sodass seine Zahlen bleiben. Er sieht
 außerdem die [Kontextdateien](context.md), die die Agents des Themas in ihren
 veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
 den Regeln folgt, denen die Agents schon folgen.

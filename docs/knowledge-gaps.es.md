@@ -1,5 +1,5 @@
 ---
-source_sha: "b10b296e4ad1"
+source_sha: "0fa40513ea5c"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -69,7 +69,7 @@ negativamente, y decide una de cuatro cosas:
 |---|---|
 | El agent no lo sabía | La respuesta dice, con cualquier palabra o idioma, que el agent no lo sabía o no encontró la información. Una pregunta legítima que el agent rechazó porque no tenía nada sobre ella entra aquí, no entre los rechazos |
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
-| Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas, en cada base de conocimiento que el run buscó: un rechazo trata de la petición, no de una base de conocimiento |
+| Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas - en esa base de conocimiento y en otra que una búsqueda fallida también cubría, porque un rechazo trata de la petición, no de una base de conocimiento |
 | Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir. Un comentario de que la información estaba desactualizada sí es una laguna |
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
@@ -192,7 +192,9 @@ Es un run del **Knowledge gap drafter**, un
 las 20 preguntas más recientes del tema: qué preguntó cada persona, qué buscó y
 encontró el agent, qué respuesta recibió la persona y cualquier comentario
 dejado con una valoración negativa. Antes se quita lo que identifica a las
-personas (consulta [Datos personales](#personal-data)). También ve los
+personas (consulta [Datos personales](#personal-data)); de lo que encontró la
+búsqueda, el propio texto de la base de conocimiento, solo los datos personales,
+así que sus cifras se quedan. También ve los
 [archivos de contexto](context.md) que los agents del tema leen en sus
 versiones publicadas, los que tú puedes leer, para que el borrador siga las
 reglas que los agents ya siguen.

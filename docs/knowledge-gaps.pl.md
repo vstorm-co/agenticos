@@ -1,5 +1,5 @@
 ---
-source_sha: "b10b296e4ad1"
+source_sha: "0fa40513ea5c"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -65,7 +65,7 @@ możliwości:
 |---|---|
 | Agent nie wiedział | Odpowiedź mówi, dowolnymi słowami i w dowolnym języku, że agent nie wie albo nie znalazł informacji. Uzasadnione pytanie, którego agent nie podjął, bo nie miał na ten temat nic, należy tutaj, a nie do odmów |
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
-| Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki, w każdej bazie wiedzy, którą run przeszukał: odmowa dotyczy prośby, a nie jednej bazy wiedzy |
+| Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki - w tej bazie wiedzy i w innej, którą chybione wyszukiwanie też objęło, bo odmowa dotyczy prośby, a nie jednej bazy wiedzy |
 | Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia. Komentarz, że informacja jest nieaktualna, jest luką |
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
@@ -178,7 +178,9 @@ fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. To jeden run
 którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
 zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
 osoba i komentarz zostawiony przy ocenie łapką w dół. To, co identyfikuje
-ludzi, jest najpierw usuwane (zobacz [Dane osobowe](#personal-data)). Agent
+ludzi, jest najpierw usuwane (zobacz [Dane osobowe](#personal-data)); z tego,
+co znalazło wyszukiwanie, czyli z własnej treści bazy wiedzy, usuwane są tylko
+dane osobowe, więc jej liczby zostają. Agent
 widzi też [pliki kontekstowe](context.md), które agenci tematu czytają w swoich
 opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się reguł,
 których agenci już się trzymają.
