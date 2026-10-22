@@ -19,6 +19,14 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useImageProviders: () => providers(),
 }));
 
+/** The vault, as the key picker reads it. */
+const secrets = vi.fn();
+vi.mock("@/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks")>()),
+  useSecrets: () => secrets(),
+  usePermissions: () => ({ can: () => false }),
+}));
+
 const OPENAI = {
   provider: "openai",
   name: "OpenAI",
@@ -60,11 +68,26 @@ const DEFINITION: CapabilityCatalogEntry = {
   requires_secret: null,
 };
 
-function mount(config: Record<string, unknown> = { provider: "openai", model: "gpt-image-2" }) {
+const KEYED: CapabilityCatalogEntry = {
+  ...DEFINITION,
+  requires_secret: {
+    kind: "api_key",
+    description: "The API key for the chosen image generation provider",
+    purpose: null,
+    required_when: { field: "provider", equals: ["openai", "google"] },
+    optional_when: null,
+    also_accepts: [],
+  },
+};
+
+function mount(
+  config: Record<string, unknown> = { provider: "openai", model: "gpt-image-2" },
+  definition: CapabilityCatalogEntry = DEFINITION,
+) {
   const onChange = vi.fn();
   render(
     <ImageGenerationSection
-      definition={DEFINITION}
+      definition={definition}
       binding={
         {
           id: "image_generation",
@@ -84,6 +107,24 @@ function mount(config: Record<string, unknown> = { provider: "openai", model: "g
 
 beforeEach(() => {
   providers.mockReturnValue({ providers: [OPENAI, GOOGLE], isLoading: false, isError: false });
+  secrets.mockReturnValue({ secrets: [], isLoading: false, listError: null, create: vi.fn() });
+});
+
+describe("the key", () => {
+  it("is asked for before a provider is picked, for the one the panel shows", () => {
+    // `config: {}` is what switching the capability on stores; the panel shows the
+    // catalog's first provider and publish demands its key (#2258).
+    mount({}, KEYED);
+
+    expect(screen.getByLabelText("Secret")).toBeInTheDocument();
+  });
+
+  it("is not asked for while no provider is offered at all", () => {
+    providers.mockReturnValue({ providers: [], isLoading: false, isError: false });
+    mount({}, KEYED);
+
+    expect(screen.queryByLabelText("Secret")).toBeNull();
+  });
 });
 
 describe("choosing what draws", () => {
