@@ -405,7 +405,6 @@ class TestTheirWordsGo:
             assert revision.counter_example is None
             assert revision.note is None
             assert revision.anonymised_at is not None
-            # The curator's part stays, and so does the case.
             assert revision.checks == [{"type": "contains", "value": "refund"}]
             assert revision.source_conversation_id is None
 

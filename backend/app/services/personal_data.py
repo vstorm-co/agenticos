@@ -79,7 +79,6 @@ _NOTIFICATION_FIELDS = (
     "read_at",
     "created_at",
 )
-#: What an anonymised dataset case asks instead of the erased person's question.
 ANONYMISED_CASE_INPUT = "[Removed: the person this case was taken from was erased]"
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
 # Every field a draft can carry a person's words in, and every link back to them.
