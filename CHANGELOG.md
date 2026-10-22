@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A virtual terminal over the services an author mounts (#2191).** The new
+  `mirage` capability gives an agent the seven sandbox tools, prefixed
+  `mirage_`, over folders that are a Google Drive, a GitHub repository, Notion,
+  a database, an SSH server or a mailbox, through
+  [Mirage](https://github.com/strukto-ai/mirage) and with no container. Each
+  folder is read only or writable, and a writable one can ask a person to
+  approve each write, including a write inside a shell command. A folder signs
+  in with vault keys, an Entra app, or a Google account. A Google account is
+  the organization's or each person's own, connected on the vault page. Typed
+  hosts must be on the new `MIRAGE_ALLOWED_HOSTS`. The terminal is the optional
+  `mirage` extra (`EXTRAS="--extra mirage"`). See
+  [Virtual terminal](docs/reference/capabilities.md#mirage).
+
 ### Fixed
 
 - **A dead job's ending is settled once (#2334).** When a job died for good,
