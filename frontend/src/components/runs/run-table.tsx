@@ -302,7 +302,7 @@ export function RunTable({
           </span>
         ) : (
           <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
-            {formatRunDuration(run.started_at, run.ended_at)}
+            {formatRunDuration(run.started_at, run.ended_at, locale)}
           </span>
         ),
     },

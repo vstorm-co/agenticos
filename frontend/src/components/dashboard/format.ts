@@ -1,20 +1,20 @@
 /** Small display formatters shared by the dashboard's widgets. */
 
 /** A serialised-Decimal (or number) as dollars. Display only - never arithmetic. */
-export function formatUsd(value: string | number | null | undefined): string {
+export function formatUsd(value: string | number | null | undefined, locale: string): string {
   const amount = Number(value ?? 0);
-  return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Milliseconds as human latency: 850 ms below a second, seconds above. */
-export function formatMs(ms: number | null): string {
+export function formatMs(ms: number | null, locale: string): string {
   if (ms === null) return "—";
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  return `${(ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
 }
 
 /** A fraction in [0, 1] as a locale-formatted whole-number percent. */
-export function formatShare(share: number, locale?: string): string {
+export function formatShare(share: number, locale: string): string {
   return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
     share,
   );

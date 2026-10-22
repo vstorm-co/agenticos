@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useUsageStats, useVersionUsage } from "@/hooks";
 import { formatMs, formatUsd } from "../format";
@@ -25,6 +25,7 @@ export function VersionCompareWidget({
   options,
 }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.version-compare");
+  const locale = useLocale();
   const window = { from: period.from, to: period.to };
   const composed = useUsageStats(window);
   const topAgent = composed.usage?.by_agent?.[0] ?? null;
@@ -69,11 +70,15 @@ export function VersionCompareWidget({
                     percent(previous.completed_runs, previous.runs),
                     percent(current.completed_runs, current.runs),
                   ],
-                  [t("metric.p95"), formatMs(previous.p95_ms), formatMs(current.p95_ms)],
+                  [
+                    t("metric.p95"),
+                    formatMs(previous.p95_ms, locale),
+                    formatMs(current.p95_ms, locale),
+                  ],
                   [
                     t("metric.cost"),
-                    previous.avg_cost_usd !== null ? formatUsd(previous.avg_cost_usd) : "—",
-                    current.avg_cost_usd !== null ? formatUsd(current.avg_cost_usd) : "—",
+                    previous.avg_cost_usd !== null ? formatUsd(previous.avg_cost_usd, locale) : "—",
+                    current.avg_cost_usd !== null ? formatUsd(current.avg_cost_usd, locale) : "—",
                   ],
                   [
                     t("metric.ratings"),

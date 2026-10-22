@@ -311,7 +311,7 @@ export function FocusedRun({
               </span>
             )}
           </Fact>
-          <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
+          <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at, locale)}</Fact>
         </dl>
 
         {!!run.tool_args_repaired && (
