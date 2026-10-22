@@ -939,6 +939,8 @@ async def test_a_cancelled_eval_run_leaves_the_result_inconclusive_and_the_suite
 
     [result] = await _results(db, suite.id)
     assert (result.status, result.reason) == ("inconclusive", "cancelled")
+    assert result.summary is not None
+    assert result.summary["message"] == "Its eval run was cancelled."
     again = await service.run_now(ctx, agent.id, suite.id)
     assert again.eval_run_id not in (None, started.eval_run_id)
 
