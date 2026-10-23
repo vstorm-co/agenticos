@@ -5,7 +5,8 @@ applies is decided by *whose* address it is:
 
 * `app.core.sanitize.validate_webhook_url` - a callback somebody else handed us.
   A private address there is an SSRF attempt, so private, reserved, loopback and
-  link-local are refused and the host must resolve to a public IP.
+  link-local are refused and the host must resolve to a public IP. The one
+  exemption is an MCP connection's host on `MCP_ALLOWED_HOSTS`.
 * `app.services.model_profile.validate_endpoint_url` - a model endpoint. Local
   models are first-class, so a private address is frequently the entire point.
 * This module - a service the organization runs itself: a `sandboxd` host, a
@@ -24,19 +25,7 @@ from urllib.parse import urlparse
 
 from pydantic import AfterValidator
 
-_METADATA_HOSTS = frozenset(
-    {
-        "metadata.google.internal",
-        "metadata.goog",
-        "metadata",
-        "instance-data",
-    }
-)
-"""Names that only ever mean a cloud instance-metadata service.
-
-Blocked by name as well as by address because a name is what somebody types and
-`169.254.169.254` is what it resolves to. Neither is ever a service anybody runs.
-"""
+from app.core.sanitize import METADATA_HOSTS
 
 
 def _service_address(value: str) -> str:
@@ -89,7 +78,7 @@ def _service_address(value: str) -> str:
             "A service address must not carry credentials in the URL - "
             "authentication is the key or token you pick for it"
         )
-    if host.lower() in _METADATA_HOSTS:
+    if host.lower() in METADATA_HOSTS:
         raise ValueError("That host is an instance-metadata service, not a service address")
     try:
         address = ipaddress.ip_address(host)

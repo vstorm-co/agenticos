@@ -98,6 +98,7 @@ async def running(
     *,
     ingest: bool = False,
     listen_dsn: str | None = None,
+    settle_seconds: float = 0.0,
     **overrides: object,
 ) -> AsyncGenerator[Worker]:
     """A worker serving the system pool in-process - and the ingest pool in children, if asked."""
@@ -123,6 +124,7 @@ async def running(
 
     async def on_ended(kind: str, _payload: object, why: str) -> None:
         ENDED.append((kind, why))
+        await asyncio.sleep(settle_seconds)
 
     worker = Worker(
         settings=_settings(tmp_path, **overrides),
@@ -248,6 +250,26 @@ async def test_a_parse_that_eats_memory_dies_twice_and_stops_while_other_work_fl
     # its own cleanup, so the worker hands the ending on, once, after the death.
     (ending,) = [end for end in ENDED if end[0] == INGEST_TASKS["hog"].kind]
     assert "memory watchdog" in ending[1]
+
+
+async def test_an_end_is_settled_once_while_the_rescuer_reads_it_as_owed(
+    sessions, tmp_path: Path, pauses: list[tuple[str, str]]
+) -> None:
+    """#2334: the worker settles a death right after committing it, and every
+    rescuer pass settles what it reads as owed - which, while that settler runs,
+    is the same end. A settler slower than three rescuer passes must still run
+    once."""
+    async with running(sessions, tmp_path, pauses, settle_seconds=1.0):
+        job_id = await _enqueue(sessions, SYSTEM_TASKS["fail"], Note(text="no"))
+        await _until_status(sessions, job_id, "dead")
+        await asyncio.sleep(2.0)
+    (ending,) = [end for end in ENDED if end[0] == SYSTEM_TASKS["fail"].kind]
+    assert "RuntimeError: no" in ending[1]
+    async with sessions() as db:
+        settled = await db.scalar(
+            select(BackgroundJob.settled_at).where(BackgroundJob.id == job_id)
+        )
+    assert settled is not None
 
 
 async def test_a_child_the_kernel_kills_is_written_down_as_killed(
