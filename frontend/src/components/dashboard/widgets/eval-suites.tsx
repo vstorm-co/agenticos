@@ -16,7 +16,7 @@ import type { DashboardWidgetProps } from "./types";
 const SHOWN = 6;
 
 /** The order a reader scans them in: what needs looking at first. */
-const ORDER: SuiteState[] = ["failing", "inconclusive", "waiting", "passing", "paused"];
+const ORDER: SuiteState[] = ["failing", "waiting", "passing", "paused"];
 
 /**
  * The organization's eval suites at a glance: how many pass, fail, wait for

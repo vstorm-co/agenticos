@@ -47,10 +47,11 @@ describe("useWaitingOnMe", () => {
   it("counts answers to review, active suites that failed last, and every suggestion", () => {
     state.review = 9;
     state.suites = [
-      { is_active: true, last_result: { status: "failed" } },
-      { is_active: true, last_result: { status: "error" } },
-      { is_active: false, last_result: { status: "failed" } },
-      { is_active: true, last_result: { status: "passed" } },
+      { is_active: true, last_result: { status: "failed", alerting: true } },
+      { is_active: true, last_result: { status: "error", alerting: true } },
+      { is_active: true, last_result: { status: "inconclusive", alerting: true } },
+      { is_active: false, last_result: { status: "failed", alerting: true } },
+      { is_active: true, last_result: { status: "passed", alerting: false } },
       { is_active: true, last_result: null },
     ];
     state.waiting = {
@@ -64,7 +65,7 @@ describe("useWaitingOnMe", () => {
 
     expect(renderHook(() => useWaitingOnMe()).result.current).toEqual({
       review: 9,
-      suites: 2,
+      suites: 3,
       suggestions: 8,
       settled: true,
     });

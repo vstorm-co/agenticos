@@ -2729,7 +2729,6 @@
         "row": "{suite} · {agent}",
         "count": {
           "failing": "{count} failing",
-          "inconclusive": "{count} inconclusive",
           "passing": "{count} passing",
           "waiting": "{count} waiting for a first run",
           "paused": "{count} paused"
