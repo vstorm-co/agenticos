@@ -79,6 +79,13 @@ class BatchStatus(StrEnum):
     PUBLISHED = "published"
     """The draft it was decided into was published."""
 
+    CANDIDATE = "candidate"
+    """An improvement session's proposal, still being checked.
+
+    Not the agent's open batch: it replaces a person's open batch only once the
+    session reaches `ready`, and nobody decides its hunks before then.
+    """
+
 
 class HunkKind(StrEnum):
     """What a hunk changes.
@@ -159,6 +166,12 @@ class AuthoringRequest(Base):
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     report: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -228,6 +241,12 @@ class SpecProposalBatch(Base):
     check_eval_run_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -235,7 +254,8 @@ class SpecProposalBatch(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('open', 'superseded', 'published')", name="ck_spec_proposal_batch_status"
+            "status IN ('open', 'superseded', 'published', 'candidate')",
+            name="ck_spec_proposal_batch_status",
         ),
         # One open batch per agent, held where a race cannot slip past it.
         Index(
