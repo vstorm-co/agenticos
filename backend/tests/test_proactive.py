@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
@@ -165,6 +165,11 @@ class TestTheLimits:
             assert await ProactiveThinker(MagicMock()).allowance(ctx, "nightly") is None
 
 
+def _session() -> MagicMock:
+    """A session the thinker can commit its run on."""
+    return MagicMock(commit=AsyncMock())
+
+
 class TestThinking:
     @staticmethod
     def _patches(model, *, version=True, resolve_error=None):
@@ -205,7 +210,7 @@ class TestThinking:
             create as create_run,
             finish as finish_run,
         ):
-            answer = await ProactiveThinker(MagicMock()).think(
+            answer = await ProactiveThinker(_session()).think(
                 _ctx(),
                 feature="nightly",
                 output_type=NightlyReading,
@@ -236,7 +241,7 @@ class TestThinking:
 
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
         with get_slug, limits, version, profiles, create, finish:
-            answer = await ProactiveThinker(MagicMock()).think(
+            answer = await ProactiveThinker(_session()).think(
                 _ctx(),
                 feature="watches",
                 output_type=NightlyReading,
@@ -254,7 +259,7 @@ class TestThinking:
 
         get_slug, limits, version, profiles, create, finish = self._patches(FunctionModel(broken))
         with get_slug, limits, version, profiles, create, finish as finish_run:
-            answer = await ProactiveThinker(MagicMock()).think(
+            answer = await ProactiveThinker(_session()).think(
                 _ctx(),
                 feature="nightly",
                 output_type=NightlyReading,
@@ -266,13 +271,58 @@ class TestThinking:
         assert finish_run.await_args.kwargs["status"] == RunStatus.FAILED.value
         assert finish_run.await_args.kwargs["error"]
 
+    async def test_the_run_is_committed_before_the_model_is_called(self):
+        """A worker killed mid-call must leave the run behind for the limit to count."""
+        session = _session()
+        committed_at_call: list[bool] = []
+
+        def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            committed_at_call.append(session.commit.await_count == 1)
+            raise ModelHTTPError(status_code=500, model_name="claude")
+
+        get_slug, limits, version, profiles, create, finish = self._patches(FunctionModel(answer))
+        with get_slug, limits, version, profiles, create, finish:
+            await ProactiveThinker(session).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        assert committed_at_call == [True]
+
+    async def test_a_run_that_fails_after_the_model_answered_books_what_it_used(self):
+        """Output validation out of retries raises after the provider charged."""
+
+        def unreadable(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart("not the reading")])
+
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            FunctionModel(unreadable)
+        )
+        with get_slug, limits, version, profiles, create, finish as finish_run:
+            answer = await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        assert answer is None
+        finished = finish_run.await_args.kwargs
+        assert finished["status"] == RunStatus.FAILED.value
+        assert finished["input_tokens"] > 0
+        assert finished["output_tokens"] > 0
+
     async def test_a_model_nobody_may_use_spends_nothing(self):
         get_slug, limits, version, profiles, create, finish = self._patches(
             TestModel(), resolve_error=BadRequestError(message="no model")
         )
         with get_slug, limits, version, profiles, create as create_run, finish:
             assert (
-                await ProactiveThinker(MagicMock()).think(
+                await ProactiveThinker(_session()).think(
                     _ctx(),
                     feature="nightly",
                     output_type=NightlyReading,
@@ -289,7 +339,7 @@ class TestThinking:
         )
         with get_slug, limits, version, profiles, create as create_run, finish:
             assert (
-                await ProactiveThinker(MagicMock()).think(
+                await ProactiveThinker(_session()).think(
                     _ctx(),
                     feature="nightly",
                     output_type=NightlyReading,
@@ -302,7 +352,7 @@ class TestThinking:
 
         with patch(f"{THINKER}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)):
             assert (
-                await ProactiveThinker(MagicMock()).think(
+                await ProactiveThinker(_session()).think(
                     _ctx(),
                     feature="nightly",
                     output_type=NightlyReading,
@@ -317,7 +367,7 @@ class TestThinking:
             patch.object(ProactiveThinker, "allowance", new=AsyncMock(return_value=None)),
         ):
             assert (
-                await ProactiveThinker(MagicMock()).think(
+                await ProactiveThinker(_session()).think(
                     _ctx(),
                     feature="nightly",
                     output_type=NightlyReading,

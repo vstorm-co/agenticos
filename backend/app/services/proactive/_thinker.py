@@ -29,7 +29,7 @@ import httpx
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.toolsets import AbstractToolset
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
@@ -152,28 +152,36 @@ class ProactiveThinker:
             secret_id=request.secret_id,
             started_at=datetime.now(UTC),
         )
+        # Committed before the provider is called, as the other run paths do: a
+        # worker killed mid-call must leave a run behind, or the spend check and
+        # `last_proactive_run_at` never learn the call was made.
+        await self.db.commit()
+        # Accumulates across the run's requests, so a run that fails after the
+        # provider answered - output validation out of retries - still books
+        # what was charged against the person's proactive limit.
+        usage = RunUsage()
         try:
             result = await Agent(
                 request.build(),
                 output_type=output_type,
                 instructions=instructions,
                 toolsets=toolsets,
-            ).run(prompt, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
+            ).run(prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
         except (AgentRunError, httpx.HTTPError) as exc:
             logger.exception("proactive_run_failed", extra={"run_id": str(run.id)})
+            cost = price_request(usage, request.model, request.provider)
             await agent_run_repo.finish_run(
                 self.db,
                 run=run,
                 status=RunStatus.FAILED.value,
-                input_tokens=0,
-                output_tokens=0,
-                cost_usd=Decimal(0),
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cost_usd=cost if cost is not None else Decimal(0),
                 cost_is_partial=True,
                 ended_at=datetime.now(UTC),
                 error=run_failure_summary(exc),
             )
             return None
-        usage = result.usage
         cost = price_request(usage, result.response.model_name or request.model, request.provider)
         await agent_run_repo.finish_run(
             self.db,
