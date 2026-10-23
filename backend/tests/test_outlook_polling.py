@@ -156,6 +156,20 @@ INBOX = outlook_place(mailbox=None, folder="inbox")
 
 
 class TestThePlaceKey:
+    @pytest.mark.parametrize(
+        ("mailbox", "folder"),
+        [("ops|alerts@corp.test", "inbox"), (None, "Reports|2026"), ("a%7Cb@corp.test", "x%y")],
+    )
+    def test_a_delimiter_inside_either_half_survives_the_round_trip(self, mailbox, folder):
+        """Codex on #2195: `|` is legal in an address's local part, and the key was
+        split at the first one - `ops|alerts@corp.test` read as mailbox `ops`."""
+        from app.services.portals.outlook import _place
+
+        assert _place(outlook_place(mailbox=mailbox, folder=folder)) == (
+            mailbox.casefold() if mailbox else None,
+            folder.casefold(),
+        )
+
     def test_one_spelling_for_the_same_folder(self):
         assert outlook_place(mailbox="Ops@Corp.test", folder="/Inbox/Invoices/") == (
             "ops@corp.test|inbox/invoices"
@@ -173,9 +187,19 @@ class TestTheFirstPoll:
         )
 
         assert read.events == ()
-        assert set(read.cursor) == {"connected_at", "places"}
         assert read.cursor["places"] == {}
-        assert graph.asked == []
+        # One lookup names the account the cursor belongs to; no mail is read.
+        assert read.cursor["account"] == "INBOX"
+        assert [urlsplit(url).path for url in graph.asked] == ["/v1.0/me/mailFolders/inbox"]
+
+    async def test_the_account_is_carried_from_poll_to_poll(self, monkeypatch):
+        graph = _Graph()
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor={**_cursor(), "account": "INBOX"}, places={}
+        )
+
+        assert read.cursor["account"] == "INBOX"
 
     async def test_no_places_means_no_requests(self, monkeypatch):
         """A connected mailbox nothing watches costs nothing per tick."""
@@ -586,6 +610,29 @@ class TestTheWaysAPollerLosesWork:
         assert len(read.events) == 10
         assert read.cursor["places"][INBOX]["link"].endswith("$skiptoken=10")
 
+    async def test_the_rest_of_a_snapshot_keeps_the_floor_it_began_with(self, monkeypatch):
+        """Codex on #2195: the next tick carried on with the later read time as its
+        floor, so mail received before it - but inside the snapshot being paged -
+        was dropped before the round reached its delta link."""
+        graph = _Graph()
+        older = _NOW - timedelta(hours=2)
+        graph.deltas["INBOX"] = [[_item(f"p{index}", _NOW)] for index in range(10)] + [
+            [_item("late-page", older)]
+        ]
+        graph.messages.update({f"p{index}": _message(f"p{index}") for index in range(10)})
+        graph.messages["late-page"] = _message("late-page")
+        adapter = _adapter(graph, monkeypatch)
+
+        first = await adapter.poll(access_token="t", cursor=_cursor(), places={INBOX: _CONNECTED})
+        assert first.cursor["places"][INBOX]["floor"] == _CONNECTED.isoformat()
+        second = await adapter.poll(
+            access_token="t", cursor=first.cursor, places={INBOX: _CONNECTED}
+        )
+
+        assert [event.delivery_id for event in second.events] == ["outlook:late-page"]
+        # The round is complete: the next one starts from this read.
+        assert "floor" not in second.cursor["places"][INBOX]
+
     async def test_a_message_deleted_between_the_reads_is_skipped(self, monkeypatch):
         graph = _Graph()
         graph.deltas["INBOX"] = [[_item("gone", _NOW)]]
@@ -636,13 +683,17 @@ class TestTheWaysAPollerLosesWork:
 
     async def test_a_cursor_from_an_older_shape_is_a_first_poll(self, monkeypatch):
         graph = _Graph()
+        # An inbox that answers without an id leaves the account unnamed, not the
+        # poll failed.
+        graph.folders["me|inbox"] = ""
 
         read = await _adapter(graph, monkeypatch).poll(
             access_token="t", cursor={"connected_at": "not a time"}, places={INBOX: _CONNECTED}
         )
 
         assert read.events == ()
-        assert graph.asked == []
+        assert "account" not in read.cursor
+        assert len(graph.asked) == 1
 
 
 class TestOddAnswers:

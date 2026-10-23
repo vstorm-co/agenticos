@@ -361,7 +361,16 @@ class TestMatchingAPollAgainstTriggers:
 
 
 class TestReadingAGrant:
-    async def _poll(self, *, token, adapter_result=None, raises=None, needs_consent=False):
+    async def _poll(
+        self,
+        *,
+        token,
+        adapter_result=None,
+        raises=None,
+        needs_consent=False,
+        renewed=None,
+        refresh_left=True,
+    ):
         from app.services.mcp_connection import McpConnectionService
 
         service = McpConnectionService(MagicMock())
@@ -371,6 +380,8 @@ class TestReadingAGrant:
             adapter.poll = AsyncMock(side_effect=raises)
         else:
             adapter.poll = AsyncMock(return_value=adapter_result)
+        refresh = AsyncMock(return_value=renewed)
+        payload = MagicMock(refresh_token="rt" if refresh_left else None)
         with (
             patch("app.services.mcp_connection.portals") as portals_module,
             patch("app.services.mcp_connection._oauth_access_token", AsyncMock(return_value=token)),
@@ -378,12 +389,15 @@ class TestReadingAGrant:
                 "app.services.mcp_connection.grant_needs_consent",
                 MagicMock(return_value=needs_consent),
             ),
+            patch("app.services.mcp_connection._refresh_under_lock", refresh),
+            patch("app.services.mcp_connection._decode_payload", MagicMock(return_value=payload)),
             patch("app.services.mcp_connection.mcp_connection_repo") as repo,
         ):
             portals_module.get_adapter.return_value = adapter
             portals_module.PortalError = PortalUnreachable
             repo.update = AsyncMock()
             read = await service.poll_grant(grant)
+            self.refresh, self.adapter = refresh, adapter
             return read, repo
 
     async def test_a_grant_whose_token_will_not_renew_is_marked_and_skipped(self):
@@ -404,14 +418,50 @@ class TestReadingAGrant:
         assert isinstance(read, RevokedGrant)
         assert repo.update.await_args.kwargs["update_data"]["last_error"] == GRANT_REVOKED
 
-    async def test_a_token_the_provider_refuses_is_revoked(self):
-        """A 401 for a token this side still held to be good: an administrator
-        withdrew consent. Asking again next minute would be refused again."""
+    async def test_a_token_refused_again_after_a_refresh_is_revoked(self):
+        """A 401 for a token this side still held to be good, and again for the one
+        a refresh gave: an administrator withdrew consent. Asking again next
+        minute would be refused again."""
         from app.services.mcp_connection import RevokedGrant
 
-        read, _ = await self._poll(token="t", raises=PortalUnreachable(details={"status": 401}))
+        read, _ = await self._poll(
+            token="t", raises=PortalUnreachable(details={"status": 401}), renewed="t2"
+        )
 
         assert isinstance(read, RevokedGrant)
+        assert self.refresh.await_args.kwargs == {"rejected": "t"}
+        assert self.adapter.poll.await_count == 2
+
+    async def test_a_token_that_expired_early_is_refreshed_and_read_again(self):
+        """Codex on #2195: a 401 proves only that this access token is unusable,
+        not that the grant is - one refresh and one retry before any trigger stops."""
+        read_ok = MagicMock()
+
+        read, _ = await self._poll(
+            token="t",
+            raises=[PortalUnreachable(details={"status": 401}), read_ok],
+            renewed="t2",
+        )
+
+        assert read is read_ok
+        assert self.adapter.poll.await_args.kwargs["access_token"] == "t2"
+
+    async def test_a_401_with_no_refresh_token_left_is_revoked(self):
+        from app.services.mcp_connection import RevokedGrant
+
+        read, _ = await self._poll(
+            token="t", raises=PortalUnreachable(details={"status": 401}), refresh_left=False
+        )
+
+        assert isinstance(read, RevokedGrant)
+        assert self.adapter.poll.await_count == 1
+
+    async def test_a_401_whose_refresh_fails_for_now_is_tried_next_tick(self):
+        """The token endpoint is down: nothing says the grant is dead."""
+        read, repo = await self._poll(token="t", raises=PortalUnreachable(details={"status": 401}))
+
+        assert read is None
+        assert repo.update.await_args.kwargs["update_data"]["last_status"] == "error"
 
     async def test_a_provider_failure_says_nothing_of_the_providers_own_words(self):
         """A portal's error body echoes the request, and the request carries a
@@ -585,11 +635,15 @@ class TestWhereAnOutlookPollLooks:
     """The places the poller reads, and the triggers it stops (#1984)."""
 
     @staticmethod
-    def _trigger(config: dict, *, minutes_ago: int):
+    def _trigger(config: dict, *, minutes_ago: int, edited_minutes_ago: int | None = None):
+        now = datetime.now(UTC).replace(microsecond=0)
         return MagicMock(
             id=uuid.uuid4(),
             event_config=config,
-            created_at=datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=minutes_ago),
+            created_at=now - timedelta(minutes=minutes_ago),
+            updated_at=(
+                None if edited_minutes_ago is None else now - timedelta(minutes=edited_minutes_ago)
+            ),
         )
 
     async def _with(self, triggers, call):
@@ -616,6 +670,22 @@ class TestWhereAnOutlookPollLooks:
         )
 
         assert places == {"|inbox": older.created_at, "|archive": archive.created_at}
+
+    async def test_a_trigger_moved_to_another_folder_starts_there_from_the_move(self):
+        """Codex on #2195: keyed to its creation, a month-old trigger moved to a
+        folder nobody watched read that folder's month of mail as news."""
+        moved = self._trigger(
+            {"folder": "Invoices"}, minutes_ago=60 * 24 * 30, edited_minutes_ago=1
+        )
+
+        places, _ = await self._with(
+            [moved],
+            lambda service: service.polled_places(
+                organization_id=uuid.uuid4(), event_source="outlook"
+            ),
+        )
+
+        assert places == {"|invoices": moved.updated_at}
 
     async def test_a_source_read_whole_has_no_places(self):
         places, _ = await self._with(

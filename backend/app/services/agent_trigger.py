@@ -55,6 +55,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.field_errors import field_details, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
@@ -289,6 +290,38 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
 
 _WHAT_IT_DOES = ("prompt", "environment_id", "event_config", "teams_conversation_id")
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
+
+
+def _guard_shared_mailbox(
+    ctx: AuthContext,
+    event_source: str | None,
+    config: dict[str, Any],
+    *,
+    before: dict[str, Any] | None,
+) -> None:
+    """Refuse pointing an Outlook trigger at a shared mailbox without `mcp:manage`.
+
+    The organization's Outlook grant reads with `Mail.Read.Shared`: every shared
+    mailbox the account that consented can open, not only its own. Naming one is
+    therefore spending that account's reach, and the trigger's runs put the mail in
+    a log its creator reads - so it takes the permission that connected the account
+    in the first place (Codex on #2195). A trigger left on the account's own
+    mailbox, or one whose mailbox an edit leaves as it was, needs nothing more.
+
+    Raises:
+        AuthorizationError: A new or changed `mailbox` from a caller without
+            `mcp:manage`.
+    """
+    if event_source != EventSource.OUTLOOK.value:
+        return
+    mailbox = str(config.get("mailbox") or "").casefold()
+    if not mailbox or mailbox == str((before or {}).get("mailbox") or "").casefold():
+        return
+    if not ctx.has(Perm.MCP_MANAGE):
+        message = "Reading a shared mailbox needs the permission to manage connections"
+        raise AuthorizationError(
+            message=message, details=field_details("event_config.mailbox", message)
+        )
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -629,7 +662,16 @@ class AgentTriggerService:
                     # invisible to every MCP-facing read, so proving it through the
                     # MCP lookup refused the caller's own mailbox as not found.
                     if polled:
-                        await self.connections.get_org_portal_connection(ctx, data.connection_id)
+                        grant = await self.connections.get_org_portal_connection(
+                            ctx, data.connection_id
+                        )
+                        # A grant reads one service: a Gmail grant stored on an
+                        # Outlook trigger would record the wrong relationship and
+                        # never be the account it is polled through (Codex on #2195).
+                        if grant.portal_key != portal.key:
+                            raise refused_field(
+                                "connection_id", "This connection is for another service"
+                            )
                     else:
                         await self.connections.get_org_connection(ctx, data.connection_id)
                 connection_id = data.connection_id
@@ -663,6 +705,7 @@ class AgentTriggerService:
                 cron_expression=data.cron_expression,
                 now=now,
             )
+        _guard_shared_mailbox(ctx, event_source, event_config, before=None)
 
         trigger = await agent_trigger_repo.create(
             self.db,
@@ -909,6 +952,9 @@ class AgentTriggerService:
         # nothing - the same shape the cadence-on-event refusal below has.
         if "event_config" in changes:
             changes["event_config"] = self._validated_event_config(trigger, changes["event_config"])
+            _guard_shared_mailbox(
+                ctx, trigger.event_source, changes["event_config"], before=trigger.event_config
+            )
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
@@ -1474,9 +1520,14 @@ class AgentTriggerService:
     ) -> dict[str, datetime]:
         """The places the organization's live triggers on a polled source read.
 
-        Each is keyed to its earliest trigger's creation, the moment from which mail
-        there is news - so a trigger made a minute before the tick still sees what
-        arrived in that minute. Empty for a source read whole (Gmail).
+        Each is keyed to the earliest moment one of its triggers took its present
+        shape - its last edit, else its creation - from which mail there is news.
+        So a trigger made a minute before the tick still sees what arrived in that
+        minute, and one moved to another folder, or switched back on after a
+        pause, starts there from the move rather than firing on the folder's
+        history (Codex on #2195). Only a place read for the first time uses it: one
+        already read carries on from its own last read. Empty for a source read
+        whole (Gmail).
         """
         triggers = await agent_trigger_repo.list_active_for_event_source(
             self.db, organization_id=organization_id, event_source=event_source
@@ -1485,7 +1536,8 @@ class AgentTriggerService:
         for trigger in triggers:
             place = trigger_events.polled_place(event_source, trigger.event_config)
             if place is not None:
-                places[place] = min(places.get(place, trigger.created_at), trigger.created_at)
+                since = trigger.updated_at or trigger.created_at
+                places[place] = min(places.get(place, since), since)
         return places
 
     async def disable_polled(

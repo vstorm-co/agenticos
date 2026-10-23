@@ -1,5 +1,5 @@
 ---
-source_sha: "af1d4e5a6145"
+source_sha: "00c29f22362b"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -262,7 +262,8 @@ En qué se diferencia de Gmail:
   conocido (`inbox`, `archive`, `junkemail`) o una ruta de nombres de carpeta, como
   `Inbox/Invoices` para la carpeta donde una regla de correo archiva las facturas.
   `mailbox` lee, en lugar del propio, un buzón compartido que la cuenta conectada
-  puede abrir.
+  puede abrir; nombrarlo requiere `mcp:manage`, el permiso con el que se conectó
+  la cuenta, porque usa el alcance de esa cuenta.
 - **El filtro tiene los campos propios de Outlook**: `has_attachments`,
   `importance` (`low`, `normal`, `high`) y `category`, junto a `subject_contains` y
   `sender_contains`, que tiene Gmail. Se fijan en el `event_config` del trigger; el

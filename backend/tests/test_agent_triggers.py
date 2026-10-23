@@ -91,7 +91,7 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     # And a polled portal's connection is a *grant*, invisible to the MCP lookup
     # above - so it is proved through its own one.
     service.connections.get_org_portal_connection = AsyncMock(
-        return_value=_named(id=uuid.uuid4(), name="grant")
+        return_value=_named(id=uuid.uuid4(), name="grant", portal_key="google")
     )
     return service
 
@@ -2726,6 +2726,28 @@ class TestCreatingFromAPortalPreset:
         service.connections.get_org_connection.assert_not_awaited()
         assert repo.create.await_args.kwargs["connection_id"] == connection_id
 
+    async def test_a_grant_for_another_service_is_refused(self):
+        """Codex on #2195: with two polled portals a grant id is ambiguous - an
+        Outlook preset stored with the Gmail grant records the wrong account and is
+        never polled through the one it names."""
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(BadRequestError) as refused:
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="microsoft",
+                        preset_key="any_message",
+                        connection_id=uuid.uuid4(),
+                        target=None,
+                    ),
+                )
+        assert refused.value.details["fields"][0]["field"] == "connection_id"
+        repo.create.assert_not_called()
+
     async def test_an_event_config_override_narrows_the_presets_filter(self):
         """A subject filter the caller supplies is merged over the email preset's
         defaults and persisted; the filter it does not set stays its default None."""
@@ -3694,3 +3716,89 @@ class TestPostingTheAnswerToTeams:
                 trigger.id,
                 TriggerUpdate(teams_conversation_id=uuid.uuid4()),
             )
+
+
+class TestASharedMailbox:
+    """Codex on #2195: the organization's Outlook grant reads with
+    `Mail.Read.Shared`, so naming a shared mailbox spends the reach of whoever
+    consented - and the runs put that mail in a log the trigger's creator reads.
+    It takes `mcp:manage`, the permission that connected the account."""
+
+    @staticmethod
+    def _outlook_preset(**config: object) -> TriggerCreate:
+        return _preset_create(
+            portal_key="microsoft",
+            preset_key="any_message",
+            connection_id=None,
+            target=None,
+            event_config=config or None,
+        )
+
+    async def _create(self, role: str, data: TriggerCreate) -> AsyncMock:
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="outlook",
+                    event_secret_encrypted=None,
+                    secret_key_version=None,
+                    delivery_mode="polling",
+                    conversation_id=uuid.uuid4(),
+                )
+            )
+            await service.create(_ctx(role), agent.id, data)
+        return repo.create
+
+    @pytest.mark.security
+    async def test_an_operator_cannot_point_a_trigger_at_a_shared_mailbox(self):
+        with pytest.raises(AuthorizationError) as refused:
+            await self._create(OrgRoleName.OPERATOR, self._outlook_preset(mailbox="ceo@corp.test"))
+        assert refused.value.details["fields"][0]["field"] == "event_config.mailbox"
+
+    async def test_the_connected_accounts_own_mailbox_needs_nothing_more(self):
+        created = await self._create(OrgRoleName.OPERATOR, self._outlook_preset())
+
+        created.assert_awaited_once()
+
+    async def test_whoever_may_manage_connections_may_name_one(self):
+        created = await self._create(
+            OrgRoleName.OWNER, self._outlook_preset(mailbox="ops@corp.test")
+        )
+
+        assert created.await_args.kwargs["event_config"]["mailbox"] == "ops@corp.test"
+
+    async def _update(self, role: str, config: dict[str, object]) -> AsyncMock:
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            event_source="outlook",
+            event_config={"mailbox": "ops@corp.test", "folder": "inbox"},
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(role), agent.id, trigger.id, TriggerUpdate(event_config=config)
+            )
+        return repo.update
+
+    @pytest.mark.security
+    async def test_an_operator_cannot_move_a_trigger_to_another_shared_mailbox(self):
+        with pytest.raises(AuthorizationError):
+            await self._update(OrgRoleName.OPERATOR, {"mailbox": "ceo@corp.test"})
+
+    async def test_an_operator_may_refilter_a_trigger_an_admin_pointed_there(self):
+        updated = await self._update(
+            OrgRoleName.OPERATOR, {"mailbox": "OPS@corp.test", "subject_contains": "invoice"}
+        )
+
+        updated.assert_awaited_once()

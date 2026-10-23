@@ -2270,6 +2270,35 @@ class TestRefreshUnderLock:
         return refresh
 
     @pytest.mark.anyio
+    async def test_a_token_the_provider_rejected_is_refreshed_whatever_its_expiry_says(
+        self, monkeypatch
+    ):
+        """Codex on #2195: a 401 for a token whose recorded expiry is still ahead.
+        While the row holds that same token it is refreshed; one another caller
+        has already replaced is handed back without spending the refresh token."""
+        fresh = _oauth_connection(
+            _base_payload(access_token="held", refresh_token="rt", expires_at=9e12)
+        )
+        refresh = self._locked(monkeypatch, fresh)
+        refresh.return_value = OAuthToken(access_token="renewed", refresh_token="rt2")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "update", AsyncMock(return_value=fresh)
+        )
+
+        assert (
+            await mcp_connection_service._refresh_under_lock(
+                AsyncMock(), fresh, rejected="someone-elses"
+            )
+            == "held"
+        )
+        refresh.assert_not_awaited()
+        assert (
+            await mcp_connection_service._refresh_under_lock(AsyncMock(), fresh, rejected="held")
+            == "renewed"
+        )
+        refresh.assert_awaited_once()
+
+    @pytest.mark.anyio
     async def test_a_connection_deleted_while_the_turn_waited_is_not_refreshed(self, monkeypatch):
         """Deleting a connection is how a user revokes it. If the lock is granted
         only after the row is gone, spending its refresh token would hand the
@@ -3812,11 +3841,18 @@ class TestMcpConnectionService:
         assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "500"}
 
     @pytest.mark.anyio
-    async def test_a_reconsent_leaves_an_established_cursor_where_it_is(
-        self, service, repo, monkeypatch
+    @pytest.mark.parametrize(
+        ("fresh_account", "kept"),
+        [("me@corp.test", True), ("someone-else@corp.test", False)],
+        ids=["same-account", "switched-account"],
+    )
+    async def test_a_reconsent_keeps_the_cursor_only_for_the_same_account(
+        self, service, repo, monkeypatch, fresh_account, kept
     ):
         """Re-authorizing a mailbox already being read must not move its position -
-        a snapshot here would skip everything between the last poll and now."""
+        a snapshot would skip everything between the last poll and now. But the
+        consent screen asks which account to use, and another account's position
+        is polled against the new one and never advances (Codex on #2195)."""
         from app.services.portals import google_oauth
 
         pending = _connection(
@@ -3824,7 +3860,7 @@ class TestMcpConnectionService:
         )
         pending.purpose = "portal"
         pending.portal_key = "google"
-        pending.poll_cursor = {"history_id": "400"}
+        pending.poll_cursor = {"history_id": "400", "account": "me@corp.test"}
         pending.oauth_pending_payload = _seal_into(
             pending, _base_payload(provider="google").model_dump_json()
         )
@@ -3839,15 +3875,16 @@ class TestMcpConnectionService:
                 )
             ),
         )
-        adapter = MagicMock(poll=AsyncMock())
+        fresh = {"history_id": "900", "account": fresh_account}
+        adapter = MagicMock(poll=AsyncMock(return_value=MagicMock(cursor=fresh)))
         monkeypatch.setattr(
             mcp_connection_service.portals, "get_adapter", MagicMock(return_value=adapter)
         )
 
         await service.oauth_callback(state="state-google", code="the-code")
 
-        adapter.poll.assert_not_awaited()
-        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "400"}
+        stored = repo.update.call_args.kwargs["update_data"]["poll_cursor"]
+        assert stored == (pending.poll_cursor if kept else fresh)
 
     @pytest.mark.anyio
     async def test_a_portal_with_no_adapter_establishes_no_cursor(self, service, repo, monkeypatch):

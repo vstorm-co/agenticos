@@ -22,7 +22,7 @@ import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import httpx
 
@@ -87,14 +87,21 @@ def place_key(*, mailbox: str | None, folder: str) -> str:
 
     Case-folded, because neither an address nor a folder's display name is
     case-sensitive in Exchange, and two triggers spelling `Inbox` and `inbox` are
-    the same folder to read once.
+    the same folder to read once. Each half is escaped, because `|` is allowed in
+    an address's local part and in a folder's name.
     """
-    return f"{(mailbox or '').casefold()}|{folder.strip().strip('/').casefold()}"
+    return f"{_escape((mailbox or '').casefold())}|{_escape(folder.strip().strip('/').casefold())}"
+
+
+def _escape(part: str) -> str:
+    # `%` first, so every `%XX` in a key is one written here and `unquote` reverses
+    # exactly this.
+    return part.replace("%", "%25").replace("|", "%7C")
 
 
 def _place(key: str) -> tuple[str | None, str]:
     mailbox, _, folder = key.partition("|")
-    return mailbox or None, folder
+    return unquote(mailbox) or None, unquote(folder)
 
 
 def _mailbox_path(mailbox: str | None) -> str:
@@ -149,11 +156,27 @@ class OutlookPortalAdapter(PortalAdapter):
         already in it. A place first read later starts from the later of that
         moment and when its earliest trigger was made, so a trigger created a
         minute before the tick still sees the message that arrived in that minute.
+
+        The cursor names the account it was read from by its Inbox's id - constant
+        for a mailbox, different in every other, and readable with `Mail.Read`
+        alone where `/me` needs `User.Read` - so a consent that switches account
+        can tell the folder ids and delta links here are not the new account's.
         """
         now = datetime.now(UTC)
         connected = _connected_at(cursor)
         if connected is None:
-            return PolledEvents(events=(), cursor={"connected_at": now.isoformat(), "places": {}})
+            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+                inbox = await self._get(
+                    client,
+                    access_token,
+                    f"{_API_BASE}/me/mailFolders/inbox",
+                    params={"$select": "id"},
+                )
+            fresh: dict[str, Any] = {"connected_at": now.isoformat(), "places": {}}
+            if isinstance(inbox.get("id"), str) and inbox["id"]:
+                fresh["account"] = inbox["id"]
+            return PolledEvents(events=(), cursor=fresh)
+        account = cursor.get("account") if isinstance(cursor, dict) else None
         previous = cursor.get("places") if isinstance(cursor, dict) else None
         states: dict[str, Any] = previous if isinstance(previous, dict) else {}
         found: list[tuple[datetime, str, str]] = []
@@ -189,7 +212,11 @@ class OutlookPortalAdapter(PortalAdapter):
             ]
         return PolledEvents(
             events=tuple(events),
-            cursor={"connected_at": connected.isoformat(), "places": next_states},
+            cursor={
+                "connected_at": connected.isoformat(),
+                "places": next_states,
+                **({"account": account} if isinstance(account, str) else {}),
+            },
             unreadable=frozenset(unreadable),
         )
 
@@ -216,7 +243,13 @@ class OutlookPortalAdapter(PortalAdapter):
         if not isinstance(folder_id, str) or not folder_id:
             folder_id = await self._folder_id(client, access_token, mailbox, folder)
         read_at = _parse(state.get("read_at")) if state else None
-        if read_at is not None:
+        unfinished = _parse(state.get("floor")) if state else None
+        if unfinished is not None:
+            # A round stopped at the page bound carries on with the floor it began
+            # with: the rest of that snapshot is as old as the part already read,
+            # and the later read time would drop it.
+            floor = unfinished
+        elif read_at is not None:
             floor = read_at - _SKEW
         stored = state.get("link") if state else None
         # The link is ours, but it carries the bearer token's destination: only
@@ -262,6 +295,13 @@ class OutlookPortalAdapter(PortalAdapter):
             link = following if isinstance(following, str) else final
             if not isinstance(following, str):
                 break
+        else:
+            return ids, {
+                "folder_id": folder_id,
+                "link": link,
+                "read_at": read_at.isoformat() if read_at else None,
+                "floor": floor.isoformat(),
+            }
         state_link = link if isinstance(link, str) else None
         return ids, {"folder_id": folder_id, "link": state_link, "read_at": now.isoformat()}
 

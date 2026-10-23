@@ -1,5 +1,5 @@
 ---
-source_sha: "af1d4e5a6145"
+source_sha: "00c29f22362b"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -275,7 +275,8 @@ Was anders ist als bei Gmail:
   bekannter Name (`inbox`, `archive`, `junkemail`) oder ein Pfad aus Ordnernamen,
   etwa `Inbox/Invoices` für den Ordner, in den eine Mailregel Rechnungen ablegt.
   `mailbox` liest statt des eigenen ein freigegebenes Postfach, das das verbundene
-  Konto öffnen kann.
+  Konto öffnen kann; es zu benennen erfordert `mcp:manage`, die Berechtigung, mit
+  der das Konto verbunden wurde, weil es dessen Reichweite nutzt.
 - **Der Filter hat Outlooks eigene Felder**: `has_attachments`, `importance`
   (`low`, `normal`, `high`) und `category`, neben `subject_contains` und
   `sender_contains`, die Gmail hat. Sie werden in der `event_config` des Triggers

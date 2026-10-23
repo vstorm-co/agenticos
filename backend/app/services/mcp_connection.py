@@ -241,6 +241,19 @@ async def _complete_mcp_flow(
     return payload, (payload.scope.split() if payload.scope else None)
 
 
+def _same_account(kept: dict[str, Any] | None, fresh: dict[str, Any] | None) -> bool:
+    """Whether a kept poll cursor was read from the account a fresh snapshot names.
+
+    Unknown counts as different - an older cursor naming no account, or a
+    snapshot the provider could not answer: starting from now costs minutes of
+    mail, keeping another account's position costs the grant.
+    """
+    if kept is None or fresh is None:
+        return False
+    account = kept.get("account")
+    return isinstance(account, str) and bool(account) and account == fresh.get("account")
+
+
 async def _initial_poll_cursor(*, portal_key: str, access_token: str) -> dict[str, Any] | None:
     """Where a freshly consented polled grant starts reading, or None.
 
@@ -480,8 +493,15 @@ def _token_is_fresh(payload: McpOAuthPayload) -> bool:
     )
 
 
-async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> str | None:
+async def _refresh_under_lock(
+    db: AsyncSession, connection: McpConnection, *, rejected: str | None = None
+) -> str | None:
     """Spend the refresh token for *connection* while holding its row lock.
+
+    `rejected` is an access token the provider has just refused although its
+    recorded expiry says it is good - it expired early, or was revoked on its
+    own. While the row still holds that token it is refreshed whatever the
+    expiry says; one another caller has already replaced is returned as it is.
 
     Two chat turns for the same user can reach an expired token at the same
     moment. Providers that rotate refresh tokens invalidate whichever copy is
@@ -499,8 +519,9 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     payload = _decode_payload(locked, locked.oauth_payload)
     if payload is None or not payload.access_token:
         return None
-    if _token_is_fresh(payload):
-        return _revealed(payload.access_token)  # another turn refreshed while we waited
+    held = _revealed(payload.access_token)
+    if _token_is_fresh(payload) and held != rejected:
+        return held  # another turn refreshed while we waited
     if not payload.refresh_token:
         return None
     try:
@@ -1379,7 +1400,30 @@ class McpConnectionService:
             await self._record_poll_failure(grant, "The connected account could not be renewed")
             return None
         try:
-            read = await adapter.poll(access_token=token, cursor=grant.poll_cursor, places=places)
+            try:
+                read = await adapter.poll(
+                    access_token=token, cursor=grant.poll_cursor, places=places
+                )
+            except portals.PortalError as exc:
+                if (exc.details or {}).get("status") != 401:
+                    raise
+                # A 401 from the API proves only that this access token is unusable
+                # - it expired early, or was revoked on its own - not that the grant
+                # is: that is the token endpoint's to say. One refresh, one retry.
+                renewed = await _refresh_under_lock(self.db, grant, rejected=token)
+                if renewed is None:
+                    # No refresh token left - refused and dropped, or never issued -
+                    # means the rejected access token was the last of the grant.
+                    payload = _decode_payload(grant, grant.oauth_payload)
+                    if payload is None or payload.refresh_token is None:
+                        return await self._revoked(grant)
+                    await self._record_poll_failure(
+                        grant, "The connected account could not be renewed"
+                    )
+                    return None
+                read = await adapter.poll(
+                    access_token=renewed, cursor=grant.poll_cursor, places=places
+                )
         except portals.PortalError as exc:
             if (exc.details or {}).get("status") == 401:
                 return await self._revoked(grant)
@@ -1701,17 +1745,26 @@ class McpConnectionService:
         # predated the connection. Best-effort: a provider that cannot answer
         # right now leaves the cursor to the first poll, which is the old window
         # rather than a broken flow.
+        #
+        # On a re-consent the position already reached is kept - a snapshot would
+        # skip everything between the last poll and now - but only for the same
+        # account. The consent screen asks which account to use, and a cursor
+        # (Gmail's history id, Outlook's folder ids and delta links) belongs to
+        # the one it was read from: kept across a switch, it is polled against the
+        # new account and never advances again (Codex on #2195). Each cursor
+        # names its account, so the fresh snapshot is what tells them apart.
         poll_cursor = connection.poll_cursor
         access_token = _revealed(payload.access_token)
-        if (
-            connection.purpose == "portal"
-            and connection.portal_key is not None
-            and poll_cursor is None
-            and access_token
-        ):
-            poll_cursor = await _initial_poll_cursor(
-                portal_key=connection.portal_key, access_token=access_token
+        if connection.purpose == "portal" and connection.portal_key is not None:
+            fresh = (
+                await _initial_poll_cursor(
+                    portal_key=connection.portal_key, access_token=access_token
+                )
+                if access_token
+                else None
             )
+            if not _same_account(poll_cursor, fresh):
+                poll_cursor = fresh
         connection = await mcp_connection_repo.update(
             self.db,
             db_connection=connection,

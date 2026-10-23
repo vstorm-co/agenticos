@@ -237,7 +237,8 @@ What differs from Gmail:
   triggers name. `folder` is a well-known name (`inbox`, `archive`, `junkemail`) or
   a path of folder names, such as `Inbox/Invoices` for the folder a mail rule files
   invoices into. `mailbox` reads a shared mailbox the connected account can open
-  instead of its own.
+  instead of its own; naming one takes `mcp:manage`, the permission that connected
+  the account, because it spends that account's reach.
 - **The filter has Outlook's own fields**: `has_attachments`, `importance` (`low`,
   `normal`, `high`) and `category`, beside the `subject_contains` and
   `sender_contains` Gmail has. Set them in the trigger's `event_config`; the dialog

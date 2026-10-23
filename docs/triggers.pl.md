@@ -1,5 +1,5 @@
 ---
-source_sha: "af1d4e5a6145"
+source_sha: "00c29f22362b"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -259,7 +259,9 @@ Czym różni się od Gmaila:
   triggery Outlooka organizacji. `folder` to nazwa dobrze znana (`inbox`,
   `archive`, `junkemail`) albo ścieżka nazw folderów, na przykład `Inbox/Invoices`
   dla folderu, do którego reguła poczty odkłada faktury. `mailbox` czyta zamiast
-  własnej skrzynki współdzieloną, którą podłączone konto może otworzyć.
+  własnej skrzynki współdzieloną, którą podłączone konto może otworzyć; wskazanie
+  jej wymaga `mcp:manage`, uprawnienia, którym konto podłączono, bo korzysta z
+  zasięgu tego konta.
 - **Filtr ma własne pola Outlooka**: `has_attachments`, `importance` (`low`,
   `normal`, `high`) i `category`, obok `subject_contains` i `sender_contains`,
   które ma Gmail. Ustawia się je w `event_config` triggera; dialog oferuje presety
