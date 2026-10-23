@@ -245,7 +245,7 @@ class SkillProposalService:
             await notifications.shared_change_applied(
                 agent=item.agent,
                 kind="skill",
-                name=skill.name,
+                resource=skill,
                 occurrence=f"{decided.id}:{decided.revision}",
                 actor_user_id=ctx.user_id,
             )

@@ -58,11 +58,14 @@ from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.context import ContextFile
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
 from app.db.models.promotion_gate import PromotionOverride
 from app.db.models.rag_document import RAGDocument
+from app.db.models.resource_grant import Visibility
+from app.db.models.skill import Skill
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import group as group_repo
@@ -815,7 +818,7 @@ class NotificationService:
         *,
         agent: Agent,
         kind: Literal["context", "skill"],
-        name: str,
+        resource: ContextFile | Skill,
         occurrence: str,
         actor_user_id: UUID | None,
     ) -> None:
@@ -823,7 +826,9 @@ class NotificationService:
 
         The agent's owner hears it - unless they applied it themselves - and is
         pointed at the agent's evals, where the suites it queued run. The file's
-        or skill's content is not in it: the name says what changed.
+        or skill's content is never in it. Its name is only when the owner can see
+        the resource anyway - it is the organization's, or theirs - since an
+        agent may read a private one somebody else shared with its publisher.
         """
         owners = [agent.owner_user_id] if agent.owner_user_id not in (None, actor_user_id) else []
         recipients = await member_repo.list_member_ids_for(
@@ -832,18 +837,26 @@ class NotificationService:
         if not recipients:
             return
         what = "context file" if kind == "context" else "skill"
+        named = (
+            resource.visibility == Visibility.ORG.value
+            or resource.owner_user_id == agent.owner_user_id
+        )
         path = f"/agents/{agent.id}?tab=evals"
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.SHARED_CHANGE_APPLIED,
             occurrence_id=f"{occurrence}:{agent.id}",
-            summary=f"A change to the {what} {name} went live for {agent.name}",
+            summary=(
+                f"A change to the {what} {resource.name} went live for {agent.name}"
+                if named
+                else f"A change to a {what} it reads went live for {agent.name}"
+            ),
             context_url=self._link(path, agent.organization_id),
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "kind": kind,
-                "name": name,
+                **({"name": resource.name} if named else {}),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(self._link(path, agent.organization_id)),
             },

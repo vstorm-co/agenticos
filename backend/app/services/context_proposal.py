@@ -223,7 +223,7 @@ class ContextProposalService:
             await notifications.shared_change_applied(
                 agent=item.agent,
                 kind="context",
-                name=file.name,
+                resource=file,
                 occurrence=f"{decided.id}:{decided.revision}",
                 actor_user_id=ctx.user_id,
             )

@@ -13,7 +13,6 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -31,7 +30,7 @@ from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.promotion_gate import EnvironmentGuard
 from app.db.models.skill import Skill
-from app.db.models.skill_proposal import SkillProposal
+from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.user import User
 from app.repositories import (
     agent_environment_repo,
@@ -510,6 +509,37 @@ async def test_applying_a_skill_change_goes_live_where_served_and_tells_the_owne
         await service.discard(ctx, proposal.id, ProposalDecision(revision=1))
 
 
+@pytest.mark.security
+async def test_an_owner_who_cannot_see_the_skill_is_told_without_its_name(db):
+    """An agent may read a private skill its publisher was given; its owner learns
+    that something it reads changed, not what the skill is called."""
+    ctx, agent, skill = await _opened(db, content="Refunds take 90 days.")
+    await _served_and_guarded(db, ctx, agent)
+    skill.visibility = "private"
+    owner = await _member(db, ctx, OrgRoleName.MEMBER)
+    agent.owner_user_id = owner.user_id
+    proposal = SkillProposal(
+        organization_id=ctx.organization_id,
+        skill_id=skill.id,
+        name="refunds",
+        description="Refunds",
+        content="Refunds take 30 days.",
+        resources={},
+    )
+    db.add(proposal)
+    await db.flush()
+
+    await SkillProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+
+    (told,) = (
+        await db.scalars(
+            select(Notification).where(Notification.event_type == "shared_change_applied")
+        )
+    ).all()
+    assert told.summary == f"A change to a skill it reads went live for {agent.name}"
+    assert "refunds" not in str(told.render_context)
+
+
 async def test_whoever_applies_a_change_is_not_told_of_it(db):
     ctx, agent, file, run_id = await _bound(db)
     await _served_and_guarded(db, ctx, agent)
@@ -580,7 +610,18 @@ async def test_a_run_whose_pending_proposal_was_decided_proposes_anew(db, monkey
     ctx, _, file, run_id = await _bound(db)
     await _improve_context(db, ctx, file, _proposes(db, run_id))
     (first,) = await _pending(db, file)
-    monkeypatch.setattr(context_proposal_repo, "rewrite", AsyncMock(return_value=None))
+
+    async def decided_meanwhile(db: AsyncSession, *, proposal: ContextProposal, values: object):
+        await context_proposal_repo.decide_if(
+            db,
+            proposal_id=proposal.id,
+            organization_id=proposal.organization_id,
+            revision=proposal.revision,
+            status=ProposalStatus.APPLIED,
+            decided_by=None,
+        )
+
+    monkeypatch.setattr(context_proposal_repo, "rewrite", decided_meanwhile)
 
     await _improve_context(db, ctx, file, _proposes(db, run_id, "Returns take 14 days."))
 
@@ -591,6 +632,17 @@ async def test_a_run_whose_pending_proposal_was_decided_proposes_anew(db, monkey
     assert first.revision == 1
 
 
+async def _skill_decided_meanwhile(db: AsyncSession, *, proposal: SkillProposal, **_: object):
+    await skill_proposal_repo.decide_if(
+        db,
+        proposal_id=proposal.id,
+        organization_id=proposal.organization_id,
+        revision=proposal.revision,
+        status=ProposalStatus.APPLIED,
+        decided_by=None,
+    )
+
+
 async def test_a_skill_run_whose_pending_proposal_was_decided_proposes_anew(db, monkeypatch):
     ctx, _, skill = await _opened(db, content="Refunds take 90 days.")
     service = AuthoringService(db)
@@ -599,7 +651,7 @@ async def test_a_skill_run_whose_pending_proposal_was_decided_proposes_anew(db, 
         started = await service.start_skill(ctx, skill.id, AuthoringStart())
         with _answering(Improver(db)):
             await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
-        monkeypatch.setattr(skill_proposal_repo, "replace_body", AsyncMock(return_value=None))
+        monkeypatch.setattr(skill_proposal_repo, "replace_body", _skill_decided_meanwhile)
 
     rows = (await db.scalars(select(SkillProposal).where(SkillProposal.skill_id == skill.id))).all()
     assert len(rows) == 2
