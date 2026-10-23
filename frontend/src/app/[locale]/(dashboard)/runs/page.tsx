@@ -23,7 +23,7 @@ import {
 } from "@/lib/runs/filter-params";
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 /**
  * Pinned beside the other column, from `lg`, to the window less 8px a side.
@@ -71,6 +71,7 @@ function TabCount({ children }: { children: React.ReactNode }) {
 
 export default function RunsPage() {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
   // summary question and links here for the detail, and arriving at the whole
   // organization's history after clicking through from one agent would make the
@@ -201,7 +202,7 @@ export default function RunsPage() {
                   strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
                 {t("runs2")}
-                {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
+                {runCount > 0 && <TabCount>{runCount.toLocaleString(locale)}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">

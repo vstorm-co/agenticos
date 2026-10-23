@@ -237,6 +237,8 @@ export default defineConfig({
         "src/components/teams/org-voice-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
+        // The link that lands on the AI assistance switch, new and so inside the gate.
+        "src/components/teams/enable-ai-assistance-link.tsx",
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",

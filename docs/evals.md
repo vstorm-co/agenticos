@@ -23,9 +23,11 @@ An agent's **Evals** tab opens on a line chart of its pass rate run by run,
 oldest on the left, a line per dataset, each with its own dash. A point is red
 where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
-clicking it opens the run. The chart starts on the last 12 runs; drag the
-handles of the range under it, or move them with the arrow keys, to see more or
-fewer.
+clicking it opens the run.
+
+The axis names each point by what ran and when - the time for a run today, the
+date before. Past 12 runs a range appears under the chart, starting on the last
+12; drag its handles, or move them with the arrow keys, to see more or fewer.
 
 Below it are its runs, grouped by dataset, each naming what was tested against
 what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and
@@ -209,20 +211,29 @@ provider allows the organization.
 
 Cancelling (`POST /api/v1/eval-runs/{id}/cancel`, by whoever started it or
 anyone who may edit the agent) stops what has not started: cases already running
-finish and are kept, and no other case starts.
+finish and are kept, and no other case starts. Cancelling a run's job in
+**Admin** → **Background jobs** before a worker took it cancels the run the
+same way, within seconds.
 
 A run its worker cannot finish - the database lost mid-run, say - ends `failed`
 at once, as an agent run does: its running cases fail, the rest are skipped, and
 its page says it stopped on an error and should be run again. It is not resumed.
+A run whose job ran out of time, or whose worker shut down under it, ends
+`failed` at once the same way.
 
 A worker can also die without a word. A running run's worker says it is alive
 every `EVAL_HEARTBEAT_SECONDS`; one that has not, and whose cases have not
 moved, for `EVAL_ABANDONED_AFTER_MINUTES` is failed by a sweep the worker runs
 every minute, which also frees its slots. A worker whose heartbeats fail that
 long - on a host too loaded to reach its database - is failed the same way while
-it still works, and its run has to be started again. A queued run has no worker
-yet - it waits for a free worker - so the sweep gives up on it only after
-`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+it still works, and its run has to be started again.
+
+A queued run has no worker to say it is alive yet. It may wait for a free
+worker, or behind a paused kind of job, for as long as its job is queued; the
+sweep fails it once no job is left to run it. A case a dead worker left running
+under a run that has already ended is failed after the same
+`EVAL_ABANDONED_AFTER_MINUTES`. A running case counts against
+`EVAL_ORG_CONCURRENCY` until it ends, also after its run was cancelled.
 
 While a run is queued or running, the environment it names and the model profile
 any of its sides runs on cannot be removed: its remaining cases would answer
@@ -371,11 +382,11 @@ first model named, and every arm is compared with it.
 
 A **suite** is an eval run nobody has to remember to start. It names the
 agent, the dataset, the environment whose version it checks and a threshold
-every result must meet, and it runs on its own. The **Suites** card heads an
-agent's Evals tab: each suite's dataset, when it runs and how it last came
-out. Opening one lists every result, why it fell short, the cases that broke
-and a link to the eval run behind it; that run's page names the suite that
-started it.
+every result must meet, and it runs on its own. The **Suites** card sits under
+the runs on an agent's Evals tab: each suite's dataset, when it runs, its
+threshold and how it last came out. Opening one lists every result, why it fell
+short, the cases that broke and a link to the eval run behind it; that run's
+page names the suite that started it.
 
 ### When a suite runs { #when-a-suite-runs }
 
@@ -427,7 +438,8 @@ unless something failed outright, and it names the cases nobody graded.
 Republishing the judge changes how answers are graded, so the next result of
 every suite it grades for is inconclusive once, and its owner is told. A pass
 rate below the minimum fails a result whatever its comparison: the minimum
-needs no baseline.
+needs no baseline. A result whose eval run was cancelled is inconclusive too,
+and says so; one whose run failed is an error.
 
 A result **did not run** when it would cost more than a budget has left or more than the suite's own ceiling, when only
 the judge could grade it and AI assistance is off, or when there is no
@@ -478,7 +490,6 @@ channel yet.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | How often a working run says it is alive |
-| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | How long a run may wait for a worker before the sweep fails it |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | How long a suite waits after a skill or knowledge base changed, so a burst of changes is one run |
 
 ## Access { #access }

@@ -341,12 +341,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-evals",
     permission: Perm.runsView,
   },
-  // The suites card heads the same tab, so the stop needs the same permission.
+  // The suites card sits on the same tab, so the stop needs the same permission.
   {
     id: "agent-eval-suites",
     page: AGENT_BUILDER,
     target: "agent-eval-suites",
     activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
+  {
+    id: "agent-gaps",
+    page: AGENT_BUILDER,
+    target: "agent-gaps",
+    activate: "agent-tab-gaps",
     permission: Perm.runsView,
   },
   {
@@ -402,13 +409,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: AGENT_BUILDER,
     target: "agent-share",
     permission: Perm.agentsView,
-  },
-  {
-    id: "agent-gaps",
-    page: AGENT_BUILDER,
-    target: "agent-gaps",
-    activate: "agent-tab-gaps",
-    permission: Perm.runsView,
   },
   {
     id: "agent-publish",

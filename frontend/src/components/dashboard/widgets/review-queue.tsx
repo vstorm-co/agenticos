@@ -38,12 +38,17 @@ function waiting(dataset: PendingDataset): number {
   return OUTCOMES.reduce((total, outcome) => total + dataset[outcome], 0);
 }
 
-/** The Review tab holding the most of the queue, where "See all" goes; none while it is empty. */
+/**
+ * The Review tab holding the most of the queue, where "See all" goes - by name
+ * between equals, so it does not change with the order the queue answered in.
+ * None while the queue is empty.
+ */
 function busiestReview(datasets: PendingDataset[]): string | undefined {
-  const busiest = datasets.reduce<PendingDataset | undefined>(
-    (best, dataset) => (best === undefined || waiting(dataset) > waiting(best) ? dataset : best),
-    undefined,
-  );
+  const busiest = datasets.reduce<PendingDataset | undefined>((best, dataset) => {
+    if (best === undefined) return dataset;
+    const [mine, theirs] = [waiting(dataset), waiting(best)];
+    return mine > theirs || (mine === theirs && dataset.name < best.name) ? dataset : best;
+  }, undefined);
   return busiest && `${ROUTES.DATASET_DETAIL(busiest.dataset_id)}?tab=review`;
 }
 

@@ -78,6 +78,14 @@ describe("the eval runs page", () => {
     expect(push).toHaveBeenCalledWith("/datasets");
   });
 
+  it("keeps the pager on a page past the end, so the reader can get back", async () => {
+    answer({ items: [], total: 45 });
+    render(<EvalRunsPage />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: "Previous page" })).toBeInTheDocument();
+    expect(screen.queryByText("No eval runs yet")).toBeNull();
+  });
+
   it("reads nothing for whoever may not view runs", () => {
     granted.perms = [Perm.agentsView];
     answer({ items: [], total: 0 });
