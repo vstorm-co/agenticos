@@ -19,27 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Added
-
-- **Eval runs, at `/evals` (#2382).** Every eval run the reader may see, across
-  agents, newest first, a page at a time, each opening its verdict. The
-  dashboard's Eval runs card opens it from **See all**. `GET /eval-runs/recent`
-  takes `skip` and answers the total it pages through.
-
-### Changed
-
-- **The dashboard's eval cards agree with each other (#2382).** Generated cases
-  are "drafts to accept", and "to review" means only the Review queue, whose
-  **See all** opens the Review tab of the dataset with the most waiting.
-  Suggestions waiting lists each agent, skill and context file at a list card's
-  size, and Knowledge gaps is on the default personal dashboard. The greeting
-  counts answers to review in the datasets the reader may decide, failing suites
-  and waiting suggestions, and says nothing waits only once every list it reads
-  has answered. A suite is failing whenever its last result alerts its owner,
-  inconclusive included. `GET /authoring/waiting` answers one row per skill and
-  context file the caller may edit, and each dataset in the review queue says
-  whether the caller may decide it (`can_edit`).
-
 ### Fixed
 
 - **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
