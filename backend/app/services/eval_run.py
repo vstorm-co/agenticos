@@ -218,16 +218,22 @@ def decidable(case: DatasetCase, scoring: DatasetScoring, *, ai_enabled: bool) -
     """
     checks, trajectory = scoring.checks, scoring.trajectory
     judge, reference = scoring.judge, scoring.reference
-    own = [_check_type(check) for check in case.checks]
+    kinds = [
+        *(_check_type(check.model_dump(by_alias=True)) for check in checks.defaults),
+        *(_check_type(check) for check in case.checks),
+    ]
     if checks.enabled and checks.required:
-        if checks.defaults or any(kind != "judge" for kind in own):
+        if any(kind != "judge" for kind in kinds):
             return True
-        if "judge" in own and ai_enabled:
+        if "judge" in kinds and ai_enabled:
             return True
     if trajectory.enabled and trajectory.required and case.expected_tool_calls:
         return True
-    judged = (reference.enabled and reference.required and bool(case.reference_answer)) or (
-        judge.enabled and any(criterion.required for criterion in judge.criteria)
+    judged = (
+        (reference.enabled and reference.required and bool(case.reference_answer))
+        or (judge.enabled and any(criterion.required for criterion in judge.criteria))
+        # A counter-example is always a required criterion of whichever judges it.
+        or (bool(case.counter_example) and (judge.enabled or reference.enabled))
     )
     return judged and ai_enabled
 
@@ -1807,6 +1813,12 @@ class EvalRunService:
                 return kept
         comparison = await self._comparison(ctx, run)
         theirs = comparison.baseline_summary
+        # Over every case the candidate answered, not only those the baseline shares.
+        arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
+        candidate = next(arm for arm in arms if arm.id == comparison.candidate.arm_id)
+        everything = summarize(
+            [c.attempt for c in await self._first_attempts(ctx, candidate, None)], with_tags=False
+        )
         outcome = EvalOutcomeRead(
             candidate_arm_id=comparison.candidate.arm_id,
             verdict=comparison.verdict,
@@ -1818,8 +1830,7 @@ class EvalRunService:
             baseline_pass_rate=theirs.pass_rate if theirs else None,
             candidate_first_pass_rate=comparison.candidate_summary.first_pass_rate,
             baseline_first_pass_rate=theirs.first_pass_rate if theirs else None,
-            candidate_undecided=comparison.candidate_summary.incomplete
-            + comparison.candidate_summary.ungraded,
+            candidate_undecided=everything.incomplete + everything.ungraded,
         )
         await eval_run_repo.update_run(
             self.db,

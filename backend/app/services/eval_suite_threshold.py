@@ -98,10 +98,14 @@ def judge(
             ),
             ("p95_rise", threshold.max_p95_rise, mine.p95_ms, theirs.p95_ms),
         )
+        # An undecided case may yet pass and answer, which moves both numbers.
+        provisional = summary.incomplete or summary.ungraded
         for code, ceiling, candidate, baseline in ceilings:
             grew = rise(candidate, baseline)
             if ceiling is not None and grew is not None and grew > ceiling:
-                reasons.append(ThresholdReason(code=code, value=round(grew, 4), limit=ceiling))
+                (open_cases if provisional else reasons).append(
+                    ThresholdReason(code=code, value=round(grew, 4), limit=ceiling)
+                )
     if reasons:
         return EvalSuiteResultStatus.FAILED, reasons
     if open_cases:

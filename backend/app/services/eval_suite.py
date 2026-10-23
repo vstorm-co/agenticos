@@ -98,6 +98,7 @@ from app.services import change_feed
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import AgentRegistryService, delegation_binding
 from app.services.dataset import DatasetService
+from app.services.eval_comparison import Attempt
 from app.services.eval_run import EvalRunService
 from app.services.eval_suite_threshold import judge
 
@@ -1316,30 +1317,39 @@ class EvalSuiteService:
         self, reader: AuthContext, read: EvalRunRead, comparison: EvalComparisonRead
     ) -> list[FailingCase]:
         """The cases to name: confirmed regressions first, then the ones left
-        undecided, then first answers that failed."""
+        undecided, then the ones that failed - each as its attempts settled."""
         named = [
             FailingCase(case_id=case.case_id, input=_line(case.input), kind="regression")
             for case in comparison.cases
             if case.flip == "regression" and case.confirmed
         ]
         candidate = comparison.candidate.arm_id
-        for outcome in ("undecided", "failed"):
-            seen = {case.case_id for case in named}
-            listed = await self.evals.cases(
-                reader, read.id, arm_id=candidate, outcome=outcome, limit=MAX_FAILING_CASES
+        seen = {case.case_id for case in named}
+        undecided: list[FailingCase] = []
+        failed: list[FailingCase] = []
+        listed = await self.evals.cases(reader, read.id, arm_id=candidate, limit=max(read.cases, 1))
+        for case in listed.items:
+            mine = sorted(
+                (a for a in case.attempts if a.arm_id == candidate), key=lambda a: a.attempt
             )
-            for case in listed.items:
-                if case.case_id in seen:
-                    continue
-                first = next(a for a in case.attempts if a.arm_id == candidate and a.attempt == 0)
-                kind: FailingKind = (
-                    "failed"
-                    if outcome == "failed"
-                    else "ungraded"
-                    if first.state == "ungraded"
-                    else "incomplete"
+            if case.case_id in seen or not mine:
+                continue
+            first = mine[0]
+            settled = Attempt(
+                outcome=first.outcome,
+                reruns=tuple(a.outcome for a in mine[1:]),
+                by_person=first.score is not None and first.score.human_passed is not None,
+            ).settled
+            if settled is False:
+                failed.append(
+                    FailingCase(case_id=case.case_id, input=_line(case.input), kind="failed")
                 )
-                named.append(FailingCase(case_id=case.case_id, input=_line(case.input), kind=kind))
+            elif settled is None:
+                kind: FailingKind = "ungraded" if first.state == "ungraded" else "incomplete"
+                undecided.append(
+                    FailingCase(case_id=case.case_id, input=_line(case.input), kind=kind)
+                )
+        named += undecided + failed
         return named[:MAX_FAILING_CASES]
 
     async def _finish_unstarted(

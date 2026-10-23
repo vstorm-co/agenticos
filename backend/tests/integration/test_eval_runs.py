@@ -496,6 +496,30 @@ async def test_a_case_the_agent_crashes_on_where_it_passed_is_a_regression_namin
     assert await service.review_worthy(ctx, run) == []
 
 
+async def test_a_case_only_the_candidate_answered_still_counts_as_undecided(db) -> None:
+    """The listing's verdict reads every case of the candidate, not only those it shares."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    await DatasetService(db).add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Name one primary colour.", reference_answer="Red."),
+    )
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), v7.id, ctx)
+
+    read = await service.get(ctx, v7.id)
+    comparison = await service.compare(ctx, v7.id)
+
+    assert comparison.compared == 2
+    assert comparison.candidate_summary.ungraded == 0
+    assert read.outcome is not None and read.outcome.candidate_undecided == 1
+
+
 async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)

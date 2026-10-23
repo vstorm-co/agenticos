@@ -628,12 +628,12 @@ class AuthoringService:
                 continue
             if candidate.summary.crashed:
                 return "crashed"
-            undecided = candidate.summary.incomplete + candidate.summary.ungraded
-            if undecided or run.outcome is None:
-                return "inconclusive"
-            if run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed"):
+            if run.outcome is not None and (
+                run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed")
+            ):
                 return "regression"
-            if run.outcome.verdict in (None, "invalid"):
+            undecided = candidate.summary.incomplete + candidate.summary.ungraded
+            if undecided or run.outcome is None or run.outcome.verdict in (None, "invalid"):
                 return "inconclusive"
             return None
         return "check_first"

@@ -176,6 +176,18 @@ def test_efficiency_is_held_only_where_a_ceiling_was_set() -> None:
     assert [(r.code, r.value) for r in reasons] == [("cost_per_pass_rise", 1.0), ("p95_rise", 2.0)]
 
 
+def test_a_ceiling_crossed_while_a_case_is_undecided_waits_for_it() -> None:
+    """An open case that passes later changes cost per passed case."""
+    dearer = _summary(cost_per_pass_usd=Decimal("0.20"))
+    status, reasons = judge(
+        EvalSuiteThreshold(max_cost_per_pass_rise=0.5),
+        _summary(passed=9, incomplete=1, pass_rate=1.0),
+        _comparison(candidate=dearer),
+    )
+    assert status is EvalSuiteResultStatus.INCONCLUSIVE
+    assert [r.code for r in reasons] == ["incomplete", "cost_per_pass_rise"]
+
+
 def test_a_rise_needs_both_sides_and_a_positive_baseline() -> None:
     assert rise(Decimal("0.3"), Decimal("0.2")) == pytest.approx(0.5)
     assert rise(None, Decimal("0.2")) is None

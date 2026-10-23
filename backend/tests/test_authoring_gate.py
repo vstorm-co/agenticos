@@ -79,6 +79,7 @@ async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = M
         (_run(ungraded=2), "inconclusive"),
         (_run(incomplete=1), "inconclusive"),
         (_run(crashed=1), "crashed"),
+        (_run(regressions=1, ungraded=2), "regression"),
         (_run(outcome=False), "inconclusive"),
     ],
 )

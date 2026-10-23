@@ -24,9 +24,12 @@ from app.services.eval_run import (
 )
 
 
-def _case(*, checks=(), expected=(), reference=None):
+def _case(*, checks=(), expected=(), reference=None, counter_example=None):
     return SimpleNamespace(
-        checks=list(checks), expected_tool_calls=list(expected), reference_answer=reference
+        checks=list(checks),
+        expected_tool_calls=list(expected),
+        reference_answer=reference,
+        counter_example=counter_example,
     )
 
 
@@ -98,6 +101,16 @@ class TestDecidable:
             _case(checks=[{"type": "contains", "value": "4"}]), scoring, ai_enabled=True
         )
         assert not decidable(_case(reference="Red, blue or yellow."), scoring, ai_enabled=True)
+
+    def test_a_default_judge_check_needs_ai_assistance(self):
+        scoring = _scoring(checks={"defaults": [{"type": "judge", "criterion": "Polite"}]})
+        assert decidable(_case(), scoring, ai_enabled=True)
+        assert not decidable(_case(), scoring, ai_enabled=False)
+
+    def test_a_counter_example_is_decided_by_whichever_judges_it(self):
+        case = _case(counter_example="Yes, any time.")
+        assert decidable(case, _scoring(reference={"enabled": True}), ai_enabled=True)
+        assert not decidable(case, _scoring(), ai_enabled=True)
 
     def test_with_ai_assistance_off_the_judge_decides_nothing(self):
         scoring = _scoring(
