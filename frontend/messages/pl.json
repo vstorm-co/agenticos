@@ -5629,7 +5629,7 @@
       "prefPromotionOverridden": "Promocja pominęła ewaluacje",
       "prefPromotionOverriddenTrigger": "Wersja trafiła do środowiska z pominięciem Twojej suity ewaluacji, która na niej nie przeszła. Podaje suity i podany powód.",
       "prefSharedChangeApplied": "Zmiana weszła dla twojego agenta",
-      "prefSharedChangeAppliedTrigger": "Ktoś zastosował zmianę pliku kontekstu albo skilla, z którego korzysta twój agent. Jego suity ewaluacji uruchamiane przy takiej zmianie trafiły do kolejki. Podaje nazwę pliku albo skilla, nigdy treść."
+      "prefSharedChangeAppliedTrigger": "Ktoś zastosował zmianę pliku kontekstu albo skilla, z którego korzysta twój agent. Jego suity ewaluacji uruchamiane przy takiej zmianie trafiły do kolejki. Podaje nazwę pliku albo skilla tylko wtedy, gdy go widzisz, a treści nigdy."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",

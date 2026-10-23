@@ -5742,7 +5742,7 @@
       "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
       "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung.",
       "prefSharedChangeApplied": "Eine Änderung gilt jetzt für deinen Agent",
-      "prefSharedChangeAppliedTrigger": "Jemand hat eine Änderung an einer Kontextdatei oder einem Skill angewendet, die dein Agent liest. Seine Eval-Suites, die bei einer solchen Änderung laufen, wurden eingereiht. Nennt die Datei oder den Skill, nie den Inhalt."
+      "prefSharedChangeAppliedTrigger": "Jemand hat eine Änderung an einer Kontextdatei oder einem Skill angewendet, die dein Agent liest. Seine Eval-Suites, die bei einer solchen Änderung laufen, wurden eingereiht. Nennt die Datei oder den Skill nur, wenn du sie sehen kannst, und nie den Inhalt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",

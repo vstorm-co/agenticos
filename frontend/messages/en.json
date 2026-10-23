@@ -5860,7 +5860,7 @@
       "prefPromotionOverridden": "A promotion went past its evals",
       "prefPromotionOverriddenTrigger": "A version went to an environment past an eval suite you own that had not passed on it. Names the suites and the reason given.",
       "prefSharedChangeApplied": "A change went live for your agent",
-      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads. Its eval suites that run on such a change were queued. Names the file or skill, never its content."
+      "prefSharedChangeAppliedTrigger": "Somebody applied a change to a context file or skill your agent reads. Its eval suites that run on such a change were queued. Names the file or skill only if you can see it, and never its content."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
