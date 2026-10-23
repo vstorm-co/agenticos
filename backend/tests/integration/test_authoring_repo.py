@@ -396,3 +396,40 @@ class TestProposals:
         assert for_agent[0].status == "running"
         assert for_skill == []
         assert batch.expected_effect == "x"
+
+    async def test_an_unfinished_request_is_failed_once_and_only_in_its_organization(
+        self, db: AsyncSession
+    ):
+        org, user = await _org(db)
+        other, _ = await _org(db)
+        agent = await _agent(db, org, user)
+        request = await authoring_repo.create_request(
+            db,
+            organization_id=org.id,
+            kind="improve",
+            target="agent",
+            agent_id=agent.id,
+            skill_id=None,
+            created_by_user_id=user.id,
+            estimate_usd=Decimal("0.05"),
+            window_days=30,
+        )
+        now = datetime.now(UTC)
+
+        elsewhere = await authoring_repo.fail_unfinished(
+            db, request.id, organization_id=other.id, error="Stopped.", now=now
+        )
+        failed = await authoring_repo.fail_unfinished(
+            db, request.id, organization_id=org.id, error="Stopped.", now=now
+        )
+        again = await authoring_repo.fail_unfinished(
+            db, request.id, organization_id=org.id, error="Later.", now=now
+        )
+        await db.refresh(request)
+
+        assert (elsewhere, failed, again) == (False, True, False)
+        assert (request.status, request.error, request.finished_at) == (
+            AuthoringStatus.FAILED.value,
+            "Stopped.",
+            now,
+        )

@@ -25,7 +25,7 @@ export function LatencyWidget({ title, hint, period, seeAll, options }: Dashboar
           return (
             <div className="flex flex-1 flex-col gap-5">
               <div className="grid grid-cols-2 gap-4">
-                <Figure label={t("p50")} value={formatMs(p50)} />
+                <Figure label={t("p50")} value={formatMs(p50, locale)} />
                 {/* The number *and its evidence*: p95 links to the runs behind
                     it, sorted by duration over the same window. A null p95 is
                     "nothing finished", so there is nothing to reach - it stays a
@@ -34,14 +34,14 @@ export function LatencyWidget({ title, hint, period, seeAll, options }: Dashboar
                   label={t("p95")}
                   value={
                     p95 === null ? (
-                      formatMs(null)
+                      formatMs(null, locale)
                     ) : (
                       <Link
                         href={runsHref({ period, sort: "duration" })}
                         aria-label={t("viewSlowest")}
                         className="hover:text-primary underline-offset-4 hover:underline"
                       >
-                        {formatMs(p95)}
+                        {formatMs(p95, locale)}
                       </Link>
                     )
                   }
@@ -64,7 +64,7 @@ export function LatencyWidget({ title, hint, period, seeAll, options }: Dashboar
                   </div>
                   <p className="text-muted-foreground flex justify-between text-[11px] tabular-nums">
                     <span>0</span>
-                    <span>{formatMs(p95)}</span>
+                    <span>{formatMs(p95, locale)}</span>
                   </p>
                 </div>
               ) : null}

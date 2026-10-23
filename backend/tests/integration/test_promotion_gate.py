@@ -48,6 +48,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
 from app.services.eval_suite import EvalSuiteService
 from app.services.promotion_gate import PromotionGateService
+from app.services.run_reaper import RunReaperService
 from tests.integration.test_eval_suites import (
     _FAIL,
     Model,
@@ -230,6 +231,27 @@ async def test_a_run_in_progress_holds_the_version_back(db) -> None:
 
     assert [g.state for g in started.gate.guards] == ["checking"]
     assert (len(started.started), again.started) == (1, [])
+
+
+async def test_a_run_whose_job_was_withdrawn_leaves_checking_for_inconclusive(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, suite = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    second = await _published(db, ctx, agent)
+    await PromotionGateService(db).run(
+        ctx, agent.id, env_id, PromotionGateRun(version_id=second.id)
+    )
+    [result] = [row for row in await _results(db, suite.id) if row.status == "running"]
+    assert result.eval_run_id is not None
+
+    await RunReaperService(db).settle_lost_eval(
+        result.eval_run_id, organization_id=ctx.organization_id, why="cancelled"
+    )
+    await EvalSuiteService(db).settle_finished(now=datetime.now(UTC))
+
+    gate = await _check(db, ctx, agent, env_id, second)
+    assert [g.state for g in gate.guards] == ["inconclusive"]
+    assert gate.passing is False
 
 
 async def test_a_pass_over_an_older_dataset_version_or_threshold_is_stale(db) -> None:

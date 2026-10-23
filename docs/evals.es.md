@@ -1,5 +1,5 @@
 ---
-source_sha: "7df00d14c311"
+source_sha: "350a2a1f197f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -225,12 +225,16 @@ ocupe todas las peticiones que un provider permite a la organización.
 
 Cancelar (`POST /api/v1/eval-runs/{id}/cancel`, quien lo inició o cualquiera que
 pueda editar el agent) detiene lo que no ha empezado: los casos que ya se están
-ejecutando terminan y se conservan, y no empieza ningún otro.
+ejecutando terminan y se conservan, y no empieza ningún otro. Cancelar el job de
+un run en **Admin** → **Background jobs** antes de que lo tome un worker cancela
+el run del mismo modo, en segundos.
 
 Un run que su worker no puede terminar - porque pierde la base de datos a mitad,
 por ejemplo - acaba `failed` en el acto, como un run de agent: sus casos en
 marcha fallan, los demás se omiten, y su página dice que se detuvo por un error
-y que hay que lanzarlo de nuevo. No se reanuda.
+y que hay que lanzarlo de nuevo. No se reanuda. Del mismo modo acaba `failed` en
+el acto un run cuyo job se quedó sin tiempo o cuyo worker se apagó mientras lo
+ejecutaba.
 
 Un worker también puede morir sin avisar. El worker de un run en marcha avisa
 cada `EVAL_HEARTBEAT_SECONDS` de que sigue vivo; un run cuyo worker calla y cuyos
@@ -238,9 +242,14 @@ casos no han avanzado durante `EVAL_ABANDONED_AFTER_MINUTES` se da por fallido e
 un barrido que el worker ejecuta cada minuto, que además libera sus plazas. Un
 worker cuyos heartbeats fallan durante ese tiempo - en una máquina demasiado
 cargada para llegar a su base de datos - se da por fallido igual aunque siga
-trabajando, y hay que lanzar su run de nuevo. Un run en cola aún no tiene worker -
-espera un worker libre - así que el barrido lo abandona solo tras
-`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
+trabajando, y hay que lanzar su run de nuevo.
+
+Un run en cola aún no tiene un worker que avise de que sigue vivo. Puede esperar
+a un worker libre, o detrás de un tipo de job en pausa, mientras su job siga en
+cola; el barrido lo da por fallido solo cuando no queda ningún job que lo vaya a
+ejecutar. Un caso que un worker muerto dejó en marcha en un run ya terminado
+falla tras el mismo `EVAL_ABANDONED_AFTER_MINUTES`. Un caso en marcha cuenta en
+`EVAL_ORG_CONCURRENCY` hasta que termina, también después de cancelarse su run.
 
 Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que
 nombra ni el perfil de modelo en que corre alguno de sus lados: sus casos
@@ -493,7 +502,9 @@ Volver a
 publicar el juez cambia cómo se puntúan las respuestas, así que el siguiente
 resultado de cada suite que puntúa queda una vez sin conclusión, y se avisa a su
 propietario. Una tasa de aprobados por debajo del mínimo suspende el resultado
-sea cual sea su comparación: el mínimo no necesita baseline.
+sea cual sea su comparación: el mínimo no necesita baseline. Un resultado cuyo
+eval run se canceló también queda sin conclusión, y lo dice; uno cuyo run falló
+es un error.
 
 Un resultado **no se ejecutó** cuando costaría
 más de lo que le queda a un presupuesto o más que el límite propio de la
@@ -546,7 +557,6 @@ Slack todavía no es un canal de notificaciones.
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Cada cuánto avisa un run que trabaja de que sigue vivo |
-| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Cuánto puede esperar un run a un worker antes de que el barrido lo dé por fallido |
 | `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Cuánto espera una suite tras cambiar un skill o una base de conocimiento, para que una ráfaga de cambios sea una ejecución |
 
 ## Acceso { #access }

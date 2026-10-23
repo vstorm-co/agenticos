@@ -1515,6 +1515,26 @@ async def test_a_run_its_worker_cannot_finish_ends_failed_at_once(db) -> None:
     assert sorted(statuses) == ["failed", "skipped", "skipped"]
 
 
+async def test_a_run_cancelled_under_its_worker_is_failed_before_its_job_ends(db) -> None:
+    """Its job timed out, or the worker is shutting down: the run is closed before the job is."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    worker = EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db))
+
+    with (
+        patch.object(EvalRunWorker, "_wave", new=AsyncMock(side_effect=asyncio.CancelledError())),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await worker.run()
+
+    run = await service.get(ctx, started.id)
+    assert run.status == EvalRunStatus.FAILED.value
+    assert run.error is not None and run.error.startswith("This eval was stopped before it")
+
+
 async def test_a_drainer_that_fails_stops_the_others_before_the_run_is_failed(db) -> None:
     """A sibling left running would write answers to attempts the run already failed."""
     ctx = await _owner(db)

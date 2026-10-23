@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { evalSuite, suiteResult, suiteSummary } from "@/test-utils/eval-suites";
 import {
   reasonText,
+  resultReasons,
   scheduleChoice,
   scheduleCron,
   scheduleText,
@@ -139,5 +140,40 @@ describe("skipText", () => {
     ).toBe("The worker said why.");
     expect(skipText(suiteResult({ status: "error", reason: "odd", summary: null }), t)).toBe("odd");
     expect(skipText(suiteResult({ status: "error", reason: null, summary: null }), t)).toBeNull();
+  });
+});
+
+describe("resultReasons", () => {
+  const shortfall = {
+    code: "pass_rate_below" as const,
+    value: 0.5,
+    limit: 0.8,
+    detail: null,
+  };
+
+  it("gives a verdict the threshold's reasons", () => {
+    const failed = suiteResult({
+      status: "failed",
+      summary: suiteSummary({ reasons: [shortfall] }),
+    });
+    expect(resultReasons(failed, t, "en")).toEqual(["reason.passRateBelow(50%,80%)"]);
+  });
+
+  it("gives an inconclusive result with no threshold to fall short of its own reason", () => {
+    const cancelled = suiteResult({ status: "inconclusive", reason: "cancelled", summary: null });
+    expect(resultReasons(cancelled, t, "en")).toEqual(["skip.cancelled"]);
+    expect(
+      resultReasons(suiteResult({ status: "inconclusive", reason: null, summary: null }), t, "en"),
+    ).toEqual([]);
+  });
+
+  it("words a result that did not run, and says nothing of a pass or a failure without reasons", () => {
+    expect(resultReasons(suiteResult({ status: "skipped", reason: "budget" }), t, "en")).toEqual([
+      "skip.budget",
+    ]);
+    expect(resultReasons(suiteResult({ status: "passed" }), t, "en")).toEqual([]);
+    expect(
+      resultReasons(suiteResult({ status: "failed", reason: "cancelled", summary: null }), t, "en"),
+    ).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, AnimatedTally, Figure } from "@/components/ui";
 import { useUsageStats } from "@/hooks";
@@ -26,6 +26,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function MySummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-summary");
+  const locale = useLocale();
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
     { scope: "own" },
@@ -75,7 +76,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             value={
               <AnimatedAmount
                 value={usage?.cost?.period_usd}
-                label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd) })}
+                label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd, locale) })}
               />
             }
             spark={timelineOf(usage).map((step) => Number(step.cost_usd))}

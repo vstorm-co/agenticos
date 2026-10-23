@@ -13,9 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.repositories import agent_run_repo, eval_run_repo
+from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
+from app.worker.jobs import RUN_EVAL
 from app.worker.tasks.run_tasks import reap_abandoned_evals, reap_stale_runs
 
 pytestmark = pytest.mark.anyio
@@ -105,32 +106,120 @@ class TestTheFlow:
             ctx.return_value.__aexit__ = AsyncMock(return_value=False)
             assert await reap_abandoned_evals() == failed
 
-        said = any(f"{failed} eval run(s) failed" in r.message for r in caplog.records)
+        said = any(
+            f"{failed} eval run(s) and attempt(s) closed" in r.message for r in caplog.records
+        )
         assert said is logged
 
 
 class TestAbandonedEvals:
-    async def test_a_run_idle_past_the_setting_is_failed(self, monkeypatch):
+    async def test_runs_and_attempts_idle_past_the_setting_are_closed(self, monkeypatch):
         fail = AsyncMock(return_value=1)
+        close = AsyncMock(return_value=2)
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
+        monkeypatch.setattr(eval_run_repo, "close_orphaned_attempts", close)
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 30.0)
-        monkeypatch.setattr(run_reaper.settings, "EVAL_QUEUED_ABANDONED_AFTER_HOURS", 24.0)
 
         before = datetime.now(UTC)
-        assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 1
+        assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 3
         after = datetime.now(UTC)
 
         asked = fail.await_args.kwargs
         window = timedelta(minutes=30)
         assert before - window <= asked["idle_since"] <= after - window
-        queued = timedelta(hours=24)
-        assert before - queued <= asked["queued_since"] <= after - queued
+        assert asked["job_kind"] == RUN_EVAL.kind
         assert before <= asked["now"] <= after
+        assert close.await_args.kwargs["ended_before"] == asked["idle_since"]
 
     async def test_zero_switches_it_off(self, monkeypatch):
         fail = AsyncMock()
+        close = AsyncMock()
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
+        monkeypatch.setattr(eval_run_repo, "close_orphaned_attempts", close)
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 0.0)
 
         assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 0
         fail.assert_not_awaited()
+        close.assert_not_awaited()
+
+
+class TestLostJobs:
+    """A job that ended for good closes what it was running, at once."""
+
+    async def test_a_withdrawn_eval_job_cancels_its_run(self, monkeypatch):
+        cancel, fail = AsyncMock(return_value=True), AsyncMock()
+        monkeypatch.setattr(eval_run_repo, "cancel_live", cancel)
+        monkeypatch.setattr(eval_run_repo, "fail_live", fail)
+        run, org = uuid.uuid4(), uuid.uuid4()
+
+        await RunReaperService(MagicMock()).settle_lost_eval(
+            run, organization_id=org, why="cancelled"
+        )
+
+        assert cancel.await_args.args[1] == run
+        assert cancel.await_args.kwargs["organization_id"] == org
+        fail.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "why", ["timed out after 12:00:00; the job was cancelled", "worker killed"]
+    )
+    async def test_any_other_end_fails_the_run_with_a_sentence_of_its_own(self, monkeypatch, why):
+        """The job's last error is the worker's; the run's page gets this module's words."""
+        cancel, fail = AsyncMock(), AsyncMock(return_value=True)
+        monkeypatch.setattr(eval_run_repo, "cancel_live", cancel)
+        monkeypatch.setattr(eval_run_repo, "fail_live", fail)
+        org = uuid.uuid4()
+
+        await RunReaperService(MagicMock()).settle_lost_eval(
+            uuid.uuid4(), organization_id=org, why=why
+        )
+
+        cancel.assert_not_awaited()
+        assert fail.await_args.kwargs["organization_id"] == org
+        assert fail.await_args.kwargs["error"] == (
+            "This eval's job ended before the run did. Run it again."
+        )
+
+    async def test_a_run_its_worker_closed_says_nothing(self, monkeypatch, caplog):
+        monkeypatch.setattr(eval_run_repo, "fail_live", AsyncMock(return_value=False))
+
+        with caplog.at_level("WARNING", logger="app.services.run_reaper"):
+            await RunReaperService(MagicMock()).settle_lost_eval(
+                uuid.uuid4(), organization_id=uuid.uuid4(), why="dead"
+            )
+
+        assert not [r for r in caplog.records if r.message == "eval_run_job_lost"]
+
+    @pytest.mark.parametrize(
+        ("why", "error"),
+        [
+            ("cancelled", "The request was cancelled before it started. Try again."),
+            ("worker killed", "The assistant stopped without finishing. Try again."),
+        ],
+    )
+    async def test_a_lost_authoring_job_fails_its_request(
+        self, monkeypatch, caplog, why: str, error: str
+    ):
+        fail = AsyncMock(return_value=True)
+        monkeypatch.setattr(authoring_repo, "fail_unfinished", fail)
+        request, org = uuid.uuid4(), uuid.uuid4()
+
+        with caplog.at_level("WARNING", logger="app.services.run_reaper"):
+            await RunReaperService(MagicMock()).settle_lost_authoring(
+                request, organization_id=org, why=why
+            )
+
+        assert fail.await_args.args[1] == request
+        assert fail.await_args.kwargs["organization_id"] == org
+        assert fail.await_args.kwargs["error"] == error
+        assert [r for r in caplog.records if r.message == "authoring_request_job_lost"]
+
+    async def test_a_finished_request_says_nothing(self, monkeypatch, caplog):
+        monkeypatch.setattr(authoring_repo, "fail_unfinished", AsyncMock(return_value=False))
+
+        with caplog.at_level("WARNING", logger="app.services.run_reaper"):
+            await RunReaperService(MagicMock()).settle_lost_authoring(
+                uuid.uuid4(), organization_id=uuid.uuid4(), why="dead"
+            )
+
+        assert not [r for r in caplog.records if r.message == "authoring_request_job_lost"]
