@@ -46,6 +46,7 @@ from app.services.skill_proposal import SkillProposalService
 from tests.integration.test_authoring import (
     Improver,
     _answering,
+    _clerk,
     _environment,  # noqa: F401 - the autouse fixture that scripts the improver's model
     _member,
     _sessions,
@@ -137,6 +138,16 @@ async def _served_and_guarded(db: AsyncSession, ctx: AuthContext, agent: Agent) 
 async def test_applying_goes_live_where_served_and_says_so_everywhere(db):
     ctx, agent, file, run_id = await _bound(db)
     suite = await _served_and_guarded(db, ctx, agent)
+    # An agent whose served version reads another file is not reached.
+    bystander = await _clerk(db, ctx)
+    await agent_environment_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=bystander.id,
+        name="production",
+        version_id=bystander.current_version_id,
+        is_default=True,
+    )
     owner = await _member(db, ctx, OrgRoleName.MEMBER)
     agent.owner_user_id = owner.user_id
     await db.flush()
