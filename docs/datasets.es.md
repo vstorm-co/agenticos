@@ -1,5 +1,5 @@
 ---
-source_sha: "82d8eb0aff12"
+source_sha: "de28848bae0c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -556,7 +556,7 @@ permisos para datasets:
 |---|---|---|
 | `datasets:view` | Leer los casos y versiones de un dataset y exportarlos | `read` |
 | `datasets:edit` | Crear datasets, cambiar casos, importar, eliminar, compartir | `edit` |
-| `datasets:run` | Ejecutar evals sobre un dataset, con `runs:view` | `use` |
+| `datasets:run` | Ejecutar evals sobre un dataset, con `runs:view` | - (ver abajo) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -567,10 +567,15 @@ permisos para datasets:
 Iniciar un eval requiere antes que nada `runs:view`: un run se paga, y quien no
 puede leerlo no puede iniciarlo. Todo rol integrado que lee runs ya tiene
 `datasets:run` en toda la organización, y un Member, cuyo `datasets:run` alcanza
-solo los datasets compartidos, no lee runs. Así que un grant `use` sobre un
-dataset no permite a nadie con un rol integrado iniciar un eval que no podría
-iniciar sin él; un Member que lo tenga ve el control de inicio desactivado, con
-el motivo. Consulta [Eval runs](evals.md#access).
+solo los datasets compartidos, no lee runs. Un grant `use` sobre un dataset no
+permitiría a nadie iniciar un eval que no podría iniciar sin él, así que
+compartir un dataset ofrece solo ver y editar; `use` volverá con los roles
+personalizados.
+
+Un grant `use` creado antes se mantiene y no hace nada, y su fila lo indica y
+permite eliminarlo. La página de un dataset dice qué le falta a quien la lee
+para ejecutarlo - leer runs, el dataset o ambos - junto a un Run evals
+desactivado. Consulta [Eval runs](evals.md#access).
 
 Un miembro sin acceso a un dataset recibe "no encontrado" en cada ruta, sea lo
 que sea lo que su rol permita en otros sitios: si un dataset privado existe es

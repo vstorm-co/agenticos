@@ -1,5 +1,5 @@
 ---
-source_sha: "82d8eb0aff12"
+source_sha: "de28848bae0c"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -583,7 +583,7 @@ Berechtigungen für Datasets:
 |---|---|---|
 | `datasets:view` | Fälle und Versionen eines Datasets lesen und exportieren | `read` |
 | `datasets:edit` | Datasets anlegen, Fälle ändern, importieren, löschen, freigeben | `edit` |
-| `datasets:run` | Evals über ein Dataset ausführen, mit `runs:view` | `use` |
+| `datasets:run` | Evals über ein Dataset ausführen, mit `runs:view` | - (siehe unten) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -595,10 +595,14 @@ Ein Eval zu starten erfordert vor allem `runs:view`: Ein Run kostet Geld, und
 wer ihn nicht lesen darf, darf ihn nicht starten. Jede eingebaute Rolle, die
 Runs liest, hat `datasets:run` bereits in der ganzen Organisation, und ein
 Member, dessen `datasets:run` nur geteilte Datasets erreicht, liest keine Runs.
-Ein `use`-Grant auf ein Dataset lässt also niemanden mit einer eingebauten Rolle
-ein Eval starten, das er ohne ihn nicht starten könnte; ein Member, der einen
-hat, sieht das Start-Bedienelement deaktiviert, mit dem Grund. Siehe
-[Eval-Runs](evals.md#access).
+Ein `use`-Grant auf ein Dataset ließe niemanden ein Eval starten, das er ohne
+ihn nicht starten könnte, deshalb bietet die Freigabe für ein Dataset nur Lesen
+und Bearbeiten an; `use` kommt mit benutzerdefinierten Rollen zurück.
+
+Ein früher erteilter `use`-Grant bleibt bestehen und bewirkt nichts; seine Zeile
+sagt das, und er lässt sich entfernen. Die Seite eines Datasets sagt, was ihrem
+Leser zum Ausführen fehlt - Runs lesen, das Dataset lesen oder beides - neben
+einem deaktivierten Run evals. Siehe [Eval-Runs](evals.md#access).
 
 Ein Mitglied ohne Zugriff auf ein Dataset erhält auf jeder Route „nicht
 gefunden“, gleich was seine Rolle anderswo erlaubt - ob ein privates Dataset
