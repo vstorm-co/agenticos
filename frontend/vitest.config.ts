@@ -85,6 +85,7 @@ export default defineConfig({
         "src/components/groups/department-budget.tsx",
         // The dashboard's start checklist (#2072).
         "src/components/dashboard/start-checklist.tsx",
+        "src/components/dashboard/me-opening.tsx",
         // What the platform can do that is easy to miss, and a quiet group said once.
         "src/components/dashboard/discover-tips.tsx",
         "src/components/dashboard/quiet-group.tsx",

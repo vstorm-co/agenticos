@@ -54,9 +54,13 @@ function readDismissed(orgId: string): boolean {
  * dashboard until every step is done or they close it; closing it is a
  * per-browser convenience.
  */
-export function StartChecklist({ orgId }: { orgId: string }) {
+export function StartChecklist({ orgId, className }: { orgId: string; className?: string }) {
   const { can } = usePermissions();
-  return can(Perm.agentsEdit) ? <BuilderChecklist orgId={orgId} /> : <Checklist orgId={orgId} />;
+  return can(Perm.agentsEdit) ? (
+    <BuilderChecklist orgId={orgId} className={className} />
+  ) : (
+    <Checklist orgId={orgId} className={className} />
+  );
 }
 
 function usePersonalSteps(): { steps: Step[]; loading: boolean } {
@@ -84,7 +88,7 @@ function usePersonalSteps(): { steps: Step[]; loading: boolean } {
   };
 }
 
-function BuilderChecklist({ orgId }: { orgId: string }) {
+function BuilderChecklist({ orgId, className }: { orgId: string; className?: string }) {
   const { can } = usePermissions();
   const channels = can(Perm.channelsManage);
   const { agents } = useAgents();
@@ -103,10 +107,18 @@ function BuilderChecklist({ orgId }: { orgId: string }) {
     { id: "teammate", done: members.length > 1, href: ROUTES.ORG_MEMBERS(orgId) },
     ...(channels ? [{ id: "channel", done: bots.length > 0, href: ROUTES.CHANNELS }] : []),
   ];
-  return <Checklist orgId={orgId} more={organization} />;
+  return <Checklist orgId={orgId} more={organization} className={className} />;
 }
 
-function Checklist({ orgId, more = [] }: { orgId: string; more?: Step[] }) {
+function Checklist({
+  orgId,
+  more = [],
+  className,
+}: {
+  orgId: string;
+  more?: Step[];
+  className?: string;
+}) {
   const t = useTranslations("dashboard.startChecklist");
   const ask = useArchitectAskStore((state) => state.ask);
   const [dismissed, setDismissed] = useState(() => readDismissed(orgId));
@@ -137,7 +149,7 @@ function Checklist({ orgId, more = [] }: { orgId: string; more?: Step[] }) {
     );
 
   return (
-    <Card className="mt-6">
+    <Card className={cn("mt-6", className)}>
       <CardContent className="space-y-3.5 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
