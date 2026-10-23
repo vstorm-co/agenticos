@@ -1606,6 +1606,25 @@ class TestVerdicts:
             (newer.id, first_run.agent_id),
         }
 
+    async def test_a_score_whose_run_is_gone_is_still_listed_under_its_agent(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        score = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[score.id])
+        await case_score_repo.update(db, score=score, update_data={"run_id": None})
+
+        listed = await service.list_scores(
+            tenant.ctx, dataset.id, pending=True, agent_id=run.agent_id
+        )
+
+        assert [item.id for item in listed.items] == [score.id]
+
     async def test_a_score_asked_for_by_hand_replaces_the_one_waiting_for_its_agent(
         self, db, judge
     ) -> None:

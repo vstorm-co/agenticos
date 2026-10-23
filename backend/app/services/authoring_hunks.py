@@ -111,10 +111,20 @@ def _place(text: str, passage: str) -> tuple[int, int] | Rejection:
     return positions[found[0]], positions[found[0] + len(needle) - 1] + 1
 
 
+def evened(text: str) -> str:
+    """`text` as `mentions` compares it, for checking many passages against one text."""
+    return _evened(text)[0]
+
+
+def mentioned(evened_text: str, passage: str) -> bool:
+    """Whether `passage` occurs in a text already put through :func:`evened`."""
+    needle = _evened(passage)[0].strip()
+    return bool(needle) and needle in evened_text
+
+
 def mentions(text: str, passage: str) -> bool:
     """Whether `passage` occurs in `text`, compared as loosely as an anchor is."""
-    needle = _evened(passage)[0].strip()
-    return bool(needle) and needle in _evened(text)[0]
+    return mentioned(evened(text), passage)
 
 
 def _occurrences(text: str, needle: str) -> list[int]:
