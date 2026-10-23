@@ -504,6 +504,20 @@ class TestOAuthFromAListedHost:
         assert "xn--tst-qla.internal" in asked
         assert ("xn--tst-qla.internal:8000", "/token") in servers.seen
 
+    @pytest.mark.parametrize(
+        "server_url",
+        ["http://[mcp.internal/mcp", "http://💩.internal/mcp"],
+        ids=["urlparse-cannot-read", "httpx2-cannot-encode"],
+    )
+    async def test_a_url_that_cannot_be_read_or_sent_trusts_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, server_url: str
+    ) -> None:
+        """A host the flow could never reach as written earns no exemption; the
+        guard that checks the URL next writes the refusal."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["mcp.internal"])
+
+        assert trusted_hosts_for(server_url) == frozenset()
+
     async def test_a_host_taken_off_the_list_is_no_longer_refreshed_at(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
