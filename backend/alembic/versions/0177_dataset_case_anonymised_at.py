@@ -17,7 +17,7 @@ the counts are logged.
 A downgrade drops the columns, and the placeholder text stays.
 
 Revision ID: 0177_dataset_case_anonymised_at
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-22
 """
 
@@ -32,7 +32,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0177_dataset_case_anonymised_at"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
