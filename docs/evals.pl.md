@@ -1,5 +1,5 @@
 ---
-source_sha: "ec016f142938"
+source_sha: "ed99ff543d6e"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -242,8 +242,8 @@ wolnego workera albo za wstrzymanym rodzajem zadań tak długo, jak jego zadanie
 jest w kolejce; sweep kończy go błędem dopiero, gdy nie zostało żadne zadanie,
 które by go uruchomiło. Przypadek, który martwy worker zostawił jako działający
 w runie już zakończonym, kończy się błędem po tym samym
-`EVAL_ABANDONED_AFTER_MINUTES`. Do `EVAL_ORG_CONCURRENCY` liczą się tylko
-przypadki runów, które jeszcze trwają.
+`EVAL_ABANDONED_AFTER_MINUTES`. Działający przypadek liczy się do
+`EVAL_ORG_CONCURRENCY`, dopóki się nie skończy, także po anulowaniu jego runu.
 
 Dopóki run czeka w kolejce albo działa, nie da się usunąć środowiska, które
 wskazuje, ani profilu modelu, na którym działa któraś z jego stron: pozostałe

@@ -539,23 +539,31 @@ async def test_a_queued_run_with_no_job_at_all_is_given_up(db) -> None:
     assert {case.status for case in cases} == {"skipped"}
 
 
-async def test_only_the_attempts_of_live_runs_hold_the_organizations_slots(db) -> None:
+async def test_a_started_case_holds_its_slot_until_it_ends_even_once_its_run_is_cancelled(
+    db,
+) -> None:
     ctx, run, other = await _two_runs(db)
     for _ in range(2):
         assert await eval_run_repo.claim_next(
             db, run.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
         )
 
-    refused = await eval_run_repo.claim_next(
-        db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
-    )
-    assert refused is None
+    async def claim():
+        return await eval_run_repo.claim_next(
+            db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
+        )
 
-    # Its worker died after it was cancelled: its attempts still read running.
-    await eval_run_repo.update_run(db, run=run, values={"status": EvalRunStatus.CANCELLED.value})
-    claimed = await eval_run_repo.claim_next(
-        db, other.id, organization_id=ctx.organization_id, org_limit=2, now=_NOW
+    assert await claim() is None
+    # Cancelled, its started cases still answering: cancelling and starting
+    # another run must not take the organization past its limit.
+    await eval_run_repo.update_run(
+        db, run=run, values={"status": EvalRunStatus.CANCELLED.value, "ended_at": _NOW}
     )
+    assert await claim() is None
+
+    # Their worker died: the sweep ends them after its window, and the slots free.
+    await eval_run_repo.close_orphaned_attempts(db, ended_before=_NOW + timedelta(minutes=1))
+    claimed = await claim()
     assert claimed is not None and claimed.eval_run_id == other.id
 
 

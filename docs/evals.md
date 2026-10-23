@@ -226,8 +226,8 @@ A queued run has no worker to say it is alive yet. It may wait for a free
 worker, or behind a paused kind of job, for as long as its job is queued; the
 sweep fails it once no job is left to run it. A case a dead worker left running
 under a run that has already ended is failed after the same
-`EVAL_ABANDONED_AFTER_MINUTES`. Only the cases of live runs count against
-`EVAL_ORG_CONCURRENCY`.
+`EVAL_ABANDONED_AFTER_MINUTES`. A running case counts against
+`EVAL_ORG_CONCURRENCY` until it ends, also after its run was cancelled.
 
 While a run is queued or running, the environment it names and the model profile
 any of its sides runs on cannot be removed: its remaining cases would answer

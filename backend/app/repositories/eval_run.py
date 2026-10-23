@@ -415,18 +415,18 @@ async def claim_next(
     yields nothing, which is how cancelling stops what has not started.
     `SKIP LOCKED` lets two workers of one run claim different attempts at once.
 
-    Only the attempts of live runs hold a slot: one left running by a run that
-    ended - cancelled, its worker dead - is answering for nobody.
+    An attempt holds its slot until it ends, whatever its run did meanwhile: a
+    cancelled run lets the cases it started finish, and they still call the
+    provider. One whose worker died is ended by the job's settler or, failing
+    that, by `close_orphaned_attempts`.
     """
     await hold_subject(db, LockScope.EVAL_CASES_PER_ORGANIZATION, organization_id)
     running = await db.scalar(
         select(func.count())
         .select_from(EvalRunCase)
-        .join(EvalRun, EvalRun.id == EvalRunCase.eval_run_id)
         .where(
             EvalRunCase.organization_id == organization_id,
             EvalRunCase.status == CaseAttemptStatus.RUNNING.value,
-            EvalRun.status.in_(_LIVE),
         )
     )
     if int(running or 0) >= org_limit:

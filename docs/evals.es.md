@@ -1,5 +1,5 @@
 ---
-source_sha: "ec016f142938"
+source_sha: "ed99ff543d6e"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -240,8 +240,8 @@ Un run en cola aún no tiene un worker que avise de que sigue vivo. Puede espera
 a un worker libre, o detrás de un tipo de job en pausa, mientras su job siga en
 cola; el barrido lo da por fallido solo cuando no queda ningún job que lo vaya a
 ejecutar. Un caso que un worker muerto dejó en marcha en un run ya terminado
-falla tras el mismo `EVAL_ABANDONED_AFTER_MINUTES`. En `EVAL_ORG_CONCURRENCY`
-solo cuentan los casos de los runs que siguen en marcha.
+falla tras el mismo `EVAL_ABANDONED_AFTER_MINUTES`. Un caso en marcha cuenta en
+`EVAL_ORG_CONCURRENCY` hasta que termina, también después de cancelarse su run.
 
 Mientras un run está en cola o en marcha, no se pueden eliminar el entorno que
 nombra ni el perfil de modelo en que corre alguno de sus lados: sus casos

@@ -1,5 +1,5 @@
 ---
-source_sha: "ec016f142938"
+source_sha: "ed99ff543d6e"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -257,8 +257,9 @@ lebt. Er darf auf einen freien Worker oder hinter einer pausierten Job-Art warte
 solange sein Job in der Warteschlange steht; der Sweep beendet ihn erst als
 fehlgeschlagen, wenn kein Job mehr übrig ist, der ihn ausführen würde. Ein Fall,
 den ein toter Worker in einem bereits beendeten Run laufend zurückgelassen hat,
-schlägt nach denselben `EVAL_ABANDONED_AFTER_MINUTES` fehl. Auf
-`EVAL_ORG_CONCURRENCY` zählen nur die Fälle von Runs, die noch laufen.
+schlägt nach denselben `EVAL_ABANDONED_AFTER_MINUTES` fehl. Ein laufender Fall
+zählt auf `EVAL_ORG_CONCURRENCY`, bis er endet, auch nachdem sein Run
+abgebrochen wurde.
 
 Solange ein Run wartet oder läuft, lassen sich die Umgebung, die er nennt, und
 das Modellprofil, auf dem eine seiner Seiten läuft, nicht entfernen: Seine
