@@ -341,7 +341,7 @@ class Settings(BaseSettings):
     # A queued run has no worker yet - it waits for a runner slot - so it is
     # given up on only after this long.
     EVAL_QUEUED_ABANDONED_AFTER_HOURS: float = 24.0
-    # A suite set to run when a skill or knowledge base changes waits this long
+    # A suite set to run when a skill, context file or knowledge base changes waits this long
     # after the first change, so a burst of them is one run on the end state.
     EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"

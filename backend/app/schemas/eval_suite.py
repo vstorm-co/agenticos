@@ -51,7 +51,7 @@ class EvalSuiteCreate(BaseSchema):
         on_promotion: Run when a version is promoted onto the suite's
             environment (the default one, when none is named), against the
             version it replaced.
-        on_dependency_change: Run when a skill or knowledge base the checked
+        on_dependency_change: Run when a skill, context file or knowledge base the checked
             version binds changes - once per burst of changes.
         schedule: Run on a cron schedule. None runs on no schedule.
         max_run_usd: Skip a run whose estimate is above this. Scheduled and

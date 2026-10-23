@@ -9,7 +9,7 @@ version is checked and the threshold a result must meet, and it runs:
   changing underneath it;
 - when a version is published, measured against the one before it;
 - when a version is promoted onto its environment, against the one it replaced;
-- when a skill or knowledge base the checked version binds changes, once per
+- when a skill, context file or knowledge base the checked version binds changes, once per
   burst of changes;
 - when somebody presses "Run now".
 
