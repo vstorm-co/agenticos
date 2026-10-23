@@ -245,7 +245,7 @@ der Run-Pfad committet, und schreibt alles dazwischen über eigene Sessions:
   mit der Zeile in `voice_calls` und ihrem Run, beide geschrieben, bevor der
   Provider aufgerufen wird. Freigabezeilen, der Heartbeat und der Voice-Sweep
   brauchen diese Zeilen aus anderen Sessions lesbar; eine Ablehnung vor diesem
-  Punkt rollt alles zurück, sodass ein abgelehnter Anruf nichts in Activity
+  Punkt rollt alles zurück, sodass ein abgelehnter Anruf nichts in **Aktivität** (Activity)
   hinterlässt.
 - Jede gespeicherte Runde, jeder 15-Sekunden-Heartbeat und jedes Schreiben einer
   Freigabe öffnet eine eigene `get_db_context()`-Session und committet dort, nie
@@ -835,7 +835,7 @@ Vier Konsequenzen, die man kennen sollte:
 Es gibt **keine Möglichkeit mehr, eine Unterhaltung über Tenants hinweg zu lesen.**
 Das Sentinel, das das früher ausbuchstabierte (`UNSCOPED`), hatte genau einen
 Aufrufer, `/admin/conversations/{id}`, und beide gingen mit dem deploymentweiten
-Unterhaltungs-Browser — Activity beantwortet „was ist passiert“ mit den Kosten, dem
+Unterhaltungs-Browser — **Aktivität** (Activity) beantwortet „was ist passiert“ mit den Kosten, dem
 Modell, dem Trace und dem, was dem Modell daneben übergeben wurde, und das ist die
 Frage, für die jener Bildschirm genutzt wurde. Übrig ist davon
 `GET /admin/conversations?user_id=`: die Threads eines benannten Kontos, für die

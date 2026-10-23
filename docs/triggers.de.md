@@ -152,7 +152,7 @@ nicht in der URL auf.
     `fire-trigger`-Job eingereiht, und der Agent läuft im Worker, der Provider
     bekommt seine Antwort also nach einem Insert, statt ein Modell abzuwarten. Lesen Sie
     eine `202` nicht als "der Agent hat geantwortet" - lesen Sie dafür den Run in
-    Activity.
+    **Aktivität** (Activity).
 
 Eine verifizierte Zustellung, für die es nichts zu tun gibt - ein inaktiver
 Trigger, oder eine Payload, auf die der Filter nicht passt - antwortet genauso mit
@@ -508,7 +508,7 @@ hindurch:
   kann rotiert werden.
 - Die Signatur ist `HMAC-SHA256` über die **exakten rohen Bytes**, und sie ist das,
   was eine Zustellung authentisch macht statt bloß korrekt adressiert.
-- Eine `202` bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in Activity.
+- Eine `202` bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in **Aktivität** (Activity).
 - **Gmail wird abgefragt**, es hat also überhaupt keine URL und kein Secret —
   verbinden Sie das Postfach, und das ist die Einrichtung.
 - Greifen Sie auf einem Laptop nach **Run now**, bevor Sie nach einem Tunnel
