@@ -35,7 +35,7 @@ async def reap_stale_runs() -> int:
 
 
 async def reap_abandoned_evals() -> int:
-    """Fail the eval runs whose worker went silent. Returns how many.
+    """Fail the eval runs whose worker went silent, and the attempts they left. Returns how many.
 
     Scheduled every minute (`app/worker/schedules.py`): a run whose worker died
     waits `EVAL_ABANDONED_AFTER_MINUTES` and at most one tick more.
@@ -43,7 +43,7 @@ async def reap_abandoned_evals() -> int:
     async with get_worker_db_context() as db:
         evals = await RunReaperService(db).reap_abandoned_evals()
     if evals:
-        logger.warning("Abandoned-eval sweep: %d eval run(s) failed", evals)
+        logger.warning("Abandoned-eval sweep: %d eval run(s) and attempt(s) closed", evals)
     return evals
 
 

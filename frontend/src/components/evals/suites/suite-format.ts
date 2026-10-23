@@ -5,8 +5,10 @@ import type {
   EvalSuiteResult,
   EvalSuiteResultStatus,
   EvalSuiteSchedule,
+  EvalSuiteThreshold,
   ThresholdReason,
 } from "@/types/eval-suites";
+import { percent } from "../format";
 
 /** The colour of a result, in the verdict's own: red breaks, green passes, amber says nothing. */
 export const RESULT_TONE: Record<
@@ -109,6 +111,24 @@ export function whenLabels(suite: EvalSuite, t: Translate, days: Translate): str
   return labels;
 }
 
+/** What a result must meet, as its row shows it - "≥70% · 0 regressions · cost/pass ≤+20%". */
+export function thresholdText(threshold: EvalSuiteThreshold, t: Translate, locale: string): string {
+  const parts: string[] = [];
+  if (threshold.min_pass_rate !== null) {
+    parts.push(t("threshold.minPassRate", { rate: percent(threshold.min_pass_rate, locale) }));
+  }
+  parts.push(t("threshold.regressions", { count: threshold.max_confirmed_regressions }));
+  if (threshold.max_cost_per_pass_rise !== null) {
+    parts.push(
+      t("threshold.costRise", { rise: percent(threshold.max_cost_per_pass_rise, locale) }),
+    );
+  }
+  if (threshold.max_p95_rise !== null) {
+    parts.push(t("threshold.p95Rise", { rise: percent(threshold.max_p95_rise, locale) }));
+  }
+  return parts.join(" · ");
+}
+
 /** One way a result fell short, in words, with its numbers in the reader's locale. */
 export function reasonText(reason: ThresholdReason, t: Translate, locale: string): string {
   const share = (value: number | null) =>
@@ -158,4 +178,20 @@ export function skipText(result: EvalSuiteResult, t: Translate): string | null {
     return t(`skip.${result.reason}`);
   }
   return result.summary?.message ?? result.reason;
+}
+
+/**
+ * Why a result came out as it did, a line each: the threshold's reasons for a
+ * failure or an inconclusive verdict, and the result's own reason where it has
+ * no threshold to fall short of - a run that was cancelled, one that never ran.
+ */
+export function resultReasons(result: EvalSuiteResult, t: Translate, locale: string): string[] {
+  const reasons = result.summary?.reasons ?? [];
+  if ((result.status === "failed" || result.status === "inconclusive") && reasons.length > 0) {
+    return reasons.map((reason) => reasonText(reason, t, locale));
+  }
+  if (["inconclusive", "skipped", "error"].includes(result.status)) {
+    return [skipText(result, t)].filter((text): text is string => text !== null);
+  }
+  return [];
 }

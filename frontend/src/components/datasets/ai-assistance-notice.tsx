@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -31,9 +30,7 @@ export function AiAssistanceNotice({ body }: { body?: string }) {
       <p>
         {body ?? t("body")}{" "}
         {can(Perm.orgSettings) ? (
-          <Link href={ROUTES.ORG_MEMBERS(orgId)} className="font-medium underline">
-            {t("enable")}
-          </Link>
+          <EnableAiAssistanceLink orgId={orgId}>{t("enable")}</EnableAiAssistanceLink>
         ) : (
           t("askAdmin")
         )}

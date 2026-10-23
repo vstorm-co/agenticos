@@ -1001,17 +1001,10 @@ class EvalRunService:
                     message="Only whoever started this eval, or an editor of the agent, can stop it",
                     details={"eval_run_id": run.id},
                 )
-        locked = await eval_run_repo.lock(self.db, run.id, organization_id=ctx.organization_id)
-        assert locked is not None
-        if EvalRunStatus(locked.status).terminal:
-            return (await self._reads(ctx, [locked]))[0]
-        await eval_run_repo.update_run(
-            self.db,
-            run=locked,
-            values={"status": EvalRunStatus.CANCELLED.value, "ended_at": datetime.now(UTC)},
+        await eval_run_repo.cancel_live(
+            self.db, run.id, organization_id=ctx.organization_id, now=datetime.now(UTC)
         )
-        await eval_run_repo.skip_pending(self.db, run.id, organization_id=ctx.organization_id)
-        return (await self._reads(ctx, [locked]))[0]
+        return (await self._reads(ctx, [run]))[0]
 
     async def _readable(self, ctx: AuthContext, run_id: UUID) -> EvalRun:
         """A run the caller may read: their organization's, its agent and dataset visible."""
