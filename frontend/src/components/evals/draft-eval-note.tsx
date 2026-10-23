@@ -25,14 +25,16 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
   const untested = !isLoading && !error && runs.length === 0;
   const earlier = useDraftEvalRuns(agentId, { draft: "earlier", enabled: untested });
   if (isLoading || (untested && earlier.isLoading)) return null;
-  if (error) {
+  // Without the earlier lookup there is no telling "out of date" from "untested".
+  const failed = error ? refetch : untested && earlier.error ? earlier.refetch : null;
+  if (failed) {
     return (
       <div
         role="alert"
         className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
       >
         <span className="text-muted-foreground">{t("draftNote.unread")}</span>
-        <Button size="sm" variant="outline" onClick={() => void refetch()}>
+        <Button size="sm" variant="outline" onClick={() => void failed()}>
           {tc("retry")}
         </Button>
       </div>

@@ -9594,6 +9594,7 @@
       "running": "Checking on {name}…",
       "ended": "The check on {name} {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
       "unread": "Could not read this check.",
+      "unreadFindings": "Could not read what the check on {name} found. Open the run, or try again.",
       "suite": "{name} {status, select, passed {would pass} failed {would fail} other {would be inconclusive}}: {findings}",
       "dataset": "On {name}: {findings}",
       "breaks": "breaks {cases}{more, plural, =0 {} =1 { and 1 more case} other { and # more cases}}{fixed, plural, =0 {} =1 {, and fixes 1 case} other {, and fixes # cases}}",

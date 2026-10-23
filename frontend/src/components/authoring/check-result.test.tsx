@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FLIP, comparison, evalRun } from "@/test-utils/eval-runs";
@@ -10,6 +11,8 @@ const state = vi.hoisted(() => ({
   granted: [] as string[],
   runs: {} as Record<string, unknown>,
   comparisons: {} as Record<string, unknown>,
+  comparisonErrors: {} as Record<string, Error>,
+  refetched: [] as string[],
   errors: {} as Record<string, Error>,
   enabled: {} as Record<string, boolean>,
 }));
@@ -21,7 +24,11 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   useEvalRun: (runId: string) => ({ run: state.runs[runId], error: state.errors[runId] ?? null }),
   useEvalComparison: (runId: string, options: { enabled: boolean }) => {
     state.enabled[runId] = options.enabled;
-    return { comparison: state.comparisons[runId] };
+    return {
+      comparison: state.comparisons[runId],
+      error: state.comparisonErrors[runId] ?? null,
+      refetch: () => state.refetched.push(runId),
+    };
   },
 }));
 
@@ -46,6 +53,8 @@ beforeEach(() => {
   state.granted = [Perm.runsView];
   state.runs = {};
   state.comparisons = {};
+  state.comparisonErrors = {};
+  state.refetched = [];
   state.errors = {};
   state.enabled = {};
 });
@@ -174,6 +183,22 @@ describe("CheckResult", () => {
     );
     expect(screen.getByText("Could not read this check.")).toBeInTheDocument();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("CheckResult when its findings cannot be read", () => {
+  it("keeps the way to the run and offers to read them again", async () => {
+    given("run-1", {});
+    state.comparisonErrors["run-1"] = new Error("boom");
+    render(<CheckResult agentId="agent-1" runId="run-1" />);
+
+    expect(
+      screen.getByRole("link", {
+        name: "Could not read what the check on refunds found. Open the run, or try again.",
+      }),
+    ).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetched).toEqual(["run-1"]);
   });
 });
 

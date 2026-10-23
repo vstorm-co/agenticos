@@ -9371,6 +9371,7 @@
       "running": "Trwa sprawdzanie na {name}…",
       "ended": "Sprawdzenie na {name} {status, select, cancelled {zostało zatrzymane} budget_exceeded {wyczerpało budżet} other {nie powiodło się}}, zanim doszło do werdyktu.",
       "unread": "Nie udało się odczytać tego sprawdzenia.",
+      "unreadFindings": "Nie udało się odczytać, co wykazało sprawdzenie na {name}. Otwórz run albo spróbuj ponownie.",
       "suite": "{name}: {status, select, passed {przeszłoby} failed {nie przeszłoby} other {byłoby nierozstrzygnięte}} - {findings}",
       "dataset": "Na {name}: {findings}",
       "breaks": "psuje {cases}{more, plural, =0 {} one { i jeszcze # case} few { i jeszcze # case'y} many { i jeszcze # case'ów} other { i jeszcze # case'a}}{fixed, plural, =0 {} one {, a naprawia # case} few {, a naprawia # case'y} many {, a naprawia # case'ów} other {, a naprawia # case'a}}",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { reasonText } from "@/components/evals/suites/suite-format";
+import { Button } from "@/components/ui";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
@@ -67,10 +68,12 @@ function tone(run: EvalRun, comparison: EvalComparison): string {
 export function CheckResult({ agentId, runId }: { agentId: string; runId: string }) {
   const t = useTranslations("authoring.checkResult");
   const tSuites = useTranslations("evals.suites");
+  const tc = useTranslations("common");
   const locale = useLocale();
   const { run, error } = useEvalRun(runId);
   const completed = run?.status === "completed";
-  const { comparison } = useEvalComparison(runId, { enabled: completed });
+  const compared = useEvalComparison(runId, { enabled: completed });
+  const comparison = compared.comparison;
   const href = `${ROUTES.AGENTS}/${agentId}/evals/${runId}`;
   if (error) return <p className="text-muted-foreground text-sm">{t("unread")}</p>;
   if (!run) return null;
@@ -84,6 +87,18 @@ export function CheckResult({ agentId, runId }: { agentId: string; runId: string
           ? t("running", { name: run.dataset_name })
           : t("ended", { name: run.dataset_name, status: run.status })}
       </Link>
+    );
+  }
+  if (compared.error) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+        <Link href={href} className="text-muted-foreground underline-offset-4 hover:underline">
+          {t("unreadFindings", { name: run.dataset_name })}
+        </Link>
+        <Button size="sm" variant="outline" onClick={() => void compared.refetch()}>
+          {tc("retry")}
+        </Button>
+      </div>
     );
   }
   if (!comparison) return null;

@@ -9477,6 +9477,7 @@
       "running": "Prüfung auf {name} läuft…",
       "ended": "Die Prüfung auf {name} {status, select, cancelled {wurde gestoppt} budget_exceeded {hat ihr Budget aufgebraucht} other {ist fehlgeschlagen}}, bevor sie zu einem Urteil kam.",
       "unread": "Diese Prüfung konnte nicht gelesen werden.",
+      "unreadFindings": "Was die Prüfung auf {name} ergeben hat, ließ sich nicht lesen. Öffne den Run oder versuche es erneut.",
       "suite": "{name} {status, select, passed {würde bestehen} failed {würde nicht bestehen} other {wäre unentschieden}}: {findings}",
       "dataset": "Auf {name}: {findings}",
       "breaks": "macht {cases}{more, plural, =0 {} =1 { und 1 weiteren Fall} other { und # weitere Fälle}} kaputt{fixed, plural, =0 {} =1 { und behebt 1 Fall} other { und behebt # Fälle}}",

@@ -15,6 +15,8 @@ const draft = vi.hoisted(() => ({
 const earlier = vi.hoisted(() => ({
   runs: [] as unknown[],
   isLoading: false,
+  error: null as Error | null,
+  refetch: (() => undefined) as () => unknown,
   enabled: [] as boolean[],
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
@@ -45,6 +47,7 @@ beforeEach(() => {
   draft.error = null;
   earlier.runs = [];
   earlier.isLoading = false;
+  earlier.error = null;
   earlier.enabled = [];
 });
 
@@ -147,6 +150,21 @@ describe("DraftEvalNote", () => {
     expect(screen.queryByRole("link")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Test it" }));
     expect(onTest).toHaveBeenCalled();
+  });
+
+  it("says it could not tell when the lookup of an earlier test failed, and retries it", async () => {
+    earlier.error = new Error("boom");
+    earlier.refetch = vi.fn();
+    const onTest = vi.fn();
+    render(<DraftEvalNote agentId="agent-1" onTest={onTest} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not read how this draft last tested.",
+    );
+    expect(screen.queryByText(/was not tested/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(earlier.refetch).toHaveBeenCalled();
+    expect(onTest).not.toHaveBeenCalled();
   });
 
   it("asks about an earlier draft only when this one has no test", () => {
