@@ -21,6 +21,10 @@ const BRAND_SOURCES: Partial<Record<EventSource, BrandName>> = {
   outlook: "microsoft",
   hubspot: "hubspot",
   zendesk: "zendesk",
+  google_drive: "gdrive",
+  google_calendar: "googlecalendar",
+  microsoft_files: "sharepoint",
+  outlook_calendar: "microsoft",
 };
 
 export function EventSourceMark({

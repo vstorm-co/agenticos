@@ -1,5 +1,6 @@
 """Schemas for agent triggers - a schedule or an event that fires an agent."""
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -297,6 +298,93 @@ class ZendeskTriggerConfig(BaseSchema):
     event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
 
 
+# Every `EventSource` value, for the API's schema.
+EventSourceName = Literal[
+    "github",
+    "gmail",
+    "google_calendar",
+    "google_drive",
+    "hubspot",
+    "microsoft_files",
+    "outlook",
+    "outlook_calendar",
+    "webhook",
+    "zendesk",
+]
+
+FileChange = Literal["any", "created", "modified"]
+
+# A Drive folder link carries its id after `/folders/`; the id alone is accepted too.
+_DRIVE_FOLDER_LINK = re.compile(r"/folders/([A-Za-z0-9_-]+)")
+
+
+class GoogleDriveTriggerConfig(BaseSchema):
+    """Which Google Drive files fire the trigger.
+
+    Drive reports changes for the whole account, so these only narrow. `folder_id`
+    is the folder a file sits directly in - its id, or the folder's link, from
+    which the id is taken. `change` picks new files, changed ones or both; a file
+    kept being edited fires at most once in half an hour (`portals._files`). The
+    account's own changes are skipped unless `include_own_changes`: an agent
+    writing through the same account would otherwise fire itself.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    folder_id: str | None = Field(default=None, max_length=512)
+    name_contains: str | None = Field(default=None, max_length=255)
+    change: FileChange = "any"
+    include_own_changes: bool = False
+
+    @field_validator("folder_id")
+    @classmethod
+    def _folder_id_from_a_link(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        found = _DRIVE_FOLDER_LINK.search(value)
+        return found.group(1) if found else value
+
+
+class MicrosoftFilesTriggerConfig(BaseSchema):
+    """Which OneDrive or SharePoint files fire the trigger, and where the poller looks.
+
+    Like Outlook's folder, `site_url` is *where*: absent, the connected account's
+    own OneDrive; a SharePoint site's address (`https://contoso.sharepoint.com/
+    sites/Finance`), that site's document library. `folder_path` narrows to a
+    folder inside it and everything under it (`Invoices/2026`). The rest as
+    Google Drive's.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    site_url: str | None = Field(
+        default=None, max_length=512, pattern=r"^https://[A-Za-z0-9.-]+\.sharepoint\.com(/[^?#]*)?$"
+    )
+    folder_path: str | None = Field(default=None, max_length=512)
+    name_contains: str | None = Field(default=None, max_length=255)
+    change: FileChange = "any"
+    include_own_changes: bool = False
+
+
+class CalendarTriggerConfig(BaseSchema):
+    """When before a meeting the trigger fires, and which meetings.
+
+    For Outlook and Google calendars alike. Only a meeting with somebody else on
+    it fires - an appointment with yourself is not one to prepare for - and one
+    you declined or that was cancelled never does. `minutes_before` is the lead,
+    5 to 120 minutes; `external_only` keeps the meetings with somebody from
+    outside the account's own domain; the substrings narrow by subject and by
+    attendee address.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    minutes_before: int = Field(default=15, ge=5, le=120)
+    external_only: bool = False
+    subject_contains: str | None = Field(default=None, max_length=255)
+    attendee_contains: str | None = Field(default=None, max_length=255)
+
+
 def webhook_url(event_source: str, trigger_id: UUID) -> str:
     """The public address an event trigger's provider posts to.
 
@@ -308,12 +396,25 @@ def webhook_url(event_source: str, trigger_id: UUID) -> str:
 
 
 # Read from a connected account rather than posted to - no webhook, no secret.
-_POLLED_SOURCES = frozenset({EventSource.GMAIL.value, EventSource.OUTLOOK.value})
+_POLLED_SOURCES = frozenset(
+    {
+        EventSource.GMAIL.value,
+        EventSource.GOOGLE_CALENDAR.value,
+        EventSource.GOOGLE_DRIVE.value,
+        EventSource.MICROSOFT_FILES.value,
+        EventSource.OUTLOOK.value,
+        EventSource.OUTLOOK_CALENDAR.value,
+    }
+)
 
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
     EventSource.GMAIL.value: GmailTriggerConfig,
+    EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
+    EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
+    EventSource.MICROSOFT_FILES.value: MicrosoftFilesTriggerConfig,
+    EventSource.OUTLOOK_CALENDAR.value: CalendarTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,
     EventSource.WEBHOOK.value: WebhookTriggerConfig,
     EventSource.ZENDESK.value: ZendeskTriggerConfig,
@@ -387,9 +488,7 @@ class TriggerCreate(BaseSchema):
     )
 
     # Event fields.
-    event_source: Literal["github", "gmail", "hubspot", "outlook", "webhook", "zendesk"] | None = (
-        None
-    )
+    event_source: EventSourceName | None = None
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
@@ -616,9 +715,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     cron_expression: str | None = None
     time_zone: str | None = None
     overlap: TriggerOverlapName = "skip"
-    event_source: Literal["github", "gmail", "hubspot", "outlook", "webhook", "zendesk"] | None = (
-        None
-    )
+    event_source: EventSourceName | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
     # Null on an event trigger, which has no scheduled next fire.

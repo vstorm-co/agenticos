@@ -38,13 +38,16 @@ from typing import Any
 
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import (
+    CalendarTriggerConfig,
     GithubTriggerConfig,
     GmailTriggerConfig,
+    GoogleDriveTriggerConfig,
     HubspotTriggerConfig,
+    MicrosoftFilesTriggerConfig,
     OutlookTriggerConfig,
     ZendeskTriggerConfig,
 )
-from app.services.portals import outlook_place
+from app.services.portals import files_place, outlook_place
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +269,12 @@ def event_matches(
     if source == EventSource.ZENDESK.value:
         parsed = ZendeskTriggerConfig.model_validate(dict(config))
         return parsed.event_types is None or payload.get("type") in parsed.event_types
+    if source == EventSource.GOOGLE_DRIVE.value:
+        return _google_drive_matches(payload, config)
+    if source == EventSource.MICROSOFT_FILES.value:
+        return _microsoft_files_matches(payload, config)
+    if source in _CALENDARS:
+        return _calendar_matches(payload, config)
     # The generic webhook: the sender chose to deliver, so a verified delivery
     # is a match by definition.
     return True
@@ -283,21 +292,31 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return _hubspot_context(payload)
     if source == EventSource.ZENDESK.value:
         return _zendesk_context(payload)
+    if source in _FILE_PROVIDERS:
+        return _file_context(_FILE_PROVIDERS[source], payload)
+    if source in _CALENDARS:
+        return _calendar_context(_CALENDARS[source], payload)
     return _webhook_context(payload)
 
 
 def polled_place(source: str, config: Mapping[str, Any]) -> str | None:
     """Where in the connected account the poller must look for this trigger.
 
-    `None` for a source whose account is read whole (Gmail's history covers the
-    mailbox). An Outlook trigger names a folder - in the account's own mailbox or a
+    `None` for a source whose account is read whole (Gmail's history, Drive's
+    changes). An Outlook trigger names a folder - in the account's own mailbox or a
     shared one - and Graph is read a folder at a time, so the poller reads exactly
-    the places its triggers name.
+    the places its triggers name; a OneDrive/SharePoint one names a drive the same
+    way. A calendar trigger's place is its lead in minutes, which is how the
+    adapter knows when before each meeting to announce it (`portals._calendar`).
     """
-    if source != EventSource.OUTLOOK.value:
-        return None
-    parsed = OutlookTriggerConfig.model_validate(dict(config))
-    return outlook_place(mailbox=parsed.mailbox, folder=parsed.folder)
+    if source == EventSource.OUTLOOK.value:
+        parsed = OutlookTriggerConfig.model_validate(dict(config))
+        return outlook_place(mailbox=parsed.mailbox, folder=parsed.folder)
+    if source == EventSource.MICROSOFT_FILES.value:
+        return files_place(MicrosoftFilesTriggerConfig.model_validate(dict(config)).site_url)
+    if source in _CALENDARS:
+        return str(CalendarTriggerConfig.model_validate(dict(config)).minutes_before)
+    return None
 
 
 def _github_matches(
@@ -581,6 +600,119 @@ def _zendesk_context(payload: Mapping[str, Any]) -> str:
     title = f"A Zendesk event arrived: {kind}." if kind else "A Zendesk webhook arrived."
     rendered = json.dumps(dict(payload), indent=2, ensure_ascii=False, default=str)
     return f"{title}\n\n{_clip(rendered)}"
+
+
+_FILE_PROVIDERS = {
+    EventSource.GOOGLE_DRIVE.value: "Google Drive",
+    EventSource.MICROSOFT_FILES.value: "OneDrive/SharePoint",
+}
+_CALENDARS = {
+    EventSource.GOOGLE_CALENDAR.value: "Google Calendar",
+    EventSource.OUTLOOK_CALENDAR.value: "Outlook",
+}
+
+
+def _file_passes(
+    payload: Mapping[str, Any],
+    *,
+    change: str,
+    name_contains: str | None,
+    include_own_changes: bool,
+) -> bool:
+    """The filters both file sources share: which change, which name, whose edit."""
+    if change != "any" and payload.get("change") != change:
+        return False
+    if (
+        name_contains is not None
+        and name_contains.casefold() not in str(payload.get("name") or "").casefold()
+    ):
+        return False
+    # The account's own edits are an agent writing through the same grant as often
+    # as a person: counted, the agent would set itself off.
+    return include_own_changes or payload.get("by_account") is not True
+
+
+def _google_drive_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    parsed = GoogleDriveTriggerConfig.model_validate(dict(config))
+    if parsed.folder_id is not None and parsed.folder_id not in (payload.get("parents") or []):
+        return False
+    return _file_passes(
+        payload,
+        change=parsed.change,
+        name_contains=parsed.name_contains,
+        include_own_changes=parsed.include_own_changes,
+    )
+
+
+def _microsoft_files_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    # The place first, as Outlook's: a file read in one library never fires a
+    # trigger that watches another.
+    parsed = MicrosoftFilesTriggerConfig.model_validate(dict(config))
+    if payload.get("place") != files_place(parsed.site_url):
+        return False
+    if parsed.folder_path is not None:
+        wanted = parsed.folder_path.strip("/").casefold()
+        folder = str(payload.get("folder") or "").casefold()
+        if folder != wanted and not folder.startswith(f"{wanted}/"):
+            return False
+    return _file_passes(
+        payload,
+        change=parsed.change,
+        name_contains=parsed.name_contains,
+        include_own_changes=parsed.include_own_changes,
+    )
+
+
+def _calendar_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    # Announced once per lead (`portals._calendar`), so a trigger takes the
+    # announcement made for its own lead and no other.
+    parsed = CalendarTriggerConfig.model_validate(dict(config))
+    if payload.get("lead_minutes") != parsed.minutes_before:
+        return False
+    if parsed.external_only and not payload.get("external_attendees"):
+        return False
+    subject = str(payload.get("subject") or "").casefold()
+    if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
+        return False
+    if parsed.attendee_contains is None:
+        return True
+    wanted = parsed.attendee_contains.casefold()
+    return any(wanted in str(address) for address in payload.get("attendees") or [])
+
+
+def _file_context(provider: str, payload: Mapping[str, Any]) -> str:
+    verb = "added" if payload.get("change") == "created" else "changed"
+    lines = [
+        f"A file was {verb} in {provider}.",
+        f"Name: {payload.get('name', '')}",
+        f"Type: {payload.get('mime_type', '')}",
+        f"Changed by: {payload.get('modified_by', '')}",
+        f"Link: {payload.get('url', '')}",
+    ]
+    if payload.get("folder"):
+        lines.append(f"Folder: {payload['folder']}")
+    if payload.get("site_url"):
+        lines.append(f"Site: {payload['site_url']}")
+    return "\n".join(lines)
+
+
+def _calendar_context(provider: str, payload: Mapping[str, Any]) -> str:
+    attendees = ", ".join(str(one) for one in payload.get("attendees") or [])
+    external = ", ".join(str(one) for one in payload.get("external_attendees") or [])
+    lines = [
+        f"A meeting in {provider} starts in {payload.get('minutes_until_start', '?')} minutes.",
+        f"Subject: {payload.get('subject', '')}",
+        f"Starts: {payload.get('starts_at', '')}",
+        f"Ends: {payload.get('ends_at') or ''}",
+        f"Organizer: {payload.get('organizer', '')}",
+        f"Attendees: {attendees}",
+    ]
+    if external:
+        lines.append(f"From outside the organization: {external}")
+    for label, key in (("Join", "join_url"), ("Location", "location"), ("Link", "url")):
+        if payload.get(key):
+            lines.append(f"{label}: {payload[key]}")
+    return ("\n".join(lines) + f"\n\n{_clip(str(payload.get('description') or ''))}").strip()
 
 
 def _webhook_context(payload: Mapping[str, Any]) -> str:

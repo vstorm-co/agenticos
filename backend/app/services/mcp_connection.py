@@ -440,7 +440,11 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
 # anything, which is the loud failure a silent empty string would not be.
 _POLLED_PORTAL_URL = {
     "google": "https://gmail.googleapis.com",
+    "google_calendar": "https://www.googleapis.com/calendar",
+    "google_drive": "https://www.googleapis.com/drive",
     "microsoft": "https://graph.microsoft.com",
+    "microsoft_files": "https://graph.microsoft.com",
+    "outlook_calendar": "https://graph.microsoft.com",
 }
 
 _GITHUB_APP_GRANT_URL = "https://api.github.com"

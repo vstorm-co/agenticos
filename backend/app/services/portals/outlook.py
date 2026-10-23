@@ -26,6 +26,7 @@ from urllib.parse import quote, unquote
 
 import httpx
 
+from app.services.portals._api import error_codes
 from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
 from app.services.portals.mail_auth import authenticated
@@ -489,7 +490,7 @@ class OutlookPortalAdapter(PortalAdapter):
                 "portal_key": self.portal_key,
                 "status": response.status_code,
             }
-            codes = _error_codes(response)
+            codes = error_codes(response)
             if codes:
                 details["codes"] = codes
             raise PortalUnreachable(message="Microsoft Graph refused the request", details=details)
@@ -501,27 +502,6 @@ class OutlookPortalAdapter(PortalAdapter):
                 details={"portal_key": self.portal_key},
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
-
-
-def _error_codes(response: httpx.Response) -> list[str]:
-    """Graph's error codes, case-folded, outermost first - `error.code` and each nested one.
-
-    Only the codes: the `message` beside them can echo the request and is no part
-    of the contract. All of them, because which level carries the specific one
-    (`syncStateNotFound` under a generic `invalidRequest`, or on its own) is not
-    fixed.
-    """
-    try:
-        body = response.json()
-    except ValueError:
-        return []
-    error = body.get("error") if isinstance(body, dict) else None
-    codes: list[str] = []
-    while isinstance(error, dict):
-        if isinstance(error.get("code"), str):
-            codes.append(error["code"].casefold())
-        error = error.get("innerError") or error.get("innererror")
-    return codes
 
 
 def _parse(value: Any) -> datetime | None:

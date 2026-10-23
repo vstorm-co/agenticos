@@ -309,7 +309,14 @@ class TestWhichGrantsAreRead:
             await trigger_tasks.poll_portal_grants()
 
         [call] = connections.claim_grants_to_poll.await_args_list
-        assert call.kwargs["portal_keys"] == ["google", "microsoft"]
+        assert call.kwargs["portal_keys"] == [
+            "google",
+            "microsoft",
+            "google_drive",
+            "microsoft_files",
+            "google_calendar",
+            "outlook_calendar",
+        ]
 
 
 class TestMatchingAPollAgainstTriggers:

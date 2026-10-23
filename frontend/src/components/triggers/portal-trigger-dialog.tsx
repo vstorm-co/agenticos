@@ -56,12 +56,37 @@ function targetLabelKey(targetKind: string | null): string {
  * this one narrow on the same fields; the friendly copy - a concrete example per
  * field - lives here, since the raw form uses one generic "optional" placeholder.
  */
-const FILTER_COPY: Record<string, { labelKey: string; placeholderKey: string }> = {
-  subject_contains: { labelKey: "subjectFilterLabel", placeholderKey: "subjectFilterPlaceholder" },
-  sender_contains: { labelKey: "senderFilterLabel", placeholderKey: "senderFilterPlaceholder" },
-  author_contains: { labelKey: "authorFilterLabel", placeholderKey: "authorFilterPlaceholder" },
-  text_contains: { labelKey: "textFilterLabel", placeholderKey: "textFilterPlaceholder" },
-};
+const FILTER_COPY: Record<string, { labelKey: string; placeholderKey: string; helpKey?: string }> =
+  {
+    subject_contains: {
+      labelKey: "subjectFilterLabel",
+      placeholderKey: "subjectFilterPlaceholder",
+    },
+    sender_contains: { labelKey: "senderFilterLabel", placeholderKey: "senderFilterPlaceholder" },
+    author_contains: { labelKey: "authorFilterLabel", placeholderKey: "authorFilterPlaceholder" },
+    text_contains: { labelKey: "textFilterLabel", placeholderKey: "textFilterPlaceholder" },
+    folder_id: {
+      labelKey: "folderIdFilterLabel",
+      placeholderKey: "folderIdFilterPlaceholder",
+      helpKey: "folderIdFilterHelp",
+    },
+    name_contains: { labelKey: "nameFilterLabel", placeholderKey: "nameFilterPlaceholder" },
+    // Where the poller looks rather than a filter: blank is the account's own
+    // OneDrive, so the generic "blank fires on everything" would mislead.
+    site_url: {
+      labelKey: "siteUrlFilterLabel",
+      placeholderKey: "siteUrlFilterPlaceholder",
+      helpKey: "siteUrlFilterHelp",
+    },
+    folder_path: {
+      labelKey: "folderPathFilterLabel",
+      placeholderKey: "folderPathFilterPlaceholder",
+    },
+    attendee_contains: {
+      labelKey: "attendeeFilterLabel",
+      placeholderKey: "attendeeFilterPlaceholder",
+    },
+  };
 
 interface PortalTriggerDialogProps {
   portal: PortalCatalogEntry;
@@ -340,11 +365,13 @@ export function PortalTriggerDialog({
                     label={t(copy.labelKey)}
                     htmlFor={`portal-filter-${key}`}
                     description={
-                      index === 0
-                        ? t("filterHelp")
-                        : key === "sender_contains"
-                          ? tt("senderVouchedHint")
-                          : undefined
+                      copy.helpKey
+                        ? t(copy.helpKey)
+                        : index === 0
+                          ? t("filterHelp")
+                          : key === "sender_contains"
+                            ? tt("senderVouchedHint")
+                            : undefined
                     }
                   >
                     <Input

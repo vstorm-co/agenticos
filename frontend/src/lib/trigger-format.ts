@@ -158,6 +158,10 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
 export const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
   gmail: ["subject_contains", "sender_contains"],
   outlook: ["subject_contains", "sender_contains"],
+  google_drive: ["folder_id", "name_contains"],
+  microsoft_files: ["site_url", "folder_path"],
+  google_calendar: ["subject_contains", "attendee_contains"],
+  outlook_calendar: ["subject_contains", "attendee_contains"],
 };
 
 /**
@@ -354,6 +358,14 @@ export function cadenceText(trigger: FiringShape, t: Translate): string {
           return t("event.hubspot");
         case "zendesk":
           return t("event.zendesk");
+        case "google_drive":
+          return t("event.google_drive");
+        case "microsoft_files":
+          return t("event.microsoft_files");
+        case "google_calendar":
+          return t("event.google_calendar");
+        case "outlook_calendar":
+          return t("event.outlook_calendar");
       }
   }
 }

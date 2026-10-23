@@ -314,5 +314,152 @@
       }
     ],
     "oauth_app_kind": "microsoft_oauth_app"
+  },
+  {
+    "key": "google_drive",
+    "name": "Google Drive",
+    "description": "Run an agent when a file is added to or changed in Google Drive - anywhere, or in one folder.",
+    "category": "productivity",
+    "event_source": "google_drive",
+    "delivery": "polling",
+    "icon": "gdrive",
+    "read_scopes": [
+      "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "new_files",
+        "label": "New files",
+        "description": "Fires when a file is added - an upload, a scan, a document somebody shared. Narrow it to a folder or a name below.",
+        "event_config": {
+          "change": "created"
+        }
+      },
+      {
+        "key": "any_change",
+        "label": "New or changed files",
+        "description": "Fires on a new file and on an edit to one; a file kept being edited fires at most once in half an hour.",
+        "event_config": {}
+      }
+    ],
+    "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "microsoft_files",
+    "name": "OneDrive & SharePoint",
+    "description": "Run an agent when a file is added to or changed in your OneDrive or a SharePoint site's library.",
+    "category": "productivity",
+    "event_source": "microsoft_files",
+    "delivery": "polling",
+    "icon": "sharepoint",
+    "read_scopes": [
+      "https://graph.microsoft.com/Files.Read.All",
+      "https://graph.microsoft.com/Sites.Read.All",
+      "offline_access"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "new_files",
+        "label": "New files",
+        "description": "Fires when a file is added - an upload, a scan, a document somebody shared. Narrow it to a folder or a name below.",
+        "event_config": {
+          "change": "created"
+        }
+      },
+      {
+        "key": "any_change",
+        "label": "New or changed files",
+        "description": "Fires on a new file and on an edit to one; a file kept being edited fires at most once in half an hour.",
+        "event_config": {}
+      }
+    ],
+    "oauth_app_kind": "microsoft_oauth_app"
+  },
+  {
+    "key": "google_calendar",
+    "name": "Google Calendar",
+    "description": "Run an agent a set time before a meeting - to prepare a brief on who is coming and what was said last time.",
+    "category": "productivity",
+    "event_source": "google_calendar",
+    "delivery": "polling",
+    "icon": "googlecalendar",
+    "read_scopes": [
+      "https://www.googleapis.com/auth/calendar.events.readonly"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "before_meetings",
+        "label": "Before each meeting",
+        "description": "Fires 15 minutes before a meeting with somebody else on it - time for an agent to prepare a brief.",
+        "event_config": {}
+      },
+      {
+        "key": "before_external",
+        "label": "Before meetings with outsiders",
+        "description": "Fires 15 minutes before a meeting with somebody from outside your organization - a client, a candidate, a partner.",
+        "event_config": {
+          "external_only": true
+        }
+      },
+      {
+        "key": "hour_before",
+        "label": "An hour before",
+        "description": "Fires an hour ahead, for a brief that needs research rather than a glance.",
+        "event_config": {
+          "minutes_before": 60
+        }
+      }
+    ],
+    "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "outlook_calendar",
+    "name": "Outlook Calendar",
+    "description": "Run an agent a set time before a meeting in your Microsoft 365 calendar - to prepare a brief on who is coming and why.",
+    "category": "productivity",
+    "event_source": "outlook_calendar",
+    "delivery": "polling",
+    "icon": "microsoft",
+    "read_scopes": [
+      "https://graph.microsoft.com/Calendars.Read",
+      "offline_access"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "before_meetings",
+        "label": "Before each meeting",
+        "description": "Fires 15 minutes before a meeting with somebody else on it - time for an agent to prepare a brief.",
+        "event_config": {}
+      },
+      {
+        "key": "before_external",
+        "label": "Before meetings with outsiders",
+        "description": "Fires 15 minutes before a meeting with somebody from outside your organization - a client, a candidate, a partner.",
+        "event_config": {
+          "external_only": true
+        }
+      },
+      {
+        "key": "hour_before",
+        "label": "An hour before",
+        "description": "Fires an hour ahead, for a brief that needs research rather than a glance.",
+        "event_config": {
+          "minutes_before": 60
+        }
+      }
+    ],
+    "oauth_app_kind": "microsoft_oauth_app"
   }
 ]

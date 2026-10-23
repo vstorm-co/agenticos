@@ -1345,6 +1345,13 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpHubspot");
     case "zendesk":
       return t("sourceHelpZendesk");
+    // Read from a connected account, so created from a portal card and never
+    // offered in this signed-POST form; named for the type's sake.
+    case "google_drive":
+    case "microsoft_files":
+    case "google_calendar":
+    case "outlook_calendar":
+      return t("sourceHelpPolled");
   }
 }
 

@@ -263,6 +263,10 @@ describe("cadenceText", () => {
     expect(event("webhook")).toBe("event.webhook");
     expect(event("hubspot")).toBe("event.hubspot");
     expect(event("zendesk")).toBe("event.zendesk");
+    expect(event("google_drive")).toBe("event.google_drive");
+    expect(event("microsoft_files")).toBe("event.microsoft_files");
+    expect(event("google_calendar")).toBe("event.google_calendar");
+    expect(event("outlook_calendar")).toBe("event.outlook_calendar");
   });
 
   it("names a GitHub trigger by the webhook it fires on, bare or as a preset", () => {
