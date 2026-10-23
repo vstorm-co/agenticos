@@ -1,5 +1,5 @@
 ---
-source_sha: "ce04b4e9501a"
+source_sha: "d0c7eb58c28e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -60,7 +60,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | delegada |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
@@ -872,19 +872,23 @@ ninguna de las dos espera aprobación hasta que el dueño del agent la pide.
 required}`, cada lote de acciones espera aprobación frente a una captura que han
 visto tanto el modelo como quien aprueba. Un punto fuera de esa captura se
 rechaza antes de que se ejecute nada. Un lote aprobado se ejecuta en un run
-propio, que vuelve a medir la pantalla antes de actuar en lugar de rechazarlo.
+propio, que primero mide la pantalla y solo actúa si sigue teniendo la forma que
+tenía en la captura sobre la que se eligió el lote. Una resolución o una
+proporción distintas no hacen nada y muestran al modelo la pantalla nueva.
+`max_actions` es del run, por muchas veces que espere aprobación.
 
 | `desktop` | El escritorio | Necesita |
 |---|---|---|
 | `sandbox` | Un escritorio Linux (XFCE y Firefox) dentro de la propia [sandbox](#files-shell) del agent, la misma máquina en la que trabajan su shell y sus tools de archivos | La capability [Sandbox](#files-shell) sobre una conexión de sandbox, con el runtime `desktop` |
-| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | Un `computerd` que ejecuta el operador: su propio escritorio Linux (X11), la propia pantalla de un Mac (`uv run deploy/computer/computerd.py`) o un escritorio en un contenedor (`deploy/computer/Dockerfile`) | `daemon_url` en `COMPUTER_DAEMON_ALLOWED_HOSTS`, y el token del daemon como secreto de la vinculación |
 
 Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
 proveedor. Vive y se comparte exactamente como la sandbox, por conversación o
 por agent según el `session_scope` de la capability Sandbox, y un archivo que el
 agent escribe con sus tools de archivos es un archivo que puede abrir en la
 pantalla. Publicar rechaza un escritorio `sandbox` en un agent sin conexión de
-sandbox; una sandbox con otro runtime le dice al modelo, en su primera captura,
+sandbox, y en un especialista inline sin una propia ni una que comparta su padre;
+una sandbox con otro runtime le dice al modelo, en su primera captura,
 que no tiene ningún escritorio instalado.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
@@ -895,10 +899,22 @@ Un daemon es un escritorio: cada run que apunta a él comparte la máquina y tod
 lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
 no la sesión de trabajo de alguien.
 
+**El token de un daemon es de la organización.** El `COMPUTERD_TOKEN` con el que
+se arrancó el daemon se guarda en el [vault](../secrets.md) de la organización
+como clave de API y lo nombra el `secret_id` de la vinculación, y publicar
+rechaza un daemon sin él. `COMPUTER_DAEMON_ALLOWED_HOSTS` es la lista del
+despliegue de los sitios a los que un run puede enviar ese token. Se comprueba al
+publicar y de nuevo cada vez que un run abre el daemon, así que quitar un host de
+ella detiene a los agents ya publicados. Cualquier organización puede nombrar un
+host permitido, así que es el token, y no la lista, lo que mantiene a una
+organización fuera del escritorio de otra: da a cada escritorio su propio token.
+`daemon_url` es solo la dirección del daemon, y se rechaza una con query o
+fragmento.
+
 | Ajuste | Por defecto | Rango |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido |
+| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido, sin query ni fragmento |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
 | `max_actions` | 200 | 1–2000 por run |
@@ -909,7 +925,8 @@ trabaja: una ventana por run, abierta por la primera captura, con un fotograma
 tras cada llamada y una línea por acción. El texto que escribe el modelo se muestra ahí tal como se escribió.
 
 **Una captura que el usuario conserva.** `computer_screenshot` es para el
-modelo, y nada la guarda. Cuando el usuario pide ver la pantalla, o el resultado
+modelo, y nada la guarda: un run que espera aprobación, su manifiesto y una
+conversación compactada guardan una frase en su lugar. Cuando el usuario pide ver la pantalla, o el resultado
 de un paso debe quedar como prueba, el agent llama a `computer_save_screenshot`.
 Guarda la pantalla a resolución completa para la organización y la muestra en el
 chat, enlazada al archivo a tamaño completo. Si el agent tiene un workspace,

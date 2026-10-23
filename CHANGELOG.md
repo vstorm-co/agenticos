@@ -30,11 +30,17 @@ Two things are versioned separately from this file and worth knowing about:
   computer use needs no address or key of its own; or a `computerd` daemon
   the operator runs on their own Linux desktop, a Mac's own screen or a
   container (`deploy/computer/`), on a host that
-  `COMPUTER_DAEMON_ALLOWED_HOSTS` allows. Publish refuses a sandbox desktop
-  on an agent without a sandbox connection. The chat draws it live in a window under the message, and
-  `computer_save_screenshot` keeps a full-resolution screenshot in the chat
-  and the workspace, for a user who wants to see the screen or a test that
-  needs evidence (#2094).
+  `COMPUTER_DAEMON_ALLOWED_HOSTS` allows, reached with the daemon's token
+  from the organization's vault. The allowlist is checked at publish and
+  again whenever a run opens the daemon. Publish refuses a sandbox desktop on
+  an agent or an inline specialist without a sandbox connection. An approved
+  batch runs only on a screen still the shape it was approved against, and
+  `max_actions` counts across approvals. The model's screenshots are not
+  kept: a parked run, its manifest and a compacted conversation hold a
+  sentence in their place. The chat draws the desktop live in a window under
+  the message, and `computer_save_screenshot` keeps a full-resolution
+  screenshot in the chat and the workspace, for a user who wants to see the
+  screen or a test that needs evidence (#2094).
 - **The desktop app looks and behaves like an application** (#2305). On macOS
   the console's sidebar holds the traffic lights and drags the window, the
   window remembers its size and place, closing it keeps the app in the menu
@@ -206,6 +212,11 @@ Two things are versioned separately from this file and worth knowing about:
   stored the validated arguments as they were, so a call carrying a Pydantic
   model failed to park with a serialization error instead of asking. They
   are stored as JSON now.
+- **A tool call's stored result no longer holds a picture's bytes.** A tool
+  that answered with an image, such as `web_fetch` on a picture, was
+  recorded as the image's Python representation, bytes and all, in the run's
+  history and the chat's tool row. The row says which kind of picture it
+  was instead.
 
 ### Security
 

@@ -7,6 +7,7 @@ different size.
 """
 
 import io
+import json
 from dataclasses import replace
 from typing import Any
 from uuid import UUID, uuid4
@@ -14,9 +15,20 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from PIL import Image
-from pydantic import ValidationError
-from pydantic_ai import BinaryContent, ModelRetry
+from pydantic import SecretStr, ValidationError
+from pydantic_ai import Agent, BinaryContent, ModelRetry
 from pydantic_ai._run_context import RunContext
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturn,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 from pydantic_ai.workspaces import CommandResult, Workspace, WorkspaceError
@@ -56,16 +68,20 @@ from app.agents.capabilities.computer_use._backends import (
 )
 from app.agents.capabilities.computer_use._toolset import (
     OUTPUT_DIR,
+    SEEN,
     ComputerToolset,
     SavedScreenshot,
+    Seen,
     ToolPolicy,
     build_toolset,
     fit,
 )
 from app.agents.deps import AgentDeps
+from app.agents.ephemeral_media import EPHEMERAL, NOT_KEPT, dump_messages
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import ApiKeySecret, SecretKind
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     _computer_use_problems,
@@ -135,6 +151,53 @@ def _ctx(frames: _Frames | None = None, *, retries: int = 0) -> RunContext[Agent
     )
     ctx.max_retries = retries
     return ctx
+
+
+def _said(answer: ToolReturn | str) -> tuple[str, BinaryContent]:
+    """The text and the screenshot an answer showed the model."""
+    assert isinstance(answer, ToolReturn)
+    text, image = answer.return_value  # ty: ignore[not-iterable] - always a pair here
+    assert isinstance(text, str)
+    assert isinstance(image, BinaryContent)
+    return text, image
+
+
+def _seen(answer: ToolReturn | str) -> Seen:
+    """What an answer recorded for a resumed run."""
+    assert isinstance(answer, ToolReturn)
+    return Seen.model_validate(answer.metadata[SEEN])
+
+
+def _resumed(
+    ctx: RunContext[AgentDeps],
+    *,
+    screen: Screen | None,
+    actions_taken: int = 0,
+    run_id: str | None = None,
+) -> RunContext[AgentDeps]:
+    """The context of a run resumed after a park, whose history ends on an earlier answer."""
+    seen = Seen(
+        run_id=run_id if run_id is not None else str(ctx.deps.run_id),
+        screen=screen,
+        actions_taken=actions_taken,
+    )
+    history: list[ModelMessage] = [
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="renamed_screenshot",
+                    content="Test desktop.",
+                    metadata={SEEN: seen.model_dump(mode="json")},
+                ),
+                ToolReturnPart(tool_name="other", content="unrelated", metadata={"x": 1}),
+            ]
+        )
+    ]
+    return replace(ctx, messages=history)
+
+
+_SHOWN = Screen(width=1280, height=800, native_width=1440, native_height=900)
+"""What a 2560x1600 capture of a 1440x900 desktop is shown to the model as."""
 
 
 def _toolset(desktop: Any, policy: ToolPolicy | None = None) -> ComputerToolset:
@@ -459,11 +522,11 @@ class TestTheTools:
     async def test_a_screenshot_is_shown_to_the_model_and_the_person(self):
         frames = _Frames()
         desktop = _Desktop()
-        answer = await _tools(desktop)["computer_screenshot"](_ctx(frames))
+        ctx = _ctx(frames)
+        text, image = _said(await _tools(desktop)["computer_screenshot"](ctx))
 
-        assert isinstance(answer[1], BinaryContent)
-        assert answer[1].media_type == "image/jpeg"
-        assert "1280x800" in answer[0]
+        assert image.media_type == "image/jpeg"
+        assert "1280x800" in text
         assert frames.kinds() == ["browser_opened", "browser_frame"]
         assert frames.events[0].title == "Test desktop"
         assert (frames.events[1].image or "").startswith("data:image/jpeg;base64,")
@@ -511,8 +574,8 @@ class TestTheTools:
 
         assert [(a.x, a.y) for a in desktop.performed[:1]] == [(720, 450)]
         assert len(desktop.performed) == 3
-        assert answer[0].startswith("Ran 3 of 3 action(s).")
-        assert isinstance(answer[1], BinaryContent)
+        assert _said(answer)[0].startswith("Ran 3 of 3 action(s).")
+        assert _seen(answer) == Seen(run_id=str(ctx.deps.run_id), screen=_SHOWN, actions_taken=3)
 
     async def test_an_approved_batch_runs_from_the_json_it_was_approved_as(self):
         desktop = _Desktop()
@@ -524,35 +587,133 @@ class TestTheTools:
         )
 
         assert [a.action for a in desktop.performed] == ["click", "type"]
-        assert answer[0].startswith("Ran 2 of 2 action(s).")
+        assert _said(answer)[0].startswith("Ran 2 of 2 action(s).")
 
-    async def test_a_run_resumed_after_approval_measures_the_screen_before_acting(self):
+    async def test_a_run_resumed_after_approval_acts_on_the_screen_it_was_shown(self):
         """Approval resumes the run as a new one, which has not looked yet.
 
         Refusing there sent the model back to look and ask again, so no approved
-        batch ever ran. The screen is measured, the window opens under the act,
-        and the points are mapped as they were on the screenshot before.
+        batch ever ran. The screen is measured, found the shape the model saw
+        before the park, the window opens under the act, and the points are
+        mapped as they were on that screenshot.
         """
         frames = _Frames()
         desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
-        answer = await _tools(desktop)["computer_act"](_ctx(frames), [Click(x=640, y=400)])
+        ctx = _resumed(_ctx(frames), screen=_SHOWN)
+        answer = await _tools(desktop)["computer_act"](ctx, [Click(x=640, y=400)])
 
         assert [(a.x, a.y) for a in desktop.performed] == [(720, 450)]
-        assert answer[0].startswith("Ran 1 of 1 action(s).")
+        assert _said(answer)[0].startswith("Ran 1 of 1 action(s).")
         assert frames.kinds()[:2] == ["browser_opened", "browser_frame"]
         assert {event.call_id for event in frames.events} == {"call-1"}
 
     @pytest.mark.security
-    async def test_a_resumed_batch_off_the_screen_is_still_refused(self):
+    @pytest.mark.parametrize(
+        "shown",
+        [
+            Screen(width=1280, height=800, native_width=2880, native_height=1800),
+            Screen(width=1280, height=720, native_width=1920, native_height=1080),
+        ],
+        ids=["resolution", "aspect"],
+    )
+    async def test_a_resumed_batch_on_a_screen_that_changed_does_nothing(self, shown: Screen):
+        """Points chosen on the old screenshot would land somewhere else on the new one.
+
+        Mapped through the new screen they can stay in bounds and click what
+        nobody approved, so the batch is refused and the new screenshot shown.
+        """
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+        ctx = _resumed(_ctx(), screen=shown)
+        answer = await _tools(desktop)["computer_act"](ctx, [Click(x=640, y=400)])
+
+        text, _ = _said(answer)
+        assert text.startswith("Nothing was done: the screen changed since the screenshot")
+        assert f"from {shown.native_width}x{shown.native_height} to 1440x900" in text
+        assert desktop.performed == []
+        assert _seen(answer).screen == _SHOWN
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("screen", [None, "absent"], ids=["lost", "never-taken"])
+    async def test_a_batch_with_no_screenshot_behind_it_is_refused(self, screen: str | None):
+        """Coordinates nobody chose on a screenshot mean nothing.
+
+        Either the history shows none - a compacted one, or a run that never
+        looked - or the last answer lost its screenshot after acting.
+        """
         desktop = _Desktop()
-        answer = await _tools(desktop)["computer_act"](_ctx(), [Click(x=1280, y=1)])
+        ctx = _ctx(retries=1) if screen == "absent" else _resumed(_ctx(retries=1), screen=None)
+        with pytest.raises(ModelRetry, match="Take a screenshot with `computer_screenshot` first"):
+            await _tools(desktop)["computer_act"](ctx, [Click(x=1, y=1)])
+
+        assert desktop.performed == []
+        assert desktop.captures == 0
+
+    @pytest.mark.security
+    async def test_a_resumed_batch_off_the_screen_is_still_refused(self):
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+        answer = await _tools(desktop)["computer_act"](
+            _resumed(_ctx(), screen=_SHOWN), [Click(x=1280, y=1)]
+        )
 
         assert "names (1280, 1), which is off the 1280x800 screenshot" in answer
         assert desktop.performed == []
 
     async def test_a_desktop_that_cannot_be_measured_is_a_sentence(self):
-        answer = await _tools(ComputerError("no desktop"))["computer_act"](_ctx(), [Wait()])
+        answer = await _tools(ComputerError("no desktop"))["computer_act"](
+            _resumed(_ctx(), screen=_SHOWN), [Wait()]
+        )
         assert answer == "no desktop"
+
+    @pytest.mark.security
+    async def test_the_action_budget_is_the_runs_across_approvals(self):
+        """Every approval resumes the run with a new session, which used to count from zero.
+
+        So an agent gated on approval took its whole budget again after each one.
+        """
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+        tools = _tools(desktop, ToolPolicy(max_actions=3, max_actions_per_call=2))
+        ctx = _resumed(_ctx(), screen=_SHOWN, actions_taken=2)
+
+        answer = await tools["computer_act"](ctx, [Wait(seconds=0.01), Wait(seconds=0.01)])
+
+        assert "may take 3 desktop actions per run and has taken 2" in answer
+        assert desktop.performed == []
+
+    async def test_a_screenshot_carries_the_runs_count_forward(self):
+        """A resumed run that only looks still records what the run has spent."""
+        ctx = _resumed(_ctx(), screen=_SHOWN, actions_taken=2)
+        answer = await _tools(_Desktop())["computer_screenshot"](ctx)
+
+        assert _seen(answer).actions_taken == 2
+
+    async def test_an_earlier_runs_actions_are_not_this_runs(self):
+        """A later turn is a new run, with its whole budget."""
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+        tools = _tools(desktop, ToolPolicy(max_actions=3, max_actions_per_call=2))
+        ctx = _resumed(_ctx(), screen=_SHOWN, actions_taken=3, run_id=str(uuid4()))
+
+        answer = await tools["computer_act"](ctx, [Wait(seconds=0.01)])
+
+        assert _said(answer)[0].startswith("Ran 1 of 1 action(s).")
+        assert _seen(answer).actions_taken == 1
+
+    async def test_an_unreadable_record_is_no_record(self):
+        ctx = replace(
+            _ctx(retries=1),
+            messages=[
+                ModelRequest(
+                    parts=[
+                        ToolReturnPart(tool_name="x", content="", metadata={SEEN: {"screen": 1}})
+                    ]
+                )
+            ],
+        )
+        with pytest.raises(ModelRetry, match="Take a screenshot"):
+            await _tools(_Desktop())["computer_act"](ctx, [Wait()])
+
+    async def test_the_model_is_shown_a_screenshot_nobody_keeps(self):
+        _, image = _said(await _tools(_Desktop())["computer_screenshot"](_ctx()))
+        assert image.identifier.startswith(EPHEMERAL)
 
     @pytest.mark.security
     async def test_a_point_off_the_screenshot_is_refused_before_anything_runs(self):
@@ -600,7 +761,7 @@ class TestTheTools:
         )
         await toolset.session.close_view()
 
-        assert "Ran 1 of 3 action(s). Action 2 (type) failed: no such window" in answer[0]
+        assert "Ran 1 of 3 action(s). Action 2 (type) failed: no such window" in _said(answer)[0]
         assert len(desktop.performed) == 1
         assert frames.events[-1].outcome == "failed"
         assert frames.events[-1].detail == "Action 2 (type) failed: no such window"
@@ -625,13 +786,73 @@ class TestTheTools:
         answer = await toolset.tools["computer_act"].function(ctx, [Wait(seconds=0.01)])
         await toolset.session.close_view()
 
-        assert answer == "Ran 1 of 1 action(s).\nThe desktop did not return a screenshot."
+        assert isinstance(answer, ToolReturn)
+        assert (
+            answer.return_value == "Ran 1 of 1 action(s).\nThe desktop did not return a screenshot."
+        )
+        assert _seen(answer) == Seen(run_id=str(ctx.deps.run_id), screen=None, actions_taken=1)
         assert frames.events[-1].outcome == "failed"
 
     async def test_without_preview_nothing_is_sent_to_the_chat(self):
         frames = _Frames()
         await _tools(_Desktop(), ToolPolicy(preview=False))["computer_screenshot"](_ctx(frames))
         assert frames.events == []
+
+
+class TestAcrossAPark:
+    @pytest.mark.security
+    async def test_a_stored_park_keeps_the_geometry_and_the_count_and_not_the_picture(self):
+        """What a resumed run reads back is the run's own stored messages.
+
+        A real run takes the screenshot and acts; its messages are stored the way
+        an approval parks them; a new capability - the resumed run's - acts on
+        what it reads back, with the screenshot's bytes gone from the store.
+        """
+        desktop = _Desktop(size=(2560, 1600), native=(1440, 900))
+
+        async def factory(workspace: Workspace) -> Any:
+            return desktop
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(parts=[ToolCallPart("computer_screenshot", {})])
+            if len(messages) == 3:
+                return ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            "computer_act", {"actions": [{"action": "wait", "seconds": 0.01}]}
+                        )
+                    ]
+                )
+            return ModelResponse(parts=[TextPart("parked")])
+
+        run_id = uuid4()
+        agent = Agent(
+            FunctionModel(model),
+            deps_type=AgentDeps,
+            capabilities=[ComputerUse(factory=factory, policy=ToolPolicy(max_actions=2))],
+        )
+        result = await agent.run("open the report", deps=AgentDeps(run_id=run_id))
+        stored = dump_messages(result.all_messages())
+
+        assert NOT_KEPT in json.dumps(stored)
+        assert all(
+            not (isinstance(item, dict) and item.get("kind") == "binary")
+            for message in stored
+            for part in message["parts"]
+            for item in (part.get("content") if isinstance(part.get("content"), list) else [])
+        )
+
+        resumed = replace(
+            _ctx(),
+            deps=AgentDeps(run_id=run_id),
+            messages=ModelMessagesTypeAdapter.validate_python(stored),
+        )
+        answer = await _tools(desktop, ToolPolicy(max_actions=2))["computer_act"](
+            resumed, [Wait(seconds=0.01), Wait(seconds=0.01)]
+        )
+
+        assert "may take 2 desktop actions per run and has taken 1" in answer
 
 
 class TestSavingAScreenshot:
@@ -710,15 +931,30 @@ class TestSavingAScreenshot:
 
 
 class TestTheCapability:
+    @pytest.fixture(autouse=True)
+    def desk_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["desk"])
+
     async def test_without_a_url_the_daemon_backend_says_what_to_set(self):
         with pytest.raises(ComputerError, match="daemon_url"):
             await ComputerUse(backend="daemon", daemon_token="t")._open(document_workspace())
 
-    async def test_without_a_token_the_deployment_says_it_cannot_reach_a_desktop(self):
-        with pytest.raises(ComputerError, match="COMPUTER_DAEMON_TOKEN"):
+    async def test_without_a_token_the_tool_says_where_one_comes_from(self):
+        with pytest.raises(ComputerError, match="token from the organization's vault"):
             await ComputerUse(backend="daemon", daemon_url="http://desk:8765")._open(
                 document_workspace()
             )
+
+    @pytest.mark.security
+    async def test_a_host_taken_off_the_allowlist_after_publish_is_not_sent_the_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Publish checked the host once; the operator's list is what holds now."""
+        capability = ComputerUse(backend="daemon", daemon_url="http://desk:8765", daemon_token="t")
+        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
+
+        with pytest.raises(ComputerError, match="does not allow computer use against 'desk'"):
+            await capability._open(document_workspace())
 
     async def test_a_configured_daemon_is_reached_with_the_token(self):
         desktop = await ComputerUse(
@@ -801,8 +1037,22 @@ class TestRegistration:
 
     def test_the_sandbox_is_the_default_and_nothing_is_asked_of_the_vault(self):
         definition = get("computer_use")
-        assert definition.secret is None
         assert ComputerUseConfig().desktop == "sandbox"
+        assert not definition.needs_secret(ComputerUseConfig())
+
+    @pytest.mark.security
+    def test_a_daemon_needs_the_organizations_token_from_its_vault(self):
+        """The token is what lets an organization drive a desktop, so it is the organization's.
+
+        The allowlist is the deployment's, so any organization may name an allowed
+        host; a deployment-wide token went with it and let one organization
+        drive another's desktop.
+        """
+        definition = get("computer_use")
+        assert definition.secret is not None
+        assert definition.secret.kind == SecretKind.API_KEY
+        assert definition.needs_secret(ComputerUseConfig(desktop="daemon"))
+        assert not hasattr(settings, "COMPUTER_DAEMON_TOKEN")
 
     def test_where_the_desktop_is_is_asked_first_and_only_a_daemon_has_a_url(self):
         properties = ComputerUseConfig.model_json_schema()["properties"]
@@ -813,8 +1063,7 @@ class TestRegistration:
             "equals": ["daemon"],
         }
 
-    def test_the_builder_hands_over_the_token_and_the_limits(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(settings, "COMPUTER_DAEMON_TOKEN", "deployment-token")
+    def test_the_builder_hands_over_the_bindings_token_and_the_limits(self):
         capability = _build(
             {
                 "desktop": "daemon",
@@ -822,18 +1071,24 @@ class TestRegistration:
                 "max_actions": 50,
                 "max_actions_per_call": 5,
                 "preview": False,
-            }
+            },
+            secret=ApiKeySecret(api_key=SecretStr("organization-token")),
         )
 
         assert (capability.backend, capability.daemon_url) == ("daemon", "http://desk:8765")
-        assert capability.daemon_token == "deployment-token"
+        assert capability.daemon_token == "organization-token"
+        assert "organization-token" not in repr(capability)
         assert capability.policy == ToolPolicy(
             max_actions=50, max_actions_per_call=5, preview=False
         )
 
     def test_an_empty_config_builds_a_desktop_in_the_sandbox(self):
         capability = _build({})
-        assert (capability.backend, capability.daemon_url) == ("sandbox", "")
+        assert (capability.backend, capability.daemon_url, capability.daemon_token) == (
+            "sandbox",
+            "",
+            "",
+        )
 
     def test_a_batch_larger_than_the_run_is_refused(self):
         with pytest.raises(ValidationError, match="cannot be larger than max_actions"):
@@ -841,7 +1096,7 @@ class TestRegistration:
 
 
 class TestTheDaemonAllowlist:
-    """`daemon_url` is in the spec, and the deployment's token goes wherever it points."""
+    """`daemon_url` is in the spec, and the binding's token goes wherever it points."""
 
     def test_an_allowed_host_passes_case_folded(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [" Desk.Internal "])
@@ -856,6 +1111,9 @@ class TestTheDaemonAllowlist:
             ("", "needs a daemon_url"),
             ("ftp://desk.internal", "http or https URL"),
             ("http://desk.internal:99999", "invalid port"),
+            ("http://desk.internal:8765?x=1", "no query or fragment"),
+            ("http://desk.internal:8765/#top", "no query or fragment"),
+            ("http://desk.internal:8765?", "no query or fragment"),
             (
                 "http://attacker.example:8765",
                 "does not allow computer use against 'attacker.example'",
@@ -897,15 +1155,15 @@ class TestTheDaemonAllowlist:
         )
         assert _computer_use_problems(None) == []
 
-    def test_the_form_suggests_the_first_allowed_host(self, monkeypatch: pytest.MonkeyPatch):
+    @pytest.mark.security
+    def test_the_form_names_no_allowed_host(self, monkeypatch: pytest.MonkeyPatch):
+        """Every organization reads the catalog; the operator's desktops are not theirs to learn."""
+        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", ["private-desk.corp"])
         schema: dict[str, Any] = {}
-        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [" ", "desk"])
         _daemon_url_form(schema)
-        assert schema["x-placeholder"] == "http://desk:8765"
 
-        monkeypatch.setattr(settings, "COMPUTER_DAEMON_ALLOWED_HOSTS", [])
-        _daemon_url_form(schema)
-        assert schema["x-placeholder"] == "Set COMPUTER_DAEMON_ALLOWED_HOSTS first"
+        assert "private-desk" not in str(schema)
+        assert "private-desk" not in str(ComputerUseConfig.model_json_schema())
 
 
 class TestPublishingADesktopInTheSandbox:

@@ -23,11 +23,17 @@ The settings ask `desktop` first: `sandbox` or `daemon`.
   its files and lost its processes.
 - **`daemon`**: a `computerd` process the operator runs, on their own Linux
   desktop (X11), on a Mac's own screen or in a container
-  (`deploy/computer/Dockerfile`). The deployment reaches it over HTTP with
-  `COMPUTER_DAEMON_TOKEN`. Its host must be on `COMPUTER_DAEMON_ALLOWED_HOSTS`,
-  and publish checks that. `daemon_url` is in the spec, so it is under tenant
-  control; this works the same way as `BROWSER_CDP_ALLOWED_HOSTS`.
-  One daemon is one desktop: every run pointed at it shares the machine.
+  (`deploy/computer/Dockerfile`). A run reaches it over HTTP with the
+  daemon's token, an API key in the organization's vault that the binding
+  names (`secret=` with `required_when` the daemon). Its host must be on
+  `COMPUTER_DAEMON_ALLOWED_HOSTS`, checked by `check_daemon_url` at publish
+  and again in `_open`, so a host the operator removes is not sent the token
+  by an agent published before. `daemon_url` is in the spec, so it is under
+  tenant control; this works the same way as `BROWSER_CDP_ALLOWED_HOSTS`. The
+  allowlist is the deployment's, so any organization can name an allowed
+  host; the token is what keeps one organization off another's desktop, which
+  is why it is not a deployment setting.
+  One daemon is one desktop: every run holding its token shares the machine.
 
 ## Decisions
 
@@ -39,6 +45,21 @@ screenshot the model has already shown. The approved batch runs in a resumed
 run, which is a new one with nothing looked at yet, so `computer_act` measures
 the screen first rather than refuse the batch. The gate stores the batch as JSON
 and runs it from there, so `computer_act` validates its actions again.
+
+**A park forgets nothing the run needs.** Every answer carries a `Seen` in its
+`metadata`: the run's id, the screenshot's `Screen` and the actions taken so
+far. The metadata is stored with the run's messages and never sent to the
+model. A resumed run reads back the last one: a batch runs only if the screen
+measured now is the `Screen` it was chosen on, and `max_actions` carries on
+from the count when the run is the same one. A history with no screenshot
+behind the batch is steered to take one.
+
+**The model's screenshots are not kept.** Each is an `ephemeral_image`
+(`app/agents/ephemeral_media.py`), and `dump_messages` puts a sentence in its
+place wherever a run's messages are stored: the parked state, a parked
+delegate's history, the manifest and a compacted conversation. The tool row
+in the transcript says the same. `computer_save_screenshot` is the one the user
+keeps.
 
 **Coordinates are scaled in one place.** The model sees at most
 `screen_width`x`screen_height`. `_actions.Screen.to_native` maps every point

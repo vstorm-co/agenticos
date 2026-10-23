@@ -7485,7 +7485,7 @@
       "does": "Lets the agent operate a whole desktop - any application, not only web pages - by looking at screenshots and using the mouse and keyboard. You watch it live in the chat.",
       "example1": "Fill in a form in a desktop application",
       "example2": "Export a report from a legacy tool with no API",
-      "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac. Each step is one model request with a screenshot.",
+      "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
     },
     "context": {

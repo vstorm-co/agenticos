@@ -7260,7 +7260,7 @@
       "does": "Pozwala agentowi obsługiwać cały pulpit - dowolną aplikację, nie tylko strony WWW - patrząc na zrzuty ekranu i używając myszy i klawiatury. Oglądasz to na żywo w czacie.",
       "example1": "Wypełnij formularz w aplikacji desktopowej",
       "example2": "Wyeksportuj raport ze starego narzędzia bez API",
-      "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
+      "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu, z tokenem w vaulcie organizacji. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
       "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
     },
     "context": {

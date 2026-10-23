@@ -474,6 +474,33 @@ class TestInlineSpecialists:
 
         await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
+    async def test_a_specialists_desktop_with_no_sandbox_to_run_in_is_refused(self):
+        """The parent's check, run on the specialist, or its first screenshot fails instead."""
+        problems = await _problems(
+            _ctx(), _delegating({"inline": [_specialist(capabilities=[{"id": "computer_use"}])]})
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Computer use's desktop runs in the agent's sandbox, so it "
+            "needs the Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+
+    async def test_a_specialist_can_work_a_desktop_in_the_sandbox_its_parent_shares(
+        self, monkeypatch
+    ):
+        # The parent's connection is not the subject; `_sandbox_problems` has its own tests.
+        monkeypatch.setattr(agent_registry, "_sandbox_problems", AsyncMock(return_value=[]))
+        sandbox = {"id": "sandbox", "config": {"backend": "service", "connection_id": str(uuid4())}}
+        spec = _delegating(
+            {
+                "share_with_delegates": ["sandbox"],
+                "inline": [_specialist(capabilities=[{"id": "computer_use"}])],
+            },
+            capabilities=[sandbox],
+        )
+
+        await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
     async def test_a_delegation_config_that_does_not_parse_is_reported_once(self):
         """The binding check has already said so; a second guess adds nothing."""
         spec = _delegating({"max_depth": 99})

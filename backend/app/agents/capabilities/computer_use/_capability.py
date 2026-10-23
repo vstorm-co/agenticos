@@ -13,9 +13,11 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerError,
     ComputerFactory,
     DaemonComputer,
+    check_daemon_url,
     open_sandbox_desktop,
 )
 from app.agents.capabilities.computer_use._toolset import ToolPolicy, build_toolset
+from app.core.sanitize import UrlRefusedError
 
 _INSTRUCTIONS = """\
 You can operate a computer's desktop with the `computer_screenshot` and `computer_act` tools.
@@ -34,7 +36,7 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
 
     Adds `computer_screenshot`, `computer_act` and `computer_save_screenshot`.
     The desktop is the agent's own sandbox, or a `computerd` daemon the operator
-    runs on their own Linux desktop or Mac. Nothing is opened until the first
+    runs on their own Linux desktop or Mac, reached with the organization's token. Nothing is opened until the first
     call, so binding the capability to an agent that never uses it costs nothing.
     """
 
@@ -54,13 +56,16 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
             return await open_sandbox_desktop(
                 workspace, width=self.policy.max_width, height=self.policy.max_height
             )
-        if not self.daemon_url:
-            raise ComputerError(
-                "Computer use has no desktop configured. Set the capability's daemon_url."
-            )
+        try:
+            # Again, not only at publish: the operator may have taken the host off
+            # the allowlist since, and the token must not follow the agent there.
+            check_daemon_url(self.daemon_url)
+        except UrlRefusedError as exc:
+            raise ComputerError(str(exc)) from exc
         if not self.daemon_token:
             raise ComputerError(
-                "This deployment has no COMPUTER_DAEMON_TOKEN, so it cannot reach a desktop."
+                "Computer use has no token for this desktop. Name the daemon's token "
+                "from the organization's vault on the capability."
             )
         return DaemonComputer(self.daemon_url, self.daemon_token)
 

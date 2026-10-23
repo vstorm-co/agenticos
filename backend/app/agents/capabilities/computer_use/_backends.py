@@ -13,12 +13,13 @@ the same machine the agent's shell and file tools work on, shared by whoever
 shares the workspace, and it is put away with it.
 
 **A daemon** is the operator's machine: their own Linux desktop or Mac, or a
-desktop container they keep running. It is reached over HTTP with
-`COMPUTER_DAEMON_TOKEN`, and its host has to be on `COMPUTER_DAEMON_ALLOWED_HOSTS`
-- the same reasoning as `BROWSER_CDP_ALLOWED_HOSTS`, since the URL is in a spec
-an agent's editor writes. One daemon is one desktop: every run pointed at it
-shares it, which is why it suits a dedicated machine and not a tenant-per-desktop
-deployment.
+desktop container they keep running. It is reached over HTTP with the token
+the binding names in the organization's vault, and its host has to be on
+`COMPUTER_DAEMON_ALLOWED_HOSTS` - the same reasoning as `BROWSER_CDP_ALLOWED_HOSTS`,
+since the URL is in a spec an agent's editor writes. The allowlist says where
+this deployment may send a request; the token says who may drive the desktop,
+so it belongs to the organization that runs it rather than to the deployment.
+One daemon is one desktop: every run holding its token shares it.
 """
 
 import logging
@@ -26,6 +27,7 @@ import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import anyio
@@ -41,6 +43,8 @@ from app.agents.capabilities.computer_use._actions import (
     TypeText,
     Wait,
 )
+from app.core.config import settings
+from app.core.sanitize import UrlRefusedError
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +184,42 @@ def xdotool(action: NativeAction) -> list[str] | None:
             return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
             return None
+
+
+def check_daemon_url(url: str) -> None:
+    """Refuse a daemon URL this deployment's operator has not vetted.
+
+    Checked at publish and again each time a run opens the daemon, so a host the
+    operator has since taken off `COMPUTER_DAEMON_ALLOWED_HOSTS` is not sent the
+    token by an agent published while it was on. Exact, case-folded host matching;
+    an empty list refuses every daemon. The URL is a base the daemon's paths are
+    appended to, so a query or a fragment, which would swallow them, is refused.
+
+    Raises:
+        UrlRefusedError: The URL is missing, malformed, or names a host that is
+            not allowed.
+    """
+    if not url:
+        raise UrlRefusedError(
+            "Computer use needs a daemon_url: the computerd endpoint of the desktop to drive"
+        )
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise UrlRefusedError("A daemon_url must be an http or https URL with a host")
+    if "?" in url or "#" in url:
+        raise UrlRefusedError(
+            "A daemon_url is the daemon's address alone, with no query or fragment"
+        )
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise UrlRefusedError(f"The daemon_url has an invalid port: {exc}") from exc
+    allowed = {host.strip().lower() for host in settings.COMPUTER_DAEMON_ALLOWED_HOSTS}
+    if parsed.hostname.lower() not in allowed:
+        raise UrlRefusedError(
+            f"This deployment does not allow computer use against '{parsed.hostname}'. "
+            f"Add it to COMPUTER_DAEMON_ALLOWED_HOSTS"
+        )
 
 
 class DaemonComputer:

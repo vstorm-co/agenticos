@@ -1,5 +1,5 @@
 ---
-source_sha: "ce04b4e9501a"
+source_sha: "d0c7eb58c28e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -60,7 +60,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
-| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | übergeben |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
@@ -910,21 +910,26 @@ verlangt. `computer_screenshot` ändert nichts. Mit `tool_approval:
 {computer_act: required}` wartet jeder Stapel von Aktionen auf eine Freigabe,
 gegen einen Screenshot, den Modell und Freigebender beide gesehen haben. Ein
 Punkt außerhalb dieses Screenshots wird verweigert, bevor irgendetwas läuft. Ein
-freigegebener Stapel läuft in einem eigenen Run, der den Bildschirm vor dem
-Handeln neu vermisst, statt ihn zu verweigern.
+freigegebener Stapel läuft in einem eigenen Run, der den Bildschirm zuerst
+vermisst und nur handelt, wenn er noch dieselbe Form hat wie auf dem Screenshot,
+auf dem der Stapel gewählt wurde. Eine geänderte Auflösung oder ein geändertes
+Seitenverhältnis bewirkt nichts und zeigt dem Modell den neuen Bildschirm.
+`max_actions` gilt für den ganzen Run, wie oft er auch auf eine Freigabe wartet.
 
 | `desktop` | Der Desktop | Braucht |
 |---|---|---|
 | `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
-| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und das Token des Daemons als Secret der Bindung |
 
 Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
 Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
 Agent nach dem `session_scope` der Sandbox-Capability, und eine Datei, die der
 Agent mit seinen Datei-Tools schreibt, ist eine Datei, die er auf dem Bildschirm
 öffnen kann. Das Veröffentlichen verweigert einen `sandbox`-Desktop bei einem
-Agent ohne Sandbox-Verbindung; eine Sandbox auf einer anderen Runtime teilt dem
-Modell beim ersten Screenshot mit, dass kein Desktop installiert ist.
+Agent ohne Sandbox-Verbindung und bei einem Inline-Spezialisten, der weder eine
+eigene hat noch eine, die sein Eltern-Agent mit ihm teilt; eine Sandbox auf einer
+anderen Runtime teilt dem Modell beim ersten Screenshot mit, dass kein Desktop
+installiert ist.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann
@@ -934,10 +939,23 @@ Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
 Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
 Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen.
 
+**Das Token eines Daemons gehört der Organisation.** Das `COMPUTERD_TOKEN`, mit
+dem der Daemon gestartet wurde, liegt als API-Schlüssel im
+[Vault](../secrets.md) der Organisation und wird durch die `secret_id` der
+Bindung benannt; das Veröffentlichen verweigert einen Daemon ohne Token.
+`COMPUTER_DAEMON_ALLOWED_HOSTS` ist die Liste des Deployments, wohin ein Run
+dieses Token senden darf. Sie wird beim Veröffentlichen geprüft und erneut
+jedes Mal, wenn ein Run den Daemon öffnet, sodass ein von ihr gestrichener Host
+auch bereits veröffentlichte Agents stoppt. Jede Organisation kann einen
+erlaubten Host nennen, also hält das Token, nicht die Liste, eine Organisation
+vom Desktop einer anderen fern: Geben Sie jedem Desktop ein eigenes Token.
+`daemon_url` ist allein die Adresse des Daemons, und eine mit Query oder
+Fragment wird verweigert.
+
 | Einstellung | Standard | Bereich |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host |
+| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query oder Fragment |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
 | `max_actions` | 200 | 1–2000 pro Run |
@@ -949,7 +967,9 @@ Bild nach jedem Aufruf und einer Zeile pro Aktion. Text, den
 das Modell tippt, ist dort so zu sehen, wie er getippt wurde.
 
 **Ein Screenshot, den der Nutzer behält.** `computer_screenshot` ist für das
-Modell, und nichts bewahrt ihn auf. Will der Nutzer den Bildschirm sehen oder
+Modell, und nichts bewahrt ihn auf: Ein Run, der auf eine Freigabe wartet,
+sein Manifest und eine verdichtete Konversation speichern an seiner Stelle einen
+Satz. Will der Nutzer den Bildschirm sehen oder
 soll das Ergebnis eines Schritts als Nachweis bleiben, ruft der Agent
 `computer_save_screenshot` auf. Es speichert den Bildschirm in voller Auflösung
 für die Organisation und zeigt ihn im Chat, verlinkt auf die Datei in voller

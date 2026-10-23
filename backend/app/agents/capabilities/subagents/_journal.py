@@ -79,6 +79,7 @@ from subagents_pydantic_ai.registry import DynamicAgentRegistry
 from app.agents.capabilities.budget import BudgetExceeded, SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
+from app.agents.ephemeral_media import without_ephemeral
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import DelegationMode
@@ -673,7 +674,7 @@ class DelegationJournal:
                 # `all_messages_json` produced. Parsed here rather than at the
                 # resume so that a history the runner cannot serialise fails while
                 # there is still a run to attribute the failure to.
-                messages=[] if history is None else list(json.loads(history)),
+                messages=[] if history is None else without_ephemeral(list(json.loads(history))),
                 spent=self._carried_for_park(delegation),
                 started_at=self._span_start(delegation, handle),
             )

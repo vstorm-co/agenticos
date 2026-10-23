@@ -2017,9 +2017,14 @@ class AgentRegistryService:
 
         problems = _SpecProblems()
         names: list[str] = []
+        # What the runtime lends each specialist, chosen the way it chooses them.
+        share = set(config.share_with_delegates) - {DELEGATION_CAPABILITY_ID}
+        shared = [
+            binding for binding in spec.capabilities if binding.enabled and binding.id in share
+        ]
         for specialist in config.inline:
             names.append(specialist.name)
-            problems.merge(await self._specialist_problems(ctx, specialist))
+            problems.merge(await self._specialist_problems(ctx, specialist, shared=shared))
         problems.add(_share_problems(spec, config))
 
         pins = await self._resolve_pins(ctx, spec.subagents)
@@ -2072,7 +2077,7 @@ class AgentRegistryService:
         return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
-        self, ctx: AuthContext, specialist: SpecialistSpec
+        self, ctx: AuthContext, specialist: SpecialistSpec, *, shared: list[CapabilityBindingSpec]
     ) -> _SpecProblems:
         """Everything wrong with a specialist defined inside this agent.
 
@@ -2086,7 +2091,9 @@ class AgentRegistryService:
         thinks of it as an agent.
 
         Every problem carries the specialist's name. A Builder form has one input
-        per specialist and cannot point at the right one otherwise.
+        per specialist and cannot point at the right one otherwise. `shared` is
+        the parent's bindings the specialist inherits, which is where a desktop
+        in the sandbox finds one when the specialist binds none itself.
         """
         problems = _SpecProblems()
         for binding in specialist.capabilities:
@@ -2101,7 +2108,15 @@ class AgentRegistryService:
             problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
-        problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
+        as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
+        problems.merge(_variable_problems(as_agent))
+        own = {binding.id for binding in as_agent.capabilities}
+        inherited = [binding for binding in shared if binding.id not in own]
+        problems.add(
+            _computer_use_sandbox_problems(
+                as_agent.model_copy(update={"capabilities": [*as_agent.capabilities, *inherited]})
+            )
+        )
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

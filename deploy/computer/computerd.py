@@ -31,7 +31,7 @@ in `main()`; the class says what it owes.
 
 Settings, all from the environment:
 
-    COMPUTERD_TOKEN   required; AgenticOS's COMPUTER_DAEMON_TOKEN
+    COMPUTERD_TOKEN   required; the API key the organization's vault holds for this desktop
     COMPUTERD_HOST    default 127.0.0.1 - set 0.0.0.0 only on a network you trust
     COMPUTERD_PORT    default 8765
 """
@@ -432,7 +432,7 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
 def main() -> None:
     token = os.environ.get("COMPUTERD_TOKEN", "")
     if len(token) < 16:
-        sys.exit("computerd: set COMPUTERD_TOKEN to at least 16 characters (AgenticOS's COMPUTER_DAEMON_TOKEN)")
+        sys.exit("computerd: set COMPUTERD_TOKEN to at least 16 characters (the key in the organization's vault)")
     host = os.environ.get("COMPUTERD_HOST", "127.0.0.1")
     port = int(os.environ.get("COMPUTERD_PORT", "8765"))
     driver: Driver = MacDriver() if platform.system() == "Darwin" else X11Driver()

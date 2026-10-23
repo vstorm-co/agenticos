@@ -53,7 +53,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | handed off |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
@@ -812,19 +812,23 @@ approval until the agent's owner asks for it. `computer_screenshot` changes
 nothing. Set `tool_approval: {computer_act: required}` and every batch of
 actions waits for approval against a screenshot both the model and the approver
 have seen. A point outside that screenshot is refused before anything runs. An
-approved batch runs in a run of its own, which measures the screen before acting
-rather than refuse it.
+approved batch runs in a run of its own, which measures the screen first and
+acts only if it is still the shape it was on the screenshot the batch was chosen
+on. A changed resolution or aspect ratio does nothing and shows the model the
+new screen. `max_actions` is the run's, however many times it waits for
+approval.
 
 | `desktop` | The desktop | Needs |
 |---|---|---|
 | `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
-| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and the daemon's token as the binding's secret |
 
 A sandbox desktop needs nothing of its own: no address, no token and no
 provider. It lives and is shared exactly as the sandbox is, per conversation or
 per agent by the Sandbox capability's `session_scope`, and a file the agent
 writes with its file tools is a file it can open on the screen. Publish refuses
-a `sandbox` desktop on an agent without a sandbox connection; a sandbox on
+a `sandbox` desktop on an agent without a sandbox connection, and on an inline
+specialist without one of its own or one its parent shares; a sandbox on
 another runtime tells the model at its first screenshot that it has no desktop
 installed.
 
@@ -836,10 +840,21 @@ One daemon is one desktop: every run pointed at it shares the machine and
 whatever is signed in on it. Give it a dedicated machine or account, not
 somebody's working session.
 
+**A daemon's token is the organization's.** The `COMPUTERD_TOKEN` the daemon
+was started with is stored in the organization's [vault](../secrets.md) as an
+API key and named by the binding's `secret_id`, and publish refuses a daemon
+without one. `COMPUTER_DAEMON_ALLOWED_HOSTS` is the deployment's list of where a
+run may send that token. It is checked at publish and again each time a run
+opens the daemon, so taking a host off it stops agents already published. Every
+organization can name an allowed host, so the token, not the list, keeps one
+organization off another's desktop: give each desktop its own token.
+`daemon_url` is the daemon's address alone, and one with a query or a fragment
+is refused.
+
 | Config | Default | Range |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | empty, refused at publish for `daemon` | an allowed host |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query or fragment |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
 | `max_actions` | 200 | 1–2000 per run |
@@ -850,7 +865,8 @@ works: one window per run, opened by its first screenshot, with a frame after
 every call and a line per action. Text the model types is shown there as typed.
 
 **A screenshot the user keeps.** `computer_screenshot` is for the model, and
-nothing keeps it. When the user asks to see the screen, or a step's result
+nothing keeps it: a run waiting on approval, its manifest and a compacted
+conversation store a sentence in its place. When the user asks to see the screen, or a step's result
 should be kept as evidence, the agent calls `computer_save_screenshot`. It
 stores the screen at full resolution for the organization and shows it in the
 chat, linked to the full-size file. When the agent has a workspace, it also

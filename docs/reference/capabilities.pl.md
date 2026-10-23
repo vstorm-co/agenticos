@@ -1,5 +1,5 @@
 ---
-source_sha: "ce04b4e9501a"
+source_sha: "d0c7eb58c28e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -60,7 +60,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
-| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | — | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
@@ -858,20 +858,24 @@ z nich nie czeka na akceptację, dopóki właściciel agenta o nią nie poprosi.
 {computer_act: required}` każda paczka akcji czeka na akceptację względem zrzutu
 ekranu, który widział i model, i akceptujący. Punkt spoza tego zrzutu jest
 odrzucany, zanim cokolwiek się wykona. Zaakceptowana paczka wykonuje się w
-osobnym runie, który przed działaniem ponownie mierzy ekran, zamiast ją
-odrzucić.
+osobnym runie, który najpierw mierzy ekran i działa tylko wtedy, gdy ma on wciąż
+ten sam kształt co na zrzucie, na podstawie którego wybrano paczkę. Zmieniona
+rozdzielczość albo proporcje nie robią nic i pokazują modelowi nowy ekran.
+`max_actions` dotyczy całego runa, niezależnie od tego, ile razy czeka on na
+akceptację.
 
 | `desktop` | Pulpit | Wymaga |
 |---|---|---|
 | `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
-| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz `COMPUTER_DAEMON_TOKEN` |
+| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz token daemona jako sekret bindingu |
 
 Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
 providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
 na agenta, według `session_scope` capability Sandbox, a plik, który agent
 zapisze narzędziami plikowymi, jest plikiem, który może otworzyć na ekranie.
-Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa; sandbox
-na innym runtime'ie mówi modelowi przy pierwszym zrzucie ekranu, że nie ma
+Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa oraz u
+specjalisty inline bez własnego połączenia albo takiego, które udostępnia mu
+rodzic; sandbox na innym runtime'ie mówi modelowi przy pierwszym zrzucie ekranu, że nie ma
 zainstalowanego pulpitu.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
@@ -882,10 +886,21 @@ Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę
 wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
 czyjąś sesję roboczą.
 
+**Token daemona należy do organizacji.** `COMPUTERD_TOKEN`, z którym uruchomiono
+daemona, jest przechowywany w [vaulcie](../secrets.md) organizacji jako klucz API
+i wskazany przez `secret_id` bindingu, a publikacja odrzuca daemona bez niego.
+`COMPUTER_DAEMON_ALLOWED_HOSTS` to lista wdrożenia, dokąd run może wysłać ten
+token. Jest sprawdzana przy publikacji i ponownie za każdym razem, gdy run
+otwiera daemona, więc zdjęcie z niej hosta zatrzymuje agentów już opublikowanych.
+Każda organizacja może wskazać dozwolony host, więc to token, a nie lista,
+trzyma jedną organizację z dala od pulpitu innej: daj każdemu pulpitowi własny
+token. `daemon_url` to wyłącznie adres daemona, a adres z zapytaniem (query) albo
+fragmentem jest odrzucany.
+
 | Ustawienie | Domyślnie | Zakres |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query ani fragmentu |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
 | `max_actions` | 200 | 1–2000 na run |
@@ -897,7 +912,8 @@ na akcję. Tekst wpisywany przez model
 jest tam widoczny tak, jak został wpisany.
 
 **Zrzut ekranu, który zostaje u użytkownika.** `computer_screenshot` jest dla
-modelu i nic go nie przechowuje. Gdy użytkownik chce zobaczyć ekran albo wynik
+modelu i nic go nie przechowuje: run czekający na akceptację, jego manifest i
+skompaktowana rozmowa zapisują w jego miejscu jedno zdanie. Gdy użytkownik chce zobaczyć ekran albo wynik
 kroku ma zostać zachowany jako dowód, agent wywołuje `computer_save_screenshot`.
 Zapisuje on ekran w pełnej rozdzielczości dla organizacji i pokazuje go w czacie
 z linkiem do pliku w pełnym rozmiarze. Gdy agent ma workspace, zapisuje też plik

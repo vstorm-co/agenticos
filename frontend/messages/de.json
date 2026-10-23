@@ -7364,7 +7364,7 @@
       "does": "Lässt den Agenten einen ganzen Desktop bedienen - jede Anwendung, nicht nur Webseiten - anhand von Screenshots, mit Maus und Tastatur. Sie sehen live im Chat zu.",
       "example1": "Ein Formular in einer Desktop-Anwendung ausfüllen",
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
-      "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
+      "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
     },
     "context": {
