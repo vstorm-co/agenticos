@@ -16,14 +16,18 @@ Two endpoints behind a bearer token:
 
 and `GET /health`, unauthenticated, for a container's health check.
 
-Standard library only on Linux (it shells out to `scrot` and `xdotool`); on macOS
-it needs Quartz, which the inline script metadata above declares, so
+Standard library only on Linux (it shells out to `scrot` and `xdotool`, so X11
+only: a Wayland session reaches nothing but its XWayland windows that way); on
+macOS it needs Quartz, which the inline script metadata above declares, so
 
     COMPUTERD_TOKEN=... uv run deploy/computer/computerd.py
 
 is the whole installation. macOS asks for Screen Recording and Accessibility for
 the terminal that runs it, the first time; until both are granted screenshots
 show only the wallpaper and clicks do nothing.
+
+Another desktop - a Wayland compositor, Windows - is a `Driver` subclass picked
+in `main()`; the class says what it owes.
 
 Settings, all from the environment:
 
@@ -45,10 +49,11 @@ import sys
 import tempfile
 import threading
 import time
+from abc import ABC, abstractmethod
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
@@ -72,16 +77,51 @@ def _int(action: dict[str, Any], key: str, *, low: int = 0, high: int = 100_000,
     return value
 
 
-class Driver(Protocol):
-    name: str
+class Driver(ABC):
+    """One desktop's screen, pointer and keyboard - what a new desktop implements.
 
-    def screenshot(self) -> tuple[bytes, int, int]: ...
-    def click(self, x: int, y: int, button: str, count: int) -> None: ...
-    def move(self, x: int, y: int) -> None: ...
-    def drag(self, x: int, y: int, to_x: int, to_y: int) -> None: ...
-    def scroll(self, x: int, y: int, direction: str, amount: int) -> None: ...
-    def type_text(self, text: str) -> None: ...
-    def key(self, chord: str) -> None: ...
+    Subclass it and pick the subclass in `main()`. `perform` has already checked
+    every argument against the ranges below, so a driver only carries the action
+    out. Coordinates are in the space `screenshot` reports: the model clicks where
+    it saw something, so `(x, y)` has to land on that spot of the last screenshot.
+    Raise `Refused` for what this desktop cannot do; its text goes back to the
+    model, so say what to change.
+    """
+
+    name: str
+    """What the panel calls this desktop (`x-platform`): "Linux", "macOS"."""
+
+    @abstractmethod
+    def screenshot(self) -> tuple[bytes, int, int]:
+        """The main screen as PNG, and the width and height pointer coordinates are in.
+
+        The image may be larger than that space - a Retina Mac's is twice its
+        points - and AgenticOS scales between the two.
+        """
+
+    @abstractmethod
+    def click(self, x: int, y: int, button: str, count: int) -> None:
+        """Click `button` (left, right or middle) at a point, `count` (1 to 3) times."""
+
+    @abstractmethod
+    def move(self, x: int, y: int) -> None:
+        """Move the pointer without pressing anything."""
+
+    @abstractmethod
+    def drag(self, x: int, y: int, to_x: int, to_y: int) -> None:
+        """Press the left button at one point, move to another and release it there."""
+
+    @abstractmethod
+    def scroll(self, x: int, y: int, direction: str, amount: int) -> None:
+        """Scroll with the pointer at a point: up, down, left or right, `amount` (1 to 20) notches."""
+
+    @abstractmethod
+    def type_text(self, text: str) -> None:
+        """Type text into whatever has focus, newlines and non-ASCII characters included."""
+
+    @abstractmethod
+    def key(self, chord: str) -> None:
+        """Press a chord such as `ctrl+shift+t`, `enter` or `cmd+space`; `split_chord` parses it."""
 
 
 def split_chord(chord: str) -> list[str]:
@@ -91,7 +131,7 @@ def split_chord(chord: str) -> list[str]:
     return parts
 
 
-class X11Driver:
+class X11Driver(Driver):
     """Any X11 display, through `scrot` and `xdotool`."""
 
     name = "Linux"
@@ -146,7 +186,7 @@ class X11Driver:
         self._xdotool("key", "--", "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
 
 
-class MacDriver:
+class MacDriver(Driver):
     """The Mac's main display, through `screencapture` and Quartz events."""
 
     name = "macOS"
