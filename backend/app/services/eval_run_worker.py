@@ -64,7 +64,7 @@ from app.schemas.scoring import DatasetScoring
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.eval_comparison import Flip, classify
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, drifts
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.scorers import ScoredAnswer, ScoredCall
 from app.services.scoring import ScoringService
@@ -566,9 +566,9 @@ class EvalRunWorker:
 
         A case is rerun on each candidate arm it flipped on, and on this run's
         own baseline arm - one that ran here, or one standing in for an earlier
-        run's answers, which is asked the flipped cases again here. A past
-        baseline from another run cannot be rerun, so only the candidate side
-        confirms against it.
+        run's answers, which is asked the flipped cases again here. A case whose
+        content changed since the baseline answered it is not compared, so not
+        rerun.
 
         The run is locked while they are queued, as a cancel locks it: a cancel
         landing between the status check and the insert would skip the pending
@@ -601,15 +601,18 @@ class EvalRunWorker:
                     else await eval_run_repo.list_cases(db, baseline.run.id, organization_id=org),
                 )
                 rerun_on = (
-                    baseline.here
+                    None
+                    if baseline.run.id != run.id and drifts(arm, baseline.arm)
+                    else baseline.here
                     if baseline.here is not None
                     else baseline.arm
                     if baseline.paired
                     else None
                 )
+                same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
                 for case_id, (outcome, _, _) in mine.items():
                     first = firsts.get((arm.id, case_id))
-                    if case_id not in theirs or first is None:
+                    if case_id not in same or first is None:
                         continue
                     if classify(theirs[case_id][0], outcome) not in (Flip.REGRESSION, Flip.FIXED):
                         continue

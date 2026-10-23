@@ -64,7 +64,17 @@ class TestClassify:
 
 class TestConfirmation:
     def test_a_regression_every_rerun_repeats_is_confirmed(self):
-        assert _case(True, False, candidate_reruns=[False, False]).confirmed
+        case = _case(True, False, baseline_reruns=[True, True], candidate_reruns=[False, False])
+        assert case.confirmed
+
+    def test_a_baseline_nobody_reran_confirms_nothing(self):
+        """One lucky pass of the baseline against three failures is no regression."""
+        assert not _case(True, False, candidate_reruns=[False, False]).confirmed
+
+    def test_failed_failed_passed_against_three_passes_holds_no_change(self):
+        assert not _case(
+            True, False, baseline_reruns=[True, True], candidate_reruns=[False, True]
+        ).confirmed
 
     def test_one_rerun_that_passes_leaves_it_unconfirmed(self):
         """A flaky case is reported, not counted against the candidate."""
@@ -100,11 +110,11 @@ class TestMcNemar:
 
 
 def _broke():
-    return _case(True, False, candidate_reruns=[False, False])
+    return _case(True, False, baseline_reruns=[True, True], candidate_reruns=[False, False])
 
 
 def _fixed():
-    return _case(False, True, candidate_reruns=[True, True])
+    return _case(False, True, baseline_reruns=[False, False], candidate_reruns=[True, True])
 
 
 class TestQualityVerdict:

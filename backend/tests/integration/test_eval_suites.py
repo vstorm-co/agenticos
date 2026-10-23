@@ -1557,7 +1557,8 @@ async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new
     db,
 ) -> None:
     """A judge republished since the last good run makes the next result inconclusive,
-    once: the run after it is held to its own numbers and becomes the reference."""
+    once: the run after it measures the version beside itself, graded the way it is
+    now, and, passing, becomes the reference."""
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx)
@@ -1590,5 +1591,7 @@ async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new
         "passed",
     ]
     assert second.baseline_eval_run_id == first.eval_run_id
-    assert third.baseline_eval_run_id is None
+    assert third.baseline_eval_run_id is None and third.eval_run_id is not None
+    beside = await service.evals.get(ctx, third.eval_run_id)
+    assert beside.paired and [arm.role for arm in beside.arms] == ["candidate", "baseline"]
     assert fourth.baseline_eval_run_id == third.eval_run_id

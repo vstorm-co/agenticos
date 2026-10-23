@@ -493,6 +493,7 @@ async def latest_arm(
     agent_id: UUID,
     dataset_id: UUID,
     agent_version_id: UUID,
+    spec_hash: str | None = None,
     dataset_version_id: UUID | None = None,
     model_profile_id: UUID | None = None,
     scoring_hash: str | None = None,
@@ -500,12 +501,12 @@ async def latest_arm(
     since: datetime | None = None,
     exclude_run_id: UUID | None = None,
 ) -> tuple[EvalRunArm, EvalRun] | None:
-    """The newest arm of a completed run that ran this version on this dataset.
+    """The newest arm of a completed run that ran this version, as published, on this dataset.
 
-    Each narrowing argument left `None` matches anything. With all of them it is
-    the cached-baseline lookup; with none it is the default comparison's "the
-    last run of the previous version". `execution` matches a run with no
-    environment only to one with none.
+    Only an arm that can stand for the version: one that served no proposed
+    skill or context body, in a run that left out none of its cases. Each
+    narrowing argument left `None` matches anything. `execution` matches a run
+    with no environment only to one with none.
     """
     conditions = [
         EvalRunArm.organization_id == organization_id,
@@ -514,7 +515,12 @@ async def latest_arm(
         EvalRun.dataset_id == dataset_id,
         EvalRun.status == EvalRunStatus.COMPLETED.value,
         EvalRunArm.reused_from_arm_id.is_(None),
+        EvalRunArm.skill_bodies.is_(None),
+        EvalRunArm.context_bodies.is_(None),
+        func.cardinality(EvalRun.excluded_case_ids) == 0,
     ]
+    if spec_hash is not None:
+        conditions.append(EvalRunArm.spec_hash == spec_hash)
     if dataset_version_id is not None:
         conditions.append(EvalRun.dataset_version_id == dataset_version_id)
     if model_profile_id is not None:

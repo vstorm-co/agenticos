@@ -755,11 +755,11 @@ class EvalSuiteService:
             due_at=now,
             baseline_version=baseline_version,
         )
-        baseline = (
-            None
-            if baseline_version is not None
-            else await self._earlier_run(suite, version.id, now=now)
-        )
+        baseline = None
+        if baseline_version is None:
+            baseline_version, baseline = await self._drift_baseline(
+                suite, version.id, version.version, now=now
+            )
         request = self._request(
             suite, version.version, baseline_version=baseline_version, baseline_run=baseline
         )
@@ -1110,16 +1110,13 @@ class EvalSuiteService:
                 result, EvalSuiteResultStatus.SKIPPED, reason="version_gone", now=now
             )
             return False
-        baseline = (
-            None
-            if result.baseline_version_number is not None
-            else await self._earlier_run(suite, result.agent_version_id, now=now)
-        )
+        baseline_version, baseline = result.baseline_version_number, None
+        if baseline_version is None:
+            baseline_version, baseline = await self._drift_baseline(
+                suite, result.agent_version_id, result.version_number, now=now
+            )
         request = self._request(
-            suite,
-            result.version_number,
-            baseline_version=result.baseline_version_number,
-            baseline_run=baseline,
+            suite, result.version_number, baseline_version=baseline_version, baseline_run=baseline
         )
         try:
             async with self.db.begin_nested():
@@ -1200,30 +1197,22 @@ class EvalSuiteService:
             baseline_run_id=baseline_run,
         )
 
-    async def _earlier_run(
-        self, suite: EvalSuite, version_id: UUID, *, now: datetime
-    ) -> UUID | None:
-        """The eval run of this suite's last passing result on the same version and
-        dataset, to measure drift against.
+    async def _drift_baseline(
+        self, suite: EvalSuite, version_id: UUID, number: int, *, now: datetime
+    ) -> tuple[int | None, UUID | None]:
+        """What a run that names no baseline is measured against: `(version, run)`.
 
-        The last state known to be good, not merely the last run: measured against
-        yesterday's failure, a case still broken today would not have flipped, and
-        a suite that had just gone red would read green again with the agent
-        unchanged. None once a later result could not be compared with it - the
-        judge or the scoring changed since - so the next run is held to its own
-        numbers and, passing, becomes the state the ones after it are measured
-        against.
+        The suite's last passing run of this version, to show drift. Once a later
+        result could not be compared with it - the judge or the scoring changed
+        since - an old run graded the old way would make every run after it
+        incomparable too, so the version before runs beside it instead, graded
+        the way it is now (the version itself, when it is the first). With no
+        passing run at all, neither: the run is measured against the last
+        comparable run of the version before, if there is one.
         """
-        passed = await eval_suite_repo.previous_settled(
-            self.db,
-            suite_id=suite.id,
-            agent_version_id=version_id,
-            before=now,
-            organization_id=suite.organization_id,
-            passed_on_dataset=suite.dataset_id,
-        )
+        passed = await self._earlier_run(suite, version_id, now=now)
         if passed is None or passed.settled_at is None:
-            return None
+            return None, None
         if await eval_suite_repo.incomparable_since(
             self.db,
             suite_id=suite.id,
@@ -1231,8 +1220,33 @@ class EvalSuiteService:
             since=passed.settled_at,
             organization_id=suite.organization_id,
         ):
-            return None
-        return passed.eval_run_id
+            previous = await agent_repo.version_before(
+                self.db,
+                agent_id=suite.agent_id,
+                number=number,
+                organization_id=suite.organization_id,
+            )
+            return (previous.version if previous else number), None
+        return None, passed.eval_run_id
+
+    async def _earlier_run(
+        self, suite: EvalSuite, version_id: UUID, *, now: datetime
+    ) -> EvalSuiteResult | None:
+        """This suite's last passing result on the same version and dataset.
+
+        The last state known to be good, not merely the last run: measured against
+        yesterday's failure, a case still broken today would not have flipped, and
+        a suite that had just gone red would read green again with the agent
+        unchanged.
+        """
+        return await eval_suite_repo.previous_settled(
+            self.db,
+            suite_id=suite.id,
+            agent_version_id=version_id,
+            before=now,
+            organization_id=suite.organization_id,
+            passed_on_dataset=suite.dataset_id,
+        )
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""
