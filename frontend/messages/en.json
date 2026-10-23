@@ -239,7 +239,7 @@
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
     "draftDiffersFromPublished": "Draft differs from v{version}",
-    "draftDiffersHint": "The draft is saved. Everything published - channels, widgets, the API - keeps answering with v{version} until you publish.",
+    "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
     "editedWhen": "edited {when}",
@@ -597,6 +597,9 @@
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
     "upToDateWithPublished": "Up to date with v{version}",
+    "productionOn": "production on v{version}",
+    "productionWaiting": "production on v{version} (waiting for evals)",
+    "productionHint": "Channels, widgets and the API answer with v{version}: production runs it until a newer version is promoted.",
     "updateToLatest": "Update to latest",
     "urlSafeHint": "A hosted page can only be told a variable through its own URL, and a URL is something the visitor types. Mark only what is safe for them to set.",
     "usageEveryNMessages": "Cost: every {count, plural, =1 {message} other {# messages}}",
@@ -8965,6 +8968,10 @@
     "compareArm": "Compare this model",
     "draft": "Draft",
     "proposed": "Proposed changes",
+    "draftPlus": "Draft + {count, plural, =1 {1 suggestion} other {# suggestions}}",
+    "versionPlus": "v{version} + {count, plural, =1 {1 suggestion} other {# suggestions}}",
+    "proposedSkill": "v{version} + proposed skill",
+    "proposedContext": "v{version} + proposed context file",
     "version": "v{version}",
     "status": {
       "queued": "Queued",
@@ -9189,6 +9196,7 @@
     },
     "draftNote": {
       "untested": "This draft was not tested since it last changed.",
+      "outdated": "This draft changed since its last test, so that result is out of date.",
       "unread": "Could not read how this draft last tested.",
       "test": "Test it",
       "running": "This draft is being tested now.",
@@ -9201,6 +9209,7 @@
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{replaced, plural, =0 {} =1 {, replacing 1 older one that was waiting} other {, replacing # older ones that were waiting}}{already, plural, =0 {} other {; # not sent: already waiting, decided or older than the one waiting}}.",
       "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.{replaced, plural, =0 {} =1 { That replaced 1 older answer still waiting on the same case.} other { That replaced # older answers still waiting on the same cases.}}",
       "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}",
+      "checkHeld": "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
       "sendOther": "{count, plural, =1 {Send the other failed case} other {Send the other # failed cases}}"
     },
     "draftChanged": "The draft changed after this run.",
@@ -9585,8 +9594,20 @@
         "published": "These suggestions were decided into a version that is now published."
       },
       "expected": "Expected effect:",
-      "checks": "Checked with evals:",
-      "checkRun": "run {index}"
+      "checks": "Checked with evals:"
+    },
+    "checkResult": {
+      "running": "Checking on {name}…",
+      "ended": "The check on {name} {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
+      "unread": "Could not read this check.",
+      "unreadFindings": "Could not read what the check on {name} found. Open the run, or try again.",
+      "suite": "{name} {status, select, passed {would pass} failed {would fail} other {would be inconclusive}}: {findings}",
+      "dataset": "On {name}: {findings}",
+      "breaks": "breaks {cases}{more, plural, =0 {} =1 { and 1 more case} other { and # more cases}}{fixed, plural, =0 {} =1 {, and fixes 1 case} other {, and fixes # cases}}",
+      "fixes": "{count, plural, =1 {fixes 1 case} other {fixes # cases}}",
+      "noChange": "no reproducible change",
+      "invalid": "the two sides cannot be compared",
+      "quote": "“{text}”"
     },
     "verify": {
       "nothing": "The assistant found nothing to say about your edits.",
