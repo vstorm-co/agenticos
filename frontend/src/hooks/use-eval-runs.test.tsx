@@ -395,11 +395,19 @@ describe("useRecentEvalRuns", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
     const { result } = renderHook(() => useRecentEvalRuns(3), { wrapper });
     await waitFor(() => expect(result.current.runs).toHaveLength(1));
-    expect(apiClient.get).toHaveBeenCalledWith("/eval-runs/recent?limit=3");
+    expect(apiClient.get).toHaveBeenCalledWith("/eval-runs/recent?skip=0&limit=3");
 
     vi.mocked(apiClient.get).mockClear();
     const held = renderHook(() => useRecentEvalRuns(undefined, { enabled: false }), { wrapper });
     expect(held.result.current.runs).toEqual([]);
+    expect(held.result.current.total).toBe(0);
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("reads a later page, and says how many there are in all", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 41 });
+    const { result } = renderHook(() => useRecentEvalRuns(20, { skip: 40 }), { wrapper });
+    await waitFor(() => expect(result.current.total).toBe(41));
+    expect(apiClient.get).toHaveBeenCalledWith("/eval-runs/recent?skip=40&limit=20");
   });
 });

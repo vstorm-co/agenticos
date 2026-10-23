@@ -4471,6 +4471,10 @@
       "agent-environment-guards": {
         "title": "Strażnicy",
         "body": "Wskaż suity evali, które muszą przejść na wersji, zanim środowisko ją przyjmie. Wersja, która ich nie przeszła, zostaje wstrzymana, a pominięcie wymaga powodu i uprawnienia."
+      },
+      "evals-all": {
+        "title": "Wszystkie runy ewaluacji",
+        "body": "Runy każdego agenta, którego możesz zobaczyć, od najnowszego. Każdy otwiera się na werdykcie; zakładka Ewaluacje agenta zawiera te same runy tylko dla niego."
       }
     },
     "chooseLanguage": "Język"
@@ -8612,7 +8616,18 @@
     "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
     "backToSuggestions": "Wróć do sugestii",
     "backToSkillChange": "Wróć do zmiany skilla",
-    "backToContextChange": "Wróć do zmiany pliku kontekstu"
+    "backToContextChange": "Wróć do zmiany pliku kontekstu",
+    "all": {
+      "title": "Runy ewaluacji",
+      "description": "Każdy run ewaluacji, który możesz zobaczyć, ze wszystkich agentów, od najnowszego.",
+      "noAccess": "Nie widzisz runów ewaluacji",
+      "noAccessBody": "Czytanie runów ewaluacji wymaga uprawnienia do podglądu runów. Poproś administratora organizacji.",
+      "empty": {
+        "title": "Brak runów ewaluacji",
+        "body": "Ewaluacja uruchamia agenta na przypadkach z datasetu i mówi, co zmiana z nimi zrobiła - które się zepsuły, a które naprawiły. Uruchom ją z zakładki Ewaluacje agenta albo z datasetu.",
+        "cta": "Otwórz datasety"
+      }
+    }
   },
   "steps": {
     "skills-gallery": {

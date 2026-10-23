@@ -4584,6 +4584,10 @@
       "agent-environment-guards": {
         "title": "Wächter",
         "body": "Nennen Sie die Eval-Suites, die eine Umgebung auf einer Version bestanden sehen will, bevor sie sie übernimmt. Eine Version, die sie nicht bestanden hat, wird zurückgehalten, und ein Übergehen braucht eine Begründung und die Berechtigung dazu."
+      },
+      "evals-all": {
+        "title": "Jeder Eval-Run",
+        "body": "Die Runs jedes Agents, den Sie sehen dürfen, der neueste zuerst. Jeder öffnet sich auf seinem Urteil; der Tab Evals eines Agents enthält dieselben Runs nur für diesen Agent."
       }
     },
     "chooseLanguage": "Sprache"
@@ -9251,7 +9255,18 @@
     "excludedEvidence": "{count, plural, =1 {1 Case wurde} other {# Cases wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",
     "backToSkillChange": "Zurück zur Skill-Änderung",
-    "backToContextChange": "Zurück zur Änderung der Kontextdatei"
+    "backToContextChange": "Zurück zur Änderung der Kontextdatei",
+    "all": {
+      "title": "Eval-Runs",
+      "description": "Jeder Eval-Run, den Sie sehen dürfen, über alle Agents, der neueste zuerst.",
+      "noAccess": "Sie können keine Eval-Runs sehen",
+      "noAccessBody": "Eval-Runs zu lesen erfordert die Berechtigung, Runs anzusehen. Fragen Sie einen Admin der Organisation.",
+      "empty": {
+        "title": "Noch keine Eval-Runs",
+        "body": "Ein Eval lässt einen Agent über die Fälle eines Datasets laufen und sagt, was eine Änderung mit ihnen gemacht hat - welche sich verschlechtert haben, welche behoben wurden. Starten Sie einen im Tab Evals eines Agents oder in einem Dataset.",
+        "cta": "Datasets öffnen"
+      }
+    }
   },
   "remoteAgents": {
     "title": "Remote Agents",

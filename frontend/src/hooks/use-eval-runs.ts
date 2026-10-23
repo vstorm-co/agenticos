@@ -354,17 +354,18 @@ export function useDraftEvalRuns(agentId: string | null, { enabled = true } = {}
   };
 }
 
-/** The organization's latest runs the caller may read - the dashboard's card. */
-export function useRecentEvalRuns(limit = 5, { enabled = true } = {}) {
+/** The organization's latest runs the caller may read, a page at a time - the dashboard's card and /evals. */
+export function useRecentEvalRuns(limit = 5, { skip = 0, enabled = true } = {}) {
   const query = useQuery({
-    queryKey: qk.evalRuns.recent(limit),
-    queryFn: () => apiClient.get<EvalRunList>(`/eval-runs/recent?limit=${limit}`),
+    queryKey: qk.evalRuns.recent(limit, skip),
+    queryFn: () => apiClient.get<EvalRunList>(`/eval-runs/recent?skip=${skip}&limit=${limit}`),
     enabled,
     refetchInterval: (current) =>
       current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
   });
   return {
     runs: query.data?.items ?? [],
+    total: query.data?.total ?? 0,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
