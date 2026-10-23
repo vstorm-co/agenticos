@@ -19,6 +19,64 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
+  host with an empty label (`a..b`) or a label longer than 63 characters made
+  the resolver's IDNA codec raise an error the outbound guard did not catch, so
+  saving an MCP connection with such a URL answered 500 "An unexpected error
+  occurred". The guard now refuses it with "The URL's host name is not valid",
+  a 400 like every other refusal, for every caller. The MCP catalog audit and
+  the browser's endpoint lookup treat such a name as one that does not resolve.
+
+### Security
+
+- **OpenTelemetry moves to 1.45.1 (0.66b1 for the instrumentation packages).**
+  `opentelemetry-api` 1.44.0 is affected by CVE-2026-114603
+  (GHSA-xcq7-p3pf-p88h), which failed `make audit` and so the required Security
+  Scan on every pull request. Only the lockfile and the third-party notices
+  change; two Apache-2.0 packages, `opentelemetry-exporter-http-transport` and
+  `opentelemetry-exporter-otlp-common`, come in with the new exporters.
+
+## [1.13.0] - 2026-10-22
+
+### Added
+
+- **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
+  deployment's own network (#2349).** Before, the SSRF check refused every
+  connection URL whose host resolves to a private or loopback address, such as a
+  compose service. There was no way past it. Now an operator can list such
+  hosts. A listed host skips only the address check, when a connection is saved.
+  The match is exact and ignores case, and OAuth sign-in to a listed host is
+  still refused. Every account can reach every port on a listed host, so list
+  only a server that checks a token. A cloud metadata, link-local or loopback
+  entry (`localhost` too) is refused at startup. Empty, the default, changes
+  nothing. See [a connection](docs/mcp.md#a-connection).
+
+## [1.12.3] - 2026-10-22
+
+### Fixed
+
+- **The image packages describe themselves on GHCR (#2299).** The pages for
+  `agenticos-backend`, `agenticos-frontend` and `agenticos-browser` said "No
+  description provided": GHCR reads a multi-architecture package's description
+  from the manifest list, and the labels sat only on the per-architecture
+  images. The publish job now annotates each list with what the image is and a
+  link to the docs. The pages update on the next publish; earlier tags keep
+  their lists as they were.
+
+## [1.12.2] - 2026-10-22
+
+### Fixed
+
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
+
 ## [1.12.1] - 2026-10-22
 
 ### Security

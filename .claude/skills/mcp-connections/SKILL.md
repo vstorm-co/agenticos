@@ -107,6 +107,12 @@ The **connection's own URL** is checked at save and resolved again at run time â
 point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
 
+`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of that
+save-time check, and from nothing else. Only `_checked_url`'s four create and
+update callers pass `honour_allowlist=True`. OAuth, the sign-in probe, the catalog
+audit and every `PinnedAsyncClient` request stay strict. Never pass the flag for a
+URL a remote server chose, and never add an exemption to `resolve_pinned_url`.
+
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
 
