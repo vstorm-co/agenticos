@@ -42,7 +42,7 @@ from app.core.exceptions import (
     SystemAgentRunError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dataset import DatasetCase, DatasetVersion
@@ -1328,3 +1328,112 @@ async def test_a_draft_resting_only_on_questions_reads_back_without_documents(db
     detail = await KnowledgeGapService(db).read(ctx, topic_id)
     assert detail.draft is not None
     assert [(s.kind, s.label) for s in detail.draft.sources] == [("question", question.query)]
+
+
+async def _called(
+    db, answer: Message, tool_name: str, query: str, result: str | None, *, at: int = 0
+) -> None:
+    db.add(
+        ToolCall(
+            id=uuid.uuid4(),
+            message_id=answer.id,
+            tool_call_id=f"call-{uuid.uuid4().hex[:6]}",
+            tool_name=tool_name,
+            args={"query": query},
+            result=result,
+            status="completed",
+            started_at=_START + timedelta(seconds=at),
+        )
+    )
+    await db.flush()
+
+
+async def _drafted_from(db, ctx: AuthContext, agent: Agent, topic_id: uuid.UUID) -> str:
+    drafting_run, _ = await _turn(db, ctx, agent)
+    with _drafter(KnowledgeGapDraft(title="Parking", content="Level -1."), drafting_run) as run_it:
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+    return run_it.await_args.kwargs["prompt"]
+
+
+async def _one_question_topic(db, ctx: AuthContext, kb: KnowledgeBase, agent: Agent, **turn):
+    run, answer = await _turn(db, ctx, agent, question="Where do visitors park?", **turn)
+    await _searched(db, ctx, run, kb, query="visitor parking")
+    return run, answer
+
+
+async def test_what_another_tool_returned_for_the_same_query_is_not_what_the_search_found(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    _, answer = await _one_question_topic(db, ctx, kb, agent)
+    await _called(db, answer, "search_documents", "visitor parking", "From the handbook", at=1)
+    await _called(db, answer, "web_search", "visitor parking", "From the open web", at=2)
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+
+    prompt = await _drafted_from(db, ctx, agent, topic_id)
+
+    assert "Found: From the handbook" in prompt
+    assert "From the open web" not in prompt
+
+
+async def test_a_knowledge_tool_its_binding_renamed_is_still_what_the_search_found(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        organization_id=ctx.organization_id,
+        version=1,
+        spec={
+            "name": agent.name,
+            "capabilities": [
+                {
+                    "id": "knowledge",
+                    "tool_overrides": {"search_documents": {"name": "search_handbook"}},
+                }
+            ],
+        },
+    )
+    db.add(version)
+    await db.flush()
+    run, answer = await _one_question_topic(db, ctx, kb, agent)
+    run.agent_version_id = version.id
+    await db.flush()
+    await _called(db, answer, "search_handbook", "visitor parking", "From the handbook")
+    await _called(db, answer, "search_documents", "visitor parking", "Not this agent's tool")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+
+    prompt = await _drafted_from(db, ctx, agent, topic_id)
+
+    assert "Found: From the handbook" in prompt
+    assert "Not this agent's tool" not in prompt
+
+
+async def test_searches_with_one_query_take_its_calls_in_order_only_when_they_match(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    run, answer = await _one_question_topic(db, ctx, kb, agent)
+    await _searched(db, ctx, run, kb, query="visitor parking")
+    await _called(db, answer, "search_documents", "visitor parking", "First result", at=1)
+    await _called(db, answer, "search_documents", "visitor parking", "Second result", at=2)
+    other, short = await _turn(db, ctx, agent, question="Is there parking at night?")
+    await _searched(db, ctx, other, kb, query="night parking")
+    await _searched(db, ctx, other, kb, query="night parking")
+    await _called(db, short, "search_documents", "night parking", "One of two results")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+
+    prompt = await _drafted_from(db, ctx, agent, topic_id)
+
+    assert prompt.count("Found: First result") == 1
+    assert prompt.count("Found: Second result") == 1
+    assert "One of two results" not in prompt

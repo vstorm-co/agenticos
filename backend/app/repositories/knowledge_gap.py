@@ -6,7 +6,7 @@ setting rather than stored, so changing it reclassifies the searches already
 made.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -570,6 +570,22 @@ class DraftingRow(NamedTuple):
     down_rating_comment: str | None
 
 
+async def topic_versions(
+    db: AsyncSession, topic_id: UUID, *, organization_id: UUID
+) -> set[UUID | None]:
+    """The agent versions that ran a topic's searches; none for a run with no version."""
+    result = await db.execute(
+        select(distinct(AgentRun.agent_version_id))
+        .join(KnowledgeSearch, KnowledgeSearch.run_id == AgentRun.id)
+        .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
+        .where(
+            KnowledgeGapMember.topic_id == topic_id,
+            KnowledgeSearch.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def drafting_material(
     db: AsyncSession,
     topic_id: UUID,
@@ -577,11 +593,14 @@ async def drafting_material(
     organization_id: UUID,
     threshold: float,
     limit: int,
+    knowledge_tools: Mapping[UUID | None, frozenset[str]],
 ) -> list[DraftingRow]:
     """A topic's newest questions with the answer each got and what its search returned.
 
     What the search returned is read back from the transcript's tool call, so a
-    run with no conversation contributes its query alone.
+    run with no conversation contributes its query alone. `knowledge_tools`
+    names the knowledge search tool as each agent version called it, keyed by
+    version - `None` for a run with none, and for a version not listed.
     """
     rows = await list_questions(
         db,
@@ -592,20 +611,12 @@ async def drafting_material(
         limit=limit,
     )
     answers = await _answers(db, rows)
-    found: dict[UUID, str] = {}
-    run_ids = [row.search.run_id for row in rows]
-    if run_ids:
-        result = await db.execute(
-            select(Message.run_id, ToolCall.args["query"].astext, ToolCall.result)
-            .join(Message, Message.id == ToolCall.message_id)
-            .where(Message.run_id.in_(run_ids), ToolCall.result.is_not(None))
-        )
-        by_query = {(row[0], row[1]): row[2] for row in result.all()}
-        found = {
-            row.search.id: by_query[(row.search.run_id, row.search.query)]
-            for row in rows
-            if (row.search.run_id, row.search.query) in by_query
-        }
+    found = await _found(
+        db,
+        list(dict.fromkeys(row.search.run_id for row in rows)),
+        organization_id=organization_id,
+        knowledge_tools=knowledge_tools,
+    )
     return [
         DraftingRow(
             search=row.search,
@@ -616,6 +627,67 @@ async def drafting_material(
         )
         for row in rows
     ]
+
+
+async def _found(
+    db: AsyncSession,
+    run_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+    knowledge_tools: Mapping[UUID | None, frozenset[str]],
+) -> dict[UUID, str]:
+    """What each search of these runs returned, by the search's id.
+
+    Only the knowledge tool's own calls count: another tool taking a `query`
+    argument - a web search, a CRM lookup - returned nothing from the knowledge
+    base. A run's searches with one query take its calls with that query in
+    order, and only when there are as many of each: a call that failed or was cut
+    short leaves those searches with nothing rather than with another's result.
+    """
+    if not run_ids:
+        return {}
+    versions = dict(
+        (
+            await db.execute(
+                select(AgentRun.id, AgentRun.agent_version_id).where(AgentRun.id.in_(list(run_ids)))
+            )
+        )
+        .tuples()
+        .all()
+    )
+    calls = await db.execute(
+        select(Message.run_id, ToolCall.tool_name, ToolCall.args["query"].astext, ToolCall.result)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(Message.run_id.in_(list(run_ids)))
+        .order_by(ToolCall.started_at, ToolCall.id)
+    )
+    results: dict[tuple[UUID, str], list[str | None]] = {}
+    for run_id, tool_name, query, result in calls.tuples().all():
+        version = versions.get(run_id)
+        names = knowledge_tools.get(version, knowledge_tools[None])
+        if tool_name in names and query is not None:
+            results.setdefault((run_id, query), []).append(result)
+    searches = await db.execute(
+        select(KnowledgeSearch.id, KnowledgeSearch.run_id, KnowledgeSearch.query)
+        .where(
+            KnowledgeSearch.organization_id == organization_id,
+            KnowledgeSearch.run_id.in_(list(run_ids)),
+            KnowledgeSearch.signal == GapSignal.RETRIEVAL.value,
+        )
+        .order_by(KnowledgeSearch.created_at, KnowledgeSearch.id)
+    )
+    searched: dict[tuple[UUID, str], list[UUID]] = {}
+    for search_id, run_id, query in searches.tuples().all():
+        searched.setdefault((run_id, query), []).append(search_id)
+    found: dict[UUID, str] = {}
+    for key, search_ids in searched.items():
+        returned = results.get(key, [])
+        if len(returned) != len(search_ids):
+            continue
+        for search_id, result in zip(search_ids, returned, strict=True):
+            if result is not None:
+                found[search_id] = result
+    return found
 
 
 async def _answers(db: AsyncSession, rows: Sequence[QuestionRow]) -> dict[UUID, str]:
