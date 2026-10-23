@@ -37,7 +37,7 @@ reqwest = { version = "0.13.3", default-features = false, features = ["json", "r
 tokio-tungstenite = { version = "0.29.0", features = ["rustls-tls-native-roots"] }
 futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
-tokio = { version = "1.53.3", features = ["time", "sync", "macros", "rt"] }
+tokio = { version = "1.53.3", features = ["time", "sync", "macros", "rt", "process", "io-util", "fs"] }
 tauri-plugin-dialog = "2.7.3"
 
 # Desktop only, which is what the plugin supports - and this shell is desktop

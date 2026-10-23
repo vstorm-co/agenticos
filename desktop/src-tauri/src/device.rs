@@ -338,10 +338,10 @@ async fn connection(app: &AppHandle, server: &Url) -> Ended {
         Err(e) => return Ended::Failed(e.to_string()),
     };
     set_connected(app, true);
-    serve(socket).await
+    serve(app, socket).await
 }
 
-async fn serve<S>(socket: tokio_tungstenite::WebSocketStream<S>) -> Ended
+async fn serve<S>(app: &AppHandle, socket: tokio_tungstenite::WebSocketStream<S>) -> Ended
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -375,8 +375,9 @@ where
                         running.retain(|_, task| !task.inner().is_finished());
                         let answers = answers.clone();
                         let call_id = id.clone();
+                        let app = app.clone();
                         let task = tauri::async_runtime::spawn(async move {
-                            let outcome = run(&op, args).await;
+                            let outcome = run(&app, &op, args).await;
                             let _ = answers.send(AppFrame::answer(call_id, outcome));
                         });
                         running.insert(id, task);
@@ -415,11 +416,23 @@ where
 /// What this computer can do today. The local sandbox and screen control add
 /// themselves here as they land.
 fn capabilities() -> Capabilities {
-    Capabilities::default()
+    Capabilities {
+        sandbox_modes: crate::local_work::modes(),
+        screen: false,
+    }
 }
 
-/// Run one operation the server asked for.
-async fn run(op: &str, _args: Map<String, Value>) -> Result<Map<String, Value>, String> {
+/// Run one operation the server asked for; a refusal carries its kind.
+async fn run(
+    app: &AppHandle,
+    op: &str,
+    args: Map<String, Value>,
+) -> Result<Map<String, Value>, (String, &'static str)> {
+    if op.starts_with("fs.") || op == "shell.run" {
+        return crate::local_work::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
+    }
     match op {
         "system.info" => {
             let mut value = Map::new();
@@ -427,8 +440,9 @@ async fn run(op: &str, _args: Map<String, Value>) -> Result<Map<String, Value>, 
             value.insert("version".into(), env!("CARGO_PKG_VERSION").into());
             Ok(value)
         }
-        other => Err(format!(
-            "This computer's app does not do {other} yet. Update AgenticOS."
+        other => Err((
+            format!("This computer's app does not do {other} yet. Update AgenticOS."),
+            "denied",
         )),
     }
 }

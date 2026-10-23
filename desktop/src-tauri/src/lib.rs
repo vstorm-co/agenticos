@@ -20,6 +20,7 @@ mod context;
 mod device;
 mod dropped;
 mod local_stack;
+mod local_work;
 mod managed;
 mod notify;
 mod pinned;
@@ -1187,7 +1188,10 @@ pub fn run() {
             dropped::take_shared,
             device::device_status,
             device::device_link,
-            device::device_unlink
+            device::device_unlink,
+            local_work::local_grants,
+            local_work::local_pick_folder,
+            local_work::local_revoke
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())

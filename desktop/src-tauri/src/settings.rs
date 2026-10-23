@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager, Url};
 
 use crate::appearance::Appearance;
 use crate::blobby::BlobbySettings;
+use crate::local_work::Grant;
 use crate::pinned::PinnedAgent;
 
 #[derive(Serialize, Deserialize, Default)]
@@ -33,6 +34,9 @@ pub struct Settings {
     /// The agents in the tray's and the Dock's "New Chat With", in order.
     #[serde(default)]
     pub pinned_agents: Vec<PinnedAgent>,
+    /// The folders the person allowed their agents to work in on this computer.
+    #[serde(default)]
+    pub local_grants: Vec<Grant>,
 }
 
 /// A stack the app set up on this machine, or an organization's server.

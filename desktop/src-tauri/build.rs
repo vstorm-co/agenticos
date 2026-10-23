@@ -37,6 +37,9 @@ const COMMANDS: &[&str] = &[
     "device_status",
     "device_link",
     "device_unlink",
+    "local_grants",
+    "local_pick_folder",
+    "local_revoke",
 ];
 
 fn main() {

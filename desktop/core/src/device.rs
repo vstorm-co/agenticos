@@ -117,25 +117,30 @@ pub enum AppFrame {
         value: Map<String, Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
         error: Option<String>,
+        /// What sort of refusal, so the server raises the error a tool expects.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        kind: Option<String>,
     },
     Ping,
 }
 
 impl AppFrame {
-    /// A call's answer: its value, or the sentence saying why not.
-    pub fn answer(id: String, outcome: Result<Map<String, Value>, String>) -> Self {
+    /// A call's answer: its value, or the sentence saying why not and its kind.
+    pub fn answer(id: String, outcome: Result<Map<String, Value>, (String, &str)>) -> Self {
         match outcome {
             Ok(value) => AppFrame::Result {
                 id,
                 ok: true,
                 value,
                 error: None,
+                kind: None,
             },
-            Err(error) => AppFrame::Result {
+            Err((error, kind)) => AppFrame::Result {
                 id,
                 ok: false,
                 value: Map::new(),
                 error: Some(error),
+                kind: Some(kind.to_owned()),
             },
         }
     }
@@ -234,8 +239,8 @@ mod tests {
             json!({"type": "hello", "version": "0.3.0", "capabilities": {"sandbox_modes": ["read_only"], "screen": false}})
         );
         assert_eq!(
-            serde_json::to_value(AppFrame::answer("a".into(), Err("No such file".into()))).unwrap(),
-            json!({"type": "result", "id": "a", "ok": false, "value": {}, "error": "No such file"})
+            serde_json::to_value(AppFrame::answer("a".into(), Err(("No such file".into(), "not_found")))).unwrap(),
+            json!({"type": "result", "id": "a", "ok": false, "value": {}, "error": "No such file", "kind": "not_found"})
         );
         assert_eq!(
             serde_json::to_value(AppFrame::answer("b".into(), Ok(Map::new()))).unwrap(),

@@ -169,4 +169,6 @@ def _as_os_error(exc: DeviceCallFailed) -> Exception:
         return WorkspaceReadOnlyError(exc.message)
     if kind == "denied":
         return PermissionError(exc.message)
+    if kind == "timeout":
+        return WorkspaceTimeoutError(exc.message)
     return OSError(exc.message)

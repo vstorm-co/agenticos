@@ -47,7 +47,7 @@ class Result(BaseModel):
     value: dict[str, Any] = Field(default_factory=dict)
     error: str | None = Field(default=None, max_length=2000)
     kind: str | None = Field(default=None, max_length=32)
-    """What sort of refusal - `not_found`, `is_dir`, `read_only`, `denied` - so the
+    """What sort of refusal - `not_found`, `is_dir`, `read_only`, `denied`, `timeout` - so the
     workspace raises the error a tool expects rather than a generic one."""
 
 
