@@ -475,13 +475,15 @@ class AuthoringRun:
 
     async def _verify(self) -> None:
         agent = await self._target_agent()
-        if agent is None or agent.current_version_id is None:
-            raise Stopped("The agent has no published version to compare with.")
-        version = await agent_repo.get_version(
-            self.db, agent.current_version_id, organization_id=self.ctx.organization_id
+        version = (
+            None
+            if agent is None
+            else await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=self.ctx.organization_id
+            )
         )
-        if version is None:
-            raise Stopped("The agent's published version is gone.")
+        if agent is None or version is None:
+            raise Stopped("The agent has no published version to compare with.")
         published = AgentSpec.model_validate(version.spec)
         draft = AgentSpec.model_validate(agent.draft_spec)
         pack = await self.evidence.for_agent(

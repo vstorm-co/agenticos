@@ -1,5 +1,5 @@
 ---
-source_sha: "c86b762f3b06"
+source_sha: "e89d0789b979"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -45,10 +45,14 @@ que hay - ya está elegido; el entorno, las grabaciones y las repeticiones está
 en **Advanced**. El coste se calcula a medida que se asientan los campos y dice
 qué califica las respuestas y lo que conservan después los budgets del agent y
 de la organización; el run solo empieza desde el botón que indica el importe.
-**Draft differs from vN** en la página del agent lleva un botón **Test draft**
-que abre el mismo diálogo, y el diálogo de publicación dice lo que encontró el
-último run del borrador - o que no se ha probado desde su último cambio - sin
-frenar la publicación.
+**Draft differs from vN** en la página del agent - vN es la última versión
+publicada, y cuando las guardianas de producción la retienen en una anterior, una
+segunda insignia dice en cuál, como "production on v1 (waiting for evals)" -
+lleva un botón **Test draft** que abre el mismo diálogo. El diálogo de
+publicación dice lo que encontró el último run del borrador - una
+[comprobación de las sugerencias del asistente](authoring.md#check-with-evals)
+cuenta una vez aceptadas -, o que no se ha probado desde su último cambio, o que
+la prueba que tenía está desactualizada, sin frenar la publicación.
 
 La página de un run se abre con su veredicto en unas pocas frases - los casos
 que el candidato rompe o arregla cada vez que se le preguntan, uno citado con
@@ -76,11 +80,15 @@ abarcando todos los casos.
 Una vez que están sus repeticiones, un run envía a la [cola de
 revisión](datasets.md#review) del dataset lo que puede respaldar - cada
 regresión que confirmó y cada respuesta en cuya calificación falló su juez, una
-por caso - y dice cuántas son (`routed_to_review`). Un juez omitido no envía
+por caso - y dice cuántas son (`routed_to_review`). Una
+[comprobación de la propuesta del asistente](authoring.md#check-with-evals) no
+envía nada por sí sola, ya que no se aceptó nada. Un juez omitido no envía
 nada: sus respuestas esperan en la página del run a **Grade again**. Si el envío
-se rechaza, el run termina igual y su página dice por qué (`routing_error`). **Send failed to review** envía
-el resto de las respuestas fallidas de un lado, para quien pueda editar el
-dataset, y un caso cuya calificación anuló una persona queda marcado como
+se rechaza, el run termina igual y su página dice por qué (`routing_error`).
+
+**Send failed to review** envía el resto de las respuestas fallidas de un lado,
+para quien pueda editar el dataset, y un caso cuya calificación anuló una persona
+queda marcado como
 corregido.
 
 En ambos casos una respuesta ocupa el lugar de una más antigua del mismo caso
@@ -291,8 +299,12 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 ```
 
 `?draft=current` conserva los runs que probaron el borrador tal como está
-ahora - el mismo spec, sea cual sea el orden en que se guardaron sus claves -,
-que es lo que lee el diálogo de publicación.
+ahora - el mismo spec, sea cual sea el orden en que se guardaron sus claves, con
+una comprobación de sugerencias aceptadas después entre ellos -, que es lo que lee
+el diálogo de publicación. `?draft=earlier` conserva los runs que probaron otro
+borrador desde que se publicó la última versión - una comprobación solo cuando se
+aceptó alguna de sus sugerencias: la prueba de la que el borrador se ha alejado.
+Una comprobación medida contra el propio borrador no cuenta en ninguno de los dos.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
 
