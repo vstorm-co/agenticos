@@ -70,14 +70,22 @@ async def reach(
         [environment.id for by in hit.values() for found in by.values() for environment in found],
         organization_id=organization_id,
     )
-    suites = EvalSuiteService(db)
+    watchers = (
+        [
+            (suite, AgentSpec.model_validate(version.spec))
+            for suite, version in await EvalSuiteService(db).watchers(
+                organization_id=organization_id
+            )
+        ]
+        if hit
+        else []
+    )
     reaches: dict[UUID, list[Reach]] = {}
     for resource_id in resource_ids:
         running: dict[UUID, list[UUID]] = defaultdict(list)
-        for suite, _ in await suites.watching(
-            organization_id=organization_id, kind=kind, resource_id=resource_id
-        ):
-            running[suite.agent_id].append(suite.id)
+        for suite, spec in watchers if resource_id in hit else []:
+            if binds(spec, kind, resource_id):
+                running[suite.agent_id].append(suite.id)
         reaches[resource_id] = [
             Reach(
                 agents[agent_id],

@@ -258,13 +258,12 @@ class ContextService:
         """Edit a context file. Every agent bound to it is current on the next run.
 
         A file has no draft: what bound agents read changes at once, so the eval
-        suites watching for that change are queued - anything but who may see the
-        file changes what they read.
+        suites watching for that change are queued.
         """
         file = await self.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
         update_data = writable(data, over=ContextFile)
         updated = await context_repo.update(self.db, file=file, update_data=update_data)
-        if set(update_data) - {"visibility"}:
+        if update_data:
             await self._changed(file)
         await record_audit(
             self.db,

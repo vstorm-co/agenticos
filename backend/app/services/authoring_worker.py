@@ -547,17 +547,13 @@ class AuthoringRun:
             "resources": {},
             "conversation_id": None,
         }
-        existing = await skill_proposal_repo.get_pending_for_skill(
+        proposal_row = await skill_proposal_repo.replace_pending(
             self.db,
             organization_id=self.ctx.organization_id,
             skill_id=skill.id,
             name=skill.name,
             agent_id=improver.id,
-        )
-        proposal_row = (
-            None
-            if existing is None
-            else await skill_proposal_repo.replace_body(self.db, proposal=existing, **values)
+            **values,
         ) or await skill_proposal_repo.create(
             self.db,
             organization_id=self.ctx.organization_id,
@@ -623,13 +619,8 @@ class AuthoringRun:
             "expected_effect": proposal.expected_effect,
             "authoring_request_id": self.request.id,
         }
-        existing = await context_proposal_repo.get_pending_for_context(
-            self.db, organization_id=org, context_id=file.id
-        )
-        row = (
-            None
-            if existing is None
-            else await context_proposal_repo.rewrite(self.db, proposal=existing, values=values)
+        row = await context_proposal_repo.replace_pending(
+            self.db, organization_id=org, context_id=file.id, values=values
         ) or await context_proposal_repo.create(
             self.db, organization_id=org, context_id=file.id, values=values
         )

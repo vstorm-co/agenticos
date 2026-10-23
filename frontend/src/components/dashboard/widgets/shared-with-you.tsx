@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
@@ -18,6 +18,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.shared-with-you");
+  const locale = useLocale();
   const { counts, isLoading, error, refetch } = useSharedWithMeCounts();
   const empty = counts !== null && counts.agents + counts.collections + counts.skills === 0;
 
@@ -44,7 +45,7 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
               ["skills", counts.skills],
             ] as const
           ).map(([key, value]) => (
-            <Figure key={key} label={t(key)} value={value.toLocaleString()} />
+            <Figure key={key} label={t(key)} value={value.toLocaleString(locale)} />
           ))}
         </div>
       )}
