@@ -1,4 +1,10 @@
-import type { GrantLevel, GrantSubject, ResourceGrant, ShareInput } from "@/types/sharing";
+import type {
+  GrantLevel,
+  GrantSubject,
+  ResourceGrant,
+  SharingResourceType,
+  ShareInput,
+} from "@/types/sharing";
 
 /** Each level's word is in the `sharing` catalog; `words` names the key. */
 export const LEVEL_OPTIONS: { value: GrantLevel; words: string }[] = [
@@ -6,6 +12,35 @@ export const LEVEL_OPTIONS: { value: GrantLevel; words: string }[] = [
   { value: "use", words: "levelUse" },
   { value: "edit", words: "levelEdit" },
 ];
+
+type LevelOption = (typeof LEVEL_OPTIONS)[number];
+
+/**
+ * A level a resource no longer offers, worded to say why, for a grant that still holds it.
+ *
+ * A dataset's `use` gives no built-in role anything: running evals also needs
+ * permission to read runs, and every role that reads runs already runs every
+ * dataset. It comes back with custom roles; until then it is not offered.
+ */
+const RETIRED: Partial<Record<SharingResourceType, LevelOption>> = {
+  dataset: { value: "use", words: "levelUseNoEffect" },
+};
+
+/** The levels a new or changed share of this kind of resource may take. */
+export function levelOptions(resourceType: SharingResourceType): LevelOption[] {
+  const retired = RETIRED[resourceType];
+  return LEVEL_OPTIONS.filter((option) => option.value !== retired?.value);
+}
+
+/** The options a grant's own row shows: those offered, and its own level if it is retired. */
+export function grantLevelOptions(
+  resourceType: SharingResourceType,
+  level: GrantLevel,
+): LevelOption[] {
+  const retired = RETIRED[resourceType];
+  const offered = levelOptions(resourceType);
+  return retired?.value === level ? [...offered, retired] : offered;
+}
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
 export function toLevel(value: string): GrantLevel {

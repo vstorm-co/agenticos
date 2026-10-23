@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import takewhile
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
@@ -215,11 +215,24 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
     return DatasetVersionRead.model_validate(version)
 
 
+type RunNeed = Literal["runs:view", "datasets:run"]
+
+
+def _run_needs(ctx: AuthContext, *, may_run: bool) -> list[RunNeed]:
+    """What the caller lacks to run a dataset: starting an eval or scoring needs both."""
+    needs: list[RunNeed] = []
+    if not ctx.has(Perm.RUNS_VIEW):
+        needs.append("runs:view")
+    if not may_run:
+        needs.append("datasets:run")
+    return needs
+
+
 def _dataset_read(
     dataset: Dataset,
     *,
     can_edit: bool,
-    can_run: bool,
+    run_needs: list[RunNeed],
     judge_name: str | None,
     stats: DatasetStats | None = None,
     pending: int = 0,
@@ -235,7 +248,8 @@ def _dataset_read(
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
-        can_run=can_run,
+        can_run=not run_needs,
+        run_needs=run_needs,
         pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
         created_at=dataset.created_at,
@@ -321,8 +335,11 @@ class DatasetService:
         return _dataset_read(
             dataset,
             can_edit=can_edit,
-            can_run=await resolve_access(
-                self.db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET
+            run_needs=_run_needs(
+                ctx,
+                may_run=await resolve_access(
+                    self.db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET
+                ),
             ),
             judge_name=judges.get(dataset.id),
             stats=stats.get(dataset.id),
@@ -419,7 +436,7 @@ class DatasetService:
                 _dataset_read(
                     item,
                     can_edit=item.id in may_edit,
-                    can_run=item.id in may_run,
+                    run_needs=_run_needs(ctx, may_run=item.id in may_run),
                     judge_name=judges.get(item.id),
                     stats=stats.get(item.id),
                     pending=pending.get(item.id, 0),

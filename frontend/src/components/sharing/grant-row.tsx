@@ -15,10 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { GroupIcon as GroupIconName } from "@/types/groups";
-import type { GrantSubject, ResourceGrant, ShareInput } from "@/types/sharing";
-import { LEVEL_OPTIONS, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
+import type { GrantSubject, ResourceGrant, ShareInput, SharingResourceType } from "@/types/sharing";
+import { grantLevelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
 
 interface GrantRowProps {
+  /** Which levels this kind of resource offers. */
+  resourceType: SharingResourceType;
   grant: ResourceGrant;
   /** The group's own icon, when the grant is to a group the organization still has. */
   groupIcon: GroupIconName | null;
@@ -38,6 +40,7 @@ interface GrantRowProps {
  * subject back with it.
  */
 export function GrantRow({
+  resourceType,
   grant,
   groupIcon,
   canManage,
@@ -83,7 +86,7 @@ export function GrantRow({
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="end">
-          {LEVEL_OPTIONS.map((option) => (
+          {grantLevelOptions(resourceType, grant.level).map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {t(option.words)}
             </SelectItem>

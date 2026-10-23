@@ -7,13 +7,9 @@ import { DatasetEvalsPanel, DatasetRunEvalsButton } from "./dataset-evals-panel"
 
 const state = vi.hoisted(() => ({
   runs: {} as Record<string, unknown>,
-  dataset: undefined as { can_run: boolean } | undefined,
+  dataset: undefined as { can_run: boolean; run_needs?: string[] } | undefined,
   dialog: [] as unknown[],
   skips: [] as number[],
-  runsView: true,
-}));
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView }),
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
@@ -42,7 +38,6 @@ beforeEach(() => {
   state.dialog = [];
   state.skips = [];
   state.dataset = { can_run: true };
-  state.runsView = true;
   state.runs = { runs: [], total: 0, isLoading: false, error: null, refetch: vi.fn() };
 });
 
@@ -127,13 +122,17 @@ describe("DatasetRunEvalsButton", () => {
     expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
   });
 
-  it("is shown disabled, saying why, to who may run the dataset but not read runs", async () => {
-    state.runsView = false;
+  it.each([
+    [["runs:view"], "Needs permission to read runs"],
+    [["datasets:run"], "Needs permission to run this dataset"],
+    [["runs:view", "datasets:run"], "Needs permission to read runs and to run this dataset"],
+  ])("is shown disabled, saying what is missing: %j", async (needs, reason) => {
+    state.dataset = { can_run: false, run_needs: needs };
     render(<DatasetRunEvalsButton datasetId="ds-1" />);
 
     const button = screen.getByRole("button", { name: /Run evals/ });
     expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(button).toHaveAttribute("title", "Needs permission to read runs");
+    expect(button).toHaveAttribute("title", reason);
     await userEvent.click(button);
     expect(state.dialog).toEqual([]);
   });
