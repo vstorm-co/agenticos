@@ -128,8 +128,8 @@ def test_a_pass_run_alone_over_the_ceiling_says_it_was_not_compared() -> None:
     suite, result, agent = _rows(status="passed")
 
     assert _suite_summary(suite, result, agent=agent, summary=summary) == (
-        "Refunds passed on Clerk v7 uncompared. Not compared: running the earlier version "
-        "too would exceed the suite's cost cap."
+        "Refunds passed on Clerk v7. Not compared: running the earlier version too would "
+        "exceed the suite's cost cap."
     )
 
 

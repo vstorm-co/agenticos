@@ -724,7 +724,7 @@ class NotificationService:
     async def eval_suite_failed(
         self, suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent
     ) -> None:
-        """A suite's run fell below its threshold, or could not run.
+        """A suite's run fell below its threshold, could not run, or passed uncompared.
 
         Its owner hears once per run of such results on a version - the caller
         sends only the first - and the occurrence is that first result, so a
@@ -1319,7 +1319,7 @@ def _suite_summary(
         EvalSuiteResultStatus.INCONCLUSIVE.value,
     )
     if result.status == EvalSuiteResultStatus.PASSED.value and summary and summary.message:
-        return f"{suite.name} passed on {on} uncompared. {summary.message}"
+        return f"{suite.name} passed on {on}. {summary.message}"
     if not deciding:
         why = (summary.message if summary and summary.message else None) or (result.reason or "")
         return f"{suite.name} did not run on {on}: {why.rstrip('.')}."

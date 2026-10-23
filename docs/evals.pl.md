@@ -1,5 +1,5 @@
 ---
-source_sha: "34cd8b6a3651"
+source_sha: "4dd9ded034a0"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -544,9 +544,12 @@ ocenianie - następny uruchamia obok siebie poprzednią wersję, ocenianą tak, 
 teraz, więc może znowu przejść i stać się runem, z którym porównuje się kolejne.
 
 Gdy uruchomienie obu przekroczyłoby `max_run_usd` suity, a sam kandydat by go
-nie przekroczył, kandydat uruchamia się sam i jest oceniany według własnych
-liczb; wynik mówi „Not compared: running the earlier version too would exceed
-the suite's cost cap.”, a właściciel suity dostaje wiadomość.
+nie przekroczył, kandydat uruchamia się bez poprzedniej wersji obok siebie:
+porównuje się go z ostatnim porównywalnym runem tamtej wersji, jeśli taki
+jeszcze jest, a w przeciwnym razie ocenia według własnych liczb. Gdy nie ma z
+czym porównać, wynik mówi „Not compared: running the earlier version too would
+exceed the suite's cost cap.”, a zaliczony wynik z tą informacją powiadamia
+właściciela suity.
 
 [Sprawdzenie sugestii asystenta tworzenia](authoring.md#check-with-evals)
 uruchomione na suicie jest oceniane według tego samego progu, ale nie jest

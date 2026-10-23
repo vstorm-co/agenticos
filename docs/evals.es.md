@@ -1,5 +1,5 @@
 ---
-source_sha: "34cd8b6a3651"
+source_sha: "4dd9ded034a0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -546,9 +546,11 @@ versión anterior, puntuada como se puntúa ahora, para que pueda volver a aprob
 y ser la ejecución con la que se comparan las siguientes.
 
 Cuando ejecutar ambos superaría el `max_run_usd` de la suite, pero el candidato
-por sí solo no, el candidato se ejecuta solo y se mide con sus propios números;
-el resultado dice «Not compared: running the earlier version too would exceed
-the suite's cost cap.» y se avisa al propietario de la suite.
+por sí solo no, el candidato se ejecuta sin la versión anterior a su lado:
+contra la última ejecución comparable de esa versión si queda alguna y, si no,
+se mide con sus propios números. Cuando nada es comparable, el resultado dice
+«Not compared: running the earlier version too would exceed the suite's cost
+cap.», y un resultado aprobado que lo dice avisa al propietario de la suite.
 
 Una [comprobación de las sugerencias del asistente de autoría](authoring.md#check-with-evals)
 ejecutada en una suite se mide con el mismo umbral, pero no es un resultado de la

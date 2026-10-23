@@ -504,9 +504,11 @@ the next one runs the version before beside it, graded the way it is now, so it
 can pass again and become the run the ones after it are compared with.
 
 When running both would cross the suite's `max_run_usd` and the candidate alone would
-not, the candidate runs alone, held to its own numbers; the result says "Not
-compared: running the earlier version too would exceed the suite's cost cap."
-and its owner is told.
+not, the candidate runs without the version before beside it: against the last
+comparable run of that version if one is left, else held to its own numbers.
+When nothing compares, the result says "Not compared: running the earlier
+version too would exceed the suite's cost cap.", and a pass that says so tells
+its owner.
 
 A [check of the authoring assistant's suggestions](authoring.md#check-with-evals)
 run on a suite is held to the same threshold, but it is not a result of the
