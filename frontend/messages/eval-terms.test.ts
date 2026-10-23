@@ -37,35 +37,55 @@ interface Mixed {
   within?: string[];
 }
 
-/** Where "draft" is the content written for a knowledge gap, not an unpublished agent. */
-const GAP_DRAFTS = ["knowledgeGaps.", "agents.drafterKind", "onboarding.steps.agents-system."];
+/**
+ * Where Polish "szkic" would name the agent's unpublished spec, which is "wersja
+ * robocza". A text written for somebody to accept - a knowledge gap's content, a
+ * generated case - stays "szkic", and German says "Entwurf" for both.
+ */
+const AGENT_DRAFTS = [
+  "agents.",
+  "pages.agents.",
+  "evals.",
+  "authoring.",
+  "promotionGate.",
+  "datasets.scoring.",
+  "onboarding.offer.test-change.",
+  "onboarding.steps.agent-",
+  "onboarding.steps.agents-templates.",
+  "onboarding.steps.flow-agent-",
+  "onboarding.steps.flow-test-",
+];
 
 const MIXED: Record<"pl" | "de", Mixed[]> = {
   pl: [
-    { pattern: /case'|\bcase(s|y|ów|a|u|em|ach|ami|om)?\b/i, use: "przypadek" },
-    { pattern: /\beval(e|a|i|u|em|om|ów|ach|ami)?\b/i, use: "ewaluacja, zakładka Ewaluacje" },
-    { pattern: /\breview(u|y|em|ie|ów)?\b/i, use: "przegląd" },
-    { pattern: /\bdraf(t|tu|tem|ty|tów|cie)\b/i, use: "wersja robocza" },
+    { pattern: /case'|\bcase\w*/i, use: "przypadek" },
+    { pattern: /\beval\w*/i, use: "ewaluacja, zakładka Ewaluacje" },
+    { pattern: /\breview\w*/i, use: "przegląd" },
+    { pattern: /\bdraf(t\w*|cie)\b/i, use: "wersja robocza albo szkic" },
     {
-      pattern: /\bszkic(u|em|e|ów|ach|ami)?\b/i,
+      pattern: /\bszkic\w*/i,
       use: "wersja robocza",
-      except: GAP_DRAFTS,
+      within: AGENT_DRAFTS,
+      except: ["agents.drafterKind"],
     },
-    { pattern: /\bjudge\b/i, use: "sędzia" },
+    { pattern: /\bjudge\w*/i, use: "sędzia" },
+    // The Builder is the page's name and a role's; the tab is Budowa.
     { pattern: /\bbuild\b/i, use: "Budowa" },
     { pattern: /\bactivity\b/i, use: "Aktywność" },
     { pattern: /\bpublish\b/i, use: "Opublikuj" },
-    { pattern: /asystent(a|em|owi)? AI/i, use: "wsparcie AI" },
+    { pattern: /asystent\w* AI/i, use: "wsparcie AI" },
   ],
   de: [
-    { pattern: /\bcases?\b/i, use: "Fall" },
-    { pattern: /\bdrafts?\b/i, use: "Entwurf" },
-    { pattern: /\benvironments?\b/i, use: "Umgebung" },
-    { pattern: /\bjudges?\b/i, use: "Bewerter" },
-    { pattern: /\breviews?\b/i, use: "Prüfung" },
-    // A build step is a build step; the tab is Bauen.
+    // A prefix as well as a word, so a compound - "Case-Generator" - is caught too.
+    { pattern: /\bcase/i, use: "Fall" },
+    { pattern: /\bdraft/i, use: "Entwurf" },
+    { pattern: /\benvironment/i, use: "Umgebung" },
+    { pattern: /\bjudge/i, use: "Bewerter" },
+    // A run's Reviewer is a person who approves its tool calls, not the review queue.
+    { pattern: /\breview(?!er)/i, use: "Prüfung" },
+    // The Builder is the page's name and a role's, and a build step is a build step.
     { pattern: /\bbuild\b(?!-Schritt)/i, use: "Bauen" },
-    { pattern: /\bactivity\b/i, use: "Aktivität" },
+    { pattern: /\bactivity/i, use: "Aktivität" },
     // What a verdict says of cases; a page that looks broken may still read "kaputt".
     {
       pattern: /kaputt/i,
@@ -156,6 +176,44 @@ describe("prose", () => {
     expect(prose("{name} review {date}")).toMatch(/review/);
     expect(prose("{count, plural, one {# case'a} other {# case'ów}}")).toMatch(/case'/);
     expect(prose("Sent to <b>review</b>")).toMatch(/review/);
+  });
+});
+
+/** A catalog holding one message, at its dotted key. */
+function single(key: string, value: string): Catalog {
+  return key
+    .split(".")
+    .reduceRight<Catalog | string>((inner, part) => ({ [part]: inner }), value) as Catalog;
+}
+
+describe("the gate", () => {
+  it.each([
+    ["pl", "evals.live.answering", "Case'y, których wynik się zmieni"],
+    ["pl", "evals.fields.fromRecordingsHint", "Case wzięty z rozmowy"],
+    ["pl", "agents.testConnectionsHint", "Runy, łącznie z evalami"],
+    ["pl", "onboarding.steps.flow-dataset-case-answers.body", "judge porównuje odpowiedź"],
+    ["pl", "authoring.check.body", "Uruchamia dataset na drafcie"],
+    ["pl", "agents.testPanelDraft", "Szkic"],
+    ["pl", "knowledgeGaps.editDrafter", "Edytuj instrukcje draftera"],
+    ["pl", "evals.review.send", "{count, plural, one {Wyślij do Review} other {Wyślij #}}"],
+    ["de", "evals.estimate.judge", "Eval judge"],
+    ["de", "datasets.generateIntro", "Der Case-Generator"],
+    ["de", "evals.comparison.verdict.worse", "Macht Fälle kaputt"],
+    ["de", "evals.draft", "{kind, select, a {Draft} other {Entwurf}}"],
+  ] as const)("in %s, refuses %s reading %j", (locale, key, value) => {
+    expect(offences(single(key, value), MIXED[locale])).not.toEqual([]);
+  });
+
+  it.each([
+    ["pl", "knowledgeGaps.hasDraft", "Szkic"],
+    ["pl", "datasets.proposalsBody", "Szkice czekają na akceptację"],
+    ["pl", "agents.openInBuilder", "Otwórz w Builderze"],
+    ["pl", "evals.answers", "{cases, plural, one {# przypadek} other {# przypadków}}"],
+    ["de", "agents.reviewersTitle", "Run-Reviewer"],
+    ["de", "agents.surfaceWidgetBody", "Ein Script-Tag, kein Build-Schritt."],
+    ["de", "agents.approvalParksTheRun", "der Bot wirkt kaputt"],
+  ] as const)("in %s, lets %s read %j", (locale, key, value) => {
+    expect(offences(single(key, value), MIXED[locale])).toEqual([]);
   });
 });
 
