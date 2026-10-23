@@ -563,7 +563,7 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     run, answer = await _rated_down_turn(db, ctx)
 
     case = await service.add_from_message(
-        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=True)
     )
 
     assert case.source == "conversation"
@@ -580,14 +580,14 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     assert case.note == "Wrong refund window"
 
 
-async def test_a_question_added_on_its_own_keeps_no_history(db) -> None:
+async def test_a_question_added_without_asking_for_its_history_keeps_none(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="from activity"))
     run, answer = await _rated_down_turn(db, ctx)
 
     case = await service.add_from_message(
-        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=False)
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
     )
 
     assert (case.input, case.history) == ("How long do I have to return it?", [])

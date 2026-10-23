@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
 import { ApiError } from "@/lib/api-error";
@@ -58,11 +59,13 @@ function mount({
   ratingCount,
   conversationId = "c-1",
   isAssistant = true,
+  asked,
 }: {
   currentRating?: UserRating;
   ratingCount?: { likes: number; dislikes: number };
   conversationId?: string;
   isAssistant?: boolean;
+  asked?: AskedBefore;
 } = {}) {
   const onRatingChange = vi.fn();
   const { unmount } = render(
@@ -73,6 +76,7 @@ function mount({
       ratingCount={ratingCount}
       onRatingChange={onRatingChange}
       isAssistant={isAssistant}
+      asked={asked}
     />,
   );
   return Object.assign(onRatingChange, { unmount });
@@ -500,6 +504,37 @@ describe("adding a rated-down answer to a dataset", () => {
     await waitFor(() =>
       expect(datasets.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: true })),
     );
+  });
+
+  it("asks nothing about a conversation the question did not have", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: false } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.queryByRole("combobox", { name: "historyChoice" })).toBeNull();
+  });
+
+  it("points out a follow-up in the thumbs-down dialog without choosing it", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
+  });
+
+  it("points out a follow-up in the thumbs-up dialog too", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    act(() => toastAction(0).onClick());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
   });
 
   it("keeps the rating when the add is refused, and says which half failed", async () => {
