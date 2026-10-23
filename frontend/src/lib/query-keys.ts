@@ -332,6 +332,7 @@ export const qk = {
     view: (id: string, versionId: string | null, withData = false) =>
       ["artifacts", id, "view", versionId ?? "current", withData ? "data" : "plain"] as const,
     data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
+    actionRun: (id: string, runId: string) => ["artifacts", id, "action-run", runId] as const,
     disclosure: (id: string, versionId: string) =>
       ["artifacts", id, "disclosure", versionId] as const,
     publicDataDisclosure: (id: string) => ["artifacts", id, "public-data"] as const,

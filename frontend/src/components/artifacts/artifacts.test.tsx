@@ -45,6 +45,19 @@ vi.mock("@/hooks/use-artifacts", () => ({
   usePublicArtifactUnlock: () => unlockMock(),
 }));
 const toastError = vi.fn();
+// The console's answer to a page's actions has its own tests (`artifact-actions.test.tsx`);
+// here the frame is only a frame.
+vi.mock("@/hooks/use-artifact-actions", async (importActual) => {
+  const actual = await importActual<typeof import("@/hooks/use-artifact-actions")>();
+  const idle = {
+    pending: null,
+    paused: [],
+    cancel: () => {},
+    confirm: async () => {},
+    onLoad: () => {},
+  };
+  return { useArtifactActions: () => idle, useAskingGate: actual.useAskingGate };
+});
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
 function version(number: number, overrides: Partial<ArtifactVersion> = {}): ArtifactVersion {
@@ -269,6 +282,8 @@ function liveView(
     bindings: live ? 1 : 0,
     expires_at: "",
     version: version(number),
+    actions_enabled: false,
+    actions: [],
   };
 }
 
@@ -1329,6 +1344,8 @@ describe("the public page", () => {
       awaiting_consent: false,
       bindings: 0,
       version: version(3),
+      actions_enabled: false,
+      actions: [],
     },
   };
   const locked = {

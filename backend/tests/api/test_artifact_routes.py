@@ -30,7 +30,13 @@ from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.artifact_share_request import ShareRequestKind, ShareRequestStatus
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.schemas.artifact import ArtifactBinding, ArtifactVersionRead, BindingReach
+from app.schemas.artifact import (
+    ArtifactActionRun,
+    ArtifactActionRunStarted,
+    ArtifactBinding,
+    ArtifactVersionRead,
+    BindingReach,
+)
 from app.schemas.artifact_share_request import (
     ArtifactAccessRequested,
     ArtifactShareRequestList,
@@ -84,6 +90,7 @@ def _version(
         storage_path="artifacts/x/y/z.html",
         run_id=None,
         bindings=bindings or [],
+        actions=[],
         consent_state="pending" if bindings else "not_needed",
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
@@ -246,6 +253,58 @@ class TestMembers:
                 off = await http.delete(_url(f"/{row.id}/public-link"))
         assert on.json()["public_url"].startswith(f"{settings.FRONTEND_URL.rstrip('/')}/a/")
         assert off.json()["public_url"] is None
+
+
+class TestActions:
+    async def test_starting_an_action_is_created_and_reading_its_run_is_the_projection(
+        self, client: OpenClient
+    ) -> None:
+        run_id = uuid.uuid4()
+        started = ArtifactActionRunStarted(run_id=run_id, status="queued")
+        state = ArtifactActionRun(
+            status="succeeded",
+            finished=True,
+            paused=False,
+            run_path=None,
+            output_text="Done",
+        )
+        page, version, workflow = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        with (
+            patch.object(
+                ArtifactService, "start_action", new=AsyncMock(return_value=started)
+            ) as start,
+            patch.object(ArtifactService, "action_run", new=AsyncMock(return_value=state)),
+        ):
+            async with client() as http:
+                created = await http.post(
+                    _url(f"/{page}/versions/{version}/actions/{workflow}/runs"),
+                    json={"input": {"order": "7"}},
+                )
+                read = await http.get(_url(f"/{page}/actions/runs/{run_id}"))
+        assert created.status_code == 201
+        assert created.json() == {"run_id": str(run_id), "status": "queued"}
+        assert start.await_args.args[1:5] == (page, version, workflow, start.await_args.args[4])
+        assert start.await_args.args[4].input == {"order": "7"}
+        assert read.json()["output_text"] == "Done"
+        assert set(read.json()) == {
+            "status",
+            "finished",
+            "paused",
+            "run_path",
+            "output_text",
+            "output_structured",
+            "error_message",
+        }
+
+    async def test_a_start_without_a_body_object_is_refused_at_the_edge(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/versions/{uuid.uuid4()}/actions/{uuid.uuid4()}/runs"),
+                json={"input": "nope"},
+            )
+        assert response.status_code == 422
 
 
 class TestStrangers:

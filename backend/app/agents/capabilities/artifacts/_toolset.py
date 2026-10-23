@@ -46,7 +46,13 @@ from app.core.exceptions import (
 )
 from app.db.models.artifact import ArtifactMediaType, ConsentState
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import BindingData, BindingDisclosure, BindingRequest
+from app.schemas.artifact import (
+    ActionDisclosure,
+    ActionRequest,
+    BindingData,
+    BindingDisclosure,
+    BindingRequest,
+)
 from app.services.artifact_lint import lint_page
 
 if TYPE_CHECKING:
@@ -200,6 +206,10 @@ class PublishedArtifactResult(BaseModel):
         default_factory=dict,
         description="Each binding's page query in words, or `kept` when carried unchanged",
     )
+    actions: list[ActionDisclosure] | Literal["kept"] = Field(
+        default_factory=list,
+        description="The workflows the page may start, or `kept` when carried unchanged",
+    )
     consent: Literal["not_needed", "pending", "consented", "declined", "withdrawn"] = Field(
         default="not_needed",
         description="Where the version's data stands with the page's owner",
@@ -300,7 +310,10 @@ def apply_edits(source: str, edits: list[ArtifactEdit]) -> str:
 
 
 def build_artifacts_toolset(
-    *, table_grants: Mapping[UUID, frozenset[str]], screenshot: bool = True
+    *,
+    table_grants: Mapping[UUID, frozenset[str]],
+    workflow_ids: frozenset[UUID] = frozenset(),
+    screenshot: bool = True,
 ) -> FunctionToolset[AgentDeps]:
     """The artifact tools, `publish_artifact` reading from the run's workspace when it has one.
 
@@ -320,6 +333,7 @@ def build_artifacts_toolset(
         edits: list[ArtifactEdit] | None = None,
         format: Literal["html", "markdown"] | None = None,  # noqa: A002 - the model's word for it
         bindings: dict[str, BindingRequest] | None = None,
+        actions: list[ActionRequest] | None = None,
     ) -> str:
         """Publish a finished page - a report, a small dashboard, a summary - under a stable link.
 
@@ -388,6 +402,12 @@ def build_artifacts_toolset(
                 digits and `_`; a field may be named as its column is labelled (`Status`,
                 `Created At`). Omit to keep the page's current bindings - the usual case
                 when changing a page's look. `{}` removes them.
+            actions: Workflows a member may start from the page, at most 5, as
+                `[{"workflow": id or exact name, "label": "Approve"}]`. Only workflows
+                from `list_workflows` (bound to this agent) that start from a Manual or
+                API trigger, and that the person you act for may run. The member confirms
+                every run. Omit to keep the current ones; `[]` removes them. Needs a
+                person behind the run.
 
         Returns:
             A JSON reference to the published page - its `url`, the `version` number,
@@ -403,7 +423,8 @@ def build_artifacts_toolset(
             the person this run is for until they share it. `consent` says whether the
             page's owner has agreed to share this version's data: `pending` means
             everyone else still sees what `audience` says until the owner confirms it in
-            the console - tell the person so.
+            the console - tell the person so. `actions` lists each declared workflow by its
+            name and label, or `kept`.
         """
         # Function-local: `app.services.artifact` imports virtual tables, which reach this
         # package through the factory (an import cycle).
@@ -508,6 +529,8 @@ def build_artifacts_toolset(
                 bindings=bindings,
                 run_person=deps.run_person,
                 table_grants=table_grants,
+                actions=actions,
+                workflow_ids=workflow_ids,
             )
         except AuthorizationError as refused:
             # A refusal, so returned rather than steered: the name is somebody
@@ -531,6 +554,7 @@ def build_artifacts_toolset(
             visibility=published.visibility,
             public=published.public,
             bindings=published.bindings,
+            actions="kept" if isinstance(published.actions, str) else published.actions,
             consent=published.consent.value,
             audience=_audience_note(published),
             warning="\n".join(warnings) or None,

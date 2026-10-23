@@ -1,5 +1,5 @@
 ---
-source_sha: "a0f89564f4d6"
+source_sha: "d937fafb5543"
 ---
 
 # Konfiguration { #configuration }
@@ -1227,6 +1227,7 @@ diese.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Wie oft die Daten einer Seite für Besucher ihres öffentlichen Links oder ihrer Embeds aus ihren Tabellen gelesen werden dürfen, **je Seite über alle Besucher**. Ein Laden, das aus den Tabellen lesen muss, zählt einmal, eines aus dem 30-Sekunden-[Cache](artifacts.md#the-cache-and-the-cap) nicht; darüber hinaus lädt die Seite ohne diese Daten |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runs, die ein Mitglied pro Minute aus den [Aktionen](artifacts.md#actions) einer Seite starten darf, **je Mitglied, Organisation und Seite**. Jeden Run bestätigt das Mitglied zuvor; das begrenzt eine Seite, die in einer Schleife fragt. Darüber hinaus wird der Aufruf der Seite als `rate_limited` abgewiesen |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes, Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle sowie Speichern, Ändern oder Löschen einer gespeicherten Ansicht. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 

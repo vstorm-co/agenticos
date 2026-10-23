@@ -1,5 +1,5 @@
 ---
-source_sha: "e9a27c8b197e"
+source_sha: "8d12859e2e5b"
 ---
 
 # Seguridad { #security }
@@ -246,6 +246,36 @@ que han convencido de pedir no puede ampliarse a sí misma.
 auditoría: el registro de auditoría contiene la huella, la versión, quién consintió y qué texto
 confirmó, nunca una fila ni un valor de filtro.
 
+## Una página que inicia workflows { #a-page-that-starts-workflows }
+
+El script de una página no es de fiar: lo escribe un modelo que puede haber leído algo
+hostil. Las [acciones](artifacts.md#actions) le permiten pedir que se ejecute un workflow, así
+que lo que puede hacer está acotado por controles que la página no puede cambiar:
+
+- **Una lista permitida que revisó el publicador.** Una página declara como mucho cinco
+  workflows, cada uno vinculado en la capability Workflows del agent, activo, iniciado a mano y
+  ejecutable por la persona detrás del run que publica. Un run sin nadie detrás no puede
+  declararlos ni cambiarlos. Una restauración los comprueba de nuevo.
+- **La redacción de la página no decide nada.** La etiqueta es texto plano sin caracteres
+  ocultos; la consola titula su diálogo con el nombre propio del workflow y cita la etiqueta.
+- **Una persona confirma cada run.** El diálogo muestra cada valor de entrada como texto, con los
+  caracteres invisibles escritos; Run está desactivado durante medio segundo y nunca recibe el
+  foco; hay una sola pregunta abierta a la vez, y tres rechazos detienen las preguntas hasta que
+  se vuelve a abrir la página.
+- **La petición se comprueba dos veces.** La consola solo acepta un mensaje del propio frame de la
+  página bajo el nonce de esa carga, y solo para una acción que el servidor listó para este lector
+  y la versión servida; comprueba la entrada contra los campos del workflow antes de preguntar. La
+  ruta de inicio repite las comprobaciones: la versión debe ser la servida, el workflow estar
+  declarado y poder ejecutarlo el llamante ahora, y la sesión no estar suplantada.
+- **Solo el lector de la página puede pedirlo.** La dirección lleva una claim `acts`, que solo se
+  establece para el visor de la consola. Los enlaces públicos, los embeds, las vistas previas y las
+  miniaturas rechazan la llamada y no llevan acciones.
+- **El run es de la persona.** Sus permisos, su budget y su límite de frecuencia (10 runs por minuto
+  por defecto), registrado con el trigger `app` y auditado sin su entrada.
+- **La página se entera de poco.** El estado de un run, el texto de la respuesta, la respuesta
+  estructurada sin referencias a archivos y la primera línea de un error, de 200 caracteres como
+  máximo, solo para un run que esa página inició para esa persona.
+
 ## Matriz de controles { #controls-matrix }
 
 Una fila por control, el mecanismo que lo satisface y el test que lo sostiene.
@@ -259,6 +289,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Un permiso en cada ruta de colección | Dependencia de ruta `require(*perms)` en las rutas de listado, creación y catálogo (`app/api/deps.py`), catálogo en `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Las rutas por recurso autorizan en el servicio, no en la ruta | Una ruta que actúa sobre un agent, un skill o una colección no lleva gate `require()` — un gate de rol rechazaría al portador de un grant antes de que el grant se aplicara — y en su lugar llama a `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (toda ruta está gateada o la decide el servicio) |
 | Un grant amplía el acceso sin ascender al miembro | El `resolve_access` por recurso toma `max(alcance del rol, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
+| Una página inicia un workflow solo como la persona que lo confirma | La lista permitida de la publicación (`app/services/artifact_actions.py`), la lista propia del lector, las comprobaciones de origen y nonce de la consola y su diálogo de confirmación (`frontend/src/hooks/use-artifact-actions.ts`), la claim `acts` que solo lleva la dirección del lector (`app/core/security.py`), y una ruta de inicio que ejecuta el workflow como el llamante y rechaza otra versión o una sesión suplantada. Consulta [una página que inicia workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
 | Una mención en un canal se ejecuta como el remitente, no como el bot | Se usa el `AuthContext` propio de un remitente vinculado y activo (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Autenticación · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }

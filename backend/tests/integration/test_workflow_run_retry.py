@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AuthorizationError
+from app.db.models.artifact import Artifact
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
 from app.repositories import workflow_run as workflow_run_repo
@@ -304,6 +305,42 @@ class TestRetryingAPublicRun:
 
         assert run is not None
         assert run.public_origin is False
+
+    async def test_a_retry_of_an_app_run_names_the_same_page_and_version(
+        self, engine: AsyncEngine, kinds
+    ):
+        seeded, _nodes = await _failed_run(engine, kinds, triggered_by="app")
+        async with seeded.factory() as db:
+            page = Artifact(
+                organization_id=seeded.org.id,
+                owner_user_id=seeded.principal.id,
+                name="tool",
+                title="Tool",
+                visibility="private",
+            )
+            db.add(page)
+            await db.flush()
+            await workflow_run_repo.update_run(
+                db,
+                run=await workflow_run_repo.get_run(
+                    db, seeded.run.id, organization_id=seeded.org.id
+                ),
+                update_data={"source_artifact_id": page.id, "source_version_number": 4},
+            )
+            await db.commit()
+            page_id = page.id
+
+        async with seeded.factory() as db:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            run = await workflow_run_repo.get_run(db, retried.id, organization_id=seeded.org.id)
+
+        assert run is not None
+        assert (run.triggered_by, run.source_artifact_id, run.source_version_number) == (
+            "app",
+            page_id,
+            4,
+        )
 
 
 class TestFilteringRuns:

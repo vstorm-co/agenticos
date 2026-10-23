@@ -876,7 +876,8 @@
         "form": "Formularz",
         "channel_message": "Wiadomość na kanale",
         "github": "GitHub",
-        "gmail": "Gmail"
+        "gmail": "Gmail",
+        "app": "Aplikacja"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -2581,6 +2582,10 @@
       "artifact-review": {
         "title": "Przegląd zmiany danych",
         "body": "Inny edytor opublikował wersję, która czyta inne dane. Review data change otwiera panel porównujący ją z wersją widzianą teraz przez odbiorców, binding po bindingu, z zaznaczeniem wszystkiego, co czyta więcej. Approve ją potwierdza; Decline zostawia odbiorców przy wcześniejszej wersji."
+      },
+      "artifact-actions": {
+        "title": "Aplikacje uruchamiające workflowy",
+        "body": "Gdy strona deklaruje workflowy, które możesz uruchomić, „Ta aplikacja może uruchomić” wymienia je tutaj z linkiem do runów każdego z nich. Strona może tylko poprosić: każdy run czeka na Twoje potwierdzenie, działa jako Ty i pokazuje, co wyśle."
       },
       "artifact-change-owner": {
         "title": "Zmiana właściciela",
@@ -4539,6 +4544,19 @@
     "filterByAgent": "Filtruj według agenta",
     "everyAgent": "Wszystkie agenty",
     "environmentBadge": "Opublikowano z tego środowiska",
+    "actions": {
+      "why": "Strona „{page}” prosi o uruchomienie tego workflowu jako Ty, z Twoim dostępem i Twoim budżetem. Sprawdź, co wyśle, zanim przejdziesz dalej.",
+      "pageWording": "Własne słowa strony",
+      "sends": "Co zostanie wysłane",
+      "sendsNothing": "Nic: workflow nie przyjmuje danych wejściowych.",
+      "notGiven": "nie podano",
+      "run": "Uruchom",
+      "rateLimited": "Zbyt wiele runów z tej strony. Spróbuj ponownie za minutę.",
+      "waiting": "{name} czeka na kogoś.",
+      "openRun": "Otwórz run",
+      "canRun": "Ta aplikacja może uruchomić: {names}",
+      "runsOf": "Runy workflowów, które ta aplikacja może uruchomić"
+    },
     "openLinkTitle": "Otworzyć ten link?",
     "openLinkWhy": "Strona chce otworzyć inną witrynę w nowej karcie. Sprawdź adres, zanim przejdziesz dalej.",
     "openLink": "Otwórz link",

@@ -1,5 +1,5 @@
 ---
-source_sha: "7b81e2332658"
+source_sha: "9475cb419897"
 ---
 
 # Governance { #governance }
@@ -1248,7 +1248,7 @@ próśb i słowa, które osoba potwierdziła.
 
 | Akcja | Zapisywana, gdy |
 |---|---|
-| `artifact.published` | Opublikowano wersję, z jej numerem i odciskiem jej zapytań strony |
+| `artifact.published` | Opublikowano wersję, z jej numerem, odciskiem jej zapytań strony i `actions`, czyli id workflowów, które deklaruje |
 | `artifact.data_consented` | Właściciel potwierdził dane wersji albo wyrażono na nie zgodę automatycznie (`automatic`). Nazywa wersję i odcisk, `for_owner`, gdy potwierdził za niego Owner lub Admin, oraz `via_grant`, gdy dał ją grant `edit_data` |
 | `artifact.data_withdrawn` | Edytor zatrzymał udostępnianie danych przez stronę; nazywa wersję, którą serwowano odbiorcom, i czy auto-zgoda była włączona, oraz ile grantów `edit_data` obniżono do `edit` |
 | `artifact.auto_consent_changed` | Właściciel włączył albo wyłączył „Don't ask for consent on republish", z tekstem, który potwierdził |
@@ -1260,6 +1260,7 @@ próśb i słowa, które osoba potwierdziła.
 | `artifact.public_data_consented` | Właściciel, albo w jego imieniu Owner lub Admin, potwierdził, że każdy z publicznym linkiem strony i witryny, które ją osadzają, mogą czytać jej dane. Nazywa wersję, odcisk, tabele i kolumny, witryny osadzające i to, czy hasło jest ustawione, oraz `for_owner`, gdy ktoś potwierdził w jego imieniu |
 | `artifact.public_data_withdrawn` | Edytor cofnął tę zgodę, zalogowany jako on sam (bez impersonacji), z odciskiem, który ona trzymała |
 | `artifact.public_data_voided` | Zgoda została wyczyszczona, bo zmieniło się coś pod nią, z `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` albo `archived` |
+| `artifact.action_started` | Członek potwierdził i uruchomił workflow z akcji strony. Wskazuje stronę, wersję, workflow i run, nigdy wartości wejścia, które są na runie |
 
 **Public pages with live data** to ustawienie organizacji, domyślnie wyłączone, w
 ustawieniach organizacji obok zrzeczenia się zatwierdzeń. Decyduje, czy dane strony

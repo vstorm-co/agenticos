@@ -42,6 +42,21 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactDisclosure: (...args: unknown[]) => useArtifactDisclosureMock(...args),
   usePublicDataDisclosure: (...args: unknown[]) => usePublicDataDisclosureMock(...args),
 }));
+// What the console does with a page's requests has its own tests
+// (`artifact-actions.test.tsx`); here the viewer only draws what it is lent.
+const IDLE_ACTIONS = {
+  pending: null,
+  paused: [],
+  cancel: () => {},
+  confirm: async () => {},
+  onLoad: () => {},
+};
+const useArtifactActionsMock = vi.fn(() => IDLE_ACTIONS);
+vi.mock("@/hooks/use-artifact-actions", async (importActual) => ({
+  useArtifactActions: () => useArtifactActionsMock(),
+  useAskingGate: (await importActual<typeof import("@/hooks/use-artifact-actions")>())
+    .useAskingGate,
+}));
 const requestsMock = vi.fn();
 const reviewMock = vi.fn();
 const decline = { mutate: vi.fn(), isPending: false };
@@ -1659,5 +1674,60 @@ describe("a page's data on its public link, in the viewer", () => {
       fingerprint: FP,
       audience_digest: DIGEST,
     });
+  });
+});
+
+describe("what a page can run, in the viewer", () => {
+  const ACTIONS = [
+    { workflow_id: "w1", name: "Send report", label: "Mail it", fields: [] },
+    { workflow_id: "w2", name: "Archive deals", label: "Tidy", fields: [] },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useArtifactMock.mockReturnValue(state(detail()));
+    useArtifactDataMock.mockReturnValue(NO_DATA);
+    useArtifactActionsMock.mockReturnValue(IDLE_ACTIONS);
+    useAuthStore.setState({ user: { id: "u1" } as User });
+  });
+
+  it("names the workflows in the strip and links each to its runs", async () => {
+    useArtifactViewMock.mockReturnValue({
+      ...STATIC_VIEW,
+      data: { ...STATIC_VIEW.data, actions_enabled: true, actions: ACTIONS },
+    });
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "This app can run: Send report, Archive deals" }),
+    );
+    expect(screen.getByRole("menuitem", { name: "Send report" })).toHaveAttribute(
+      "href",
+      "/workflows/w1/runs",
+    );
+    expect(screen.getByRole("menuitem", { name: "Archive deals" })).toHaveAttribute(
+      "href",
+      "/workflows/w2/runs",
+    );
+  });
+
+  it("draws nothing for a page that offers none", () => {
+    useArtifactViewMock.mockReturnValue(STATIC_VIEW);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    expect(screen.queryByRole("button", { name: /This app can run/ })).toBeNull();
+  });
+
+  it("points at a run that waits on someone", () => {
+    useArtifactViewMock.mockReturnValue(STATIC_VIEW);
+    useArtifactActionsMock.mockReturnValue({
+      ...IDLE_ACTIONS,
+      paused: [{ runId: "r1", name: "Send report", path: "/workflows/w1/runs/r1?org=o1" }],
+    } as never);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    expect(screen.getByText("Send report is waiting for someone.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open run" })).toHaveAttribute(
+      "href",
+      "/workflows/w1/runs/r1?org=o1",
+    );
   });
 });

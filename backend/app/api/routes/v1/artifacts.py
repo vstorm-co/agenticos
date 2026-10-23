@@ -38,6 +38,9 @@ from app.api.routes.v1._artifact_bytes import (
 )
 from app.core.permissions import Perm
 from app.schemas.artifact import (
+    ArtifactActionRun,
+    ArtifactActionRunCreate,
+    ArtifactActionRunStarted,
     ArtifactAgentList,
     ArtifactAutoConsentUpdate,
     ArtifactConsentCreate,
@@ -184,6 +187,44 @@ async def read_artifact_disclosure(
     else who may open the page. `problem` says why it cannot be confirmed now.
     """
     return await service.disclosure(ctx, artifact_id, version_id)
+
+
+@router.post(
+    "/{artifact_id}/versions/{version_id}/actions/{workflow_id}/runs",
+    response_model=ArtifactActionRunStarted,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        409: {"description": "The workflow is archived or no longer starts by hand"},
+        422: {"description": "`WORKFLOW_RUN_INPUT_INVALID`: the input does not fit its fields"},
+        429: {"description": "Too many starts from this page, or the admission quota"},
+    },
+)
+async def start_artifact_action(
+    artifact_id: UUID,
+    version_id: UUID,
+    workflow_id: UUID,
+    data: ArtifactActionRunCreate,
+    service: ArtifactSvc,
+    ctx: Auth,
+) -> Any:
+    """Start a workflow the page declares, as the caller. The console asks the person first.
+
+    `version_id` must be the version the caller is served (`/view`); the workflow must be
+    one that version declares and the caller may view and run. The run is the caller's:
+    their access, budget and run history. A 403 for an impersonated session, a 404 for
+    anything else that does not fit, never saying which.
+    """
+    return await service.start_action(ctx, artifact_id, version_id, workflow_id, data)
+
+
+@router.get("/{artifact_id}/actions/runs/{run_id}", response_model=ArtifactActionRun)
+async def get_artifact_action_run(
+    artifact_id: UUID, run_id: UUID, service: ArtifactSvc, ctx: Auth
+) -> Any:
+    """How a run this page started for the caller stands: status, answer text, structured
+    answer without files, a short error, and a console path while it waits on a person.
+    A 404 for any other run."""
+    return await service.action_run(ctx, artifact_id, run_id)
 
 
 @router.post(

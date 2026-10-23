@@ -3432,6 +3432,10 @@
         "title": "Reviewing a data change",
         "body": "Another editor published a version that reads different data. Review data change opens a panel that compares it with the version the audience sees now, binding by binding, with anything it reads more marked. Approve confirms it; Decline keeps the audience on the earlier version."
       },
+      "artifact-actions": {
+        "title": "Apps that run workflows",
+        "body": "When the page declares workflows you may run, “This app can run” lists them here with a link to each one's runs. The page can only ask: every run waits for your confirmation, runs as you, and shows what it will send."
+      },
       "artifact-change-owner": {
         "title": "Change owner",
         "body": "A page's data is read with its owner's access. Change owner in this menu hands the page to another member at once; its data then waits for the new owner to confirm it."
@@ -3657,7 +3661,8 @@
         "form": "A form",
         "channel_message": "A channel message",
         "github": "GitHub",
-        "gmail": "Gmail"
+        "gmail": "Gmail",
+        "app": "An app"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",
@@ -6920,6 +6925,19 @@
     "filterByAgent": "Filter by agent",
     "everyAgent": "Every agent",
     "environmentBadge": "Published from this environment",
+    "actions": {
+      "why": "The page “{page}” asks to run this workflow as you, with your access and your budget. Check what it will send before you go on.",
+      "pageWording": "The page's own wording",
+      "sends": "What it will send",
+      "sendsNothing": "Nothing: the workflow takes no input.",
+      "notGiven": "not given",
+      "run": "Run",
+      "rateLimited": "Too many runs from this page. Try again in a minute.",
+      "waiting": "{name} is waiting for someone.",
+      "openRun": "Open run",
+      "canRun": "This app can run: {names}",
+      "runsOf": "Runs of the workflows this app can start"
+    },
     "openLinkTitle": "Open this link?",
     "openLinkWhy": "The page wants to open another site in a new tab. Check the address before you go on.",
     "openLink": "Open link",

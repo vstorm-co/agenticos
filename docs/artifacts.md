@@ -466,6 +466,152 @@ unlinked channel sender and an agent event trigger's delivery (GitHub, email,
 webhook relay) do not count, and neither does a workflow run admitted by a public
 door or anywhere in such a run's chain.
 
+## Actions { #actions }
+
+A page can start a [workflow](workflows.md), but only when a person agrees. The page
+does not act: it asks, the console shows the person what would happen, and the run
+belongs to them. This is how a page becomes a small app - a form that files a request,
+a button that approves an invoice - without the page holding any power of its own.
+
+### Declaring actions
+
+The agent declares the workflows a page may start when it publishes, with the `actions`
+argument of `publish_artifact`: up to five entries, each a workflow (its id or exact
+name) and a **label**, the word the page uses for it.
+
+```json
+{"actions": [{"workflow": "Approve invoice", "label": "Approve"}]}
+```
+
+A workflow can be an action only when all of these hold:
+
+- the publishing agent has it in the [Workflows capability](reference/capabilities.md#workflows),
+  so what a page may start is part of what the agent's author reviewed;
+- it is live (published, not archived) and starts from a **Manual** or **API** trigger;
+- the person behind the run may view and run it. One they may not is answered as if
+  it were not bound, so a refusal never names a workflow the person cannot see.
+
+The label is plain text of at most 60 characters with control and invisible characters
+removed; empty, it becomes the workflow's name. Leaving `actions` out keeps the
+current version's, and `[]` removes them. The publish result lists each declared
+action in words, or says `kept`. A Markdown page cannot have actions. A run with
+nobody behind it cannot add or change them, and can only republish unchanged a page
+that already has some. Restoring an older version checks its actions again against
+the agent as it is now, and is refused if one no longer stands.
+
+Actions are stored with the version, so a new version replaces the whole list and an
+older one keeps its own. Unbinding a workflow from the agent later does not edit a
+published version; the workflow's own state and each viewer's access are checked every
+time the page is opened and again when a run starts.
+
+### Who sees which actions
+
+When the console opens a page, it lists the actions the **served version** declares
+that this viewer may run now: each with the workflow's real name, the page's label and
+the fields its trigger asks for. One the viewer may not run is left out. The viewer's
+strip shows **This app can run: ...**, naming the workflows, each a link to that
+workflow's runs. Without any, nothing is shown.
+
+A page gets no actions, and its `run` call is rejected at once, when it is shown:
+
+- on a public link, in an embed, in a preview or in a card's thumbnail;
+- as an older version from the history, or one that is not the version this viewer
+  is served (an audience still waits on consent for the newer one);
+- to a member who cannot run any of its workflows, or to a session that is impersonated.
+
+The start route refuses all of the same, so a page that skipped the console would
+gain nothing.
+
+### Running one from the page
+
+In the page, `agenticos.run(action, input)` - `AO.run` in the
+[page kit](#the-library-set) - asks the console to start an action. `action` is a
+workflow id, the page's label or the workflow's name. The console matches the id
+exactly first, then the label, then the name, ignoring case. A tier that fits two
+actions matches nothing and does not fall through to the next.
+`input` is an object holding exactly the values the workflow's trigger declares. The
+call returns a Promise of the finished run, and `onRun` (`AO.onRun`) hears each change
+on the way:
+
+```js
+AO.run("Approve", { invoice: "INV-204" }).then(
+  (run) => show(run.status, run.output_text),
+  (error) => show("not run", error.message),
+);
+```
+
+The console starts nothing until the person has agreed. Every run, however many came
+before, opens a confirmation dialog:
+
+- its title is the **workflow's own name**, and the page's label appears only as a quote;
+- it shows every value the page sends, in full and as text, with characters that draw
+  nothing or reorder the text written out (`\u{202E}`);
+- **Run** is disabled for half a second and never takes focus, so a click already on its
+  way does not agree; Cancel has the focus;
+- one question is open at a time, across run and link dialogs, and a request that arrives
+  meanwhile is refused as `busy`;
+- after **three declines** for one opening of the page (reloading the frame keeps the
+  count) the console stops asking and refuses further requests until the page is
+  opened again.
+
+A request is refused without a dialog when it is too early (the frame has not loaded),
+names an action the page does not declare, does not fit the workflow's fields, or comes
+from anything but the page's own frame under the nonce the console minted for that load.
+A message from another frame, or a stale page, is dropped without a reply.
+
+The promise rejects with an `Error` whose `message` is a short code, so the page words
+its own copy:
+
+| Code | When |
+|---|---|
+| `cancelled` | The person declined |
+| `busy` | Another question was open |
+| `too_many_cancels` | Three declines; the page is not asked again until reopened |
+| `not_ready` | The page asked before its frame had loaded |
+| `unknown_action` | No declared action the viewer may run fits |
+| `invalid_input` | A value is missing, unknown or the wrong type; `error.problems` lists `{field, kind}` only when the console found the problem, and is absent when the server answered 422 |
+| `rate_limited` | Too many runs from this person, or the caller's or the organization's admission quota |
+| `not_found`, `unavailable` | The action is gone, no longer startable by hand or archived, or the page cannot run actions here at all (a public link, an embed, a preview, history, a viewer with no runnable action) |
+| `failed` | The run could not be started or followed |
+| `page_changed` | The page was replaced while the question was open |
+
+### What the run is
+
+The run is the **viewer's**: it starts with their permissions and counts against their
+budget, as if they had run the workflow from the console. Its trigger is **App**
+(`app`), and it records the page and the version the person was looking at. The page
+confers nothing; the run is refused when the person could not have started it
+themselves. A run that is waiting for an approval or for someone to look at it stays in
+the workflow's [run history](workflows.md#running-a-workflow), and the viewer shows a line with
+**Open run**.
+
+The page is never handed the whole run. It reads a projection: the status, the answer
+text, the structured answer with file references removed, the first line of an error
+(at most 200 characters), and, while the run waits on someone, the path to it in the
+console. Only the person who started the run can read it, and only through the page
+that started it.
+
+The console reads the run with a growing delay and posts each change to the page.
+A run that waits on someone is read for ten minutes of the tab being visible. After
+that the page's promise settles with the last state, `paused: true` and no `finished`,
+and the page hears nothing more; the line in the viewer is the way to the run. A page
+that is reloaded or closed is told nothing.
+
+### Limits and audit
+
+| Limit | Value |
+|---|---|
+| Actions per page | 5 |
+| Label | 60 characters |
+| Runs started from one page | 10 a minute per person and page (`RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE`) |
+| Declines before the console stops asking | 3 per opening of the page (reloading the frame keeps the count) |
+| Outstanding work | the workflow runs' own admission quota, which also answers `rate_limited` |
+
+Past a limit the person sees a message and the page gets `rate_limited`. Every start is
+audited as `artifact.action_started` with the page, the version, the workflow and the run
+- never the input, which is the person's and is on the run itself. See
+[governance](governance.md#audit) and [the security page](security.md#a-page-that-starts-workflows).
+
 ## One name, one link
 
 The identity of an artifact is its **name within the agent** - `weekly-report`,
@@ -539,7 +685,7 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, as `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Lucide 1.46.0 icons, as `window.lucide` - the console's own icon set |
 | `lib/agenticos-3.css` | The page kit: the console's look for pages, light and dark, and the `ao-` components a page is built from |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData` and `AO.records` |
+| `lib/agenticos-3.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData`, `AO.records`, and `AO.run` and `AO.onRun` for [actions](#actions) |
 | `lib/agenticos-2.css`, `lib/agenticos-2.js` | The previous version of the kit, kept for the pages published against it |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
 
@@ -589,7 +735,7 @@ one line for each problem found. The page is published either way. The checks:
   page loads does not define and its own `<style>` does not either;
 - a table without `<thead>`, or without the `ao-table` class;
 - `data-lucide` icons without `lib/lucide-1.46.0.min.js`;
-- `AO.onData` or `AO.records` on a page that does not load `lib/agenticos-3.js`;
+- `AO.onData`, `AO.records`, `AO.run` or `AO.onRun` on a page that does not load `lib/agenticos-3.js`;
 - a bound page whose script never calls `agenticos.onData` or reads
   `agenticos.data`, so it shows no records.
 
@@ -844,6 +990,14 @@ the person looking at it:
   server, and never asks for it: it has no data route and no refresh. See
   [live data on a public link](#live-data-on-a-public-link) and
   [the security page](security.md#a-pages-data-and-its-address).
+- A page can ask to start a [workflow](#actions) through the same bridge, with
+  `agenticos.run`, and only the console's page viewer offers it: the address carries
+  the right to ask, and a public link, an embed, a preview and a thumbnail reject
+  the call at once. The request is again **only a request**. The console accepts it
+  from its own frame under the nonce of that load, matches it to an action the server
+  listed for this viewer and the served version, and asks the person in a dialog before
+  anything starts. The run is then theirs, so a prompt-injected page can make the person
+  read a question, never answer it for them.
 - One signed address loads its page a few times a minute at most, counted per
   address before anything is read. The console and the public page mint a
   fresh address each time they draw the frame, and minting one through a public
@@ -940,8 +1094,11 @@ under `artifacts/<organization>/<artifact>/`.
   seconds old, and read with the owner's access for people the owner does not know.
   A deployment that cannot accept that leaves the switch off. See
   [live data on a public link](#live-data-on-a-public-link).
-- **Nothing on the page acts.** A form or a button has nowhere to send what it
-  collects.
+- **A page acts only through its declared actions.** A form or a button has nowhere
+  to send what it collects, except to start one of up to five workflows its publisher
+  declared, which the person confirms every time and which run as them. It cannot
+  call an API, write a record or send a message itself, and it gets back only a run's
+  status and answer. See [actions](#actions).
 - **An open page outlives a revoked grant by one signed-address lifetime**, five
   minutes by default. Turning a public link off or replacing its key ends it at the
   next load.
@@ -974,6 +1131,10 @@ under `artifacts/<organization>/<artifact>/`.
   A public link or an embed shows the data only when an Owner or Admin has allowed it for
   the organization and the owner has confirmed it for the link, and clearing the link's
   audience clears that confirmation.
+- A page can declare up to five workflows an agent has bound; its buttons ask the
+  console to start one with `AO.run`, and the viewer confirms each run in a dialog
+  that names the real workflow and shows every value. The run is the viewer's, with
+  the `app` trigger, and the page reads back only its status and answer.
 - The owner can hand a page to another member, who must confirm its data again.
 - A short page contract in every Artifacts agent's instructions, and warnings in
   the publish result for what looks wrong in the markup.

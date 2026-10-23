@@ -228,6 +228,37 @@ into asking cannot widen itself.
 trail holds the fingerprint, the version, who consented and what text they confirmed,
 never a row or a filter value.
 
+## A page that starts workflows { #a-page-that-starts-workflows }
+
+A page's script is untrusted: it is written by a model that may have read something
+hostile. [Actions](artifacts.md#actions) let it ask for a workflow to run, so what it
+can do is bounded by controls the page cannot change:
+
+- **An allowlist the publisher reviewed.** A page declares at most five workflows, each
+  bound in the agent's Workflows capability, live, started by hand and runnable by the
+  person behind the publishing run. A run with nobody behind it cannot declare or change
+  them. A restore checks them again.
+- **The page's wording decides nothing.** The label is plain text without hidden
+  characters; the console titles its dialog with the workflow's own name and quotes the
+  label.
+- **A person confirms every run.** The dialog shows every input value as text, with
+  invisible characters written out; Run is disabled for half a second and never focused;
+  one question is open at a time, and three declines stop the questions until the page
+  is reopened.
+- **The request is checked twice.** The console accepts a message only from the page's own
+  frame under that load's nonce, and only for an action the server listed for this viewer
+  and the served version; it checks the input against the workflow's fields before it
+  asks. The start route repeats the checks: the version must be the one served, the
+  workflow declared and runnable by the caller now, the session not impersonated.
+- **Only the page viewer can ask.** The address carries an `acts` claim, set only for the
+  console's viewer. Public links, embeds, previews and thumbnails reject the call and
+  carry no actions.
+- **The run is the person's.** Their permissions, budget and rate limit (10 runs a minute
+  by default), recorded with the `app` trigger and audited without its input.
+- **The page learns little.** A run's status, answer text, structured answer without file
+  references and the first line of an error, at most 200 characters, only for a run
+  that page started for that person.
+
 ## Controls matrix
 
 One row per control, the mechanism that satisfies it, and the test that holds it
@@ -241,6 +272,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Permission on every collection route | `require(*perms)` route dependency on listing, creating and catalog routes (`app/api/deps.py`), catalog in `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Per-resource routes authorize in the service, not on the route | A route acting on one agent, skill or collection carries no `require()` gate — a role gate would refuse a grant-holder before the grant applied — and calls `resolve_access` instead (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (every route is gated or service-decided) |
 | A grant widens access without promoting the member | Per-resource `resolve_access` takes `max(role scope, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
+| A page starts a workflow only as the person who confirms it | The publish allowlist (`app/services/artifact_actions.py`), the viewer's own list, the console's origin and nonce checks and confirmation dialog (`frontend/src/hooks/use-artifact-actions.ts`), the `acts` claim that only the viewer's address carries (`app/core/security.py`), and a start route that runs the workflow as the caller and refuses another version or an impersonated session. See [a page that starts workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
 | A channel mention runs as the sender, not the bot | A linked, active sender's own `AuthContext` is used (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Authentication · HIPAA §164.312(d) · SOC 2 CC6

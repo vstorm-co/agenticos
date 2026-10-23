@@ -637,6 +637,10 @@ class Settings(BaseSettings):
     # counted per member and organization. Each one notifies the page's owner, so
     # this bounds what one person can make arrive in somebody's inbox.
     RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR: int = Field(default=10, gt=0)
+    # How many runs one member may start from one page's actions per minute, counted
+    # per member, organization and page. A page's script is untrusted; the console asks
+    # the person before each run, and this bounds a frame that asks in a loop.
+    RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE: int = Field(default=10, gt=0)
     # Virtual Tables quotas, per organization. Every one is a ceiling on what one
     # tenant may store in the shared PostgreSQL, and a write over one is refused
     # with QUOTA_EXCEEDED and audited without its content (#1823). Tables count

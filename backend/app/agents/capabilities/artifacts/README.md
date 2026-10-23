@@ -118,6 +118,25 @@ thing a page was kept private for. `read_artifact` and `preview_artifact` open o
 those pages in a group chat too. `may_edit` is answered for `deps.user_id`, the identity
 a publish is checked as. A surface with nobody signed in lists nothing.
 
+## Actions: a page that starts a workflow
+
+`publish_artifact(actions=[{workflow, label}])` declares up to five workflows a page's
+buttons may start. The declaration is the agent's reviewed allowlist, not the model's
+word: each one must be bound in the agent's **Workflows** capability (the factory hands
+the run those ids as the `workflow_ids` resource), live, started by hand (Manual or API
+trigger), in the organization, and viewable and runnable by the person behind the run.
+One the person cannot reach is answered like an unbound one, so a refusal never names
+it. The label is plain text of at most 60 characters with hidden characters removed;
+the workflow's own name is what the console shows. `None` keeps the current version's
+actions, `[]` removes them, and the result's `actions` says what was declared, or `kept`.
+
+Like bindings, what a page can start is not changed by a run nobody answers for: a run
+with no person may neither add nor change actions, and republishes a page that has some
+only unchanged. A restore checks the stored actions again against the agent's current
+spec. The checks and the version column are `app/services/artifact_actions.py`; starting
+a run, as the person viewing the page and after they confirm it, is the console's and
+the start route's, not this package's. See `docs/artifacts.md#actions`.
+
 ## Preview, and where the browser is
 
 `preview_artifact` renders the current version through
@@ -197,5 +216,7 @@ approve each republish of an already-shared page sets `tool_approval` on
   per-file limits for a benefit an inlined page already delivers.
 - **Listing beyond the reader's reach.** The list is what the person listening may
   open in the console, never what the agent or its publisher could.
+- **A tool that starts a workflow from a page.** The page asks, a person confirms; the
+  agent declares what may be asked and starts nothing.
 - **A browser in the API image.** The renderer is an operator's service on a network
   with no egress, never a process beside the vault.

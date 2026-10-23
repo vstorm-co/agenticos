@@ -1,5 +1,5 @@
 ---
-source_sha: "7b28466fa425"
+source_sha: "9c480bdaf58a"
 ---
 
 # Workflows { #workflows }
@@ -774,6 +774,21 @@ go **An agent**. Agentowi można dać tylko opublikowany workflow startujący od
 Run, za którym nie stoi żaden członek (odwiedzający widget, embed albo hostowaną
 stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta),
 niczego nie uruchamia.
+
+### Z aplikacji { #from-an-app }
+
+[Opublikowana strona](artifacts.md#actions) może uruchomić workflow, który jej agent
+powiązał i który startuje od **Manual** albo **API request**. Strona tylko prosi.
+Członkowi, który ją ogląda, pojawia się okno z nazwą samego workflowu i każdą wartością
+wejścia, a run startuje dopiero po jego potwierdzeniu. Jest jego: jego dostęp, jego
+budżet i jego strona runów, sprawdzane, rozliczane i audytowane jak run uruchomiony
+przez **Start a run**, z tą samą kwotą przyjęć. Run bez członka za sobą albo z sesji
+impersonowanej niczego nie uruchamia.
+
+Strona runów podaje, że taki run uruchomiła **An app**, a filtr **Started by** pozwala
+po tym filtrować; w API jego `triggered_by` to `app`. Run zapisuje też stronę i wersję,
+na którą członek patrzył, a ponowienie je zachowuje. Strona odczytuje tylko status runa,
+jego odpowiedź i pierwszy wiersz błędu.
 
 ### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
 

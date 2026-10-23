@@ -1,5 +1,5 @@
 ---
-source_sha: "a0f89564f4d6"
+source_sha: "d937fafb5543"
 ---
 
 # Configuración { #configuration }
@@ -1167,6 +1167,7 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Veces que se pueden leer de sus tablas los datos de una página para los visitantes de su enlace público o de sus embeds, **por página entre todos los visitantes**. Una carga que tiene que leer de las tablas cuenta una vez, y una servida desde la [caché](artifacts.md#the-cache-and-the-cap) de 30 segundos no; pasado el límite, la página se carga con esos datos no disponibles |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runs que un miembro puede iniciar por minuto desde las [acciones](artifacts.md#actions) de una página, **por miembro, organización y página**. El miembro confirma antes cada run; esto acota a una página que pide en bucle. Pasado el límite, la llamada de la página se rechaza como `rate_limited` |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Escrituras en [Virtual Tables](virtual-tables.md), **por miembro y organización**: un create, update, upsert o delete de registro, un create, renombrado, archivado o cambio de esquema de tabla, y guardar, cambiar o borrar una vista guardada. Se aplica a la consola igual que a un script. Las lecturas no se cuentan |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 

@@ -291,6 +291,55 @@ export interface ArtifactView {
   bindings: number;
   expires_at: string;
   version: ArtifactVersion;
+  /**
+   * This address is the page viewer's, whose frame may ask the console to start
+   * the actions below. False for history, thumbnails, public links, embeds, previews.
+   */
+  actions_enabled: boolean;
+  /** The workflows the served version declares that this viewer may run now. */
+  actions: ArtifactActionView[];
+}
+
+/** The input type a workflow's trigger declares for one field. */
+export type ActionFieldType = "text" | "number" | "integer" | "boolean" | "date" | "choice";
+
+/** One value an action's workflow asks for. */
+export interface ArtifactActionField {
+  name: string;
+  label: string | null;
+  type: ActionFieldType;
+  required: boolean;
+  description: string | null;
+  options: string[];
+}
+
+/** A declared action the viewer may run now. */
+export interface ArtifactActionView {
+  workflow_id: string;
+  /** The workflow's own name - never the page's wording. */
+  name: string;
+  /** What the page calls it: page copy, shown only as a quote. */
+  label: string;
+  fields: ArtifactActionField[];
+}
+
+/** A run an action started. */
+export interface ArtifactActionRunStarted {
+  run_id: string;
+  status: string;
+}
+
+/** How a run a page started stands, as the page may read it. */
+export interface ArtifactActionRun {
+  status: string;
+  finished: boolean;
+  /** Waiting for an approval or for someone to look at it. */
+  paused: boolean;
+  /** Where the console shows the run, set while it is paused. */
+  run_path: string | null;
+  output_text: string | null;
+  output_structured: Record<string, unknown> | null;
+  error_message: string | null;
 }
 
 /** What one field of a binding reads now: its column's current label and type. */

@@ -1,5 +1,5 @@
 ---
-source_sha: "f8874fc2f345"
+source_sha: "b32952995eb7"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1138,6 +1138,17 @@ versión (`not_needed`, `pending`, `consented`, `declined`, `withdrawn`), y `aud
 ve el resto mientras espera: «the audience still sees v2 until Alex confirms». Una versión
 `pending` la debe confirmar la persona en la consola; el agent se lo dice. Una página nueva es
 privada para la persona a la que sirve el run.
+
+**Acciones.** `actions` en `publish_artifact` declara hasta cinco workflows que los botones de la
+página pueden pedir que se inicien, como `[{workflow, label}]`: un workflow por id o nombre exacto, y
+cómo lo llama la página. Cada uno debe estar vinculado en la capability [Workflows](#workflows) del
+agent, estar activo, iniciarse desde **Manual** o **API request**, y ser uno que la persona detrás
+del run pueda ver y ejecutar; uno al que la persona no llega se rechaza como si no estuviera
+vinculado, y uno archivado o que no se inicia a mano al que sí llega se rechaza por su nombre.
+Omite `actions` para conservar las actuales, `[]` las quita, y un run sin ninguna persona detrás no
+puede cambiarlas. El resultado devuelve en `actions` cada una por nombre y etiqueta, o `kept`. El
+agent no inicia nada: el lector confirma cada run en la consola, y se ejecuta como él. La página
+llama a `AO.run`. Consulta [Acciones](../artifacts.md#actions).
 
 **`share_artifact(name, visibility?, people?)`.** Pide que se comparta una página. Nunca
 comparte nada y **no** la protege una aprobación de herramienta: presenta una

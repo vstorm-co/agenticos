@@ -517,6 +517,7 @@ async def create_version(
     storage_path: str,
     run_id: UUID | None,
     bindings: list[dict[str, Any]],
+    actions: list[dict[str, Any]] | None = None,
     restored_from: int | None = None,
     consent: dict[str, Any] | None = None,
 ) -> ArtifactVersion:
@@ -530,6 +531,7 @@ async def create_version(
         storage_path=storage_path,
         run_id=run_id,
         bindings=bindings,
+        actions=actions or [],
         restored_from=restored_from,
         **(consent or {}),
     )

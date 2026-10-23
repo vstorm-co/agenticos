@@ -1158,7 +1158,7 @@ confirmed.
 
 | Action | Recorded when |
 |---|---|
-| `artifact.published` | A version was published, with its number and the fingerprint of its page queries |
+| `artifact.published` | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares |
 | `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
 | `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
 | `artifact.auto_consent_changed` | The owner turned "Don't ask for consent on republish" on or off, with the text they confirmed |
@@ -1170,6 +1170,7 @@ confirmed.
 | `artifact.public_data_consented` | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
 | `artifact.public_data_withdrawn` | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held |
 | `artifact.public_data_voided` | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived` |
+| `artifact.action_started` | A member confirmed and started a workflow from a page's action. Names the page, the version, the workflow and the run, never the input values, which are on the run |
 
 **Public pages with live data** is an organization setting, off by default, in the
 organization's settings beside the approval waiver. It decides whether a page's data may

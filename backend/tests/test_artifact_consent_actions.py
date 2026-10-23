@@ -650,7 +650,13 @@ class TestAPublishResult:
         pending = _version(artifact, number=3)
         with _stubs(artifact, latest=pending, served=_version(artifact, number=2), owner=owner):
             published = await artifacts._published(
-                MagicMock(), artifact, pending, created=False, unchanged=False, bindings={}
+                MagicMock(),
+                artifact,
+                pending,
+                created=False,
+                unchanged=False,
+                bindings={},
+                actions=[],
             )
         assert published.consent is ConsentState.PENDING
         assert (published.audience_version, published.owner_name) == (2, "Olga Owner")
@@ -660,7 +666,7 @@ class TestAPublishResult:
         artifact = _artifact(owner)
         plain = _version(artifact, state=ConsentState.NOT_NEEDED, bound=False)
         published = await artifacts._published(
-            MagicMock(), artifact, plain, created=True, unchanged=False, bindings={}
+            MagicMock(), artifact, plain, created=True, unchanged=False, bindings={}, actions=[]
         )
         assert (published.consent, published.audience_version) == (ConsentState.NOT_NEEDED, 2)
 
@@ -670,7 +676,13 @@ class TestAPublishResult:
         consented = _version(artifact, number=3, state=ConsentState.CONSENTED)
         with _stubs(artifact, latest=consented, owner=owner):
             published = await artifacts._published(
-                MagicMock(), artifact, consented, created=False, unchanged=False, bindings={}
+                MagicMock(),
+                artifact,
+                consented,
+                created=False,
+                unchanged=False,
+                bindings={},
+                actions=[],
             )
         assert published.consent is ConsentState.CONSENTED
         assert (published.audience_version, published.owner_name) == (3, None)

@@ -4,11 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ArtifactRunDialog } from "@/components/artifacts/artifact-run-dialog";
 import { EmptyState, LoadingState } from "@/components/states";
 import { ConfirmDialog } from "@/components/ui";
+import {
+  useArtifactActions,
+  useAskingGate,
+  type AskingGate,
+  type PausedRun,
+} from "@/hooks/use-artifact-actions";
 import { useArtifactData, useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
-import type { ArtifactData, BindingData } from "@/types/artifact";
+import type { ArtifactActionView, ArtifactData, BindingData } from "@/types/artifact";
 
 /**
  * What the frame lets the page do. Never `allow-same-origin`, never popups.
@@ -188,17 +195,22 @@ export function useDataBridge(
  * open, and taking the newer address would swap the one the reader is checking
  * for one they never saw, just before they click.
  */
-function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>) {
+function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>, asking: AskingGate) {
   const [pending, setPending] = useState<string | null>(null);
   useEffect(() => {
     const listen = (event: MessageEvent) => {
       const href = requestedLink(event, frame.current);
-      if (href !== null) setPending((current) => current ?? href);
+      // Dropped while the console is already asking - about another link or a run.
+      if (href !== null && asking.take("link")) setPending(href);
     };
     window.addEventListener("message", listen);
     return () => window.removeEventListener("message", listen);
-  }, [frame]);
-  return [pending, setPending] as const;
+  }, [frame, asking]);
+  const close = useCallback(() => {
+    asking.release("link");
+    setPending(null);
+  }, [asking]);
+  return [pending, close] as const;
 }
 
 interface ArtifactFrameViewProps {
@@ -211,7 +223,12 @@ interface ArtifactFrameViewProps {
    * The caller that talks to the page: the frame's element, and each load of it.
    * None on the public link, whose pages are never live.
    */
-  bridge?: { frame: React.RefObject<HTMLIFrameElement | null>; onLoad: () => void };
+  bridge?: {
+    frame: React.RefObject<HTMLIFrameElement | null>;
+    onLoad: () => void;
+    /** Shared with the run dialog: one question to the person at a time. */
+    asking: AskingGate;
+  };
 }
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
@@ -219,7 +236,8 @@ export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFra
   const t = useTranslations("artifacts");
   const own = useRef<HTMLIFrameElement>(null);
   const frame = bridge?.frame ?? own;
-  const [pending, setPending] = useLinkRequests(frame);
+  const ownAsking = useAskingGate();
+  const [pending, close] = useLinkRequests(frame, bridge?.asking ?? ownAsking);
   return (
     <>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- `load` is the document finishing, not a person's input; the bridge forgets its handshake on it */}
@@ -235,7 +253,7 @@ export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFra
       <ConfirmDialog
         open={pending !== null}
         onOpenChange={(open) => {
-          if (!open) setPending(null);
+          if (!open) close();
         }}
         title={t("openLinkTitle")}
         description={
@@ -249,7 +267,7 @@ export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFra
         confirmLabel={t("openLink")}
         onConfirm={() => {
           if (pending !== null) window.open(pending, "_blank", "noopener,noreferrer");
-          setPending(null);
+          close();
         }}
       />
     </>
@@ -283,7 +301,14 @@ export interface ServedSummary {
 export interface DataBridge {
   refresh: () => Promise<void>;
   status: BridgeStatus;
+  /** What the page may ask the person to run, for the strip that lists it. */
+  actions: ArtifactActionView[];
+  /** Runs the page started that now wait on someone. */
+  paused: PausedRun[];
 }
+
+/** What a view that carries no actions offers: the same list every time. */
+const NO_ACTIONS: ArtifactActionView[] = [];
 
 /**
  * What a page gets when its data cannot be read: no bindings, which it fills
@@ -323,6 +348,10 @@ interface ArtifactFrameProps {
  * read is in, so the `ready` of the new load is answered with it. A read that
  * says a newer version was published moves a frame showing the current version
  * onto it (`useArtifactData`).
+ *
+ * Only here, never in `ArtifactFrameView`, does the console answer a page's
+ * request to run an action (`useArtifactActions`): the view is also the public
+ * link's, an embed's and a thumbnail's, whose pages are never the viewer's.
  */
 export function ArtifactFrame({
   artifactId,
@@ -334,6 +363,7 @@ export function ArtifactFrame({
 }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
   const frame = useRef<HTMLIFrameElement>(null);
+  const asking = useAskingGate();
   // Only the page the viewer is served is opened with its data; a version picked from
   // the history is a preview of the past and carries none.
   const view = useArtifactView(artifactId, versionId, true, versionId === null);
@@ -369,6 +399,22 @@ export function ArtifactFrame({
     payload,
     data.dataUpdatedAt,
   );
+
+  const actions = view.data?.actions ?? NO_ACTIONS;
+  const run = useArtifactActions({
+    artifactId,
+    frame,
+    nonce: view.data?.nonce ?? "",
+    versionId: view.data?.version.id ?? "",
+    enabled: view.data?.actions_enabled === true,
+    actions,
+    asking,
+  });
+  const { onLoad: onRunLoad } = run;
+  const loaded = useCallback(() => {
+    onLoad();
+    onRunLoad();
+  }, [onLoad, onRunLoad]);
 
   const { refetch: refetchData, isFetching: fetchingData } = data;
   const { refetch: refetchView } = view;
@@ -407,7 +453,11 @@ export function ArtifactFrame({
   // One object per change of either, and the callback read from a ref: a caller
   // passing an inline `onBridge` that stores the bridge in state would otherwise
   // re-render, hand a new callback, and be called again, forever.
-  const bridge = useMemo<DataBridge>(() => ({ refresh, status }), [refresh, status]);
+  const { paused } = run;
+  const bridge = useMemo<DataBridge>(
+    () => ({ refresh, status, actions, paused }),
+    [refresh, status, actions, paused],
+  );
   const report = useRef(onBridge);
   useEffect(() => {
     report.current = onBridge;
@@ -427,11 +477,19 @@ export function ArtifactFrame({
     );
   }
   return (
-    <ArtifactFrameView
-      url={view.data.url}
-      title={title}
-      className={className}
-      bridge={{ frame, onLoad }}
-    />
+    <>
+      <ArtifactFrameView
+        url={view.data.url}
+        title={title}
+        className={className}
+        bridge={{ frame, onLoad: loaded, asking }}
+      />
+      <ArtifactRunDialog
+        pending={run.pending}
+        pageTitle={title}
+        onCancel={run.cancel}
+        onConfirm={() => void run.confirm()}
+      />
+    </>
   );
 }

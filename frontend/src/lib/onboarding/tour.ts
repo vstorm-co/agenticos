@@ -394,6 +394,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.artifactsView,
     optional: true,
   },
+  // Only for a page that declares actions the viewer may run: the menu is drawn
+  // then and not otherwise.
+  {
+    id: "artifact-actions",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-actions",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
   {
     id: "artifact-change-owner",
     page: ARTIFACT_DETAIL,

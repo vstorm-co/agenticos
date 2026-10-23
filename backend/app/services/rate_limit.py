@@ -291,6 +291,15 @@ def artifact_share_request_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR, window_seconds=3600)
 
 
+def artifact_action_limit() -> Limit:
+    """How many runs one member may start from one page's actions per minute.
+
+    Each run is admitted work, so the thing rationed is a page's script asking in a loop
+    on a member's behalf.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE)
+
+
 _held_here: set[str] = set()
 """The in-flight claims this process holds while the shared Redis cannot take them."""
 

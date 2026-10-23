@@ -1068,6 +1068,7 @@ class TestThePublicOrigin:
             WorkflowRunTrigger.SCHEDULE,
             WorkflowRunTrigger.TABLE_CREATED,
             WorkflowRunTrigger.CHAT,
+            WorkflowRunTrigger.APP,
         ],
     )
     async def test_an_api_run_dispatches_without_a_public_origin(
@@ -1076,6 +1077,12 @@ class TestThePublicOrigin:
         dispatched = await self._dispatched(repo, test_node, triggered_by)
 
         assert dispatched.public_origin is False
+
+    @pytest.mark.security
+    def test_a_page_s_action_is_no_public_door(self):
+        """The viewer is a signed-in member starting a run as themselves, not an outsider
+        supplying input to an exposure's principal."""
+        assert WorkflowRunTrigger.APP not in dispatcher.PUBLIC_TRIGGERS
 
     @pytest.mark.security
     async def test_a_run_with_a_stored_public_origin_dispatches_public(

@@ -5,7 +5,9 @@ function agenticosDataBridge(window, document, config) {
   // network. `config` is `{n, live, names, initial?}`: the nonce the console
   // matches its replies on, whether to ask at all, the binding names the page
   // declares and, for a page served with its data, `initial` - `[name, binding]`
-  // pairs answered at load. Later answers (a refresh) are still posted.
+  // pairs answered at load. Later answers (a refresh) are still posted. It also
+  // carries `actions` (#1976): true only for the page viewer's own address, where
+  // `run` may ask the console to start a declared workflow.
   // Timers go through `window` so a test can drive them.
   var FIRST_RESEND_MS = 100;
   var LONGEST_RESEND_MS = 2000;
@@ -85,7 +87,97 @@ function agenticosDataBridge(window, document, config) {
     if (last !== null) fn(last);
   }
 
-  window.agenticos = { data: data, onData: onData };
+  // Actions: `run` posts a request, never a start. The console - which owns the
+  // frame, the person and the version - decides, and answers with run events under
+  // this nonce, from the parent only. Without `actions` it rejects before posting. Rejections are codes: `unavailable`,
+  // `unknown_action`, `invalid_input` (no `problems` from here).
+  var runnable = config.actions === true && parent !== window;
+  var runs = {};
+  var runListeners = [];
+  var lastId = 0;
+
+  function runResult(message) {
+    return {
+      status: String(message.status),
+      output_text: typeof message.output_text === "string" ? message.output_text : null,
+      output_structured:
+        message.output_structured !== null && typeof message.output_structured === "object"
+          ? message.output_structured : null,
+      error_message: typeof message.error_message === "string" ? message.error_message : null,
+      paused: message.paused === true,
+      run_path: typeof message.run_path === "string" ? message.run_path : null
+    };
+  }
+
+  function run(action, input) {
+    if (!runnable) {
+      return Promise.reject(new Error("unavailable"));
+    }
+    if (typeof action !== "string" || action === "") {
+      return Promise.reject(new Error("unknown_action"));
+    }
+    var given = input === undefined ? {} : input;
+    if (given === null || typeof given !== "object" || Array.isArray(given)) {
+      return Promise.reject(new Error("invalid_input"));
+    }
+    lastId += 1;
+    var id = "r" + lastId;
+    return new Promise(function (resolve, reject) {
+      runs[id] = { action: action, resolve: resolve, reject: reject };
+      try {
+        parent.postMessage(
+          { type: "agenticos:run", n: n, id: id, action: action, input: given }, "*"
+        );
+      } catch (error) {
+        delete runs[id];
+        reject(new Error("invalid_input"));
+      }
+    });
+  }
+
+  function onRun(fn) {
+    runListeners.push(fn);
+    return function () {
+      var at = runListeners.indexOf(fn);
+      if (at !== -1) runListeners.splice(at, 1);
+    };
+  }
+
+  if (runnable) {
+    window.addEventListener("message", function (event) {
+      var message = event.data;
+      if (event.source !== parent || message === null || typeof message !== "object") return;
+      if (message.type !== "agenticos:run-event" || message.n !== n) return;
+      if (typeof message.id !== "string" || !Object.prototype.hasOwnProperty.call(runs, message.id)) return;
+      var pending = runs[message.id];
+      if (message.event === "rejected") {
+        delete runs[message.id];
+        var failure = new Error(typeof message.reason === "string" ? message.reason : "rejected");
+        // `invalid_input` says what did not fit: [{field, kind}], as plain strings.
+        if (Array.isArray(message.problems)) {
+          failure.problems = message.problems.map(function (item) {
+            return { field: String(item && item.field), kind: String(item && item.kind) };
+          });
+        }
+        pending.reject(failure);
+        return;
+      }
+      if (message.event !== "progress") return;
+      var result = runResult(message);
+      var progress = runResult(message);
+      progress.id = message.id;
+      progress.action = pending.action;
+      progress.finished = message.finished === true;
+      // `settled`: the console stopped following a paused run - resolve with its
+      // last projection (paused, not finished) rather than never.
+      var settled = progress.finished || message.settled === true;
+      if (settled) delete runs[message.id];
+      for (var k = 0; k < runListeners.length; k++) runListeners[k](progress);
+      if (settled) pending.resolve(result);
+    });
+  }
+
+  window.agenticos = { data: data, onData: onData, run: run, onRun: onRun };
 
   // Answered at load: the server wrote the data in, so there is nothing to wait
   // for. Names are only ever own keys of the answer (`put`), whatever they are.

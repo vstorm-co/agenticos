@@ -1,5 +1,5 @@
 ---
-source_sha: "e4544b45cd9d"
+source_sha: "6dcc56fd4cc5"
 ---
 
 # Artefakte { #artifacts }
@@ -545,6 +545,167 @@ in einem Kanal und die Zustellung eines Ereignis-Triggers eines Agents (GitHub,
 E-Mail, Webhook-Relay) zählen nicht, ebenso wenig ein Workflow-Run, den ein
 öffentlicher Eingang zugelassen hat, oder irgendein Run in der Kette eines solchen
 Runs.
+## Aktionen { #actions }
+
+Eine Seite kann einen [Workflow](workflows.md) starten, aber nur, wenn eine Person
+zustimmt. Die Seite handelt nicht: Sie fragt, die Konsole zeigt der Person, was
+geschehen würde, und der Run gehört ihr. So wird eine Seite zu einer kleinen App - ein
+Formular, das eine Anfrage einreicht, ein Knopf, der eine Rechnung freigibt -, ohne dass
+die Seite selbst irgendeine Macht hält.
+
+### Aktionen deklarieren { #declaring-actions }
+
+Der Agent deklariert die Workflows, die eine Seite starten darf, beim Veröffentlichen mit
+dem Argument `actions` von `publish_artifact`: bis zu fünf Einträge, jeweils ein Workflow
+(seine ID oder sein exakter Name) und ein **Label**, das Wort, mit dem die Seite ihn
+nennt.
+
+```json
+{"actions": [{"workflow": "Approve invoice", "label": "Approve"}]}
+```
+
+Ein Workflow kann nur dann eine Aktion sein, wenn alles Folgende zutrifft:
+
+- Der veröffentlichende Agent hat ihn in der [Workflows-Capability](reference/capabilities.md#workflows),
+  sodass das, was eine Seite starten darf, Teil dessen ist, was der Autor des Agents
+  geprüft hat;
+- er ist live (veröffentlicht, nicht archiviert) und startet aus einem **Manual**- oder
+  **API**-Trigger;
+- die Person hinter dem Run darf ihn ansehen und ausführen. Einen, den sie nicht darf,
+  beantwortet die Plattform, als wäre er nicht gebunden, sodass eine Abweisung nie einen
+  Workflow nennt, den die Person nicht sehen kann.
+
+Das Label ist reiner Text von höchstens 60 Zeichen, aus dem Steuer- und unsichtbare
+Zeichen entfernt wurden; ist es leer, wird es zum Namen des Workflows. Wird `actions`
+weggelassen, bleiben die der aktuellen Version erhalten, und `[]` entfernt sie. Das
+Ergebnis der Veröffentlichung führt jede deklarierte Aktion in Worten auf oder sagt
+`kept`. Eine Markdown-Seite kann keine Aktionen haben. Ein Run ohne Person dahinter kann
+sie weder hinzufügen noch ändern und kann nur eine Seite, die bereits welche hat,
+unverändert erneut veröffentlichen. Beim Wiederherstellen einer älteren Version werden
+ihre Aktionen erneut gegen den Agent in seinem heutigen Zustand geprüft, und sie wird
+abgewiesen, wenn eine nicht mehr besteht.
+
+Aktionen werden mit der Version gespeichert, sodass eine neue Version die ganze Liste
+ersetzt und eine ältere ihre eigene behält. Einen Workflow später vom Agent zu lösen
+ändert keine veröffentlichte Version; der eigene Zustand des Workflows und der Zugriff
+jedes Betrachters werden bei jedem Öffnen der Seite und erneut beim Start eines Runs
+geprüft.
+
+### Wer welche Aktionen sieht { #who-sees-which-actions }
+
+Wenn die Konsole eine Seite öffnet, listet sie die Aktionen, die die **ausgelieferte
+Version** deklariert und die dieser Betrachter jetzt ausführen darf: jede mit dem echten
+Namen des Workflows, dem Label der Seite und den Feldern, die sein Trigger verlangt. Eine,
+die der Betrachter nicht ausführen darf, bleibt weg. Die Leiste des Betrachters zeigt
+**This app can run: ...** und nennt die Workflows, jeweils ein Link auf die Runs dieses
+Workflows. Ohne welche wird nichts gezeigt.
+
+Eine Seite bekommt keine Aktionen, und ihr `run`-Aufruf wird sofort abgewiesen, wenn sie
+gezeigt wird:
+
+- auf einem öffentlichen Link, in einem Embed, in einer Vorschau oder im Thumbnail einer
+  Karte;
+- als ältere Version aus dem Verlauf oder als eine Version, die nicht die ist, die diesem
+  Betrachter ausgeliefert wird (ein Publikum wartet noch auf die Einwilligung für die
+  neuere);
+- für ein Mitglied, das keinen ihrer Workflows ausführen darf, oder für eine Session, die
+  imitiert wird.
+
+Die Start-Route weist all das ebenso ab, sodass eine Seite, die die Konsole umgeht,
+nichts gewänne.
+
+### Eine aus der Seite ausführen { #running-one-from-the-page }
+
+In der Seite bittet `agenticos.run(action, input)` - `AO.run` im
+[Seitenkit](#the-library-set) - die Konsole, eine Aktion zu starten. `action` ist eine
+Workflow-ID, das Label der Seite oder der Name des Workflows. Die Konsole gleicht erst die
+ID exakt ab, dann das Label, dann den Namen, ohne Beachtung der Groß- und Kleinschreibung.
+Eine Stufe, die auf zwei Aktionen passt, trifft nichts und fällt nicht auf die nächste
+durch. `input` ist ein Objekt mit genau den Werten, die der Trigger des Workflows
+deklariert. Der Aufruf gibt ein Promise des abgeschlossenen Runs zurück, und `onRun`
+(`AO.onRun`) hört unterwegs jede Änderung:
+
+```js
+AO.run("Approve", { invoice: "INV-204" }).then(
+  (run) => show(run.status, run.output_text),
+  (error) => show("not run", error.message),
+);
+```
+
+Die Konsole startet nichts, bevor die Person zugestimmt hat. Jeder Run, egal wie viele
+davor kamen, öffnet einen Bestätigungsdialog:
+
+- sein Titel ist der **eigene Name des Workflows**, und das Label der Seite erscheint nur
+  als Zitat;
+- er zeigt jeden Wert, den die Seite sendet, vollständig und als Text, wobei Zeichen, die
+  nichts zeichnen oder den Text umordnen, ausgeschrieben werden (`\u{202E}`);
+- **Run** ist eine halbe Sekunde deaktiviert und bekommt nie den Fokus, sodass ein Klick,
+  der schon unterwegs ist, nicht zustimmt; Cancel hat den Fokus;
+- es ist immer nur eine Frage offen, über Run- und Link-Dialoge hinweg, und eine Anfrage,
+  die in der Zwischenzeit eintrifft, wird als `busy` abgewiesen;
+- nach **drei Ablehnungen** bei einem Öffnen der Seite (ein Neuladen des Frames behält die
+  Zählung) hört die Konsole auf zu fragen und weist weitere Anfragen ab, bis die Seite
+  erneut geöffnet wird.
+
+Eine Anfrage wird ohne Dialog abgewiesen, wenn sie zu früh kommt (der Frame ist noch nicht
+geladen), eine Aktion nennt, die die Seite nicht deklariert, nicht zu den Feldern des
+Workflows passt oder von etwas anderem kommt als dem eigenen Frame der Seite unter der
+Nonce, die die Konsole für dieses Laden ausgestellt hat. Eine Nachricht von einem anderen
+Frame oder von einer veralteten Seite wird ohne Antwort verworfen.
+
+Das Promise wird mit einem `Error` abgelehnt, dessen `message` ein kurzer Code ist, damit
+die Seite ihren eigenen Text formuliert:
+
+| Code | Wann |
+|---|---|
+| `cancelled` | Die Person hat abgelehnt |
+| `busy` | Eine andere Frage war offen |
+| `too_many_cancels` | Drei Ablehnungen; die Seite wird nicht erneut gefragt, bis sie neu geöffnet wird |
+| `not_ready` | Die Seite hat gefragt, bevor ihr Frame geladen war |
+| `unknown_action` | Keine deklarierte Aktion passt, die der Betrachter ausführen darf |
+| `invalid_input` | Ein Wert fehlt, ist unbekannt oder hat den falschen Typ; `error.problems` listet `{field, kind}` nur, wenn die Konsole das Problem gefunden hat, und fehlt, wenn der Server mit 422 geantwortet hat |
+| `rate_limited` | Zu viele Runs von dieser Person, oder die Admission-Quote des Aufrufers oder der Organisation |
+| `not_found`, `unavailable` | Die Aktion ist weg, nicht mehr von Hand startbar oder archiviert, oder die Seite kann hier gar keine Aktionen ausführen (ein öffentlicher Link, ein Embed, eine Vorschau, der Verlauf, ein Betrachter ohne ausführbare Aktion) |
+| `failed` | Der Run konnte nicht gestartet oder verfolgt werden |
+| `page_changed` | Die Seite wurde ersetzt, während die Frage offen war |
+
+### Was der Run ist { #what-the-run-is }
+
+Der Run gehört dem **Betrachter**: Er startet mit dessen Berechtigungen und zählt gegen
+dessen Budget, als hätte er den Workflow aus der Konsole ausgeführt. Sein Trigger ist
+**App** (`app`), und er hält die Seite und die Version fest, die die Person ansah. Die
+Seite verleiht nichts; der Run wird abgewiesen, wenn die Person ihn nicht selbst hätte
+starten können. Ein Run, der auf eine Freigabe wartet oder darauf, dass jemand ihn
+ansieht, bleibt im [Run-Verlauf](workflows.md#running-a-workflow) des Workflows, und der
+Betrachter zeigt eine Zeile mit **Open run**.
+
+Die Seite bekommt nie den ganzen Run. Sie liest eine Projektion: den Status, den
+Antworttext, die strukturierte Antwort ohne Dateiverweise, die erste Zeile eines Fehlers
+(höchstens 200 Zeichen) und, solange der Run auf jemanden wartet, den Pfad dorthin in der
+Konsole. Nur die Person, die den Run gestartet hat, kann ihn lesen, und nur über die
+Seite, die ihn gestartet hat.
+
+Die Konsole liest den Run mit wachsender Verzögerung und sendet jede Änderung an die
+Seite. Ein Run, der auf jemanden wartet, wird zehn Minuten lang gelesen, in denen der Tab
+sichtbar ist. Danach wird das Promise der Seite mit dem letzten Zustand, `paused: true`
+und ohne `finished` erfüllt, und die Seite hört nichts mehr; die Zeile im Betrachter ist
+der Weg zum Run. Einer Seite, die neu geladen oder geschlossen wird, wird nichts gesagt.
+
+### Grenzen und Audit { #limits-and-audit }
+
+| Grenze | Wert |
+|---|---|
+| Aktionen pro Seite | 5 |
+| Label | 60 Zeichen |
+| Aus einer Seite gestartete Runs | 10 pro Minute und Person und Seite (`RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE`) |
+| Ablehnungen, bevor die Konsole aufhört zu fragen | 3 pro Öffnen der Seite (ein Neuladen des Frames behält die Zählung) |
+| Ausstehende Arbeit | die eigene Admission-Quote der Workflow-Runs, die ebenfalls mit `rate_limited` antwortet |
+
+Jenseits einer Grenze sieht die Person eine Meldung, und die Seite bekommt `rate_limited`.
+Jeder Start wird als `artifact.action_started` auditiert, mit der Seite, der Version, dem
+Workflow und dem Run - nie die Eingabe, die der Person gehört und am Run selbst steht.
+Siehe [Governance](governance.md#audit) und [die Sicherheitsseite](security.md#a-page-that-starts-workflows).
+
 ## Ein Name, ein Link { #one-name-one-link }
 
 Die Identität eines Artefakts ist sein **Name innerhalb des Agents** —
@@ -628,7 +789,7 @@ später auf einen anderen Origin verlegt:
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, als `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Lucide-1.46.0-Icons, als `window.lucide` - derselbe Satz, den die Konsole verwendet |
 | `lib/agenticos-3.css` | Das Seiten-Kit: das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs, `AO.onData` und `AO.records` |
+| `lib/agenticos-3.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs, `AO.onData`, `AO.records` sowie `AO.run` und `AO.onRun` für [Aktionen](#actions) |
 | `lib/agenticos-2.css`, `lib/agenticos-2.js` | Die vorige Version des Kits, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 | `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 
@@ -686,7 +847,7 @@ veröffentlicht. Die Prüfungen:
   der Seite geladene Version des Kits noch ihr eigenes `<style>` definiert;
 - eine Tabelle ohne `<thead>` oder ohne die Klasse `ao-table`;
 - `data-lucide`-Icons ohne `lib/lucide-1.46.0.min.js`;
-- `AO.onData` oder `AO.records` auf einer Seite, die `lib/agenticos-3.js` nicht
+- `AO.onData`, `AO.records`, `AO.run` oder `AO.onRun` auf einer Seite, die `lib/agenticos-3.js` nicht
   lädt;
 - eine gebundene Seite, deren Skript nie `agenticos.onData` aufruft oder
   `agenticos.data` liest und die deshalb keine Datensätze zeigt.
@@ -979,6 +1140,16 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   Daten-Route und kein Refresh. Siehe
   [Live-Daten auf einem öffentlichen Link](#live-data-on-a-public-link) und
   [die Sicherheitsseite](security.md#a-pages-data-and-its-address).
+- Eine Seite kann über dieselbe Brücke mit `agenticos.run` darum bitten, einen
+  [Workflow](#actions) zu starten, und nur der Seitenbetrachter der Konsole bietet das an:
+  Die Adresse trägt das Recht zu fragen, und ein öffentlicher Link, ein Embed, eine
+  Vorschau und ein Thumbnail weisen den Aufruf sofort ab. Die Anfrage ist wieder **nur
+  eine Anfrage**. Die Konsole nimmt sie von ihrem eigenen Frame unter der Nonce dieses
+  Ladens an, ordnet sie einer Aktion zu, die der Server für diesen Betrachter und die
+  ausgelieferte Version aufgeführt hat, und fragt die Person in einem Dialog, bevor
+  irgendetwas startet. Der Run gehört dann ihr, sodass eine per Prompt Injection
+  manipulierte Seite die Person eine Frage lesen lassen kann, sie aber nie für sie
+  beantwortet.
 - Eine signierte Adresse lädt ihre Seite höchstens einige Male pro Minute,
   gezählt pro Adresse, bevor irgendetwas gelesen wird. Die Konsole und die
   öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den
@@ -1085,8 +1256,12 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   Sekunden alt, und wird mit dem Zugriff des Besitzers für Personen gelesen, die der
   Besitzer nicht kennt. Ein Deployment, das das nicht akzeptieren kann, lässt den
   Schalter aus. Siehe [Live-Daten auf einem öffentlichen Link](#live-data-on-a-public-link).
-- **Nichts auf der Seite handelt.** Ein Formular oder ein Knopf hat keinen Ort,
-  an den es senden könnte, was es sammelt.
+- **Eine Seite handelt nur über ihre deklarierten Aktionen.** Ein Formular oder ein Knopf
+  hat keinen Ort, an den es senden könnte, was es sammelt, außer um einen von bis zu
+  fünf Workflows zu starten, die ihr Veröffentlichender deklariert hat, die die Person
+  jedes Mal bestätigt und die als sie laufen. Sie kann selbst keine API aufrufen, keinen
+  Datensatz schreiben und keine Nachricht senden, und sie bekommt nur Status und Antwort
+  eines Runs zurück. Siehe [Aktionen](#actions).
 - **Eine offene Seite überdauert einen entzogenen Grant um eine Lebensdauer der
   signierten Adresse**, standardmäßig fünf Minuten. Einen öffentlichen Link
   auszuschalten oder seinen Schlüssel zu ersetzen beendet sie beim nächsten Laden.
@@ -1126,6 +1301,11 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   Embed zeigt die Daten nur, wenn ein Owner oder Admin es für die Organisation erlaubt
   und der Besitzer es für den Link bestätigt hat, und wer das Publikum des Links
   löscht, löscht diese Bestätigung.
+- Eine Seite kann bis zu fünf Workflows deklarieren, die ein Agent gebunden hat; ihre
+  Knöpfe bitten die Konsole mit `AO.run`, einen zu starten, und der Betrachter bestätigt
+  jeden Run in einem Dialog, der den echten Workflow nennt und jeden Wert zeigt. Der Run
+  gehört dem Betrachter, mit dem Trigger `app`, und die Seite liest nur Status und Antwort
+  zurück.
 - Der Besitzer kann eine Seite an ein anderes Mitglied übergeben, das ihre Daten
   erneut bestätigen muss.
 - Ein kurzer Seitenvertrag in den Anweisungen jedes Agents mit Artifacts und

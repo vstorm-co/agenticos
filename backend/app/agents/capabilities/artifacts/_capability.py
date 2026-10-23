@@ -23,6 +23,7 @@ class Artifacts(AbstractCapability[AgentDepsT]):
     """
 
     table_grants: Mapping[UUID, frozenset[str]]
+    workflow_ids: frozenset[UUID] = frozenset()
     screenshot: bool = True
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
@@ -40,6 +41,8 @@ class Artifacts(AbstractCapability[AgentDepsT]):
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:
             self._toolset = build_artifacts_toolset(
-                table_grants=self.table_grants, screenshot=self.screenshot
+                table_grants=self.table_grants,
+                workflow_ids=self.workflow_ids,
+                screenshot=self.screenshot,
             )
         return self._toolset

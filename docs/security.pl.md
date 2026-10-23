@@ -1,5 +1,5 @@
 ---
-source_sha: "e9a27c8b197e"
+source_sha: "8d12859e2e5b"
 ---
 
 # Bezpieczeństwo { #security }
@@ -238,6 +238,37 @@ nie może więc poszerzyć samej siebie.
 audytu: ślad audytu zawiera odcisk, wersję, kto wyraził zgodę i jaki tekst potwierdził,
 nigdy wiersz ani wartość filtra.
 
+## Strona, która uruchamia workflowy { #a-page-that-starts-workflows }
+
+Skrypt strony jest niezaufany: pisze go model, który mógł przeczytać coś wrogiego.
+[Akcje](artifacts.md#actions) pozwalają mu poprosić o uruchomienie workflowu, więc to, co
+może zrobić, ograniczają kontrole, których strona nie może zmienić:
+
+- **Allowlista sprawdzona przez publikującego.** Strona deklaruje najwyżej pięć
+  workflowów, każdy powiązany w capability Workflowy agenta, aktywny, startowany ręcznie
+  i możliwy do uruchomienia przez osobę stojącą za publikującym runem. Run bez nikogo za
+  sobą nie może ich deklarować ani zmieniać. Przywrócenie sprawdza je ponownie.
+- **Sformułowanie strony niczego nie rozstrzyga.** Etykieta jest zwykłym tekstem bez
+  ukrytych znaków; konsola tytułuje okno nazwą samego workflowu, a etykietę cytuje.
+- **Człowiek potwierdza każdy run.** Okno pokazuje każdą wartość wejścia jako tekst,
+  z niewidocznymi znakami wypisanymi wprost; Run jest wyłączony przez pół sekundy i nigdy
+  nie dostaje fokusu; otwarte jest jedno pytanie naraz, a trzy odmowy zatrzymują
+  pytania, dopóki strona nie zostanie otwarta ponownie.
+- **Żądanie jest sprawdzane dwa razy.** Konsola przyjmuje wiadomość tylko z własnej ramki
+  strony, z nonce tego załadowania, i tylko dla akcji, którą serwer wymienił dla tego
+  oglądającego i podanej wersji; przed zapytaniem sprawdza wejście z polami workflowu.
+  Route startu powtarza kontrole: wersja musi być tą podaną, workflow zadeklarowany
+  i możliwy do uruchomienia przez wywołującego teraz, a sesja nie może być
+  impersonowana.
+- **Poprosić może tylko oglądający stronę.** Adres niesie claim `acts`, ustawiany tylko
+  dla oglądającego w konsoli. Publiczne linki, embedy, podglądy i miniatury odrzucają
+  wywołanie i nie niosą żadnych akcji.
+- **Run należy do osoby.** Jej uprawnienia, budżet i limit zapytań (domyślnie 10 runów
+  na minutę), zapisany z triggerem `app` i audytowany bez wejścia.
+- **Strona dowiaduje się niewiele.** Status runa, tekst odpowiedzi, odpowiedź
+  strukturalna bez referencji do plików i pierwszy wiersz błędu, najwyżej 200 znaków,
+  tylko dla runa, który ta strona uruchomiła dla tej osoby.
+
 ## Macierz kontroli { #controls-matrix }
 
 Jeden wiersz na kontrolę, mechanizm, który ją realizuje, i test, który trzyma ją
@@ -251,6 +282,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Uprawnienie na każdym route'cie kolekcji | Zależność route'u `require(*perms)` na listowaniu, tworzeniu i route'ach katalogu (`app/api/deps.py`), katalog w `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Route'y per zasób autoryzują w serwisie, nie na route'cie | Route działający na jednym agencie, skillu albo kolekcji nie niesie bramki `require()` — bramka roli odmówiłaby posiadaczowi grantu, zanim grant by zadziałał — i zamiast tego woła `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (każdy route jest bramkowany albo rozstrzygany w serwisie) |
 | Grant poszerza dostęp, nie awansując członka | `resolve_access` per zasób bierze `max(zakres roli, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
+| Strona uruchamia workflow tylko jako osoba, która to potwierdza | Allowlista z publikacji (`app/services/artifact_actions.py`), własna lista oglądającego, kontrole origin i nonce w konsoli oraz okno potwierdzenia (`frontend/src/hooks/use-artifact-actions.ts`), claim `acts`, który niesie tylko adres oglądającego (`app/core/security.py`), oraz route startu, który uruchamia workflow jako wywołujący i odmawia innej wersji albo impersonowanej sesji. Zobacz [stronę, która uruchamia workflowy](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
 | Wzmianka w kanale uruchamia run jako nadawca, nie jako bot | Używany jest własny `AuthContext` powiązanego, aktywnego nadawcy (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Uwierzytelnianie · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }

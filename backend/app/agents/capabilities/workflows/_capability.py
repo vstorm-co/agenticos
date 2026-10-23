@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -13,7 +13,14 @@ from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.workflows._toolset import build_workflows_toolset
 
+if TYPE_CHECKING:
+    from app.agents.spec import AgentSpec
+
 MAX_WORKFLOWS = 20
+
+# Where the factory hands a run the workflows its spec binds (a page's actions are
+# checked against them at publish), beside `workflow_ids_of`.
+WORKFLOW_IDS_RESOURCE = "workflow_ids"
 
 
 class WorkflowsConfig(BaseModel):
@@ -42,6 +49,17 @@ class WorkflowsConfig(BaseModel):
         if len(set(workflow_ids)) != len(workflow_ids):
             raise ValueError("A workflow is named once")
         return workflow_ids
+
+
+def workflow_ids_of(spec: AgentSpec) -> tuple[UUID, ...]:
+    """The workflows the spec's enabled `workflows` binding names.
+
+    Empty when the capability is not bound or is switched off.
+    """
+    for binding in spec.capabilities:
+        if binding.id == "workflows" and binding.enabled:
+            return tuple(WorkflowsConfig.model_validate(binding.config).workflow_ids)
+    return ()
 
 
 @dataclass

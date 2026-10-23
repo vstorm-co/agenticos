@@ -278,6 +278,12 @@ class ArtifactVersion(Base, TimestampMixin):
     bindings: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
+    # The workflows the page may start, as the publication resolved them:
+    # `[{workflow_id, label}]`, at most `MAX_ACTIONS`. Immutable with the version and
+    # restored with it. Versions written before actions existed read as none.
+    actions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     # The member whose run published it, or who restored it; null for a run with
     # nobody behind it. The membership as well as the person: what they could do
     # is what they held then.

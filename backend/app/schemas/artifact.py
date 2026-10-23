@@ -111,6 +111,78 @@ class ArtifactBinding(BaseSchema):
     reach: BindingReach
 
 
+class ActionRequest(BaseSchema):
+    """A workflow a page may start, as the model asks for it, before resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workflow: UUID | str = Field(description="A workflow's id, or its exact name")
+    label: str | None = Field(
+        default=None, description="What the page's button is called; the workflow's name when empty"
+    )
+
+
+class ArtifactAction(BaseSchema):
+    """A workflow a version declares, as the version stores it."""
+
+    workflow_id: UUID
+    label: str
+
+
+class ArtifactActionField(BaseSchema):
+    """One value an action's workflow asks for, as its Manual or API trigger declares it."""
+
+    name: str
+    label: str | None = None
+    type: str
+    required: bool
+    description: str | None = None
+    options: list[str] = Field(default_factory=list)
+
+
+class ArtifactActionView(BaseSchema):
+    """A declared action the viewer may run now, as the console offers it."""
+
+    workflow_id: UUID
+    name: str = Field(description="The workflow's own name, never the page's wording")
+    label: str = Field(description="What the page calls it, as stored; page copy, not a name")
+    fields: list[ArtifactActionField] = Field(description="What the run asks for")
+
+
+class ArtifactActionRunCreate(BaseSchema):
+    """What a viewer starts an action with."""
+
+    input: dict[str, Any] = Field(default_factory=dict, description="The workflow's declared input")
+
+
+class ArtifactActionRunStarted(BaseSchema):
+    """A run an action started."""
+
+    run_id: UUID
+    status: str
+
+
+class ArtifactActionRun(BaseSchema):
+    """How a run a page started stands, as the page may read it: its answer and no more."""
+
+    status: str
+    finished: bool
+    paused: bool = Field(description="Waiting for an approval or for someone to look at it")
+    run_path: str | None = Field(
+        description="Where the console shows the run, set while it is `paused`"
+    )
+    output_text: str | None = None
+    output_structured: dict[str, Any] | None = None
+    error_message: str | None = None
+
+
+class ActionDisclosure(BaseSchema):
+    """A declared action in words, for the publishing agent to check what it declared."""
+
+    workflow: str = Field(description="The workflow's name")
+    label: str = Field(description="What the page calls it")
+
+
 class ArtifactBindingRead(BaseSchema):
     """A binding as an API client sees it: its table and its field names, no column ids."""
 
@@ -681,6 +753,20 @@ class ArtifactView(BaseSchema):
     )
     bindings: int = Field(
         default=0, description="How many bindings the version has, whoever is asking"
+    )
+    actions_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether this address belongs to the page viewer, whose frame may start the "
+            "actions listed. False for history, thumbnails, public links, embeds and previews"
+        ),
+    )
+    actions: list[ArtifactActionView] = Field(
+        default_factory=list,
+        description=(
+            "The workflows the version declares that this viewer may run now. One they may "
+            "not is left out, not named. Only for the version served to them"
+        ),
     )
 
 

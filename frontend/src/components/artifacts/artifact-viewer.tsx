@@ -11,6 +11,7 @@ import {
   DeleteArtifactDialog,
 } from "@/components/artifacts/artifact-archive";
 import { ArtifactFrame, type DataBridge } from "@/components/artifacts/artifact-frame";
+import { PausedRuns } from "@/components/artifacts/artifact-run-dialog";
 import { ChangeOwnerDialog } from "@/components/artifacts/change-owner-dialog";
 import { DataChangeReview } from "@/components/artifacts/data-change-review";
 import { RequestAccessScreen } from "@/components/artifacts/request-access-screen";
@@ -267,6 +268,7 @@ export function ArtifactViewer({
         live={
           live ? (bridge === null ? "steady" : (liveHealth(bridge.status) ?? undefined)) : undefined
         }
+        actions={bridge?.actions}
         onShare={() => setSharing(true)}
         onArchive={() => setArchiving(true)}
         onDelete={() => setConfirming(true)}
@@ -346,6 +348,7 @@ export function ArtifactViewer({
         )
       )}
       {live && bridge !== null && <LiveDataNotice artifact={artifact} status={bridge.status} />}
+      {bridge !== null && <PausedRuns runs={bridge.paused} />}
       {artifact.live && !current && (
         <ViewerNotice tone="info" icon={Info}>
           <span>{t("liveOnlyCurrent")}</span>

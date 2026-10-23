@@ -92,6 +92,7 @@ def _version(
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/x.html",
         run_id=None,
         bindings=bindings or [],
+        actions=[],
         consent_state=consent_state,
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
@@ -640,6 +641,7 @@ class TestView:
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=unbound)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=older)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=None)),
         ):
             current = await _service().view(ctx, artifact.id, data=True)
             history = await _service().view(ctx, artifact.id, version_id=older.id, data=True)

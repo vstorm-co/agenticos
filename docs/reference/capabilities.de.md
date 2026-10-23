@@ -1,5 +1,5 @@
 ---
-source_sha: "f8874fc2f345"
+source_sha: "b32952995eb7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1189,6 +1189,19 @@ anderen sehen, solange sie wartet: „the audience still sees v2 until Alex
 confirms“. Eine `pending`-Version muss die Person in der Konsole bestätigen; der
 Agent sagt es ihr. Eine neue Seite ist privat für die Person, für die der Run
 lief.
+
+**Aktionen.** `actions` an `publish_artifact` deklariert bis zu fünf Workflows, die die
+Knöpfe der Seite starten lassen dürfen, als `[{workflow, label}]` - ein Workflow per ID oder
+exaktem Namen und das, wie die Seite ihn nennt. Jeder muss in der
+[Workflows](#workflows)-Capability des Agents gebunden sein, live sein und aus **Manual**
+oder **API request** gestartet werden, und die Person hinter dem Run muss ihn ansehen und
+ausführen dürfen; einen, den die Person nicht erreicht, weist die Plattform ab, als wäre er
+nicht gebunden, und einen archivierten oder nicht von Hand startbaren, den sie erreicht,
+weist sie mit Namen ab. Ohne `actions` bleiben die bisherigen erhalten, `[]` entfernt sie,
+und ein Run ohne Person dahinter kann sie nicht ändern. Das Ergebnis führt in `actions`
+jede nach Name und Label auf, oder `kept`. Der Agent startet nichts: Der Betrachter
+bestätigt jeden Run in der Konsole, und er läuft als er. Die Seite ruft `AO.run` auf. Siehe
+[Aktionen](../artifacts.md#actions).
 
 **`share_artifact(name, visibility?, people?)`.** Bittet darum, eine Seite zu
 teilen. Es teilt nie etwas und wird **nicht** durch eine Tool-Freigabe abgesichert:

@@ -58,7 +58,7 @@ _KIT_CSS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.css(?:[?#]|$)")
 _KIT_JS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.js(?:[?#]|$)")
 _LUCIDE = re.compile(r"(?:^|/)lib/lucide-[\d.]+(?:\.min)?\.js(?:[?#]|$)")
 _ASKS_BRIDGE = re.compile(r"\bagenticos\s*\.\s*(?:onData|data)\b")
-_KIT_3_CALL = re.compile(r"\bAO\s*\.\s*(onData|records)\b")
+_KIT_3_CALL = re.compile(r"\bAO\s*\.\s*(onData|records|run|onRun)\b")
 _BUILDS_TABLE = re.compile(r"createElement\(\s*['\"`]table['\"`]|<table\b", re.I)
 _BUILDS_HEAD = re.compile(r"createTHead|thead", re.I)
 _SHOWN_CLASSES = 8
@@ -230,10 +230,12 @@ def lint_page(data: bytes, *, bound: Collection[str] = ()) -> list[str]:
     calls = sorted(set(_KIT_3_CALL.findall(script)))
     if calls and not kit_3:
         named = " and ".join(f"`AO.{call}`" for call in calls)
+        direct = " and ".join(f"`agenticos.{call}`" for call in calls if call != "records")
+        direct = direct or "`agenticos.onData`"
         problems.append(
             f"It calls {named}, which only `lib/agenticos-3.js` has, so its script stops there. "
             "Load `lib/agenticos-3.js` (in place of any older kit script), or call "
-            "`agenticos.onData` directly."
+            f"{direct} directly."
         )
     asks = _ASKS_BRIDGE.search(script) is not None or (kit_3 and "onData" in calls)
     if bound and not asks:

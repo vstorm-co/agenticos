@@ -27,6 +27,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.artifact import Artifact
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -38,6 +39,7 @@ from app.db.models.workflow_run import (
     WorkflowRun,
     WorkflowRunMode,
     WorkflowRunStatus,
+    WorkflowRunTrigger,
 )
 from app.main import app
 from app.repositories import workflow_run as workflow_run_repo
@@ -162,6 +164,39 @@ class TestStartAndCancelOnARealSession:
 
         assert started.mode == WorkflowRunMode.TEST.value
         assert started.workflow_version_id is None
+
+    async def test_an_app_start_stores_the_page_and_version_and_keeps_them_when_the_page_goes(
+        self, db: AsyncSession
+    ):
+        owner = await _user(db)
+        org = await _org(db, owner=owner)
+        workflow = await _workflow(db, org=org, owner=owner)
+        workflow.live_trigger = "trigger.manual"
+        page = Artifact(
+            id=uuid.uuid4(), organization_id=org.id, name="tool", title="Tool", visibility="private"
+        )
+        db.add(page)
+        await db.flush()
+
+        started = await WorkflowExecutionService(db).start(
+            _ctx(owner, org),
+            workflow.id,
+            triggered_by=WorkflowRunTrigger.APP,
+            source_artifact_id=page.id,
+            source_version_number=2,
+        )
+
+        run = await db.get(WorkflowRun, started.id)
+        assert run is not None
+        assert (run.triggered_by, run.source_artifact_id, run.source_version_number) == (
+            "app",
+            page.id,
+            2,
+        )
+        await db.delete(page)
+        await db.flush()
+        await db.refresh(run)
+        assert (run.source_artifact_id, run.source_version_number) == (None, 2)
 
     async def test_cancelling_a_run_answers_cancelled_and_closes_its_outbox(self, db: AsyncSession):
         owner = await _user(db)

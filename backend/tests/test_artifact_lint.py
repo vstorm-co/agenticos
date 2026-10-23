@@ -186,6 +186,8 @@ def test_icons_a_script_adds_count_as_icons_too() -> None:
         ("AO.onData(render);", "`AO.onData`"),
         ('AO.records("#t", data.t);', "`AO.records`"),
         ("AO.onData(function (d) { AO.records('#t', d.t); });", "`AO.onData` and `AO.records`"),
+        ('AO.run("Refresh", {});', "`AO.run`"),
+        ("AO.onRun(show); AO.run('x');", "`AO.onRun` and `AO.run`"),
     ],
 )
 def test_a_version_3_call_on_a_version_2_page_says_how_to_fix_it(script: str, named: str) -> None:
@@ -194,6 +196,11 @@ def test_a_version_3_call_on_a_version_2_page_says_how_to_fix_it(script: str, na
         problem.startswith(f"It calls {named}, which only `lib/agenticos-3.js` has")
         for problem in problems
     )
+
+
+def test_a_version_2_page_calling_run_is_pointed_at_the_platform_call() -> None:
+    problems = lint_page(_page('<script>AO.run("Refresh");</script>', kit=2))
+    assert any("or call `agenticos.run` directly." in problem for problem in problems)
 
 
 def test_ao_on_data_on_version_3_asks_for_the_data() -> None:

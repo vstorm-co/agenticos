@@ -41,6 +41,8 @@ interface Kit {
     options?: RecordsOptions,
   ) => HTMLTableElement | null;
   icons: (scope?: Element) => void;
+  run: (action: string, input?: Record<string, unknown>) => Promise<unknown>;
+  onRun: (listener: (event: unknown) => void) => unknown;
 }
 
 interface Lucide {
@@ -49,7 +51,11 @@ interface Lucide {
 
 interface PageWindow {
   AO?: Kit;
-  agenticos?: { onData: (render: Render) => unknown };
+  agenticos?: {
+    onData?: (render: Render) => unknown;
+    run?: (action: string, input?: Record<string, unknown>) => Promise<unknown>;
+    onRun?: (listener: (event: unknown) => void) => unknown;
+  };
   lucide?: Lucide;
 }
 
@@ -140,6 +146,27 @@ describe("AO.onData", () => {
 
   it("says why when the page was opened without its data bridge", () => {
     expect(() => load().onData(vi.fn())).toThrow(/no data bridge/);
+  });
+});
+
+describe("AO.run and AO.onRun", () => {
+  it("hand the call to the platform's bridge, looked up when called", async () => {
+    const kit = load();
+    const run = vi.fn(() => Promise.resolve({ status: "completed" }));
+    const onRun = vi.fn(() => "off");
+    page.agenticos = { run, onRun };
+    const listener = vi.fn();
+
+    await expect(kit.run("Send", { to: "a" })).resolves.toEqual({ status: "completed" });
+    expect(run).toHaveBeenCalledWith("Send", { to: "a" });
+    expect(kit.onRun(listener)).toBe("off");
+    expect(onRun).toHaveBeenCalledWith(listener);
+  });
+
+  it("say why when the page was opened without the action bridge", async () => {
+    const kit = load();
+    await expect(kit.run("Send")).rejects.toThrow(/^unavailable$/);
+    expect(() => kit.onRun(vi.fn())).toThrow(/no action bridge/);
   });
 });
 

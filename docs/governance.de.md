@@ -1,5 +1,5 @@
 ---
-source_sha: "7b81e2332658"
+source_sha: "9475cb419897"
 ---
 
 # Governance { #governance }
@@ -1333,7 +1333,7 @@ bestätigt hat.
 
 | Aktion | Aufgezeichnet, wenn |
 |---|---|
-| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer und dem Fingerabdruck ihrer Seitenabfragen |
+| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
 | `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
 | `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
 | `artifact.auto_consent_changed` | Der Besitzer „Don't ask for consent on republish“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
@@ -1345,6 +1345,7 @@ bestätigt hat.
 | `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
 | `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
 | `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
+| `artifact.action_started` | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen |
 
 **Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
 aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie

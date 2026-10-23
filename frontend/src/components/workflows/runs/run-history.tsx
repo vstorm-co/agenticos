@@ -43,6 +43,7 @@ const TRIGGERS = [
   "channel_message",
   "github",
   "gmail",
+  "app",
 ] as const;
 const HOUR_MS = 3_600_000;
 /** How far back each "started within" choice reaches. */

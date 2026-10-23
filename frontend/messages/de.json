@@ -3295,6 +3295,10 @@
         "title": "Eine Datenänderung prüfen",
         "body": "Ein anderer Editor hat eine Version veröffentlicht, die andere Daten liest. Review data change öffnet ein Panel, das sie Binding für Binding mit der Version vergleicht, die die Zielgruppe jetzt sieht, und alles markiert, was sie mehr liest. Approve bestätigt sie; Decline hält die Zielgruppe auf der früheren Version."
       },
+      "artifact-actions": {
+        "title": "Apps, die Workflows starten",
+        "body": "Deklariert die Seite Workflows, die Sie starten dürfen, listet „Diese App kann ausführen“ sie hier auf, mit einem Link zu den Runs jedes Workflows. Die Seite kann nur bitten: Jeder Run wartet auf Ihre Bestätigung, läuft als Sie und zeigt, was er sendet."
+      },
       "artifact-change-owner": {
         "title": "Besitzer wechseln",
         "body": "Die Daten einer Seite werden mit dem Zugriff ihres Besitzers gelesen. Change owner in diesem Menü übergibt die Seite sofort an ein anderes Mitglied; ihre Daten warten dann darauf, dass der neue Besitzer sie bestätigt."
@@ -4711,7 +4715,8 @@
         "form": "Ein Formular",
         "channel_message": "Eine Kanalnachricht",
         "github": "GitHub",
-        "gmail": "Gmail"
+        "gmail": "Gmail",
+        "app": "Eine App"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -6778,6 +6783,19 @@
     "filterByAgent": "Nach Agent filtern",
     "everyAgent": "Alle Agents",
     "environmentBadge": "Aus dieser Umgebung veröffentlicht",
+    "actions": {
+      "why": "Die Seite „{page}“ bittet darum, diesen Workflow als Sie auszuführen, mit Ihrem Zugriff und Ihrem Budget. Prüfen Sie, was gesendet wird, bevor Sie fortfahren.",
+      "pageWording": "Die eigenen Worte der Seite",
+      "sends": "Was gesendet wird",
+      "sendsNothing": "Nichts: Der Workflow nimmt keine Eingabe entgegen.",
+      "notGiven": "nicht angegeben",
+      "run": "Ausführen",
+      "rateLimited": "Zu viele Runs von dieser Seite. Versuchen Sie es in einer Minute erneut.",
+      "waiting": "{name} wartet auf jemanden.",
+      "openRun": "Run öffnen",
+      "canRun": "Diese App kann ausführen: {names}",
+      "runsOf": "Runs der Workflows, die diese App starten kann"
+    },
     "openLinkTitle": "Diesen Link öffnen?",
     "openLinkWhy": "Die Seite möchte eine andere Website in einem neuen Tab öffnen. Prüfen Sie die Adresse, bevor Sie fortfahren.",
     "openLink": "Link öffnen",

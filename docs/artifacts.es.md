@@ -1,5 +1,5 @@
 ---
-source_sha: "e4544b45cd9d"
+source_sha: "6dcc56fd4cc5"
 ---
 
 # Artefactos { #artifacts }
@@ -480,6 +480,148 @@ una página alojada, un remitente de canal no vinculado y la entrega de un trigg
 eventos de un agent (GitHub, correo, relé de webhooks) no cuentan, ni tampoco un run
 de workflow admitido por una puerta pública ni nada en la cadena de ese run.
 
+## Acciones { #actions }
+
+Una página puede iniciar un [workflow](workflows.md), pero solo cuando una persona está de acuerdo.
+La página no actúa: pide, la consola le muestra a la persona qué ocurriría, y el run es suyo.
+Así una página se convierte en una pequeña app - un formulario que presenta una solicitud, un
+botón que aprueba una factura - sin que la página tenga ningún poder propio.
+
+### Declarar acciones { #declaring-actions }
+
+El agent declara los workflows que una página puede iniciar cuando publica, con el argumento
+`actions` de `publish_artifact`: hasta cinco entradas, cada una con un workflow (su id o nombre
+exacto) y una **label**, la palabra con la que la página lo nombra.
+
+```json
+{"actions": [{"workflow": "Approve invoice", "label": "Approve"}]}
+```
+
+Un workflow puede ser una acción solo si se cumple todo esto:
+
+- el agent que publica lo tiene en la [capability Workflows](reference/capabilities.md#workflows),
+  de modo que lo que una página puede iniciar forma parte de lo que revisó el autor del agent;
+- está activo (publicado, no archivado) y arranca desde un trigger **Manual** o **API**;
+- la persona detrás del run puede verlo y ejecutarlo. Uno que no puede se responde como si
+  no estuviera vinculado, así que un rechazo nunca nombra un workflow que la persona no ve.
+
+La label es texto plano de como máximo 60 caracteres, sin caracteres de control ni invisibles;
+si queda vacía, pasa a ser el nombre del workflow. Omitir `actions` conserva las de la versión
+actual, y `[]` las quita. El resultado de la publicación lista cada acción declarada con palabras,
+o dice `kept`. Una página Markdown no puede tener acciones. Un run sin nadie detrás no puede
+añadirlas ni cambiarlas, y solo puede volver a publicar sin cambios una página que ya las tiene.
+Restaurar una versión anterior vuelve a comprobar sus acciones contra el agent tal como está
+ahora, y se rechaza si alguna ya no se sostiene.
+
+Las acciones se guardan con la versión, así que una versión nueva sustituye la lista entera y una
+anterior conserva la suya. Desvincular después un workflow del agent no edita una versión
+publicada; el estado propio del workflow y el acceso de cada lector se comprueban cada vez que se
+abre la página y de nuevo cuando se inicia un run.
+
+### Quién ve qué acciones { #who-sees-which-actions }
+
+Cuando la consola abre una página, lista las acciones que declara la **versión servida** y que
+este lector puede ejecutar ahora: cada una con el nombre real del workflow, la label de la página
+y los campos que pide su trigger. Una que el lector no puede ejecutar se omite. La franja del
+visor muestra **This app can run: ...**, con los nombres de los workflows, cada uno un enlace a los
+runs de ese workflow. Sin ninguna, no se muestra nada.
+
+Una página no recibe acciones, y su llamada `run` se rechaza de inmediato, cuando se muestra:
+
+- en un enlace público, en un embed, en una vista previa o en la miniatura de una tarjeta;
+- como una versión anterior del historial, o una que no es la versión que se sirve a este lector
+  (una audiencia aún espera el consentimiento para la más nueva);
+- a un miembro que no puede ejecutar ninguno de sus workflows, o a una sesión suplantada.
+
+La ruta de inicio rechaza todo lo mismo, así que una página que se saltara la consola no
+ganaría nada.
+
+### Ejecutar una desde la página { #running-one-from-the-page }
+
+En la página, `agenticos.run(action, input)` - `AO.run` en el [kit de páginas](#the-library-set) -
+le pide a la consola que inicie una acción. `action` es un id de workflow, la label de la página
+o el nombre del workflow. La consola busca primero el id exacto, luego la label, luego el nombre,
+sin distinguir mayúsculas. Un nivel que encaja con dos acciones no encuentra nada y no pasa al
+siguiente. `input` es un objeto con exactamente los valores que declara el trigger del workflow.
+La llamada devuelve una Promise del run terminado, y `onRun` (`AO.onRun`) oye cada cambio por el
+camino:
+
+```js
+AO.run("Approve", { invoice: "INV-204" }).then(
+  (run) => show(run.status, run.output_text),
+  (error) => show("not run", error.message),
+);
+```
+
+La consola no inicia nada hasta que la persona ha aceptado. Cada run, por muchos que hayan
+precedido, abre un diálogo de confirmación:
+
+- su título es el **nombre propio del workflow**, y la label de la página aparece solo como cita;
+- muestra cada valor que envía la página, completo y como texto, con los caracteres que no
+  dibujan nada o que reordenan el texto escritos (`\u{202E}`);
+- **Run** está desactivado durante medio segundo y nunca recibe el foco, así que un clic que ya
+  venía de camino no acepta; Cancel tiene el foco;
+- hay una sola pregunta abierta a la vez, entre diálogos de run y de enlace, y una petición que
+  llega mientras tanto se rechaza como `busy`;
+- tras **tres rechazos** en una apertura de la página (recargar el frame conserva la cuenta) la
+  consola deja de preguntar y rechaza más peticiones hasta que se vuelve a abrir la página.
+
+Una petición se rechaza sin diálogo cuando es demasiado pronto (el frame no ha cargado), nombra
+una acción que la página no declara, no encaja con los campos del workflow, o viene de algo que no
+es el propio frame de la página bajo el nonce que la consola generó para esa carga. Un mensaje de
+otro frame, o de una página obsoleta, se descarta sin respuesta.
+
+La promesa se rechaza con un `Error` cuyo `message` es un código corto, para que la página
+redacte su propio texto:
+
+| Código | Cuándo |
+|---|---|
+| `cancelled` | La persona rechazó |
+| `busy` | Había otra pregunta abierta |
+| `too_many_cancels` | Tres rechazos; no se vuelve a preguntar a la página hasta que se reabra |
+| `not_ready` | La página pidió antes de que su frame hubiera cargado |
+| `unknown_action` | Ninguna acción declarada que el lector pueda ejecutar encaja |
+| `invalid_input` | Falta un valor, es desconocido o de tipo erróneo; `error.problems` lista `{field, kind}` solo cuando el problema lo encontró la consola, y no está si respondió el servidor con 422 |
+| `rate_limited` | Demasiados runs de esta persona, o la cuota de admisión del llamante o de la organización |
+| `not_found`, `unavailable` | La acción ya no existe, ya no se puede iniciar a mano o está archivada, o la página no puede ejecutar acciones aquí en absoluto (un enlace público, un embed, una vista previa, el historial, un lector sin ninguna acción ejecutable) |
+| `failed` | No se pudo iniciar o seguir el run |
+| `page_changed` | La página se reemplazó mientras la pregunta estaba abierta |
+
+### Qué es el run { #what-the-run-is }
+
+El run es del **lector**: empieza con sus permisos y cuenta contra su budget, como si hubiera
+ejecutado el workflow desde la consola. Su trigger es **App** (`app`), y registra la página y la
+versión que miraba la persona. La página no confiere nada; el run se rechaza cuando la persona no
+habría podido iniciarlo ella misma. Un run que espera una aprobación o que alguien lo mire se
+queda en el [historial de runs](workflows.md#running-a-workflow) del workflow, y el visor muestra
+una línea con **Open run**.
+
+A la página nunca se le entrega el run entero. Lee una proyección: el estado, el texto de la
+respuesta, la respuesta estructurada sin referencias a archivos, la primera línea de un error
+(como máximo 200 caracteres) y, mientras el run espera a alguien, la ruta hasta él en la consola.
+Solo puede leerlo la persona que inició el run, y solo a través de la página que lo inició.
+
+La consola lee el run con un retardo creciente y envía cada cambio a la página. Un run que espera
+a alguien se lee durante diez minutos con la pestaña visible. Pasado ese tiempo la promesa de la
+página se resuelve con el último estado, `paused: true` y sin `finished`, y la página no oye nada
+más; la línea del visor es el camino hasta el run. A una página que se recarga o se cierra no se le
+dice nada.
+
+### Límites y auditoría { #limits-and-audit }
+
+| Límite | Valor |
+|---|---|
+| Acciones por página | 5 |
+| Label | 60 caracteres |
+| Runs iniciados desde una página | 10 por minuto por persona y página (`RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE`) |
+| Rechazos antes de que la consola deje de preguntar | 3 por apertura de la página (recargar el frame conserva la cuenta) |
+| Trabajo pendiente | la cuota de admisión propia de los runs de workflow, que también responde `rate_limited` |
+
+Pasado un límite, la persona ve un mensaje y la página recibe `rate_limited`. Cada inicio se
+audita como `artifact.action_started` con la página, la versión, el workflow y el run - nunca la
+entrada, que es de la persona y está en el propio run. Consulta [gobernanza](governance.md#audit) y
+[la página de seguridad](security.md#a-page-that-starts-workflows).
+
 ## Un nombre, un enlace { #one-name-one-link }
 
 La identidad de un artefacto es su **nombre dentro del agent**: `weekly-report`,
@@ -561,7 +703,7 @@ contenido a otro origen:
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, como `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Iconos de Lucide 1.46.0, como `window.lucide` - el mismo conjunto que usa la consola |
 | `lib/agenticos-3.css` | El kit de páginas: el aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData` y `AO.records` |
+| `lib/agenticos-3.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
 | `lib/agenticos-2.css`, `lib/agenticos-2.js` | La versión anterior del kit, conservada para las páginas publicadas con ella |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
 
@@ -618,7 +760,7 @@ caso. Las comprobaciones:
   versión del kit que carga la página ni tampoco su propio `<style>`;
 - una tabla sin `<thead>`, o sin la clase `ao-table`;
 - iconos `data-lucide` sin `lib/lucide-1.46.0.min.js`;
-- `AO.onData` o `AO.records` en una página que no carga `lib/agenticos-3.js`;
+- `AO.onData`, `AO.records`, `AO.run` o `AO.onRun` en una página que no carga `lib/agenticos-3.js`;
 - una página vinculada cuyo script nunca llama a `agenticos.onData` ni lee
   `agenticos.data`, así que no muestra ningún registro.
 
@@ -892,6 +1034,14 @@ consola ni a la persona que lo mira:
   servidor, y nunca los pide: no tiene ruta de datos ni refresco. Consulta
   [datos en vivo en un enlace público](#live-data-on-a-public-link) y
   [la página de seguridad](security.md#a-pages-data-and-its-address).
+- Una página puede pedir que se inicie un [workflow](#actions) a través del mismo puente, con
+  `agenticos.run`, y solo lo ofrece el visor de página de la consola: la dirección lleva el
+  derecho a pedir, y un enlace público, un embed, una vista previa y una miniatura rechazan la
+  llamada de inmediato. La petición vuelve a ser **solo una petición**. La consola la acepta de su
+  propio frame bajo el nonce de esa carga, la empareja con una acción que el servidor listó para
+  este lector y la versión servida, y le pregunta a la persona en un diálogo antes de que empiece
+  nada. El run es entonces suyo, así que una página manipulada por prompt injection puede hacer que
+  la persona lea una pregunta, nunca responderla por ella.
 - Una dirección firmada carga su página unas pocas veces por minuto como mucho,
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
@@ -992,8 +1142,11 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   carga, sin refresco, con hasta 30 segundos de antigüedad, y leído con el acceso del propietario
   para personas a las que el propietario no conoce. Un despliegue que no pueda aceptarlo deja el
   interruptor desactivado. Consulta [datos en vivo en un enlace público](#live-data-on-a-public-link).
-- **Nada en la página actúa.** Un formulario o un botón no tiene adónde enviar lo
-  que recoge.
+- **Una página actúa solo mediante sus acciones declaradas.** Un formulario o un botón no
+  tiene adónde enviar lo que recoge, salvo para iniciar uno de los hasta cinco workflows que su
+  publicador declaró, que la persona confirma cada vez y que se ejecutan como ella. No puede
+  llamar a una API, escribir un registro ni enviar un mensaje por sí misma, y solo recibe de vuelta
+  el estado y la respuesta de un run. Consulta [acciones](#actions).
 - **Una página abierta sobrevive a un grant revocado durante la vida de una
   dirección firmada**, cinco minutos por defecto. Desactivar un enlace público o sustituir su
   clave lo termina en la siguiente carga.
@@ -1027,6 +1180,10 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   página vinculada es del propietario, o una solicitud. Un enlace público o un embed muestra
   los datos solo cuando un Owner o Admin lo ha permitido para la organización y el propietario
   lo ha confirmado para el enlace, y borrar la audiencia del enlace borra esa confirmación.
+- Una página puede declarar hasta cinco workflows que un agent ha vinculado; sus botones piden a
+  la consola que inicie uno con `AO.run`, y el lector confirma cada run en un diálogo que nombra
+  el workflow real y muestra cada valor. El run es del lector, con el trigger `app`, y la página
+  solo lee de vuelta su estado y su respuesta.
 - El propietario puede entregar una página a otro miembro, que debe volver a confirmar sus datos.
 - Un breve contrato de página en las instrucciones de cada agent con Artifacts,
   y avisos en el resultado de la publicación sobre lo que parece estar mal en el

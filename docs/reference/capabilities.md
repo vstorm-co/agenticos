@@ -1065,6 +1065,17 @@ waits: "the audience still sees v2 until Alex confirms". A `pending` version is 
 confirm in the console; the agent tells them. A new page is private to the person the run is
 for.
 
+**Actions.** `actions` on `publish_artifact` declares up to five workflows the page's
+buttons may ask to start, as `[{workflow, label}]` - a workflow by id or exact name, and what the
+page calls it. Each must be bound in the agent's [Workflows](#workflows) capability, live and
+started from **Manual** or **API request**, and one the person behind the run may view and run;
+one the person cannot reach is refused as if unbound, and an archived or not
+hand-started one they can reach is refused by name. Omit `actions` to keep the
+current ones, `[]` removes them, and a run with no person behind it cannot change them.
+The result's `actions` lists each by name and label, or `kept`. The agent starts nothing: the
+viewer confirms every run in the console, and it runs as them. The page calls `AO.run`. See
+[Actions](../artifacts.md#actions).
+
 **`share_artifact(name, visibility?, people?)`.** Asks for a page to be shared. It never
 shares anything and is **not** gated by a tool approval: it files an `audience`
 [request](../artifacts.md#share-requests) as the run's person - the owner's own run

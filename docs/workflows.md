@@ -748,6 +748,21 @@ was started by **An agent**. Only a published workflow starting from **Manual**,
 A run with no member behind it (a widget, embed or hosted-page visitor, an
 unlinked channel sender, an agent event trigger's delivery) starts none.
 
+### From an app { #from-an-app }
+
+A [published page](artifacts.md#actions) can start a workflow that its agent has bound
+and that starts from **Manual** or **API request**. The page only asks. The member
+viewing it is shown a dialog with the workflow's own name and every input value, and
+the run starts only when they confirm. It is theirs: their access, their budget and
+their runs page, checked, billed and audited like one started from **Start a run**,
+and subject to the same admission quota. A run with no member behind it, or from a
+session that is impersonated, starts none.
+
+The runs page says such a run was started by **An app**, and **Started by** filters
+on it; over the API its `triggered_by` is `app`. The run also records the page and the
+version the member was looking at, and a retry keeps them. The page reads back only the
+run's status, its answer and the first line of an error.
+
 ### When another workflow fails { #when-another-workflow-fails }
 
 An **On failure of a workflow** trigger makes an error workflow. Picked as another

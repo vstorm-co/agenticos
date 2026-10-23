@@ -35,6 +35,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
+    WorkflowTriggerMismatchError,
 )
 from app.services.workflow_execution.facade import (
     Causation,
@@ -801,6 +802,87 @@ class TestThePublicOrigin:
         stored = await self._stored(lambda service: service.start(_ctx(), uuid.uuid4()))
 
         assert stored is False
+
+
+class TestTheAppDoor:
+    """A page's declared action starts a run through the `app` door (#1976)."""
+
+    @staticmethod
+    async def _start(live_trigger: str | None, **kwargs: object):
+        workflow = _workflow(live_trigger=live_trigger)
+        created = _run_row(workflow_id=workflow.id)
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=_version())
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.lock_admission", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.sum_reserved_node_work",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
+            ) as create_run,
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_node_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
+            ),
+            patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
+        ):
+            await WorkflowExecutionService(MagicMock()).start(
+                _ctx(), workflow.id, triggered_by=WorkflowRunTrigger.APP, **kwargs
+            )
+        return create_run.await_args.kwargs
+
+    @pytest.mark.parametrize("trigger", ["core.input", "trigger.manual"])
+    async def test_it_admits_only_what_a_person_starts_by_hand(self, trigger):
+        stored = await self._start(trigger)
+
+        assert stored["triggered_by"] == "app"
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "trigger",
+        [
+            None,
+            "trigger.webhook",
+            "trigger.schedule",
+            "trigger.chat",
+            "trigger.form",
+            "trigger.workflow_call",
+        ],
+    )
+    async def test_it_refuses_every_other_trigger_and_an_entry_that_is_none(self, trigger):
+        with pytest.raises(WorkflowTriggerMismatchError) as refused:
+            await self._start(trigger)
+
+        assert refused.value.details["door"] == "app"
+
+    async def test_it_records_the_page_and_version_the_run_came_from(self):
+        page = uuid.uuid4()
+
+        stored = await self._start(
+            "trigger.manual", source_artifact_id=page, source_version_number=4
+        )
+
+        assert (stored["source_artifact_id"], stored["source_version_number"]) == (page, 4)
+
+    async def test_a_start_from_anywhere_else_records_no_page(self):
+        stored = await self._start("trigger.manual")
+
+        assert (stored["source_artifact_id"], stored["source_version_number"]) == (None, None)
+
+    @pytest.mark.security
+    async def test_an_app_run_is_not_stored_public(self):
+        stored = await self._start("trigger.manual")
+
+        assert stored["public_origin"] is False
 
 
 class TestTriggerDispatch:

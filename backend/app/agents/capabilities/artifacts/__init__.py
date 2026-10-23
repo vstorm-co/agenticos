@@ -81,9 +81,11 @@ def _build(ctx: CapabilityBuildContext) -> Artifacts:
     # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
     # module level, which loops back through the factory to this package.
     from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE
+    from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE
 
     config = ctx.config if isinstance(ctx.config, ArtifactsConfig) else ArtifactsConfig()
     return Artifacts(
         table_grants=ctx.resources.get(TABLE_GRANTS_RESOURCE, MappingProxyType({})),
+        workflow_ids=ctx.resources.get(WORKFLOW_IDS_RESOURCE, frozenset()),
         screenshot=config.preview_screenshot,
     )

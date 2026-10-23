@@ -1,5 +1,5 @@
 ---
-source_sha: "7b28466fa425"
+source_sha: "9c480bdaf58a"
 ---
 
 # Workflows { #workflows }
@@ -847,6 +847,21 @@ sich nur ein veröffentlichter Workflow geben, der mit **Manual**, **API request
 Ein Run, hinter dem kein Mitglied steht (der Besucher eines Widgets, eines Embeds
 oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die
 Zustellung eines Ereignis-Triggers eines Agenten), startet keinen.
+
+### Aus einer App { #from-an-app }
+
+Eine [veröffentlichte Seite](artifacts.md#actions) kann einen Workflow starten, den ihr
+Agent gebunden hat und der aus **Manual** oder **API request** startet. Die Seite fragt nur.
+Dem Mitglied, das sie ansieht, wird ein Dialog mit dem eigenen Namen des Workflows und
+jedem Eingabewert gezeigt, und der Run startet erst, wenn es bestätigt. Er gehört ihm:
+sein Zugriff, sein Budget und seine Run-Seite, geprüft, abgerechnet und auditiert wie ein
+Run, der mit **Start a run** gestartet wurde, und derselben Admission-Quote unterworfen.
+Ein Run ohne Mitglied dahinter oder aus einer Session, die imitiert wird, startet keinen.
+
+Die Run-Seite nennt einen solchen Run gestartet von **An app**, und **Started by** filtert
+danach; über die API ist sein `triggered_by` `app`. Der Run hält auch die Seite und die
+Version fest, die das Mitglied ansah, und ein Retry behält sie. Die Seite liest nur den
+Status des Runs, seine Antwort und die erste Zeile eines Fehlers zurück.
 
 ### Wenn ein anderer Workflow fehlschlägt { #when-another-workflow-fails }
 

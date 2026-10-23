@@ -185,6 +185,9 @@ _DOOR_TRIGGERS: dict[WorkflowRunTrigger, frozenset[str | None]] = {
     # An agent's `run_workflow` tool: what a member may start by hand, and what is
     # published to be called, since an agent's call is the same request.
     WorkflowRunTrigger.AGENT: frozenset({None, *BY_HAND, WORKFLOW_CALL}),
+    # A page's declared action, started by the member viewing it: only what a person
+    # starts by hand. No `None` - a page names a workflow with a trigger.
+    WorkflowRunTrigger.APP: frozenset(BY_HAND),
 }
 
 
@@ -205,6 +208,8 @@ class WorkflowExecutionService:
         deadline_seconds: int | None = None,
         reply_conversation_id: UUID | None = None,
         step: WorkflowStepTest | None = None,
+        source_artifact_id: UUID | None = None,
+        source_version_number: int | None = None,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
@@ -225,6 +230,9 @@ class WorkflowExecutionService:
         `reply_conversation_id` is where a chat-started run answers: the
         caller's own conversation, which the chat surface checked belongs to
         them. The run's result is written there when it ends.
+
+        `source_artifact_id` and `source_version_number` record the page and the
+        version of it a run started from (`triggered_by = app`).
 
         Raises:
             NotFoundError: The workflow does not exist, or this caller may
@@ -294,6 +302,8 @@ class WorkflowExecutionService:
             payload=payload,
             deadline_seconds=deadline_seconds,
             reply_conversation_id=reply_conversation_id,
+            source_artifact_id=source_artifact_id,
+            source_version_number=source_version_number,
         )
         self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)
@@ -403,6 +413,8 @@ class WorkflowExecutionService:
         submitted: bool = True,
         parent_node_run_id: UUID | None = None,
         public_origin: bool = False,
+        source_artifact_id: UUID | None = None,
+        source_version_number: int | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -449,6 +461,8 @@ class WorkflowExecutionService:
             draft_graph_snapshot=draft_snapshot,
             mode=mode.value,
             triggered_by=triggered_by.value,
+            source_artifact_id=source_artifact_id,
+            source_version_number=source_version_number,
             public_origin=(
                 public_origin
                 or triggered_by in dispatcher.PUBLIC_TRIGGERS
@@ -680,6 +694,8 @@ class WorkflowExecutionService:
             # its chain's: a member retrying a public child from the console
             # still runs it with no person.
             public_origin=original.public_origin,
+            source_artifact_id=original.source_artifact_id,
+            source_version_number=original.source_version_number,
         )
         self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)

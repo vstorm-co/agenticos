@@ -13,11 +13,13 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -89,6 +91,7 @@ def _version(artifact: Artifact, *, number: int = 1, sha: str = "0") -> Artifact
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/{sha * 64}.html",
         run_id=None,
         bindings=[],
+        actions=[],
         consent_state="not_needed",
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
@@ -562,6 +565,7 @@ class TestAppendingAVersion:
                 storage_path="p",
                 run_id=None,
                 bindings=[],
+                actions=[],
                 consent=_UNBOUND,
             )
         assert create.await_args.kwargs["number"] == 3
@@ -982,7 +986,7 @@ class TestTheLibrarySet:
             return set(re.findall(r"^\s+(\w+): \w+,$", exported, re.M))
 
         assert calls(script_2) < calls(script_3)
-        assert calls(script_3) - calls(script_2) == {"onData", "records"}
+        assert calls(script_3) - calls(script_2) == {"onData", "onRun", "records", "run"}
 
 
 _SCRIPT = artifacts.PLATFORM_SCRIPT
@@ -1050,9 +1054,92 @@ class TestThePlatformScript:
         for raw in ("<", ">", "&", "\u2028", "\u2029"):
             assert raw not in config
         assert "\\u003c/script\\u003e" in config
-        assert json.loads(config) == {"n": "n-0_Q", "live": True, "names": names}
+        assert json.loads(config) == {"n": "n-0_Q", "live": True, "names": names, "actions": False}
         # The link bridge's close and the data bridge's: none from the names.
         assert script.lower().count("</script") == 2
+
+
+class TestPageActionsFlag:
+    """The script's `actions` flag is on only for the page viewer's own address (#1976)."""
+
+    @staticmethod
+    def _config(document: bytes) -> dict[str, object]:
+        script = document.decode()
+        call = ")(window, document, "
+        return json.loads(script[script.rindex(call) + len(call) : script.rindex(");</script>")])
+
+    async def _served(
+        self, audience: Literal["member", "public"], *, actions: bool
+    ) -> artifacts.ServedArtifact:
+        artifact = _artifact(_ctx(), public_key="k")
+        version = _version(artifact)
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<p>x</p>")
+        member = audience == "member"
+        token = create_artifact_view_token(
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience=audience,
+            actions=actions,
+            user_id=uuid.uuid4() if member else None,
+            organization_id=uuid.uuid4() if member else None,
+            public_key=None if member else "k",
+        )
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            return await _service().content(token)
+
+    async def test_the_viewers_address_turns_it_on(self) -> None:
+        served = await self._served("member", actions=True)
+        assert self._config(served.document)["actions"] is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("audience", "actions"), [("member", False), ("public", False), ("public", True)]
+    )
+    async def test_every_other_address_leaves_it_off(
+        self, audience: Literal["member", "public"], actions: bool
+    ) -> None:
+        served = await self._served(audience, actions=actions)
+        assert self._config(served.document)["actions"] is False
+
+    @pytest.mark.security
+    async def test_an_address_with_no_nonce_leaves_it_off(self) -> None:
+        # Minted before the nonce existed: nothing to match replies on.
+        artifact = _artifact(_ctx())
+        version = _version(artifact)
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<p>x</p>")
+        token = jwt.encode(
+            {
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+                "sub": str(version.id),
+                "type": "artifact_view",
+                "aud": "member",
+                "uid": str(uuid.uuid4()),
+                "org": str(uuid.uuid4()),
+                "inj": False,
+                "acts": True,
+            },
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            served = await _service().content(token)
+        assert self._config(served.document)["actions"] is False
 
 
 class TestAgentFilter:

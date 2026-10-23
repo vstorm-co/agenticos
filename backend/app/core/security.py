@@ -243,6 +243,7 @@ def create_artifact_view_token(
     user_id: UUID | None = None,
     organization_id: UUID | None = None,
     inject: bool = False,
+    actions: bool = False,
     public_key: str | None = None,
     password_hash: str | None = None,
 ) -> str:
@@ -256,7 +257,9 @@ def create_artifact_view_token(
 
     Claims: `aud` is `member` or `public`. A member token carries the viewer
     (`uid`, `org`) and `inj` - whether the page is served with its data written
-    in, which the route decides afresh for that viewer on every load. A public
+    in, which the route decides afresh for that viewer on every load, and `acts` - the
+    address is the page viewer's, whose frame may start the page's declared actions (not
+    the impersonation `act`). A public
     token carries `pk`, a hash of the link's key - which the route requires to still be
     the link's - and, when the link's data gate held at mint time, `inj`, with `pw`,
     a digest of the link's password hash (`None` with no password); the route serves data only while both
@@ -276,7 +279,7 @@ def create_artifact_view_token(
     if audience == "member":
         if user_id is None or organization_id is None:
             raise ValueError("A member's artifact address names the member and their organization")
-        to_encode.update(uid=str(user_id), org=str(organization_id), inj=inject)
+        to_encode.update(uid=str(user_id), org=str(organization_id), inj=inject, acts=actions)
     elif public_key is not None:
         to_encode.update(
             pk=public_key_digest(public_key), inj=inject, pw=password_digest(password_hash)

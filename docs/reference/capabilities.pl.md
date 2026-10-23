@@ -1,5 +1,5 @@
 ---
-source_sha: "f8874fc2f345"
+source_sha: "b32952995eb7"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1117,6 +1117,18 @@ dane wersji (`not_needed`, `pending`, `consented`, `declined`, `withdrawn`), a
 `audience` mówi, co widzą wszyscy inni, dopóki czeka: „the audience still sees v2 until
 Alex confirms". Wersję `pending` osoba potwierdza w konsoli; agent jej o tym mówi.
 Nowa strona jest prywatna dla osoby, w imieniu której działa run.
+
+**Akcje.** `actions` w `publish_artifact` deklaruje do pięciu workflowów, które przyciski
+strony mogą poprosić o uruchomienie, jako `[{workflow, label}]` - workflow po id albo
+dokładnej nazwie oraz to, jak nazywa go strona. Każdy musi być powiązany w capability
+[Workflowy](#workflows) agenta, aktywny, startować od **Manual** albo **API request** i być
+taki, który osoba stojąca za runem może zobaczyć i uruchomić; workflow, do którego osoba
+nie ma dostępu, jest odrzucany tak, jakby nie był powiązany, a zarchiwizowany albo
+niestartowany ręcznie, do którego dostęp ma, jest odrzucany z nazwy. Pominięcie `actions`
+zachowuje obecne, `[]` je usuwa, a run bez osoby za sobą nie może ich zmieniać. Wynik
+publikacji wymienia każdą po nazwie i etykiecie albo podaje `kept`. Agent niczego nie
+uruchamia: oglądający potwierdza każdy run w konsoli i run działa w jego imieniu. Strona
+wywołuje `AO.run`. Zobacz [Akcje](../artifacts.md#actions).
 
 **`share_artifact(name, visibility?, people?)`.** Prosi o udostępnienie strony.
 Niczego nie udostępnia i **nie** jest bramkowane zatwierdzeniem narzędzia: składa

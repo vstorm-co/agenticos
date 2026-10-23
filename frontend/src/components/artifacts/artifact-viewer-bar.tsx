@@ -25,10 +25,11 @@ import {
   DropdownMenuTrigger,
   IconButton,
 } from "@/components/ui";
+import { ArtifactActionsMenu } from "@/components/artifacts/artifact-actions-menu";
 import { LiveBadge, type LiveHealth } from "@/components/artifacts/live-badge";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { ROUTES } from "@/lib/constants";
-import type { ArtifactDetail } from "@/types/artifact";
+import type { ArtifactActionView, ArtifactDetail } from "@/types/artifact";
 
 /**
  * How far one artifact reaches, in a word, beside its title.
@@ -58,6 +59,8 @@ interface ArtifactViewerBarProps {
   artifact: ArtifactDetail | null;
   /** How the shown version's live data stands; absent when it reads none. */
   live?: LiveHealth;
+  /** What the page may ask to run for this viewer; the menu is drawn only when there is some. */
+  actions?: readonly ArtifactActionView[];
   /** The version picker, which only the loaded page has. */
   children?: React.ReactNode;
   onShare?: () => void;
@@ -83,6 +86,7 @@ interface ArtifactViewerBarProps {
 export function ArtifactViewerBar({
   artifact,
   live,
+  actions = [],
   children,
   onShare,
   onArchive,
@@ -122,6 +126,7 @@ export function ArtifactViewerBar({
       {artifact !== null && (
         <div className="flex shrink-0 items-center gap-2">
           {children}
+          <ArtifactActionsMenu actions={actions} />
           <RestartTourButton />
           {waitingRequests > 0 && (
             <Button

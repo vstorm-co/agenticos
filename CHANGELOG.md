@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A page can start a workflow, as the person viewing it, after they confirm.**
+  An agent declares up to five actions when it publishes - workflows its Workflows
+  capability binds that start from Manual or API request and that the person behind
+  the run may run - and the page's buttons call `agenticos.run` (`AO.run` in the page
+  kit). The console accepts the request only from the page's own frame and under its
+  nonce, lists only the actions the viewer may run on the version they are served, and
+  asks every time in a dialog titled with the workflow's own name that quotes the page's
+  label and shows each input value, with a delayed Run; one question is open at a time
+  and three declines stop the questions until the page is reopened. The run is the
+  viewer's - their access, budget and runs page - with a new `app` trigger and the page and version recorded on
+  it; the page reads back only its status, answer text, structured answer without files
+  and a short error. Public links, embeds, previews, history and impersonated sessions
+  get no actions. New `artifact_versions.actions`, `workflow_runs.source_artifact_id`
+  and `source_version_number` (migration `0148_artifact_actions`), the setting
+  `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` and the audit entry `artifact.action_started`.
+  (#1976) [Artifacts](docs/artifacts.md#actions) has the rules.
+
 - **A page's public link and embeds can show live table data, behind two confirmations.**
   An Owner or Admin turns on **Public pages with live data** in the organization's
   settings (off by default, as themselves, audited); then the page's owner, or an Owner or

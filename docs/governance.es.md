@@ -1,5 +1,5 @@
 ---
-source_sha: "7b81e2332658"
+source_sha: "9475cb419897"
 ---
 
 # Governance { #governance }
@@ -1223,7 +1223,7 @@ que una persona confirmó.
 
 | Acción | Se registra cuando |
 |---|---|
-| `artifact.published` | Se publicó una versión, con su número y la huella de sus page queries |
+| `artifact.published` | Se publicó una versión, con su número, la huella de sus page queries y `actions`, los ids de los workflows que declara |
 | `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
 | `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
 | `artifact.auto_consent_changed` | El propietario activó o desactivó «Don't ask for consent on republish», con el texto que confirmó |
@@ -1235,6 +1235,7 @@ que una persona confirmó.
 | `artifact.public_data_consented` | El propietario, o un Owner o Admin en su nombre, confirmó que cualquiera con el enlace público de la página, y los sitios web que la incrustan, puede leer sus datos. Nombra la versión, la huella, las tablas y columnas, los sitios web que incrustan y si hay una contraseña, y `for_owner` cuando alguien lo confirmó en su nombre |
 | `artifact.public_data_withdrawn` | Un editor retiró ese consentimiento, con la sesión iniciada como uno mismo (sin suplantar), con la huella que tenía |
 | `artifact.public_data_voided` | El consentimiento se borró porque cambió algo de lo que dependía, con un `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` o `archived` |
+| `artifact.action_started` | Un miembro confirmó e inició un workflow desde la acción de una página. Nombra la página, la versión, el workflow y el run, nunca los valores de entrada, que están en el run |
 
 **Public pages with live data** es un ajuste de la organización, desactivado por defecto, en los
 ajustes de la organización junto a la exención de aprobación. Decide si los datos de una página

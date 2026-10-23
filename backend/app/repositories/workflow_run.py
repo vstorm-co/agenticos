@@ -66,6 +66,8 @@ async def create_run(
     parent_node_run_id: UUID | None = None,
     timezone: str = "UTC",
     public_origin: bool = False,
+    source_artifact_id: UUID | None = None,
+    source_version_number: int | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -83,6 +85,8 @@ async def create_run(
         mode=mode,
         triggered_by=triggered_by,
         public_origin=public_origin,
+        source_artifact_id=source_artifact_id,
+        source_version_number=source_version_number,
         execution_principal_user_id=execution_principal_user_id,
         budget_limit=budget_limit,
         node_count=node_count,

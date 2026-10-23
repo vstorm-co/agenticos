@@ -1,5 +1,5 @@
 ---
-source_sha: "7b28466fa425"
+source_sha: "9c480bdaf58a"
 ---
 
 # Workflows { #workflows }
@@ -800,6 +800,20 @@ workflow**.
 Una ejecución sin un miembro detrás (un visitante de un widget, un embed o una página
 alojada, un remitente de canal no vinculado, la entrega de un trigger de eventos de un
 agente) no inicia ninguno.
+
+### Desde una app { #from-an-app }
+
+Una [página publicada](artifacts.md#actions) puede iniciar un workflow que su agent ha vinculado
+y que arranca desde **Manual** o **API request**. La página solo lo pide. Al miembro que la ve se
+le muestra un diálogo con el nombre propio del workflow y cada valor de entrada, y el run empieza
+solo cuando confirma. Es suyo: su acceso, su budget y su página de runs, comprobado, facturado y
+auditado como uno iniciado desde **Start a run**, y sujeto a la misma cuota de admisión. Un run
+sin ningún miembro detrás, o desde una sesión suplantada, no inicia ninguno.
+
+La página de runs dice que un run así lo inició **An app**, y **Started by** filtra por él; por la
+API su `triggered_by` es `app`. El run también registra la página y la versión que miraba el
+miembro, y un reintento las conserva. La página lee de vuelta solo el estado del run, su respuesta
+y la primera línea de un error.
 
 ### Cuando otro workflow falla { #when-another-workflow-fails }
 

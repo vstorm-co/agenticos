@@ -160,6 +160,38 @@ class TestFactory:
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
 
+    def test_the_workflows_an_agent_binds_reach_page_publishing(self):
+        """A page's actions are checked against what the spec binds, never what the model
+        says: the factory hands the Workflows binding's ids to the Artifacts capability."""
+        bound = uuid.uuid4()
+        spec = AgentSpec(
+            name="Clerk",
+            capabilities=[
+                {"id": "workflows", "config": {"workflow_ids": [str(bound)]}},
+                {"id": "artifacts"},
+            ],
+        )
+
+        built = build_agent(
+            spec,
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            granted_scopes=frozenset({"workflows:run"}),
+        )
+
+        [artifacts] = [c for c in built.capabilities if type(c).__name__ == "Artifacts"]
+        assert artifacts.workflow_ids == frozenset({bound})
+
+    def test_an_agent_without_workflows_hands_publishing_none(self):
+        built = build_agent(
+            AgentSpec(name="Clerk", capabilities=[{"id": "artifacts"}]),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        [artifacts] = [c for c in built.capabilities if type(c).__name__ == "Artifacts"]
+        assert artifacts.workflow_ids == frozenset()
+
     def _audience_agent(self, *, capability: str | None = "memory_files", **identity):
         capabilities = (
             [{"id": "clock"}] if capability is None else [{"id": capability, "config": {}}]

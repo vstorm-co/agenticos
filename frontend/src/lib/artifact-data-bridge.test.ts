@@ -19,6 +19,7 @@ interface BridgeConfig {
   live: boolean;
   names: string[];
   initial?: unknown;
+  actions?: boolean;
 }
 
 type Bindings = Record<string, unknown>;
@@ -26,6 +27,8 @@ type Bindings = Record<string, unknown>;
 interface Agenticos {
   data: Promise<Bindings>;
   onData: (fn: (bindings: Bindings) => void) => void;
+  run: (action: unknown, input?: unknown) => Promise<unknown>;
+  onRun: (fn: (event: unknown) => void) => () => void;
 }
 
 interface Parent {
@@ -360,5 +363,189 @@ describe("the artifact data bridge answered at load", () => {
   it("asks as before when the page carries no initial data", () => {
     const { parent } = start({ initial: undefined });
     expect(parent.postMessage).toHaveBeenLastCalledWith(...ready(false));
+  });
+});
+
+describe("the artifact actions bridge", () => {
+  const request = (parent: Parent, at = 0) =>
+    parent.postMessage.mock.calls.at(at)?.[0] as {
+      type: string;
+      n: string;
+      id: string;
+      action: string;
+      input: unknown;
+    };
+  const event = (id: string, rest: Record<string, unknown>) => ({
+    type: "agenticos:run-event",
+    n: "nonce-1",
+    id,
+    ...rest,
+  });
+  const started = (config: Partial<BridgeConfig> = {}) => {
+    const page = start({ live: false, actions: true, ...config });
+    const pending = page.agenticos.run("Send report", { to: "a" });
+    return { ...page, pending, id: request(page.parent).id };
+  };
+
+  it("rejects at once and posts nothing when the page may not run actions", async () => {
+    for (const config of [{ actions: false }, {}] as Partial<BridgeConfig>[]) {
+      const { agenticos, parent } = start({ live: false, ...config });
+      await expect(agenticos.run("Send")).rejects.toThrow(/^unavailable$/);
+      expect(parent.postMessage).not.toHaveBeenCalled();
+    }
+    const orphan = start({ live: false, actions: true }, { orphan: true });
+    await expect(orphan.agenticos.run("Send")).rejects.toThrow(/^unavailable$/);
+  });
+
+  it("rejects a call that is not an action name and an input object", async () => {
+    const { agenticos, parent } = start({ live: false, actions: true });
+    await expect(agenticos.run("")).rejects.toThrow(/^unknown_action$/);
+    await expect(agenticos.run(3)).rejects.toThrow(/^unknown_action$/);
+    await expect(agenticos.run("Send", [1])).rejects.toThrow(/^invalid_input$/);
+    await expect(agenticos.run("Send", null)).rejects.toThrow(/^invalid_input$/);
+    expect(parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("posts the request under the nonce, with an empty input by default", () => {
+    const { agenticos, parent } = start({ live: false, actions: true });
+    void agenticos.run("Send");
+    void agenticos.run("Send", { to: "a" });
+    expect(parent.postMessage).toHaveBeenNthCalledWith(
+      1,
+      { type: "agenticos:run", n: "nonce-1", id: "r1", action: "Send", input: {} },
+      "*",
+    );
+    expect(request(parent, 1)).toMatchObject({ id: "r2", input: { to: "a" } });
+  });
+
+  it("rejects when the input cannot be cloned to the parent", async () => {
+    const { agenticos, parent } = start({ live: false, actions: true });
+    parent.postMessage.mockImplementation(() => {
+      throw new Error("DataCloneError");
+    });
+    await expect(agenticos.run("Send", { f: 1 })).rejects.toThrow(/^invalid_input$/);
+  });
+
+  it("resolves with the finished run and tells listeners each change", async () => {
+    const { agenticos, dispatch, pending, id } = started();
+    const seen: unknown[] = [];
+    agenticos.onRun((progress) => seen.push(progress));
+    dispatch(event(id, { event: "progress", status: "running", finished: false }));
+    dispatch(
+      event(id, {
+        event: "progress",
+        status: "completed",
+        finished: true,
+        output_text: "done",
+        output_structured: { a: 1 },
+      }),
+    );
+    await expect(pending).resolves.toEqual({
+      status: "completed",
+      output_text: "done",
+      output_structured: { a: 1 },
+      error_message: null,
+      paused: false,
+      run_path: null,
+    });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toMatchObject({
+      id,
+      action: "Send report",
+      status: "running",
+      finished: false,
+    });
+    // Settled: a later event for it is ignored.
+    dispatch(event(id, { event: "progress", status: "running" }));
+    expect(seen).toHaveLength(2);
+  });
+
+  it("settles a run the console stopped following, with its last projection", async () => {
+    const { agenticos, dispatch, pending, id } = started();
+    const seen: unknown[] = [];
+    agenticos.onRun((progress) => seen.push(progress));
+    dispatch(event(id, { event: "progress", status: "waiting", paused: true, settled: true }));
+    await expect(pending).resolves.toMatchObject({ status: "waiting", paused: true });
+    expect(seen[0]).toMatchObject({ finished: false, paused: true });
+  });
+
+  it("carries a paused run's link and a failed run's short error", async () => {
+    const { dispatch, pending, id } = started();
+    dispatch(
+      event(id, {
+        event: "progress",
+        status: "waiting",
+        paused: true,
+        run_path: "/runs/1",
+        output_structured: [1],
+        error_message: 4,
+      }),
+    );
+    dispatch(
+      event(id, { event: "progress", status: "failed", finished: true, error_message: "boom" }),
+    );
+    await expect(pending).resolves.toMatchObject({
+      status: "failed",
+      error_message: "boom",
+      paused: false,
+      output_structured: null,
+    });
+  });
+
+  it("rejects when the console says so, with its reason or a default", async () => {
+    const first = started();
+    first.dispatch(event(first.id, { event: "rejected", reason: "cancelled" }));
+    await expect(first.pending).rejects.toThrow("cancelled");
+    const second = started();
+    second.dispatch(event(second.id, { event: "rejected" }));
+    await expect(second.pending).rejects.toThrow("rejected");
+  });
+
+  it("carries what did not fit on an invalid_input rejection, as plain strings", async () => {
+    const { pending, dispatch, id } = started();
+    dispatch(
+      event(id, {
+        event: "rejected",
+        reason: "invalid_input",
+        problems: [{ field: "to", kind: "required" }, null],
+      }),
+    );
+    const error = (await pending.catch((caught: unknown) => caught)) as Error & {
+      problems: unknown;
+    };
+    expect(error.message).toBe("invalid_input");
+    expect(error.problems).toEqual([
+      { field: "to", kind: "required" },
+      { field: "null", kind: "null" },
+    ]);
+  });
+
+  it("stops listening for events after the unsubscribe", () => {
+    const { agenticos, dispatch, id } = started();
+    const seen = vi.fn();
+    const off = agenticos.onRun(seen);
+    off();
+    off();
+    dispatch(event(id, { event: "progress", status: "running" }));
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("ignores events from another frame, under another nonce, or not shaped as one", () => {
+    const { agenticos, dispatch, id } = started();
+    const seen = vi.fn();
+    agenticos.onRun(seen);
+    const good = event(id, { event: "progress", status: "running" });
+    dispatch(good, { other: true });
+    dispatch({ ...good, n: "other" });
+    dispatch({ ...good, type: "agenticos:data" });
+    dispatch({ ...good, id: "r99" });
+    dispatch({ ...good, id: 5 });
+    dispatch({ ...good, id: "toString" });
+    dispatch({ ...good, event: "other" });
+    dispatch(null);
+    dispatch("text");
+    expect(seen).not.toHaveBeenCalled();
+    dispatch(good);
+    expect(seen).toHaveBeenCalledTimes(1);
   });
 });

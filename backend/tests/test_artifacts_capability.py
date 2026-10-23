@@ -39,6 +39,7 @@ from app.agents.capabilities.artifacts._toolset import (
     parse_published_artifact,
 )
 from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
+from app.agents.capabilities.workflows import workflow_ids_of
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
@@ -53,7 +54,13 @@ from app.core.exceptions import (
 )
 from app.db.models.artifact import ArtifactMediaType
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import BindingData, BindingDisclosure, BindingRequest
+from app.schemas.artifact import (
+    ActionDisclosure,
+    ActionRequest,
+    BindingData,
+    BindingDisclosure,
+    BindingRequest,
+)
 from app.services.artifact import (
     ARTIFACT_LIBRARY,
     ArtifactListing,
@@ -294,6 +301,37 @@ class TestPublishing:
         parsed = parse_published_artifact(result)
         assert parsed is not None
         assert parsed.warning is None
+
+    async def test_actions_are_checked_against_the_agent_s_workflows_and_echoed(self) -> None:
+        """The allowlist comes from the spec through the factory, never from the model."""
+        bound = uuid.uuid4()
+        requested = [ActionRequest(workflow="Refund", label="Pay back")]
+        echo = [ActionDisclosure(workflow="Refund", label="Pay back")]
+        tool = (
+            build_artifacts_toolset(table_grants={}, workflow_ids=frozenset({bound}))
+            .tools["publish_artifact"]
+            .function
+        )
+        with patch(PUBLISH, new=AsyncMock(return_value=_published(actions=echo))) as publish:
+            result = await tool(_ctx(_deps()), name="r", content="<p>x</p>", actions=requested)
+
+        kwargs = publish.await_args.kwargs
+        assert (kwargs["actions"], kwargs["workflow_ids"]) == (requested, frozenset({bound}))
+        assert json.loads(result)["actions"] == [{"workflow": "Refund", "label": "Pay back"}]
+
+    async def test_carried_actions_are_reported_as_kept(self) -> None:
+        with patch(PUBLISH, new=AsyncMock(return_value=_published(actions="kept"))):
+            result = await _tool()(_ctx(_deps()), name="r", content="<p>x</p>")
+
+        assert json.loads(result)["actions"] == "kept"
+
+    async def test_a_refused_action_is_steered_to_the_model(self) -> None:
+        refused = BadRequestError(message="Workflow 'Old' is archived, so a page cannot start it.")
+        with (
+            patch(PUBLISH, new=AsyncMock(side_effect=refused)),
+            pytest.raises(ModelRetry, match="Workflow 'Old' is archived"),
+        ):
+            await _tool()(_ctx(_deps()), name="r", content="<p>x</p>", actions=[])
 
     async def test_a_result_from_before_bindings_still_parses(self) -> None:
         stored = _published()
@@ -790,6 +828,24 @@ def test_an_agent_with_tables_hands_their_grants_to_publishing():
     )
 
     assert _artifacts_built_for(spec).table_grants == {table_id: frozenset({"read"})}
+
+
+def test_workflow_ids_are_read_from_the_enabled_workflows_binding_only():
+    workflow_id = uuid.uuid4()
+    config = {"workflow_ids": [str(workflow_id)]}
+
+    enabled = AgentSpec(name="Clerk", capabilities=[{"id": "workflows", "config": config}])
+    disabled = AgentSpec(
+        name="Clerk", capabilities=[{"id": "workflows", "enabled": False, "config": config}]
+    )
+
+    assert workflow_ids_of(enabled) == (workflow_id,)
+    assert workflow_ids_of(disabled) == ()
+    assert workflow_ids_of(AgentSpec(name="Clerk")) == ()
+
+
+def test_an_artifacts_capability_built_with_no_workflow_resource_allows_none():
+    assert _artifacts_built_for(AgentSpec(name="Clerk")).workflow_ids == frozenset()
 
 
 def test_an_agent_without_tables_hands_no_grants():

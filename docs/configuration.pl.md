@@ -1,5 +1,5 @@
 ---
-source_sha: "a0f89564f4d6"
+source_sha: "d937fafb5543"
 ---
 
 # Konfiguracja { #configuration }
@@ -1150,6 +1150,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Ile razy dane jednej strony mogą być czytane z jej tabel dla odwiedzających jej publiczny link albo embedy, **per strona dla wszystkich odwiedzających łącznie**. Ładowanie, które musi czytać z tabel, liczy się raz, a to obsłużone z 30-sekundowego [cache](artifacts.md#the-cache-and-the-cap) nie; po przekroczeniu limitu strona ładuje się bez tych danych |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runy, które jeden członek może uruchomić z [akcji](artifacts.md#actions) jednej strony w ciągu minuty, **na członka, organizację i stronę**. Każdy run członek najpierw potwierdza; limit ogranicza stronę, która prosi w pętli. Po jego przekroczeniu wywołanie strony jest odrzucane jako `rate_limited` |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 

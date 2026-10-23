@@ -13,8 +13,10 @@
  * one a script adds later, as a live page's records arrive after the page has
  * loaded; wires every [data-ao-tabs] group to its panels. What it offers:
  * AO.chart, AO.format, AO.series, AO.color, AO.icons, AO.tabs (all as in
- * version 2), AO.onData (the data bridge's agenticos.onData) and AO.records
- * (a bound view's records drawn as a finished table).
+ * version 2), AO.onData (the data bridge's agenticos.onData), AO.records
+ * (a bound view's records drawn as a finished table), AO.run and AO.onRun (the
+ * platform's agenticos.run / onRun: ask the console to start a workflow the page
+ * declares, as the person viewing it, who is asked first).
  *
  * Versioned like the stylesheet: a change that would alter an existing page is
  * agenticos-4.js.
@@ -447,13 +449,41 @@
     return table;
   }
 
+  /*
+   * The platform's agenticos.run, looked up when called: it answers with a
+   * Promise of the finished run - { status, output_text, output_structured,
+   * error_message, paused, run_path } - and rejects with an Error whose message is
+   * a code (`cancelled`, `unknown_action`, `unavailable`, `invalid_input`, ...)
+   * when the person declines, the action is not declared, or the page cannot run
+   * actions (a public link, an embed). A run left paused settles when the console
+   * stops following it, with paused: true and no finished. Progress arrives
+   * through AO.onRun.
+   */
+  function run(action, input) {
+    var bridge = window.agenticos;
+    if (!bridge || typeof bridge.run !== "function") {
+      return Promise.reject(new Error("unavailable"));
+    }
+    return bridge.run(action, input);
+  }
+
+  function onRun(listener) {
+    var bridge = window.agenticos;
+    if (!bridge || typeof bridge.onRun !== "function") {
+      throw new Error("AO.onRun: this page has no action bridge - it is added when the page is served as an artifact.");
+    }
+    return bridge.onRun(listener);
+  }
+
   window.AO = {
     chart: chart,
     color: color,
     format: format,
     icons: icons,
     onData: onData,
+    onRun: onRun,
     records: records,
+    run: run,
     series: series,
     tabs: tabs,
   };

@@ -5,9 +5,14 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.workflows._capability import Workflows, WorkflowsConfig
+from app.agents.capabilities.workflows._capability import (
+    WORKFLOW_IDS_RESOURCE,
+    Workflows,
+    WorkflowsConfig,
+    workflow_ids_of,
+)
 
-__all__ = ["Workflows", "WorkflowsConfig"]
+__all__ = ["WORKFLOW_IDS_RESOURCE", "Workflows", "WorkflowsConfig", "workflow_ids_of"]
 
 
 @register(

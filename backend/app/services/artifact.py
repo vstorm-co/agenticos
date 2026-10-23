@@ -29,7 +29,7 @@ import logging
 import re
 import secrets
 import weakref
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from html import escape
@@ -80,6 +80,7 @@ from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
+    agent_repo,
     agent_run_repo,
     artifact_repo,
     artifact_share_request_repo,
@@ -91,6 +92,12 @@ from app.repositories import (
     virtual_table_repo,
 )
 from app.schemas.artifact import (
+    ActionDisclosure,
+    ActionRequest,
+    ArtifactAction,
+    ArtifactActionRun,
+    ArtifactActionRunCreate,
+    ArtifactActionRunStarted,
     ArtifactAgent,
     ArtifactAgentList,
     ArtifactAutoConsentUpdate,
@@ -115,7 +122,7 @@ from app.schemas.artifact import (
     BindingRequest,
     PublicArtifactRead,
 )
-from app.services import rate_limit
+from app.services import artifact_actions, rate_limit
 from app.services.access import (
     ARTIFACT,
     accessible_ids,
@@ -197,6 +204,11 @@ binding it guessed at resolves to the stored one.
 _MARKDOWN_BINDINGS = (
     "Bindings need an HTML page; a Markdown page runs no scripts. A republish keeps the "
     "current version's bindings unless it passes others: pass `bindings: {}` to drop them."
+)
+
+_MARKDOWN_ACTIONS = (
+    "Actions need an HTML page; a Markdown page runs no scripts. A republish keeps the "
+    "current version's actions unless it passes others: pass `actions: []` to drop them."
 )
 
 _IN_FLIGHT = "Your previous data load is still running. Try again in a moment."
@@ -328,6 +340,7 @@ def platform_script(
     live: bool,
     names: Sequence[str],
     initial: Mapping[str, BindingData] | None = None,
+    actions: bool = False,
 ) -> str:
     """What a served page gets before its own markup: the link bridge, then the data bridge.
 
@@ -338,8 +351,18 @@ def platform_script(
     page's data - they are written in here as `[name, binding]` pairs (never an
     object, whose `__proto__` key a script literal would take for a prototype), so
     the page has them on load. Nothing else from the database is written in.
+
+    `actions` is true only for the page viewer's address (the member token's `acts`): then
+    `agenticos.run` asks the console, which asks the person, to start a declared workflow.
+    Everywhere else - public pages, embeds, previews, thumbnails - `run` rejects at once
+    and posts nothing.
     """
-    page_config: dict[str, object] = {"n": nonce, "live": live, "names": list(names)}
+    page_config: dict[str, object] = {
+        "n": nonce,
+        "live": live,
+        "names": list(names),
+        "actions": actions,
+    }
     if initial is not None:
         page_config["initial"] = [
             [name, binding.model_dump(mode="json", exclude=_EDITOR_ONLY)]
@@ -562,6 +585,9 @@ class PublishedArtifact:
     bindings: dict[str, BindingDisclosure | str] = field(default_factory=dict)
     """Each binding's page query in words, for one this publication resolved, or
     :data:`~app.services.artifact_bindings.KEPT` for one carried from the previous version."""
+    actions: list[ActionDisclosure] | str = field(default_factory=list)
+    """The workflows the version declares, in words; :data:`~app.services.artifact_actions.KEPT`
+    for ones carried from the previous version."""
     consent: ConsentState = ConsentState.NOT_NEEDED
     """Where the version's data stands with the page's owner, as a person reads it."""
     audience_version: int | None = None
@@ -685,6 +711,8 @@ async def publish(
     bindings: Mapping[str, BindingRequest] | None = None,
     run_person: UUID | None = None,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
+    actions: Sequence[ActionRequest] | None = None,
+    workflow_ids: Collection[UUID] = (),
 ) -> PublishedArtifact:
     """Publish from a run, on a short-lived session of its own. See :func:`publish_with`."""
     async with get_db_context() as db:
@@ -702,6 +730,8 @@ async def publish(
             bindings=bindings,
             run_person=run_person,
             table_grants=table_grants,
+            actions=actions,
+            workflow_ids=workflow_ids,
         )
 
 
@@ -720,6 +750,8 @@ async def publish_with(
     bindings: Mapping[str, BindingRequest] | None = None,
     run_person: UUID | None = None,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
+    actions: Sequence[ActionRequest] | None = None,
+    workflow_ids: Collection[UUID] = (),
 ) -> PublishedArtifact:
     """Publish a page as a new version of the agent's artifact of this name.
 
@@ -763,14 +795,23 @@ async def publish_with(
         run_person: The member the run acts for (`AgentDeps.run_person`), or `None`.
             One who has since left, or been deactivated, counts as none.
         table_grants: The agent spec's operations per table id; `None` grants none.
+        actions: The workflows the page may start, replacing the current ones whole;
+            `None` keeps the current version's, `[]` clears them. Each must be one of
+            `workflow_ids` - what the agent's Workflows capability binds - live, by
+            hand, and runnable by the run's person (see
+            :func:`~app.services.artifact_actions.check_actions`). A page that has
+            actions is, like one with bindings, changed only by a run acting for a
+            member.
+        workflow_ids: The workflows the agent's spec binds.
 
     Raises:
         AuthorizationError: The name belongs to an artifact this run's person
-            may not edit, the page is archived, or the page reads live data and
-            no member is behind the run (:data:`LIVE_PAGE`). The message is
+            may not edit, the page is archived, or the page reads live data or
+            starts workflows and no member is behind the run (:data:`LIVE_PAGE`,
+            :data:`~app.services.artifact_actions.LIVE_ACTIONS`). The message is
             written for the model.
-        BadRequestError: A binding cannot stand, or a Markdown page would have
-            bindings. The message is written for the model.
+        BadRequestError: A binding or an action cannot stand, or a Markdown page
+            would have either. The message is written for the model.
         ConcurrentChangeError: `expected_version` is no longer the current one.
     """
     if len(data) > settings.ARTIFACT_MAX_BYTES:
@@ -818,6 +859,16 @@ async def publish_with(
     # every change to a bound page, never what is wrong with the bindings it sent.
     if person is None and previous and (bindings is not None or not same_bytes):
         raise _live_page(name)
+    checked_actions = await _checked_actions(
+        db,
+        name=name,
+        requested=actions,
+        latest=latest,
+        person=person,
+        organization_id=organization_id,
+        allowed=workflow_ids,
+        same_bytes=same_bytes,
+    )
     checks = await check_bindings(
         db,
         requested=bindings,
@@ -831,12 +882,29 @@ async def publish_with(
         raise BadRequestError(message=" ".join(problems), details={"name": name})
     # Every check without a problem carries its binding.
     effective = [c.binding for c in checks if c.binding is not None]
-    if effective and media_type == ArtifactMediaType.MARKDOWN:
-        raise BadRequestError(message=_MARKDOWN_BINDINGS, details={"name": name})
+    kept_actions = latest.actions if latest is not None else []
+    canonical_actions = (
+        artifact_actions.stored(checked_actions.actions) if actions is not None else kept_actions
+    )
+    if media_type == ArtifactMediaType.MARKDOWN:
+        if effective:
+            raise BadRequestError(message=_MARKDOWN_BINDINGS, details={"name": name})
+        if canonical_actions:
+            raise BadRequestError(message=_MARKDOWN_ACTIONS, details={"name": name})
     canonical = sorted(
         (binding.model_dump(mode="json") for binding in effective), key=lambda b: b["name"]
     )
-    unchanged = same_bytes and latest is not None and latest.bindings == canonical
+    unchanged = (
+        same_bytes
+        and latest is not None
+        and latest.bindings == canonical
+        and latest.actions == canonical_actions
+    )
+    echoed_actions: list[ActionDisclosure] | str = (
+        checked_actions.disclosures
+        if actions is not None
+        else (artifact_actions.KEPT if kept_actions else [])
+    )
     echo: dict[str, BindingDisclosure | str] = {
         c.name: c.disclosure if c.disclosure is not None else KEPT for c in checks
     }
@@ -847,7 +915,13 @@ async def publish_with(
             db, artifact=artifact, update_data={**retitle, "published_at": datetime.now(UTC)}
         )
         return await _published(
-            db, artifact, latest, created=created, unchanged=True, bindings=echo
+            db,
+            artifact,
+            latest,
+            created=created,
+            unchanged=True,
+            bindings=echo,
+            actions=echoed_actions,
         )
 
     path = _storage_path(artifact, sha256, media_type)
@@ -865,6 +939,7 @@ async def publish_with(
         storage_path=path,
         run_id=run_id,
         bindings=canonical,
+        actions=canonical_actions,
         consent=await consent_for(db, artifact, fingerprint=digest, person=person),
     )
     await record_audit(
@@ -879,12 +954,55 @@ async def publish_with(
             "version": version.number,
             "agent_id": str(agent_id),
             "query_fingerprint": digest,
+            "actions": [a["workflow_id"] for a in canonical_actions],
         },
     )
     await _audit_automatic_consent(
         db, artifact, version, actor_user_id=person.user_id if person else None
     )
-    return await _published(db, artifact, version, created=created, unchanged=False, bindings=echo)
+    return await _published(
+        db,
+        artifact,
+        version,
+        created=created,
+        unchanged=False,
+        bindings=echo,
+        actions=echoed_actions,
+    )
+
+
+async def _checked_actions(
+    db: AsyncSession,
+    *,
+    name: str,
+    requested: Sequence[ActionRequest] | None,
+    latest: ArtifactVersion | None,
+    person: AuthContext | None,
+    organization_id: UUID,
+    allowed: Collection[UUID],
+    same_bytes: bool,
+) -> artifact_actions.ActionsChecked:
+    """The actions a publish declares, checked; the empty outcome when it keeps them.
+
+    A run with no member behind it may neither add nor change actions, and may only
+    republish unchanged a page that has some - what a page's script can start is not
+    swapped by a run nobody answers for, as for bindings.
+    """
+    has_actions = latest is not None and bool(latest.actions)
+    if person is None:
+        if has_actions and (requested is not None or not same_bytes):
+            raise AuthorizationError(message=artifact_actions.LIVE_ACTIONS, details={"name": name})
+        if requested:
+            raise AuthorizationError(message=artifact_actions.NO_PERSON, details={"name": name})
+        return artifact_actions.ActionsChecked()
+    if requested is None:
+        return artifact_actions.ActionsChecked()
+    checked = await artifact_actions.check_actions(
+        db, organization_id=organization_id, requested=requested, person=person, allowed=allowed
+    )
+    if checked.problems:
+        raise BadRequestError(message=" ".join(checked.problems), details={"name": name})
+    return checked
 
 
 def _binding_reads(version: ArtifactVersion | None) -> list[ArtifactBindingRead]:
@@ -941,6 +1059,7 @@ async def _append_version(
     storage_path: str,
     run_id: UUID | None,
     bindings: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
     consent: VersionConsent,
     restored_from: int | None = None,
 ) -> ArtifactVersion:
@@ -960,6 +1079,7 @@ async def _append_version(
         storage_path=storage_path,
         run_id=run_id,
         bindings=bindings,
+        actions=actions,
         restored_from=restored_from,
         consent=consent.columns(),
     )
@@ -1699,6 +1819,7 @@ async def _published(
     created: bool,
     unchanged: bool,
     bindings: dict[str, BindingDisclosure | str],
+    actions: list[ActionDisclosure] | str,
 ) -> PublishedArtifact:
     consent = ConsentState.NOT_NEEDED
     audience: ArtifactVersion | None = version
@@ -1720,6 +1841,7 @@ async def _published(
         visibility=artifact.visibility,
         public=artifact.public_key is not None,
         bindings=bindings,
+        actions=actions,
         consent=consent,
         audience_version=audience.number if audience is not None else None,
         owner_name=owner,
@@ -1757,6 +1879,7 @@ def _view(
     live: bool,
     viewer: AuthContext | None = None,
     inject: bool = False,
+    actions: bool = False,
     public_key: str | None = None,
     password_hash: str | None = None,
     awaiting_consent: bool = False,
@@ -1781,6 +1904,7 @@ def _view(
         user_id=None if viewer is None else viewer.user_id,
         organization_id=None if viewer is None else viewer.organization_id,
         inject=inject,
+        actions=actions,
         public_key=public_key,
         password_hash=password_hash,
     )
@@ -1793,6 +1917,7 @@ def _view(
         injected=inject,
         awaiting_consent=awaiting_consent,
         bindings=len(version.bindings),
+        actions_enabled=actions,
     )
 
 
@@ -1818,6 +1943,7 @@ def render(
     nonce: str,
     live: bool,
     initial: Mapping[str, BindingData] | None = None,
+    actions: bool = False,
 ) -> bytes:
     """The document a frame shows: HTML as written, Markdown rendered into a page.
 
@@ -1828,7 +1954,7 @@ def render(
         body = _MARKDOWN.render(data.decode("utf-8"))
         data = _MARKDOWN_PAGE.format(title=escape(title), body=body).encode("utf-8")
     names = [binding["name"] for binding in version.bindings]
-    script = platform_script(nonce=nonce, live=live, names=names, initial=initial)
+    script = platform_script(nonce=nonce, live=live, names=names, initial=initial, actions=actions)
     return with_platform_script(data, script)
 
 
@@ -2246,7 +2372,9 @@ class ArtifactService:
                 is not one of its kept versions, or storage no longer has its
                 bytes - restored, it would be a current version that 404s.
             AuthorizationError: The caller or the page's owner cannot read a table
-                the version's data reads.
+                the version's data reads, or the version declares actions that the
+                page's agent no longer binds, that are no longer startable by hand, or
+                that the caller may not view and run - or that agent or its spec is gone.
             BadRequestError: A table no longer answers a filter or the sort of the
                 version's data - a column converted since.
         """
@@ -2271,6 +2399,7 @@ class ArtifactService:
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
         bindings = await self._reresolved(ctx, locked, _bindings_of(source))
+        await self._recheck_actions(ctx, locked, artifact_actions.actions_of(source.actions))
         version = await _append_version(
             self.db,
             locked,
@@ -2281,6 +2410,7 @@ class ArtifactService:
             storage_path=source.storage_path,
             run_id=None,
             bindings=[binding.model_dump(mode="json") for binding in bindings],
+            actions=source.actions,
             consent=await consent_for(
                 self.db, locked, fingerprint=fingerprint(bindings), person=ctx
             ),
@@ -2301,6 +2431,68 @@ class ArtifactService:
         )
         await _audit_automatic_consent(self.db, locked, version, actor_user_id=ctx.user_id)
         return await self._detail(ctx, locked, can_edit=True)
+
+    async def _recheck_actions(
+        self, ctx: AuthContext, artifact: Artifact, stored: list[ArtifactAction]
+    ) -> None:
+        """Refuse a restore whose actions the agent's spec or the caller no longer allows.
+
+        The allowlist is the workflows bound in the Workflows capability of the spec the
+        page's agent runs now in the page's environment; an agent or spec that is gone
+        refuses the restore.
+        """
+        if not stored:
+            return
+        allowed = await self._allowed_workflows(artifact)
+        if allowed is None:
+            raise AuthorizationError(
+                message=(
+                    "This version starts workflows, but the page's agent or its published spec "
+                    "is gone, so it can no longer be restored with its actions."
+                ),
+                details={"artifact_id": artifact.id},
+            )
+        problems = await artifact_actions.reresolve_actions(
+            self.db,
+            stored,
+            organization_id=artifact.organization_id,
+            person=ctx,
+            allowed=allowed,
+        )
+        if problems:
+            raise AuthorizationError(
+                message=f"{' '.join(problems)} So this version can't be restored with its actions.",
+                details={"artifact_id": artifact.id},
+            )
+
+    async def _allowed_workflows(self, artifact: Artifact) -> frozenset[UUID] | None:
+        """The workflows bound in the Workflows capability of the spec the page's agent
+        runs now, in the page's environment; `None` when that agent or spec is gone."""
+        # Function-local: the capability package reaches the services through the factory.
+        from app.agents.capabilities.workflows import workflow_ids_of
+        from app.agents.spec import AgentSpec
+
+        if artifact.agent_id is None:
+            return None
+        agent = await agent_repo.get(
+            self.db, artifact.agent_id, organization_id=artifact.organization_id
+        )
+        if agent is None:
+            return None
+        version_id = agent.current_version_id
+        if artifact.environment_id is not None:
+            environment = await agent_environment_repo.get(
+                self.db, artifact.environment_id, organization_id=artifact.organization_id
+            )
+            version_id = environment.version_id if environment is not None else None
+        if version_id is None:
+            return None
+        version = await agent_repo.get_version(
+            self.db, version_id, organization_id=artifact.organization_id
+        )
+        if version is None:
+            return None
+        return frozenset(workflow_ids_of(AgentSpec.model_validate(version.spec)))
 
     async def _reresolved(
         self, ctx: AuthContext, artifact: Artifact, stored: list[ArtifactBinding]
@@ -2956,13 +3148,79 @@ class ArtifactService:
             )
             is not None
         )
-        return _view(
+        # Only the page viewer asks for `data`; a card or a thumbnail never gets actions,
+        # nor does a caller the start route would refuse. The address carries it, so the
+        # served page's script knows it may ask the console to start one.
+        offered = (
+            await artifact_actions.viewer_actions(self.db, ctx, version)
+            if data
+            and ctx.user_id is not None
+            and as_themselves(ctx)
+            and await member_context(
+                self.db, organization_id=artifact.organization_id, user_id=ctx.user_id
+            )
+            is not None
+            else []
+        )
+        # A page that declares none has nothing to ask for, so its address and its
+        # script carry no flag at all.
+        shown = _view(
             version,
             live=live,
             viewer=ctx,
             inject=bool(member),
+            actions=bool(offered),
             awaiting_consent=live and not view.data,
         )
+        shown.actions = offered
+        return shown
+
+    async def start_action(
+        self,
+        ctx: AuthContext,
+        artifact_id: UUID,
+        version_id: UUID,
+        workflow_id: UUID,
+        data: ArtifactActionRunCreate,
+    ) -> ArtifactActionRunStarted:
+        """Start a workflow the version declares, as the caller, from the page.
+
+        `version_id` must be the version the caller is served now - never a kept older
+        one, and for the audience never one waiting for consent - and the workflow one it
+        declares that the caller may view and run. The run is theirs, not the page's.
+        Audited `artifact.action_started` with the run's id, never its input.
+
+        Raises:
+            NotFoundError: The artifact is not the caller's to open, `version_id` is not
+                the version they are served, or the workflow is not an action they may run.
+            AuthorizationError: The caller is not a member acting as themselves.
+            RateLimitError: Too many runs started from this page in the last minute.
+            WorkflowRunInputInvalidError: The input does not fit the workflow's fields.
+            WorkflowAdmissionQuotaError: The caller's or the organization's outstanding
+                work is at its ceiling.
+        """
+        artifact = await self.get(ctx, artifact_id)
+        view = await self._served(ctx, artifact)
+        if view.version is None or view.version.id != version_id:
+            raise NotFoundError(
+                message="This version of the artifact is not the one being served",
+                details={"artifact_id": str(artifact_id), "version_id": str(version_id)},
+            )
+        return await artifact_actions.start_action(
+            self.db, ctx, artifact, view.version, workflow_id, data.input
+        )
+
+    async def action_run(
+        self, ctx: AuthContext, artifact_id: UUID, run_id: UUID
+    ) -> ArtifactActionRun:
+        """How a run this page started for the caller stands, for the page to show.
+
+        Raises:
+            NotFoundError: The artifact is not the caller's to open, or the run is not one
+                this page started for them.
+        """
+        artifact = await self.get(ctx, artifact_id)
+        return await artifact_actions.run_state(self.db, ctx, artifact, run_id)
 
     async def data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
         """A page version's live data: every binding's page query, read as the page's owner.
@@ -3356,6 +3614,7 @@ class ArtifactService:
             nonce, live = "", False
         else:
             live = payload.get("live") is True
+        actions = member and nonce != "" and payload.get("acts") is True
         if member:
             initial = (
                 await self._injection(payload, artifact, version)
@@ -3366,7 +3625,13 @@ class ArtifactService:
             initial = await self._public_injection(payload, artifact, version)
         return ServedArtifact(
             document=render(
-                version, data, title=artifact.title, nonce=nonce, live=live, initial=initial
+                version,
+                data,
+                title=artifact.title,
+                nonce=nonce,
+                live=live,
+                initial=initial,
+                actions=actions,
             ),
             embed_origins=list(artifact.embed_origins or []) if embeddable else [],
         )

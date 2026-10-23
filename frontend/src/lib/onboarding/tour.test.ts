@@ -418,7 +418,7 @@ describe("an artifact's page", () => {
     expect(pageKey(ROUTES.ARTIFACTS)).toBe(ROUTES.ARTIFACTS);
   });
 
-  it("walks the strip, then consent, requests, review and the owner, all but the strip optional", () => {
+  it("walks the strip, then consent, requests, review, actions and the owner, all but the strip optional", () => {
     const steps = stepsForPage("/artifacts/some-id", () => true);
 
     expect(steps.map((step) => step.id)).toEqual([
@@ -427,6 +427,7 @@ describe("an artifact's page", () => {
       "artifact-public-data",
       "artifact-requests",
       "artifact-review",
+      "artifact-actions",
       "artifact-change-owner",
     ]);
     expect(steps.filter((step) => step.optional !== true).map((step) => step.id)).toEqual([
@@ -447,6 +448,7 @@ describe("an artifact's page", () => {
       "artifact-public-data",
       "artifact-requests",
       "artifact-review",
+      "artifact-actions",
       "artifact-change-owner",
     ]);
     expect(visibleTourSteps(() => true).some((step) => step.page === ARTIFACT_DETAIL)).toBe(false);

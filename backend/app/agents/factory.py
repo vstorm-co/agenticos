@@ -273,6 +273,7 @@ def build_agent(
     # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
     # module level, which loops back through the factory to this module.
     from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
+    from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE, workflow_ids_of
 
     bindings = spec.bindings()
     # Built before the capabilities, not after: compaction reads it to decide
@@ -313,6 +314,7 @@ def build_agent(
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
             TABLE_GRANTS_RESOURCE: table_grants_of(spec),
+            WORKFLOW_IDS_RESOURCE: frozenset(workflow_ids_of(spec)),
         },
         secrets=secrets,
     )

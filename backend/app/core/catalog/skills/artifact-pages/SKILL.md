@@ -1,6 +1,6 @@
 ---
 name: artifact-pages
-description: How to build a page to publish with publish_artifact - the mandatory skeleton, the served library set, the house style and every kit class, icons instead of emoji, three templates (one for live data), and how to change a page later.
+description: How to build a page to publish with publish_artifact - the mandatory skeleton, the served library set, the house style and every kit class, icons instead of emoji, three templates (one for live data), buttons that start a workflow, and how to change a page later.
 category: design
 ---
 
@@ -293,6 +293,65 @@ each query in words; read it, because it is what the owner agrees to. When its
 console, and that everyone else sees `audience` until then. A binding whose reason is
 `awaiting_consent` is not a bug in the page. To share the page, call `share_artifact`:
 it only asks, and the owner answers in the console.
+
+## Actions: a button that starts a workflow
+
+A page can start a workflow, never do the work itself. Declare it when you publish: pass
+`actions` to `publish_artifact` - `[{"workflow": <id or exact name>, "label": "Approve"}]`,
+at most 5. Only a workflow from `list_workflows` (bound to you) that starts from a Manual
+or API trigger, and that the person you act for may run, can be one; the result's
+`actions` lists what was declared. A run with no person behind it cannot declare any.
+Omit `actions` to keep the current ones, `[]` to remove them. A Markdown page has none.
+
+In the page, call `AO.run(action, input)` (the same as `agenticos.run`, without the kit). `action` is the
+workflow's id or your label, and `input` is an object of exactly the values its trigger
+declares: `list_workflows` shows the fields, and a missing, extra or wrongly typed value
+is refused. It returns a Promise of the finished run - `{status, output_text,
+output_structured, error_message, paused, run_path}` - and `AO.onRun(fn)` hears each
+change on the way (`fn` also gets `id`, `action` and `finished`).
+
+```js
+var note = document.getElementById("note");
+function words(error) {
+  return error.message === "cancelled" ? "" : "Could not run it: " + error.message;
+}
+button.addEventListener("click", function () {
+  button.disabled = true;
+  note.textContent = "Waiting for you to confirm...";
+  AO.run("Approve", { ticket: input.value }).then(
+    function (run) {
+      if (run.paused) note.textContent = "Waiting on someone; open it from the list above.";
+      else note.textContent = run.status === "succeeded" ? run.output_text : run.error_message || run.status;
+    },
+    function (error) { note.textContent = words(error); }
+  ).finally(function () { button.disabled = false; });
+});
+```
+
+- **Run only from a click or a submit.** Never on load, on a timer or in a loop: the
+  viewer is asked to confirm every run, and a page that asks unprompted is declined,
+  then, after three declines, ignored until it is opened again.
+- **The viewer decides.** A dialog shows the workflow's own name, your label in quotes and
+  every value. The run is theirs - their access, their budget - so say what will happen
+  in plain words next to the button, and do not promise a result.
+- **Show the wait.** The Promise settles when the run finishes, which can take a minute. Disable
+  the button and say so; a run waiting for an approval reports `paused` with a `run_path`
+  and may not finish for hours, so do not block on it. When the console stops following
+  a paused run, the Promise settles with `paused: true` (and `AO.onRun` gets that last
+  state), so re-enable the button in `finally` as above.
+- **Handle every rejection.** The error's `message` is a short code, and `problems`
+  (`[{field, kind}]`) comes with `invalid_input`. `cancelled`: the viewer said no; say
+  nothing alarming, leave the button. `busy`: another question is open; try again once it
+  is closed. `too_many_cancels`: stop offering it. `not_ready`: the page has not finished
+  loading. `unknown_action`, `not_found`, `unavailable`: this viewer cannot run it here;
+  say so. `invalid_input`: fix the field named. `rate_limited`: wait a minute. `failed`:
+  the console lost track of the run. `page_changed`: the page was replaced. A page that
+  cannot ask at all (a public link, an embed, a preview) rejects with `unavailable`.
+- **Outputs are text.** Write `output_text` and `output_structured` with `textContent`,
+  never `innerHTML`. Files are never passed to the page.
+- **Say it is a workflow.** A page showing a button should still read sensibly where it
+  cannot run (no actions for this viewer, or a shared link): hide or disable the
+  button, and keep the numbers.
 
 ## Changing a page you published
 

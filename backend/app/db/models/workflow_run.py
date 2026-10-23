@@ -80,6 +80,7 @@ class WorkflowRunTrigger(enum.StrEnum):
     CHANNEL_MESSAGE = "channel_message"
     GITHUB = "github"
     GMAIL = "gmail"
+    APP = "app"
 
 
 class WorkflowRunStatus(enum.StrEnum):
@@ -340,6 +341,16 @@ class WorkflowRun(Base, TimestampMixin):
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # The page a member started this run from (`triggered_by = 'app'`) and the
+    # version of it they were looking at: a number, not a key, as the version may
+    # be pruned later. Null for every run a page did not start.
+    source_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("artifacts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     visited_trigger_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     started_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
@@ -359,7 +370,7 @@ class WorkflowRun(Base, TimestampMixin):
         CheckConstraint(
             "triggered_by IN ('api', 'websocket', 'webhook', 'chat', 'schedule', 'table_created', "
             "'table_updated', 'table_deleted', 'workflow_failed', 'workflow_call', 'agent', "
-            "'form', 'channel_message', 'github', 'gmail')",
+            "'form', 'channel_message', 'github', 'gmail', 'app')",
             name="ck_workflow_run_triggered_by",
         ),
         CheckConstraint(
