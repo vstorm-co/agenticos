@@ -34,7 +34,7 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
 class ComputerUseConfig(BaseModel):
     """Which desktop this agent works, and how much of it per run."""
 
-    desktop: Literal["auto", "sandbox", "daemon", "local"] = Field(
+    desktop: Literal["auto", "sandbox", "daemon", "local", "e2b"] = Field(
         default="auto",
         title="Desktop",
         description=(
@@ -44,10 +44,14 @@ class ComputerUseConfig(BaseModel):
         ),
         json_schema_extra={
             "x-enum-labels": {
-                "auto": "The person's computer when their chat works on it, else the sandbox",
+                "auto": (
+                    "The person's computer when their chat works on it, else an E2B "
+                    "desktop if a key is named, else the sandbox"
+                ),
                 "sandbox": "The agent's sandbox (a Linux desktop in its container)",
                 "daemon": "A computer you run (computerd: your Linux desktop or a Mac)",
                 "local": "Only the person's own computer, from the desktop app",
+                "e2b": "An E2B desktop of each run's own (the organization's E2B key)",
             }
         },
     )
@@ -141,12 +145,15 @@ def validate_daemon_url(config: ComputerUseConfig) -> None:
     scopes=("computer:use",),
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
-        description="The token the daemon was started with (COMPUTERD_TOKEN)",
+        description=(
+            "The token the daemon was started with (COMPUTERD_TOKEN), or the "
+            "organization's E2B key for an E2B desktop"
+        ),
         # The token, not the allowlist, is what lets an organization drive a
         # desktop: the allowlist is the deployment's, so every organization may
         # name an allowed host, and only the one holding the token gets in. A
         # desktop in the sandbox runs on a connection, which has its own.
-        required_when=SecretCondition(field="desktop", equals=("daemon",)),
+        required_when=SecretCondition(field="desktop", equals=("daemon", "e2b")),
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:

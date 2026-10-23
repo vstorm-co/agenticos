@@ -23,6 +23,7 @@ import io
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -33,7 +34,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, ToolReturn, ToolReturnPart
 from pydantic_ai.toolsets import FunctionToolset
 
-from app.agents.browser_events import BrowserEvent, BrowserEventSink
+from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import admit, store_generated
 from app.agents.capabilities.computer_use._actions import (
@@ -48,10 +49,13 @@ from app.agents.capabilities.computer_use._backends import (
     Computer,
     ComputerError,
     ComputerFactory,
+    LocalComputer,
     NativeAction,
     png_size,
 )
+from app.agents.capabilities.computer_use._live import TOLD, held, take_over_waiting
 from app.agents.ephemeral_media import ephemeral_image
+from app.services import live_browse
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +132,10 @@ class _Session:
     call_id: str | None = None
     """The live window's id, once the first screenshot opened it."""
     sink: BrowserEventSink | None = None
+    control: BrowserControl | None = None
+    """Where a person watching the live view asks to take the desktop over."""
+    run_id: str | None = None
+    """The run the live view is filed under, once one is published."""
     failure: str | None = None
     """Why the last call went wrong, for the window's last word; `None` if it did not."""
     recalled: bool = False
@@ -269,6 +277,63 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
     """The computer use tools, sharing one desktop per run."""
     session = _Session(factory=factory)
 
+    async def open_live(ctx: RunContext[Any], computer: Computer, call_id: str) -> None:
+        """Where the window's frames go: the chat, and the run's live view (#2305).
+
+        Published like a browse, so the console's live view and a channel's link
+        show the desktop and offer Take over. The person's own screen is theirs to
+        watch alone, whoever else may view runs.
+        """
+        chat = getattr(ctx.deps, "browser_events", None) if policy.preview else None
+        session.sink = chat
+        run_id = getattr(ctx.deps, "run_id", None)
+        organization_id = getattr(ctx.deps, "organization_id", None)
+        if not live_browse.available() or run_id is None or organization_id is None:
+            return
+        run = session.run_id = str(run_id)
+        await live_browse.open_view(
+            run,
+            call_id,
+            live_browse.BrowseMeta(
+                organization_id=organization_id,
+                agent_id=getattr(ctx.deps, "agent_id", None),
+                user_id=getattr(ctx.deps, "user_id", None),
+                personal=isinstance(computer, LocalComputer),
+                task="Computer use",
+                started_at=datetime.now(UTC),
+            ),
+        )
+
+        async def sink(event: BrowserEvent) -> bool:
+            await live_browse.publish(run, call_id, event)
+            if chat is not None:
+                await chat(event)
+            return True
+
+        session.sink = sink
+        session.control = live_browse.LiveControl(run, call_id)
+
+    async def snap(computer: Computer) -> tuple[bytes, Screen]:
+        """A picture of the desktop as the viewer sees it, without drawing it."""
+        capture = await computer.capture()
+        return await anyio.to_thread.run_sync(fit, capture, policy.max_width, policy.max_height)
+
+    async def taken_over(computer: Computer) -> bool:
+        """Hand the desktop to a person who asked since the last call; whether one did."""
+        command = await take_over_waiting(session.control)
+        if command is None or session.control is None or session.call_id is None:
+            return False
+        await held(
+            computer,
+            session.control,
+            command,
+            look=lambda: snap(computer),
+            emit=session.emit,
+            call_id=session.call_id,
+            step=session.step,
+        )
+        return True
+
     async def look(ctx: RunContext[Any], computer: Computer) -> tuple[bytes, Screen, str]:
         """Capture the screen, draw it in the run's window, and say which window that is."""
         # Forgotten before the capture, not replaced after it: if it fails - often
@@ -286,8 +351,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
             # working a desktop makes dozens of calls. It is named after the call
             # that opened it, because that is the call the chat draws it under.
             call_id = session.call_id = ctx.tool_call_id or f"computer-{uuid4()}"
-            if policy.preview:
-                session.sink = getattr(ctx.deps, "browser_events", None)
+            await open_live(ctx, computer, call_id)
             await session.emit(
                 BrowserEvent(
                     kind="browser_opened",
@@ -296,6 +360,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
                     title=computer.label,
                     goal="Computer use",
                     max_steps=policy.max_actions,
+                    run_id=session.run_id,
                 )
             )
         if session.sink is not None:
@@ -334,12 +399,14 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         session.recall(ctx)
         try:
             computer = await session.desktop(ctx)
+            person = await taken_over(computer)
             image, screen, _ = await look(ctx, computer)
         except ComputerError as exc:
             session.failure = str(exc)
             return str(exc)
         session.failure = None
-        return answer(ctx, f"{computer.label} desktop.", image, screen)
+        said = f"{computer.label} desktop."
+        return answer(ctx, f"{TOLD}\n{said}" if person else said, image, screen)
 
     async def computer_act(ctx: RunContext[Any], actions: list[Action]) -> ToolReturn | str:
         """Act on the desktop: click, type, press keys, scroll, drag or wait.
@@ -418,6 +485,14 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
 
         # Looking has opened the desktop, here or earlier in the run.
         desktop = await session.desktop(ctx)
+        if await taken_over(desktop):
+            # The points were chosen on a screen the person has since changed.
+            try:
+                image, latest, _ = await look(ctx, desktop)
+            except ComputerError as exc:
+                session.failure = str(exc)
+                return str(exc)
+            return answer(ctx, TOLD, image, latest)
         done, failure = await _perform(desktop, actions, screen, call_id)
         session.actions_taken += done
 

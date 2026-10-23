@@ -21,6 +21,12 @@ this deployment may send a request; the token says who may drive the desktop,
 so it belongs to the organization that runs it rather than to the deployment.
 One daemon is one desktop: every run holding its token shares it.
 
+**An E2B desktop** is a sandbox of the run's own on the organization's E2B
+account, opened from E2B's `desktop` template - which runs the same programs the
+sandbox desktop drives - and killed when the run lets go of it. It needs no
+Sandbox capability: it is a screen and nothing else, for an agent whose files
+live elsewhere.
+
 **The person's own computer** is the one a chat set to "Work on: This computer"
 already works on (#2305): the desktop app takes the screenshot and moves the
 pointer, after the person allowed it there, with an outline on the screen while
@@ -50,6 +56,7 @@ from app.agents.capabilities.computer_use._actions import (
     TypeText,
     Wait,
 )
+from app.agents.capabilities.sandbox._e2b import E2BWorkspace
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.services.device_hub import (
@@ -309,6 +316,64 @@ def _error_text(response: httpx.Response) -> str:
         return f"HTTP {response.status_code}"
     error = body.get("error") if isinstance(body, dict) else None
     return str(error)[:200] if error else f"HTTP {response.status_code}"
+
+
+E2B_DESKTOP_TEMPLATE = "desktop"
+"""E2B's own desktop template: Xvfb, XFCE, xdotool and scrot, what `SandboxComputer` drives."""
+
+
+class E2BComputer:
+    """An E2B desktop of the run's own, driven as the sandbox desktop is, and killed after."""
+
+    label = "Linux (E2B)"
+
+    def __init__(
+        self, provider: E2BWorkspace, workspace: Workspace, desktop: SandboxComputer
+    ) -> None:
+        self._provider = provider
+        self._workspace = workspace
+        self._desktop = desktop
+
+    async def capture(self) -> Capture:
+        return await self._desktop.capture()
+
+    async def perform(self, action: NativeAction) -> None:
+        await self._desktop.perform(action)
+
+    async def close(self) -> None:
+        """Kill the sandbox: nothing else ends it before its lifetime runs out, on their bill."""
+        ref = self._workspace.ref
+        if ref is None:
+            return
+        try:
+            await self._provider.destroy(ref)
+        except Exception:
+            # Best effort, like a Daytona sandbox's release: E2B pauses it at the
+            # end of its lifetime anyway, and the run's answer must not hang on it.
+            logger.warning("e2b desktop not killed", exc_info=True)
+
+
+async def open_e2b_desktop(api_key: str, *, width: int, height: int) -> E2BComputer:
+    """A fresh E2B desktop on the organization's key.
+
+    Raises:
+        ComputerError: E2B refused the key or did not start the desktop.
+    """
+    if not api_key:
+        raise ComputerError(
+            "Computer use on E2B needs the organization's E2B key. Name it from the "
+            "vault on the capability."
+        )
+    provider = E2BWorkspace(api_key=api_key, template=E2B_DESKTOP_TEMPLATE)
+    workspace = Workspace(provider.backend(None))
+    try:
+        desktop = await open_sandbox_desktop(workspace, width=width, height=height)
+    except ComputerError:
+        ref = workspace.ref
+        if ref is not None:
+            await provider.destroy(ref)
+        raise
+    return E2BComputer(provider, workspace, desktop)
 
 
 LOCAL_SCREEN_SECONDS = 60.0
