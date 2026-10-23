@@ -104,19 +104,32 @@ async def replace_body(
     content: str,
     resources: dict[str, Any],
     conversation_id: UUID | None,
-) -> SkillProposal:
+) -> SkillProposal | None:
     """Rewrite a pending proposal in place, so one edit session is one proposal.
 
-    Its revision moves, so a decision made on what it said before is refused.
+    Its revision moves, so a decision made on what it said before is refused. Only
+    while it is pending as read: `None` once a decision or another rewrite changed
+    it since, and the caller makes a new proposal instead of writing over that.
     """
-    proposal.description = description
-    proposal.content = content
-    proposal.resources = resources
-    proposal.conversation_id = conversation_id
-    proposal.revision += 1
-    await db.flush()
-    await db.refresh(proposal)
-    return proposal
+    result = await db.execute(
+        sql_update(SkillProposal)
+        .where(
+            SkillProposal.id == proposal.id,
+            SkillProposal.organization_id == proposal.organization_id,
+            SkillProposal.status == ProposalStatus.PENDING.value,
+            SkillProposal.revision == proposal.revision,
+        )
+        .values(
+            description=description,
+            content=content,
+            resources=resources,
+            conversation_id=conversation_id,
+            revision=SkillProposal.revision + 1,
+        )
+        .returning(SkillProposal)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalars().first()
 
 
 async def annotate(

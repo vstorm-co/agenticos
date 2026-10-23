@@ -143,6 +143,25 @@ class TestRecordingWhatARunWrote:
         replaced.assert_awaited_once()
         created.assert_not_called()
 
+    async def test_a_proposal_decided_meanwhile_is_left_alone_and_a_new_one_made(self, monkeypatch):
+        """A decision that landed between reading the pending proposal and
+        rewriting it keeps its record; the turn becomes a proposal of its own."""
+        service = _service(monkeypatch)
+        monkeypatch.setattr(
+            skill_proposal_repo, "get_pending_for_skill", AsyncMock(return_value=_proposal())
+        )
+        monkeypatch.setattr(skill_proposal_repo, "replace_body", AsyncMock(return_value=None))
+        fresh = _proposal()
+        created = AsyncMock(return_value=fresh)
+        monkeypatch.setattr(skill_proposal_repo, "create", created)
+
+        recorded = await service.record(
+            _ctx(), [_change()], agent_id=uuid.uuid4(), conversation_id=None
+        )
+
+        assert recorded == [fresh]
+        created.assert_awaited_once()
+
     async def test_recording_nothing_writes_no_audit_entry(self, monkeypatch):
         """A run that changed nothing should be indistinguishable from one that
         has no skills, in the log as everywhere else."""

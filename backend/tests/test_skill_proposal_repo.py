@@ -181,11 +181,12 @@ class TestWriting:
         assert created.conversation_id == conversation_id
         assert created.resources == {"a.md": "one"}
 
-    async def test_replacing_a_body_keeps_the_row_and_moves_its_revision(self):
-        """The row stays the one a reviewer is looking at; the revision tells them
-        it is not what they read any more."""
-        session = _RecordingSession()
+    async def test_replacing_a_body_is_conditional_on_what_was_read(self):
+        """The row stays the one a reviewer is looking at, its revision moves, and
+        only while it is still pending at the revision read - a decision or another
+        rewrite since leaves nothing to rewrite."""
         row = _proposal(revision=1)
+        session = _RecordingSession(_scalars([row]))
 
         replaced = await skill_proposal_repo.replace_body(
             session,
@@ -197,9 +198,22 @@ class TestWriting:
         )
 
         assert replaced is row
-        assert replaced.description == "Newer."
-        assert replaced.resources == {"b.md": "two"}
-        assert replaced.revision == 2
+        sql = str(session.statements[-1].compile(dialect=postgresql.dialect()))
+        assert "skill_proposals.status = " in sql and "skill_proposals.revision = " in sql
+        assert "revision=(skill_proposals.revision + " in sql
+        params = _filters(session)
+        assert params["status_1"] == "pending" and params["revision_1"] == 1
+        assert params["description"] == "Newer."
+
+        gone = await skill_proposal_repo.replace_body(
+            _RecordingSession(_scalars([])),
+            proposal=row,
+            description="Newest.",
+            content="x",
+            resources={},
+            conversation_id=None,
+        )
+        assert gone is None
 
 
 def test_a_proposal_says_what_it_is_and_where_it_stands():

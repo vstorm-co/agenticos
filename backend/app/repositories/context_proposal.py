@@ -68,14 +68,27 @@ async def create(
     return proposal
 
 
-async def update(
+async def rewrite(
     db: AsyncSession, *, proposal: ContextProposal, values: dict[str, Any]
-) -> ContextProposal:
-    for field, value in values.items():
-        setattr(proposal, field, value)
-    await db.flush()
-    await db.refresh(proposal)
-    return proposal
+) -> ContextProposal | None:
+    """Rewrite a proposal and raise its revision, only while it is pending as read.
+
+    `None` once a decision or another run changed it since: the caller makes a new
+    proposal rather than write over a decided one, or over a rewrite it never saw.
+    """
+    result = await db.execute(
+        sql_update(ContextProposal)
+        .where(
+            ContextProposal.id == proposal.id,
+            ContextProposal.organization_id == proposal.organization_id,
+            ContextProposal.status == ProposalStatus.PENDING.value,
+            ContextProposal.revision == proposal.revision,
+        )
+        .values(**values, revision=ContextProposal.revision + 1)
+        .returning(ContextProposal)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalars().first()
 
 
 async def decide_if(

@@ -69,17 +69,20 @@ class SkillProposalService:
                 name=change.name,
                 agent_id=agent_id,
             )
-            if existing is not None:
-                recorded.append(
-                    await skill_proposal_repo.replace_body(
-                        self.db,
-                        proposal=existing,
-                        description=change.description,
-                        content=change.content,
-                        resources=change.resources,
-                        conversation_id=conversation_id,
-                    )
+            rewritten = (
+                None
+                if existing is None
+                else await skill_proposal_repo.replace_body(
+                    self.db,
+                    proposal=existing,
+                    description=change.description,
+                    content=change.content,
+                    resources=change.resources,
+                    conversation_id=conversation_id,
                 )
+            )
+            if rewritten is not None:
+                recorded.append(rewritten)
                 continue
             recorded.append(
                 await skill_proposal_repo.create(

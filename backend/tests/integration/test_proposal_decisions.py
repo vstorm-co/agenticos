@@ -13,6 +13,7 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -32,7 +33,13 @@ from app.db.models.promotion_gate import EnvironmentGuard
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import agent_environment_repo, authoring_repo, eval_suite_repo
+from app.repositories import (
+    agent_environment_repo,
+    authoring_repo,
+    context_proposal_repo,
+    eval_suite_repo,
+    skill_proposal_repo,
+)
 from app.schemas.authoring import AuthoringStart
 from app.schemas.context import ContextFileUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
@@ -252,11 +259,10 @@ async def test_a_change_to_who_may_see_a_file_queues_no_suite(db):
     )
 
 
-async def test_of_an_apply_and_a_discard_made_at_once_exactly_one_wins(engine: AsyncEngine):
-    """Two sessions, two transactions: the apply holds the proposal row it
-    decided; the discard, which read it pending, waits on that row and - once the
-    apply commits - finds it decided and is refused, writing nothing."""
-    factory = async_sessionmaker(engine, expire_on_commit=False)
+async def _committed_proposal(
+    factory: async_sessionmaker[AsyncSession],
+) -> tuple[AuthContext, uuid.UUID, uuid.UUID]:
+    """An owner, a file and a pending proposal for it, committed for other sessions to see."""
     async with factory() as setup:
         user = User(id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@example.com", hashed_password="x")
         org = Organization(
@@ -291,17 +297,26 @@ async def test_of_an_apply_and_a_discard_made_at_once_exactly_one_wins(engine: A
         setup.add(proposal)
         await setup.commit()
     ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER.value)
+    return ctx, file.id, proposal.id
+
+
+async def test_of_an_apply_and_a_discard_made_at_once_exactly_one_wins(engine: AsyncEngine):
+    """Two sessions, two transactions: the apply holds the proposal row it
+    decided; the discard, which read it pending, waits on that row and - once the
+    apply commits - finds it decided and is refused, writing nothing."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx, file_id, proposal_id = await _committed_proposal(factory)
     decision = ProposalDecision(revision=1)
 
     session_a = factory()
     discarding: asyncio.Task[object] | None = None
     try:
-        await ContextProposalService(session_a).apply(ctx, proposal.id, decision)
+        await ContextProposalService(session_a).apply(ctx, proposal_id, decision)
 
         async def discard() -> object:
             async with factory() as session_b:
                 decided = await ContextProposalService(session_b).discard(
-                    ctx, proposal.id, decision
+                    ctx, proposal_id, decision
                 )
                 await session_b.commit()
                 return decided
@@ -322,8 +337,8 @@ async def test_of_an_apply_and_a_discard_made_at_once_exactly_one_wins(engine: A
         await session_a.close()
 
     async with factory() as check:
-        stored = await check.get(ContextProposal, proposal.id)
-        written = await check.get(ContextFile, file.id)
+        stored = await check.get(ContextProposal, proposal_id)
+        written = await check.get(ContextFile, file_id)
         assert stored is not None and written is not None
         assert (stored.status, written.content) == ("applied", "Returns take 30 days.")
 
@@ -435,3 +450,82 @@ async def test_whoever_applies_a_change_is_not_told_of_it(db):
             select(Notification).where(Notification.event_type == "shared_change_applied")
         )
     ).all() == []
+
+
+async def test_a_run_rewriting_a_proposal_an_apply_decided_meanwhile_leaves_it_alone(
+    engine: AsyncEngine,
+):
+    """The apply holds the proposal row it decided; a run that read the proposal
+    pending waits on that row and - once the apply commits - finds it decided,
+    so it writes nothing over the record of what went live."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx, file_id, proposal_id = await _committed_proposal(factory)
+    session_a = factory()
+    rewriting: asyncio.Task[object] | None = None
+    try:
+        async with factory() as reader:
+            read = await reader.get(ContextProposal, proposal_id)
+            assert read is not None
+        await ContextProposalService(session_a).apply(
+            ctx, proposal_id, ProposalDecision(revision=1)
+        )
+
+        async def rewrite() -> object:
+            async with factory() as session_b:
+                rewritten = await context_proposal_repo.rewrite(
+                    session_b, proposal=read, values={"content": "Returns take 7 days."}
+                )
+                await session_b.commit()
+                return rewritten
+
+        rewriting = asyncio.create_task(rewrite())
+        await asyncio.sleep(0.4)
+        assert not rewriting.done()  # waiting on the row the apply decided
+
+        await session_a.commit()
+        assert await rewriting is None
+        rewriting = None
+    finally:
+        if rewriting is not None:
+            rewriting.cancel()
+            with contextlib.suppress(BaseException):
+                await rewriting
+        await session_a.close()
+
+    async with factory() as check:
+        stored = await check.get(ContextProposal, proposal_id)
+        assert stored is not None
+        assert (stored.status, stored.content, stored.revision) == (
+            "applied",
+            "Returns take 30 days.",
+            1,
+        )
+
+
+async def test_a_run_whose_pending_proposal_was_decided_proposes_anew(db, monkeypatch):
+    ctx, _, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (first,) = await _pending(db, file)
+    monkeypatch.setattr(context_proposal_repo, "rewrite", AsyncMock(return_value=None))
+
+    await _improve_context(db, ctx, file, _proposes(db, run_id, "Returns take 14 days."))
+
+    rows = (
+        await db.scalars(select(ContextProposal).where(ContextProposal.context_id == file.id))
+    ).all()
+    assert sorted(row.content for row in rows) == ["Returns take 14 days.", "Returns take 30 days."]
+    assert first.revision == 1
+
+
+async def test_a_skill_run_whose_pending_proposal_was_decided_proposes_anew(db, monkeypatch):
+    ctx, _, skill = await _opened(db, content="Refunds take 90 days.")
+    service = AuthoringService(db)
+
+    for _ in range(2):
+        started = await service.start_skill(ctx, skill.id, AuthoringStart())
+        with _answering(Improver(db)):
+            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+        monkeypatch.setattr(skill_proposal_repo, "replace_body", AsyncMock(return_value=None))
+
+    rows = (await db.scalars(select(SkillProposal).where(SkillProposal.skill_id == skill.id))).all()
+    assert len(rows) == 2

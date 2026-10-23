@@ -553,16 +553,16 @@ class AuthoringRun:
             agent_id=improver.id,
         )
         proposal_row = (
-            await skill_proposal_repo.replace_body(self.db, proposal=existing, **values)
-            if existing is not None
-            else await skill_proposal_repo.create(
-                self.db,
-                organization_id=self.ctx.organization_id,
-                skill_id=skill.id,
-                agent_id=improver.id,
-                name=skill.name,
-                **values,
-            )
+            None
+            if existing is None
+            else await skill_proposal_repo.replace_body(self.db, proposal=existing, **values)
+        ) or await skill_proposal_repo.create(
+            self.db,
+            organization_id=self.ctx.organization_id,
+            skill_id=skill.id,
+            agent_id=improver.id,
+            name=skill.name,
+            **values,
         )
         await skill_proposal_repo.annotate(
             self.db,
@@ -623,13 +623,11 @@ class AuthoringRun:
             self.db, organization_id=org, context_id=file.id
         )
         row = (
-            await context_proposal_repo.update(
-                self.db, proposal=existing, values={**values, "revision": existing.revision + 1}
-            )
-            if existing is not None
-            else await context_proposal_repo.create(
-                self.db, organization_id=org, context_id=file.id, values=values
-            )
+            None
+            if existing is None
+            else await context_proposal_repo.rewrite(self.db, proposal=existing, values=values)
+        ) or await context_proposal_repo.create(
+            self.db, organization_id=org, context_id=file.id, values=values
         )
         await self._finish(
             {
