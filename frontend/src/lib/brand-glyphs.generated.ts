@@ -1509,6 +1509,11 @@ export const PROVIDER_GLYPHS: Readonly<Record<string, Glyph>> = {
       },
     ],
   },
+  elevenlabs: {
+    viewBox: "0 0 24 24",
+    fillRule: "evenodd",
+    paths: [{ d: "M5 0h5v24H5V0zM14 0h5v24h-5V0z" }],
+  },
   fireworks: {
     viewBox: "0 0 24 24",
     fillRule: "evenodd",
