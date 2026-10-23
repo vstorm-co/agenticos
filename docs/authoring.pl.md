@@ -1,5 +1,5 @@
 ---
-source_sha: "2f8125b4e417"
+source_sha: "0bce8e124ea1"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -18,8 +18,9 @@ Robi trzy rzeczy:
 
 - **Ulepsza** agenta: sugeruje zmiany na podstawie jego negatywnie ocenionych i
   nieudanych runów.
-- **Sprawdza** Twoje zmiany: porównuje wersję roboczą z opublikowaną wersją na tych samych
-  dowodach i mówi, co zmiany poprawiają, czym ryzykują i co usunęły.
+- **Sprawdza** Twoje zmiany: porównuje wersję roboczą z wersją, na której się
+  opiera - najnowszą opublikowaną - na tych samych dowodach i mówi, co zmiany
+  poprawiają, czym ryzykują i co usunęły.
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
 
@@ -101,19 +102,32 @@ wersji roboczej.
 ### Sprawdź w ewaluacji { #check-with-evals }
 
 **Sprawdź w ewaluacji** (Check with evals) uruchamia [dataset](datasets.md) na
-wersji roboczej takiej, jaka byłaby po przyjęciu wszystkich oczekujących
-sugestii, obok opublikowanej wersji w tym samym
-[runie ewaluacji](evals.md#a-baseline-in-the-same-run). Sprawdzenie niczego nie
+bazie wersji roboczej - najnowszej opublikowanej wersji - z naniesionymi
+wszystkimi oczekującymi sugestiami, obok tej wersji w tym samym
+[runie ewaluacji](evals.md#a-baseline-in-the-same-run). Strażnik może trzymać
+produkcję na starszej wersji; sprawdzenie nigdy nie mierzy względem niej, więc
+to, co zmieniła najnowsza wersja, jest po obu stronach i nigdy nie jest
+przypisywane sugestii. Gdy wersja robocza odeszła od swojej bazy - Twoimi
+własnymi zmianami albo wcześniej przyjętymi sugestiami - baseline'em jest sama
+wersja robocza, uruchomiona na nowo, a nie wzięta z wcześniejszego runu, więc
+sugestie są jedyną różnicą; wycena kosztu obejmuje też tę stronę. Strony są
+nazwane tym, czym są, w dialogu i na runie: „v2 + 1 sugestia” wobec „v2” albo
+„Wersja robocza + 2 sugestie” wobec „Wersja robocza”. Sprawdzenie niczego nie
 przyjmuje i nie zmienia wersji roboczej. Dopóki któraś oczekująca sugestia nie
-pasuje już do wersji roboczej albo koliduje z inną, sprawdzenia nie da się uruchomić, dopóki
-nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to, co czeka.
+pasuje już do wersji roboczej albo koliduje z inną, sprawdzenia nie da się
+uruchomić, dopóki nie zostanie przyjęta lub odrzucona: run mierzy dokładnie to,
+co czeka.
 
 Zamiast datasetu sprawdzenie może uruchomić jedną z [suit](evals.md#suites)
-agenta: jej dataset, w jej środowisku. Run porównuje wersję roboczą z opublikowaną
-wersją tak jak każde sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go
-suita: zaliczona, niezaliczona albo bez rozstrzygnięcia, i dlaczego, według
-progu, jaki suita miała w chwili startu sprawdzenia. Widać to na runie i przy
-sprawdzeniu w pasku, w tym samym brzmieniu co wyniki suity.
+agenta: jej dataset, w jej środowisku. Run porównuje obie strony tak jak każde
+sprawdzenie, a gdy się zakończy, mówi też, jak oceniłaby go suita: zaliczona,
+niezaliczona albo bez rozstrzygnięcia, i dlaczego, według progu, jaki suita
+miała w chwili startu sprawdzenia. Widać to na runie i przy sprawdzeniu w pasku,
+w tym samym brzmieniu co wyniki suity.
+
+Pasek opisuje każde zakończone sprawdzenie jednym zdaniem z linkiem do jego
+runu - „audit-smoke: nie przeszłoby - psuje »Do you ship to Canada?«” albo to,
+co zepsuło i naprawiło na datasecie.
 
 Sprawdzenie nie jest runem suity: nie trafia do żadnej historii suity, nikogo
 nie powiadamia, a Przyjmij kieruje się werdyktem samego runu. Zmiana skilla albo
@@ -122,6 +136,16 @@ pliku kontekstu sprawdzana na suicie agenta, na którym działa, dostaje to samo
 Przypadki wzięte z rozmów, z których wzięły się sugestie, są pomijane, a run
 podaje ich liczbę: zmiany nigdy nie mierzy się na danych, do których ją
 dopasowano. Dataset złożony wyłącznie z takich przypadków jest odrzucany.
+
+Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
+dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
+nie zmienione - więc dialog publikacji podaje jego werdykt; po kolejnej zmianie
+mówi, że ten test jest nieaktualny. Sprawdzenie mierzone względem samej wersji
+roboczej nigdy się nie liczy: nie mówi nic o wersji roboczej względem
+opublikowanej wersji, którą by zastąpiła. Sprawdzenie samo z siebie nie wysyła
+niczego do [kolejki przeglądu](datasets.md#review) datasetu, bo nic nie zostało
+przyjęte; strona jego runu mówi o tym obok **Wyślij niezaliczone przypadki do
+przeglądu** (Send failed cases to review).
 
 Każda sugestia podaje oczekiwany efekt. Pasek pokazuje go obok runów ewaluacji, które
 sprawdzały sugestie, więc możesz porównać przewidywanie z tym, co wykazały runy.

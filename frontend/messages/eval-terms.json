@@ -142,6 +142,7 @@
         "use": "verschlechtert",
         "within": [
           "evals.",
+          "authoring.checkResult.",
           "onboarding.offer.test-change.",
           "onboarding.steps.eval-",
           "onboarding.steps.flow-test-"

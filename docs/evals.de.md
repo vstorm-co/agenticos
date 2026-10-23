@@ -1,5 +1,5 @@
 ---
-source_sha: "2e02221984a4"
+source_sha: "a3f93e8b9e08"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -48,11 +48,16 @@ ausgewählt; Umgebung, Aufzeichnungen und Wiederholungen liegen unter
 feststehen, und sagen, was die Antworten bewertet und was die Budgets des
 Agents und der Organisation danach behalten; der Run startet erst über den
 Button, der den Betrag nennt. **Entwurf weicht von vN ab**
-(Draft differs from vN) auf der Seite des Agents trägt einen Button
-**Entwurf testen** (Test draft), der denselben Dialog öffnet, und der
-Veröffentlichungsdialog sagt, was der letzte Run des Entwurfs ergeben hat -
-oder dass er seit seiner letzten Änderung nicht getestet wurde -, ohne die
-Veröffentlichung aufzuhalten.
+(Draft differs from vN) auf der Seite des Agents - vN ist die zuletzt
+veröffentlichte Version, und wenn die Wächter der Produktion sie auf einer
+älteren halten, sagt ein zweites Badge, auf welcher, etwa „Produktion auf v1
+(wartet auf Evals)“ - trägt einen Button **Entwurf testen** (Test draft), der
+denselben Dialog öffnet. Der Veröffentlichungsdialog sagt, was der letzte Run
+des Entwurfs ergeben hat - eine
+[Prüfung der Vorschläge des Assistenten](authoring.md#check-with-evals) zählt,
+sobald sie angenommen sind -, oder dass er seit seiner letzten Änderung nicht
+getestet wurde, oder dass sein Test veraltet ist, ohne die Veröffentlichung
+aufzuhalten.
 
 Die Seite eines Runs öffnet mit seinem Urteil in wenigen Sätzen - die Fälle,
 die der Kandidat jedes Mal verschlechtert oder behebt, wenn er sie gestellt
@@ -85,9 +90,12 @@ Sobald seine Wiederholungen vorliegen, schickt ein Run zur
 [Prüfung](datasets.md#review) des Datasets, wofür er einstehen kann - jede
 bestätigte Regression und jede Antwort, an deren Bewertung sein Bewerter
 gescheitert ist, eine pro Fall - und sagt, wie viele (`routed_to_review`).
-Ein übersprungener Bewerter schickt nichts: Seine Antworten warten auf der
-Seite des Runs auf **Erneut bewerten** (Grade again). Wird das Senden abgelehnt, endet der Run trotzdem,
-und seine Seite sagt, warum (`routing_error`).
+Eine [Prüfung des Vorschlags des Assistenten](authoring.md#check-with-evals)
+schickt von sich aus nichts, da nichts angenommen wurde. Ein übersprungener
+Bewerter schickt nichts: Seine Antworten warten auf der Seite des Runs auf
+**Erneut bewerten** (Grade again). Wird das Senden abgelehnt, endet der Run
+trotzdem, und seine Seite sagt, warum (`routing_error`).
+
 **Nicht bestandene Fälle zur Prüfung senden** (Send failed cases to review)
 schickt die übrigen nicht bestandenen Antworten einer Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
 Bewertung eine Person überstimmt hat, wird als korrigiert markiert.
@@ -317,7 +325,12 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 
 `?draft=current` behält die Runs, die den Entwurf in seinem jetzigen Stand
 getestet haben - denselben Spec, gleich in welcher Reihenfolge seine Schlüssel
-gespeichert wurden -, und genau das liest der Veröffentlichungsdialog.
+gespeichert wurden, darunter eine Prüfung von Vorschlägen, die inzwischen
+angenommen sind -, und genau das liest der Veröffentlichungsdialog.
+`?draft=earlier` behält die Runs, die seit der Veröffentlichung der neuesten
+Version einen anderen Entwurf getestet haben - eine Prüfung erst, wenn einer ihrer
+Vorschläge angenommen wurde: den Test, von dem sich der Entwurf entfernt hat. Eine
+Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 

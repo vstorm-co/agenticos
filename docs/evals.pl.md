@@ -1,5 +1,5 @@
 ---
-source_sha: "2e02221984a4"
+source_sha: "a3f93e8b9e08"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -46,10 +46,14 @@ mierzony - albo jedyny, jaki istnieje - jest już wybrany; środowisko, nagrania
 i powtórki są pod **Zaawansowane** (Advanced). Koszt jest wyliczany, gdy pola
 się ustalą, i mówi, co ocenia odpowiedzi oraz ile zostanie potem w budżecie
 agenta i organizacji; run startuje dopiero z przycisku, który podaje tę kwotę.
-**Wersja robocza różni się od vN** (Draft differs from vN) na stronie agenta ma
-przycisk **Przetestuj wersję roboczą** (Test draft), który otwiera ten sam
-dialog, a dialog publikacji mówi, co znalazł ostatni run wersji roboczej - albo
-że nie testowano jej od ostatniej zmiany - nie wstrzymując publikacji.
+**Wersja robocza różni się od vN** (Draft differs from vN) na stronie agenta -
+vN to najnowsza opublikowana wersja, a gdy strażnicy produkcji trzymają ją na
+starszej, drugi znaczek mówi na której, na przykład „produkcja na v1 (czeka na
+ewaluacje)” - ma przycisk **Przetestuj wersję roboczą** (Test draft), który
+otwiera ten sam dialog. Dialog publikacji mówi, co znalazł ostatni run wersji
+roboczej - [sprawdzenie sugestii asystenta](authoring.md#check-with-evals)
+liczy się, gdy zostaną przyjęte - albo że nie testowano jej od ostatniej
+zmiany, albo że test, który miała, jest nieaktualny, nie wstrzymując publikacji.
 
 Strona runa otwiera się jego werdyktem w kilku zdaniach - przypadki, które
 kandydat psuje albo naprawia za każdym razem, gdy jest o nie pytany, jeden z
@@ -81,12 +85,16 @@ nadal obejmuje wszystkie przypadki.
 Gdy są już powtórki, run wysyła do [kolejki przeglądu](datasets.md#review)
 datasetu to, za czym może się opowiedzieć - każdą potwierdzoną regresję i każdą
 odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek - i
-podaje, ile ich jest (`routed_to_review`). Pominięty sędzia nie wysyła nic: jego
-odpowiedzi czekają na stronie runu na **Oceń ponownie**. Gdy wysyłka zostanie
-odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`).
-**Wyślij niezaliczone przypadki do przeglądu** (Send failed cases to review)
-wysyła resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może
-edytować dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
+podaje, ile ich jest (`routed_to_review`).
+[Sprawdzenie propozycji asystenta](authoring.md#check-with-evals) samo z siebie
+nie wysyła nic, bo nic nie zostało przyjęte. Pominięty sędzia nie wysyła nic:
+jego odpowiedzi czekają na stronie runu na **Oceń ponownie**. Gdy wysyłka
+zostanie odrzucona, run i tak się kończy, a jego strona mówi dlaczego
+(`routing_error`). **Wyślij niezaliczone przypadki do przeglądu**
+(Send failed cases to review) wysyła resztę niezaliczonych odpowiedzi jednej
+strony, dla każdego, kto może edytować dataset, a przypadek, którego ocenę osoba
+uchyliła,
+jest oznaczany jako
 poprawiony.
 
 W obu przypadkach odpowiedź zajmuje miejsce starszej odpowiedzi tego samego
@@ -301,9 +309,13 @@ GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baselin
 GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
-`?draft=current` zostawia runy, które testowały wersję roboczą w obecnym stanie - ten
-sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze - i to
-właśnie czyta dialog publikacji.
+`?draft=current` zostawia runy, które testowały wersję roboczą w obecnym stanie -
+ten sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze, a wśród
+nich sprawdzenie sugestii, które potem przyjęto - i to właśnie czyta dialog
+publikacji. `?draft=earlier` zostawia runy, które testowały inną wersję roboczą
+od opublikowania najnowszej wersji - sprawdzenie dopiero wtedy, gdy przyjęto
+którąś z jego sugestii: test, od którego wersja robocza już odeszła. Sprawdzenie
+mierzone względem samej wersji roboczej nie liczy się w żadnym z nich.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
