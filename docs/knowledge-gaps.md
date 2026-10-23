@@ -56,23 +56,26 @@ answers wait, with a link to the switch for whoever may change it.
 
 The model is the **Knowledge gap classifier**, a
 [system agent](concepts.md#system-agents) every organization has. It reads each
-answer with its question and the comments of anyone who rated it down, and
-decides one of four things:
+answer with its question, the comments of anyone who rated it down, and the
+instructions and [context files](context.md) of the agent version that gave it -
+those the person who asked for the check may read - and decides one of four
+things, with one sentence on why:
 
 | Verdict | When |
 |---|---|
 | The agent did not know | The answer says, in any words or language, that the agent did not know or could not find the information. A fair question the agent turned down because it had nothing on it is this, not a refusal |
 | Information was missing | A thumbs-down comment says information was missing, outdated or incomplete |
 | Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too - in that knowledge base, and in another one a missed search also covered, since a refusal is about the request, not about one knowledge base |
-| No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix. A comment that the information was outdated is a gap |
+| No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix - and so is one whose agent's instructions or context files state what it needed. A comment that the information was outdated is a gap |
 
 An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the
 two it is, instead of naming a search.
 
-An answer is read when its run, in the last 30 days, finished and searched the
-knowledge base and found something, or was rated down with a comment and runs on
-an agent version bound to the knowledge base. A run whose search already missed
+An answer is read when its run, in the last 30 days, finished and either
+searched the knowledge base or ran on an agent version bound to it, rated or
+not: an answer in which the agent did not know is often rated by nobody. A run
+whose search already missed
 is read too, so that a rightful refusal takes its miss out of the gaps;
 otherwise it is still counted once, as that miss. Runs over the HTTP API keep no answer, and eval
 runs, whose questions are replayed or generated, are never read. Nor are a
@@ -90,7 +93,20 @@ is called, and is listed in Activity under the person who asked: choose
 whatever the verdict, so none is paid for twice. One read as no gap is read
 again only after a new thumbs-down with a comment. A check stops at a run that
 ends without an answer, such as one a spent budget refuses, and keeps what it
-read. One check of a knowledge base runs at a time.
+read.
+
+One check of a knowledge base runs at a time, as a background job on Admin ->
+Background jobs: a worker that stops under it leaves the job ended there, never
+lost without a trace, and what it read stays read.
+
+An improvement session - [Improve](authoring.md) run in the background - reads
+the bad answers it found the same way, those answers alone and whatever their age, and sorts each by its
+verdicts: missing knowledge where a knowledge base was missing content, no
+problem to fix where the agent rightly refused, and the agent's fault
+otherwise. The answers missing knowledge leave what the improver reads, and
+the session drafts their topics instead - only a topic at least two different
+people asked about, three at most a round. An eval's runs are never read, so
+no held-out case is.
 
 ## Topics { #topics }
 
@@ -274,8 +290,8 @@ question shaped it is deleted: a person checked and confirmed what it says.
 A question read from an answer is kept the same way as a search: it holds the
 person's question and goes with its run and its conversation. Checking answers
 sends questions, answers and thumbs-down comments to the classifier's model
-provider. What is remembered of every answer read is its verdict and the
-classifier's run, and no text.
+provider. What is remembered of every answer read is its verdict, the
+classifier's run and its one-sentence reason, which goes with the answer.
 
 ## What gaps do not detect yet { #limits }
 
