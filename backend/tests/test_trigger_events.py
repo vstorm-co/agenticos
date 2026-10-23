@@ -347,6 +347,52 @@ class TestGenericWebhook:
             "webhook", secret=_SECRET, body=body, headers=headers
         )
 
+    @staticmethod
+    def _stamped(stamp: str, body: bytes) -> dict[str, str]:
+        return {
+            "x-signature-timestamp": stamp,
+            "x-signature-256": _sign(_SECRET, stamp.encode() + b"." + body),
+        }
+
+    def test_a_timestamped_delivery_inside_the_window_verifies(self):
+        body = b'{"ticket": 7}'
+        assert trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers=self._stamped("1000", body), now=1200
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("now", [1000 + 301, 1000 - 301], ids=["late", "early"])
+    def test_a_timestamped_delivery_outside_the_window_is_a_replay(self, now):
+        """A body-only signature carries no time, so a captured delivery could be
+        sent again for ever; a signed timestamp makes it good for minutes."""
+        body = b'{"ticket": 7}'
+        assert not trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers=self._stamped("1000", body), now=now
+        )
+
+    @pytest.mark.security
+    def test_dropping_the_timestamp_to_replay_it_fails_too(self):
+        body = b'{"ticket": 7}'
+        headers = self._stamped("1000", body)
+        del headers["x-signature-timestamp"]
+        assert not trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers=headers, now=1000
+        )
+
+    def test_a_timestamp_that_is_not_a_number_fails(self):
+        body = b"{}"
+        assert not trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers=self._stamped("soon", body), now=1000
+        )
+
+    def test_a_github_delivery_ignores_the_header(self):
+        """GitHub signs the body alone; the header means nothing on its door."""
+        body = b'{"action": "opened"}'
+        headers = {"x-hub-signature-256": _sign(_SECRET, body), "x-signature-timestamp": "1"}
+        assert trigger_events.verify_signature(
+            "github", secret=_SECRET, body=body, headers=headers, now=10**9
+        )
+
     def test_a_generic_webhook_always_matches_once_verified(self):
         # The sender chose to deliver; filtering is its job, not the trigger's.
         assert trigger_events.event_matches(

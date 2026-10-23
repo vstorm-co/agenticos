@@ -28,6 +28,7 @@ service.
 import hashlib
 import hmac
 import json
+import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -50,6 +51,10 @@ _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
     EventSource.WEBHOOK.value: "x-signature-256",
 }
+
+# The generic webhook's optional signed time, and how far it may be from ours.
+_TIMESTAMP_HEADER = "x-signature-timestamp"
+_TIMESTAMP_TOLERANCE_SECONDS = 300
 
 # How much of a free-text field - a webhook payload, or an issue, email or post
 # body - is forwarded to the agent. A model does not need forty kilobytes of
@@ -96,8 +101,23 @@ def accepts_delivery(source: str) -> bool:
     return source in _SIGNATURE_HEADER
 
 
-def verify_signature(source: str, *, secret: str, body: bytes, headers: Mapping[str, str]) -> bool:
+def verify_signature(
+    source: str,
+    *,
+    secret: str,
+    body: bytes,
+    headers: Mapping[str, str],
+    now: float | None = None,
+) -> bool:
     """Whether `body` was signed with `secret` for this source, in constant time.
+
+    **A generic webhook may also sign the time.** With `X-Signature-Timestamp`
+    (Unix seconds) the signature covers `{timestamp}.{body}`, and a timestamp more
+    than five minutes from `now` fails - Stripe's and Slack's scheme. A body-only
+    signature carries no time, so one captured delivery could be sent again for
+    ever; with the timestamp it is good for minutes, and dropping the header to
+    replay it fails too, since the signature no longer covers the bare body. A
+    sender that sends no timestamp is verified as before.
 
     Both sources sign the exact request bytes with HMAC-SHA256 and send
     `sha256=<hex>`; only the header name differs. A missing or malformed signature
@@ -112,7 +132,15 @@ def verify_signature(source: str, *, secret: str, body: bytes, headers: Mapping[
     signature = headers.get(_SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
-    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    signed = body
+    stamp = headers.get(_TIMESTAMP_HEADER, "").strip() if source == EventSource.WEBHOOK else ""
+    if stamp:
+        if not stamp.isdigit():
+            return False
+        if abs((time.time() if now is None else now) - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS:
+            return False
+        signed = stamp.encode() + b"." + body
+    expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected.encode(), signature.encode("latin-1", "ignore"))
 
 
