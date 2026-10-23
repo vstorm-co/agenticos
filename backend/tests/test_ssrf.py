@@ -498,6 +498,12 @@ class TestResolvePinnedUrlForATrustedHost:
         with self._answering("10.0.0.9", ip), pytest.raises(SSRFBlockedError):
             resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
 
+    def test_an_answer_that_is_not_an_address_is_refused(self):
+        """Fail closed, as `_is_ip_blocked` does: trust never extends to an
+        answer nobody can classify."""
+        with self._answering("not-an-ip"), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
     def test_an_ip_literal_is_trusted_as_written(self):
         assert resolve_pinned_url(
             "http://10.0.0.5:8000/token", trusted_hosts=frozenset({"10.0.0.5"})
