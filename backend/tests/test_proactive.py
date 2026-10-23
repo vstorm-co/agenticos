@@ -674,6 +674,10 @@ class TestTheSweep:
             (THINK_FOR_PERSON.kind, early),
             (BRIEF_PERSON.kind, rested),
         }
+        # A look or briefing still queued at the next sweep is not queued twice.
+        keys = [call.kwargs["dedupe_key"] for call in enqueue.await_args_list]
+        assert len(set(keys)) == 3 and all(str(ORG) in key for key in keys)
+        assert all(call.kwargs["dedupe_active"] for call in enqueue.await_args_list)
 
     async def test_a_role_pack_and_a_welcome_are_queued_not_done_in_the_request(self):
         enqueue = AsyncMock()
@@ -686,6 +690,10 @@ class TestTheSweep:
             call.args for call in enqueue.await_args_list
         )
         assert pack_task is INSTALL_ROLE_PACK and pack_payload.pack_id == "sales"
+        # Codex on #2324: a double click must not install the pack twice.
+        pack_call = enqueue.await_args_list[0].kwargs
+        assert pack_call["dedupe_key"] == f"role-pack:{ORG}:{USER}:sales"
+        assert pack_call["dedupe_active"] is True
         assert welcome_task is WELCOME_MEMBER and welcome_payload.user_id == USER
 
     async def test_the_worker_side_hands_each_job_to_its_module(self):

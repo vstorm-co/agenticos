@@ -61,6 +61,11 @@ def _its_time(candidate: SweepCandidate, now: datetime) -> bool:
     return False
 
 
+def _per_person(kind: str, organization_id: UUID, user_id: UUID) -> str:
+    """The dedupe key of one person's job of `kind` in one organization."""
+    return f"{kind}:{organization_id}:{user_id}"
+
+
 class ProactiveService:
     """Queueing is light; the work is deferred.
 
@@ -90,6 +95,9 @@ class ProactiveService:
                 continue
             if not await nightly.due(candidate.organization_id, candidate.user_id, now=now):
                 continue
+            # One look per person at a time: a look still queued behind a busy
+            # pool at the next sweep would otherwise run twice, and both copies
+            # would pass the same spend check.
             await enqueue(
                 self.db,
                 THINK_FOR_PERSON,
@@ -97,6 +105,8 @@ class ProactiveService:
                     organization_id=candidate.organization_id, user_id=candidate.user_id
                 ),
                 organization_id=candidate.organization_id,
+                dedupe_key=_per_person("think", candidate.organization_id, candidate.user_id),
+                dedupe_active=True,
             )
             queued += 1
         for candidate in await member_repo.briefing_candidates(self.db):
@@ -109,6 +119,8 @@ class ProactiveService:
                     organization_id=candidate.organization_id, user_id=candidate.user_id
                 ),
                 organization_id=candidate.organization_id,
+                dedupe_key=_per_person("brief", candidate.organization_id, candidate.user_id),
+                dedupe_active=True,
             )
             queued += 1
         return queued
@@ -130,6 +142,8 @@ class ProactiveService:
                 LOOK_THROUGH_WATCH,
                 LookThroughWatch(watch_id=watch.id),
                 organization_id=watch.organization_id,
+                dedupe_key=f"watch:{watch.id}",
+                dedupe_active=True,
             )
         return len(due)
 
@@ -146,12 +160,19 @@ class ProactiveService:
         return await _briefing.brief(self.db, organization_id, user_id, now=datetime.now(UTC))
 
     async def queue_role_pack(self, organization_id: UUID, user_id: UUID, pack_id: str) -> None:
-        """Install a role pack the person accepted, in the background."""
+        """Install a role pack the person accepted, in the background.
+
+        One installation per person and pack at a time: two acceptances that both
+        read the suggestion open - a double click - would each create the pack's
+        routines.
+        """
         await enqueue(
             self.db,
             INSTALL_ROLE_PACK,
             InstallRolePack(organization_id=organization_id, user_id=user_id, pack_id=pack_id),
             organization_id=organization_id,
+            dedupe_key=f"{_per_person('role-pack', organization_id, user_id)}:{pack_id}",
+            dedupe_active=True,
         )
 
     async def install_role_pack(self, organization_id: UUID, user_id: UUID, pack_id: str) -> int:

@@ -568,6 +568,7 @@ class TestTheSweep:
         (_, task, payload) = enqueue.await_args.args
         assert task is LOOK_THROUGH_WATCH and payload.watch_id == watch.id
         assert enqueue.await_args.kwargs["organization_id"] == ORG
+        assert enqueue.await_args.kwargs["dedupe_key"] == f"watch:{watch.id}"
 
     async def test_the_worker_tasks_open_a_session_each(self):
         context = MagicMock()
