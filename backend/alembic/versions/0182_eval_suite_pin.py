@@ -9,7 +9,7 @@ run - except one whose dataset has no version yet, which stays unpinned until
 it has one.
 
 Revision ID: 0182_eval_suite_pin
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-23
 """
 
@@ -21,7 +21,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0182_eval_suite_pin"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
