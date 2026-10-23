@@ -1,5 +1,5 @@
 ---
-source_sha: "94a25d5d5895"
+source_sha: "0d1ca0b45262"
 ---
 
 # API HTTP { #the-http-api }
@@ -132,14 +132,14 @@ przerwane przez rutynowe odświeżenie.
 
 ### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
 
-[Eval run](evals.md) albo żądanie do [asystenta tworzenia](authoring.md)
-rozpoczęte kluczem wykonuje się później, w tle, i nie robi więcej, niż ten klucz
-mógłby zrobić w chwili, gdy praca się zaczyna. Worker odtwarza wtedy uprawnienia
-klucza w ich ówczesnym stanie: uprawnienie odebrane w międzyczasie przepada, rola,
-którą wydający w międzyczasie stracił, też, a klucz unieważniony, wygasły albo
-usunięty w międzyczasie zatrzymuje pracę, z powodem zapisanym na runie albo
-żądaniu. Praca rozpoczęta z zalogowanej sesji działa z rolą osoby, która ją
-rozpoczęła, w jej ówczesnym stanie.
+[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie
+mogą zostać rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a
+klucz dostaje na nich `403`. Praca, która wykonuje się później, w tle, podlega
+uprawnieniom osoby, która ją rozpoczęła, w ich stanie z chwili, gdy praca się
+zaczyna - rola utracona w międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł
+rozpocząć taką pracę, to samo dotyczyłoby klucza: liczyłyby się jego uprawnienia
+w ówczesnym stanie, a klucz unieważniony, wygasły albo usunięty w międzyczasie
+zatrzymywałby pracę, z powodem zapisanym na runie albo żądaniu.
 
 ## Nagłówek organizacji { #the-organization-header }
 

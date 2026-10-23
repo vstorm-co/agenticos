@@ -123,13 +123,13 @@ off by a routine refresh.
 
 ### Work that runs after the request { #work-that-runs-after-the-request }
 
-An [eval run](evals.md) or a request to the [authoring assistant](authoring.md)
-started with a key runs later, in the background, and does no more than that key
-could do when the work starts. Its worker rebuilds the key's authority as it
-stands then: a scope removed since is gone, a role the issuer lost since is
-lost, and a key revoked, expired or deleted since stops the work, with a reason
-on the run or the request. Work started signed in runs with its starter's role
-as it stands then.
+An organization key cannot start an [eval run](evals.md) or a request to the
+[authoring assistant](authoring.md): those routes are for people signed in, and
+a key is answered `403` on them. Work that runs later, in the background, is
+held to its starter's authority as it stands when the work starts - a role lost
+since stops it. Were a key ever let start such work, the same would hold for
+the key: its scopes as they stand then, and a key revoked, expired or deleted
+since stopping the work, with a reason on the run or the request.
 
 ## The organization header
 
