@@ -2743,8 +2743,9 @@
           "description": "Bitten Sie den Assistenten auf dem Build-Tab eines Agents um Verbesserungen."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 Änderung an Anweisungen} other {# Änderungen an Anweisungen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 Tool-Änderung} other {# Tool-Änderungen}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 Einstellungsänderung} other {# Einstellungsänderungen}}}}",
-        "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen",
-        "contexts": "{count, plural, =1 {1 Änderung an einer Kontextdatei} other {# Änderungen an Kontextdateien}} zu prüfen"
+        "skillChanges": "Skill · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
+        "contextChanges": "Kontextdatei · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
+        "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}"
       }
     },
     "edit": {

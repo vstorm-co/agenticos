@@ -2743,8 +2743,9 @@
           "description": "Ask the assistant to improve an agent from its Build tab."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 instruction change} other {# instruction changes}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 tool change} other {# tool changes}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 setting change} other {# setting changes}}}}",
-        "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review",
-        "contexts": "{count, plural, =1 {1 context file change} other {# context file changes}} to review"
+        "skillChanges": "Skill · {count, plural, =1 {1 change} other {# changes}}",
+        "contextChanges": "Context file · {count, plural, =1 {1 change} other {# changes}}",
+        "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}"
       }
     },
     "edit": {

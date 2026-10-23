@@ -2742,8 +2742,9 @@
           "description": "Poproś asystenta o ulepszenie agenta na jego zakładce Build."
         },
         "counts": "{instructions, plural, =0 {} one {# zmiana instrukcji} few {# zmiany instrukcji} many {# zmian instrukcji} other {# zmian instrukcji}}{tools, plural, =0 {} other { · {tools, plural, one {# zmiana narzędzia} few {# zmiany narzędzi} many {# zmian narzędzi} other {# zmian narzędzi}}}}{fields, plural, =0 {} other { · {fields, plural, one {# zmiana ustawień} few {# zmiany ustawień} many {# zmian ustawień} other {# zmian ustawień}}}}",
-        "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia",
-        "contexts": "{count, plural, one {# zmiana pliku kontekstu} few {# zmiany plików kontekstu} many {# zmian plików kontekstu} other {# zmian plików kontekstu}} do przejrzenia"
+        "skillChanges": "Skill · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
+        "contextChanges": "Plik kontekstu · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
+        "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}"
       }
     },
     "edit": {
