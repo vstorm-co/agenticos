@@ -127,7 +127,12 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   useRunsADataset: () => false,
 }));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
-vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
+vi.mock("@/components/evals/evals-panel", () => ({
+  EvalsPanel: () => <div data-testid="eval-results" />,
+}));
+vi.mock("@/components/evals/suites/eval-suites-card", () => ({
+  EvalSuitesCard: () => <div data-testid="eval-suites" />,
+}));
 vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
 vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
@@ -204,6 +209,36 @@ describe("the detail page's Evals tab gate", () => {
     expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
       "aria-selected",
       "true",
+    );
+  });
+});
+
+describe("the detail page's tabs", () => {
+  it("run from building the agent to what it learned, with its history last", async () => {
+    allowed = new Set([Perm.runsView]);
+    await mount();
+
+    await screen.findByRole("tab", { name: "History" });
+    expect(screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"))).toEqual([
+      "agent-tab-build",
+      "agent-tab-toolbox",
+      "agent-tab-mcp",
+      "agent-tab-limits",
+      "agent-tab-availability",
+      "agent-tab-evals",
+      "agent-tab-gaps",
+      "agent-tab-history",
+    ]);
+  });
+
+  it("put the Evals tab's results above its suites", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=evals";
+    await mount();
+
+    const results = await screen.findByTestId("eval-results");
+    expect(results.compareDocumentPosition(screen.getByTestId("eval-suites"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
 });
