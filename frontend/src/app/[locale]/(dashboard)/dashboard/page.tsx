@@ -11,6 +11,7 @@ import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
 import { MeHeader } from "@/components/dashboard/me-header";
+import { MeOpening } from "@/components/dashboard/me-opening";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DiscoverTips } from "@/components/dashboard/discover-tips";
 import { QuietGroup } from "@/components/dashboard/quiet-group";
@@ -429,7 +430,8 @@ export default function DashboardPage() {
       {/* Setting the organization up belongs where somebody acts on it - their
           own view or the organization's - not beside a group's or the host's
           numbers. */}
-      {activeOrgId && (view === "org" || view === "me") && <StartChecklist orgId={activeOrgId} />}
+      {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
+      {view === "me" && <MeOpening orgId={activeOrgId} period={period} />}
       {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the

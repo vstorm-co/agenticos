@@ -114,10 +114,15 @@ class RunSurface(enum.StrEnum):
     MATTERMOST = "mattermost"
     # Another system's agent sent it a task over A2A (#2092).
     A2A = "a2a"
+    TEAMS = "teams"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Work the platform did for a person on its own initiative, in the background
+    # (#2301): noticing a request they keep repeating, writing their first
+    # messages. Metered against the organization's per-person proactivity limit.
+    PROACTIVE = "proactive"
 
 
 class RunOrder(enum.StrEnum):
@@ -367,6 +372,11 @@ class AgentRun(Base, TimestampMixin):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped every few seconds by the process executing the run
+    # (`app.services.run_heartbeat`), so a run whose process died is told apart
+    # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
+    # so it leaves `updated_at` - the run's last transition - alone.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Monthly spend, per organization. Read before *every* model request to

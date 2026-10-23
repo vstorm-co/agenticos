@@ -33,11 +33,13 @@ const AUTH_OUT = join(here, "..", "src", "lib", "auth-glyphs.generated.ts");
  *   white parts (Notion, Intercom) or that no colour set draws.
  * - `logos` and `thesvg` — the full-colour sets, below; every other service and
  *   connector mark.
+ * - `simple8` — the same set at 8.x, for a Microsoft product mark later releases
+ *   dropped (Teams). Coloured by hand, from `MANUAL_COLORS`.
  * - `lobehub` — the model-provider set, `Mono` variants. `icons/` in the static
  *   package *is* the monochrome form, which is what the console wants: a column
  *   where Gemini is four colours and OpenAI is ink reads as two products.
  */
-type IconSet = "simple" | "lobehub" | "logos" | "thesvg";
+type IconSet = "simple" | "simple8" | "lobehub" | "logos" | "thesvg";
 
 /**
  * The full-colour sets, for a service's or connector's mark (#2204).
@@ -62,6 +64,10 @@ const COLOR_SETS: Readonly<Partial<Record<IconSet, string>>> = {
 
 const SOURCES: Readonly<Partial<Record<IconSet, (slug: string) => string>>> = {
   simple: (slug) => `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`,
+  // Simple Icons dropped its Microsoft product marks after 8.x; Teams is a
+  // channel the console draws beside Slack, so it comes from the last release
+  // that carried it.
+  simple8: (slug) => `https://cdn.jsdelivr.net/npm/simple-icons@8/icons/${slug}.svg`,
   lobehub: (slug) => `https://unpkg.com/@lobehub/icons-static-svg@1/icons/${slug}.svg`,
 };
 
@@ -73,6 +79,7 @@ interface Source {
 }
 
 const simple = (slug: string): Source => ({ set: "simple", slug });
+const simple8 = (slug: string): Source => ({ set: "simple8", slug });
 const lobehub = (slug: string): Source => ({ set: "lobehub", slug });
 const logos = (slug: string): Source => ({ set: "logos", slug });
 const thesvg = (slug: string): Source => ({ set: "thesvg", slug });
@@ -152,6 +159,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   mcp: logos("model-context-protocol-icon"),
   meta: logos("meta-icon"),
   microsoft: logos("microsoft-icon"),
+  microsoftteams: simple8("microsoftteams"),
   miro: simple("miro"),
   mixpanel: thesvg("mixpanel"),
   n8n: logos("n8n-icon"),
@@ -207,9 +215,13 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   anthropic: lobehub("anthropic"),
   azure: lobehub("azure"),
   bedrock: lobehub("bedrock"),
+  // BytePlus is ByteDance's cloud, and lobehub draws it with ByteDance's mark.
+  byteplus: lobehub("bytedance"),
   cerebras: lobehub("cerebras"),
   cohere: lobehub("cohere"),
   deepseek: lobehub("deepseek"),
+  // Text to speech's provider (#2259); a black mark, so it keeps the text colour.
+  elevenlabs: lobehub("elevenlabs"),
   fireworks: lobehub("fireworks"),
   github: lobehub("github"),
   google: lobehub("gemini"),
@@ -257,6 +269,7 @@ const MANUAL_COLORS: Readonly<Record<string, string>> = {
   claudecode: "#D97757",
   claude_code: "#D97757",
   exa: "#1F40ED",
+  microsoftteams: "#6264A7",
   alibaba: "#FF6A00",
   anthropic: "#D97757",
   azure: "#0078D4",

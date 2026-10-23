@@ -1,0 +1,81 @@
+[
+  {
+    "id": "leadership",
+    "name": "Leadership",
+    "description": "A morning briefing, a weekly review of the team's work and a monthly report.",
+    "routines": [
+      "daily_briefing",
+      "weekly_team_summary",
+      "monthly_report"
+    ]
+  },
+  {
+    "id": "sales",
+    "name": "Sales",
+    "description": "A morning briefing, a brief before each meeting and news about the accounts you follow.",
+    "routines": [
+      "daily_briefing",
+      "meeting_prep",
+      "monitor_topic"
+    ]
+  },
+  {
+    "id": "marketing",
+    "name": "Marketing",
+    "description": "Weekly content ideas, news about your topics and a weekly review.",
+    "routines": [
+      "content_ideas",
+      "monitor_topic",
+      "weekly_team_summary"
+    ]
+  },
+  {
+    "id": "support",
+    "name": "Customer support",
+    "description": "Your inbox sorted every morning and a briefing of what is waiting.",
+    "routines": [
+      "inbox_triage",
+      "daily_briefing"
+    ]
+  },
+  {
+    "id": "operations",
+    "name": "Operations",
+    "description": "A morning briefing, a regular health check and a weekly review.",
+    "routines": [
+      "daily_briefing",
+      "hourly_monitoring",
+      "weekly_team_summary"
+    ]
+  },
+  {
+    "id": "finance",
+    "name": "Finance",
+    "description": "Your inbox sorted, a morning briefing and a monthly report.",
+    "routines": [
+      "inbox_triage",
+      "daily_briefing",
+      "monthly_report"
+    ]
+  },
+  {
+    "id": "people",
+    "name": "HR",
+    "description": "A morning briefing, a brief before each meeting and a weekly review.",
+    "routines": [
+      "daily_briefing",
+      "meeting_prep",
+      "weekly_team_summary"
+    ]
+  },
+  {
+    "id": "engineering",
+    "name": "Engineering",
+    "description": "A pull-request digest, new issues triaged and your stand-up drafted.",
+    "routines": [
+      "pr_digest_weekday_mornings",
+      "triage_new_issues_daily",
+      "standup_prep_weekdays"
+    ]
+  }
+]

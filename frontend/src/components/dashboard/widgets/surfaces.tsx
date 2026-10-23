@@ -19,6 +19,7 @@ const KNOWN_SURFACES = new Set([
   "telegram",
   "mattermost",
   "a2a",
+  "teams",
   "schedule",
 ]);
 

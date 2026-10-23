@@ -8,6 +8,8 @@ import { MobileBridge } from "@/components/mobile/mobile-bridge";
 import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
+import { AccountLocale } from "@/components/layout/account-locale";
+import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { OnScreenKeyboard } from "@/components/layout/on-screen-keyboard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -28,6 +30,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
+      {/* The language the account chose, here or on another device or by asking an agent. */}
+      <AccountLocale />
+      <AccountTimeZone />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
       {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}

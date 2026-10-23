@@ -56,6 +56,7 @@ from app.services import chat_room
 from app.services.access import AGENT, PROJECT, resolve_access, visible_resource_ids
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
+from app.services.generated_media import GeneratedMediaService
 from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
@@ -1191,6 +1192,9 @@ class ConversationService:
     ) -> None:
         """Delete, once the transaction commits, what these threads keep outside the database.
 
+        Their attachments, the media their agents generated, and what the
+        `media` capability offloaded out of their compacted history.
+
         Called before the threads are deleted: the attachments' paths are read
         from rows that cascade away with them - see :meth:`delete_conversation`.
         """
@@ -1199,6 +1203,11 @@ class ConversationService:
             for conversation_id in conversation_ids
             for path in await personal_data_repo.attachment_paths_in(self.db, conversation_id)
         ]
+        # And the images, speech and video its agents generated (#2310). Their
+        # rows go now, in this transaction, with a job queued beside them for
+        # the bytes - the rows are their only record, so the unlink must not be
+        # lost to a restart the way a spawned task can be.
+        await GeneratedMediaService(self.db).forget_conversations(organization_id, conversation_ids)
         if attachments:
             spawn_after_commit(
                 self.db,

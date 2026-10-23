@@ -153,7 +153,7 @@ beforeEach(() => {
   socket.isConnected = true;
   socket.getProtocols = null;
   useAgentSelectionStore.setState({ selectedAgentId: null });
-  useAuthStore.setState({ accessToken: "t-1" });
+  useAuthStore.setState({ accessToken: "t-1", user: null });
   useOrgStore.setState({ activeOrgId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
@@ -374,6 +374,60 @@ describe("useChat - the streamed answer", () => {
       status: "completed",
       result: "3 passages",
     });
+  });
+
+  const SPEAKS_POLISH = {
+    id: "u-1",
+    email: "ada@example.com",
+    is_active: true,
+    created_at: "2026-10-21T00:00:00Z",
+    locale: "pl" as const,
+  };
+
+  it("switches the account's language when an agent was asked to", () => {
+    // What "switch to English" in a chat does (#2301): the console follows the
+    // account, so the page changes as the agent's call answers.
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_language",
+      args: { locale: "en" },
+    });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("en");
+  });
+
+  it("leaves the language alone for any other tool", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "web_search", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("pl");
+  });
+
+  it("shows the role an agent saved for the person without a reload (#2301)", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_profile",
+      args: { job_title: "Head of sales" },
+    });
+    receive("tool_result", {
+      tool_call_id: "tc-1",
+      content: '{"job_title": "Head of sales", "about": null}',
+    });
+
+    expect(useAuthStore.getState().user).toMatchObject({ job_title: "Head of sales" });
   });
 
   it("ignores a tool frame with no message open", () => {
@@ -2528,6 +2582,29 @@ describe("useChat - a socket that went away mid-answer", () => {
     conversationId = "c-interrupted";
     rerender();
     expect(result.current.interrupted).toBe(true);
+  });
+
+  it("re-reads a turn the chat page left streaming when it comes back (#2301)", () => {
+    // Leaving the chat unmounts this hook and its socket, but the store keeps
+    // the half-drawn turn: back on the page its timer ran on, and a question it
+    // parked on never returned as a card.
+    const first = renderHook(() => useChat(), { wrapper });
+    act(() => first.result.current.sendMessage("hej"));
+    receive("model_request_start", {});
+    first.unmount();
+
+    const onTurnInterrupted = vi.fn();
+    renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads nothing on a page opened with no turn left streaming", () => {
+    const onTurnInterrupted = vi.fn();
+    const { rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    rerender();
+
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
   });
 
   it("says nothing about a socket that came back with no turn in flight", () => {

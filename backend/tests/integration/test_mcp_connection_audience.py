@@ -75,7 +75,7 @@ async def _setup(db: AsyncSession) -> tuple[Organization, AuthContext]:
 @pytest.fixture(autouse=True)
 def _any_url(monkeypatch: pytest.MonkeyPatch) -> None:
     # The address check resolves the host; these servers are never called.
-    async def checked(url: str, **_kwargs: object) -> str:
+    async def checked(url: str) -> str:
         return url
 
     monkeypatch.setattr(mcp_connection_module, "_checked_url", checked)

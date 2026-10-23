@@ -10,9 +10,15 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 
 import type { ContextFileSummary } from "@/types/providers";
 
-const { imageProviders } = vi.hoisted(() => ({ imageProviders: vi.fn() }));
+const { imageProviders, speechProviders, videoProviders } = vi.hoisted(() => ({
+  imageProviders: vi.fn(),
+  speechProviders: vi.fn(),
+  videoProviders: vi.fn(),
+}));
 vi.mock("@/hooks/use-model-providers", () => ({
   useImageProviders: () => imageProviders(),
+  useTextToSpeechProviders: () => speechProviders(),
+  useVideoProviders: () => videoProviders(),
 }));
 
 // The memory panel's one action, which needs a query client this file does not
@@ -712,6 +718,124 @@ describe("image generation, whose model is a provider and a model", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("image_generation");
+  });
+});
+
+/** Text to speech has a panel of its own too: a provider, a model and a voice. */
+describe("text to speech, whose voice is a provider, a model and a voice", () => {
+  beforeAll(() => {
+    speechProviders.mockReturnValue({
+      providers: [
+        {
+          provider: "openai",
+          name: "OpenAI",
+          formats: ["mp3"],
+          account_voices: false,
+          models: [
+            {
+              id: "gpt-4o-mini-tts",
+              name: "GPT-4o mini TTS",
+              description: "The default.",
+              max_characters: 4096,
+              takes_instructions: true,
+              voices: [{ id: "marin", name: "Marin", description: "" }],
+            },
+          ],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  const SPEECH: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "text_to_speech",
+    name: "Text to speech",
+    category: "analysis",
+    description: "Speak a text aloud as an audio clip.",
+    tools: [{ id: "generate_speech", name: "generate_speech", description: "Speak." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [SPEECH, CHARTS], selected: [binding("text_to_speech")] });
+
+    await openCapability("Text to speech");
+
+    expect(screen.getByLabelText("Provider")).toBeVisible();
+    expect(screen.getByLabelText("Voice")).toHaveTextContent("Marin");
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [SPEECH, CHARTS], onToggle });
+
+    await openCapability("Text to speech");
+    await userEvent.click(screen.getByRole("switch", { name: "Text to speech enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("text_to_speech");
+  });
+});
+
+/** Video generation has a panel of its own: a provider, a model, a resolution and a shape. */
+describe("video generation, whose clip is a provider, a model and what it renders", () => {
+  beforeAll(() => {
+    videoProviders.mockReturnValue({
+      providers: [
+        {
+          provider: "xai",
+          name: "xAI (Grok)",
+          models: [
+            {
+              id: "grok-imagine-video-1.5",
+              name: "Grok Imagine Video 1.5",
+              description: "Native 1080p.",
+              min_seconds: 1,
+              max_seconds: 15,
+              duration_choosable: true,
+              aspect_ratios: ["16:9"],
+              resolutions: ["720p"],
+              audio: "always",
+              first_frame: true,
+            },
+          ],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  const VIDEO: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "video_generation",
+    name: "Video generation",
+    category: "analysis",
+    description: "Make a short video from a text description.",
+    tools: [{ id: "generate_video", name: "generate_video", description: "Film." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [VIDEO, CHARTS], selected: [binding("video_generation")] });
+
+    await openCapability("Video generation");
+
+    expect(screen.getByLabelText("Provider")).toBeVisible();
+    expect(screen.getByLabelText("Resolution")).toHaveTextContent("720p");
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [VIDEO, CHARTS], onToggle });
+
+    await openCapability("Video generation");
+    await userEvent.click(screen.getByRole("switch", { name: "Video generation enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("video_generation");
   });
 });
 

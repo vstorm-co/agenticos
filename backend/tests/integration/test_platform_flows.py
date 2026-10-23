@@ -2110,7 +2110,7 @@ class TestPublishAndRollback:
         # starting prompt a new agent is created with, not the rewrite that only
         # ever reached the draft.
         assert stored.spec["instructions"] != "rewritten"
-        assert stored.spec["instructions"].startswith("You are a helpful assistant.")
+        assert stored.spec["instructions"].startswith("You are {{agent_name}}")
 
     async def test_rolling_back_writes_a_new_version_instead_of_moving_the_pointer(
         self, db

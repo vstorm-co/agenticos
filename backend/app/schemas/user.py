@@ -1,11 +1,51 @@
 """User schemas."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import EmailStr, Field, field_validator
+from pydantic import EmailStr, Field, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
+
+ConsoleLocale = Literal["en", "pl", "de"]
+"""The languages the console is translated into - `frontend/src/lib/locales.ts`."""
+
+
+_CLOCK = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class WorkingHours(BaseSchema):
+    """When a person works, in their own time zone, as every agent is told it (#2301).
+
+    Knowledge for the agent and nothing else: a routine still runs at 22:00 if
+    that is when somebody set it, and a notification is not held back.
+    """
+
+    days: list[int] = Field(
+        min_length=1, max_length=7, description="ISO weekdays they work, 1 = Monday."
+    )
+    start: str = Field(pattern=_CLOCK, description="When the working day starts, HH:MM.")
+    end: str = Field(pattern=_CLOCK, description="When it ends, HH:MM, after `start`.")
+
+    @field_validator("days")
+    @classmethod
+    def _weekdays(cls, days: list[int]) -> list[int]:
+        if any(day < 1 or day > 7 for day in days):
+            raise ValueError("Weekdays run from 1 (Monday) to 7 (Sunday)")
+        return sorted(set(days))
+
+    @property
+    def start_hour(self) -> int:
+        """The hour the working day starts in, its minutes dropped."""
+        return int(self.start.split(":", 1)[0])
+
+    @model_validator(mode="after")
+    def _ends_after_it_starts(self) -> WorkingHours:
+        if self.end <= self.start:
+            raise ValueError("The working day has to end after it starts")
+        return self
 
 
 class UserBase(BaseSchema):
@@ -71,11 +111,48 @@ class UserUpdate(BaseSchema):
         default=None,
         description="Email me the weekly and monthly usage reports.",
     )
+    locale: ConsoleLocale | None = Field(
+        default=None,
+        description="The console's language for me, on every device.",
+    )
+    time_zone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="My IANA time zone, e.g. Europe/Warsaw - what agents read my times in.",
+    )
+    job_title: str | None = Field(
+        default=None, max_length=120, description="My role, as every agent is told it."
+    )
+    about: str | None = Field(
+        default=None, max_length=500, description="What I work on, as every agent is told it."
+    )
+    working_hours: WorkingHours | None = Field(
+        default=None, description="When I work, as every agent is told it; null clears it."
+    )
+    proactive_opt_out: bool | None = Field(
+        default=None,
+        description=(
+            "Leave me out of the organization's nightly look at my week, whatever the "
+            "organization has turned on."
+        ),
+    )
 
     @field_validator("email")
     @classmethod
     def normalize_email(cls, v: str | None) -> str | None:
         return v.lower() if v is not None else None
+
+    @field_validator("time_zone")
+    @classmethod
+    def _a_zone_that_exists(cls, value: str | None) -> str | None:
+        """Refused here rather than at a run, where a typo would read every time wrong."""
+        if value is None:
+            return None
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError, ValueError:
+            raise ValueError("Not an IANA time zone, such as Europe/Warsaw") from None
+        return value
 
 
 class UserRead(UserBase, TimestampSchema):
@@ -98,6 +175,30 @@ class UserRead(UserBase, TimestampSchema):
     notify_budget_alerts: bool = True
     notify_approval_requests: bool = True
     notify_usage_reports: bool = True
+    locale: ConsoleLocale | None = None
+    time_zone: str | None = None
+    job_title: str | None = None
+    about: str | None = None
+    working_hours: WorkingHours | None = None
+    proactive_opt_out: bool = False
+
+
+class UserAgentContext(BaseSchema):
+    """What every agent is told about the person, on its own (#2301).
+
+    What an agent may change for the person it talks to - their role, their work -
+    and nothing else on the account. Unset fields are left as they are; `null`
+    clears one.
+    """
+
+    job_title: str | None = Field(default=None, max_length=120)
+    about: str | None = Field(default=None, max_length=500)
+
+
+class UserLocale(BaseSchema):
+    """The console language a person chose, on its own."""
+
+    locale: ConsoleLocale
 
 
 class UserInDB(UserRead):

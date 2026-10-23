@@ -1003,8 +1003,15 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         for support in ("hand_off", "never")
     }
     assert by_support == {
-        "hand_off": {"sandbox", "browser_use", "subagents", "background_tools", "coding_agent"},
-        "never": {"channel_tools"},
+        "hand_off": {
+            "sandbox",
+            "browser_use",
+            "subagents",
+            "background_tools",
+            "coding_agent",
+            "video_generation",
+        },
+        "never": {"channel_tools", "follow_ups"},
     }
 
 

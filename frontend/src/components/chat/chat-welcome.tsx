@@ -12,7 +12,7 @@ export interface WelcomeSuggestion {
   title: string;
   /** What is sent when it is picked, shown under the title unless `description` is. */
   prompt: string;
-  /** What the card says under its title, where that is not the prompt itself. */
+  /** What the card says under its title, where that is not the prompt itself; empty for nothing. */
   description?: string;
   /** Offered as a small × on the card - a pinned prompt taken off. */
   onRemove?: () => void;
@@ -27,6 +27,8 @@ interface ChatWelcomeProps {
   onPick: (prompt: string) => void;
   /** Under the cards: hints, a note. */
   footer?: ReactNode;
+  /** Between the lead and the cards: what the platform proposes to this person (#2301). */
+  notice?: ReactNode;
   /** A narrow window - the Architect's, the Builder's test panel: one column, tighter. */
   compact?: boolean;
 }
@@ -45,6 +47,7 @@ export function ChatWelcome({
   suggestions,
   onPick,
   footer,
+  notice,
   compact = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
@@ -85,6 +88,8 @@ export function ChatWelcome({
         </p>
       </div>
 
+      {notice && <div className={compact ? "mt-3" : "mt-6"}>{notice}</div>}
+
       <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-8 gap-3 sm:grid-cols-2")}>
         {suggestions.map((suggestion) => (
           <div key={suggestion.key} className="relative">
@@ -107,16 +112,18 @@ export function ChatWelcome({
                 <span className="text-foreground block text-sm font-medium">
                   {suggestion.title}
                 </span>
-                <span
-                  className={cn(
-                    "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
-                    // A narrow window shows four cards and a composer at once only
-                    // when each says its prompt in a line.
-                    compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
-                  )}
-                >
-                  {suggestion.description ?? suggestion.prompt}
-                </span>
+                {suggestion.description !== "" && (
+                  <span
+                    className={cn(
+                      "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
+                      // A narrow window shows four cards and a composer at once only
+                      // when each says its prompt in a line.
+                      compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
+                    )}
+                  >
+                    {suggestion.description ?? suggestion.prompt}
+                  </span>
+                )}
               </span>
               {suggestion.onRemove ? (
                 // Room for the × that sits over this corner.

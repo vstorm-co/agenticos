@@ -643,6 +643,40 @@ describe("what the page does with the frames it is sent", () => {
     expect(screen.getByText("30 days")).toBeInTheDocument();
   });
 
+  it("shows a generated image through the page's own link, not the console's", () => {
+    // The console's address forwards a session, and a visitor has none - so the
+    // card asked for a file it could not open (#2309). The socket signs a link for
+    // this visitor's file, and the card reads it through this page's key.
+    const token = `1792689903.${"a".repeat(64)}`;
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "generate_image" },
+      }),
+    );
+    act(() =>
+      socket().deliver({
+        type: "tool_result",
+        data: {
+          tool_call_id: "c1",
+          content: JSON.stringify({
+            kind: "generated_image",
+            filename: "abc_image.png",
+            prompt: "a lighthouse",
+            token,
+          }),
+        },
+      }),
+    );
+
+    expect(screen.getByRole("img", { name: "a lighthouse" })).toHaveAttribute(
+      "src",
+      `/api/embed/pk_abc/generated/abc_image.png?token=${token}`,
+    );
+  });
+
   it("renders the reasoning it was sent, and nothing where it was not", () => {
     // The page has no branch that hides it: a page whose operator left
     // `show_thinking` off never receives the frame, which is what makes the

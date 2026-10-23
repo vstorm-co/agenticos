@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -158,9 +159,11 @@ vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => nu
 async function mount() {
   await act(async () => {
     render(
-      <Suspense fallback={null}>
-        <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
-      </Suspense>,
+      <QueryClientProvider client={new QueryClient()}>
+        <Suspense fallback={null}>
+          <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
 }

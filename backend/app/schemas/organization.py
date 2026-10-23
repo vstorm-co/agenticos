@@ -9,7 +9,8 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import MembershipSourceLiteral
+from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
+from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -63,6 +64,92 @@ class OrganizationUpdate(BaseSchema):
             "or null for no limit. Omit to leave the current setting alone."
         ),
     )
+    proactive_limit_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=6,
+        description=(
+            "Dollars the platform may spend per person per month on work it does on its "
+            "own initiative - noticing repeated requests, writing first messages. Zero "
+            "switches that work off. Omit to leave it alone; changing it needs "
+            "'budgets:manage'."
+        ),
+    )
+    proactive_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the platform looks at each person's week on its own initiative and "
+            "proposes what would save them time. Turning it on needs a "
+            "`proactive_model_profile_id`. Needs 'budgets:manage'."
+        ),
+    )
+    proactive_model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model profile that work runs on, one of this organization's. Send null "
+            "to clear it, which only an organization with the work off may do."
+        ),
+    )
+    proactive_days: list[int] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=7,
+        description="The ISO weekdays it runs on, in each person's time zone; 1 is Monday.",
+    )
+    proactive_hour: int | None = Field(
+        default=None,
+        ge=0,
+        le=23,
+        description="The hour it runs at, in each person's time zone.",
+    )
+    proactive_timing: ProactiveTiming | None = Field(
+        default=None,
+        description=(
+            "`fixed`: at `proactive_hour`. `before_work`: an hour before the working "
+            "hours a person's profile states, and at `proactive_hour` for anyone whose "
+            "profile states none."
+        ),
+    )
+    proactive_watches_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether people may have the platform watch their own MCP connections and "
+            "report what is new. Runs on the proactive model and limit. Needs "
+            "'budgets:manage'."
+        ),
+    )
+    proactive_watch_min_minutes: int | None = Field(
+        default=None,
+        ge=MIN_WATCH_MINUTES,
+        le=10080,
+        description="The most often any watch here may run, in minutes.",
+    )
+    welcome_dm_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a new member gets a direct message from the organization's Slack, "
+            "Teams and Mattermost bots. Needs 'org:settings'."
+        ),
+    )
+    welcome_dm_text: str | None = Field(
+        default=None,
+        max_length=1000,
+        description=(
+            "What that message says; `{organization}`, `{bot}` and `{url}` are filled "
+            "in. Null for the built-in greeting in the member's language."
+        ),
+    )
+
+    @field_validator("proactive_days")
+    @classmethod
+    def _weekdays(cls, days: list[int] | None) -> list[int] | None:
+        if days is None:
+            return None
+        if any(day < 1 or day > 7 for day in days):
+            raise ValueError("Weekdays run from 1 (Monday) to 7 (Sunday)")
+        return sorted(set(days))
+
     chat_may_waive_approvals: bool | None = Field(
         default=None,
         description=(
@@ -116,6 +203,19 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     member_count: int = 0
     role: str  # current user's role in this org
     monthly_budget_usd: Decimal | None = None
+    proactive_limit_usd: Decimal = Field(
+        default=Decimal("1"),
+        description="What background work may spend per person per month; zero is off.",
+    )
+    proactive_enabled: bool = False
+    proactive_model_profile_id: UUID | None = None
+    proactive_days: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5])
+    proactive_hour: int = 5
+    proactive_timing: ProactiveTiming = "fixed"
+    proactive_watches_enabled: bool = False
+    proactive_watch_min_minutes: int = 60
+    welcome_dm_enabled: bool = False
+    welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(
         default=False,
         description=(

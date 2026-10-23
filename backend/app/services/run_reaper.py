@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.repositories import agent_run_repo
+from app.services.change_feed import ChangeEvent, run_event
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class RunReaperService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def reap_stale(self) -> int:
+    async def reap_stale(self) -> list[ChangeEvent]:
         """Mark every run `running` past the ceiling as failed, and say so.
 
         `failed`, not `cancelled`: nobody stopped this run - the process died
@@ -60,20 +61,26 @@ class RunReaperService:
         the tick after the reap: `claim_due`'s `last_run_id` join blocks only
         while the linked run is non-terminal.
 
+        Open consoles are told, once the caller has committed: the events
+        returned are what clears a chat's "Working" and the conversation list's
+        running mark, which otherwise held until something else refetched them.
+
         Returns:
-            How many runs were reaped - zero on the ordinary sweep, which is
-            why the flow logs only when it is not.
+            One `updated` run event per run reaped, for the caller to publish
+            after its commit - none on the ordinary sweep, which is why the
+            flow logs only when there are some.
         """
-        hours = settings.STALE_RUN_REAPED_AFTER_HOURS
-        if hours <= 0:
-            return 0
+        seconds = settings.STALE_RUN_REAPED_AFTER_SECONDS
+        if seconds <= 0:
+            return []
         now = datetime.now(UTC)
         reaped = await agent_run_repo.fail_stale_runs(
             self.db,
-            older_than=now - timedelta(hours=hours),
+            older_than=now - timedelta(seconds=seconds),
             ended_at=now,
             error=_REAPED_ERROR,
         )
-        for run_id in reaped:
-            logger.warning("stale_run_reaped", extra={"run_id": str(run_id)})
-        return len(reaped)
+        for run in reaped:
+            logger.warning("stale_run_reaped", extra={"run_id": str(run.id)})
+        # Built while the rows are attached; published once they are committed.
+        return [run_event(run, "updated") for run in reaped]

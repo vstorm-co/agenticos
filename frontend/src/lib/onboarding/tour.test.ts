@@ -36,6 +36,7 @@ const UNGATED_LAUNCH = [
 // subset of these (instructions, tools, publish).
 const BUILDER_STEPS = [
   "agent-instructions",
+  "agent-starters",
   "agent-model",
   "agent-voice",
   "agent-identity",
@@ -412,8 +413,13 @@ describe("the Routines page", () => {
     );
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
-    expect(refused).toEqual(["routines-list"]);
-    expect(allowed).toEqual(["routines-list", "routines-create", "routines-ideas"]);
+    expect(refused).toEqual(["routines-list", "routines-watches"]);
+    expect(allowed).toEqual([
+      "routines-list",
+      "routines-watches",
+      "routines-create",
+      "routines-ideas",
+    ]);
   });
 });
 

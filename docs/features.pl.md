@@ -1,5 +1,5 @@
 ---
-source_sha: "d1ffc0743a58"
+source_sha: "fc38ba431992"
 ---
 
 # Funkcje { #features }
@@ -91,7 +91,7 @@ capability, która jest wyłączona, cokolwiek mówią jego instrukcje.
 | **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury i to, co dołączono do tej rozmowy | Knowledge search · Skills · Context |
 | **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory · Memory (mem0) · Past conversations |
 | **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Read web pages · Web browser |
-| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz | Calculations · Sandbox · Charts · Image generation |
+| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz, przeczytać tekst na głos albo zrobić krótki klip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Poradzić sobie z pracą za dużą na jedną odpowiedź** — zdelegować do specjalistów, prowadzić listę zadań, pomyśleć dłużej przed odpowiedzią, ciągnąć długą rozmowę bez gubienia jej początku | Delegation · Planning · Thinking · Long conversations |
 | **Trzymać się w ryzach** — zredagować albo zablokować to, co nie może przejść, ograniczyć to, co może zwrócić jedno narzędzie, wiedzieć, jaka jest dzisiaj data | Guardrails · Tool output limits · Date and time |
 

@@ -22,7 +22,8 @@ that is not listed there is not served.
 | `agenticos-1.css` | The console's design tokens for pages | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.css` | The console's look and the `ao-` components pages are built from | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
-| `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-2.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 2 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-1.js` | Version 1, kept for the pages that name it; it drops the pins on load and keeps one height. `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 
 The libraries are copied byte for byte from the registry tarballs, whose
 `sha512` integrity was checked against the npm registry when they were added
@@ -230,7 +231,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Open Intelligent UI
 
-`agenticos-map-1.js` adapts the pin-drop timing of `createTripAnimator`, and the
+`agenticos-map-1.js` and `agenticos-map-2.js` adapt the pin-drop timing of
+`createTripAnimator`, and the
 `visual-design` skill borrows guidance from the playbook and skills, of Open
 Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI, at
 `8391a94c1c3939c679e40ddd7bfc08a9ef690e70`). The notice is kept in the file's

@@ -192,8 +192,8 @@ def runtime_briefing(alias: str | None) -> str | None:
     extractor rather than calling `lit`, and both learned otherwise by failing
     inside somebody's request.
 
-    `DEFAULT_INSTRUCTIONS` says a prompt should not list an agent's tools, and
-    this does not: which *tools* it has depends on its spec and changes when
+    The starter agent's instructions name none of its tools, and neither does
+    this: which *tools* an agent has depends on its spec and changes when
     somebody toggles one. What is installed in an image is a fact about the image.
 
     Args:

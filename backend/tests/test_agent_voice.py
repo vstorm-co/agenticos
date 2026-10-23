@@ -77,6 +77,11 @@ def test_channel_lookups_are_not_offered_in_a_call():
     assert capability_def("channel_tools").voice == "never"
 
 
+def test_next_step_buttons_are_not_offered_in_a_call():
+    """A call has nowhere to show them, and reading them aloud is the habit they replace."""
+    assert capability_def("follow_ups").voice == "never"
+
+
 def test_a_disabled_binding_is_not_handed_off():
     assert handed_off(_spec("sandbox", enabled=False)) == []
 

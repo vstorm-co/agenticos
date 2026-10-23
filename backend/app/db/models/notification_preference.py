@@ -47,7 +47,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused')",
+            "'background_task_paused', 'capability_requested', 'suggestion', 'finding')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

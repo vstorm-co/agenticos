@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
+import {
+  MessageList,
+  continuesTurn,
+  endsTurn,
+  lastToolTurnIndex,
+  requestOf,
+  turnUsage,
+} from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -13,11 +20,18 @@ const state = vi.hoisted(() => ({
     continuesTurn: boolean;
     canRegenerate: boolean;
     openLastStep: boolean;
+    request?: string;
   }[],
 }));
 
 vi.mock("@/hooks", () => ({ useAgents: () => ({ agents: state.agents }) }));
-
+const navigation = vi.hoisted(() => ({ push: vi.fn(), pointAt: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: navigation.push }) }));
+vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant-highlight")>()),
+  pointAt: navigation.pointAt,
+}));
+// The extras are tested on their own; the list decides which agent they name.
 // The item is tested on its own; what this asserts is what the list decides to
 // hand it - which agent, where in a group, and whether it may be regenerated.
 vi.mock("./message-item", () => ({
@@ -28,6 +42,7 @@ vi.mock("./message-item", () => ({
     continuesTurn,
     openLastStep,
     onRegenerate,
+    request,
   }: {
     message: ChatMessage;
     agent?: { name: string };
@@ -35,6 +50,7 @@ vi.mock("./message-item", () => ({
     continuesTurn?: boolean;
     openLastStep?: boolean;
     onRegenerate?: () => void;
+    request?: string;
   }) => {
     state.rendered.push({
       id: message.id,
@@ -43,6 +59,7 @@ vi.mock("./message-item", () => ({
       continuesTurn: continuesTurn === true,
       canRegenerate: onRegenerate !== undefined,
       openLastStep: openLastStep === true,
+      request,
     });
     return (
       <div data-testid={`message-${message.id}`}>
@@ -494,5 +511,83 @@ describe("where the transcript crosses into another day", () => {
       />,
     );
     expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual(["Yesterday"]);
+  });
+});
+
+describe("a console link an agent wrote", () => {
+  it("opens the page in the console and points at the control it names", async () => {
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/mcp-servers?highlight=mcp-add");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/mcp-servers");
+    expect(navigation.pointAt).toHaveBeenCalledWith("mcp-add");
+  });
+
+  it("leaves a link to anywhere else to the browser", () => {
+    navigation.push.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "https://example.com/");
+    link.addEventListener("click", (event) => event.preventDefault());
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("opens a console page with nothing to point at", () => {
+    navigation.pointAt.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/routines");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/routines");
+    expect(navigation.pointAt).not.toHaveBeenCalled();
+  });
+});
+
+describe("the request a skill can be made of", () => {
+  const asked = message({ id: "q", role: "user", content: "Compare the vendors" });
+
+  it("hands the answer that ends the turn what the person asked", () => {
+    const messages = [
+      asked,
+      message({ id: "a", runId: "r-1" }),
+      message({ id: "b", runId: "r-1" }),
+    ];
+
+    expect([0, 1, 2].map((i) => requestOf(messages, i))).toEqual([
+      undefined,
+      undefined,
+      "Compare the vendors",
+    ]);
+  });
+
+  it("has nothing to hand an answer with no request above it", () => {
+    expect(requestOf([message({ id: "a" })], 0)).toBeUndefined();
+  });
+
+  it("has nothing to hand when the request was only a file", () => {
+    const messages = [message({ id: "q", role: "user", content: "" }), message({ id: "a" })];
+
+    expect(requestOf(messages, 1)).toBeUndefined();
+  });
+
+  it("offers it in a chat but not in the test panel", () => {
+    const messages = [asked, message({ id: "a" })];
+    const { rerender } = render(<MessageList messages={messages} />);
+    expect(rendered("a")?.request).toBe("Compare the vendors");
+
+    state.rendered = [];
+    rerender(<MessageList messages={messages} pins={{ pinned: [], toggle: vi.fn() }} />);
+    expect(rendered("a")?.request).toBeUndefined();
   });
 });

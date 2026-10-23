@@ -310,6 +310,8 @@ class TestUnreferencedMedia:
     """The one number a reviewer cannot re-derive from the database alone."""
 
     def test_walk_skips_what_has_no_row_by_design(self, tmp_path) -> None:
+        """Generated media is not skipped: `generated_media` records each file since
+        #2310, so one with no row - made before the table existed - is counted."""
         (tmp_path / "user").mkdir()
         (tmp_path / "user" / "a.pdf").write_text("x")
         (tmp_path / "generated_org").mkdir()
@@ -317,7 +319,7 @@ class TestUnreferencedMedia:
         (tmp_path / "_rag_tmp").mkdir()
         (tmp_path / "_rag_tmp" / "scratch.pdf").write_text("x")
 
-        assert _walk_media(tmp_path) == ["user/a.pdf"]
+        assert _walk_media(tmp_path) == ["generated_org/chart.png", "user/a.pdf"]
 
     def test_a_missing_media_dir_is_no_files_rather_than_an_error(self, tmp_path) -> None:
         assert _walk_media(tmp_path / "absent") == []

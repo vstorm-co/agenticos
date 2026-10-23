@@ -29,7 +29,7 @@ version:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7, as `window.d3`, for anything Chart.js cannot draw |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9, as `window.L`, on the deployment's map tiles when it has any |
-| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins in order, pause and replay, stop cards - on map tiles, or as an outline without them |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins in order, pause and replay, stop cards - on map tiles, or as an outline without them |
 
 Load the libraries first, the kit after them, your own script last:
 

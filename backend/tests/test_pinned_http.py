@@ -162,6 +162,50 @@ class TestARefusalReachesNoSocket:
         assert wire.sent == []
 
 
+class TestATrustedHost:
+    """`trusted_hosts`, which only the MCP OAuth flow for a listed host passes."""
+
+    async def test_a_trusted_host_is_dialled_at_its_private_address(self, monkeypatch):
+        asked = _answers(monkeypatch, ["10.0.0.9"])
+        wire = _Wire(_ok)
+
+        async with PinnedAsyncClient(
+            timeout=httpx2.Timeout(5.0), transport=wire, trusted_hosts=frozenset({"mcp.internal"})
+        ) as client:
+            await client.get("http://mcp.internal:8000/token")
+
+        assert asked == ["mcp.internal"]
+        assert [request.url.host for request in wire.sent] == ["10.0.0.9"]
+        assert wire.sent[0].headers["host"] == "mcp.internal:8000"
+
+    async def test_trust_in_one_host_is_no_trust_in_another(self, monkeypatch):
+        _answers(monkeypatch, ["10.0.0.9"])
+        wire = _Wire(_ok)
+
+        async with PinnedAsyncClient(
+            timeout=httpx2.Timeout(5.0), transport=wire, trusted_hosts=frozenset({"mcp.internal"})
+        ) as client:
+            with pytest.raises(SSRFBlockedError):
+                await client.get("http://other.internal:8000/token")
+
+        assert wire.sent == []
+
+    async def test_a_proxy_mount_is_given_the_same_trust(self, monkeypatch):
+        """Each mount checks its own requests, so a mount built without the set
+        would refuse the listed host on exactly the deployments with a proxy."""
+        monkeypatch.setenv("HTTP_PROXY", "http://proxy.internal:3128")
+        trusted = frozenset({"mcp.internal"})
+
+        client = PinnedAsyncClient(timeout=httpx2.Timeout(5.0), trusted_hosts=trusted)
+        try:
+            mounted = [t for t in client._mounts.values() if isinstance(t, PinnedTransport)]
+        finally:
+            await client.aclose()
+
+        assert mounted
+        assert all(transport._trusted_hosts == trusted for transport in mounted)
+
+
 class TestRedirectsKeepTheLogicalUrl:
     async def test_a_relative_location_resolves_against_the_name_not_the_address(self, monkeypatch):
         """`next_request` is built from the URL we asked for. Built from the

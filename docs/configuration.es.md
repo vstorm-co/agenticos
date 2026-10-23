@@ -1,5 +1,5 @@
 ---
-source_sha: "be083e41ed5b"
+source_sha: "6ebeadc2957b"
 ---
 
 # Configuración { #configuration }
@@ -63,7 +63,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
 | `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose fija `http://browser-egress:3128` | El proxy a través del cual el navegador del despliegue llega a cada sitio. El servicio `browser-egress` de compose es `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): resuelve cada host por sí mismo, rechaza direcciones privadas, de loopback, link-local y de metadatos y se conecta a la dirección que comprobó, así que ni una redirección ni un DNS rebinding llevan una página dentro de la red. Lo usa todo recorrido sin proxy de la organización y que no esté en un navegador alojado. Una herramienta interna que un agent deba navegar necesita una excepción en `docker/browser-egress/squid.conf`. Vacío deja salir al navegador directamente: pon `BROWSER_EGRESS_PROXY=` en el `.env` raíz solo para un navegador fuera de compose que no alcance el proxy. Sin proxy cada sitio se comprueba en su primera petición en una pestaña y luego el navegador resuelve su nombre por sí mismo, así que un nombre que más tarde en la misma pestaña apunte a una dirección privada no se detecta |
-| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts que la URL de una conexión MCP puede nombrar aunque resuelvan a una dirección privada o de loopback, por ejemplo un servicio de compose: `["postgres-mcp"]`. La coincidencia es exacta y no distingue mayúsculas de minúsculas. Un host de la lista solo se salta la comprobación de dirección: la URL sigue necesitando `http` o `https`, y el inicio de sesión OAuth en él se sigue rechazando. Toda cuenta del despliegue puede alcanzar cualquier puerto de un host de la lista, así que lista solo un servidor que compruebe un token. Una entrada de un servicio de metadatos de la nube o de una dirección link-local o de loopback, como `169.254.169.254` o `localhost`, se rechaza al arrancar. Vacío rechaza toda dirección interna. Ver [una conexión](mcp.md#a-connection) |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts que la URL de una conexión MCP puede nombrar aunque resuelvan a una dirección privada o de loopback, por ejemplo un servicio de compose: `["postgres-mcp"]`. La coincidencia es exacta y no distingue mayúsculas de minúsculas. Un host de la lista solo se salta la comprobación de dirección: la URL sigue necesitando `http` o `https`. Se puede iniciar sesión con OAuth en un servidor de la lista: su descubrimiento, registro y peticiones de token pueden alcanzar los hosts de la lista, fijados, y el inicio de sesión de un servidor público no alcanza ninguno. Toda cuenta del despliegue puede alcanzar cualquier puerto de un host de la lista, así que lista solo un servidor que compruebe un token. Una entrada de un servicio de metadatos de la nube o de una dirección link-local o de loopback, como `169.254.169.254` o `localhost`, se rechaza al arrancar. Vacío rechaza toda dirección interna. Ver [una conexión](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Cuántas conversiones de LibreOffice pueden ejecutarse a la vez. El subproceso evita `FILE_IO_MAX_WORKERS`, así que se acota por separado |
@@ -518,7 +518,8 @@ deja a propósito en paz.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | Cuánto puede quedarse un run en `running` antes de que el barrido horario decida que su proceso murió y lo termine como `failed`. Cero o menos apaga el barrido |
+| `RUN_HEARTBEAT_SECONDS` | `15` | Cada cuánto el proceso que ejecuta un run lo marca como vivo mientras su modelo trabaja |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Cuánto puede quedarse un run en `running` sin señal de vida antes de que el barrido de cada minuto decida que su proceso murió y lo termine como `failed`. Al menos tres `RUN_HEARTBEAT_SECONDS`, lo que comprueba el arranque; cero o menos apaga el barrido |
 
 La fila de un run se confirma antes de llamar a su modelo, así que un worker muerto a
 media ejecución la deja en `running` sin nada que la termine. El techo no tiene que
@@ -727,6 +728,23 @@ Un bucket en el que escriba el despliegue necesita `s3:PutObject`,
 además `kms:Encrypt`, `kms:Decrypt` y `kms:GenerateDataKey` sobre la clave. Un
 MinIO local lo arranca `make docker-minio` en `:9000` con
 `minioadmin` / `minioadmin`.
+
+### Medios generados { #generated-media }
+
+Las imágenes, la voz y los vídeos que generan los agents se guardan en el mismo
+almacén, bajo `generated_<org>/`, y cada uno se registra con su organización y la
+conversación en la que se hizo. Lo que conserva una organización está acotado dos
+veces. Consulta [Protección de datos](data-protection.md#generated-media) para qué
+se borra y cuándo.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Medios generados que puede conservar una organización, en MiB. Cuenta cada archivo, también uno creado sin conversación - de una vista previa o una ejecución de prueba, un inciso `/btw` en un canal, un run de la API que no nombra conversación; el barrido los borra a los 7 días. Se comprueba antes de cada llamada de generación de pago: superada, la herramienta responde que la organización ha agotado su almacenamiento y no gasta nada. Una llamada admitida reserva en la cuota una estimación de su archivo hasta que el archivo se guarda - 16 MiB por imagen, 8 KiB por carácter de voz, 2 MiB por segundo de vídeo -, así que se rechaza una llamada cuya estimación llevaría a la organización por encima, y las ejecuciones simultáneas o las llamadas paralelas en una misma respuesta no pueden pasar todas con la misma cifra. Un archivo mayor que su estimación cuenta por su tamaño real. `0` es sin cuota |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Antigüedad a la que la tarea diaria `sweep-generated-media` borra un archivo generado y su registro, siga o no su conversación. `0` los conserva hasta que se borra su conversación u organización. Un archivo sin conversación se va a los 7 días en cualquier caso |
+
+Un archivo se sirve en streaming, solo el rango de bytes que pide un reproductor
+-desde disco o con un `GetObject` por rango-, así que un clip largo nunca se tiene
+entero ni en la API ni en el servidor de la consola.
 
 ### Sincronización con S3/MinIO { #s3minio-sync }
 
@@ -963,7 +981,8 @@ el lector puede ver: la pregunta de "quién tiene una copia de ese CSV" que la p
 por workspace no responde.
 
 **Al hacer clic en un archivo se abre en un visor, y es el mismo visor del panel del
-chat.** Una imagen es una imagen, un PDF es la vista PDF propia del navegador,
+chat.** Una imagen es una imagen, un PDF es la vista PDF propia del navegador, el audio y
+el vídeo suenan en el reproductor propio del navegador,
 markdown ofrece *Preview* y *Source* —ambos son el archivo, y un `#` que se convirtió
 en silencio en letra grande es como alguien no llega a notar que su agent escribe
 markdown dentro de algo que nada lee como markdown— y cualquier otra cosa es su
@@ -979,9 +998,12 @@ conversación se llega obteniendo la conversación, así que alguien con quien s
 *compartió* un chat conserva el acceso— y un solo módulo decide qué se puede mostrar,
 para que la respuesta no pueda variar según la superficie.
 
-Casi todo se sirve como adjunto. **Las imágenes ráster y los PDF** se sirven para
-mostrarse: la ráster porque no puede ejecutarse, el PDF porque el navegador lo
-renderiza en su propio visor, que nunca recibe el DOM de la página.
+Casi todo se sirve como adjunto. **Las imágenes ráster, los PDF, el audio y el
+vídeo** (MP3, WAV, Ogg, Opus, M4A, MP4, WebM) se sirven para mostrarse: la ráster
+porque no puede ejecutarse, el PDF porque el navegador lo renderiza en su propio
+visor, que nunca recibe el DOM de la página, y el audio y el vídeo porque el
+navegador los entrega a su reproductor, que los reproduce y no ejecuta nada en la
+página.
 
 !!! danger "SVG y HTML se pueden descargar y nunca mostrar"
 

@@ -19,6 +19,8 @@ import { PersonFace } from "./person-face";
 import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
+import { SkillShortcut } from "./skill-shortcut";
+import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
@@ -46,6 +48,7 @@ import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -95,6 +98,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
+  request?: string;
 }
 
 export function MessageItem({
@@ -108,6 +113,7 @@ export function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -350,6 +356,10 @@ export function MessageItem({
           </div>
         )}
 
+        {/* Under what the turn said and above its time and actions: a card the
+            answer introduces belongs with the answer, not after its receipt. */}
+        <TurnExtras message={message} agentName={agent?.name} />
+
         {!message.isStreaming && hasBody && endsTurn && (
           // The time and the cost surface on hover with the actions beside them:
           // a column of receipts under every turn is noise while reading, and the
@@ -412,6 +422,10 @@ export function MessageItem({
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
             )}
+            {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
+            {isUser && !pins && !message.isTemporaryId && message.content && (
+              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
+            )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
             {!message.isTemporaryId && !message.isStreaming && message.content && (
@@ -433,6 +447,13 @@ export function MessageItem({
               >
                 <CornerUpLeft />
               </button>
+            )}
+            {!isUser && request && !message.isStreaming && message.content && (
+              <SkillShortcut
+                request={request}
+                answer={message.content}
+                conversationId={message.conversationId}
+              />
             )}
             {!isUser && onRegenerate && (
               <button

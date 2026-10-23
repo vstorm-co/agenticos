@@ -303,15 +303,18 @@ class Settings(BaseSettings):
     # stops calling a run at work: a longer turn would go on unseen, and someone
     # reopening the thread could ask again over an answer still being written.
     CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
-    # How long a run may sit `running` before the sweep decides its process
-    # died. The row is committed before the model is called (#12), so a worker
-    # killed mid-run leaves it `running` with nothing left to finish it - in
-    # Activity for ever, and blocking any trigger whose resume it was. Six
-    # hours is far past anything this platform executes in one run, and the
-    # ceiling does not have to be exact: a live run the sweep flips anyway is
+    # How often the process executing a run stamps it alive, and how long a
+    # `running` run may go without a sign of life before the sweep decides its
+    # process died. The row is committed before the model is called (#12), so a
+    # process killed mid-run leaves it `running` with nothing left to finish it
+    # - "Working" in the chat, in Activity for ever, and blocking any trigger
+    # whose resume it was. The beat makes a short ceiling safe however long a
+    # model takes; eight missed beats is a dead process, not a busy one. It
+    # does not have to be exact either: a live run the sweep flips anyway is
     # flipped back by its own terminal write, which lands later and wins.
     # Zero or below switches the sweep off.
-    STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
+    RUN_HEARTBEAT_SECONDS: float = Field(default=15.0, gt=0)
+    STALE_RUN_REAPED_AFTER_SECONDS: float = 120.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
@@ -750,6 +753,13 @@ class Settings(BaseSettings):
     # AWS-managed `aws/s3`, so a deployment that asked for a client-held key and
     # named none would encrypt under a key nobody chose and be told nothing.
     FILE_STORAGE_S3_KMS_KEY_ID: str | None = None
+    # Images, speech and video agents generate (#2310). A generated video can be
+    # hundreds of megabytes, so what an organization keeps is bounded twice: by
+    # bytes, checked before each paid generation call, and by age, enforced by the
+    # daily `sweep-generated-media` job. Deleting a conversation removes what was
+    # generated in it either way. 0 turns either bound off.
+    GENERATED_MEDIA_QUOTA_MB: int = Field(default=5120, ge=0)
+    GENERATED_MEDIA_RETENTION_DAYS: int = Field(default=90, ge=0)
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
     S3_RAG_SECRET_KEY: str = ""
@@ -829,6 +839,23 @@ class Settings(BaseSettings):
         self.map_tiles()
         return self
 
+    @model_validator(mode="after")
+    def validate_run_heartbeat(self) -> Settings:
+        """A stale-run ceiling a live run's own heartbeat cannot beat is refused at startup.
+
+        A run's first beat lands one interval after it starts, so a ceiling no
+        longer than a few intervals ends live runs mid-call - and a routine can
+        then start another on top of the one still answering (Codex on #2324).
+        Three intervals is the least that survives one missed beat.
+        """
+        ceiling = self.STALE_RUN_REAPED_AFTER_SECONDS
+        if 0 < ceiling < 3 * self.RUN_HEARTBEAT_SECONDS:
+            raise ValueError(
+                "STALE_RUN_REAPED_AFTER_SECONDS must be at least three "
+                "RUN_HEARTBEAT_SECONDS, or zero to switch the sweep off"
+            )
+        return self
+
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
     # anything inside the deployment's network and connects to the address it
@@ -838,8 +865,10 @@ class Settings(BaseSettings):
 
     # Hosts an MCP connection's own URL may name although they resolve inside the
     # deployment's network, such as a compose service. A listed host skips the
-    # address check in `app.agents.mcp.validate_mcp_url`, and only when a
-    # connection's URL is saved. Matched exactly, case-folded. Empty refuses all.
+    # address check in `app.agents.mcp.validate_mcp_url` for a connection's own
+    # URL, and the OAuth flow of such a connection may reach the listed hosts
+    # (`app.agents.mcp.trusted_hosts_for`). Matched exactly, case-folded. Empty
+    # refuses all.
     MCP_ALLOWED_HOSTS: list[str] = []
 
     @field_validator("MCP_ALLOWED_HOSTS")

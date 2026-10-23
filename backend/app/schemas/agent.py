@@ -225,6 +225,14 @@ class AgentRead(BaseSchema):
             "shared_user_count."
         ),
     )
+    starters: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The published version's first messages, which an empty chat offers - read "
+            "off the frozen spec, not the draft. Empty for a draft agent and for one "
+            "with none. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -255,6 +263,15 @@ class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    from_starter: bool = Field(
+        default=False,
+        description=(
+            "Start as the AgenticOS agent does: whatever of its instructions, "
+            "capabilities, skills, platform tools, first messages and budget the spec "
+            "leaves empty is filled from it - what the console's New agent sends. "
+            "Without it, a spec with no instructions gets only the starter's instructions"
+        ),
+    )
     # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
     # They are not spec, and they are offered here because the catalog a new
     # agent joins is the moment somebody knows what to call it - the detail page
@@ -303,6 +320,24 @@ class AgentMetadataRequest(BaseSchema):
     @classmethod
     def _normalize(cls, v: list[str]) -> list[str]:
         return normalize_labels_strict(v)
+
+
+class CapabilityEnabled(BaseSchema):
+    """What switching a capability on from an agent's card did (#2301)."""
+
+    published: bool = Field(
+        description=(
+            "Whether the agent answers with it now. False when the draft held other "
+            "unpublished changes, or the caller may edit but not publish: the "
+            "capability is in the draft, for the Builder's Publish"
+        )
+    )
+
+
+class CapabilityRequest(BaseSchema):
+    """Asking an agent's owner to switch a capability on (#2301)."""
+
+    reason: str = Field(min_length=1, max_length=300, description="What it was needed for")
 
 
 class AgentPublish(BaseSchema):
@@ -543,7 +578,7 @@ class CapabilityCatalogEntry(BaseSchema):
     recommended: CapabilityBindingSpec | None = Field(
         default=None,
         description=(
-            "How the starter agent (the Claude Code like template) binds this "
+            "How the starter agent (the AgenticOS template) binds this "
             "capability, or null where it does not. The console marks these "
             "Recommended and switches them on for a new agent."
         ),
@@ -631,6 +666,20 @@ class PlatformMcpTool(BaseSchema):
     writes: bool = Field(
         description="Whether it changes something - held for approval under `approval: writes`"
     )
+    ungated: bool = Field(
+        default=False,
+        description=(
+            "Whether it runs without approval under every policy - a write that changes "
+            "only the caller's own preference, such as the console's language"
+        ),
+    )
+    held: bool = Field(
+        default=False,
+        description=(
+            "A read held for approval under `approval: writes` all the same - reading a "
+            "whole past conversation, which an injected instruction could carry off"
+        ),
+    )
 
 
 class PlatformMcpToolList(BaseSchema):
@@ -682,6 +731,15 @@ class AgentRunRequest(BaseSchema):
             "workspace when it has one, read into the prompt when it does not - which "
             "is the same routing the chat and the widget get. They must be the "
             "caller's own uploads"
+        ),
+    )
+    draft: bool = Field(
+        default=False,
+        description=(
+            "Run the unpublished draft instead of a version, as the Builder's test "
+            "panel does: a test run, budgeted and recorded. Needs `agents:edit` on the "
+            "agent, and the draft must pass the checks a publish makes. Not with "
+            "`environment_id`, nor with `Prefer: respond-async`"
         ),
     )
 

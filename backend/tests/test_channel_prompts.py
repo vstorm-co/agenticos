@@ -16,7 +16,7 @@ import pytest
 from app.agents.ask_user import QuestionChoice, QuestionItem
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import ApprovalStatus
-from app.db.models.channel_prompt import APPROVAL, QUESTION
+from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.channels.base import (
     ChannelAdapter,
@@ -783,6 +783,18 @@ class TestPressesThatNameNothing:
             await ChannelPrompts(_session()).press(_press(_prompt(), 0, bot))
 
         env.adapter.acknowledge.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_next_steps_named_as_a_prompt_answer_nothing(self):
+        """Next steps are pressed through their own value; one dressed as a
+        prompt's press is a value nobody was offered (#2301)."""
+        bot = _bot()
+        steps = _prompt(FOLLOW_UP, choices=["Make it a table"], chat_type="private")
+        with _Patched(bot=bot, prompt=steps, role="member") as env:
+            await ChannelPrompts(_session()).press(_press(steps, 0, bot))
+
+        env.adapter.acknowledge.assert_not_awaited()
+        assert env.answered == []
 
     async def test_a_press_on_an_inactive_bot_does_nothing(self):
         bot = _bot()

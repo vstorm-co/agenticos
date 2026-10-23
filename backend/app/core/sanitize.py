@@ -93,6 +93,29 @@ def _is_ip_blocked(ip_str: str) -> bool:
     )
 
 
+def _is_never_reachable(ip_str: str) -> bool:
+    """Whether an address stays refused even for a host the caller trusts.
+
+    The addresses `MCP_ALLOWED_HOSTS` refuses as entries - loopback, link-local,
+    unspecified and cloud metadata - plus multicast, which is never a server.
+    Refused when a trusted name *answers* one too, so a DNS record cannot open
+    what the list itself may not name.
+    """
+    try:
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return True
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return (
+        addr.is_loopback
+        or addr.is_link_local
+        or addr.is_unspecified
+        or addr.is_multicast
+        or addr in METADATA_ADDRESSES
+    )
+
+
 @dataclass(frozen=True)
 class PinnedAddress:
     """The addresses a URL was checked at, so the same ones can be dialled.
@@ -115,15 +138,22 @@ class PinnedAddress:
 def resolve_pinned_url(
     url: str,
     allowed_schemes: frozenset[str] | None = None,
+    *,
+    trusted_hosts: frozenset[str] = frozenset(),
 ) -> PinnedAddress:
     """Refuse a URL that points inside the deployment's network, and pin it.
 
     The policy is the whole of this module's SSRF policy - allowed scheme, no
     userinfo, and no private, reserved, loopback, link-local or CGNAT address -
     and :func:`validate_webhook_url` is this function with the answer thrown
-    away, plus one exemption a caller names (`trusted_hosts`). This function has
-    no exemption and must not get one: every `PinnedAsyncClient` request, and so
-    every OAuth discovery hop, is checked here, and dials the `ips` it returns.
+    away. Every `PinnedAsyncClient` request, and so every OAuth discovery hop,
+    is checked here, and dials the `ips` it returns.
+
+    The one exemption is narrower than :func:`validate_webhook_url`'s. A host in
+    `trusted_hosts` is still resolved and pinned, and may answer a private or
+    CGNAT address, but never one :func:`_is_never_reachable` names. Only the MCP
+    OAuth flow passes it, and only for a flow that began at a host on
+    `MCP_ALLOWED_HOSTS` (:func:`app.agents.mcp.trusted_hosts_for`).
 
     **Only a caller that dials the returned `ip` is protected from DNS
     rebinding.** A caller that takes the hostname back and connects by name
@@ -148,6 +178,9 @@ def resolve_pinned_url(
     Args:
         url: The URL to validate.
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
+        trusted_hosts: Hostnames or IP literals spelled as
+            `urlparse(url).hostname` spells them, which may resolve inside the
+            network. The caller normalizes them.
 
     Returns:
         The hostname, port and validated addresses to connect to.
@@ -162,7 +195,8 @@ def resolve_pinned_url(
     """
     if allowed_schemes is None:
         allowed_schemes = WEBHOOK_ALLOWED_SCHEMES
-    return _pinned(*_checked_target(url, allowed_schemes))
+    hostname, port = _checked_target(url, allowed_schemes)
+    return _pinned(hostname, port, trusted=hostname in trusted_hosts)
 
 
 def _checked_target(url: str, allowed_schemes: frozenset[str]) -> tuple[str, int]:
@@ -190,6 +224,16 @@ def _checked_target(url: str, allowed_schemes: frozenset[str]) -> tuple[str, int
     hostname = parsed.hostname
     if not hostname:
         raise UrlRefusedError("The URL has no hostname")
+    try:
+        hostname.encode("idna")
+    except UnicodeError as err:
+        # The resolver encodes the name with this codec, which refuses an empty
+        # label ("a..b") or one over 63 characters with an error that subclasses
+        # ValueError but not UrlRefusedError - so callers that quote refusals
+        # answered a 500 with the codec's message (#2352). Checked with the form,
+        # not in `_pinned`, so a host on `MCP_ALLOWED_HOSTS`, which skips the
+        # address half, cannot save a URL nothing can resolve either.
+        raise UrlRefusedError("The URL's host name is not valid") from err
 
     # Reject URLs with userinfo (credentials) to prevent URL parsing ambiguities
     # e.g. http://user:pass@host/ or http://foo@169.254.169.254%00@public.com/
@@ -212,18 +256,21 @@ def _checked_target(url: str, allowed_schemes: frozenset[str]) -> tuple[str, int
     return hostname, port
 
 
-def _pinned(hostname: str, port: int) -> PinnedAddress:
+def _pinned(hostname: str, port: int, *, trusted: bool = False) -> PinnedAddress:
     """The address half of the policy: an IP literal, or every DNS answer, must not be blocked.
+
+    For a `trusted` host, only an address :func:`_is_never_reachable` names is.
 
     Raises:
         SSRFBlockedError: If the address is blocked, or the name does not resolve.
     """
+    blocked = _is_never_reachable if trusted else _is_ip_blocked
     try:
         addr = ipaddress.ip_address(hostname)
     except ValueError:
         pass
     else:
-        if _is_ip_blocked(str(addr)):
+        if blocked(str(addr)):
             raise SSRFBlockedError(
                 f"Blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
@@ -241,7 +288,7 @@ def _pinned(hostname: str, port: int) -> PinnedAddress:
     ips: list[str] = []
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip_str = str(sockaddr[0])
-        if _is_ip_blocked(ip_str):
+        if blocked(ip_str):
             raise SSRFBlockedError(
                 f"Blocked: {hostname!r} resolves to private/internal "
                 f"address {ip_str!r}. SSRF protection does not allow requests to "

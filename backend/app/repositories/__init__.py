@@ -60,6 +60,9 @@ from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
 from app.repositories import external_agent as external_agent_repo
 from app.repositories import project as project_repo
+from app.repositories import suggestion as suggestion_repo
+from app.repositories import watch as watch_repo
+from app.repositories import teams_conversation as teams_conversation_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
@@ -75,6 +78,7 @@ from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
 from app.repositories import voice_call as voice_call_repo
+from app.repositories import generated_media as generated_media_repo
 
 __all__ = [
     "user_repo",
@@ -98,6 +102,9 @@ __all__ = [
     "channel_prompt_repo",
     "external_agent_repo",
     "project_repo",
+    "suggestion_repo",
+    "watch_repo",
+    "teams_conversation_repo",
     "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
@@ -138,4 +145,5 @@ __all__ = [
     "memory_repo",
     "notification_repo",
     "voice_call_repo",
+    "generated_media_repo",
 ]

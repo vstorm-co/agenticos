@@ -27,7 +27,7 @@ from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun, ApprovalStatus
 from app.db.models.channel_bot import ChannelBot
-from app.db.models.channel_prompt import APPROVAL, QUESTION, ChannelPrompt
+from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelPrompt
 from app.repositories import (
     agent_run_repo,
     channel_bot_repo,
@@ -298,7 +298,9 @@ class ChannelPrompts:
         if bot is None or not bot.is_active:
             return
         prompt = await channel_prompt_repo.claim(self.db, prompt_uuid, bot_id=bot.id)
-        if prompt is None:
+        # Next steps are pressed through their own value (`next_steps.py`); one
+        # named here is a value nobody was offered.
+        if prompt is None or prompt.kind == FOLLOW_UP:
             return
         adapter = get_adapter(press.platform)
         token = unseal_bot_token(bot)

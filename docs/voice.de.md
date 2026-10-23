@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "e5f62723a4c7"
+source_sha: "8f67edc78560"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -55,10 +55,13 @@ wie ein Diktat, also ist sie pro Person begrenzt
 Sprache im Cache.
 
 **Jeder Agent bietet die Taste an.** In `/chat` steht die Anruftaste bei jedem
-Agent neben dem Mikrofon. Für einen ohne Stimme, oder mit einem Schlüssel, der
+Agent an der Stelle von Senden, solange das Feld leer ist; sobald etwas getippt
+ist, kommt Senden zurück. Für einen ohne Stimme, oder mit einem Schlüssel, der
 keinen Anruf mehr halten kann, ist sie durchgestrichen, und ihr Grund verlinkt
 für alle, die den Agent bearbeiten dürfen, den Reiter Anrufe seiner Karte Stimme
-(Voice).
+(Voice). Das Fenster des Architect und das Testpanel des Builders bieten sie
+genauso an; im Testpanel führt der Anruf die veröffentlichte Version aus, nicht
+den getesteten Entwurf, und die Taste sagt das.
 
 **Das Embed.** Ein Widget oder eine gehostete Seite bietet Anrufe nur an, wenn
 sein eigener Schalter „Sprachanrufe“ (Voice calls) an ist. Den Schalter
@@ -156,12 +159,12 @@ Textmodell des Agenten.
 
 | Per Sprache | Capabilities |
 |---|---|
-| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation |
+| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation, text to speech |
 | Auf dem Bildschirm | ask the user: In `/chat` erscheint die Fragekarte in der Anrufansicht und wird auch vorgelesen; der Anrufer tippt eine Antwort an oder sagt sie. Ein Anruf aus einem Widget oder einer gehosteten Seite bekommt sie nicht |
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
 | Abgebildet | thinking: wird zur eigenen Reasoning-Einstellung des Realtime-Modells, wo das Modell eine hat |
-| Übergeben | sandbox, browser use, subagents, der Coding Agent, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
+| Übergeben | sandbox, browser use, subagents, der Coding Agent, Videoerzeugung, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
 
 Die Karte Stimme im Builder listet die Capabilities auf, die dieser Agent in
 Anrufen übergibt.

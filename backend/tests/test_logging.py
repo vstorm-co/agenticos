@@ -9,11 +9,15 @@ unconfigured process is still covered, and the two entrypoints that were missing
 the call now make it.
 """
 
+import copy
 import io
 import logging
+import logging.config
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
+from uvicorn.config import LOGGING_CONFIG
 
 from app.core.logging import PiiRedactionFilter, one_line, setup_logging
 
@@ -142,6 +146,74 @@ def test_an_unconfigured_process_redacts_through_last_resort(root_stream):
 
     assert logging.lastResort is not None
     assert any(isinstance(f, PiiRedactionFilter) for f in logging.lastResort.filters)
+
+
+_LINK_TOKEN = "1761200000." + "ab" * 32
+_ACCESS_PATH = f"/api/v1/embed/pk/generated/0123456789ab_image.png?token={_LINK_TOKEN}"
+
+
+@pytest.fixture
+def uvicorn_access() -> Iterator[io.StringIO]:
+    """uvicorn's loggers as `uvicorn app.main:app` configures them, then put back.
+
+    Its `LOGGING_CONFIG` gives `uvicorn.access` a handler of its own and turns
+    propagation off, so nothing it writes reaches the root's handlers.
+    """
+    loggers = [logging.getLogger(name) for name in ("uvicorn", "uvicorn.access", "uvicorn.error")]
+    saved = [
+        (logger, list(logger.handlers), list(logger.filters), logger.propagate, logger.level)
+        for logger in loggers
+    ]
+    logging.config.dictConfig(copy.deepcopy(LOGGING_CONFIG))
+    stream = io.StringIO()
+    for handler in logging.getLogger("uvicorn.access").handlers:
+        assert isinstance(handler, logging.StreamHandler)
+        handler.setStream(stream)
+    try:
+        yield stream
+    finally:
+        for logger, handlers, filters, propagate, level in saved:
+            logger.handlers = handlers
+            logger.filters = filters
+            logger.propagate = propagate
+            logger.setLevel(level)
+
+
+def _access_line() -> None:
+    """One request line, in the shape uvicorn's HTTP protocol logs it."""
+    logging.getLogger("uvicorn.access").info(
+        '%s - "%s %s HTTP/%s" %d', "10.0.0.5:1234", "GET", _ACCESS_PATH, "1.1", 200
+    )
+
+
+def test_a_signed_link_in_the_access_log_is_redacted(uvicorn_access):
+    """uvicorn configures its loggers before the app is imported, so the access
+    log's handler exists when `setup_logging` runs - and is not the root's."""
+    setup_logging()
+
+    _access_line()
+
+    line = uvicorn_access.getvalue()
+    assert "GET /api/v1/embed/pk/generated/0123456789ab_image.png?[SECRET_REDACTED]" in line
+    assert _LINK_TOKEN not in line
+    assert '" 200' in line
+
+
+def test_the_access_log_is_redacted_whatever_is_configured_after_setup(uvicorn_access):
+    """A server that sets its handlers up after the app's startup still writes
+    through the logger the filter is on."""
+    logging.getLogger("uvicorn.access").filters.clear()
+    setup_logging()
+    access = logging.getLogger("uvicorn.access")
+    for handler in access.handlers:
+        handler.filters.clear()
+
+    _access_line()
+
+    assert _LINK_TOKEN not in uvicorn_access.getvalue()
+    assert any(
+        isinstance(f, PiiRedactionFilter) for f in logging.getLogger("uvicorn.error").filters
+    )
 
 
 def test_the_cli_sets_logging_up():

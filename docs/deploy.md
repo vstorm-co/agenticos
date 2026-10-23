@@ -316,7 +316,7 @@ organization, from the vault.
     cannot see.
 
 Then, once, by hand: sign in, invite somebody (which proves `SMTP_*`), and send
-Claude Code like a message (which proves the provider key and the WebSocket). Each
+AgenticOS a message (which proves the provider key and the WebSocket). Each
 exercises a path nothing else here checks.
 
 !!! info "The security headers come from the backend, so any proxy is covered"

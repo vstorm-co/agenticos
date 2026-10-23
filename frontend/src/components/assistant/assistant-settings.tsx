@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bot, Building2 } from "lucide-react";
+import { Bot, Building2, Radar } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ErrorState, LoadingState } from "@/components/states";
@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/settings/settings-section";
 import { Button, Label, Switch } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { useAssistant } from "@/hooks/use-assistant";
+import { YourSuggestions } from "./your-suggestions";
 import { readPreferences, resetSilenced, setBubblesOff } from "@/lib/assistant-bubbles";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
@@ -44,6 +45,10 @@ export function AssistantSettings() {
       ) : (
         <p className="text-muted-foreground text-sm">{t("notForYou")}</p>
       )}
+      {/* Not the Architect's: the platform's own look at the person's week, and
+          theirs to switch off whoever runs the assistant (#2301). */}
+      <YourSuggestions />
+      <WatchesLiveInRoutines />
       {assistant.can_configure && assistant.agent_id && (
         <WhereTheRestLives agentId={assistant.agent_id} />
       )}
@@ -108,6 +113,21 @@ function WhereTheRestLives({ agentId }: { agentId: string }) {
           </Button>
         )}
       </div>
+    </SectionCard>
+  );
+}
+
+/** Watches are set up and managed under Routines (#2301); this card only says so. */
+function WatchesLiveInRoutines() {
+  const t = useTranslations("watches");
+  return (
+    <SectionCard title={t("title")} description={t("description")}>
+      <Button asChild variant="outline" size="sm">
+        <Link href={ROUTES.ROUTINES}>
+          <Radar className="h-4 w-4" aria-hidden />
+          {t("manageInRoutines")}
+        </Link>
+      </Button>
     </SectionCard>
   );
 }

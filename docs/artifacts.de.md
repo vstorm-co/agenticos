@@ -1,5 +1,5 @@
 ---
-source_sha: "c820451e5c9f"
+source_sha: "c6da76bc5fe8"
 ---
 
 # Apps { #artifacts }
@@ -143,6 +143,7 @@ später auf einen anderen Origin verlegt:
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, als `window.L` - zeichnet auf den [Kartenkacheln](#visuals) des Deployments, wenn es welche hat |
+| `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gezeigt und auf Wunsch einzeln gesetzt, eine Karte im Verhältnis 16:9 zur Breite der Seite, eine Linie zwischen ihnen und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps. `lib/agenticos-map-1.js`, das die Pins beim Laden setzt und eine feste Höhe hat, wird für die Seiten, die es nennen, weiter ausgeliefert |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gesetzt, eine Linie zwischen ihnen, Pause und Wiederholung und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
@@ -216,7 +217,9 @@ Deployment holt jede Kachel von diesem Server und liefert sie über seinen eigen
 Kachelpfad aus, `agenticos.map` sagt wohin, und das Karten-Kit zeichnet darauf eine
 Route mit der Quellenangabe des Servers darunter. Ohne die Einstellung zeichnet
 derselbe Aufruf einen Umriss der Stopps - Pins und die Linie dazwischen, keine
-Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Das Bild einer Karte in
+Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Der Agent sagt das in
+seiner Antwort: dass kein Kartenserver angebunden ist und dass ein Administrator
+echte Karten mit dieser Einstellung einschaltet. Das Bild einer Karte in
 einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung

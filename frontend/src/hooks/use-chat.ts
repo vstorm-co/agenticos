@@ -7,6 +7,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
+import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
+import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -786,6 +788,17 @@ export function useChat(options: UseChatOptions = {}) {
               result: content,
               status: "completed",
             });
+            // An agent asked to switch the console's language: the page follows
+            // the account, so switching here is recording what it chose.
+            const name = chatApi
+              .getState()
+              .messages.find((m) => m.id === currentMessageIdRef.current)
+              ?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
+            const chosen = name ? localeChosenBy(name, content) : null;
+            if (chosen) adoptAccountLocale(chosen);
+            // Or to remember what the person does (#2301).
+            const saved = name ? contextSavedBy(name, content) : null;
+            if (saved) adoptAccountContext(saved);
           }
           break;
         }
@@ -2091,6 +2104,22 @@ export function useChat(options: UseChatOptions = {}) {
     if (thread.id !== activeConversationId) return;
     onTurnInterrupted?.();
   }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted, chatApi]);
+
+  // Coming back to the chat with a turn still drawn as streaming. The store
+  // outlives the page; the socket and this hook do not, so the turn left behind
+  // has nothing that will ever end it here - its timer ran on, and a question it
+  // parked on never came back as a card, because the restore below looks for a
+  // step the transcript marks as waiting. The transcript is where the turn went:
+  // finished, or parked on a question or an approval, which it brings back.
+  // Once, on mount - a turn streaming on this hook's own socket is not left behind.
+  const leftBehindChecked = useRef(false);
+  useEffect(() => {
+    if (leftBehindChecked.current) return;
+    leftBehindChecked.current = true;
+    if (chatApi.getState().messages.some((message) => message.isStreaming)) {
+      onTurnInterrupted?.();
+    }
+  }, [chatApi, onTurnInterrupted]);
 
   // Opening a conversation - or this socket coming back - asks to follow the turn
   // being written in it, if one is. The server answers with `turn_attached` and

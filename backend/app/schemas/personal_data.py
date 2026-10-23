@@ -75,6 +75,19 @@ class PersonalDataExport(BaseModel):
             "Never the key or its hash."
         )
     )
+    suggestions: list[dict[str, Any]] = Field(
+        description=(
+            "What the platform proposed to them on its own initiative - drawn from "
+            "their requests - and what they answered, dismissed ones included. "
+            "What a watch found is among them, as kind `finding`."
+        ),
+    )
+    watches: list[dict[str, Any]] = Field(
+        description=(
+            "What they asked the platform to watch in their own connections: what "
+            "to look for and leave out, how often, and when it last looked."
+        ),
+    )
     oauth_grants: list[dict[str, Any]] = Field(
         description=(
             "The clients they let act as them, with the permissions and dates. "

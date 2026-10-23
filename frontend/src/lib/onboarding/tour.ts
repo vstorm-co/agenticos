@@ -212,7 +212,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
 
   // The builder, entered from the Agents list. The engine opens an example agent
-  // (the seeded "Claude Code like", or the first one there is), switches to the
+  // (the seeded "AgenticOS", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
@@ -226,6 +226,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
     inTour: true,
+  },
+  // The first messages an empty chat offers, under the instructions (#2301).
+  {
+    id: "agent-starters",
+    page: AGENT_BUILDER,
+    target: "agent-starters",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
   },
   {
     id: "agent-model",
@@ -716,6 +724,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
   // has scheduled yet is a page a first login has no reason to visit.
   { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  // Watches over the reader's own connections (#2301); the card's header is always drawn.
+  { id: "routines-watches", page: ROUTES.ROUTINES, target: "routines-watches" },
   {
     id: "routines-create",
     page: ROUTES.ROUTINES,
@@ -730,6 +740,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsRun,
     optional: true,
   },
+
+  // What the platform brought the reader on its own (#2301). "?"-only, like the
+  // routines stop: the launch walk does not take a first login here.
+  { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
 
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in

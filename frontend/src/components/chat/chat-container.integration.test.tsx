@@ -759,6 +759,8 @@ describe("the chat container - a voice call (#54)", () => {
         }),
       ).toHaveAttribute("aria-disabled", "true"),
     );
+    // In Send's place all the same: an empty composer has nothing to send.
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
   });
 
   it("turns the composer into the call bar while the call is on, so nothing is sent beside it", async () => {
@@ -1186,6 +1188,53 @@ describe("the chat container - an answer still being written after its person le
     });
 
     expect(await screen.findByText("Here is the rollout plan", {}, SETTLE)).toBeInTheDocument();
+  });
+
+  it("says the answer was lost when its run ended without one, and asks again", async () => {
+    // The process running the turn died; the stale-run sweep closed the run and
+    // nothing was ever written after the question (#2301).
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Write me a rollout plan",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      running = null;
+      await act(async () => {
+        await client.invalidateQueries();
+      });
+      // Every re-read the chat makes for a landing answer, and none lands.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(16_000);
+      });
+
+      expect(screen.getByText(/stopped before it answered/)).toBeInTheDocument();
+      expect(screen.queryByText(/still answering when you left/)).toBeNull();
+      socket.send.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
+      expect(
+        socket.send.mock.calls.some(([frame]) =>
+          JSON.stringify(frame).includes("Write me a rollout plan"),
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

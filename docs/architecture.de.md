@@ -1,5 +1,5 @@
 ---
-source_sha: "94cd032fa02a"
+source_sha: "4cea402448d3"
 ---
 
 # Architektur { #architecture }
@@ -288,9 +288,10 @@ gleichzeitigen `run_now` oder Event-Auslösers fällt, ein Schutz, den die alte
 Unsichtbarkeit nicht bieten konnte.
 
 Ein Worker, der mitten im Run stirbt, hinterlässt derweil eine `running`-Zeile, die
-im Prozess nichts je beenden wird. Was diese Zeile begrenzt, ist der stündliche
-Durchlauf für abgestandene Runs, der sie nach `STALE_RUN_REAPED_AFTER_HOURS` als
-`failed` beendet. Das eigene Lebenszeichen einer geplanten Auslösung bleibt ihre
+im Prozess nichts je beenden wird. Der Prozess, der einen Run ausführt, stempelt
+ihn alle `RUN_HEARTBEAT_SECONDS` als lebendig, und was eine Zeile ohne
+Lebenszeichen begrenzt, ist der minütliche Durchlauf für abgestandene Runs, der
+sie nach `STALE_RUN_REAPED_AFTER_SECONDS` als `failed` beendet. Das eigene Lebenszeichen einer geplanten Auslösung bleibt ihre
 erneuerte Lease (`app/repositories/agent_trigger.py::claim_due`).
 
 [Governance](governance.md#a-run-whose-process-died) sagt, was der Durchlauf klärt

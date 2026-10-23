@@ -47,9 +47,11 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        generated_media_tasks,
         invitation_tasks,
         mcp_tasks,
         notification_tasks,
+        proactive_tasks,
         rag_tasks,
         report_tasks,
         run_tasks,
@@ -64,6 +66,11 @@ def production() -> Handlers:
             *ingest().values(),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
+            Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
+            Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
+            Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
+            Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
@@ -87,6 +94,12 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(
+                jobs.SWEEP_GENERATED_MEDIA,
+                _each_tick(generated_media_tasks.sweep_generated_media),
+            ),
+            Handler(jobs.PROACTIVE_SWEEP, proactive_tasks.proactive_sweep),
+            Handler(jobs.WATCH_SWEEP, proactive_tasks.watch_sweep),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]

@@ -43,6 +43,7 @@ builders.
 
 import asyncio
 import logging
+from functools import partial
 
 import httpx2
 
@@ -96,8 +97,11 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
     whole flow.
     """
 
-    def __init__(self, inner: httpx2.AsyncBaseTransport) -> None:
+    def __init__(
+        self, inner: httpx2.AsyncBaseTransport, trusted_hosts: frozenset[str] = frozenset()
+    ) -> None:
         self._inner = inner
+        self._trusted_hosts = trusted_hosts
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         """Raises a `UrlRefusedError` out of `client.send` rather than connecting.
@@ -106,7 +110,9 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
         type it would from a direct call and quotes what it is allowed to
         quote - a host, never a URL (#861).
         """
-        pinned = await asyncio.to_thread(resolve_pinned_url, str(request.url))
+        pinned = await asyncio.to_thread(
+            partial(resolve_pinned_url, str(request.url), trusted_hosts=self._trusted_hosts)
+        )
         body = await request.aread()
         *rest, final = pinned.ips
         for ip in rest:
@@ -133,6 +139,10 @@ class PinnedAsyncClient(httpx2.AsyncClient):
     a test observes exactly what would go on the wire. Passing one also turns
     off `httpx2`'s environment-proxy mounting, which is why the real client does
     not name a transport of its own.
+
+    `trusted_hosts` reaches every hop's check, as `resolve_pinned_url` reads
+    it. Only the MCP OAuth flow passes it; every other client checks every hop
+    without an exemption.
     """
 
     def __init__(
@@ -140,6 +150,7 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         *,
         timeout: httpx2.Timeout,
         transport: httpx2.AsyncBaseTransport | None = None,
+        trusted_hosts: frozenset[str] = frozenset(),
     ) -> None:
         super().__init__(
             timeout=timeout,
@@ -152,9 +163,9 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         # environment names - and wrapping what it built is what applies the pin
         # to whichever of them a URL selects. Naming a transport here instead is
         # what silently turned those proxies off (#875).
-        self._transport = PinnedTransport(self._transport)
+        self._transport = PinnedTransport(self._transport, trusted_hosts)
         self._mounts = {
-            pattern: None if mounted is None else PinnedTransport(mounted)
+            pattern: None if mounted is None else PinnedTransport(mounted, trusted_hosts)
             for pattern, mounted in self._mounts.items()
         }
         if any(mounted is not None for mounted in self._mounts.values()):

@@ -16,6 +16,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -43,6 +44,8 @@ class MembershipSource(enum.StrEnum):
 
 
 MembershipSourceLiteral = Literal["manual", "directory"]
+# When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
+ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
 
 Declared beside the CHECK constraints that make it true, the way
@@ -88,6 +91,55 @@ class Organization(Base, TimestampMixin):
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+
+    # What the platform may spend on each person in a calendar month on work it
+    # does on its own initiative - noticing a repeated request, writing their
+    # first messages (#2301). Per person, so one busy member cannot use up
+    # everybody's. Zero switches that work off; it is inside `monthly_budget_usd`,
+    # never beside it.
+    proactive_limit_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("1"), server_default=text("1")
+    )
+    # Whether that work happens at all. Off until an organization turns it on:
+    # it spends money nobody asked for in the moment, so it is a decision, made
+    # with the model it runs on and when it runs beside it.
+    proactive_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # The model it runs on - chosen, never defaulted: turning it on without one
+    # is refused, and a profile deleted later switches it off in effect.
+    proactive_model_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("model_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # When each person's nightly look runs, in their own time zone: on these ISO
+    # weekdays, at `proactive_hour`, or - `before_work` - an hour before the
+    # working hours their profile states, falling back to `proactive_hour`.
+    proactive_days: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, default=lambda: [1, 2, 3, 4, 5], server_default=text("'[1,2,3,4,5]'")
+    )
+    proactive_hour: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=5, server_default=text("5")
+    )
+    proactive_timing: Mapped[ProactiveTiming] = mapped_column(
+        String(16), nullable=False, default="fixed", server_default=text("'fixed'")
+    )
+    # Whether people may point the look at their own connections (`Watch`), and
+    # how often a watch may be read at most. It runs on the same model and limit as
+    # the nightly look.
+    proactive_watches_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    proactive_watch_min_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=60, server_default=text("60")
+    )
+    # A new member's direct message in the organization's chat apps, and the
+    # words it says - null for the built-in greeting in their language.
+    welcome_dm_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    welcome_dm_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Whether a chat session may grant standing consent to this agent's gated
     # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
@@ -159,6 +211,15 @@ class Organization(Base, TimestampMixin):
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
             name="ck_organization_budget_positive",
         ),
+        CheckConstraint("proactive_limit_usd >= 0", name="ck_organization_proactive_limit"),
+        CheckConstraint("proactive_hour BETWEEN 0 AND 23", name="ck_organization_proactive_hour"),
+        CheckConstraint(
+            "proactive_watch_min_minutes >= 15", name="ck_organization_watch_min_minutes"
+        ),
+        CheckConstraint(
+            "proactive_timing IN ('fixed', 'before_work')",
+            name="ck_organization_proactive_timing",
+        ),
         CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_organization_speech_pair",
@@ -215,6 +276,14 @@ class OrganizationMember(Base):
         nullable=False,
         default=MembershipSource.MANUAL.value,
         server_default=MembershipSource.MANUAL.value,
+    )
+    # The first messages an empty chat with the starter agent offers this person
+    # here, written in the background from what they did in this organization -
+    # so on the membership, never the account, which every organization reads.
+    # Null until the first look, which the agent's own starters stand in for.
+    personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    personal_starters_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     organization: Mapped[Organization] = relationship("Organization", back_populates="members")

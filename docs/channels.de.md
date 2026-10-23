@@ -1,5 +1,5 @@
 ---
-source_sha: "192f01a91cab"
+source_sha: "513cb1cca129"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -398,19 +398,21 @@ nichts, welche der Unterschiede Entscheidungen waren.
 Jetzt schon. Jedes „nein“ unten hat einen Grund, und ein Grund ist entweder „das
 wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 
-| | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API |
-|---|---|---|---|
-| Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage |
-| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst |
-| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) |
-| `environment_id` | ja | **nein, bewusst** — siehe unten | ja |
-| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war |
-| `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten |
-| Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte |
-| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |
-| Freigaben: parken den Lauf | ja | ja | ja |
-| Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist |
-| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist |
+Die letzte Spalte ist Teams (#1985), stellvertretend für die Chat-Plattformen daneben.
+
+| | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API | Teams |
+|---|---|---|---|---|
+| Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage | eine Nachricht, die beim Eintreffen der Antwort umgeschrieben wird |
+| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst | ja, aus einem persönlichen Chat; eine Datei geht über die Zustimmungskarte von Teams zurück |
+| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) | ein Chat oder ein Channel-Thread |
+| `environment_id` | ja | **nein, bewusst** — siehe unten | ja | **nein** — die Bindung entscheidet, wie auf jeder Chat-Plattform |
+| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war | **nein**, wie auf jeder Chat-Plattform |
+| `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten | ja, als Adaptive Card |
+| Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte | nein — die Antwort kommt, wenn sie fertig ist |
+| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht | entfällt — nichts wird gestreamt, worin man sie zeichnen könnte | **nein** — die Antwort kommt, wenn sie fertig ist, ohne gezeichnete Schritte |
+| Freigaben: parken den Lauf | ja | ja | ja | ja |
+| Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist | ja — eine Adaptive Card, entschieden als das Mitglied, das sie drückt |
+| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist | **nein**, wie auf jeder Chat-Plattform |
 
 ### `environment_id` am Socket, und warum es dem Veröffentlichenden gehört { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -683,6 +685,30 @@ Eines liest sich notwendigerweise anders: ein Aufruf, der von einem MCP-Server
 kam, heißt im Dashboard *Linear · Create issue* und hier mit einem vermenschlichten
 Namen, denn die Zuordnung ist die Liste der Verbindungen der Organisation, und
 sie zu lesen braucht eine Session.
+
+**Ein generiertes Bild, gesprochene Sprache oder ein Video spielt auch auf der
+Seite** (#2309). Die Konsole liest eines über `/api/v1/generated/{filename}`, und
+das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket
+einem Ergebnis mit einem generierten Bild, gesprochener Sprache oder einem Video,
+das eine von den eigenen Tools dieses Runs gespeicherte Datei nennt, beim Senden
+ein `token` hinzu, und die Seite liest die Datei über
+`/api/embed/<key>/generated/<file>?token=…`, das sie streamt und Byte-Bereiche für
+einen Player durchreicht.
+
+Das Token ist ein HMAC, unter dem `SECRET_KEY` des Deployments, über den Schlüssel
+der Seite, genau diese eine Datei und ein Ablaufdatum sechs Stunden voraus. Es
+öffnet nichts anderes: keine Datei einer anderen Unterhaltung, keine einer anderen
+Organisation, keinen anderen Namen. Ein falsches, abgelaufenes oder fehlendes Token
+bekommt dasselbe 404 wie eine fehlende Datei. Es wird hinzugefügt, wenn der Frame
+hinausgeht, also speichert das Transkript keines, und die Karte ist das Ergebnis
+dieses Schritts — sie erscheint nur, wo *Was jeder Schritt zurückgegeben hat* an
+ist. Eine Socket-Integration findet dieselbe Adresse im `url` des Payloads, als
+API-Pfad.
+
+Ein Ergebnis, das eine Datei nennt, die dieser Run nicht gespeichert hat,
+bekommt kein Token, wie auch immer das Tool heißt, das es zurückgab. Ein Link darf
+120-mal pro Minute abgerufen werden, genug für die Byte-Bereiche eines Players;
+darüber hinaus wird mit 429 geantwortet.
 
 **Ein Widget und ein rohes Socket tragen keine Schalter und bekommen diese
 Standardwerte**, abgelesen von `PageConfig` statt wiederholt — eine zweite Kopie
@@ -1262,7 +1288,7 @@ geschrieben.
 
 ### Scopes und Events { #scopes-and-events }
 
-Dreizehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
+Vierzehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
 Adapter macht:
 
 | Scope | Was ihn braucht |
@@ -1275,6 +1301,7 @@ Adapter macht:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` und `.members` — die Channel-Abfragen, die ein Agent aufrufen darf |
 | `im:read`, `mpim:read` | `conversations.members` bei einer Direktnachricht. Leicht zu vergessen und still, wenn man es tut: die Mitgliedschaftsprüfung schlägt geschlossen fehl, sodass eine Unterhaltung, in der niemand bestätigt werden konnte, **aus der Unterhaltungsliste verschwindet**, statt einen Fehler zu erzeugen |
 | `users:read` | `users.info`, was Member-IDs in Menschen verwandelt |
+| `users:read.email` | `users.lookupByEmail`, was ein neues Mitglied findet, um es zu [begrüßen](#a-welcome-for-a-new-member). Eine Slack-App, die vor seiner Aufnahme installiert wurde, funktioniert ohne ihn weiter und begrüßt niemanden, bis sie aus dem neuen Manifest neu installiert ist |
 
 Fünf Bot-Events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1532,6 +1559,62 @@ Bots zeigen. Mattermost zeigt dann ein Token; das gehört in das Feld **Slash
 command token** des Bots. Jede Anfrage trägt es, und ein Bot ohne Token lehnt alle
 ab.
 
+## Microsoft Teams { #microsoft-teams }
+
+Ein Teams-Bot ist eine **Azure-Bot**-Ressource, angelegt als **Single-Tenant** in
+Ihrem Entra-Mandanten — Microsoft legt seit Juli 2025 keine Multi-Tenant-Bot-
+Ressourcen mehr an — und wird über das eigene Protokoll des Bot Connectors statt
+über ein SDK erreicht (#1985).
+
+1. Legen Sie im Azure-Portal einen **Azure Bot** vom Typ *Single Tenant* an.
+   Kopieren Sie unter *Configuration* die **Microsoft App ID** und den Mandanten, und
+   legen Sie unter *Certificates & secrets* der App-Registrierung einen **geheimen
+   Clientschlüssel** an.
+2. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `teams`, mit
+   dem Schlüssel als Token und App- und Mandanten-ID daneben.
+3. Fügen Sie den **Messaging-Endpunkt** aus den Bot-Einstellungen in die
+   Konfiguration des Azure Bots ein und aktivieren Sie dort den Kanal **Microsoft
+   Teams**.
+4. **Laden Sie das App-Paket** aus den Bot-Einstellungen herunter — das Manifest und
+   seine zwei Icons, für diesen Bot gebaut — und laden Sie es in den Teams-App-Katalog
+   Ihres Mandanten hoch. Fügen Sie die App einem persönlichen Chat, einem Gruppenchat
+   oder einem Team hinzu.
+
+**Jede Aktivität wird geprüft, bevor sie gelesen wird.** Der Connector signiert
+jede mit einem JWT: Die Signatur wird gegen die Schlüssel geprüft, die der Aussteller
+veröffentlicht, der Aussteller muss das Bot Framework oder Ihr eigener Mandant sein,
+die Zielgruppe muss die App ID dieses Bots sein, das Token darf nicht abgelaufen
+sein, und der genannte Dienst muss der der Aktivität sein. Eine Anfrage, die eine
+dieser Prüfungen nicht besteht, ist ein 401. Der Bot ist Single-Tenant, also wird
+auch eine Aktivität aus einem anderen Mandanten abgelehnt, und das Token des Bots
+geht nur an eine Bot-Connector-Adresse.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Ein persönlicher Chat | Auf jede Nachricht. Der Chat ist eine Unterhaltung |
+| Ein Gruppenchat | Wenn er @erwähnt wird |
+| Ein Channel | Wenn er @erwähnt wird, in dem Thread, in dem er gefragt wurde — jeder Thread eine eigene Unterhaltung |
+
+**Wer spricht**, ist die Entra-Objekt-ID des Mitglieds, in jedem Chat des Mandanten
+dieselbe. Wo dieses Deployment Personen mit Entra im selben Mandanten anmeldet,
+wird ein nicht verknüpftes Teams-Konto mit dem Mitglied verknüpft, das sich mit der
+Adresse aus der Teams-Mitgliederliste anmeldet, ohne Link zum Klicken; überall sonst
+gilt der Verknüpfungsablauf wie auf jeder Plattform, und `require_link` entscheidet
+wie dort.
+
+**Freigaben und Fragen sind Adaptive Cards.** Ein Druck wird als das Mitglied
+entschieden, das gedrückt hat, und die Karte wird durch das Gewählte ersetzt. Eine
+Datei, die der Agent sendet, erreicht einen persönlichen Chat über die
+Zustimmungskarte von Teams; in einem Gruppenchat oder Channel nennt die Antwort sie
+stattdessen, weil Teams dort keine Datei von einem Bot annimmt. Ein Diagramm wird in
+die Nachricht gezeichnet.
+
+**Ein Trigger kann seine Antwort in Teams posten.** Jede Unterhaltung, in der der Bot
+ist, wird gemerkt, und ein Trigger kann einen der Team-Channels oder Gruppenchats der
+Organisation nennen: Die Antwort jeder Ausführung wird dann dort als neue Nachricht
+gepostet, unter dem Namen des Triggers. Ein persönlicher Chat wird nie angeboten — er
+gehört jemandem.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
@@ -1564,7 +1647,7 @@ auseinanderlaufen kann.
 
 ## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
 
-Ein in Slack, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+Ein in Slack, Teams, Telegram oder Mattermost gestarteter Run kann für einen Menschen
 anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
 der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
 ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
@@ -1617,6 +1700,32 @@ Mattermost gleichermaßen. Braucht die Seite jemanden, eine Anmeldung oder ein C
 wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser hat,
 solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
 Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
+
+### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
+
+Auf die Antwort eines Agents mit [Nächsten Schritten](reference/capabilities.md#follow-ups),
+die nächste Schritte angeboten hat, folgt eine Nachricht mit Schaltflächen, eine je
+Schritt - *Mach eine Tabelle daraus*, *Mach das jeden Montag*. Ein Druck ist die
+Person, die diesen Schritt sagt: Er wird als ihre nächste Nachricht in diesem Chat
+beantwortet und allem unterworfen, dem eine getippte unterliegt - der Verknüpfung,
+der Zugriffsrichtlinie des Bots, dem Rate Limit -, und die gedrückte Nachricht
+zeigt danach den Schritt statt ihrer Schaltflächen.
+
+Jede Nachricht wird einmal gedrückt; jeder im Raum darf es, und die Antwort gehört ihm. Eine Antwort, die für
+eine Freigabe oder eine Frage angehalten hat, bietet stattdessen diese an. Die
+Einrichtungskarten, die ein Agent vorschlagen kann, zeichnet nur die Konsole.
+
+## Eine Begrüßung für ein neues Mitglied { #a-welcome-for-a-new-member }
+
+Tritt jemand der Organisation bei - über eine Einladung, über den Beitritt zur
+Standardorganisation oder über die Verzeichnissynchronisation -, sucht jeder
+aktive Slack-, Mattermost- und Teams-Bot der Organisation die Person über ihre
+E-Mail-Adresse und schickt ihr, wo er sie findet, eine Direktnachricht in der
+Sprache ihrer Konsole: wer er ist, dass sie ihn gleich dort fragen kann, und die
+Adresse der Konsole. Es ist ein Hintergrundjob mit einem Versuch; ein Bot, der sie
+nicht findet, oder eine Plattform, die ablehnt, kostet sonst nichts. Slack braucht
+für die Suche den Scope `users:read.email`; Teams findet sie im Verzeichnis des
+Tenants.
 
 ## Reaktionen und Bewertungen { #reactions-and-ratings }
 
@@ -2516,6 +2625,7 @@ Anfrage, weshalb ein Anhang als Handle ankommt statt als Inhalt:
 | Slack | Die private URL auf dem Event, geholt mit dem Bot-Token. Slack antwortet mit **200 und einer Anmeldeseite** statt mit 401, wenn das Token eine Datei nicht lesen kann, deshalb wird der Content-Type geprüft — sonst würde eine Anmeldeseite als die Tabelle des Nutzers gespeichert |
 | Telegram | `getFile` löst eine `file_id` zu einem Pfad auf, der abläuft, dann die Datei-API. Ein Foto kommt in mehreren Größen an; die größte ist die, die behalten wird |
 | Mattermost | `/files/{id}` auf dem eigenen Server dieses Bots. Ein Bot, dessen Server nicht vermerkt ist, sagt das, statt zu raten, an welchen Firmenserver er ein Token schicken soll |
+| Teams | Eine Datei in einem persönlichen Chat trägt eine Download-URL, die Teams bereits autorisiert hat; ein in eine Nachricht eingefügtes Bild wird mit dem Token des Bots vom Bot Connector geholt, und das Token geht nirgendwo sonst hin |
 
 **Aufnahmen werden noch nicht unterstützt.** Telegram legt jede Medienart in ein
 eigenes Feld, sodass eine Sprachnotiz ohne jeden Text ankommt — und bis zu dieser
@@ -2652,7 +2762,8 @@ Dinge, die er zeigt und eine Kanal-Fußzeile nicht:
   denn unter dem Scope `agent` wird ein Workspace geteilt, und eine Datei zu finden,
   die man nie erstellt hat, liest sich wie ein Leck, bis etwas auf dem Bildschirm es
   erklärt. Eine Datei ist eine Kachel, und eine zu öffnen öffnet denselben Viewer,
-  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, Markdown als Vorschau
+  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, ein Player für Audio
+  und Video, Markdown als Vorschau
   oder Quelltext, und immer ein Download —, der `…/workspace/file` für Text und
   `…/workspace/raw` für Bytes liest. Bewusst über die *Unterhaltung* statt über die
   Workspace-ID: das ist es, was diese Dateien für jemanden erreichbar hält, mit dem
@@ -2688,12 +2799,12 @@ entschieden haben"* Fragen, die er nur durch Raten beantworten kann.
 Vier Tools ändern das, und jedes wird **pro Bindung** gewährt, unter
 *Where this agent is available*:
 
-| Tool | Beantwortet | Slack | Telegram | Mattermost |
-|---|---|:-:|:-:|:-:|
-| `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ |
-| `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ |
-| `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ |
-| `read_channel_history` | Was zuletzt gesagt wurde, **in dem Thread, in dem er antwortet** | ✅ | — | ✅ |
+| Tool | Beantwortet | Slack | Telegram | Mattermost | Teams |
+|---|---|:-:|:-:|:-:|:-:|
+| `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ | ✅ |
+| `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ | ✅ |
+| `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ | — |
+| `read_channel_history` | Was zuletzt gesagt wurde, **in dem Thread, in dem er antwortet** | ✅ | — | ✅ | — |
 
 Pro Bindung statt pro Agent, denn eine Organisation kann einen Agent an zwei
 Mattermost-Server und drei Slack-Workspaces binden — und *„darf er lesen, was in
@@ -2742,7 +2853,7 @@ kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram or Mattermost]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2755,7 +2866,7 @@ flowchart TD
 - Innerhalb Ihres Produkts, pro Nutzer → **Widget, `jwt`-Modus**.
 - Ganz eigene Oberfläche → **WebSocket**.
 - Keine eigene Website, und ein Link genügt → **eine gehostete Seite**.
-- Wo das Team ohnehin spricht → **Slack, Telegram oder Mattermost**.
+- Wo das Team ohnehin spricht → **Slack, Teams, Telegram oder Mattermost**.
 - Ein ganz anderes System → die REST-API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "Die ersten vier sind ein Objekt"
@@ -2768,7 +2879,7 @@ flowchart TD
 ## Zusammenfassung { #recap }
 
 - **Ein Runner hinter jeder Oberfläche.** Der Web-Chat, eine gehostete Seite, ein
-  Widget, die API, Slack, Telegram und Mattermost erreichen alle denselben Code,
+  Widget, die API, Slack, Teams, Telegram und Mattermost erreichen alle denselben Code,
   sodass Governance nichts ist, woran ein Aufrufer vorbeirouten kann.
 - Ein Bot antwortet als **ein Agent**, und eine Erwähnung läuft als **der
   Absender** — nie als der Bot.

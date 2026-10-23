@@ -1,6 +1,6 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost";
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -59,6 +59,15 @@ export interface ChannelBot extends AnswerStyle {
   has_command_token: boolean;
   /** Mattermost only: the request URL to paste into the `/agent` slash command. */
   command_url: string | null;
+  /**
+   * Teams only: the Azure Bot's app and tenant (#1985). Identifiers, not
+   * credentials - the app package is built from them; the client secret is the
+   * token and is never read back.
+   */
+  teams_app_id?: string | null;
+  teams_tenant_id?: string | null;
+  /** Teams only: the messaging endpoint to paste into the Azure Bot resource. */
+  messaging_endpoint?: string | null;
   /**
    * Whether the socket this bot receives on is actually up.
    *
@@ -167,6 +176,10 @@ export interface ChannelBotCreate {
   webhook_mode?: boolean;
   /** Mattermost only: the token Mattermost shows for the `/agent` slash command. */
   command_token?: string;
+  /** Teams only, and required there: the Azure Bot's Microsoft App ID. */
+  teams_app_id?: string;
+  /** Teams only, and required there: the tenant the single-tenant bot is registered in. */
+  teams_tenant_id?: string;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;
@@ -175,6 +188,15 @@ export interface ChannelBotCreate {
   speech_to_text_model?: string | null;
   /** Required with a pair, refused without one. */
   speech_to_text_secret_id?: string | null;
+}
+
+/** A Teams channel or group chat a bot is in - where a trigger can post (#1985). */
+export interface TeamsConversation {
+  id: string;
+  bot_id: string;
+  name: string | null;
+  conversation_type: "channel" | "groupChat";
+  last_activity_at: string;
 }
 
 /**

@@ -86,8 +86,11 @@ describe("TriggerFormDialog with no agent in context", () => {
 
   it("creates the schedule on whichever agent was picked", async () => {
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({});
-    render(<TriggerFormDialog agentId={null} open onOpenChange={vi.fn()} />, { wrapper });
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t-1", trigger_type: "schedule" });
+    const onCreated = vi.fn();
+    render(<TriggerFormDialog agentId={null} open onOpenChange={vi.fn()} onCreated={onCreated} />, {
+      wrapper,
+    });
 
     const dialog = await screen.findByRole("dialog");
     await user.click(await within(dialog).findByRole("combobox", { name: "Agent" }));
@@ -106,5 +109,7 @@ describe("TriggerFormDialog with no agent in context", () => {
       "/agents/a2/triggers",
       expect.objectContaining({ prompt: "Do it", trigger_type: "schedule" }),
     );
+    // The caller learns the routine exists - a suggestion is taken only then.
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "t-1" }));
   });
 });

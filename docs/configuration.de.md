@@ -1,5 +1,5 @@
 ---
-source_sha: "be083e41ed5b"
+source_sha: "6ebeadc2957b"
 ---
 
 # Konfiguration { #configuration }
@@ -62,7 +62,7 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
 | `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
-| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts, die die URL einer MCP-Connection nennen darf, obwohl sie auf eine private oder Loopback-Adresse auflösen, zum Beispiel ein Compose-Dienst: `["postgres-mcp"]`. Der Vergleich ist exakt und ignoriert Groß- und Kleinschreibung. Ein gelisteter Host überspringt nur die Adressprüfung: Die URL braucht weiterhin `http` oder `https`, und die OAuth-Anmeldung bei ihm wird weiterhin abgelehnt. Jedes Konto des Deployments erreicht jeden Port eines gelisteten Hosts, listen Sie also nur einen Server, der ein Token prüft. Ein Eintrag für einen Cloud-Metadatendienst, eine Link-Local- oder eine Loopback-Adresse wie `169.254.169.254` oder `localhost` wird beim Start abgelehnt. Leer lehnt jede interne Adresse ab. Siehe [eine Connection](mcp.md#a-connection) |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts, die die URL einer MCP-Connection nennen darf, obwohl sie auf eine private oder Loopback-Adresse auflösen, zum Beispiel ein Compose-Dienst: `["postgres-mcp"]`. Der Vergleich ist exakt und ignoriert Groß- und Kleinschreibung. Ein gelisteter Host überspringt nur die Adressprüfung: Die URL braucht weiterhin `http` oder `https`. Bei einem gelisteten Server kann man sich per OAuth anmelden: Seine Discovery, Registrierung und Token-Anfragen dürfen die gelisteten Hosts erreichen, gepinnt, und die Anmeldung bei einem öffentlichen Server erreicht keinen davon. Jedes Konto des Deployments erreicht jeden Port eines gelisteten Hosts, listen Sie also nur einen Server, der ein Token prüft. Ein Eintrag für einen Cloud-Metadatendienst, eine Link-Local- oder eine Loopback-Adresse wie `169.254.169.254` oder `localhost` wird beim Start abgelehnt. Leer lehnt jede interne Adresse ab. Siehe [eine Connection](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Wie lange eine einzelne DOC-zu-Text-Konvertierung durch LibreOffice laufen darf, bevor sie gekillt wird. Weit unter den 600s der Wissensdatenbank, weil dies ein interaktiver Upload ist |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Wie viele LibreOffice-Konvertierungen gleichzeitig laufen dürfen. Der Subprozess umgeht `FILE_IO_MAX_WORKERS`, daher wird er hier getrennt begrenzt |
@@ -528,7 +528,8 @@ es bewusst unangetastet lässt.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | Wie lange ein Run auf `running` stehen darf, bevor der stündliche Durchlauf entscheidet, dass sein Prozess gestorben ist, und ihn als `failed` beendet. Null oder darunter schaltet den Durchlauf ab |
+| `RUN_HEARTBEAT_SECONDS` | `15` | Wie oft der Prozess, der einen Run ausführt, ihn als lebendig stempelt, während sein Modell arbeitet |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Wie lange ein Run auf `running` ohne Lebenszeichen bleiben darf, bevor der minütliche Durchlauf entscheidet, dass sein Prozess gestorben ist, und ihn als `failed` beendet. Mindestens dreimal `RUN_HEARTBEAT_SECONDS`, was der Start prüft; null oder darunter schaltet den Durchlauf ab |
 
 Die Zeile eines Runs wird committet, bevor sein Modell aufgerufen wird, ein
 mitten im Run getöteter Worker lässt sie also auf `running` zurück, ohne dass
@@ -748,6 +749,23 @@ Ein Bucket, in den das Deployment schreibt, braucht `s3:PutObject`,
 zusätzlich `kms:Encrypt`, `kms:Decrypt` und `kms:GenerateDataKey` auf dem
 Schlüssel. Ein lokales MinIO startet `make docker-minio` auf `:9000` mit
 `minioadmin` / `minioadmin`.
+
+### Erzeugte Medien { #generated-media }
+
+Bilder, Sprache und Videos, die Agenten erzeugen, liegen im selben Speicher unter
+`generated_<org>/`, und jedes wird bei seiner Organisation und der Conversation
+erfasst, in der es entstand. Was eine Organisation behält, ist doppelt begrenzt.
+Was wann gelöscht wird, steht unter
+[Datenschutz](data-protection.md#generated-media).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Wie viel erzeugte Medien eine Organisation behalten darf, in MiB. Jede Datei zählt, auch eine ohne Unterhaltung - aus einer Vorschau oder einem Testlauf, einem `/btw`-Einschub in einem Kanal, einem API-Run, der keine Unterhaltung nennt; der Sweep löscht diese nach 7 Tagen. Geprüft vor jedem bezahlten Erzeugungsaufruf: darüber antwortet das Tool, dass die Organisation ihren Speicher aufgebraucht hat, und gibt nichts aus. Ein zugelassener Aufruf hält eine Schätzung seiner Datei gegen das Kontingent, bis die Datei gespeichert ist - 16 MiB für ein Bild, 8 KiB je Zeichen Sprache, 2 MiB je Sekunde Video -, daher wird ein Aufruf abgelehnt, dessen Schätzung die Organisation darüber bringen würde, und gleichzeitige Läufe oder parallele Aufrufe in einer Antwort können nicht alle mit derselben Zahl durchkommen. Eine Datei, die größer ist als ihre Schätzung, zählt mit ihrer echten Größe. `0` ist kein Kontingent |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Alter, ab dem der tägliche Job `sweep-generated-media` eine erzeugte Datei und ihren Eintrag löscht, ob ihre Conversation noch existiert oder nicht. `0` behält sie, bis ihre Conversation oder Organisation gelöscht wird. Eine Datei ohne Conversation geht in jedem Fall nach 7 Tagen |
+
+Eine Datei wird gestreamt ausgeliefert, nur im Bytebereich, den ein Player
+anfragt - von der Platte oder per `GetObject` mit Bereich -, sodass ein langer
+Clip weder in der API noch im Server der Konsole je ganz gehalten wird.
 
 ### S3/MinIO-Sync { #s3minio-sync }
 
@@ -1003,7 +1021,7 @@ die Seite je Workspace nicht beantworten kann.
 
 **Ein Klick auf eine Datei öffnet sie in einem Viewer, und es ist derselbe Viewer
 wie im Chat-Panel.** Ein Bild ist ein Bild, ein PDF ist die PDF-Ansicht des
-Browsers, Markdown bietet *Preview* und *Source* — beides ist die Datei, und ein
+Browsers, Audio und Video spielen im eigenen Player des Browsers, Markdown bietet *Preview* und *Source* — beides ist die Datei, und ein
 `#`, aus dem still große Schrift wurde, ist die Art, wie jemand nicht bemerkt,
 dass sein Agent Markdown in etwas schreibt, das nichts als Markdown liest —, und
 alles andere ist sein Text. Der Download ist immer da, auch für das, was sich gar
@@ -1020,10 +1038,12 @@ jemand, mit dem ein Chat *geteilt* wurde, den Zugriff behält — und weil ein M
 entscheidet, was angezeigt werden darf, damit die Antwort nicht je Oberfläche
 abweichen kann.
 
-Fast alles wird als Anhang ausgeliefert. **Rasterbilder und PDFs** werden zur
-Anzeige ausgeliefert: ein Raster, weil es nichts ausführen kann, ein PDF, weil
-der Browser es in seinem eigenen Viewer rendert, der nie das DOM der Seite
-bekommt.
+Fast alles wird als Anhang ausgeliefert. **Rasterbilder, PDFs, Audio und Video**
+(MP3, WAV, Ogg, Opus, M4A, MP4, WebM) werden zur Anzeige ausgeliefert: ein Raster,
+weil es nichts ausführen kann, ein PDF, weil der Browser es in seinem eigenen
+Viewer rendert, der nie das DOM der Seite bekommt, und Audio und Video, weil der
+Browser sie seiner Medienwiedergabe übergibt, die sie abspielt und nichts in der
+Seite ausführt.
 
 !!! danger "SVG und HTML sind herunterladbar und nie anzeigbar"
 

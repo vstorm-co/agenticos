@@ -63,6 +63,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        // What the nightly look proposed (#2301).
+        "src/components/dashboard/widgets/suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
@@ -83,6 +85,7 @@ export default defineConfig({
         "src/components/groups/department-budget.tsx",
         // The dashboard's start checklist (#2072).
         "src/components/dashboard/start-checklist.tsx",
+        "src/components/dashboard/me-opening.tsx",
         // What the platform can do that is easy to miss, and a quiet group said once.
         "src/components/dashboard/discover-tips.tsx",
         "src/components/dashboard/quiet-group.tsx",
@@ -105,6 +108,8 @@ export default defineConfig({
         "src/components/live-updates/**/*.tsx",
         // The AI Architect in the corner of every page, and its settings (#2063).
         "src/components/assistant/**/*.tsx",
+        // Watches over a person's own connections, managed under Routines (#2301).
+        "src/components/watches/**/*.tsx",
         "src/components/browser/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
@@ -141,6 +146,8 @@ export default defineConfig({
         // with what applies that preference app-wide (#1797).
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
+        "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
         // The desktop app's pages and the console's half of it (#2305): blobby,
         // quick ask, the desktop settings tabs, the notification bridge - and
@@ -150,6 +157,19 @@ export default defineConfig({
         "src/components/settings/look-picker.tsx",
         "src/components/theme/appearance-script.tsx",
         "src/components/theme/theme-provider.tsx",
+        "src/components/settings/agent-context-settings.tsx",
+        "src/components/settings/working-hours-field.tsx",
+        "src/components/chat/suggestion-cards.tsx",
+        "src/components/chat/suggestion-actions.tsx",
+        "src/components/teams/org-proactivity.tsx",
+        "src/components/inbox/inbox-page.tsx",
+        "src/components/inbox/suggestion-rows.tsx",
+        "src/components/chat/turn-extras.tsx",
+        "src/components/chat/turn-shortcuts.tsx",
+        "src/components/chat/setup-proposals.tsx",
+        "src/components/chat/skill-shortcut.tsx",
+        "src/components/chat/next-steps.tsx",
+        "src/components/chat/chat-empty-state.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",
         "src/components/theme/motion-script.tsx",

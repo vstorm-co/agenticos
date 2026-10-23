@@ -124,6 +124,7 @@ export function useAgents({
       user_ids,
       categories,
       tags,
+      from_starter,
     }: {
       spec: AgentSpec;
       visibility?: Visibility;
@@ -131,8 +132,18 @@ export function useAgents({
       user_ids?: string[];
       categories?: string[];
       tags?: string[];
+      /** Fill what the spec leaves empty from the AgenticOS starter agent (#2301). */
+      from_starter?: boolean;
     }) =>
-      apiClient.post<Agent>("/agents", { spec, visibility, group_ids, user_ids, categories, tags }),
+      apiClient.post<Agent>("/agents", {
+        spec,
+        visibility,
+        group_ids,
+        user_ids,
+        categories,
+        tags,
+        from_starter,
+      }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));

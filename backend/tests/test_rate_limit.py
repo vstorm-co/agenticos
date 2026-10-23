@@ -416,6 +416,26 @@ class TestAnArtifactAddressIsCountedPerAddress:
         assert (await rate_limit.artifact_content_allowed("t")).allowed is False
 
 
+class TestAGeneratedMediaLinkIsCountedPerLink:
+    """One signed link to a generated file is one visitor's player - a dozen ranged
+    requests a play - not a way to pull a clip out of storage on a loop."""
+
+    async def test_the_bucket_is_the_link_by_its_digest(self):
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.embed_generated_media_allowed("1761200000.abab")).allowed is True
+        key = client.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:embed_generated_media:token:")
+        assert "1761200000.abab" not in key
+
+    @pytest.mark.security
+    async def test_a_link_fetched_past_its_allowance_is_refused(self):
+        rate_limit.configure(_redis([rate_limit.EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE + 1]))
+
+        assert (await rate_limit.embed_generated_media_allowed("t")).allowed is False
+
+
 class TestMapTilesAreCountedPerAddress:
     async def test_the_bucket_is_the_caller_s_address(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)

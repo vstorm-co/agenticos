@@ -1,5 +1,5 @@
 ---
-source_sha: "79b06939c535"
+source_sha: "8b29d490f872"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1541,7 +1541,7 @@ für eine bessere semantische Suche.
 
 ## Aus einem Kanal { #from-a-channel }
 
-Eine Datei, die an einen Slack-, Telegram- oder Mattermost-Bot gesendet wird,
+Eine Datei, die an einen Slack-, Teams-, Telegram- oder Mattermost-Bot gesendet wird,
 kommt hier herein, nicht daneben. Der Adapter holt sie mit den eigenen
 Zugangsdaten des Bots, sie durchläuft dieselbe Validierung wie ein Upload aus dem
 Browser, und sie wird dieselbe `ChatFile`-Zeile — das Routing oben gilt also

@@ -101,11 +101,11 @@ describe("the notifications settings page", () => {
 
     // run_completed, run_failed, artifact_version_published, resource_shared,
     // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
-    // ingestion_failed and announcement each offer both channels (10*2 = 20);
-    // budget_exceeded, approval_requested, usage_report and agent_usage_report
-    // offer only in-app (4*1 = 4). 20 + 4 = 24; and all fourteen offer push
-    // (#2097), 24 + 14 = 38; plus the three legacy email switches above = 41
-    // on the page total.
+    // ingestion_failed, announcement, suggestion, finding and capability_requested
+    // each offer both channels (13*2 = 26); budget_exceeded, approval_requested,
+    // usage_report and agent_usage_report offer only in-app (4*1 = 4). 26 + 4 =
+    // 30; and all seventeen offer push (#2097), 30 + 17 = 47; plus the three
+    // legacy email switches above = 50 on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -131,7 +131,14 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Per-agent usage report - Push" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(41);
+    expect(screen.getByRole("switch", { name: "Suggestions for you - Email" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "A capability asked for - In-app" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(50);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

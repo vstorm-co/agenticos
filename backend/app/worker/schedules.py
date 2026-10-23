@@ -81,15 +81,23 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A call a dead worker left is billed by the minute, and its heartbeat goes
     # stale 45 s after the worker died (#54).
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
+    # A run whose process died stops beating; a chat says "Working" over it
+    # until this ends it, so it is looked for every minute (#2301).
+    Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _MINUTE),
+    # Queue a look for each watch that has come due (#2301). Each watch keeps its
+    # own cadence, the most often fifteen minutes; this only finds whose turn it is.
+    Schedule("watch-sweep", jobs.WATCH_SWEEP, _MINUTE),
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
     # Hourly, against thresholds measured in hours or days: an approval or an
-    # invitation expiring forty minutes late has cost nobody anything, and a
-    # crashed run reaped late is still reaped, which nothing else would do.
+    # invitation expiring forty minutes late has cost nobody anything.
+    # The platform's look at each person's week (#2301): hourly, because who is
+    # due depends on their own clock - each is thought about once a night, early
+    # in their morning, so what it proposes is waiting when they start.
+    Schedule("proactive-sweep", jobs.PROACTIVE_SWEEP, _HOUR),
     Schedule("expire-approvals", jobs.EXPIRE_APPROVALS, _HOUR),
     Schedule("expire-invitations", jobs.EXPIRE_INVITATIONS, _HOUR),
-    Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _HOUR),
     # A teardown reservation whose drop failed for good blocks its collection's
     # name with nothing left to reattempt it (#1364).
     Schedule("sweep-teardown-reservations", jobs.SWEEP_TEARDOWN_RESERVATIONS, _HOUR),
@@ -99,6 +107,8 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("apply-retention", jobs.APPLY_RETENTION, _DAY),
     Schedule("sweep-notifications", jobs.SWEEP_NOTIFICATIONS, _DAY),
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
+    # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
+    Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
     # A report covers the period its occurrence names, so one that arrives while
     # the last is still sending waits rather than being dropped: a skipped tick
     # would be a week nobody is ever sent.

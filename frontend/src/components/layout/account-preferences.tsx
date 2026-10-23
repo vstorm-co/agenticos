@@ -11,9 +11,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useChooseLocale } from "@/hooks/use-choose-locale";
 import { useMounted } from "@/hooks/use-mounted";
 import { getLocaleFlag, getLocaleLabel, locales, type Locale } from "@/i18n";
-import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-store";
 
 /**
@@ -113,8 +113,7 @@ export function AppearanceMenu() {
 export function LanguageMenu() {
   const t = useTranslations("common");
   const locale = useLocale() as Locale;
-  const router = useRouter();
-  const pathname = usePathname();
+  const choose = useChooseLocale();
 
   return (
     <DropdownMenuSub>
@@ -126,10 +125,11 @@ export function LanguageMenu() {
       <DropdownMenuSubContent className="w-44">
         <DropdownMenuRadioGroup
           value={locale}
-          // Through `locale-navigation`, never `next/navigation`: the locale
-          // lives in a cookie as well as in the path, and a switch that only
-          // rewrites the URL survives exactly one navigation.
-          onValueChange={(next) => router.push(pathname, { locale: next as Locale })}
+          // Kept on the account, and switched through `locale-navigation` -
+          // never `next/navigation`: the locale lives in a cookie as well as in
+          // the path, and a switch that only rewrites the URL survives exactly
+          // one navigation.
+          onValueChange={(next) => choose(next as Locale)}
         >
           {locales.map((option) => (
             <DropdownMenuRadioItem key={option} value={option} className="gap-2.5">

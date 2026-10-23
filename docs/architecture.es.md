@@ -1,5 +1,5 @@
 ---
-source_sha: "94cd032fa02a"
+source_sha: "4cea402448d3"
 ---
 
 # Arquitectura { #architecture }
@@ -289,9 +289,10 @@ concurrente o de un evento disparado, una protección que la vieja invisibilidad
 podía ofrecer.
 
 Mientras tanto, un worker que muere a mitad de un run deja una fila `running` que
-nada en el proceso terminará jamás. Lo que acota esa fila es el barrido horario de
-runs obsoletos, que la termina como `failed` pasado
-`STALE_RUN_REAPED_AFTER_HOURS`. La señal de vida del disparo programado sigue
+nada en el proceso terminará jamás. El proceso que ejecuta un run lo marca como
+vivo cada `RUN_HEARTBEAT_SECONDS`, y lo que acota una fila que dejó de latir es el
+barrido de runs obsoletos de cada minuto, que la termina como `failed` pasado
+`STALE_RUN_REAPED_AFTER_SECONDS`. La señal de vida del disparo programado sigue
 siendo su lease renovado (`app/repositories/agent_trigger.py::claim_due`).
 
 [Gobernanza](governance.md#a-run-whose-process-died) tiene lo que el barrido

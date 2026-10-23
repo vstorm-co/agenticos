@@ -235,6 +235,31 @@ class TestSpeechToTextOverride:
             AgentSpec(name="Support", speech_to_text={"lang": "pl"})
 
 
+class TestStarters:
+    """First messages an empty chat offers (#2301)."""
+
+    def test_a_spec_written_before_them_has_none(self):
+        assert AgentSpec.model_validate({"name": "Support"}).starters == []
+
+    def test_a_blank_one_is_dropped_and_the_rest_trimmed(self):
+        """The Builder saves as it is typed; a starter cleared to retype it is not an error."""
+        spec = AgentSpec(name="Support", starters=["  What can you do?  ", "", "   "])
+
+        assert spec.starters == ["What can you do?"]
+
+    @pytest.mark.parametrize(
+        "starters", [["a"] * 5, ["x" * 201]], ids=["more-than-four", "longer-than-a-line"]
+    )
+    def test_more_than_a_chat_shows_is_refused(self, starters):
+        with pytest.raises(ValidationError):
+            AgentSpec(name="Support", starters=starters)
+
+    def test_they_survive_the_yaml_round_trip(self):
+        spec = AgentSpec(name="Support", starters=["What can you do?"])
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+
 class TestFactory:
     def test_builds_an_agent_with_its_tools(self):
         spec = AgentSpec(

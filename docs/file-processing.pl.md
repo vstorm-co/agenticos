@@ -1,5 +1,5 @@
 ---
-source_sha: "79b06939c535"
+source_sha: "8b29d490f872"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1453,7 +1453,7 @@ tekstu dokumentu dla lepszego wyszukiwania semantycznego.
 
 ## Z kanału { #from-a-channel }
 
-Plik wysłany do bota Slacka, Telegrama albo Mattermosta wchodzi tutaj, a nie obok.
+Plik wysłany do bota Slacka, Teams, Telegrama albo Mattermosta wchodzi tutaj, a nie obok.
 Adapter pobiera go własnym poświadczeniem bota, plik przechodzi tę samą walidację
 co upload z przeglądarki i staje się tym samym wierszem `ChatFile` — więc
 powyższy routing stosuje się bez zmian, a kanał nie może stać się ścieżką

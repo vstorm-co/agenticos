@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -29,7 +29,7 @@ ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost"]
+ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams"]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.
@@ -551,6 +551,34 @@ class ChannelAdapter(ABC):
         base to be abstract, and making it so would force every adapter to write
         the same stub for a feature only some platforms have.
         """
+
+    async def vouched_email(self, bot_token: str, incoming: IncomingMessage) -> str | None:
+        """The sender's address, where this deployment signs people in through the same directory.
+
+        `None` by default, which leaves linking to the link flow. A platform whose
+        roster comes from the identity provider the deployment's own sign-in uses -
+        Teams in the deployment's Entra tenant - can answer, and an unlinked sender
+        is then linked to the member who signed in with that address (#1985).
+        """
+        return None
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Greet one person directly, found by their address (#2301).
+
+        `False` by default, and wherever they are not in this workspace or the
+        platform cannot start a chat with them. `places` are conversations this
+        bot is in, for a platform with no directory to search: Teams finds people
+        in their rosters.
+        """
+        return False
 
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.

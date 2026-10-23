@@ -1,9 +1,11 @@
 """How often one caller may reach a public surface.
 
-Ten of this platform's surfaces are reachable without a session: the public run
+Eleven of this platform's surfaces are reachable without a session: the public run
 API, the widget's script, its config endpoint, its socket, a hosted page's config,
 that page's logo and its file upload, the dictation a page and a widget share, a
-public artifact link and the signed address an artifact's page is served from. Every one of them reads at least one row before it decides
+public artifact link, the signed address an artifact's page is served from, and
+the signed link a visitor's socket hands out for a file the agent generated. Every
+one of them answers a caller nobody signed in, most read a row before they decide
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -357,6 +359,35 @@ async def artifact_content_allowed(token: str) -> Decision:
         surface="artifact_content",
         caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
         limit=Limit(attempts=ARTIFACT_CONTENT_LOADS_PER_MINUTE),
+    )
+
+
+EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE = 120
+"""How often one signed link to a generated file may be fetched in a minute.
+
+Wider than an artifact address's because a player does not fetch once: a clip is
+requested in byte ranges - a probe, the body in pieces, more on every seek and
+every replay - so a single play is a dozen requests or more. A hundred and twenty
+is room for a visitor scrubbing through a video, and a ceiling on one leaked link
+replayed into whole-file reads, which every range still costs on the server.
+"""
+
+
+async def embed_generated_media_allowed(token: str) -> Decision:
+    """Whether the file behind this signed link may be served again right now.
+
+    Keyed on the link, for `artifact_content_allowed`'s reasons: the request
+    reaches this deployment through the hosted page's own proxy, so its address
+    is the frontend's; and the link is minted here, for one stored file, so it
+    cannot be varied for free. A link has one spelling - the expiry carries no
+    leading zero - and `limit_embed_generated_media` counts only a link whose
+    signature holds, so any other string is refused uncounted. A bearer
+    credential for hours, so it is counted by its digest.
+    """
+    return await consume(
+        surface="embed_generated_media",
+        caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
+        limit=Limit(attempts=EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE),
     )
 
 

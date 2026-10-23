@@ -232,7 +232,7 @@ license = "MIT"
 source = "https://github.com/CopilotKit/OpenIntelligentUI"
 status = "accepted"
 obligations = "Keep the copyright notice and the permission notice with the copies or substantial portions of the software."
-fulfilled_by = "The pin-drop timing of createTripAnimator is adapted in backend/app/core/catalog/artifact_lib/agenticos-map-1.js, whose header carries the MIT notice with the copyright line; the visual-design skill's guidance on choosing the form of an answer, follow-ups and itineraries borrows from its playbook and skills. backend/app/core/catalog/artifact_lib/README.md and NOTICE name it (#2302)."
+fulfilled_by = "The pin-drop timing of createTripAnimator is adapted in backend/app/core/catalog/artifact_lib/agenticos-map-1.js and agenticos-map-2.js, whose headers carry the MIT notice with the copyright line; the visual-design skill's guidance on choosing the form of an answer, follow-ups and itineraries borrows from its playbook and skills. backend/app/core/catalog/artifact_lib/README.md and NOTICE name it (#2302)."
 
 # Images a deployment runs beside the two published ones. These are pulled by the
 # operator's compose file and are not redistributed by this project, so what the

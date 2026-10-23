@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
@@ -9,6 +10,9 @@ import { templateIcon } from "@/lib/trigger-template-icons";
 import { cn } from "@/lib/utils";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 import type { EventSource, TriggerType } from "@/types/triggers";
+
+/** Templates in sight before Show more - three, beside Start from scratch. */
+const SHOWN_TEMPLATES = 3;
 
 interface TriggerTemplatePickerProps {
   /** Which flow's cards to offer - a template never crosses modes. */
@@ -32,8 +36,11 @@ interface TriggerTemplatePickerProps {
  * sits in: every schedule template on the New-schedule flow, one source's event
  * templates on that source's message step - a prompt written for a GitHub issue
  * makes no sense against an inbound email. "Start from scratch" stays for the
- * case a template does not cover. Nothing is shown while the catalog loads or
- * when nothing fits - the flow then just opens on the blank form it always had.
+ * case a template does not cover, first, so writing your own is never below the
+ * fold; three templates follow and the rest wait behind Show more - a page of
+ * cards pushed the message itself out of sight. Nothing is shown while the
+ * catalog loads or when nothing fits - the flow then just opens on the blank
+ * form it always had.
  */
 export function TriggerTemplatePicker({
   triggerType,
@@ -44,6 +51,7 @@ export function TriggerTemplatePicker({
 }: TriggerTemplatePickerProps) {
   const t = useTranslations("triggers");
   const { templates, isLoading } = useTriggerTemplates();
+  const [expanded, setExpanded] = useState(false);
 
   const offered = templates.filter((template) =>
     triggerType === "schedule"
@@ -52,12 +60,34 @@ export function TriggerTemplatePicker({
   );
 
   if (isLoading || offered.length === 0) return null;
+  // A picked template stays in sight, wherever it sits in the catalog - so
+  // there is nothing to fold away while it is picked.
+  const pickedBelow =
+    offered.findIndex((template) => template.key === selectedKey) >= SHOWN_TEMPLATES;
+  const showAll = expanded || pickedBelow;
+  const shown = showAll ? offered : offered.slice(0, SHOWN_TEMPLATES);
 
   return (
     <div className="space-y-1.5">
       <Label>{t("templatesLabel")}</Label>
       <div className="grid gap-2 sm:grid-cols-2">
-        {offered.map((template) => {
+        <button
+          type="button"
+          onClick={onScratch}
+          aria-pressed={selectedKey === null}
+          className={cn(
+            "rounded-md border p-2.5 text-left transition-colors",
+            selectedKey === null
+              ? "border-foreground/30 bg-accent"
+              : "border-input hover:border-foreground/30",
+          )}
+        >
+          <p className="text-sm font-medium">{t("templateScratch")}</p>
+          <p className="text-muted-foreground text-xs">
+            {triggerType === "schedule" ? t("templateScratchHelp") : t("templateScratchHelpEvent")}
+          </p>
+        </button>
+        {shown.map((template) => {
           const active = template.key === selectedKey;
           const Glyph = templateIcon(template.key);
           return (
@@ -90,23 +120,18 @@ export function TriggerTemplatePicker({
             </button>
           );
         })}
+      </div>
+      {offered.length > SHOWN_TEMPLATES && !pickedBelow && (
         <button
           type="button"
-          onClick={onScratch}
-          aria-pressed={selectedKey === null}
-          className={cn(
-            "rounded-md border p-2.5 text-left transition-colors",
-            selectedKey === null
-              ? "border-foreground/30 bg-accent"
-              : "border-input hover:border-foreground/30",
-          )}
+          onClick={() => setExpanded(!expanded)}
+          className="text-muted-foreground hover:text-foreground text-sm font-medium"
         >
-          <p className="text-sm font-medium">{t("templateScratch")}</p>
-          <p className="text-muted-foreground text-xs">
-            {triggerType === "schedule" ? t("templateScratchHelp") : t("templateScratchHelpEvent")}
-          </p>
+          {expanded
+            ? t("templatesFewer")
+            : t("templatesMore", { count: offered.length - SHOWN_TEMPLATES })}
         </button>
-      </div>
+      )}
     </div>
   );
 }

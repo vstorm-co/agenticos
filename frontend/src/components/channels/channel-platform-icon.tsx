@@ -8,6 +8,7 @@ const MARKS = {
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
+  teams: brandMark("microsoftteams"),
 } as const;
 
 /**

@@ -57,7 +57,7 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
 | `VISUAL_RENDER_CDP_URL` | `""` (empty) | The browser a [visual](reference/capabilities.md#visuals) is drawn to a picture with where no frame can run it - a reply in Slack, Telegram or Mattermost, and the dashboard thumbnail of a page. The compose `browser` service is `http://browser:9222`; its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there: every request it makes is answered by the deployment or refused. Empty sends a chat app the answer without the picture |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose sets `http://browser-egress:3128` | The proxy the deployment's own browser reaches every site through. The compose `browser-egress` service is `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): it resolves each host itself, refuses private, loopback, link-local and metadata addresses and connects to the address it checked, so neither a redirect nor DNS rebinding takes a page inside the network. Used by every browse without an organization proxy and not on a hosted browser. An internal tool an agent should browse needs an exception in `docker/browser-egress/squid.conf`. Empty sends the browser straight out: set `BROWSER_EGRESS_PROXY=` in the root `.env` only for a browser outside compose that cannot reach the proxy. Without a proxy each site is checked on its first request in a tab and the browser resolves its name itself afterwards, so a name that rebinds to a private address later in the same tab is not caught |
-| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts that an MCP connection's URL can name although they resolve to a private or loopback address, for example a compose service: `["postgres-mcp"]`. The match is exact and ignores case. A listed host skips only the address check: the URL still needs `http` or `https`, and OAuth sign-in to it is still refused. Every account on the deployment can reach every port on a listed host, so list only a server that checks a token. A cloud metadata, link-local or loopback entry, such as `169.254.169.254` or `localhost`, is refused at startup. Empty refuses every internal address. See [a connection](mcp.md#a-connection) |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts that an MCP connection's URL can name although they resolve to a private or loopback address, for example a compose service: `["postgres-mcp"]`. The match is exact and ignores case. A listed host skips only the address check: the URL still needs `http` or `https`. People can sign in to a listed server with OAuth: its discovery, registration and token requests may reach the listed hosts, pinned, and a public server's sign-in reaches none. Every account on the deployment can reach every port on a listed host, so list only a server that checks a token. A cloud metadata, link-local or loopback entry, such as `169.254.169.254` or `localhost`, is refused at startup. Empty refuses every internal address. See [a connection](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
@@ -496,7 +496,8 @@ it deliberately leaves alone.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+| `RUN_HEARTBEAT_SECONDS` | `15` | How often the process executing a run stamps it alive while its model works |
+| `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | How long a `running` run may go without a sign of life before the per-minute sweep decides its process died and ends it as `failed`. At least three `RUN_HEARTBEAT_SECONDS`, which startup checks; zero or below switches the sweep off |
 
 A run's row is committed before its model is called, so a worker killed mid-run
 leaves it `running` with nothing left to finish it. The ceiling does not have to
@@ -700,6 +701,22 @@ A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
 `kms:Decrypt` and `kms:GenerateDataKey` on the key when the mode is `sse-kms`.
 For a local MinIO, `make docker-minio` starts one on `:9000` with
 `minioadmin` / `minioadmin`.
+
+### Generated media
+
+Images, speech and video agents generate are kept in the same store, under
+`generated_<org>/`, and each is recorded against its organization and the
+conversation it was made in. What an organization keeps is bounded twice. See
+[Data protection](data-protection.md#generated-media) for what is deleted when.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Generated media one organization may keep, in MiB. Every file counts, including one made with no conversation - a preview or a test run, a channel `/btw` aside, an API run that names no conversation; the sweep deletes those after 7 days. Checked before each paid generation call: past it, the tool answers that the organization has used its storage and spends nothing. An admitted call holds an estimate of its file against the quota until the file is stored - 16 MiB for an image, 8 KiB per character of speech, 2 MiB per second of video - so a call whose estimate would carry the organization past it is refused, and concurrent runs or parallel calls in one response cannot all pass on the same figure. A file larger than its estimate counts at its real size. `0` is no quota |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Age at which the daily `sweep-generated-media` job deletes a generated file and its record, whether or not its conversation is still there. `0` keeps them until their conversation or organization is deleted. A file with no conversation goes after 7 days either way |
+
+A file is served by streaming only the byte range a player asks for, from disk
+or by a ranged `GetObject`, so a long clip is never held whole in the API or the
+console's server.
 
 ### S3/MinIO sync
 
@@ -929,7 +946,8 @@ the "who is holding a copy of that CSV" question the per-workspace page cannot
 answer.
 
 **Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
-An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
+An image is a picture, a PDF is the browser's own PDF view, audio and video play in
+the browser's own player, markdown offers *Preview*
 and *Source* — both are the file, and a `#` that silently became large type is how
 somebody fails to notice their agent is writing markdown into something nothing reads
 as markdown — and anything else is its text. Download is always there, including for
@@ -944,9 +962,11 @@ conversation route is reached by fetching the conversation, so somebody a chat w
 *shared with* keeps access — and one module deciding what may be displayed, so the
 answer cannot differ by surface.
 
-Almost everything is served as an attachment. **Raster images and PDFs** are served
-for display: a raster because it cannot execute, a PDF because the browser renders it
-in its own viewer, which never gets the page's DOM.
+Almost everything is served as an attachment. **Raster images, PDFs, audio and video**
+(MP3, WAV, Ogg, Opus, M4A, MP4, WebM) are served for display: a raster because it
+cannot execute, a PDF because the browser renders it in its own viewer, which never
+gets the page's DOM, and audio and video because the browser hands them to its media
+pipeline, which plays them and runs nothing in the page.
 
 !!! danger "SVG and HTML are downloadable and never displayable"
 

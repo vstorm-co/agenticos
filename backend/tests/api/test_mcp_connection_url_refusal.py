@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.agents import mcp_oauth
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
@@ -121,46 +122,74 @@ class TestTheRefusalReachesTheOperator:
         assert message != "An unexpected error occurred"
 
 
-class TestOAuthIgnoresTheAllowlist:
-    """`MCP_ALLOWED_HOSTS` exempts a connection's own address when it is saved,
-    and nothing on the way into OAuth.
+class TestOAuthHonoursTheAllowlist:
+    """A connection's own address on `MCP_ALLOWED_HOSTS` passes the sign-in
+    probe and the OAuth start as it passes a save, and goes on to discovery,
+    which reaches the listed hosts for that flow. An unlisted private address
+    is still refused by field before discovery runs.
 
-    Both routes below run `mcp_oauth.discover` next, which never honours the
-    list. A listed URL let through here would be refused hop by hop instead,
-    with the full URL in `_send`'s warning line. So they keep the strict
-    refusal, named by field. A discovery `OAuthError` is a 400 too, but it names
-    no field, so the field is what tells the two apart.
+    `discover` is replaced here: what it reaches is `tests/test_mcp_allowed_hosts.py`'s.
     """
 
-    async def test_starting_oauth_against_a_listed_host_is_still_refused_by_field(
+    _LISTED_URL = "http://10.0.0.5:3000/mcp"
+
+    @staticmethod
+    def _discovering(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        """Record every URL discovery is asked about, and find no sign-in at any."""
+        asked: list[str] = []
+
+        async def discover(url: str) -> mcp_oauth.DiscoveredServer:
+            asked.append(url)
+            raise mcp_oauth.OAuthError("This server did not advertise OAuth metadata.")
+
+        monkeypatch.setattr(mcp_oauth, "discover", discover)
+        return asked
+
+    async def test_starting_oauth_against_a_listed_host_reaches_discovery(
         self, client, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["127.0.0.1"])
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.5"])
+        asked = self._discovering(monkeypatch)
 
         async with client() as opened:
             response = await opened.post(
                 f"{settings.API_V1_STR}/me/mcp-connections/oauth/start",
-                json={"name": "internal", "url": _LOOPBACK_URL},
+                json={"name": "internal", "url": self._LISTED_URL},
             )
 
+        assert asked == [self._LISTED_URL]
         assert response.status_code == 400
-        error = response.json()["error"]
-        assert error["code"] == "BAD_REQUEST"
-        fields = (error["details"] or {}).get("fields", [])
-        assert [problem["field"] for problem in fields] == ["url"]
+        assert "did not advertise OAuth metadata" in response.text
 
-    async def test_the_sign_in_probe_of_a_listed_host_is_still_refused_by_field(
+    async def test_the_sign_in_probe_of_a_listed_host_answers(
         self, client, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Let through, this would answer 200 `sign_in: false` rather than a
-        refusal."""
-        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["127.0.0.1"])
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.5"])
+        asked = self._discovering(monkeypatch)
 
         async with client() as opened:
             response = await opened.post(
-                f"{settings.API_V1_STR}/me/mcp-connections/probe", json={"url": _LOOPBACK_URL}
+                f"{settings.API_V1_STR}/me/mcp-connections/probe", json={"url": self._LISTED_URL}
             )
 
+        assert asked == [self._LISTED_URL]
+        assert response.status_code == 200
+        assert response.json() == {"sign_in": False, "registers_clients": False}
+
+    @pytest.mark.parametrize("path", ["/oauth/start", "/probe"])
+    async def test_an_unlisted_private_host_is_refused_by_field_before_discovery(
+        self, client, monkeypatch: pytest.MonkeyPatch, path: str
+    ) -> None:
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.6"])
+        asked = self._discovering(monkeypatch)
+
+        async with client() as opened:
+            response = await opened.post(
+                f"{settings.API_V1_STR}/me/mcp-connections{path}",
+                json={"name": "internal", "url": self._LISTED_URL},
+            )
+
+        assert asked == []
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"

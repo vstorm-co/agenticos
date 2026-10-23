@@ -172,6 +172,28 @@ class TestDnsResolution:
         ):
             validate_webhook_url("https://empty.example.com/hook")
 
+    @pytest.mark.parametrize(
+        "url",
+        ["http://a..b/", "http://.a/", f"http://{'x' * 64}.com/"],
+        ids=["empty label", "leading dot", "label over 63"],
+    )
+    def test_a_host_the_idna_codec_refuses_is_refused_not_500(self, url: str):
+        """An empty or over-long label is a refusal in our words, not the codec's
+        `UnicodeEncodeError` that callers quoting refusals do not catch (#2352).
+
+        The real resolver, unpatched: the codec raises before any DNS query.
+        """
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            validate_webhook_url(url)
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            resolve_pinned_url(url)
+
+    def test_a_trusted_host_the_idna_codec_refuses_is_refused_too(self):
+        """A host on `MCP_ALLOWED_HOSTS` skips the address check, so a listed
+        `a..b` would otherwise be saved and fail every probe after."""
+        with pytest.raises(UrlRefusedError, match=r"^The URL's host name is not valid$"):
+            validate_webhook_url("http://a..b/", trusted_hosts=frozenset({"a..b"}))
+
 
 # validate_webhook_url - edge cases
 
@@ -437,6 +459,63 @@ class TestResolvePinnedUrl:
     def test_a_scheme_outside_the_allowed_set_is_refused(self):
         with pytest.raises(SSRFBlockedError):
             resolve_pinned_url("ftp://93.184.216.34/x")
+
+
+class TestResolvePinnedUrlForATrustedHost:
+    """The exemption the MCP OAuth flow passes for a listed host: still resolved
+    and pinned, a private answer allowed, what the list may never name refused."""
+
+    _TRUSTED = frozenset({"mcp.internal"})
+
+    @staticmethod
+    def _answering(*ips: str):
+        return patch(
+            "app.core.sanitize.socket.getaddrinfo",
+            return_value=[(10 if ":" in ip else 2, 1, 6, "", (ip, 443)) for ip in ips],
+        )
+
+    @pytest.mark.parametrize("ip", ["10.0.0.9", "172.20.0.4", "192.168.1.23", "100.72.29.28"])
+    def test_a_private_or_cgnat_answer_is_pinned(self, ip: str):
+        with self._answering(ip):
+            pinned = resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+        assert pinned == PinnedAddress(hostname="mcp.internal", port=443, ips=(ip,))
+
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "127.0.0.1",
+            "::1",
+            "169.254.169.254",
+            "100.100.100.200",
+            "fd00:ec2::254",
+            "::ffff:169.254.169.254",
+            "0.0.0.0",
+            "224.0.0.1",
+        ],
+    )
+    def test_an_answer_the_list_could_never_name_is_refused(self, ip: str):
+        with self._answering("10.0.0.9", ip), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+    def test_an_answer_that_is_not_an_address_is_refused(self):
+        """Fail closed, as `_is_ip_blocked` does: trust never extends to an
+        answer nobody can classify."""
+        with self._answering("not-an-ip"), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://mcp.internal/token", trusted_hosts=self._TRUSTED)
+
+    def test_an_ip_literal_is_trusted_as_written(self):
+        assert resolve_pinned_url(
+            "http://10.0.0.5:8000/token", trusted_hosts=frozenset({"10.0.0.5"})
+        ).ips == ("10.0.0.5",)
+
+    def test_a_host_outside_the_set_keeps_the_full_check(self):
+        with self._answering("10.0.0.9"), pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("https://other.internal/token", trusted_hosts=self._TRUSTED)
+
+    def test_the_form_checks_still_run(self):
+        with pytest.raises(SSRFBlockedError, match="credentials"):
+            resolve_pinned_url("https://u:p@mcp.internal/token", trusted_hosts=self._TRUSTED)
 
 
 class TestSSRFBlockedError:

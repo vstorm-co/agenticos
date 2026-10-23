@@ -1,5 +1,5 @@
 ---
-source_sha: "c1a088854770"
+source_sha: "6e9ccd7fcca1"
 ---
 
 # Glossar { #glossary }
@@ -21,12 +21,14 @@ nicht bricht.
 | Test | Der Chat neben dem Builder, der als Entwurf oder als beliebige Version antwortet | `is_test` an seinen Runs |
 | Instruktionen | Was der Agent vor jedem Gespräch gesagt bekommt | `instructions` |
 | Variablen | `{{name}}` in den Instruktionen, beim Start eines Runs ausgefüllt | `variables` |
+| Erste Nachrichten | Was ein leerer Chat jemandem anbietet, der den Agent öffnet, jede mit einem Klick | `starters` |
 | Capability | Etwas, das ein Agent tun darf, im Builder eingeschaltet | `capabilities[]` |
 | Skill | Einmal aufgeschriebenes Know-how, das jeder Agent liest, der es braucht | `skill` |
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
 | Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
+| AgenticOS | Der Allzweck-Agent, mit dem eine neue Organisation im Chat beginnt, und das, womit ein neuer Agent startet | `general/agenticos` |
 
 ## Wo es läuft { #where-it-runs }
 
@@ -73,6 +75,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Lange Gespräche | `compaction` |
 | Kontext | `context` |
 | Frühere Gespräche | `conversation_search` |
+| Nächste Schritte | `follow_ups` |
 | Schutzregeln | `guardrails` |
 | Bilderzeugung | `image_generation` |
 | Wissenssuche | `knowledge` |
@@ -85,9 +88,11 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Skills | `skills` |
 | Subagents | `subagents` |
 | Erinnerung an Anweisungen | `system_reminders` |
+| Sprachausgabe | `text_to_speech` |
 | Nachdenken | `thinking` |
 | Grenzen für Tool-Ergebnisse | `tool_output_limits` |
 | Tool-Suche | `tool_search` |
+| Videoerzeugung | `video_generation` |
 | Visuals | `visuals` |
 | Webseiten lesen | `web_fetch` |
 | Websuche | `web_research` |
