@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui";
 import type { Period } from "@/lib/dashboard/period";
-import { Perm, type Permission } from "@/types/permissions";
 import type { AgentAttention } from "@/types/stats";
 import { NeedsAttentionWidget } from "./needs-attention";
 
@@ -13,8 +12,6 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   error: null as Error | null,
   refetch: vi.fn(),
-  editable: [] as { id: string; can_edit: boolean }[],
-  granted: new Set<string>(),
   asked: [] as unknown[],
 }));
 vi.mock("@/hooks", () => ({
@@ -22,8 +19,6 @@ vi.mock("@/hooks", () => ({
     state.asked.push(args);
     return state;
   },
-  useAgents: ({ enabled }: { enabled: boolean }) => ({ agents: enabled ? state.editable : [] }),
-  usePermissions: () => ({ can: (perm: Permission) => state.granted.has(perm) }),
 }));
 const pointAt = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock("@/lib/assistant-highlight", () => ({ pointAt }));
@@ -45,6 +40,7 @@ function item(overrides: Partial<AgentAttention>): AgentAttention {
     rated_down: 0,
     failed_runs: 0,
     failing_suites: 0,
+    can_edit: false,
     ...overrides,
   };
 }
@@ -54,8 +50,6 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.refetch = vi.fn();
-  state.editable = [];
-  state.granted = new Set([Perm.agentsEdit]);
   state.asked = [];
   pointAt.mockClear();
 });
@@ -63,12 +57,8 @@ beforeEach(() => {
 describe("NeedsAttentionWidget", () => {
   it("lists each agent with what it counts, and Improve on those the reader may edit", async () => {
     state.agents = [
-      item({ rated_down: 5, failing_suites: 1 }),
+      item({ rated_down: 5, failing_suites: 1, can_edit: true }),
       item({ agent_id: "a2", name: "Clerk", failed_runs: 2 }),
-    ];
-    state.editable = [
-      { id: "a1", can_edit: true },
-      { id: "a2", can_edit: false },
     ];
     widget();
 
@@ -83,8 +73,7 @@ describe("NeedsAttentionWidget", () => {
     expect(pointAt).toHaveBeenCalledWith("agent-assistant-strip");
   });
 
-  it("offers no Improve to a reader who may edit no agent", () => {
-    state.granted = new Set();
+  it("offers no Improve on an agent the reader may not edit", () => {
     state.agents = [item({ rated_down: 1 })];
     widget();
 

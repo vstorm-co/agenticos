@@ -6,10 +6,9 @@ import { useTranslations } from "next-intl";
 
 import { ImproveLink } from "@/components/agents/improve-link";
 import { Button } from "@/components/ui";
-import { useAgentAttention, useAgents, usePermissions } from "@/hooks";
+import { useAgentAttention } from "@/hooks";
 import { attentionParts } from "@/lib/attention";
 import { ROUTES } from "@/lib/constants";
-import { Perm } from "@/types/permissions";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -25,14 +24,10 @@ const SHOWN = 5;
 export function NeedsAttentionWidget({ title, hint, period, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.needs-attention");
   const tParts = useTranslations("attention");
-  const { can } = usePermissions();
   const { agents, isLoading, error, refetch } = useAgentAttention({
     from: period.from,
     to: period.to,
   });
-  // Improve changes the agent, so it is offered only on the agents the reader may edit.
-  const { agents: listed } = useAgents({ enabled: can(Perm.agentsEdit) });
-  const editable = new Set(listed.filter((agent) => agent.can_edit).map((agent) => agent.id));
 
   return (
     <WidgetFrame title={title} hint={hint} options={options}>
@@ -61,7 +56,7 @@ export function NeedsAttentionWidget({ title, hint, period, options }: Dashboard
                   {attentionParts(item, tParts).join(" · ")}
                 </span>
               </span>
-              {editable.has(item.agent_id) && (
+              {item.can_edit && (
                 <Button asChild size="sm" variant="outline" className="shrink-0">
                   <ImproveLink agentId={item.agent_id}>{t("improve")}</ImproveLink>
                 </Button>

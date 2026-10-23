@@ -350,6 +350,7 @@ describe("useAgentAttention", () => {
       rated_down: 5,
       failed_runs: 0,
       failing_suites: 1,
+      can_edit: true,
     };
     vi.mocked(apiClient.get).mockResolvedValue({ from: PERIOD.from, to: PERIOD.to, items: [item] });
     const { result } = renderHook(() => useAgentAttention(PERIOD), { wrapper });

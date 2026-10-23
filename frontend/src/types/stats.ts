@@ -190,6 +190,8 @@ export interface AgentAttention {
   rated_down: number;
   failed_runs: number;
   failing_suites: number;
+  /** Whether the reader may edit the agent, a grant included - where Improve is offered. */
+  can_edit: boolean;
 }
 
 export interface AgentAttentionList {

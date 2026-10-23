@@ -108,6 +108,7 @@ describe("AgentCard", () => {
           rated_down: 5,
           failed_runs: 0,
           failing_suites: 1,
+          can_edit: false,
         }}
       />,
     );

@@ -115,7 +115,14 @@ const attention = { items: [] as unknown[] };
 describe("the agents gallery's attention badge", () => {
   it("flags an agent with answers rated down lately, and no other", async () => {
     attention.items = [
-      { agent_id: "Live-id", name: "Live", rated_down: 2, failed_runs: 0, failing_suites: 0 },
+      {
+        agent_id: "Live-id",
+        name: "Live",
+        rated_down: 2,
+        failed_runs: 0,
+        failing_suites: 0,
+        can_edit: false,
+      },
     ];
     render(<AgentsPage />, { wrapper });
 

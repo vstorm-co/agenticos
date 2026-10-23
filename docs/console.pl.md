@@ -1,5 +1,5 @@
 ---
-source_sha: "e42fc92e8c49"
+source_sha: "f58feaeb60b1"
 ---
 
 # Konsola { #the-console }
@@ -29,7 +29,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; agenci wymagający uwagi; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |

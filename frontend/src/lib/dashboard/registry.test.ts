@@ -80,7 +80,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all fifty widgets", () => {
+  it("holds all fifty-one widgets", () => {
     expect(WIDGET_IDS).toHaveLength(51);
   });
 
