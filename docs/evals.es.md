@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "0e17c19c4a53"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -434,7 +434,9 @@ Una suite que **guarda un entorno** también se ejecuta antes de una promoción 
 y la promoción espera a que pase; véase
 [Guardar una promoción con evals](environments.md#guarding-a-promotion-with-evals).
 Sus resultados se leen *Antes de la promoción* (`gate`). Una suite que guarda un
-entorno no se puede borrar hasta quitarla de allí.
+entorno queda fijada a la versión del dataset y al scoring que tenía cuando se
+convirtió en guardiana, así que editar el dataset no cambia lo que comprueba
+hasta que se mueve la fijación. No se puede borrar hasta quitarla de allí.
 
 ### Qué debe cumplir un resultado { #what-a-result-must-meet }
 

@@ -58,18 +58,27 @@ when the result fails. On its own it reports; an environment that names it as a
 
 An environment can name the [eval suites](evals.md#suites) that **guard** it.
 It then takes a version only once each guard has passed on that exact version,
-over the dataset version the suite reads now and under the threshold it holds
-now - a pass from before cases were added, or before the bar was raised, does
-not count. A promotion that does not meet that is refused (`409`,
+over the dataset version and the scoring the guard is pinned to, and under the
+threshold it holds now - a pass from before the pin moved, or before the bar was
+raised, does not count. A promotion that does not meet that is refused (`409`,
 `PROMOTION_BLOCKED`), and the refusal names each guard and where it stands:
 failed, inconclusive, did not run and why, still checking, out of date, not
 checked, or paused.
 
 A pass counts for the environment it was run beside: measured against the
-version that environment serves now, and graded under the scoring its dataset
-holds now - one beside staging's version says nothing about replacing
-production's. A paused guard holds the version back whatever it found before the
-pause.
+version that environment serves now, and graded under the scoring of its pin -
+one beside staging's version says nothing about replacing production's. A
+paused guard holds the version back whatever it found before the pause.
+
+A suite that guards an environment is **pinned** to the dataset version and the
+scoring it had when it became a guard. Editing the dataset - its cases, its
+grading, its judge - stays open to anybody who may edit it, and does not change
+what the guard checks. The suite's panel says when the dataset has moved on, and
+**Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) moves the
+guard onto the latest version and scoring; it needs `promotions:override` and is
+recorded as a change to the guards. A suite that stops guarding reads the latest
+again. The judge agent's own version is not part of the pin: a republished
+judge grades the guard's next run.
 
 The promotion dialog shows the same, and runs the guards that have not passed
 on the version, each beside the version the environment serves now
@@ -86,9 +95,12 @@ made it and each guard's result go to the audit log and onto the version in
 the history, and each failing guard's owner is told.
 
 Changing which suites guard an environment needs the same permission, since
-taking a guard off lets through what it would have stopped, and so does changing
-what a guarding suite checks - its threshold, dataset, environment or that environment's test connections. A suite
-that guards, or a dataset one checks, cannot be deleted until it is taken off.
+taking a guard off lets through what it would have stopped, and so does
+weakening what a guarding suite checks: a lower or removed bar in its threshold,
+another dataset, another environment, or that environment's test connections. A
+stricter threshold needs no override; it is recorded all the same, and a pass
+under the old bar no longer counts. A suite that guards, or a dataset one
+checks, cannot be deleted until it is taken off.
 
 A guarded environment with **tracks latest** on does not follow a publish at
 once: the publish runs its guards on the new version, and the environment moves

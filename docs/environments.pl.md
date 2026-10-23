@@ -1,5 +1,5 @@
 ---
-source_sha: "e9419e47f507"
+source_sha: "0b4fb68b46a1"
 ---
 
 # Środowiska { #environments }
@@ -64,18 +64,28 @@ przejdzie.
 
 Środowisko może wskazać [suity evali](evals.md#suites), które go **strzegą**.
 Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na dokładnie tej
-wersji, na wersji datasetu, którą suita czyta teraz, i przy progu, który ma
-teraz - zaliczenie sprzed dodania case'ów albo sprzed podniesienia progu się nie
-liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
+wersji, na wersji datasetu i przy scoringu, do których strażnik jest przypięty,
+oraz przy progu, który ma teraz - zaliczenie sprzed przesunięcia przypięcia albo
+sprzed podniesienia progu się nie liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
 `PROMOTION_BLOCKED`), a odmowa wymienia każdego strażnika i jego stan: nie
 przeszedł, bez rozstrzygnięcia, nie uruchomił się i dlaczego, jeszcze sprawdza,
 nieaktualny, niesprawdzony albo wstrzymany.
 
 Zaliczenie liczy się dla środowiska, obok którego zostało uruchomione: względem
-wersji, którą to środowisko serwuje teraz, i przy scoringu, który jego dataset
-ma teraz - zaliczenie obok wersji stagingu nic nie mówi o zastąpieniu wersji
-produkcji. Wstrzymany strażnik zatrzymuje wersję niezależnie od tego, co znalazł
-przed wstrzymaniem.
+wersji, którą to środowisko serwuje teraz, i przy scoringu z jego przypięcia -
+zaliczenie obok wersji stagingu nic nie mówi o zastąpieniu wersji produkcji.
+Wstrzymany strażnik zatrzymuje wersję niezależnie od tego, co znalazł przed
+wstrzymaniem.
+
+Suita, która strzeże środowiska, jest **przypięta** do wersji datasetu i
+scoringu, które miała, gdy została strażnikiem. Edycja datasetu - jego case'ów,
+oceniania, sędziego - zostaje otwarta dla każdego, kto może go edytować, i nie
+zmienia tego, co sprawdza strażnik. Panel suity mówi, kiedy dataset poszedł
+dalej, a **Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`)
+przesuwa strażnika na najnowszą wersję i scoring; wymaga `promotions:override`
+i jest zapisywane jako zmiana strażników. Suita, która przestaje strzec, znów
+czyta najnowszą wersję. Wersja samego agenta-sędziego nie jest częścią
+przypięcia: ponownie opublikowany sędzia oceni następny run strażnika.
 
 Dialog promocji pokazuje to samo i uruchamia strażników, którzy nie przeszli na
 tej wersji, każdego obok wersji, którą środowisko serwuje teraz
@@ -92,9 +102,12 @@ do audit logu i na wersję w historii, a właściciel każdego strażnika, któr
 przeszedł, dostaje wiadomość.
 
 Zmiana listy strażników wymaga tego samego uprawnienia, bo zdjęcie strażnika
-przepuszcza to, co by zatrzymał, i tak samo zmiana tego, co strażnik sprawdza -
-jego progu, datasetu, środowiska albo połączeń testowych tego środowiska. Suity, która strzeże, ani datasetu, który
-taka suita sprawdza, nie da się usunąć, dopóki nie zostanie zdjęta.
+przepuszcza to, co by zatrzymał, i tak samo osłabienie tego, co strażnik
+sprawdza: niższy albo usunięty próg, inny dataset, inne środowisko albo połączenia
+testowe tego środowiska. Ostrzejszy próg nie wymaga pominięcia; jest zapisywany
+tak samo, a zaliczenie przy starym progu przestaje się liczyć. Suity, która
+strzeże, ani datasetu, który taka suita sprawdza, nie da się usunąć, dopóki nie
+zostanie zdjęta.
 
 Strzeżone środowisko z włączonym **tracks latest** nie podąża za publikacją od
 razu: publikacja uruchamia jego strażników na nowej wersji, a środowisko

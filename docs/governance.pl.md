@@ -1,5 +1,5 @@
 ---
-source_sha: "439b3dadeb52"
+source_sha: "673705e1369e"
 ---
 
 # Governance { #governance }
@@ -1651,8 +1651,14 @@ administratora, który się pod nią podszywa, oraz powodu o długości co najmn
 dziesięciu znaków. Trafia do [audit logu](#audit) jako
 `agent.environment_promotion_overridden`, z powodem i wynikiem każdego
 strażnika, widać je na wersji w historii, a właściciel każdego strażnika, który
-nie przeszedł, dostaje wiadomość. Zmiana listy strażników środowiska wymaga tego
-samego uprawnienia i jest zapisywana jako `agent.environment_guards_changed`.
+nie przeszedł, dostaje wiadomość.
+
+Zmiana listy strażników środowiska, przesunięcie przypięcia strażnika albo
+osłabienie tego, co sprawdza strażnik, wymaga tego samego uprawnienia; każda z
+tych zmian, a także ostrzejszy próg, jest zapisywana jako
+`agent.environment_guards_changed`. Zmiana oceniania datasetu jest zapisywana
+jako `dataset.scoring_changed`, z nazwami zmienionych części zamiast ich
+treści, a utworzenie sędziego datasetu jako `dataset.judge_created`.
 
 ## Audyt { #audit }
 

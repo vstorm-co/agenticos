@@ -1,5 +1,5 @@
 ---
-source_sha: "e9419e47f507"
+source_sha: "0b4fb68b46a1"
 ---
 
 # Entornos { #environments }
@@ -65,18 +65,30 @@ solo informa; un entorno que la nombra como
 
 Un entorno puede nombrar las [suites de evals](evals.md#suites) que lo
 **guardan**. Entonces acepta una versión solo cuando cada guardiana ha pasado en
-esa misma versión, sobre la versión del dataset que la suite lee ahora y con el
-umbral que tiene ahora: un aprobado de antes de añadir casos, o de antes de subir
-el listón, no cuenta. Una promoción que no lo cumple se rechaza (`409`,
+esa misma versión, sobre la versión del dataset y el scoring a los que la
+guardiana está fijada, y con el umbral que tiene ahora: un aprobado de antes de
+mover la fijación, o de antes de subir el listón, no cuenta. Una promoción que no lo cumple se rechaza (`409`,
 `PROMOTION_BLOCKED`), y el rechazo nombra cada guardiana y en qué estado está:
 no pasó, sin conclusión, no se ejecutó y por qué, comprobando todavía,
 desactualizada, sin comprobar o en pausa.
 
 Un aprobado cuenta para el entorno al lado del que se ejecutó: frente a la
-versión que ese entorno sirve ahora, y puntuado con el scoring que su dataset
-tiene ahora; uno al lado de la versión de staging no dice nada sobre sustituir
-la de producción. Una guardiana en pausa detiene la versión sea lo que sea que
+versión que ese entorno sirve ahora, y puntuado con el scoring de su fijación;
+uno al lado de la versión de staging no dice nada sobre sustituir la de
+producción. Una guardiana en pausa detiene la versión sea lo que sea que
 encontrara antes de la pausa.
+
+Una suite que guarda un entorno queda **fijada** a la versión del dataset y al
+scoring que tenía cuando se convirtió en guardiana. Editar el dataset - sus
+casos, su puntuación, su juez - sigue abierto a quien pueda editarlo, y no
+cambia lo que comprueba la guardiana.
+
+El panel de la suite dice cuándo el dataset ha avanzado, y **Move the pin**
+(`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) lleva la guardiana a la
+última versión y al scoring actual; necesita `promotions:override` y se registra
+como un cambio de las guardianas. Una suite que deja de guardar vuelve a leer la
+última versión. La versión del propio agente juez no forma parte de la fijación:
+un juez publicado de nuevo puntúa la siguiente ejecución de la guardiana.
 
 El diálogo de promoción muestra lo mismo y ejecuta las guardianas que no han
 pasado en la versión, cada una al lado de la versión que el entorno sirve ahora
@@ -93,9 +105,12 @@ de cada guardiana quedan en el registro de auditoría y en la versión del
 historial, y se avisa al propietario de cada guardiana que no pasó.
 
 Cambiar qué suites guardan un entorno necesita el mismo permiso, porque quitar
-una guardiana deja pasar lo que habría detenido, y también cambiar lo que
-comprueba una guardiana: su umbral, su dataset, su entorno o las conexiones de prueba de ese entorno. Una suite que
-guarda, o un dataset que una comprueba, no se puede borrar hasta quitarla.
+una guardiana deja pasar lo que habría detenido, y también debilitar lo que
+comprueba una guardiana: un umbral más bajo o quitado, otro dataset, otro entorno
+o las conexiones de prueba de ese entorno. Un umbral más estricto no necesita
+excepción; se registra igual, y un aprobado con el umbral anterior deja de
+contar. Una suite que guarda, o un dataset que una comprueba, no se puede borrar
+hasta quitarla.
 
 Un entorno guardado con **tracks latest** no sigue una publicación enseguida:
 la publicación ejecuta sus guardianas en la nueva versión, y el entorno avanza

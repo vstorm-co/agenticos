@@ -1,5 +1,5 @@
 ---
-source_sha: "439b3dadeb52"
+source_sha: "673705e1369e"
 ---
 
 # Governance { #governance }
@@ -1631,8 +1631,13 @@ motivo de al menos diez caracteres. Se registra en la
 y el resultado de cada guardiana, se muestra en la versión del historial y se
 envía al propietario de cada guardiana que no pasó.
 
-Cambiar qué suites guardan un entorno necesita el mismo permiso y se registra
-como `agent.environment_guards_changed`.
+Cambiar qué suites guardan un entorno, mover la fijación de una guardiana o
+debilitar lo que comprueba una guardiana necesita el mismo permiso; cada uno de
+estos cambios, y un umbral más estricto, se registra como
+`agent.environment_guards_changed`. Un cambio en la puntuación de un dataset se
+registra como `dataset.scoring_changed`, con los nombres de las partes que
+cambiaron en lugar de su contenido, y la creación de su juez como
+`dataset.judge_created`.
 
 ## Auditoría { #audit }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "0e17c19c4a53"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -456,7 +456,10 @@ darauf - auf der Version, die promotet werden soll, neben der, die die Umgebung
 ausliefert -, und die Promotion wartet, bis sie besteht; siehe
 [Eine Promotion mit Evals bewachen](environments.md#guarding-a-promotion-with-evals).
 Ihre Ergebnisse heißen *Vor der Promotion* (`gate`). Eine Suite, die eine
-Umgebung bewacht, lässt sich erst löschen, wenn sie dort abgenommen ist.
+Umgebung bewacht, ist auf die Dataset-Version und das Scoring festgelegt, die sie
+hatte, als sie Wächter wurde; das Dataset zu bearbeiten ändert also nicht, was
+sie prüft, bis die Festlegung verschoben wird. Sie lässt sich erst löschen, wenn
+sie dort abgenommen ist.
 
 ### Was ein Ergebnis erfüllen muss { #what-a-result-must-meet }
 
