@@ -9113,6 +9113,7 @@
       "pinMoved": "Der Wächter prüft das Dataset jetzt so, wie es ist",
       "pin": {
         "badge": "Festgelegt auf v{version}",
+        "pinned": "Festgelegt auf Dataset v{pinned}.",
         "current": "Wacht auf Dataset v{pinned}, wie es jetzt ist.",
         "behind": "Festgelegt auf Dataset v{pinned}. Das Dataset ist jetzt bei v{latest}.",
         "scoringChanged": "Seine Bewertung hat sich seitdem geändert.",

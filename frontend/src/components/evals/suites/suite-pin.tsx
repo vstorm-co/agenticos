@@ -8,9 +8,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import type { EvalSuite, EvalSuitePin } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
 
-/** Whether the dataset moved on since the guard was pinned to it. */
+/** Whether the dataset moved on since the guard was pinned to it - unknown to a reader who cannot see it. */
 function behind(pin: EvalSuitePin): boolean {
-  return pin.dataset_version !== pin.latest_dataset_version || !pin.scoring_current;
+  if (pin.latest_dataset_version === null) return false;
+  return pin.dataset_version !== pin.latest_dataset_version || pin.scoring_current === false;
 }
 
 /** A guard's pin, short, for its row: amber once the dataset has moved on. */
@@ -39,6 +40,11 @@ export function SuitePin({ suite }: { suite: EvalSuite }) {
   if (pin === null) return null;
   const allowed = can(Perm.promotionsOverride);
   const latest = pin.latest_dataset_version;
+  if (latest === null) {
+    return (
+      <p className="border-b px-5 py-3 text-xs">{t("pinned", { pinned: pin.dataset_version })}</p>
+    );
+  }
   return (
     <div className="space-y-1.5 border-b px-5 py-3 text-xs">
       <p>
@@ -46,7 +52,9 @@ export function SuitePin({ suite }: { suite: EvalSuite }) {
           ? t("behind", { pinned: pin.dataset_version, latest })
           : t("current", { pinned: pin.dataset_version })}
       </p>
-      {!pin.scoring_current && <p className="text-muted-foreground">{t("scoringChanged")}</p>}
+      {pin.scoring_current === false && (
+        <p className="text-muted-foreground">{t("scoringChanged")}</p>
+      )}
       {behind(pin) && (
         <div className="flex flex-wrap items-center gap-2">
           <Button

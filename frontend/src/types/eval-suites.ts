@@ -134,9 +134,10 @@ export interface EvalSuite {
 /** The dataset version a guard reads, beside the one its dataset is at now. */
 export interface EvalSuitePin {
   dataset_version: number;
-  latest_dataset_version: number;
-  /** Whether the dataset is graded now as the guard grades it. */
-  scoring_current: boolean;
+  /** Null when the reader cannot see the dataset. */
+  latest_dataset_version: number | null;
+  /** Whether the dataset is graded now as the guard grades it; null when the reader cannot see it. */
+  scoring_current: boolean | null;
 }
 
 export interface EvalSuiteList {

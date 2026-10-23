@@ -266,6 +266,20 @@ describe("SuiteResultsSheet", () => {
     ).toBeInTheDocument();
   });
 
+  it("says only which version a guard is pinned to when the reader cannot see its dataset", async () => {
+    access.allowed = new Set([Perm.promotionsOverride]);
+    await open(
+      [],
+      evalSuite({
+        pin: { dataset_version: 7, latest_dataset_version: null, scoring_current: null },
+      }),
+    );
+
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Pinned to dataset v7.")).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Move the pin/ })).toBeNull();
+  });
+
   it("offers no move when the guard checks the dataset as it is", async () => {
     access.allowed = new Set([Perm.promotionsOverride]);
     await open(
