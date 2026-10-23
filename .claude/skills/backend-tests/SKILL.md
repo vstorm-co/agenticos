@@ -69,9 +69,11 @@ assignment is the shape that works.
 `tests/integration/conftest.py` **creates that database for the session and drops it
 afterwards**, so two concurrent runs need nothing passed to them — `make test` and
 `uv run pytest tests/integration` are safe while another run is going. It skips the
-whole module when no database is reachable, and **refuses any database whose name
-contains neither `test` nor `ci`, or that is not a plain identifier** — it calls
-`drop_all` unconditionally and drops the database itself at the end.
+whole module when no database is reachable (`make test` starts a throwaway Postgres
+on :5433; for a scoped run, `make docker-test-db` and pass
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres`), and **refuses any database whose name
+contains neither `test` nor `ci`, or that is not a plain identifier** — it truncates
+the populated tables between tests and drops the database itself at the end.
 
 ## A test earns its place by failing when the behaviour changes
 

@@ -140,9 +140,15 @@ not a developer's `~/.prefect`. `docs/testing.md` has the whole of it.
 `tests/integration/conftest.py` creates that database at the start of the session and
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and
 nothing has to be passed to make them so**. It still skips when no database is
-reachable (a laptop without Docker) and still refuses any database whose name contains
-neither `test` nor `ci`, or that is not a plain identifier — it empties every table
-unconditionally between tests and drops the database itself afterwards.
+reachable (`TEST_DB=external` with nothing behind it) and still refuses any database whose name contains
+neither `test` nor `ci`, or that is not a plain identifier — it truncates the populated tables
+between tests and drops the database itself afterwards.
+
+`make test` and its siblings run against a throwaway Postgres (`docker-compose.test.yml`,
+`fsync=off`, tmpfs, `localhost:5433`) that they start themselves; `TEST_DB=external`
+uses the database `POSTGRES_*` names instead, and CI (`CI=true`) does. A scoped
+`pytest` run is not wrapped: `make docker-test-db`, then pass
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres`.
 
 A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
 it before creating its own. Anything else named `agenticos_*` on a shared Postgres was
