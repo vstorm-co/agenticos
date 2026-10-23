@@ -53,7 +53,7 @@ from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
 from app.repositories import authoring_repo, eval_suite_repo
-from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
+from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
@@ -1446,33 +1446,51 @@ class TestSkillCheck:
 
 
 @pytest.mark.security
-async def test_what_waits_is_listed_only_for_agents_the_caller_may_edit(db):
+async def test_what_waits_is_listed_only_for_agents_and_skills_the_caller_may_edit(db):
     ctx, agent, _ = await _setup(db)
     await _improve(db, ctx, agent, Improver(db))
-    db.add(
-        SkillProposal(
-            organization_id=ctx.organization_id,
-            name="refunds",
-            description="d",
-            content="c",
-            resources={},
-            authoring_request_id=(
-                await authoring_repo.list_requests(
-                    db, organization_id=ctx.organization_id, agent_id=agent.id
-                )
-            )[0].id,
+    request_id = (
+        await authoring_repo.list_requests(
+            db, organization_id=ctx.organization_id, agent_id=agent.id
         )
+    )[0].id
+    owned = Skill(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name="returns",
+        description="Returns",
+        content="Returns take 30 days.",
     )
+    db.add(owned)
+    await db.flush()
+    for skill_id, name in ((None, "refunds"), (owned.id, "returns")):
+        db.add(
+            SkillProposal(
+                organization_id=ctx.organization_id,
+                skill_id=skill_id,
+                name=name,
+                description="d",
+                content="c",
+                resources={},
+                authoring_request_id=request_id,
+            )
+        )
     await db.flush()
     operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
     service = AuthoringService(db)
 
     mine = await service.waiting(ctx)
     theirs = await service.waiting(operator)
+    a_members = await service.waiting(member)
 
     assert [(row.name, row.instructions, row.tools) for row in mine.agents] == [("Clerk", 1, 1)]
-    assert mine.skills == 1
-    assert theirs.agents == [] and theirs.skills == 0
+    assert mine.skill_files == [FileWaiting(id=owned.id, name="returns", changes=1)]
+    assert mine.skills == 2
+    assert theirs.agents == [] and theirs.skills == 0 and theirs.skill_files == []
+    # A member may edit only their own skills: the new one counts, another's does not.
+    assert (a_members.skills, a_members.skill_files) == (1, [])
 
 
 EVAL_SECRETS = (

@@ -61,7 +61,9 @@ from app.db.models.authoring import (
     SpecProposalBatch,
     SpecProposalHunk,
 )
+from app.db.models.context import ContextFile
 from app.db.models.eval_run import ArmRole, EvalRunPurpose, EvalRunStatus
+from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus
 from app.repositories import (
     agent_repo,
@@ -82,6 +84,7 @@ from app.schemas.authoring import (
     BatchRead,
     DecisionRead,
     EvidenceItemRead,
+    FileWaiting,
     HunkDecision,
     HunkRead,
     ProposalCheck,
@@ -89,7 +92,7 @@ from app.schemas.authoring import (
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.services import authoring_fields, authoring_hunks
-from app.services.access import AGENT, accessible_ids
+from app.services.access import AGENT, CONTEXT, SKILL, OwnedResource, ResourceType, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
@@ -477,18 +480,28 @@ class AuthoringService:
         editable = await accessible_ids(
             self.db, ctx, [agent for agent, _ in rows], Perm.AGENTS_EDIT, resource_type=AGENT
         )
-        skills = (
-            await authoring_repo.count_pending_skill_proposals(
+        skill_files: list[FileWaiting] = []
+        new_skills = 0
+        if ctx.has(Perm.SKILLS_EDIT):
+            skill_files = await self._editable_files(
+                ctx,
+                await authoring_repo.skills_with_pending(
+                    self.db, organization_id=ctx.organization_id
+                ),
+                SKILL,
+            )
+            new_skills = await authoring_repo.count_pending_new_skills(
                 self.db, organization_id=ctx.organization_id
             )
-            if ctx.has(Perm.SKILLS_EDIT)
-            else 0
-        )
-        contexts = (
-            await context_proposal_repo.count_pending(self.db, organization_id=ctx.organization_id)
-            if ctx.has(Perm.CONTEXT_EDIT)
-            else 0
-        )
+        context_files: list[FileWaiting] = []
+        if ctx.has(Perm.CONTEXT_EDIT):
+            context_files = await self._editable_files(
+                ctx,
+                await context_proposal_repo.files_with_pending(
+                    self.db, organization_id=ctx.organization_id
+                ),
+                CONTEXT,
+            )
         return AuthoringWaiting(
             agents=[
                 AgentWaiting(
@@ -501,9 +514,28 @@ class AuthoringService:
                 for agent, counts in rows
                 if agent.id in editable
             ],
-            skills=skills,
-            contexts=contexts,
+            skills=sum(file.changes for file in skill_files) + new_skills,
+            contexts=sum(file.changes for file in context_files),
+            skill_files=skill_files,
+            context_files=context_files,
         )
+
+    async def _editable_files(
+        self,
+        ctx: AuthContext,
+        rows: list[tuple[Skill, int]] | list[tuple[ContextFile, int]],
+        resource_type: ResourceType,
+    ) -> list[FileWaiting]:
+        """The rows whose skill or file the caller may edit, as the dashboard lists them."""
+        resources: list[OwnedResource] = [row for row, _ in rows]
+        editable = await accessible_ids(
+            self.db, ctx, resources, resource_type.edit, resource_type=resource_type
+        )
+        return [
+            FileWaiting(id=row.id, name=row.name, changes=changes)
+            for row, changes in rows
+            if row.id in editable
+        ]
 
     async def for_skill(self, ctx: AuthContext, skill_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one skill, for its page."""

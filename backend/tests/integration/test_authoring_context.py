@@ -167,6 +167,7 @@ async def test_improve_leaves_one_proposal_for_the_file_with_checked_evidence(db
     assert [item.context_id for item in listed] == [file.id, file.id]
     waiting = await AuthoringService(db).waiting(ctx)
     assert waiting.contexts == 1
+    assert [(item.id, item.changes) for item in waiting.context_files] == [(file.id, 1)]
 
 
 async def test_apply_writes_the_file_once_and_refuses_a_file_that_moved(db):

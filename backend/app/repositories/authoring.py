@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -22,6 +22,7 @@ from app.db.models.authoring import (
 )
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.message_rating import MessageRating
+from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 
 
@@ -329,16 +330,34 @@ async def agents_with_pending(
     return list(rows.values())
 
 
-async def count_pending_skill_proposals(db: AsyncSession, *, organization_id: UUID) -> int:
-    """Skill changes the assistant proposed that nobody has decided yet."""
+def _assistant_pending(organization_id: UUID) -> list[ColumnElement[bool]]:
+    return [
+        SkillProposal.organization_id == organization_id,
+        SkillProposal.status == ProposalStatus.PENDING.value,
+        SkillProposal.authoring_request_id.is_not(None),
+    ]
+
+
+async def skills_with_pending(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[tuple[Skill, int]]:
+    """Every skill with changes the assistant proposed and nobody decided, and how many."""
+    result = await db.execute(
+        select(Skill, func.count())
+        .join(SkillProposal, SkillProposal.skill_id == Skill.id)
+        .where(*_assistant_pending(organization_id))
+        .group_by(Skill.id)
+        .order_by(Skill.name)
+    )
+    return [(skill, int(count)) for skill, count in result.all()]
+
+
+async def count_pending_new_skills(db: AsyncSession, *, organization_id: UUID) -> int:
+    """Skills the assistant proposed writing from nothing that nobody has decided yet."""
     result = await db.execute(
         select(func.count())
         .select_from(SkillProposal)
-        .where(
-            SkillProposal.organization_id == organization_id,
-            SkillProposal.status == ProposalStatus.PENDING.value,
-            SkillProposal.authoring_request_id.is_not(None),
-        )
+        .where(*_assistant_pending(organization_id), SkillProposal.skill_id.is_(None))
     )
     return int(result.scalar_one())
 
