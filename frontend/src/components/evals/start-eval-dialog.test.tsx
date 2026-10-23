@@ -113,6 +113,7 @@ const REFUNDS = {
   case_count: 20,
   latest_version: 3,
   can_run: true,
+  run_needs: [],
   scoring: SCORING,
   judge_name: "Policy judge",
 };

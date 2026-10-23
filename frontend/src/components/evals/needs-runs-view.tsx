@@ -4,15 +4,6 @@ import { useTranslations } from "next-intl";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { RunNeed } from "@/types/datasets";
-
-/** Which sentence says what is missing, by what is. */
-function reasonKey(needs: RunNeed[]) {
-  if (!needs.includes("datasets:run")) return "needsRunsView" as const;
-  return needs.includes("runs:view")
-    ? ("needsRunsViewAndDatasetRun" as const)
-    : ("needsDatasetRun" as const);
-}
 
 /**
  * A start control the caller may not use for want of `runs:view`, shown disabled
@@ -25,14 +16,10 @@ function reasonKey(needs: RunNeed[]) {
 export function NeedsRunsView({
   children,
   className,
-  needs = ["runs:view"],
   ...props
-}: Omit<ButtonProps, "onClick" | "disabled"> & {
-  /** What the caller lacks: reading runs, running this dataset, or both. */
-  needs?: RunNeed[];
-}) {
+}: Omit<ButtonProps, "onClick" | "disabled">) {
   const t = useTranslations("evals");
-  const reason = t(reasonKey(needs));
+  const reason = t("needsRunsView");
   return (
     <Button
       {...props}

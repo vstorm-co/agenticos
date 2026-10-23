@@ -104,7 +104,7 @@ export interface Dataset {
   /** Whether the caller may run this dataset - start an eval on it, score against it. */
   can_run: boolean;
   /** What the caller lacks to run it, empty when `can_run`: reading runs, this dataset, or both. */
-  run_needs?: RunNeed[];
+  run_needs: RunNeed[];
   /** Generated cases waiting for a decision; 0 for a caller who may not decide. */
   pending_proposals: number;
   /** How this dataset's cases are scored. */

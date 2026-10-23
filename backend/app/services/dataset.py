@@ -364,8 +364,11 @@ class DatasetService:
 
         `judge_id` narrows to the datasets that judge grades: those that picked
         it, and for the seeded default judge those that picked none. `runnable`
-        narrows to those the caller may run that hold a case to run - what an
-        eval or a score needs - so "may I run any" is the `total` of one row.
+        narrows to those the caller holds `datasets:run` on that hold a case to
+        run, so "is there one to run" is the `total` of one row. It does not ask
+        for `runs:view`, which starting an eval also needs: a reader missing only
+        that is shown a disabled start, saying why, and needs to know a dataset
+        is there to be told so - such a row reads `can_run` false.
         `asked_by_run` narrows to those whose newest version holds a case asking
         that run's question - read from the run, so the question itself never
         travels in a URL. A run the caller may not read narrows to nothing.

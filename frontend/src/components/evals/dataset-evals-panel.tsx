@@ -20,8 +20,8 @@ import { StartEvalDialog } from "./start-eval-dialog";
 /**
  * Starting a run from a dataset: the dialog opens on this dataset and asks
  * which agent to test. Offered to who may run this dataset - a run grant on it
- * counts as much as the role - and shown disabled, saying what is missing, to
- * one who lacks that or permission to read runs.
+ * counts as much as the role - and shown disabled, saying why, to one who
+ * lacks only permission to read runs.
  */
 export function DatasetRunEvalsButton({ datasetId }: { datasetId: string }) {
   const t = useTranslations("evals");
@@ -29,9 +29,11 @@ export function DatasetRunEvalsButton({ datasetId }: { datasetId: string }) {
   const [open, setOpen] = useState(false);
   if (dataset === undefined) return null;
   if (!dataset.can_run) {
-    if (!dataset.run_needs?.length) return null;
+    // Disabled with a reason only where reading runs alone is missing: a reader
+    // who may not run the dataset either has nothing to be told about.
+    if (dataset.run_needs.join() !== "runs:view") return null;
     return (
-      <NeedsRunsView size="sm" needs={dataset.run_needs}>
+      <NeedsRunsView size="sm">
         <Play className="h-3.5 w-3.5" aria-hidden />
         {t("start")}
       </NeedsRunsView>

@@ -262,11 +262,12 @@ describe("the dataset page", () => {
     expect(screen.getByRole("button", { name: "run evals" })).toBeInTheDocument();
   });
 
-  it("offers no eval runs to who may not read runs", async () => {
+  it("shows no eval runs to who may not read runs, and leaves the start to its button", async () => {
     state.runsView = false;
     await mount();
     expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "run evals" })).toBeNull();
+    // The button says why it is disabled, or hides itself; the page does not decide.
+    expect(screen.getByRole("button", { name: "run evals" })).toBeInTheDocument();
   });
 
   it("opens on Cases when a link names Evals to who may not read runs", async () => {

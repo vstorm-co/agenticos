@@ -252,7 +252,7 @@ describe("SharingPanel", () => {
     render(<SharingPanel resourceType="dataset" resourceId="a1" canManage />);
 
     expect(screen.getByLabelText("Access for sam@example.com")).toHaveTextContent(
-      "Use (has no effect: running evals needs permission to read runs)",
+      "Can use - no effect: running evals needs permission to read runs",
     );
     await userEvent.click(screen.getByRole("button", { name: "Remove sam@example.com" }));
     expect(revoke.mutate).toHaveBeenCalledWith({ kind: "user", id: "u-sam" });

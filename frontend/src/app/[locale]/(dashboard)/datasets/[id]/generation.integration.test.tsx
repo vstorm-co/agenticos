@@ -57,6 +57,7 @@ const DATASET = {
   case_count: 4,
   can_edit: false,
   can_run: false,
+  run_needs: ["datasets:run"],
   pending_proposals: 0,
   scoring: DEFAULT_SCORING,
   judge_name: null,

@@ -46,8 +46,8 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   // An eval run's page and Activity both refuse a reader without `runs:view`.
   const linksRuns = can(Perm.runsView);
   const canDecide = dataset.can_edit;
-  // Scoring again reads the answer back from its run, which `runs:view` guards.
-  const canRescore = dataset.can_run && can(Perm.runsView);
+  // Scoring again reads the answer back from its run; `can_run` already holds `runs:view`.
+  const canRescore = dataset.can_run;
   const toCriterion = useNoteToCriterion(dataset);
   const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
   // A decision takes the last score off the last page of the queue; step back to

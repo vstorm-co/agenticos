@@ -66,6 +66,7 @@ function dataset(overrides: Partial<Dataset> = {}): Dataset {
     case_count: 2,
     can_edit: true,
     can_run: true,
+    run_needs: [],
     pending_proposals: 0,
     scoring: DEFAULT_SCORING,
     judge_name: "Eval judge",
@@ -367,10 +368,11 @@ describe("ReviewPanel", () => {
 
   it.each([
     ["run this dataset, whatever the role says", { canRun: true, canViewRuns: true }, false],
+    // The server answers `can_run: false` to a reader without runs:view, whatever their grants.
     [
       "read the runs it would read the answers back from",
       { canRun: true, canViewRuns: false },
-      true,
+      false,
     ],
   ])("offers no scoring again to somebody who may not %s", (_who, perms, canRunIt) => {
     Object.assign(state, perms);

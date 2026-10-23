@@ -7,7 +7,7 @@ import { DatasetEvalsPanel, DatasetRunEvalsButton } from "./dataset-evals-panel"
 
 const state = vi.hoisted(() => ({
   runs: {} as Record<string, unknown>,
-  dataset: undefined as { can_run: boolean; run_needs?: string[] } | undefined,
+  dataset: undefined as { can_run: boolean; run_needs: string[] } | undefined,
   dialog: [] as unknown[],
   skips: [] as number[],
 }));
@@ -37,7 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.dialog = [];
   state.skips = [];
-  state.dataset = { can_run: true };
+  state.dataset = { can_run: true, run_needs: [] };
   state.runs = { runs: [], total: 0, isLoading: false, error: null, refetch: vi.fn() };
 });
 
@@ -110,11 +110,14 @@ describe("DatasetEvalsPanel", () => {
 });
 
 describe("DatasetRunEvalsButton", () => {
-  it("is not offered to who may not run this dataset", () => {
-    state.dataset = { can_run: false };
-    render(<DatasetRunEvalsButton datasetId="ds-1" />);
-    expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
-  });
+  it.each([[["datasets:run"]], [["runs:view", "datasets:run"]]])(
+    "is not offered to who may not run this dataset at all: %j",
+    (needs) => {
+      state.dataset = { can_run: false, run_needs: needs };
+      render(<DatasetRunEvalsButton datasetId="ds-1" />);
+      expect(screen.queryByRole("button", { name: /Run evals/ })).toBeNull();
+    },
+  );
 
   it("waits for the dataset rather than offering a run it cannot vouch for", () => {
     state.dataset = undefined;
@@ -122,17 +125,13 @@ describe("DatasetRunEvalsButton", () => {
     expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
   });
 
-  it.each([
-    [["runs:view"], "Needs permission to read runs"],
-    [["datasets:run"], "Needs permission to run this dataset"],
-    [["runs:view", "datasets:run"], "Needs permission to read runs and to run this dataset"],
-  ])("is shown disabled, saying what is missing: %j", async (needs, reason) => {
-    state.dataset = { can_run: false, run_needs: needs };
+  it("is shown disabled, saying why, to who may run the dataset but not read runs", async () => {
+    state.dataset = { can_run: false, run_needs: ["runs:view"] };
     render(<DatasetRunEvalsButton datasetId="ds-1" />);
 
     const button = screen.getByRole("button", { name: /Run evals/ });
     expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(button).toHaveAttribute("title", reason);
+    expect(button).toHaveAttribute("title", "Needs permission to read runs");
     await userEvent.click(button);
     expect(state.dialog).toEqual([]);
   });
