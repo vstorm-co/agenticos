@@ -10,7 +10,7 @@ Claude Code is Anthropic's agentic coding tool. It reads a repository, edits fil
 
 Most engineering teams will want both. Claude Code writes and reviews code. AgenticOS publishes, governs and meters the agents that code makes possible.
 
-Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Claude Code scope: Anthropic's documentation at code.claude.com, its pricing pages and the public repository, not a tested enterprise rollout.
+Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude Code scope: Anthropic's documentation at code.claude.com, its pricing pages and the public repository, not a tested enterprise rollout.
 
 ## At a glance
 
@@ -20,17 +20,17 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | What it works on | A code repository and a shell | Company documents, tools and systems, through capabilities and MCP |
 | Where it runs | Developer machines; cloud sessions on Anthropic's infrastructure or your own | Your infrastructure, as a shared service |
 | Source | Proprietary: "All rights reserved" | Apache-2.0 |
-| Models | Claude only, through Anthropic, Bedrock, Vertex or Foundry | 27 providers, Claude included |
+| Models | Claude only, through Anthropic, Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform (formerly Vertex AI) or Microsoft Foundry | 28 providers, Claude included |
 | End users | The developer at the keyboard | Employees, customers and systems, on eight surfaces |
 | Approvals | The developer, or a classifier in auto mode | A person with `approvals:decide`, from a shared queue |
-| Spend control | Plan allowance or API billing; `--max-budget-usd` per run | A monthly budget per agent and per organization |
+| Spend control | Plan allowance, usage credits with spend limits, or API billing; `--max-budget-usd` per run in print mode | A monthly budget per agent and per organization |
 | Pricing | Included in Pro, Max, Team and Enterprise; Anthropic cites $150–250 per developer per month on API billing | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further
 
 ### An agent for people who never open a terminal
 
-Claude Code has no business-user builder and no publish flow for non-developers. Its "Channels" feature pushes events into a developer's own session; it does not publish an agent to other people. In AgenticOS a business owner writes instructions, switches on [capabilities](../reference/capabilities.md), binds a knowledge collection and [publishes a version](../concepts.md#version). The same agent then answers in [web chat, a widget, Slack, Telegram, Mattermost and the API](../channels.md).
+Claude Code has no business-user builder and no publish flow for non-developers. Its Channels feature, in research preview, pushes events into a developer's own running session; it does not publish an agent to other people. In AgenticOS a business owner writes instructions, switches on [capabilities](../reference/capabilities.md), binds a knowledge collection and [publishes a version](../concepts.md#version). The same agent then answers in [web chat, a widget, Slack, Telegram, Mattermost and the API](../channels.md).
 
 ### Governance that sits on the server
 
@@ -58,6 +58,8 @@ AgenticOS is extended in typed Python, and Claude Code is good at writing it. A 
 
 A spec also [exports as YAML](../features.md#exportable-into-your-own-repository), so Claude Code can review a change to an agent in a pull request like any other file.
 
+The two also meet at run time. An agent with the [coding agent](../reference/capabilities.md#coding-agent) capability hands software work to Claude Code in its own sandbox, and each step shows up in the chat as it happens, so a business user can ask for a page or a script without opening a terminal. In the other direction, [AgenticOS is an MCP server](../mcp.md#agenticos-as-an-mcp-server): Claude Code connects by signing in and can list and run the company's agents, read their runs and search their knowledge bases.
+
 ## Try it on one task
 
 Give the same task to both: answer a question from the [shared handbook](../howto/first-document-agent.md). Then give the answer to a colleague outside engineering. Claude Code needs them to install it and sign in. AgenticOS needs a [hosted page](../channels.md#a-hosted-page) link or a Slack mention. Record the result with the [comparison method](comparison.md#a-shared-trial).
@@ -66,7 +68,7 @@ Give the same task to both: answer a question from the [shared handbook](../howt
 
 ### Is AgenticOS an alternative to Claude Code?
 
-No, they do different jobs. Claude Code is a coding agent for developers. AgenticOS is a platform for the agents the rest of the company uses. Many teams use both.
+No, they do different jobs. Claude Code is a coding agent for developers. AgenticOS is a platform for the agents the rest of the company uses. Many teams use both, and an AgenticOS agent can hand coding work to Claude Code.
 
 ### Can Claude Code help build on AgenticOS?
 
@@ -74,7 +76,7 @@ Yes. AgenticOS is extended in typed Python, and a capability written with Claude
 
 ### Can AgenticOS agents use Claude models?
 
-Yes, through the Anthropic API or Amazon Bedrock, two of the 27 providers AgenticOS supports.
+Yes, through the Anthropic API or Amazon Bedrock, two of the 28 providers AgenticOS supports.
 
 ### Is Claude Code open source?
 
@@ -86,10 +88,12 @@ No. Its repository states "All rights reserved", and use is under Anthropic's Co
 
 ## Sources
 
-- [Claude Code overview](https://code.claude.com/docs/en/overview): surfaces, MCP, skills, hooks, subagents and Channels.
-- [Permission modes](https://code.claude.com/docs/en/permission-modes): the six modes and auto mode.
+- [Claude Code overview](https://code.claude.com/docs/en/overview): surfaces, MCP, skills, hooks and subagents.
+- [Permission modes](https://code.claude.com/docs/en/permission-modes): the modes and auto mode's classifier.
 - [Server-managed settings](https://code.claude.com/docs/en/server-managed-settings): "a client-side control, not a security boundary".
-- [Third-party integrations](https://code.claude.com/docs/en/third-party-integrations): Anthropic, Bedrock, Vertex and Foundry.
+- [Third-party integrations](https://code.claude.com/docs/en/third-party-integrations): Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform and Microsoft Foundry.
+- [CLI reference](https://code.claude.com/docs/en/cli-reference): `--max-budget-usd`, print mode only.
+- [Channels](https://code.claude.com/docs/en/channels): research preview, events pushed into a running session.
 - [Costs](https://code.claude.com/docs/en/costs): per-developer cost figures and spend controls.
 - [Repository licence](https://github.com/anthropics/claude-code/blob/main/LICENSE.md): proprietary terms.
 - [Claude Code product page](https://claude.com/product/claude-code): plan inclusion.

@@ -6,8 +6,6 @@ later `skip`; silently reading every record of a large table is not something a
 step does on its own.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 

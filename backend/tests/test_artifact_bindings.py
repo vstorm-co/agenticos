@@ -5,8 +5,6 @@
 today - an order by a worked-out column - so the disclosure cannot drop it silently.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime

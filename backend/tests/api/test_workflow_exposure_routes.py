@@ -5,8 +5,6 @@ HTTP; this is the wire contract with the service mocked - status codes and
 what each handler hands the service - and the socket route's own plumbing.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime

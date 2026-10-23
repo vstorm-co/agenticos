@@ -1,6 +1,6 @@
 """A route may not read a repository, and this is what makes that true.
 
-`CLAUDE.md` and `.claude/rules/architecture.md` both state it plainly - routes call
+`AGENTS.md` and `.claude/rules/architecture.md` both state it plainly - routes call
 services only, never a repository - and the rule had drifted in five modules at once
 by the time anybody read for it. Nothing was leaking: each handler passed the scope
 it happened to know as a keyword argument. That is the cost, though. A scope a
@@ -16,8 +16,6 @@ The allowlist below is checked in both directions: an entry that no longer appli
 fails just as loudly as an import that is not on it, so it cannot quietly become a
 list of things nobody has looked at since.
 """
-
-from __future__ import annotations
 
 import ast
 from pathlib import Path

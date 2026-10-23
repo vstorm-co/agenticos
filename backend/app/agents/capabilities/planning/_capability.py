@@ -38,8 +38,6 @@ dependency reconciliation and the tail reminder. Those are the library's job and
 does them; a second copy here would be one more thing to keep in step.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning
@@ -343,6 +341,22 @@ def still_open(items: list[dict[str, Any]] | None) -> list[dict[str, Any]] | Non
     if all(item.get("status") in _FINISHED_STATUSES for item in items):
         return None
     return items
+
+
+def put_down(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The checklist of a run that ended without finishing: nothing in progress.
+
+    A step is `in_progress` because a run is working it. A run that failed, was
+    stopped or ran out of budget is working nothing, and a step recorded that way
+    reached the next turn as work under way - the tail reminder and `read_plan`
+    told a fresh run it was already doing something nobody was doing (#2149). Such
+    a step goes back to `pending`: still to do, not being done. Every other status
+    is the plan's own and stays.
+    """
+    return [
+        {**item, "status": "pending"} if item.get("status") == "in_progress" else item
+        for item in items
+    ]
 
 
 async def dump_plan(store: PlanStore) -> list[dict[str, Any]]:

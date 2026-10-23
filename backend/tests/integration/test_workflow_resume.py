@@ -1,12 +1,9 @@
 """A Wait that goes on when the run's resume link is called, end to end (#1947)."""
 
-from __future__ import annotations
-
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import update
@@ -29,12 +26,6 @@ from app.workflows.graph.validate import validate_graph
 from tests.integration.workflow_run_support import SeededRun, drive, node_statuses, seed_run
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInstance:

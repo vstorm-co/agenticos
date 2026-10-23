@@ -6,8 +6,6 @@ Only a real database enforces the unique `(organization_id, slug)` and
 negative revision through silently.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 

@@ -13,8 +13,6 @@ and a real agent here measured 9 tokens where the provider had charged for 3,859
 A trigger reading that never fires, however full the window actually is.
 """
 
-from __future__ import annotations
-
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai_harness.compaction import estimate_context_tokens
 

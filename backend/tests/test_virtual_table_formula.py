@@ -1,7 +1,5 @@
 """Formula columns: what a formula may say, and what it works out for a record."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

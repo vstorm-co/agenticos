@@ -1,7 +1,5 @@
 """The Respond to webhook step: what it records, and the headers it refuses."""
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

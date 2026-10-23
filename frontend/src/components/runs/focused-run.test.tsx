@@ -69,6 +69,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     ended_at: "2026-08-14T09:00:04Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     ...overrides,
   };
 }
@@ -96,6 +98,28 @@ beforeEach(() => {
 });
 
 describe("stepping to a neighbour", () => {
+  it("says when the run repaired malformed tool arguments, and only then (#2105)", () => {
+    serve({ run: run({ tool_args_repaired: 2 }) });
+    renderRun();
+    expect(
+      screen.getByText("Repaired 2 tool calls' malformed arguments instead of retrying them"),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about repairs for a run that needed none", () => {
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByText(/malformed arguments/)).toBeNull();
+  });
+
+  it("says how much of the input the cache served, when it did (#2170)", () => {
+    serve({ run: run({ cache_read_tokens: 900, cache_write_tokens: 100 }) });
+    renderRun();
+    expect(
+      screen.getByText(/900 read from the provider's cache and 100 written to it/),
+    ).toBeVisible();
+  });
+
   it("warms both neighbours on arrival, so the step is a cache hit", () => {
     serve({ run: run() });
 
@@ -239,5 +263,46 @@ describe("the row being held while the next one loads", () => {
     renderRun();
 
     expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+});
+
+describe("a voice call in focus", () => {
+  it("says it was a call beside its surface", () => {
+    serve({ run: run({ modality: "voice" }) });
+    renderRun();
+    expect(screen.getByText("Voice call")).toHaveClass("sr-only");
+  });
+});
+
+describe("the header a run opens on", () => {
+  it("steps up to the run a delegation came from, and out to its trace", async () => {
+    serve({
+      run: run({
+        parent_run_id: "run-0",
+        logfire_url: "https://logfire.example/trace/abc",
+      } as Partial<AgentRun>),
+    });
+    const onFocusRun = renderRun();
+
+    expect(screen.getByRole("link", { name: /Logfire/ })).toHaveAttribute(
+      "href",
+      "https://logfire.example/trace/abc",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /run it came from/i }));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-0");
+  });
+
+  it("says what it does not know rather than inventing it", () => {
+    // A run with no model resolved and no start recorded: a dash for the model,
+    // no age, and a cost marked as partial.
+    serve({
+      run: run({ provider: null, model_label: null, started_at: null, cost_is_partial: true }),
+    });
+    renderRun();
+
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+    expect(screen.getByTitle(/no price/i)).toHaveTextContent("+");
+    expect(screen.queryByText(/ago$/)).toBeNull();
   });
 });

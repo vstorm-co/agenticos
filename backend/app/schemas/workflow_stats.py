@@ -1,7 +1,5 @@
 """What a workflow's real runs did over a window: the runs page's figures."""
 
-from __future__ import annotations
-
 from datetime import date, datetime
 from uuid import UUID
 

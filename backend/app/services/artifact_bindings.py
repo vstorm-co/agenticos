@@ -28,8 +28,6 @@ The spec's table grants arrive as a plain mapping; this module never imports the
 agents package.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re

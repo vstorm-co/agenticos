@@ -1,7 +1,5 @@
 """A workflow's settings: its timezone, a default deadline, an error workflow, retention."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -24,18 +22,18 @@ from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from app.services.workflow_registry import WorkflowRegistryService, WorkflowSettingsInvalidError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
-from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    drive,
+    queued_dispatches,
+    seed_member,
+    seed_run,
+)
 
 pytestmark = pytest.mark.anyio
 
 CRON = {"schedule_kind": "cron", "cron_expression": "0 9 * * *"}
 HOURLY = {"schedule_kind": "interval", "interval_seconds": 3600}
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _graph(definition_id: str, config: dict[str, Any] | None = None) -> WorkflowGraph:
@@ -289,8 +287,12 @@ class TestTheErrorWorkflow:
                     select(DispatchOutbox).where(DispatchOutbox.workflow_run_id == started.id)
                 )
             ).scalar_one()
-        # Left to the poll: the settle that failed the run cannot submit it.
-        assert outbox.submitted_at is None
+        # Queued with the failure's own settle, like any admission.
+        assert outbox.submitted_at is not None
+        (job,) = await queued_dispatches(
+            async_sessionmaker(engine, expire_on_commit=False), workflow_run_id=started.id
+        )
+        assert job.payload["node_run_id"] == str(outbox.node_run_id)
 
     @pytest.mark.security
     async def test_a_failure_run_under_a_public_root_is_public(self, engine: AsyncEngine):

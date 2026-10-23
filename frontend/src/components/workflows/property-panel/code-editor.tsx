@@ -1,8 +1,6 @@
 "use client";
 
-import hljs from "highlight.js/lib/core";
-import javascript from "highlight.js/lib/languages/javascript";
-import python from "highlight.js/lib/languages/python";
+import { common, createLowlight } from "lowlight";
 import {
   useId,
   useLayoutEffect,
@@ -14,6 +12,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 
+import { toReact } from "@/components/files/code-highlight";
 import {
   type CodeLanguage,
   type Edit,
@@ -27,8 +26,9 @@ import {
 } from "@/lib/workflows/code-editing";
 import { cn } from "@/lib/utils";
 
-hljs.registerLanguage("python", python);
-hljs.registerLanguage("javascript", javascript);
+// The set the chat's fenced blocks use, so the colours are the same `hljs-*`
+// classes; Python and JavaScript, the two a code step has, are in it.
+const lowlight = createLowlight(common);
 
 /** The rows the editor opens at, and grows to before it scrolls. */
 const MIN_ROWS = 8;
@@ -76,8 +76,8 @@ export function CodeEditor({
   const [caret, setCaret] = useState<number | null>(null);
   const [active, setActive] = useState(0);
 
-  const html = useMemo(
-    () => hljs.highlight(`${value}\n`, { language, ignoreIllegals: true }).value,
+  const highlighted = useMemo(
+    () => toReact(lowlight.highlight(language, `${value}\n`).children),
     [value, language],
   );
   const typing = caret === null ? null : argKeyAt(value, caret, language);
@@ -180,9 +180,9 @@ export function CodeEditor({
           ref={underlay}
           aria-hidden
           className={cn(shared, "hljs pointer-events-none absolute inset-0 m-0 overflow-hidden")}
-          // highlight.js escapes what it highlights; nothing here hands it markup.
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        >
+          {highlighted}
+        </pre>
         {pair !== null && (
           // The same text again, invisible, with the two brackets boxed: laid
           // over the highlighting so it keeps its colours.

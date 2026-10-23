@@ -6,8 +6,6 @@ searches the workspace. Telegram has no channel search for a bot, so it has no
 such step. See `app.workflows.nodes._channels`.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.channels.base import ChannelAdapter

@@ -5,8 +5,6 @@ Mirrors `app.agents.capabilities._registry.CapabilityDef` deliberately - a
 off the wire; it is written once in code and looked up by id and version.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal

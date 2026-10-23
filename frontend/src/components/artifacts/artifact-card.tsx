@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Archive, ArchiveRestore, Globe, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Globe, MoreHorizontal, Trash2, Users } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
 import { LiveBadge } from "@/components/artifacts/live-badge";
+import { groupsLabel } from "@/components/sharing/audience-chip";
 import {
   Badge,
   Card,
@@ -53,6 +54,8 @@ export function ArtifactCard({
   const ta = useTranslations("agents");
   const tc = useTranslations("common");
   const format = useFormatter();
+  const tAudience = useTranslations("audience");
+  const groups = artifact.shared_groups ?? [];
   const version = artifact.current_version?.number ?? 0;
   const archived = artifact.archived_at !== null;
   return (
@@ -95,6 +98,13 @@ export function ArtifactCard({
             </Badge>
           )}
           {artifact.visibility === "org" && <Badge variant="secondary">{t("sharedOrg")}</Badge>}
+          {/* Its departments, as every other resource's card names them. */}
+          {groups.length > 0 && (
+            <Badge variant="secondary" className="gap-1">
+              <Users className="h-3 w-3" aria-hidden />
+              {groupsLabel(groups, tAudience)}
+            </Badge>
+          )}
           {/* An archived page serves nothing, live data included. */}
           {artifact.live && !archived && <LiveBadge />}
           {artifact.public_url !== null && (

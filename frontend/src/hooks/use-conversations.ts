@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSoon } from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import {
@@ -13,7 +14,10 @@ import {
   useAuthStore,
   useConversationStore,
   useChatStore,
+  useInChatScope,
+  useLiveFeedStore,
   useOrgStore,
+  useWorkingStore,
 } from "@/stores";
 import type {
   Conversation,
@@ -85,6 +89,8 @@ export interface ConversationQuery {
   agentId: string | null;
   sortBy: ConversationSortKey;
   sortDir: ConversationSortDir;
+  /** Leave out conversations an API key's runs opened (#2122). */
+  hideApi: boolean;
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -93,6 +99,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   agentId: null,
   sortBy: "updated_at",
   sortDir: "desc",
+  hideApi: false,
 };
 
 /**
@@ -124,6 +131,7 @@ function listParams(query: ConversationQuery): string {
   if (query.view === "archived") params.set("archived_only", "true");
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
 
@@ -131,14 +139,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir } = { ...DEFAULT_QUERY, ...query };
+  const { view, search, agentId, sortBy, sortDir, hideApi } = { ...DEFAULT_QUERY, ...query };
   // Memoized on the five values rather than on the object they arrive in: a
   // caller building that object inline hands over a new reference every render,
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir }),
-    [view, search, agentId, sortBy, sortDir],
+    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi }),
+    [view, search, agentId, sortBy, sortDir, hideApi],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {
@@ -152,6 +160,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
+  // The scope's own stores, for reads made in a callback rather than a render.
+  const chatApi = useChatStore.useApi();
+  const conversationApi = useConversationStore.useApi();
+  const selectionApi = useAgentSelectionStore.useApi();
+  const scoped = useInChatScope();
   // State, not a ref, because it is returned. Reading a ref to build the return
   // value hands whoever asked a value React will never re-render them for - a
   // "load more" control driven by it would stay on screen after the last page
@@ -174,6 +187,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
   const messagesAbortRef = useRef<AbortController | null>(null);
+  // Which re-read is the latest; an older one answering after it is dropped.
+  const rereadRef = useRef(0);
 
   /**
    * Whether the account the caller started as is still the one signed in.
@@ -198,6 +213,19 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       rememberHasMore(response.items.length >= PAGE_SIZE);
       return response;
     },
+    // While a thread on the page is at work, ask again every few seconds, so its
+    // row stops saying so when the run ends - a routine's, or another tab's, as
+    // well as this one's. A thread this tab handed off counts too: the listing
+    // has to catch up with it before it can say anything about it.
+    // While the live-update socket is up it announces the run ending, so the poll
+    // is only the safety net for what it does not announce (#2219).
+    refetchInterval: (query) =>
+      query.state.data?.items.some((conversation) => conversation.running_since) ||
+      Object.keys(useWorkingStore.getState().handedOff).length > 0
+        ? useLiveFeedStore.getState().connected
+          ? RUNNING_POLL_LIVE_MS
+          : RUNNING_POLL_MS
+        : false,
   });
   const conversations = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -257,7 +285,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
    * holding it when somebody switches tab.
    */
   const invalidateLists = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.conversations.list() }),
+    () => invalidateSoon(queryClient, qk.conversations.list()),
     [queryClient],
   );
 
@@ -269,13 +297,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // URL ?id= param always takes priority: select that conversation and load
     // its messages if it isn't already the current one.
     const startedAs = useAuthStore.getState().user?.id;
-    const urlId = new URLSearchParams(window.location.search).get("id");
-    if (urlId && useConversationStore.getState().currentConversationId !== urlId) {
+    // A scoped chat owns no part of the address: `?id=` is the main chat's thread.
+    const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
+    if (urlId && conversationApi.getState().currentConversationId !== urlId) {
       setCurrentConversationId(urlId);
       clearMessages();
       setCurrentMessages([]);
       try {
-        const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
+        const msgs = await apiClient.get<MessagesResponse>(
+          `/conversations/${encodeURIComponent(urlId)}/messages`,
+        );
         if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items, msgs.cost);
       } catch {
@@ -287,7 +318,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         setCurrentConversationId(null);
       }
     }
-  }, [invalidateLists, setCurrentConversationId, setCurrentMessages, clearMessages]);
+  }, [
+    invalidateLists,
+    setCurrentConversationId,
+    setCurrentMessages,
+    clearMessages,
+    conversationApi,
+    scoped,
+  ]);
 
   const loadingMoreRef = useRef(false);
 
@@ -358,7 +396,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
 
       setCurrentConversationId(id);
       clearMessages();
-      setUrlParam("id", id);
+      if (!scoped) setUrlParam("id", id);
       setLoading(true);
       setError(null);
       try {
@@ -388,7 +426,46 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         }
       }
     },
-    [setCurrentConversationId, clearMessages, setCurrentMessages, setLoading, setError, t, tErrors],
+    [
+      setCurrentConversationId,
+      clearMessages,
+      setCurrentMessages,
+      setLoading,
+      setError,
+      t,
+      tErrors,
+      scoped,
+    ],
+  );
+
+  /**
+   * Read the open conversation's messages again in place - nothing cleared, no
+   * loading flag, so the transcript and its scroll stay put - for turns written
+   * while it is on screen: a voice call's, as each is saved (#54). An answer for
+   * a conversation no longer open, or older than the latest re-read, is dropped.
+   */
+  const rereadConversation = useCallback(
+    async (id: string) => {
+      const ticket = ++rereadRef.current;
+      const startedAs = useAuthStore.getState().user?.id;
+      let response: MessagesResponse;
+      try {
+        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+      } catch {
+        // The turn is saved whatever this read did; the transcript keeps what it
+        // shows, and the next saved turn reads it again.
+        return;
+      }
+      if (
+        ticket !== rereadRef.current ||
+        useConversationStore.getState().currentConversationId !== id ||
+        !stillSameAccount(startedAs)
+      ) {
+        return;
+      }
+      setCurrentMessages(response.items, response.cost);
+    },
+    [setCurrentMessages],
   );
 
   const archiveConversation = useCallback(
@@ -446,6 +523,39 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       );
     },
     [queryClient],
+  );
+
+  const patchUnread = useCallback(
+    (id: string, unread: boolean) => {
+      queryClient.setQueriesData<ConversationListResponse>(
+        { queryKey: qk.conversations.list() },
+        (prev) =>
+          prev === undefined
+            ? prev
+            : {
+                ...prev,
+                items: prev.items.map((item) => (item.id === id ? { ...item, unread } : item)),
+              },
+      );
+    },
+    [queryClient],
+  );
+
+  /**
+   * Record that the reader has this conversation open, so it is no longer unread.
+   * The mark goes at once; a refusal puts it back, with no toast - the thread is
+   * still on screen, and the next listing says the same either way.
+   */
+  const markRead = useCallback(
+    async (id: string) => {
+      patchUnread(id, false);
+      try {
+        await apiClient.post(`/conversations/${id}/read`, {});
+      } catch {
+        patchUnread(id, true);
+      }
+    },
+    [patchUnread],
   );
 
   const setFavourite = useCallback(
@@ -513,10 +623,15 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       try {
         await apiClient.delete(`/conversations/${id}`);
         await invalidateLists();
-        // Mirror the old store behavior: clear the active selection if it was
-        // the conversation we just removed.
-        if (useConversationStore.getState().currentConversationId === id) {
+        // The open conversation goes off screen with it - its transcript, its id and
+        // the `?id=` too. Leaving the address made every later list fetch and every
+        // reload adopt the deleted id again, so the next message was sent to a
+        // conversation that no longer exists.
+        if (conversationApi.getState().currentConversationId === id) {
+          clearMessages();
+          setCurrentMessages([]);
           setCurrentConversationId(null);
+          if (!scoped) setUrlParam("id", null);
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
@@ -525,7 +640,17 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         toast.error(message);
       }
     },
-    [invalidateLists, setCurrentConversationId, setError, t, tErrors],
+    [
+      invalidateLists,
+      setCurrentConversationId,
+      setCurrentMessages,
+      clearMessages,
+      scoped,
+      setError,
+      t,
+      tErrors,
+      conversationApi,
+    ],
   );
 
   const renameConversation = useCallback(
@@ -547,8 +672,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // Mid-thread switches stay per-thread; this is the reset point. If the
     // default has since been unpublished, the picker resolves the stale
     // selection to the first published agent as usual.
-    const { defaultAgentId, select } = useAgentSelectionStore.getState();
+    const { defaultAgentId, select } = selectionApi.getState();
     if (defaultAgentId) select(defaultAgentId);
+    // Nor in the last one's project: a new chat is an ordinary one until the
+    // composer's `+` puts it in a project.
+    conversationApi.getState().setPendingProjectId(null);
     // Reuse the conversation already open when it is empty, so a stray click does
     // not leave an untitled row in the sidebar.
     //
@@ -562,10 +690,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // reporting the previous turn's tokens and its workspace fill, the file panel
     // stayed open on the old workspace, and the next message landed in the
     // conversation the user thought they had left.
-    const currentId = useConversationStore.getState().currentConversationId;
+    const currentId = conversationApi.getState().currentConversationId;
     if (currentId) {
-      const fetched = useConversationStore.getState().currentMessages;
-      const onScreen = useChatStore.getState().messages;
+      const fetched = conversationApi.getState().currentMessages;
+      const onScreen = chatApi.getState().messages;
       if (fetched.length === 0 && onScreen.length === 0) return;
     }
     clearMessages();
@@ -574,8 +702,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // Strip the stale ?id= immediately so a refresh mid-flight lands on a
     // fresh /chat instead of the old conversation. The new id will be set
     // by the WS conversation_created event on first message.
-    setUrlParam("id", null);
-  }, [clearMessages, setCurrentMessages, setCurrentConversationId]);
+    if (!scoped) setUrlParam("id", null);
+  }, [
+    clearMessages,
+    setCurrentMessages,
+    setCurrentConversationId,
+    chatApi,
+    conversationApi,
+    scoped,
+    selectionApi,
+  ]);
 
   return {
     conversations,
@@ -600,11 +736,31 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     hasMore,
     createConversation,
     selectConversation,
+    rereadConversation,
     archiveConversation,
     unarchiveConversation,
     setFavourite,
+    markRead,
     deleteConversation,
     renameConversation,
     startNewChat,
   };
+}
+
+/**
+ * Conversations whose title matches `term`, archived ones included - what the
+ * chat's search window lists. Nothing is asked until something is typed.
+ */
+/** How often a listing with a thread at work in it is read again. */
+const RUNNING_POLL_MS = 4000;
+/** The same poll while the live-update socket carries the run's end as an event. */
+const RUNNING_POLL_LIVE_MS = 30_000;
+
+export function useConversationSearch(term: string) {
+  const params = listParams({ ...DEFAULT_QUERY, search: term });
+  return useQuery({
+    queryKey: qk.conversations.list(params),
+    queryFn: () => apiClient.get<ConversationListResponse>(`/conversations?${params}`),
+    enabled: term.trim() !== "",
+  });
 }

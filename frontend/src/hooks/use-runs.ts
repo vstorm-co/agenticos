@@ -62,6 +62,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
+    modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
     modelLabel?: string;
     /** Who the run ran as. */
@@ -77,6 +79,8 @@ export function useRuns(
     conversationId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
     agentVersionId?: string;
+    /** Only test runs from the Builder's panel (true), only the rest (false) (#2074). */
+    isTest?: boolean;
     /** Rows to skip - the pager's, always a multiple of the page size. */
     skip?: number;
   },
@@ -89,10 +93,12 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    modality,
     modelLabel,
     userId,
     conversationId,
     agentVersionId,
+    isTest,
     skip,
   } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
@@ -105,10 +111,12 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      modality,
       modelLabel,
       userId,
       conversationId,
       agentVersionId,
+      isTest,
       skip,
     }),
     queryFn: () => {
@@ -124,8 +132,10 @@ export function useRuns(
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;
+      if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;

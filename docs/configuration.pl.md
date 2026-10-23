@@ -1,5 +1,5 @@
 ---
-source_sha: "9ddfa0edc7b8"
+source_sha: "b3f806101e68"
 ---
 
 # Konfiguracja { #configuration }
@@ -57,8 +57,11 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation-choose) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
-| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosty, na których może działać model decyzyjny przeglądającego agenta, poza endpointem dostawcy. `decision_base_url` pochodzi ze speca agenta, a klucz z vaulta jest odszyfrowywany do nagłówka żądania pod wskazany adres — więc bez allowlisty autor, który może *podpiąć* współdzielony klucz TypeSafe (podpięcie to nie odczyt, a API nigdy nie zwraca wartości), mógłby wycelować go we własny serwer i go przechwycić. Zatwierdzanie nie pomaga: ten sam autor publikuje powiązanie. Pusta wartość dopuszcza wyłącznie endpoint dostawcy i jest domyślna. Zobacz [sekrety](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
+| `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
+| `BROWSER_EGRESS_PROXY` | `""` (empty); compose ustawia `http://browser-egress:3128` | Proxy, przez które przeglądarka wdrożenia łączy się z każdą stroną. Usługa `browser-egress` z compose to `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): sama rozwiązuje każdy host, odrzuca adresy prywatne, loopback, link-local i metadanych i łączy się z adresem, który sprawdziła, więc ani przekierowanie, ani DNS rebinding nie wprowadzi strony do wnętrza sieci. Używane przez każde przeglądanie bez proxy organizacji i nie na przeglądarce hostowanej. Wewnętrzne narzędzie, które agent ma przeglądać, wymaga wyjątku w `docker/browser-egress/squid.conf`. Puste wypuszcza przeglądarkę bezpośrednio: ustaw `BROWSER_EGRESS_PROXY=` w głównym `.env` tylko dla przeglądarki spoza compose, która nie dosięgnie proxy. Bez proxy każda strona jest sprawdzana przy pierwszym żądaniu w karcie, a potem przeglądarka sama rozwiązuje jej nazwę, więc nazwa, która później w tej samej karcie wskaże adres prywatny, nie zostanie wychwycona |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosty, na które może wskazywać URL połączenia MCP, choć rozwiązują się na adres prywatny albo loopback, na przykład usługa compose: `["postgres-mcp"]`. Dopasowanie jest dokładne i nie rozróżnia wielkości liter. Host z listy pomija tylko sprawdzenie adresu: URL nadal musi mieć `http` albo `https`, a logowanie OAuth do niego nadal jest odrzucane. Każde konto we wdrożeniu może sięgnąć do każdego portu hosta z listy, więc wpisuj tylko serwer, który sprawdza token. Wpis wskazujący usługę metadanych chmury, adres link-local albo loopback, taki jak `169.254.169.254` czy `localhost`, jest odrzucany przy starcie. Pusta lista odrzuca każdy adres wewnętrzny. Zobacz [połączenie](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Jak długo może trwać pojedyncza konwersja DOC na tekst przez LibreOffice, zanim zostanie zabita. Znacznie poniżej 600s bazy wiedzy, bo to interaktywny upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Ile konwersji LibreOffice może działać naraz. Podproces omija `FILE_IO_MAX_WORKERS`, więc jest ograniczany osobno |
@@ -295,7 +298,7 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 | `POSTGRES_SSLMODE` | (empty) | Szyfruj połączenie: `require`, `verify-ca` albo `verify-full`. Pusta wartość to plaintext. Zobacz [Szyfrowane połączenia](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Rozmiar puli połączeń |
 | `DB_MAX_OVERFLOW` | `10` | Maksymalna liczba połączeń ponad pulę |
-| `DB_POOL_TIMEOUT` | `30` | Timeout puli w sekundach |
+| `DB_POOL_TIMEOUT` | `5` | Ile sekund żądanie czeka na wolne połączenie, zanim dostanie `503` z `Retry-After`. Celowo krótko: żądanie, które czekało 30 s, i tak było stracone, a kolejka czekających trzymała pulę pełną jeszcze po burście |
 
 Właściwości wyliczane:
 - `DATABASE_URL` -- asynchroniczny connection string (`postgresql+asyncpg://...`)
@@ -357,7 +360,7 @@ samym URL-u, zamiast zostawiać jedno i drugie domyślnym ustawieniom redis-py.
 
 !!! note "Każda usługa, która otwiera połączenie do magazynu, potrzebuje tej zmiany"
 
-    `app`, `migrate` i `prefect-runner` łączą się z Postgresem i Redisem, a
+    `app`, `migrate` i `worker` łączą się z Postgresem i Redisem, a
     dostarczane pliki compose przypinają `POSTGRES_HOST=db` i `REDIS_HOST=redis` w
     `environment` każdej z nich, co wygrywa z plikiem env. Zarządzany magazyn to
     więc plik override sięgający wszystkich trzech, a nie linia w `.env`.
@@ -379,7 +382,7 @@ x-managed: &managed
 services:
   app: *managed
   migrate: *managed
-  prefect-runner: *managed
+  worker: *managed
 ```
 
 Dołączone usługi `db` i `redis` dalej się uruchamiają, nieużywane; `agenticos cmd
@@ -423,42 +426,73 @@ się zatrzymuje i żaden z nich tego nie oznajmia:
     potrzebuje `SMTP_TLS_MODE=implicit`, bo `auto` zaproponowałoby mu handshake
     plaintext i każda wysyłka by zawiodła. `starttls` to przypadek odwrotny.
 
-## Praca w tle (Prefect) { #background-work-prefect }
+## Praca w tle { #background-work }
+
+Zadania czekają w kolejce w PostgreSQL i wykonują się w workerze,
+`python -m app.worker`, z tego samego obrazu co API. Nie ma serwera, na który
+trzeba go skierować, ani klucza: worker sięga do tej samej bazy co API. Każde
+ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `PREFECT_API_URL` | `http://localhost:4200/api` | Self-hostowany serwer albo URL workspace'u Prefect Cloud |
-| `PREFECT_API_KEY` | (none) | Tylko Prefect Cloud |
-| `PREFECT_RUNNER_LIMIT` | `5` | Ile flow runów wykonuje się naraz; reszta czeka w kolejce |
-| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` w compose | Interfejs, na którym runner serwuje własny endpoint zdrowia |
-| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port do tego samego |
+| `WORKER_POOLS` | `agent,ingest,system,workflow` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Do listy ustawionej, zanim pula `workflow` istniała, trzeba ją dopisać, inaczej żaden worker nie wykona węzłów workflowów |
+| `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_WORKFLOW_CONCURRENCY` | `5` | Węzły workflowów naraz. Dobierz pamięć workera do tylu węzłów trzymających największy plik, jaki węzeł może trzymać |
+| `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
+| `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
+| `WORKER_INGEST_MEMORY_MB` | `1536` | Ile może zająć jeden proces potomny razem z tym, co uruchomił, zanim zatrzyma go watchdog |
+| `WORKER_INGEST_MAX_JOBS` | `100` | Zadania, które proces potomny wykona, zanim zostanie zastąpiony |
+| `WORKER_LEASE_SECONDS` | `60` | Jak długo pobrane zadanie jest trzymane bez heartbeatu |
+| `WORKER_BREAKER_DEATHS` | `5` | Śmierci workera z rzędu, w zadaniach jednego rodzaju, które wstrzymują ten rodzaj |
+| `WORKER_HEALTH_FILE` | `/tmp/agenticos-worker-alive` | Plik, który czyta sonda kontenera |
+| `WORKER_MEMORY_LIMIT` | `4g`, `2560M` w produkcyjnym compose | Własny limit pamięci kontenera - zmienna compose, nie ustawienie |
+| `BACKGROUND_JOB_RETENTION_DAYS` | `14` | Zakończone zadania przechowywane dla strony Background jobs |
 
-`PREFECT_RUNNER_LIMIT` to sufit pamięci, a nie pokrętło przepustowości. Każdy run
-to osobny proces, który importuje całą aplikację — mniej więcej 120 MB — a liczbą,
-która ma znaczenie, nie jest stan ustalony, tylko restart: runner wstaje, znajduje
-każdy run zaplanowany w czasie, gdy go nie było, i startuje tyle, na ile pozwala
-limit. Bez limitu trzy dni przestoju to 71 procesów i 6 GiB. Podnieś go, jeśli
-ingestia kolejkuje się za synchronizacjami na maszynie z zapasem pamięci; obniż na
-małym hoście.
+**Pamięć planuj według procesów potomnych, a nie liczby zadań.** Worker trzyma
+około 450 MB na zaimportowaną aplikację, a każdy proces potomny ingestii drugie
+tyle plus dokument, który parsuje. `WORKER_INGEST_MEMORY_MB` celowo leży poniżej
+limitu kontenera: watchdog zatrzymuje proces potomny, który go przekroczy, i
+zapisuje powód przy zadaniu, podczas gdy OOM killer jądra zostawiłby tylko
+martwy proces. Na hoście z zapasem pamięci podnieś `WORKER_INGEST_CHILDREN`, a
+razem z nim limit kontenera.
 
-Dwie zmienne `PREFECT_RUNNER_SERVER_*` należą do Prefecta, a pliki compose
-przypinają je, żeby kontener runnera miał status zdrowia, który coś znaczy. Runner
-startuje webserver runnera Prefecta, którego `GET /health` odpowiada 503, gdy
-przegapi dwa odpytania API Prefecta — więc proces, który żyje, ale nie podejmuje
-już pracy, czyta się jako `unhealthy`, a nie jako w porządku. Jest przypięty do
-loopbacku, bo ten sam webserver wystawia też `POST /shutdown`; próba działa
-wewnątrz kontenera i nic spoza niego nie sięgnie żadnego z nich. Przeniesienie
-portu oznacza przeniesienie razem z nim próby w plikach compose.
+**Zadanie, które zabija swój proces, nie może się zapętlić.** Jego próba jest
+liczona w chwili pobrania, więc proces potomny zabity przez jądro w trakcie
+parsowania zużył jedną, a po `max_attempts` zadanie jest martwe. Rodzaj, którego
+zadania zabijają swojego workera `WORKER_BREAKER_DEATHS` razy z rzędu, zostaje
+wstrzymany, a każdy właściciel wdrożenia dostaje powiadomienie; nic go nie
+pobiera, dopóki któryś z nich nie wznowi go na stronie Background jobs. Licznik
+jest prowadzony osobno dla każdej organizacji: tenant, którego zadania wciąż
+zabijają workera, wstrzymuje rodzaj tylko dla siebie, a zadania bez organizacji
+dzielą jeden licznik dla całego wdrożenia.
 
-W `backend/Dockerfile` nie ma `HEALTHCHECK`. Obraz jest uruchamiany jako dwa różne
-procesy — API i ten runner — a próba dla jednego jest stałym fałszywym alarmem dla
-drugiego, więc każda definicja usługi nosi własną.
+**To, co zadanie zostawia, zostaje domknięte, nawet gdy raz się nie uda.**
+Zadanie, które kończy się na dobre, może zostawić dokument w stanie `processing`
+albo log synchronizacji w stanie `running`. Worker domyka je, gdy zadanie się
+kończy, a rescuer ponawia nieudane domknięcie - np. gdy baza była niedostępna -
+przez dobę.
+
+Worker, który umrze, oddaje swoje zadania w ciągu `WORKER_LEASE_SECONDS`:
+ratowanie u innego workera przejmuje wygasłą dzierżawę i zapisuje zadanie jako
+śmierć workera. Deploy nie kosztuje zadania próby - worker przestaje pobierać,
+pozwala trwającym zadaniom skończyć się przez 30 sekund i oddaje resztę. Pliki
+compose dają mu 45 sekund, zanim go zabiją.
+
+Health check kontenera czyta `WORKER_HEALTH_FILE`, który heartbeat dotyka po
+każdym uderzeniu, które dotarło do bazy, więc worker żywy, ale odcięty od
+Postgresa, jest `unhealthy`. To plik, a nie endpoint HTTP, bo worker niczego nie
+serwuje.
+
+W `backend/Dockerfile` nie ma `HEALTHCHECK`. Obraz jest uruchamiany jako różne
+procesy - API, worker i migracje - a sonda dla jednego byłaby stałym fałszywym
+alarmem dla drugiego, więc każda definicja usługi niesie własną.
 
 ### Wygasanie zatwierdzeń { #approval-expiry }
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Jak długo zaparkowane wywołanie narzędzia czeka, zanim cogodzinne zamiatanie odrzuci je przez timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | Jak długo run czeka na odpowiedź na pytanie agenta, zanim to samo zamiatanie go zakończy |
 
 Trzy dni, bo musi objąć weekend: zatwierdzenie, które przychodzi w piątek po
 południu, jest tym, o którym nikt nie decyduje, a wygaszenie go w sobotę byłoby
@@ -506,13 +540,51 @@ potrafią: ograniczają oczekującą i działającą pracę węzłów za współ
 runnerem, żeby jeden wołający nie mógł uruchomić wielu szerokich grafów poniżej
 limitu tempa i narastać zaległości, które zagłodzą innych najemców.
 
-Run workflowu przechodzi przez trzy deploymenty Prefecta. `workflow-dispatch-node`
-wykonuje jedną próbę jednego węzła i jest zlecany na żądanie;
-`workflow-dispatch-poll` działa co 10 sekund i zleca każdy gotowy węzeł, który
-nie został zlecony w ciągu ostatniego czasu claimu; `workflow-reconcile` działa
-co 30 sekund i odzyskuje claimy i próby pozostawione przez martwego workera.
-Nawet bez żadnej pracy oba harmonogramy tworzą około 11 500 flow runów dziennie,
-więc dobierz do tego bazę danych serwera Prefect i retencję flow runów.
+Run workflowu to łańcuch jobów. Każda próba węzła to jeden job
+`workflow-dispatch-node` w puli workflow, zakolejkowany w tej samej transakcji co
+wiersz wysyłki węzła, więc run nigdy nie startuje bez swojego joba, a wycofany
+start go nie zostawia. Timer albo opóźnienie ponowienia to ten sam job z
+`run_after` ustawionym na czas, w którym ma ruszyć. Pozycję runu trzyma wiersz w
+bazie, a nie job: job wykonuje się raz, a worker, który padł w trakcie węzła,
+jest odzyskiwany przez poniższe sweepy, nie przez ponawianie joba.
+
+W puli system
+działa pięć sweepów: `workflow-dispatch-poll` (co minutę) kolejkuje job dla
+gotowego węzła, którego własny job się nie wykonał, `workflow-reconcile` (co 30
+sekund) odzyskuje claimy i próby pozostawione przez martwego workera,
+`workflow-schedules-check` (co minutę) uruchamia harmonogramy workflowów,
+`workflow-table-triggers` (co 10 sekund) obsługuje wyzwalacze na rekordach
+tabel, a `workflow-run-retention` (codziennie) usuwa runy po okresie retencji
+ich workflowu.
+
+Joby węzłów mają własną pulę, więc rozgałęzienie nie zajmie miejsc, na które
+czekają uruchomienia agentów, a agent, który woła workflow i czeka na niego, nie
+czeka na miejsce we własnej puli. `WORKER_WORKFLOW_CONCURRENCY` ogranicza liczbę
+węzłów wykonywanych naraz na każdym workerze. Run, na którego wynik ktoś czeka
+(odpowiedź webhooka, czat, API), wyprzedza taki, który uruchomił się sam, a
+workflow wołany przez inny dziedziczy priorytet runu, który go zawołał.
+
+Węzeł
+działa w pętli zdarzeń i pamięci samego workera: dobierz pamięć workera do
+`WORKER_WORKFLOW_CONCURRENCY` węzłów, z których każdy trzyma największy plik, jaki
+węzeł może trzymać (`WORKFLOW_RUN_MAX_FILE_BYTES`), bo worker zabity przez jądro
+traci wszystkie joby, które wykonywał. Takie śmierci nie liczą się do
+`WORKER_BREAKER_DEATHS`: jeden crash kończy wszystkie węzły, które worker trzymał,
+a węzeł, który ciągle zabija workera, zatrzymuje własny limit ponowień workflowu. Strona
+Background jobs pokazuje jeden job na próbę węzła, a sweepy dokładają około
+14 400 wierszy dziennie, przechowywanych przez `BACKGROUND_JOB_RETENTION_DAYS`.
+Anulowania zakolejkowanego joba węzła tam nie ma: anuluj run.
+
+### Tura czatu zostawiona w trakcie { #a-chat-turn-left-running }
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Jak długo tura czatu trwa po tym, jak osoba, która pytała, wyszła - zamknięta karta, zamknięta aplikacja, zerwane połączenie - zanim zostanie zatrzymana; najwyżej `120`, bo dłużej lista rozmów przestaje pokazywać turę jako trwającą |
+
+Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ogranicza
+wydatki na odpowiedź, której może nikt nie przeczytać, a nie wyłącza czegokolwiek.
+Musi objąć Twoją najdłuższą turę researchu albo przeglądania; run i tak trzyma się
+budżetu agenta. Zobacz [Konsola](console.md#chat).
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 
@@ -541,8 +613,8 @@ Trzy rzeczy mogą skierować runy do projektu i nakładają się na siebie:
 
 - `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie, więc każdy run trafia
   do projektu samego wdrożenia. Konfigurują go dwa procesy: API przy starcie
-  (`app/main.py`) oraz odpalony run w workerze Prefect, który ustawia się sam, bo
-  każdy flow run dostaje własny podproces. Spany workera niosą
+  (`app/main.py`) oraz worker, raz przy starcie (`app/worker/__main__.py`), bo
+  nigdy nie wykonuje lifespanu API. Spany workera niosą
   `<nazwa usługi>-worker`, więc w jednym projekcie da się odróżnić wolny run
   zaplanowany od wolnej tury czatu.
 - [Środowisko](environments.md#tracing-per-environment) może nieść własny token
@@ -559,6 +631,18 @@ a specjalista, do którego agent deleguje — napisany inline albo wymyślony
 w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
+
+Przy `ENVIRONMENT=production` żaden span nie trafia na konsolę. Eksporter
+konsolowy Logfire wypisuje jedną linię na każde wywołanie SQL i Redisa, około
+czterdziestu na zapytanie, do logu kontenera, którego nikt nie przeszuka. W
+produkcji span istnieje więc tylko tam, dokąd wysyła go token, a bez tokenu wolne
+zapytanie nie zostawia żadnego śladu. `agenticos cmd doctor` zgłasza to w linii
+`tracing`. W innych środowiskach konsola dalej wypisuje spany dla tego, kto patrzy
+na serwer.
+
+Daj każdemu wdrożeniu własne `LOGFIRE_ENVIRONMENT`, na przykład `local` na
+laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i nadal
+je rozróżniać.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
@@ -709,20 +793,31 @@ tak samo jak źródło `gdrive` nazywa konto serwisowe. Endpoint i region nadal 
 się do tych ustawień, bo żadne z nich nie nazywa principala — mówią, gdzie jest
 magazyn, a nie kto pyta.
 
-## Opublikowane artefakty { #published-artifacts }
+## Opublikowane aplikacje { #published-artifacts }
 
 Strony, które agenci publikują za pomocą capability `artifacts`. Ich bajty leżą w
 opisanym wyżej magazynie plików; te zmienne je ograniczają i mówią, skąd są
-serwowane. Zobacz [Artefakty](artifacts.md).
+serwowane. Zobacz [Aplikacje](artifacts.md).
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
-| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Najwięcej bajtów rekordów, jakie jeden proces API trzyma przez 30 sekund dla [publicznych linków i embedów stron](artifacts.md#the-cache-and-the-cap). Tylko w pamięci procesu, nigdy w Redisie. Najdawniej używane odczyty odpadają pierwsze, a odczyt ponad budżet nie jest zachowywany. Co najmniej 1024 |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 | `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
+
+**Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o
+`/api/v1/artifact-content/tiles/{z}/{x}/{y}`; API sprawdza liczby, pobiera kafelek
+z serwera, trzyma ostatnie 2048 w pamięci i odpowiada, więc klucz z szablonu nigdy
+nie opuszcza serwera. Trasa nie wymaga sesji - ładuje ją każda strona - więc ma
+limit na adres (`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Pilnuj warunków dostawcy:
+publiczne kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment
+powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy
+serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje jego ścieżkę treści,
@@ -739,7 +834,7 @@ adresy treści na `PUBLIC_BASE_URL`, a `frame-src` konsoli wskazuje trasę treś
 
 **Renderer to osobna przeglądarka, bez sieci.** Compose dostarcza go jako
 opcjonalny profil `artifact-render`: przypięty bezgłowy Chromium w sieci
-wewnętrznej, do której dołączają tylko API i runner Prefect. Na każde żądanie,
+wewnętrznej, do której dołączają tylko API i worker. Na każde żądanie,
 które wysyła render, odpowiada API - stroną, jej plikami bibliotek i dokumentem
 hosta - albo je odrzuca, więc przeglądarka nie potrzebuje drogi na zewnątrz. A
 ponieważ renderuje rekordy ludzi, nie może być przeglądarką, którą steruje
@@ -758,7 +853,7 @@ poniżej dotyczą wyłącznie workspace'u opartego na kontenerze.
 
 | Zmienna | Domyślnie | Uwagi |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
+| `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Powyżej tej wartości załączony obraz jest zapisywany do workspace'u i nie jest dodatkowo wysyłany inline |
 
 **Procent w czacie to dwa różne sufity i mówi, który.** Przechowywany workspace
@@ -1121,6 +1216,26 @@ usunięty), profile modeli mogą wskazywać na lokalne endpointy takie jak Ollam
 sandboksa dla `run_python` są konfiguracją capability per agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` zostały usunięte).
 
+## Rozmowy głosowe { #voice-calls }
+
+[Rozmowy głosowe](voice.md) włącza się w każdym agencie, a ogranicza je jego
+najdłuższa rozmowa i budżety. Dwa sufity należą do deploymentu:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem budżetu organizacji |
+
+Oba liczą rozmowy ze świeżym heartbeatem, więc rozmowa, której proces padł,
+przestaje się liczyć w ciągu 45 sekund. Rozpoczynanie rozmów w embedzie ma też
+rate limit (`RATE_LIMIT_EMBED_VOICE_*`, [niżej](#rate-limiting)). Własny
+`rate_limit_per_minute` embeda, ustawiany w Builderze, liczy **wiadomości**
+odwiedzającego, a nie rozpoczęcia rozmów, więc nie ogranicza rozmów.
+
+Reszta jest ustalona w kodzie, a nie konfigurowana: rozmowa nigdy nie trwa
+dłużej niż 50 minut, heartbeaty idą co 15 sekund, a sprzątanie rozmów
+głosowych działa co minutę, jako harmonogram workera `reap-voice-calls`.
+
 ## CORS { #cors }
 
 | Zmienna | Domyślnie | Opis |
@@ -1137,7 +1252,7 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
-powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
+powierzchni, configu i logo hostowanej strony oraz uploadu, dyktowania i rozmowy głosowej odwiedzającego. Własne
 trasy konsoli są za sesją i nie są mierzone, z jednym wyjątkiem: zapisami do
 [Virtual Tables](virtual-tables.md), które przechowują migawkę każdej zmiany. Czy całe
 API powinno nosić sufit, to osobna decyzja, nie ta.
@@ -1151,8 +1266,15 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kafelki map, które jeden adres może pobrać przez [ścieżkę kafelków](artifacts.md#visuals) deploymentu, **na adres**. Mapa to kilkadziesiąt kafelków, a przesuwanie dodaje kolejne; limit nie pozwala zrobić z deploymentu darmowego proxy do serwera kafelków |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
+| `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` | `6` | [Odsłuchanie głosu](voice.md#turn-it-on) w Builderze, na osobę. Każdy podgląd spoza cache to krótka płatna sesja u providera realtime agenta, poza wszystkimi budżetami modelu; raz odsłuchany głos jest trzymany w cache przez tydzień |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji. Zużywane dopiero po wpuszczeniu odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Adres jest liczony, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem, zużywane dopiero po wpuszczeniu odwiedzającego. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
 | `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Ile razy dane jednej strony mogą być czytane z jej tabel dla odwiedzających jej publiczny link albo embedy, **per strona dla wszystkich odwiedzających łącznie**. Ładowanie, które musi czytać z tabel, liczy się raz, a to obsłużone z 30-sekundowego [cache](artifacts.md#the-cache-and-the-cap) nie; po przekroczeniu limitu strona ładuje się bez tych danych |
 | `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runy, które jeden członek może uruchomić z [akcji](artifacts.md#actions) jednej strony w ciągu minuty, **na członka, organizację i stronę**. Każdy run członek najpierw potwierdza; limit ogranicza stronę, która prosi w pętli. Po jego przekroczeniu wywołanie strony jest odrzucane jako `rate_limited` |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
@@ -1312,6 +1434,7 @@ przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie sw
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Ile sekund pętla zdarzeń może się nie kręcić, zanim worker zostanie zabity i zastąpiony. `0` lub mniej wyłącza to sprawdzanie |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Ile sekund supervisor uvicorna czeka, aż worker odpowie na jego ping, zanim go zastąpi — wszędzie, gdzie `--workers` jest większe od 1. Czytają ją pliki compose, nie aplikacja |
 
 Worker, który *żyje, ale nie odpowiada* — zakleszczony na blokadzie, kręcący się w
 synchronicznym wywołaniu, zablokowany na sockecie, który nigdy nie odpowie — nie ma
@@ -1357,6 +1480,18 @@ Nie widzi procesu, który w ogóle nie działa — `kill -STOP`, zamrożona cgro
 watchdog wewnątrz zatrzymanego procesu też jest zatrzymany. Ten przypadek pokrywają
 już supervisory: bicie supervisora przeładowania staje się nieaktualne, a ping po
 pipie w produkcji zostaje bez odpowiedzi.
+
+Ten ping czeka `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` sekund, domyślnie 60.
+Domyślna wartość samego uvicorna to 5, a host, któremu brakuje CPU — steal na
+współdzielonym VPS-ie, budowanie obrazu, zaległe uruchomienia flow — nie mieści się
+w 5 sekundach z workerami, które żyją i obsługują ruch.
+
+Supervisor zabija je wtedy,
+a potem zabija ich następców, zanim skończą importować aplikację, i każdy restart
+dokłada import do presji, która go spowodowała. W logu widać to jako
+`Child process [N] died` bez wpisu watchdoga nad nim. Skoro zablokowaną pętlę
+ocenia watchdog, ping ma tylko zauważyć zatrzymany proces, a na to minuta
+wystarczy.
 
 ## Docker / produkcja { #docker-production }
 

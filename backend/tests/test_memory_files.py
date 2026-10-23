@@ -14,8 +14,6 @@ instructions are what it obeys, so an index is injected only where its content
 could have steered nobody but its reader.
 """
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -35,7 +33,7 @@ from app.agents.capabilities.memory_files import (
     _build,
 )
 from app.agents.capabilities.memory_files._capability import _MAX_INDEX_CHARS, _preamble
-from app.agents.capabilities.memory_files._toolset import _NO_STORE, MemoryToolset
+from app.agents.capabilities.memory_files._toolset import _NO_STORE, _READ_ONLY, MemoryToolset
 from app.agents.deps import AgentDeps
 from app.agents.memory_scope import may_inject_memory, memory_owner_key
 from app.core.memory_keys import is_person_key, person_owner_key, room_owner_key
@@ -483,3 +481,38 @@ class TestTheBinding:
         )
 
         assert capability.allow_personal is False
+
+
+class TestAReadOnlyRun:
+    """An event trigger acting as its creator reads their notes and changes none (#2027)."""
+
+    @pytest.mark.security
+    async def test_every_write_is_refused_and_nothing_is_written(self, monkeypatch):
+        written = AsyncMock()
+        for name in ("write_file", "edit_file", "delete_file"):
+            monkeypatch.setattr(memory_store, name, written)
+        ctx = _ctx(
+            AgentDeps(
+                organization_id=ORG,
+                agent_id=AGENT,
+                audience=RunAudience(user_id=PERSON, writes_memory=False),
+            )
+        )
+        toolset = _toolset()
+
+        assert await toolset.write_memory(ctx, "pref", "likes the EU numbers") == _READ_ONLY
+        assert await toolset.edit_memory(ctx, "pref", "anything") == _READ_ONLY
+        assert await toolset.delete_memory(ctx, "pref") == _READ_ONLY
+        written.assert_not_awaited()
+
+    async def test_reading_still_works(self, monkeypatch):
+        monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[]))
+        ctx = _ctx(
+            AgentDeps(
+                organization_id=ORG,
+                agent_id=AGENT,
+                audience=RunAudience(user_id=PERSON, writes_memory=False),
+            )
+        )
+
+        assert await _toolset().list_memory(ctx) == "No notes saved yet."

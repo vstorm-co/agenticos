@@ -2,7 +2,9 @@
 
 Notable changes to AgenticOS. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) with one exception:
+AgenticOS stays on major version 1, so a change a deployment has to act on ships
+in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
@@ -32,7 +34,7 @@ Two things are versioned separately from this file and worth knowing about:
   it; the page reads back only its status, answer text, structured answer without files
   and a short error. Public links, embeds, previews, history and impersonated sessions
   get no actions. New `artifact_versions.actions`, `workflow_runs.source_artifact_id`
-  and `source_version_number` (migration `0148_artifact_actions`), the setting
+  and `source_version_number` (migration `0202_artifact_actions`), the setting
   `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` and the audit entry `artifact.action_started`.
   (#1976) [Artifacts](docs/artifacts.md#actions) has the rules.
 
@@ -50,7 +52,7 @@ Two things are versioned separately from this file and worth knowing about:
   Reads are shared for 30 seconds in a byte-bounded cache in the API process, never in
   Redis, and each page's real reads are capped per minute. Editors see why a consented
   page shows nothing. New `organizations.public_live_data` and public data columns on
-  `artifacts` (migrations `0146_org_public_live_data`, `0147_artifact_public_data`), settings
+  `artifacts` (migrations `0200_org_public_live_data`, `0201_artifact_public_data`), settings
   `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` and `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`, and
   audit entries `organization.public_live_data_changed`, `artifact.public_data_consented`,
   `artifact.public_data_withdrawn` and `artifact.public_data_voided`. No agent tool reaches
@@ -77,8 +79,8 @@ Two things are versioned separately from this file and worth knowing about:
   cannot see can **Request access**. Agents get `share_artifact`, which only asks. New
   `artifact_share_requests`, consent columns on `artifact_versions`, `artifacts.auto_consent`,
   the `edit_data` grant level, the `artifact_share_requested` and `artifact_owner_changed`
-  notifications (migrations `0142_artifact_consent`, `0143_artifact_owner_changed`,
-  `0144_artifact_share_requests`, `0145_grant_edit_data`) and audit entries
+  notifications (migrations `0196_artifact_consent`, `0197_artifact_owner_changed`,
+  `0198_artifact_share_requests`, `0199_grant_edit_data`) and audit entries
   `artifact.data_consented`, `artifact.data_withdrawn`, `artifact.auto_consent_changed`,
   `artifact.owner_changed`, `artifact.share_requested`, `artifact.share_request_approved`,
   `artifact.share_request_declined` and `artifact.edit_data_granted`. A public link or an
@@ -121,14 +123,14 @@ Two things are versioned separately from this file and worth knowing about:
   `POST /api/v1/artifacts/{id}/archive` and `/unarchive` (audited as
   `artifact.archived` and `artifact.unarchived`), `include_archived` on the
   list, an **Archived included** filter and an **Archived** badge in the
-  console, and `artifacts.archived_at` (migration `0138_artifact_archive`).
+  console, and `artifacts.archived_at` (migration `0192_artifact_archive`).
 
 - **A restored page version says what it was restored from.** Restoring a
   kept version of an artifact still adds a new version with its bytes; that
   version now records the number it came from, and the console's version list
   shows it as `v4 · restored from v2`. A publish leaves it empty. New
   `restored_from` on the version read and `artifact_versions.restored_from`
-  (migration `0139_artifact_restored_from`).
+  (migration `0193_artifact_restored_from`).
 
 - **Tool-call approvals say what they will do in names.** A gated table
   write is parked with its ids resolved, as the run's person, to the table and
@@ -137,7 +139,7 @@ Two things are versioned separately from this file and worth knowing about:
   `register(...)`; one that fails or is slow parks the call without a sentence.
   New `context` on `GET /approvals` rows, `GET /runs/{id}/parked` and the
   `tool_approval_required` frame, and `tool_approvals.context` (migration
-  `0140_tool_approval_context`).
+  `0194_tool_approval_context`).
 
 - **Archiving and restoring a table from the console.** A member who can edit
   a Virtual Table archives it from **More actions** on its page, after a
@@ -181,7 +183,7 @@ Two things are versioned separately from this file and worth knowing about:
   the answer to look and whether it should contain, not contain or equal a
   value. **Try** starts a test run of the step per case and marks each passed
   or failed as its run ends, with what the answer said and what it cost.
-  Migration `0135_workflow_step_evals`.
+  Migration `0189_workflow_step_evals`.
 
 - **Limits and figures for a workflow's runs.** A workflow's settings take how
   many real runs may be under way at once (a start past it is refused with
@@ -198,7 +200,7 @@ Two things are versioned separately from this file and worth knowing about:
   agents' Gmail triggers. A message read twice runs once, and one the
   organization had no room for is read again a minute later. The step shows
   whether a mailbox is connected and connects one; a GitHub step shows the
-  same for its account. Migration `0134_workflow_gmail_trigger`.
+  same for its account. Migration `0188_workflow_gmail_trigger`.
 
 - **Workflows started from GitHub.** A **GitHub** trigger starts a run for
   the issues, comments, pull requests, reviews, pushes, releases or Actions
@@ -208,14 +210,14 @@ Two things are versioned separately from this file and worth knowing about:
   otherwise it shows the address and secret once, to paste. Deliveries are
   checked against GitHub's signature, a redelivery answers with its first run,
   and a `ping` or anything not named is skipped. Migration
-  `0133_workflow_github_trigger`.
+  `0187_workflow_github_trigger`.
 
 - **Workflows started from a channel message.** A **Channel message** trigger
   hands a Slack, Mattermost or Telegram bot's messages to a workflow: each one
   the bot's agent would have answered, and that fits the trigger's chats and
   words, starts a run as its publisher with the text, the sender and where to
   answer. The rest still reach the bot's agent, and a bot's messages start one
-  workflow at most. Migration `0132_workflow_channel_trigger`.
+  workflow at most. Migration `0186_workflow_channel_trigger`.
 
 - **Workflows started from a form.** A **Form** trigger gives a workflow a
   public page with the fields it declares, its own title, description, button
@@ -223,7 +225,7 @@ Two things are versioned separately from this file and worth knowing about:
   answer that fits starts a run as the member who published it. **Trigger**
   shows the link, **New link** replaces it, and pausing closes the page; each
   form takes at most `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute,
-  and a hidden field turns scripts away. Migration `0131_workflow_form_trigger`.
+  and a hidden field turns scripts away. Migration `0185_workflow_form_trigger`.
 
 - **Agents start workflows.** The **Workflows** capability gives an agent the
   published workflows its spec names as tools: it reads the input each one
@@ -233,7 +235,7 @@ Two things are versioned separately from this file and worth knowing about:
   started it. An agent running as a workflow's own step starts none. A run
   with no member behind it (a widget, embed or hosted-page visitor, an unlinked
   channel sender, an agent event trigger's delivery) starts none.
-  Migration `0130_workflow_run_from_agent`.
+  Migration `0184_workflow_run_from_agent`.
 
 - **Import a CSV file again to update a table.** With an external id column mapped,
   **Update records already here** changes the cells a row names on the record
@@ -245,7 +247,7 @@ Two things are versioned separately from this file and worth knowing about:
   changed or deleted, and a change only when one of the columns chosen for the
   table changed. The run gets the record with its `event`, its values `before`
   and the `changed` columns. Changes and deletions are queued only for a table a
-  trigger listens to. Migration `0129_table_trigger_events`.
+  trigger listens to. Migration `0183_table_trigger_events`.
 
 - **Formula columns.** A table column can work a value out from the record's
   other columns - `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
@@ -295,7 +297,7 @@ Two things are versioned separately from this file and worth knowing about:
   step's first run, republished when its spec changes, kept out of the catalog and
   reached through the workflow's access. **Copy its configuration into this step**
   and **Save as an agent** move between the two. `max_cost_usd` caps one execution
-  of the step. Migration `0128_workflow_agents`.
+  of the step. Migration `0182_workflow_agents`.
 
 - **A workflow note can be tinted** grey, yellow, green, blue, purple or red
   from the swatches a selected note shows; the graph keeps the colour.
@@ -567,7 +569,7 @@ Two things are versioned separately from this file and worth knowing about:
   service. A retried step or tool call replays its first write, and a table
   or pinned column a live workflow uses cannot be archived. Creating a table
   is now idempotent under an operation key; migration
-  `0115_table_create_receipts.py` (#1784).
+  `0169_table_create_receipts.py` (#1784).
 - **Workflows can do real work: agents, knowledge, data, branches, HTTP and
   notifications.** Nine nodes join the palette. `core.input` and `core.output`
   carry a run's `input` and `output` (`POST /workflow-runs` takes `input`, and
@@ -581,7 +583,7 @@ Two things are versioned separately from this file and worth knowing about:
   them. `http.request` calls APIs through the SSRF-pinned client, and
   `notification.send` notifies members who can see the workflow. Every node
   is in the new [node reference](docs/reference/workflow-nodes.md).
-  Migrations `0113_workflow_run_io.py` and `0114_workflow_notification.py`
+  Migrations `0167_workflow_run_io.py` and `0168_workflow_notification.py`
   (#1789).
 - **Restore a published workflow version to the draft.** **Restore to draft** in
   a version's preview replaces the draft with that version's graph, after a
@@ -605,7 +607,7 @@ Two things are versioned separately from this file and worth knowing about:
   Runs, their events and cancel have routes of their own; see
   [the HTTP API](docs/api.md#running-a-workflow) and
   [Permissions](docs/permissions.md#workflow-runs). Migration
-  `0111_workflow_runs.py`. (#1788)
+  `0165_workflow_runs.py`. (#1788)
 - **Virtual Tables: typed records behind one service and an HTTP API.** A table is
   metadata plus JSONB, never a physical SQL table, with immutable schema versions,
   stable table, column and option ids, and nine column types (text, long text,
@@ -617,7 +619,7 @@ Two things are versioned separately from this file and worth knowing about:
   `Idempotency-Key` header makes a retry return the first answer. Access is
   visibility plus grants like context files, with new `tables:view`, `tables:edit`
   and `tables:create` permissions, and every route answers refusals in one typed
-  error envelope. Migration `0106_virtual_tables.py`; see
+  error envelope. Migration `0160_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 - **Virtual Tables in the console: a catalog, table/kanban/list views, and saved
   views.** `/tables` lists, searches and creates tables. A table's page edits its
@@ -630,7 +632,7 @@ Two things are versioned separately from this file and worth knowing about:
   `/tables/{id}/views` (paged, per kind). Archiving a column is refused only by a
   view the caller can both see and change; any other view drops the column when
   read instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
-  Migration `0109_table_views.py`; see
+  Migration `0163_table_views.py`; see
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
 
 ### Fixed
@@ -658,7 +660,7 @@ Two things are versioned separately from this file and worth knowing about:
   no sign-in - the link, a MAC of the run under `SECRET_KEY`, is the
   credential - and answers `404` for a link that is not the run's and
   `WORKFLOW_NOT_WAITING` (409) when nothing waits. Migration
-  `0127_node_run_resume_payload.py`.
+  `0181_node_run_resume_payload.py`.
 - **A test run on the canvas, and a step switched off, as proposed.** A
   connection says how many items went along it when the step before handed
   on a list, and an edit that ends the run's overlay leaves a bar with
@@ -673,7 +675,7 @@ Two things are versioned separately from this file and worth knowing about:
   description is edited in the editor's header like the name (#1942). Run
   history narrows by when a run started (#1943). A date step that names no
   timezone writes in the workflow's, kept on the run from its start in
-  `workflow_runs.timezone` (migration `0126_workflow_run_timezone.py`, #1944).
+  `workflow_runs.timezone` (migration `0180_workflow_run_timezone.py`, #1944).
   A called run links back to its caller and the calling step to the run it
   started (#1946). Before any run a step's panes list the fields it declares,
   and a long table can show every row (#1934). The code editor boxes the
@@ -775,7 +777,7 @@ Two things are versioned separately from this file and worth knowing about:
   budget for receipts, outbox rows and history now scales with
   `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`, so one pass keeps draining a member
   writing at the limit instead of falling behind it. Migration
-  `0107_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
+  `0161_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
 
 ### Security
 
@@ -811,10 +813,22 @@ Two things are versioned separately from this file and worth knowing about:
   from the instant it is admitted - not once its nodes fan out - and the check is
   serialized per organization and per principal so it cannot be raced. A start
   over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
-  running work drains. Migration `0112_workflow_run_node_count.py`. (#1907)
+  running work drains. Migration `0166_workflow_run_node_count.py`. (#1907)
 
 ### Changed
 
+- **Workflow runs run on the Postgres job queue.** Every node attempt is a
+  `workflow-dispatch-node` job on the agent pool, queued in the same transaction as
+  its outbox row, so a run never starts without its job and a rolled-back start
+  leaves none; a timer or a retry's backoff is the same job with `run_after` set to
+  the time it is due. The row, not the job, still holds the run's position, and the
+  job runs once. Five sweeps - `workflow-dispatch-poll` and `workflow-schedules-check`
+  every minute, `workflow-reconcile` every 30 seconds, `workflow-table-triggers`
+  every 10 seconds and `workflow-run-retention` daily - are the backstop, and a run
+  someone is waiting on (a webhook answering, a chat, the API) goes ahead of one
+  that started itself. Node jobs share `WORKER_AGENT_CONCURRENCY` and the worker's
+  memory with agent runs. [Configuration](docs/configuration.md#workflow-runs) has
+  the job volume.
 - **A click selects a workflow step and a double click opens it**, so a step
   can be picked out to move, copy or delete without its dialog opening.
 - **A workflow's save status no longer pushes the header around.** "Unsaved
@@ -933,6 +947,2525 @@ Two things are versioned separately from this file and worth knowing about:
   `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
   the step at once, because the same revision would conflict on every retry;
   route it with `error.handle` to a fresh read instead (#1790).
+
+## [1.13.1] - 2026-10-23
+
+### Fixed
+
+- **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
+  host with an empty label (`a..b`) or a label longer than 63 characters made
+  the resolver's IDNA codec raise an error the outbound guard did not catch, so
+  saving an MCP connection with such a URL answered 500 "An unexpected error
+  occurred". The guard now refuses it with "The URL's host name is not valid",
+  a 400 like every other refusal, for every caller. The MCP catalog audit and
+  the browser's endpoint lookup treat such a name as one that does not resolve.
+
+### Security
+
+- **OpenTelemetry moves to 1.45.1 (0.66b1 for the instrumentation packages).**
+  `opentelemetry-api` 1.44.0 is affected by CVE-2026-114603
+  (GHSA-xcq7-p3pf-p88h), which failed `make audit` and so the required Security
+  Scan on every pull request. Only the lockfile and the third-party notices
+  change; two Apache-2.0 packages, `opentelemetry-exporter-http-transport` and
+  `opentelemetry-exporter-otlp-common`, come in with the new exporters.
+
+## [1.13.0] - 2026-10-22
+
+### Added
+
+- **`MCP_ALLOWED_HOSTS` lets an MCP connection reach a server on the
+  deployment's own network (#2349).** Before, the SSRF check refused every
+  connection URL whose host resolves to a private or loopback address, such as a
+  compose service. There was no way past it. Now an operator can list such
+  hosts. A listed host skips only the address check, when a connection is saved.
+  The match is exact and ignores case, and OAuth sign-in to a listed host is
+  still refused. Every account can reach every port on a listed host, so list
+  only a server that checks a token. A cloud metadata, link-local or loopback
+  entry (`localhost` too) is refused at startup. Empty, the default, changes
+  nothing. See [a connection](docs/mcp.md#a-connection).
+
+## [1.12.3] - 2026-10-22
+
+### Fixed
+
+- **The image packages describe themselves on GHCR (#2299).** The pages for
+  `agenticos-backend`, `agenticos-frontend` and `agenticos-browser` said "No
+  description provided": GHCR reads a multi-architecture package's description
+  from the manifest list, and the labels sat only on the per-architecture
+  images. The publish job now annotates each list with what the image is and a
+  link to the docs. The pages update on the next publish; earlier tags keep
+  their lists as they were.
+
+## [1.12.2] - 2026-10-22
+
+### Fixed
+
+- **A dead job's ending is settled once (#2334).** When a job died for good,
+  the worker that saw it settled its ending - marking a document failed, closing
+  a sync log - right after committing the death, and a rescuer pass running in
+  that moment read the same end as still owed and settled it again. The settler
+  now runs under a lock on the job's row: a second caller skips it, one arriving
+  later finds it settled, and a settler that fails still leaves the end owed for
+  the next pass.
+
+## [1.12.1] - 2026-10-22
+
+### Security
+
+- **Dependency alerts match the backend's locked versions again.** Dependabot
+  cannot read a project that requires Python 3.15, so since 1.9.0 its graph kept
+  the versions locked before, and fourteen alerts for Pillow, certifi and
+  virtualenv stayed open although `backend/uv.lock` already held the fixed
+  releases. A new workflow, `.github/workflows/dependency-graph.yml`, submits
+  the graph from the lock on every push to `main` that moves it. See
+  [Dependency updates](docs/branching.md#dependency-updates).
+
+## [1.12.0] - 2026-10-22
+
+### Added
+
+- **Interactive answers in the chat (#2302).** An agent with Visuals chooses
+  the form of each answer - text, a Markdown table, a native chart, or a
+  drawing - and a drawing can be a tool: an explainer with controls, a
+  calculator, a map. A button in a drawing can continue the conversation with
+  what the person picked through `agenticos.followUp(text)`: the console shows
+  the exact text under the drawing and sends it only when the person clicks
+  Send, so a drawing can never speak for them. In a saved app the call does
+  nothing.
+- **Maps in visuals and apps.** `VISUAL_MAP_TILES` names one tile server -
+  `openstreetmap`, `usgs-topo`, or a https URL template with
+  `VISUAL_MAP_TILES_ATTRIBUTION`. The deployment fetches the tiles and serves
+  them from its own tile path, by three checked numbers and limited per address
+  (`RATE_LIMIT_MAP_TILES_PER_MINUTE`), so a page never sees the server's address
+  or key and can send it nothing. Off by default. Leaflet 1.9.4 and the map kit
+  `lib/agenticos-map-1.js` (`AOMap.itinerary`: numbered pins in order, pause,
+  replay, stop cards) join the library set; without tiles a map is drawn as an
+  outline of its stops. *Admin → System* shows whether the tile server answers.
+- **Starters for an agent that draws**: an empty chat with Visuals on opens on
+  four - explain in 3D, compare then chart, make a calculator, plan a trip on a
+  map. Switching Visuals on in the Builder binds Charts too.
+
+### Changed
+
+- **Drawings sit in the conversation without a card around them**, from the
+  text's left edge, named by a quiet line underneath; a drawing holds the height
+  it declared while it streams, and shows nothing until its styles are written.
+  The `visual-design` skill says how to choose the form of an answer and how to
+  make a drawing look designed rather than generated, with templates for a 3D
+  explainer, a calculator and an itinerary. Messages in the chat sit a little
+  closer together, and a drawing and the answer after the steps a little
+  further apart.
+
+## [1.11.0] - 2026-10-21
+
+### Added
+
+- **A default organization for new accounts, and personal organizations made
+  optional** (#2156). Two settings under Admin → Deployment → New accounts: turn
+  personal organizations off, and name the organization every new account joins,
+  with a role other than owner - an account admitted only by another
+  organization's invitation does not join it. A session request naming no organization now acts
+  in the default organization first, then the personal one, then the only one,
+  and is refused with a `400` naming `X-Organization-Id` rather than guessing
+  between several. The console selects the default organization when nothing else
+  is selected, and switches to the organization an accepted invitation joined.
+
+## [1.10.2] - 2026-10-21
+
+### Added
+
+- **The background-job benchmark, as a docs page.** Why the job queue is rows
+  in Postgres: ten engines in seventeen configurations, from Prefect, Celery and
+  Taskiq to PgQueuer, DBOS and Hatchet, through four scenarios. One of them is a
+  job that runs its worker out of memory, which started three times on the
+  shipped queue and eight on PgQueuer. The page gives the tables, what shipped in
+  1.9.0, and what one run on one machine cannot show. See
+  [the background-job benchmark](docs/task-queue-benchmark.md).
+
+## [1.10.1] - 2026-10-21
+
+### Changed
+
+- **The comparison guides are checked again, on 21 October 2026, against
+  1.10.0.** Every vendor source but OpenAI Frontier's, checked on 14 October,
+  was reread, and OpenCode against v1.19.3. ChatGPT's workspace-agent trigger
+  now returns a conversation link and polls run status in beta, though the
+  answer still cannot be read back; ChatGPT Business and Claude Team sell
+  Premium seats; Copilot Studio's credit pack gave way to commit units; Google
+  no longer lists Gemini Enterprise prices; Viktor and OpenCode changed plans.
+  The guides also say what AgenticOS gained since 0.0.504: the coding agent
+  that hands work to Claude Code or Codex, the MCP server, A2A, projects, an
+  approval policy per MCP connection, 33 permissions, the scaling guide and,
+  with 1.10.0, voice calls in web chat, the widget and the hosted page.
+- **AgenticOS vs Sauna**, a new comparison with Sauna, a proactive AI
+  assistant per person: where it runs and processes data, models per plan,
+  sharing, autonomy and pricing, from its public pricing, security and privacy
+  pages.
+
+## [1.10.0] - 2026-10-21
+
+### Added
+
+- **A navigation shows it is on its way.** A click on a link inside the
+  console starts a thin bar along the top edge, shown after 120 ms and
+  finished when the page arrives, and the sidebar entry clicked turns its icon
+  into a spinner, so a slow page no longer looks like a click that did nothing.
+- **The composer offers the same controls for every agent.** The call button
+  shows for an agent with no voice too, saying calls are off and linking an
+  editor to the agent's Voice card in the Builder; browser dictation says when
+  the agent's Dictation switch is off and links there too; the files button and
+  the usage meter appear in a new chat, saying what will show once it runs.
+- **Voice conversations with agents (#54).** A member can call a published
+  agent and talk to it, with barge-in; the agent keeps its tools, knowledge,
+  in-call approvals (the exact arguments shown, 60 seconds to decide, only the
+  caller with `approvals:decide` deciding) and budgets, and every turn is saved
+  as text in the conversation with no audio stored. Calls are switched on in the
+  agent, not the organization: a published agent with a Voice section takes
+  them, for as long as its own longest call (10 minutes by default, 50 at most),
+  bounded by the budgets. An agent's spec gains an
+  optional `voice` block - provider, model or Azure deployment and base model,
+  key, voice, language, longest call, voice note - picked from a new realtime
+  catalog (`GET /api/v1/providers/realtime-models`) and refused at publish when
+  it cannot hold a call; no `SPEC_VERSION` bump. Calls run over
+  `/api/v1/ws/voice`: OpenAI over WebRTC with a server sideband (no data
+  channel, no client secret), Azure OpenAI, Gemini Live and xAI through a relay,
+  those three **not verified live**. Each call is a run (`agent_runs.modality`,
+  and a `voice_calls` row per connection, `0155_voice_calls.py`), hung up on
+  every exit, heartbeated every 15 seconds and swept every minute for a dead
+  worker's calls; one call per person (`VOICE_MAX_CALLS_PER_USER`); one
+  automatic reconnect within 10 seconds, seeded with text. Turns are messages
+  with a `turn_id` and an `interrupted` marker (`0156_message_voice_turns.py`).
+  `GET /api/v1/agents/{agent_id}/voice` says whether a call would start,
+  `GET /api/v1/voice/usage` reports call minutes, `GET /api/v1/runs` takes
+  `?modality=`, and Activity shows a call as one row with a microphone badge.
+  Widgets and hosted pages get their own Voice calls switch and
+  `/api/v1/embed/{public_key}/voice/ws`, with gated tools left out of visitors'
+  calls, `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` (3) and
+  `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` (6), and at most
+  `VOICE_MAX_CALLS_PER_EMBED` (3) calls open per embed. The dashboard gains a
+  Voice minutes card and the walkthrough stops for both voice settings. In
+  `/chat` a call is a pill above a composer that does not change, its turns
+  drawn as the messages they become; the hosted page (without approval
+  controls) and the widget, whose `voice.js` loads only when calls are on, use
+  a call bar. A play button beside the Builder's voice picker plays the draft's
+  voice (`POST /api/v1/agents/{agent_id}/voice/preview`, cached, per person
+  `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` (6)).
+  What a realtime session cannot carry - sandbox, browser use, subagents, work
+  while tools run - the call hands to the same agent on its own text model
+  through one `hand_off` tool: same workspace, same budget, its approvals on
+  the call's card, its steps shown live and saved on the turn. In `/chat` the
+  agent's `ask_user` questions appear on the call view's card and can be
+  answered by a tap or aloud. The capability catalog's `voice` field is now
+  `live`, `hand_off` or `never`, and readiness no longer lists unavailable
+  capabilities. See [Voice conversations](docs/voice.md).
+- **Dictation in `/chat` on the organization's own speech-to-text provider
+  (#1797).** With the agent's Dictation switch on (`speech_to_text.dictation`),
+  the composer records
+  in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the
+  recording, and the text lands at the caret for editing, never sent by itself.
+  Anyone who may run the agent may dictate to it. Refusals carry
+  `details.reason`, each dictation is one `ml_service_calls` row, and the audio
+  is not stored. A per-person `RATE_LIMIT_DICTATION_PER_MINUTE` (10) meters it on
+  its own counter. Every browser records 16 kHz mono 16-bit PCM WAV, the only
+  format accepted by default (see the Admin → Deployment switch below). An
+  upload that takes over a second shows its percentage before the transcribing
+  sweep, and the strip under the box says when a recording stopped at the
+  organization's limit and how many words it inserted - on a hosted page too.
+  See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
+- **A Voice card on the organization's Members page.** For `org:settings`
+  holders: the default provider and model from the speech-to-text catalog, its
+  key, a language and the longest recording, stored in five new organization
+  columns (`0150_org_speech_settings.py`) - the default agents and channel bots
+  inherit. Without an agent's switch on, `/chat` dictates in the browser.
+- **An agent can transcribe on its own engine (#1797).** An optional
+  `speech_to_text` block on the agent spec (provider, model and key together,
+  the language on its own), set on a Voice card on the Build tab and live once
+  published. Speech resolves in one place: the pair from the bot, the agent,
+  then the organization; the language from the agent, then the organization.
+  `GET /api/v1/agents/{agent_id}/dictation` tells the composer whether
+  dictation to that agent is ready and on which provider, which decides the
+  recording format. See
+  [Which engine a recording reaches](docs/ml-services.md#which-engine-a-recording-reaches).
+- **Channel bots inherit, choose or switch off transcription.** A new
+  `transcribe_voice_notes` switch (`0151_bot_transcription_switch.py`): a bot
+  with no pair now inherits from its agent and organization, and off never
+  transcribes. Every bot that had no pair before the migration is switched off,
+  so none starts transcribing on upgrade. Slack audio clips are transcribed
+  whatever type Slack gives them, and an untyped Slack or Mattermost upload is
+  transcribed when its extension names audio; a Mattermost webhook-mode bot
+  looks its files up first, several at once, and keeps a file whose details come
+  back malformed as an ordinary attachment. `audio/opus` and `audio/x-ogg` are
+  read as Ogg and `audio/m4a` as MP4. The provider is sent `voice.<ext>` named
+  from the type, and a voice note posted in a thread before the bot joined is
+  named in the reply rather than transcribed. A bot whose agent is archived or
+  has nothing published transcribes nothing, since its turn is refused anyway. A
+  voice note longer than the organization's longest dictation, or whose length
+  neither its file (Ogg, WebM, MP4, WAV, MP3) nor its platform states, is
+  refused before any provider is paid. See
+  [the voice message notes](docs/channels.md#what-every-channel-shares).
+- **Every transcription is recorded with its length and attribution (#1797).**
+  `ml_service_calls` gains the provider and model, the key, the surface (`chat`,
+  `channel`, `api`), the agent and channel bot, and `audio_ms`
+  (`0152_ml_call_attribution.py`); a transcription now counts seconds of audio,
+  not characters. Channel voice notes write a row too, naming the linked
+  sender while they are still a member. The length comes from the recording
+  itself for dictation, then the provider (`whisper-1`, Groq, Mistral), the
+  platform (Telegram, Slack) or, for dictation, the browser's clamped figure.
+  `GET /api/v1/ml/calls` filters by agent, bot, surface and window - the first
+  three, and those columns, for `runs:view` only - and
+  `GET /api/v1/ml/calls/summary` (`runs:view`) adds up each row's own rounded
+  seconds, so it agrees with the listing; the organization's Voice card shows
+  it in one line. See
+  [Transcriptions](docs/ml-services.md#transcriptions).
+- **Dictation on a hosted page and in the website widget (#1797).** Each has a
+  `dictation` setting - Off, Browser or Server - and Server transcribes a
+  visitor's recording on the organization's own provider through the public
+  `POST /api/v1/embed/{public_key}/dictation`, admitted as the surface is (a
+  widget by its allow-list and token, a page by its visitor key). The page uses
+  the composer's recorder, hints and glow; the widget has a plain-JS recorder of
+  its own, WAV encoder and resampler included. Switching Server on is refused
+  while no provider and key resolve, and a page or widget whose provider
+  goes away offers no microphone. Rows record surface `hosted` or `widget` and
+  no person. Before the provider is called, the server counts the recording's
+  samples and refuses one over the organization's longest dictation as
+  `too_large`, so the link's limit times the longest dictation bounds the
+  spend exactly. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
+  `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (10, per
+  link) bound the spend. The recording format is the server's to say, as
+  `format` on `GET /api/v1/agents/{agent_id}/dictation` with
+  `server_available` beside it, and as `dictation_format` in a page's or a
+  widget's public config. See
+  [Dictation on a widget or a hosted page](docs/channels.md#dictation-on-a-widget-or-a-hosted-page).
+- **Dictation is raw PCM unless the deployment accepts compressed audio
+  (#1797).** By default every dictation - composer, hosted page and widget - is
+  WAV holding 16 kHz mono 16-bit PCM, read strictly: any other WAV, and WebM,
+  Ogg or MP4, is refused as `unsupported_type`, with `details.accepted`. Its
+  length is its size, so the samples are counted, refused over the longest
+  dictation before the provider is called, recorded exactly, and sent behind a
+  header the server builds. A **Dictation audio** card on Admin → Deployment
+  turns on `dictation_compressed_audio`
+  (`0154_dictation_compressed_audio.py`, off), after a dialog naming the risk
+  and an acknowledgement: compressed formats are then accepted too, their
+  length read from the file's header, which a crafted file can understate up to
+  about forty times within the byte cap; a page or widget still refuses one
+  whose length it cannot read, and the composer accepts it under the byte cap.
+  Browsers record WebM only where it is on and the provider takes it - Mistral
+  stays on WAV. See
+  [What a dictation may be uploaded as](docs/deployment.md#what-a-dictation-may-be-uploaded-as).
+- **An Appearance card under Settings → Profile** with the theme, a **Voice
+  glow** preference - Vivid, Subtle (the default) or Off, per browser, and no
+  glow under reduced motion - and a per-browser **Motion** preference: System
+  follows the operating system, Reduce turns motion down without it, and Full
+  keeps it whatever the operating system says.
+
+### Changed
+
+- **A hosted page's `allow_voice` is now `dictation` (#1797).** `true` reads as
+  `browser` and `false` as `off`, both on stored rows
+  (`0153_embed_dictation.py`, reversible) and on any config still sent with the
+  old field, so no page loses its microphone.
+- **Speech to text is sent with a key named beside its pair (#1797).** At
+  every level - the organization's default (`speech_to_text_secret_id`), an
+  agent's `speech_to_text.secret_id`, a channel bot's own pair
+  (`speech_to_text_secret_id`) - the model is a catalog pick and the key a vault
+  API key whose purpose is the provider. Provider, model and key resolve
+  together from the first level naming a pair, so a key never reaches another
+  provider; an agent that sets only a language keeps the organization's pair and
+  key. The organization's and a bot's key must be organization-visible, checked
+  when saved and per recording; an agent's must be viewable by its publisher,
+  checked at publish. Nothing is looked up at run time: model profiles are no
+  longer read for transcription, and the vault is not searched for a key by
+  provider. Deleting a key empties the reference, and readiness says `no_key`
+  (`unavailable` on `GET /api/v1/agents/{agent_id}/dictation`) until another is
+  chosen. `POST /api/v1/ml/audio/transcriptions` takes a `secret_id`, and with
+  none uses the organization's default key for its own provider; with no
+  provider named it uses the organization's default pair. Each usage row
+  records the key it was sent with (`secret_id`, SET NULL). Existing bots with a
+  pair get the key their first keyed profile held, where it is an
+  organization-visible API key for the provider; the rest show "choose a key".
+  The speech-to-text catalog no longer returns `credentialed`. A pinned language
+  is passed to the provider. Channel bots still answer "could not be
+  transcribed" on any failure. A self-hosted speech-to-text server cannot be
+  named yet; a local service of kind `speech` is the planned follow-up.
+- **A null pair on a channel bot means inherit, not off.** `PATCH
+  /channels/bots/{id}` turns transcription off with `transcribe_voice_notes:
+  false`, which clears the pair, and refuses an explicit `null` for it. A pair
+  sent together with `false` is refused, on create as on update. A spec
+  carrying `speech_to_text` cannot be imported into a deployment older than it.
+
+## [1.9.1] - 2026-10-21
+
+### Fixed
+
+- **An MCP server that does not answer is named to the model, not left out in
+  silence.** A bound server whose probe fails is still skipped for that turn,
+  but the turn's instructions now say it did not answer or refused the
+  connection, that trying again may work, and that a failure that persists
+  means the connection needs checking. The same holds for a server that
+  answered within the last two minutes and fails when the turn connects. The
+  model used to see only the servers that answered, and reported a slow server
+  as "no data": a Semrush bridge that took ten seconds to list its tools read
+  to the agent as Semrush returning nothing. (Reported and first fixed by
+  Michał Sikorski in #2261.)
+
+## [1.9.0] - 2026-10-21
+
+### Added
+
+- **How to run past one host is written down.** [Scale beyond one
+  host](docs/scaling.md) covers an external Postgres, counting connections for
+  `max_connections`, PgBouncer, more API hosts and workers, and several
+  deployments side by side - and what the platform does not do yet: read
+  replicas, a vector database of its own, sharding, Redis Cluster.
+- **The Background jobs page charts what the queue did.** What finished over
+  the last 24 hours or 7 days, stacked by how it ended; the longest wait of a
+  job that is due now; and, per kind, its volume, deaths, run time at the median
+  and 95th percentile, and how long its jobs waited for a worker
+  (`GET /admin/background-jobs/activity`). The deployment's dashboard has the
+  same day as a card. Migration `0148_job_finished_idx` indexes when a job
+  finished, which the charts and the retention sweep both read.
+- **A sync source can be edited from its knowledge base.** The pencil on a
+  row of the **Sync** tab opens the connect wizard filled in from the source,
+  with its connector fixed, and saves only the fields that changed: renaming
+  a source, moving it to another folder or changing its schedule no longer
+  means deleting it and losing its sync history. It saves through a new
+  `PATCH /kb/{kb_id}/sync-sources/{source_id}`, which an `edit` grant on the
+  base is enough for, and which refuses a source of another base or of another
+  organization (404) and a move out of the base. A config key patched to
+  `null` is now removed rather than kept by the merge, so a field cleared in
+  the form is cleared on the source. Contributed by @henfircreo in #2199.
+- **An agent run over the API can answer at once and be polled.** Sent with
+  `Prefer: respond-async`, `POST /agents/{id}/run` answers `202` with a run
+  request and a `Location` of `GET /api/v1/run-requests/{id}`, and a worker
+  runs the agent through the same runner, budget and approvals. An
+  `Idempotency-Key` makes a retry safe: the same key and body answer the same
+  request, a different body is a `409`. The key's authority is checked again
+  when the run starts, so a key revoked while its run waited does not run it
+  (#2219).
+- **A schedule says what to do when its last run is still going.** *If the
+  previous run is still going* - `overlap` in the API - is `skip` (the new
+  default), `queue` or `allow` (#2219).
+- **Admin → Background jobs**, for the deployment's owner: jobs by state and
+  pool with their attempts and last error, the workers alive, the schedules,
+  and Retry, Cancel and Resume, each audited (#2219).
+- **A kind of job that keeps killing its worker is paused, and the owners are
+  told.** After `WORKER_BREAKER_DEATHS` (5) deaths in a row, nothing claims
+  that kind until an owner resumes it; every app admin gets an in-app and an
+  email notification that cannot be switched off (#2219).
+
+- **The load suite runs in CI** (#2219). `make load-cold` takes an empty
+  database through the whole run - migrate, bootstrap, stub model, API, worker,
+  seed, scenario - with the thresholds as its exit status, and a `Load` workflow
+  runs it nightly on `main`, on demand and on a pull request labelled
+  `load-test`, publishing the report. Not a required check: a shared runner is
+  noisy. The seed now uploads through the API; `rag-ingest` wrote untagged
+  vectors into an organization's collection, which no tenant-scoped search finds
+  (#1684), so the suite had not been able to start.
+
+### Changed
+
+- **An empty chat opens on the agent who will answer.** Its face, its name and
+  what it does, instead of a sparkle and a line about streaming and tool calls;
+  the suggestions are filled cards with their whole prompt, in the chat, the
+  Architect's window and the Builder's test panel alike.
+- **Stepped dialogs say where you are in words you can read.** The steps of a
+  new schedule, a portal trigger or a sync source are a bar per step with its
+  number and name at the form's own size, instead of small icon circles joined
+  by hairlines and named in uppercase monospace. The sync-source steps lose
+  their faint uppercase field labels the same way.
+- **Knowledge-base connectors wear their own logos.** Google Drive, Git, S3 and
+  SharePoint are drawn in their colours on a white tile, as MCP servers are,
+  instead of grey glyphs in grey circles; a website is a globe rather than a
+  database.
+- **BREAKING: background work runs on a job queue in PostgreSQL instead of
+  Prefect** (#2219). A worker, `python -m app.worker` from the backend image,
+  replaces the `prefect-server` and `prefect-runner` services. A job's attempt
+  is counted when it is claimed, so a job that runs its process out of memory
+  cannot loop; ingestion runs in child processes under a memory watchdog
+  (`WORKER_INGEST_MEMORY_MB`), so one heavy document no longer takes the worker
+  with it. Uploads, syncs, trigger fires and a delete's cleanup are queued in
+  the request's own transaction. A deployment upgrading from 1.7 has to:
+  - replace its compose files, so the `worker` service exists and the two
+    Prefect services do not. Compose leaves a removed service's container
+    running, so `scripts/deploy.sh` removes `prefect-server` and
+    `prefect-runner` before the worker starts; a host upgraded by hand removes
+    them with `docker rm -f`, or Prefect keeps dispatching the old work;
+  - drop the `PREFECT_*` variables and `WORKER_MIN_INTERVAL_SECONDS`, and
+    size the worker with the `WORKER_*` settings in
+    [Configuration](docs/configuration.md#background-work);
+  - run the migrations, which add `background_jobs`, `background_schedules`,
+    `background_task_kinds`, `background_workers` and `agent_triggers.overlap`.
+  Runs Prefect still held queued are not carried over, so stop new uploads
+  while upgrading; the schedules pick up on their next occurrence.
+- **The backend runs on Python 3.15** (#2229): `backend/.python-version`,
+  `requires-python`, the image's base and CI. Seven packages move to the first
+  releases with 3.15 wheels - pydantic 2.14.1 (pydantic-core 2.50.1), uvloop
+  0.23.0, httptools 0.9.0, markupsafe 3.0.4, fastavro 1.13.1 and selectolax
+  1.0.1. PyYAML has no 3.15 wheel yet and installs as pure Python. aiogram 3.31 still caps pydantic
+  below 2.14, so a uv override lifts that cap until it does.
+  `from __future__ import annotations` is gone from the codebase, and ruff now
+  refuses it: annotations are lazy since 3.14.
+  One visible change: an HTTP 422 raised without a sentence of its own now
+  says `Unprocessable content`, Python 3.15's name for the status (RFC 9110).
+- **An ingestion child loads only ingestion** (#2229): it no longer imports the
+  agent runtime the other pools need, which halves its start-up (1.4 s to 0.8 s
+  on a laptop) and cuts its memory by a quarter (253 to 190 MB). The global
+  lazy-import mode of PEP 810 was measured and not adopted: it breaks protobuf
+  and SQLAlchemy, which register themselves at import, and limited to the
+  application's own modules it saved 0.2 s of a 2.4 s import, at higher memory.
+- **The backend image ships its own code compiled** (#2229). Only the
+  dependencies were; with `PYTHONDONTWRITEBYTECODE` set at run time, every
+  process compiled all of `app/` on start and threw it away. Importing the
+  application in a fresh container goes from about 4.8 s to 3.3 s on a laptop,
+  for each API worker, the worker, each ingest child and every migration.
+- **The chat sidebar no longer fetches each thread's summarised history.** The
+  conversation listing read every column, `summary_messages` included - 3.7 KB a
+  row on average in production and 522 KB on the longest thread - for thirty
+  rows on each refresh. It now loads only what the list shows. Postgres ran the
+  query in under a millisecond; the time was the transfer and the decoding on
+  the API's event loop.
+- **A console page no longer waits on the backend for the deployment's name.**
+  The root layout read `/api/v1/branding` on every render, uncached, so a
+  backend round trip - 2.3 s at p95 on the production host - stood in front of
+  every page. The answer is now kept in Next's data cache and expired by an
+  administrator's save under **Admin → Settings**, with a five-minute bound for
+  a change made another way.
+- **The chat sidebar polls every 30 s instead of every 4 s while the live-update
+  socket is connected.** A thread's running state already arrives over the
+  socket; the poll is the fallback for when it is down, and goes back to 4 s
+  then. Next.js 16.4.2.
+- **An API out of database connections answers `503` within five seconds.**
+  `DB_POOL_TIMEOUT` defaults to 5 instead of 30, and a request that waited it
+  out gets `503 SERVICE_BUSY` with `Retry-After: 5` instead of a 500 and a
+  logged traceback. Thirty seconds of waiting kept a queue of requests holding
+  the pool after a burst had passed: in the load suite at twice the burst rate,
+  65-78% of requests still failed in the recovery phase, and 5-20% do now.
+- **The production compose file gives Postgres `max_connections=200`.** The
+  default four API workers can open 120 connections between their two pools,
+  and the worker another 30; at the stock 100 Postgres refused them before any
+  pool could queue or shed the load.
+- **The channel stream keeper reads bot ids once a minute instead of full rows
+  every ten seconds.** Every API worker asked the database for every active
+  polling bot - sealed tokens included - on each ten-second pass, in a
+  transaction of its own: 28,778 of those reads and twice as many `BEGIN`s and
+  `COMMIT`s in production's last day, about four in five of all its statements.
+  The leases are still checked on every pass, so a bot whose worker died is
+  taken over as quickly as before.
+- **`POST /agents/{id}/run` refuses a prompt over 500,000 characters or more
+  than 20 files with a 422.** It took either without limit, and with
+  `Prefer: respond-async` the whole body went into a queued job; an asynchronous
+  run is now also refused at once for an agent the caller may not run, rather
+  than by the worker later.
+- **A chat turn costs the console 17 requests instead of 27.** The sidebar was
+  marked stale five times for one reply - the turn's own frames and the live
+  feed's echo of the same change - and each time it refetched every page it
+  held: ten `GET /conversations`, now four. Invalidations within 250 ms are sent
+  once. A page load also reads `/auth/me` once instead of twice: the auth
+  guard and the session check share one request, which on a cold load both
+  started before the stored session said anybody was signed in.
+- **The Documents page asks each sandbox host once, not once per workspace.**
+  It built a client and sent a `tree` request for every workspace it showed -
+  eighteen connections and requests for one page on the production host, which
+  took 2.3 s at the median - and now sends one `trees` request per host through
+  a client kept for the request, thumbnails included. The stored files of
+  every workspace a person can see are no longer read to list a page of 25, or
+  to check access to one. Needs sandboxd 0.2.37 (`pydantic-ai-backend` 0.2.37):
+  pull `ghcr.io/vstorm-co/sandboxd:0.2` again on a host that pinned it earlier.
+- **A turn that does not use its sandbox no longer starts one.** The agent's
+  skills were written into the sandbox, and its files listed, while the run was
+  prepared, so every turn opened the session before the model was asked: a
+  container start (about a second) on a conversation's first message, and a
+  round trip per skill file on every turn. They are now written just before the
+  first thing the turn does in the sandbox, and a turn that never touches it
+  neither opens nor lists it. The agent is still told where its skills are.
+- **The first chat turn after a restart no longer imports the MCP client.**
+  `pydantic_ai.mcp` and fastmcp's client load with the application instead of
+  inside the first turn each process served.
+- **A chat turn opens fewer database connections before its first token.**
+  The history, the attachments and the run share the turn's session, the
+  budget's spend reads take a pooled connection instead of a new one each (two
+  or three per run), and presence does not query to name the socket's own
+  person.
+- **The dashboard reuses its answers for half an hour.** Every card asked again
+  on each visit and each return to the tab, about thirty requests a time. What
+  moves - runs, approvals, agents, connections - arrives on the live feed and
+  refreshes at once; the usage and spend figures refresh after thirty minutes.
+  A feed that reconnects after a drop marks every cached answer stale, since it
+  missed the changes in between.
+- **The AI Architect's bubble costs one request on every page instead of
+  three.** To say whether approvals were waiting, the organization had no agent
+  yet, or the reader's run had failed, the widget fetched every agent, the
+  approval queue and the reader's failed runs. `GET /assistant/signals` answers
+  all three, each through the scope its own page uses.
+- **Every request in an organization reads the caller's membership once.**
+  The membership and the organization come in one query, and the
+  authorization context reuses that membership instead of reading it again:
+  two statements fewer on every console request, and one fewer on every
+  live-update and chat socket's handshake. The conversation list also
+  takes the projects a reader sees from that context, and names each thread's
+  agents in one query of five columns instead of two that carried every
+  agent's draft spec.
+- **A busy schedule now skips by default.** Before, a schedule whose run was
+  still going fired once as soon as it ended; existing schedules take `skip`.
+  Set `overlap` to `queue` for the old behaviour.
+- **`agenticos cmd doctor` and the health probe read the queue.** They fail
+  when no worker has beaten for two minutes, a minute schedule has not fired
+  for five intervals, or a kind of job is paused.
+
+### Removed
+
+- **Prefect.** The `prefect` dependency and the 39 Python distributions only it
+  needed, the Prefect UI on port 4200, the `prefect_data` volume and the
+  `PREFECT_*` settings are gone (#2219).
+- **`google-api-python-client` from the image.** Google Drive sources call the
+  four Drive endpoints they use over HTTPS, and `google-auth` still signs the
+  service account's token. The SDK and the six distributions only it needed were
+  about 112 MB of the image, nearly all of it discovery documents for other
+  Google APIs. Drive sources behave as before.
+
+### Fixed
+
+- **Pillow 13.0.0 and certifi 2026.10.19.** Pillow 12.3.0 had eight published
+  advisories (among them GHSA-p4wg-p73j-c528) and certifi 2026.7.22 one
+  (GHSA-6q48-6c7w-9gw2), which failed `make audit`. Both are lockfile updates
+  only; the image code paths are unchanged under Pillow 13. The frontend's
+  vite is pinned to 8.2.4 for GHSA-587h-7wmj-h5pm, which reaches only the test
+  and build tooling, not the console.
+- **The Codex review's third round on the job queue** (#2219):
+  - a job whose outcome the worker could not write is no longer renewed by the
+    heartbeat, so its lease runs out and the rescuer writes it off;
+  - an ingest child that cannot be replaced because the system refused a
+    process for a moment (EMFILE, EAGAIN) is tried again rather than leaving the
+    pool a slot short for good;
+  - an asynchronous run that loses the race for its `Idempotency-Key` takes back
+    the conversation it opened;
+  - weekly and monthly usage reports get three attempts, since the next one
+    covers another window;
+  - a DOCX in a knowledge base is unzipped under the same bounds as a chat
+    attachment, so a small upload cannot inflate to gigabytes in the parser;
+  - the circuit breaker counts deaths per organization: one tenant whose jobs
+    keep killing their worker pauses that kind for itself, not for every
+    organization (migration `0149_settled_at_org_breaker`). Background jobs
+    names the organization a pause is for, and resumes it alone;
+  - what a dead or cancelled job left - a document `processing`, a sync log
+    `running` - is closed again by the rescuer when the first close failed,
+    for a day (`background_jobs.settled_at`);
+  - a scheduled sync opens its log when it is queued, so a sync that dies
+    closes its own log and not a manual sync queued behind it.
+- **The composer's @-menu draws MCP servers as the MCP page does.** The
+  platform's own server wore a letter "A"; it now wears the deployment's mark,
+  and every other server its brand logo in colour, from the host it is reached
+  on (`host` on a mentionable - the host alone, never the address).
+- **A theme change in a background tab no longer raises an error.** The system
+  turning dark, or another tab changing the theme, while a tab was hidden made
+  the browser skip the sweep and reject it unhandled ("Skipped ViewTransition due
+  to document being hidden"). A hidden tab now changes without the sweep.
+- **A trigger card names the credential its own connection needs.** Every card
+  said it needed the organization's GitHub OAuth App, Gmail's included; each now
+  names the vault's client for its provider, such as the Google OAuth client.
+- **A chat shows the reader's face when their picture fails to load.** The
+  "You" beside a message was a bare image, an empty circle whenever the stored
+  file was missing; it now falls back to the generated face, as the sidebar does.
+- **Dropping files onto a knowledge base or a project uploads them in Firefox.**
+  Firefox delivers some drag events with no `dataTransfer`; the drop zone read
+  its types, threw, and never accepted the drop.
+- **`/onboarding` renders instead of failing.** The page called the client-side
+  branding hook from a server component, a 500, and handed the empty state its
+  icon across the server boundary, which ended in the error boundary.
+- **Signing out cannot be undone by a session check still on its way.** A
+  `/auth/me` that set out before the sign-out and answered after it signed the
+  person back in.
+- **The chat stops saying "Preparing the sandbox" when its socket drops** (#2251).
+  The notice waited for a `sandbox_ready` the lost socket could never bring, and
+  stayed through later turns on the open sandbox, which send no preparation
+  frames.
+- **A Telegram bot reads `up` again as soon as a polling conflict clears** (#2252).
+  The first successful poll after another process stopped polling the token now
+  records the recovery; the channels listing used to keep naming the other
+  poller for up to five minutes, and the heartbeat could read `up` while the
+  conflict still lasted.
+- **Closing a console tab no longer leaves a dead database connection behind**
+  (#2241). A live-updates socket that disconnected in the middle of its
+  per-event read cancelled the query and the connection's close with it, and
+  the pool handed the closed connection to the next request on that worker, a
+  500. The read now finishes before the stream stops.
+- **Sandbox tombstones no longer stall the sweep, vanish in a race, or pin a
+  connection for good** (#2250). The retry pause overflowed after about 41
+  failed attempts and aborted every sweep from then on; a tombstone written
+  while its connection was being deleted was erased with it; and a connection
+  whose credential was gone could never be deleted. The pause is capped, the
+  foreign key now refuses the delete, and deleting a connection can confirm that
+  its sandboxes were removed on the provider by hand. The console asks, where a
+  refused delete used to vanish without a word.
+- **Recent visuals shows a published app as its page.** An app with no kept
+  thumbnail drew only the kind's mark wherever the deployment has no browser to
+  photograph it; its tile now shows the page itself, live and shrunk, as the
+  apps listing does.
+- **Google and Microsoft sign in under their own full-colour marks.** The
+  sign-in buttons drew both in a single colour; they now use Google's
+  four-colour G and Microsoft's four squares, fetched in colour by
+  `gen-brand-icons.ts`. GitHub keeps its one-colour mark.
+- **The sandbox service reaps the processes it leaves behind.** It ran as PID 1
+  without an init, so anything orphaned under it stayed a zombie until the
+  container restarted; production once showed more than 600. Both compose files
+  now start it with `init: true`, as every sandbox it starts already was.
+
+## [1.8.3] - 2026-10-20
+
+### Fixed
+
+- **A teammate following a turn whose writer died is told it is over.** A
+  turn's writer now renews a short-lived key while it runs, and a follower
+  that hears nothing for a few seconds checks it: once it has expired, as it
+  does when the API process writing the turn is killed, the follow ends and
+  the chat re-reads the transcript, instead of waiting until a reload. The
+  turn is also forgotten, so the next person to open the chat is not sent to
+  follow it.
+- **Redis trouble no longer stalls a chat or floods the log.** Every call the
+  live chat makes to Redis gives up after two seconds, and each kind of
+  failure is logged at most once a minute with a count of the ones left out,
+  rather than once per open socket per retry.
+- **A live turn's replay has a total size.** Past 16 MB a turn's frames are
+  still sent to whoever is following, and only the start and the end are kept
+  for somebody arriving later. Frames published at once by a turn and its
+  delegates keep their order in the replay.
+- **Leaving a chat, or stopping following a turn, finishes before anything
+  else starts.** The tasks behind them are now awaited, so a heartbeat can no
+  longer count a socket back into a room it has just left. A turn that ends
+  while its socket is closing is still announced to the person who left.
+- **Parallel delegations to one remote A2A agent no longer share a
+  conversation.** Each delegation keeps its own `contextId`, so two tasks sent
+  at once no longer race on one, and a follow-up continues the right one.
+- **A2A takes text and says so.** The server refuses a message with a data or
+  file part with `-32005` (content type not supported) rather than a generic
+  error, and refuses a key that may not run the agent with HTTP `403` (or `404`)
+  instead of the `-32600` that means a malformed request. A task id this
+  server never issued is an unknown task (`-32001`). The client shows a data
+  or file part in an answer as a line naming it rather than dropping it.
+- **Registering two remote agents under one name at once** is refused as a
+  taken handle, not an error.
+- **The project picker asks for projects only when it opens**, and the typing
+  indicator is a live region screen readers announce (#2210).
+
+## [1.8.2] - 2026-10-20
+
+### Fixed
+
+- **A publisher's personal-data export lists only the runs they started.**
+  A run made for somebody else under the publisher's identity - an unlinked
+  channel sender, a widget visitor - carries the publisher's id, and the
+  export listed it as theirs. It now leaves those runs out, as every other
+  reader of a person's runs already did, and a delegation made under such a
+  run now carries the same mark and the sender's chat account rather than
+  reading as the publisher's own. A person who links a chat account gets that
+  account's earlier runs in their export. Deleting the publisher still keeps
+  the runs, with the id cleared (#2235).
+
+## [1.8.1] - 2026-10-19
+
+### Fixed
+
+- **A public app link fills the window.** The page behind `/a/…` was framed
+  in a box about 500 pixels tall and scrolled inside it, because the frame's
+  height resolved against a container with no definite height. It now takes
+  the window below its title, as the console's viewer does.
+- **App thumbnails load once.** A card's preview was unmounted whenever it
+  scrolled out of view, so scrolling back asked the server for a new signed
+  address and loaded the whole page again, on every card, every time. A
+  thumbnail now loads when its card first comes near the viewport and keeps
+  the page; the listing is paged, and the browser throttles frames off screen.
+
+## [1.8.0] - 2026-10-19
+
+### Added
+
+- **A sync source can be edited from its knowledge base.** The pencil on a
+  row of the **Sync** tab opens the connect wizard filled in from the source,
+  with its connector fixed, and saves only the fields that changed: renaming
+  a source, moving it to another folder or changing its schedule no longer
+  means deleting it and losing its sync history. It saves through a new
+  `PATCH /kb/{kb_id}/sync-sources/{source_id}`, which an `edit` grant on the
+  base is enough for, and which refuses a source of another base or of another
+  organization (404) and a move out of the base. A config key patched to
+  `null` is now removed rather than kept by the merge, so a field cleared in
+  the form is cleared on the source. Contributed by @henfircreo in #2199.
+
+## [1.7.1] - 2026-10-19
+
+### Fixed
+
+- **Microsoft Work IQ and the other Entra-backed MCP servers connect.** The
+  consent asked for the scopes the sign-in server listed instead of those the
+  MCP server names for itself. Entra lists Graph's `openid profile email
+  offline_access`, and its token endpoint refused them beside a `resource`
+  naming Work IQ (AADSTS9010010), after the person had already consented. The
+  server's own scopes now come first, in the order the MCP authorization spec
+  gives: the `scope` of the server's 401, then its protected-resource
+  metadata, and the sign-in server's list only when it names none.
+  `offline_access` is added when the sign-in server offers it, so the
+  connection gets a refresh token, and the consent asks with
+  `prompt=consent`, as OpenID Connect requires for it. Reported and first fixed by @henfircreo
+  in #2231.
+
+## [1.7.0] - 2026-10-19
+
+### Changed
+
+- **Backend dependencies move up.**
+  - Pydantic AI 2.57.0 and the harness 0.57.0, FastAPI 0.143.2, pydantic-settings 2.16.0, Authlib 1.9.1, LiteParse 2.16.0, google-auth 2.62.0, google-genai 2.31.0, boto3 1.43.114 and aiohttp 3.14.5.
+  - The tools: ruff 0.17.1, ty 0.0.88, pre-commit 4.7.0 and mkdocstrings 1.0.7.
+  - pydantic-ai-backend 0.2.36 for the sandbox changes below.
+  - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
+  - Replaces Dependabot's #2233 and #2234.
+- **A chat's workspace holds 32 MiB, up from 4.** `SANDBOX_STATE_MAX_BYTES` is
+  the ceiling of the `state` workspace every agent gets by default. 4 MiB
+  refused a single large attachment. Two costs that grew with the ceiling now
+  don't:
+  - A turn that changed no file stores nothing; only `last_used_at` moves.
+    Before, every message rewrote the whole JSONB column and its WAL, at
+    whatever size the workspace had reached.
+  - A write is measured by serialising only the file it wrote, not the whole
+    document on the event loop.
+- **Sandbox calls share one connection pool per process.** `SandboxdWorkspace`
+  without a client of its own opened a new connection, and built an SSL context,
+  for every command and file operation of a run. One client per event loop now
+  serves every `sandboxd` workspace, and the API closes it at shutdown.
+- **A container workspace's files are listed in one request.** The listing
+  walked the host with one `ls` per directory, up to six levels deep. It now
+  asks `sandboxd` for the whole bounded tree at once (pydantic-ai-backend
+  0.2.35). A folder below the root that cannot be read now marks the listing
+  incomplete instead of disappearing from it silently. The same release serves
+  an agent's file reads and writes from the host's disk, at ~4 ms instead of
+  50-500 ms through `docker exec`, and ships the `sandboxd` image with BuildKit.
+- **sandboxd fixes from its audit** (pydantic-ai-backend 0.2.36). The ones a
+  deployment notices:
+  - The deploy's prepare step now builds the image a session runs. With
+    `SANDBOXD_SANDBOX_UID` set, as the compose files set it, it built a variant
+    no session used, and the first chat still waited for a build.
+  - A file write that fails part-way leaves the old file.
+  - The console's path checks no longer cost a `docker exec` each.
+  - A command running past the idle timeout is no longer reaped under it.
+
+### Fixed
+
+- **A host short of CPU no longer restarts the API in a loop.** Uvicorn's
+  supervisor killed any worker that took more than 5 seconds to answer its ping.
+  On a starved host it hit live workers and then their replacements before they
+  had started, 17 times in 20 minutes on prod, and each restart re-imported the
+  whole application. Every compose file that runs `--workers` now waits
+  `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default. A blocked event
+  loop is still the watchdog's to catch (#2223).
+- **A slow production deployment can be diagnosed without reading raw logs.**
+  - Every service in the production compose files caps its log at five files
+    of 20 MB. Prod held 570 MB and growing.
+  - Postgres preloads `pg_stat_statements`, and migration
+    `0143_pg_stat_statements` creates the extension. Where the role may not,
+    the migration logs a notice and goes on.
+  - With `ENVIRONMENT=production` Logfire no longer prints a console line per
+    SQL and Redis call.
+  - `doctor` gains `query statistics` and `tracing` lines, which say whether
+    either is recording.
+  - Health probes use `urllib` instead of importing httpx, which halves the
+    cost of the interpreter each one starts every 15-30 seconds (#2228).
+- **Two pollers on one Telegram token stop fighting.** Telegram ends one of
+  two `getUpdates` requests on every poll, and aiogram retries for ever, so on
+  prod two copies of one bot ended each other's polls for fifteen minutes. The
+  adapter now hears the conflict:
+  - a worker that does not hold the bot's stream lease closes its copy;
+  - the holder keeps polling and marks the bot down with "another process is
+    polling this bot's token".
+
+  The log now names the worker each stream opens and closes on (#2224).
+- **An idle deployment queries its bots a third as often.** Every API worker
+  checks for polling bots nobody serves every 10 seconds. That was one query
+  per platform, three per pass, and most of an idle prod's transactions. One
+  query now covers all three (#2227).
+- **Naming a request's span no longer rebuilds the whole route table.**
+  OpenTelemetry's FastAPI instrumentation flattened `app.routes` on every
+  request, and FastAPI 0.143 rebuilds each included router's dependants to do
+  it: `inspect.signature` on all 524 endpoints. That was the largest single
+  cost of serving a request on prod. The flattened list is now built once per
+  process. Locally it goes from 0.40 ms to 0.18 ms per request (#2226).
+- **Every API worker and flow run starts lighter.** The SDKs that only one
+  optional capability or connector calls are now imported where they are used:
+  mem0 (with qdrant-client and numpy), PyMuPDF, python-docx, boto3 and the
+  Google API client. Measured on a laptop, `import app.main` goes from 4.19 s to
+  3.62 s and from 382 MB to 298 MB. A test keeps them out of the startup import
+  (#2225).
+- **The first sandboxed chat after a release no longer waits on an image
+  build.** A release that changed a sandbox runtime made sandboxd build it on
+  the production host inside the first session that asked, and every session
+  request answered 409 for minutes. `scripts/deploy.sh` now runs
+  `python -m pydantic_ai_backends.remote.prepare` in a one-off container of the
+  new sandboxd image before the old one is replaced. Each build is retried
+  (pydantic-ai-backend 0.2.34). A runtime it could not prepare is named in the
+  deploy log and still built on demand.
+  - While a session does wait on a build, the chat says "Preparing the
+    sandbox" above the composer, until the sandbox opens or the turn fails.
+  - Opening waits up to ten minutes instead of giving up after 30 seconds
+    (pydantic-ai-backend 0.2.34, `on_wait` and `opening_timeout`) (#2222).
+- **A remote sandbox outlives a deleted conversation only until the provider
+  answers.** Deleting a conversation or a project destroyed its sandboxes once,
+  after the commit. A failure - host down, worker restarted in between - left
+  nothing that knew they existed, and a Daytona sandbox kept billing the
+  organization.
+  - The deletion now writes a tombstone in the same transaction
+    (`pending_sandbox_destroys`, migration `0144_pending_sandbox_destroys`), and
+    a successful destroy removes it.
+  - A new worker sweep, `sandbox-destroy-retry`, retries the rest from 2
+    minutes up to 6 hours apart.
+  - A switched-off connection still has its sandboxes destroyed. A connection
+    with tombstones left cannot be deleted.
+  - The `scheduler` health check counts it with the other sweeps (#2209).
+
+## [1.6.3] - 2026-10-18
+
+### Fixed
+
+- **Scheduled triggers, portal polling, notification emails and the sync check
+  no longer cost a process a minute.** Each was a Prefect deployment ticking
+  every 60 seconds, and every tick was a new Python process importing the whole
+  application. On a busy host that took longer than the minute between ticks:
+  runs piled up, and the server spent its CPU on imports. They now run as
+  sweeps inside the worker's own process, one tick at a time each, staggered
+  across the minute. The sync check still starts the syncs as a Prefect run,
+  and only when a source is due. The `scheduler` health check (`doctor`,
+  `/admin/system`) reads the sweeps' heartbeat from Redis and, separately,
+  whether Prefect still completes `mcp-connection-sweep` (#2213).
+
+## [1.6.2] - 2026-10-18
+
+### Changed
+
+- **The README, the decks and the banner show what shipped in October**, on the
+  landing page's photographs: a project chat several people share, a reply the
+  agent applies, Codex building a page, a drawing and research finished in the
+  background. The introduction deck has 17 slides and the product tour 47. The
+  README, its figures and the docs count 29 built-in capabilities and 28 model
+  providers. `docs/assets/readme/frames.mjs` sets a screenshot on a photograph.
+
+## [1.6.1] - 2026-10-18
+
+### Fixed
+
+- **Work while tools run has its picture.** The capability showed a lone initial
+  among the Toolbox's dioramas; it now has its scene - a tool still busy at the
+  back while the agent gets on with its list - and a test fails when a
+  capability is registered without one.
+
+## [1.6.0] - 2026-10-18
+
+### Added
+
+- **Models on a ChatGPT subscription.** The `openai_codex` provider runs OpenAI
+  models through the Codex backend on a person's own ChatGPT plan instead of a
+  metered API key. **Sign in with ChatGPT** - in the vault, when adding a model
+  and in the chat's model picker - stores a private `openai_codex` secret whose
+  tokens the vault keeps current as they rotate; **Reconnect** renews one. A
+  run reaches a sign-in only for the person asking who may see it in the vault:
+  never for a visitor, an API key's holder, background work or an approver
+  resuming somebody else's run. See
+  [Running on a ChatGPT subscription](docs/models.md#running-on-a-chatgpt-subscription).
+- **Several people in one chat with the agent.** A conversation's open sockets
+  share a room: a bar over the transcript shows who else has the chat open, with
+  Invite for its owner, and a turn somebody asks is followed live by everybody
+  else in it, question first. While somebody writes, the others see "Anna is
+  typing" over the composer. **Reply** on any message quotes it; the reply
+  carries the quote to the transcript and to the model, which in a project's chat
+  also reads each person's turn under their name. A message's `reply_to` and the
+  `reply_to_message_id` it is sent with are the API's half.
+- **A project's chats are its members'.** Whoever may see a project reads every
+  chat in it, and whoever may work in it continues a teammate's chat; each turn
+  carries the name and face of whoever typed it. The project's **Chats** tab
+  lists everybody's chats, each saying whose it is, who is at work in it now
+  and who has had it open, and the project's chat count is everybody's.
+  Renaming, archiving and deleting stay with whoever started the chat.
+  `GET /api/v1/projects/{id}/chats` lists them; a message's `sender` names who
+  typed a user turn.
+  Access to a project's chat follows the project alone - its starter loses it
+  with the project - and deleting the starter's account keeps the chat for the
+  team, unowned.
+- **Agents served over A2A** (#2092). An agent its organization switches on under
+  **Availability → Agent2Agent (A2A)** has an agent card at
+  `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and
+  `tasks/get` at `POST /api/v1/a2a/{id}`, with an organization key or an OAuth
+  token. Every task is an ordinary run on the new `a2a` surface, so budgets,
+  approvals, audit and Activity apply.
+- **Remote agents to delegate to** (#2092). Another vendor's A2A agent is
+  registered under **Connections → Remote agents** by its agent card, with an
+  optional vault key, and picked in an agent's delegation settings beside the
+  organization's own agents (`external_agents` in the spec). Every call is
+  budget-checked and booked to the run as unpriced.
+- **Coding agent capability** (#2092). `coding_agent` hands software work to
+  Claude Code or Codex in the agent's sandbox through one tool,
+  `run_coding_agent`: the harness works on the task until done, and the chat
+  shows each step as it takes it - the file it reads, the edit, the command - in
+  a panel under the harness's mark. The binding's `access` decides whether it
+  may change files and run commands or only read and answer (Claude Code only);
+  **Human approval** set to **Always ask** asks before each task. A
+  conversation's tasks continue one harness session. Claude Code runs on an
+  Anthropic key or a `claude setup-token` subscription token, Codex on an
+  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. Stop
+  and the task's time limit end the harness's whole process group, and whether
+  a task is over is read from that group rather than a file the harness could
+  write. The `workbench` runtime now carries Claude Code 2.1.288 and Codex
+  0.160.0.
+- **Projects.** A project holds instructions and files in one container that
+  every chat started in it shares, whichever agent answers: a chat agent without
+  a sandbox is given the project's, and every agent reads the project's
+  instructions after its own. Start one from the project's **New chat** or the
+  composer's **+** or its `@`; upload files and folders on its **Files** tab; share it with
+  people, departments or the organization (`projects:view`, `projects:use`,
+  `projects:edit`). A deleted project leaves its chats as ordinary chats of
+  whoever started them. The sidebar lists your recent projects, the chat list
+  files each project's chats under it, and the dashboard has a **Projects** card. A
+  project opens on its files, which can be dropped anywhere on the tab and show
+  their progress as they go up; its **Apps** tab lists the apps its chats
+  published (`GET /apps?project_id=`). A chat on its **Chats** tab shows who has
+  it open right now (`here` on `GET /projects/{id}/chats`). A sandbox connection a
+  project keeps its files on cannot be deleted. See [Projects](docs/projects.md).
+
+### Fixed
+
+- **A deleted chat's sandbox is destroyed only once the deletion commits.** The
+  container or Daytona sandbox behind a conversation or project went before the
+  database did, so a deletion that rolled back left the rows naming files that
+  were already gone.
+
+- **The collapsed sidebar matches the open one.** A folded group stays folded on
+  the icon rail, which now has the same row height and group spacing, so no icon
+  moves when the column collapses.
+- **Remote agents load in the console** (#2092). The page called a route the
+  console did not proxy, so it answered 404.
+- **Coming back to an answer still being written shows it.** Opening a
+  conversation whose agent is still answering - from another chat, another tab
+  or after a reload - picks the answer up where it is, with every step so far,
+  and goes on streaming it; it used to show only the question and a note to
+  check later. The running turn's frames are kept in Redis for this.
+- **Documents no longer lists the platform's own files.** A coding task's
+  events and session under `.agenticos/` are left out, as skills and spilled
+  tool output already were.
+- **Notifications say at a glance what they are about.** Each row in the bell
+  and on the dashboard card starts with the agent it concerns - its face, with
+  a badge for how the run went - or, for a row about no agent, an icon for its
+  kind: green for a finished run or a recovered MCP server, red for a failure
+  or an exhausted budget, amber for an approval or a budget warning. Rows
+  written before this keep the icon only. The inbox API serves the row's
+  `agent`.
+- **A code file opens as it would in an editor.** The file viewer, the folder
+  page's reader and a skill's preview show source with line numbers, coloured
+  in its language, filling the pane - rather than in a chat's code block sized
+  to its content, which left a short file in a small box over empty space. On
+  the folder page the text fills the reader edge to edge instead of sitting in
+  a second box inside it; JSON and the Source view of Markdown and HTML are
+  coloured too.
+
+## [1.5.0] - 2026-10-18
+
+### Added
+
+- **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
+  server is the first card under an agent's **MCP servers**: switched on, the
+  agent reads the platform's agents, runs, spend, knowledge bases, skills and
+  members as whoever it runs for, with exactly their permissions, and every
+  tool that changes something waits for approval. The card's settings narrow the tools
+  and can hold every call. The **Claude Code like** template binds it.
+  `GET /api/v1/agents/platform-mcp-tools` lists the tools a binding chooses
+  from. See [MCP](docs/mcp.md#giving-it-to-an-agent).
+- **Agents draw in the conversation** (#2171). A new **Visuals** capability
+  gives an agent `draw`, `revise_visual` and `read_visual`: an SVG diagram, a
+  Mermaid flow, or a whole HTML page with sliders, `<canvas>` or three.js,
+  drawn under its message while it is written and kept in the conversation. The
+  drawing runs in a frame with exactly an app's sandbox, and the console tells
+  the model what broke in the person's browser so it fixes it in the same turn.
+  A drawing can use a photo attached to the thread, a workspace file, or - for
+  an agent that already reads the web - a picture from an address. From the
+  panel: full screen, zoom, the code, download, copy as image, fix it, and
+  **Save to Apps** with versions. A shared thread shows its drawings, the
+  dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
+  chat app gets the drawing as a picture. The bundled `visual-design` skill
+  carries the house style and templates; the library set gains three.js 0.186.0
+  and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+- **An agent's skills, context files and knowledge bases are listed with the
+  attached ones first**, in a capability's panel, ten to a page.
+
+### Fixed
+
+- **An agent installed from a template is visible to the whole organization.**
+  It was installed private, so a colleague could not see it until somebody
+  shared it by hand. A template's instructions ship with the product, so there
+  is nothing private in them to protect; a clone or a promoted specialist
+  still starts private.
+- **A deploy that waits for its images no longer drops its connection.** The
+  deploy job's SSH session sat silent while a merge's images were still being
+  built, and the host dropped it four minutes in, failing the deploy with
+  nothing changed. It now sends keepalives for as long as the wait lasts.
+- **A conversation shared by link opens again.** Its route promised a member's
+  conversation and returned the link's narrower shape, so every link answered 500.
+
+## [1.4.0] - 2026-10-18
+
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with how many cached tokens it did not read back, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached. The counts are kept on the run, and **Runs → Spend**
+  shows a *Prompt cache* card per agent and model with the busts, expiries and
+  cached tokens not read back over the window.
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+- **Run reviewers: a second model that steers a run while it goes** (#2106).
+  An agent can carry up to five reviewers, each a usually cheaper model with one
+  concern ("claims without a source"). Every few requests a reviewer reads the
+  recent run and sends one short correction when it drifts; the run's model gets
+  it with the reviewer's name, and the run view lists it. Its calls are budgeted
+  and booked like the run's own, and a reviewer that cannot review never fails
+  the run. Set in the Builder beside the limits.
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
+### Changed
+
+- **Prompt caching on every provider that takes it** (#2169). Caching now uses
+  Pydantic AI's provider-neutral `cache` setting instead of Anthropic's and
+  OpenRouter's own flags, so Bedrock's Anthropic and Nova models and OpenAI from
+  GPT-5.6 are cached too, and providers that cache by themselves are unchanged.
+  A model profile turns it off with `cache: false`; a profile that sets a
+  provider's own flag keeps it.
+
+## [1.3.1] - 2026-10-18
+
+### Fixed
+
+- **A host that falls behind skips sweep ticks instead of running every one.**
+  Every scheduled sweep (the four minute-ticks and the slower sweeps) now runs
+  one tick at a time: Prefect refuses the tick that arrives while the previous
+  one is still running, before the runner starts a process for it. Before, every
+  tick ran: on 2026-10-17 the production host fell behind, each queued tick was
+  another process importing the application on a saturated CPU, and eight hours
+  later ~1,650 runs were Late and the API's workers were being starved into
+  restarts. On-demand deployments (ingestion, syncs, cleanup) and the usage
+  reports, whose runs each cover a period of their own, keep no limit.
+
+## [1.3.0] - 2026-10-18
+
+### Added
+
+- **Malformed tool calls are repaired instead of retried** (#2105). A model
+  that sends a tool call with broken JSON - a trailing comma, single quotes, an
+  object cut short - no longer pays for a retry: every agent repairs the syntax
+  before validation, and the call still goes through approval and guardrails.
+  Open-weight models on Ollama or vLLM do this most. Each run counts its
+  repairs, shown on the run and per model on the dashboard's model card.
+
+## [1.2.1] - 2026-10-18
+
+### Fixed
+
+- **One connection per chat-app bot, however many API workers** (#2168). With
+  two workers, every polling bot had two connections: Telegram terminated one
+  `getUpdates` after the other about fourteen times a minute, and two Mattermost
+  sockets would each receive every event. A worker now holds a bot's connection
+  under a lease in the shared Redis; the others leave it alone and take it over
+  when its holder stops.
+
+## [1.2.0] - 2026-10-17
+
+### Added
+
+- **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
+  agent can use - its MCP servers, the agents it delegates to, its capabilities
+  (`@Sandbox`, `@Web research`), skills, knowledge bases and context files - in
+  the chat, the Builder's test panel and the Architect. A pick stays in the text
+  as `@Name` with its logo; the model is told to use it, never handed its
+  content, and naming an agent hands it the work without changing who answers.
+  A pasted link shows its site's icon in the composer and the message. Mentions
+  are resolved again on the server as the person, so one can never widen what
+  the agent reaches. `GET /api/v1/agents/{id}/mentionables` lists what is
+  offered.
+- **The empty composer shows what to ask.** While a conversation has nothing in
+  it, the box cycles through examples built from the agent's own servers,
+  capabilities, delegates and skills, and `/`, sliding from one to the next;
+  clicking into it or sending clears them.
+
+## [1.1.1] - 2026-10-16
+
+### Fixed
+
+- **A plan stops saying "Running…" when its run is over** (#2149). A turn that
+  finished or failed left any call it had not answered spinning - a planning
+  step read "Running…" under the answer, and after a reload too. Every ending
+  now closes what is still out, the plan's step in progress spins only while a
+  turn works it, and a run that failed or was stopped hands the next turn its
+  step as still to do rather than under way.
+
+## [1.1.0] - 2026-10-16
+
+### Added
+
+- **Write to an agent and leave: it answers anyway, and tells you.** A chat
+  turn left running when you close the tab, quit the app or open another
+  conversation now carries on for up to an hour (`CHAT_DETACHED_TURN_MINUTES`,
+  was a fixed ten minutes), lands in the conversation, and puts a notice in the
+  bell - and an email, under the run-finished and run-failed preferences - with a
+  link back to it. One stopped at the limit says so (#2108).
+
+- **Coming back to an answer still being written.** Open a conversation whose
+  agent is still answering - after a reload, in another tab, on another
+  device - and the chat says so, then shows the answer when the run ends,
+  without reloading. The list of conversations marks a thread as working the
+  moment you ask in it, rather than when the server's next listing arrives.
+
+- **Work while tools run.** A new `background_tools` capability lets an agent
+  send a slow tool - today a long `browse_web` - to the background, the model
+  deciding per call, and answer the rest of the request while it runs; the
+  result arrives as a message. Built on pydantic-ai-harness `BackgroundTools`,
+  with one difference that matters: a background result passes the agent's
+  guardrails and tool output limits like a foreground one, where the library
+  alone would deliver it past them. Approval still comes first, the spend is
+  the run's, and stopping the run stops the tool (#2108).
+
+## [1.0.0] - 2026-10-16
+
+### Added
+
+- **An approval says which account is acting.** A call through a labelled MCP
+  connection, or one of several accounts on one service, carries the account's
+  name to the approval - the chat card, Activity, the dashboard widget, the Slack
+  and Telegram message ("as *Work*") and the approval email - so "Send in Gmail"
+  says from which mailbox. Stored on the approval row (migration
+  `0132_tool_approval_account`).
+
+- **A second account on one service is named before it connects.** Two accounts
+  of Outlook read as "Outlook" twice in every picker and approval, so the form
+  asks for a label when the person or the organization already holds one on that
+  server - and Connect opens that form instead of going straight to consent - and
+  the API refuses an unnamed second account. A label typed before an OAuth sign-in
+  is no longer dropped on the way to the provider.
+
+- **A connection can bring its MCP server's own instructions.** Some servers
+  explain how their tools are meant to be used; switching it on in the
+  connection's Edit dialog adds that text to the agent's instructions. Off for
+  every connection unless someone opts in, since it is the server operator's
+  text; migration `0131_mcp_include_instructions`.
+
+- **The Builder says when an agent's MCP servers carry too many tools.** Above
+  30 tools - each binding's own allowlist, or else what its server listed at its
+  last check - the MCP tab shows a notice with a rough token estimate and a
+  button that turns Tool search on. It never turns it on by itself.
+- **An agent chooses how its browses reach the web** (#2130). In the web
+  browser's own settings: through a proxy - a residential or regional address,
+  its `username:password` in the vault - or in a hosted browser such as
+  Browserbase or Steel reached over CDP, its key in the vault, plus the time
+  zone and language the browser says it has. An address inside the
+  deployment's network is refused at publish and again when a browse starts.
+  The Builder's settings form now shows a field only for the choice it belongs
+  to, and offers a key a configuration can use but does not need.
+
+- **The web browser reads as a desktop one to sites that refuse bots** (#2130).
+  Compose's `browser` profile now runs `ghcr.io/vstorm-co/agenticos-browser` - a
+  full Chromium with a window under Xvfb, desktop fonts and no automation flags -
+  in place of the headless shell sites rejected on sight, and `browser_use` no
+  longer turns on CDP's `Runtime` domain, drops `Headless` from a user agent and
+  hides a software WebGL renderer. BrowserScan's bot detection reads it as
+  *Normal* on every count. `BROWSER_TZ` and `BROWSER_LANG` set where and in which
+  language it says it is.
+
+- **A browse done before goes quicker the second time, for the same person.**
+  When a browse acting for one person finishes, the steps that got it there are
+  kept for them alone - what it pressed, never what it typed - and the next time
+  they ask the same task from the same page those steps run without the model
+  while the page still fits, the model taking over at the first difference.
+
+- **Point at the browser's page and say something about it.** A button in the
+  browser's toolbar lets you click a spot on the page and write a note; the page
+  goes into your message as a picture with the spot ringed, with the note and the
+  address, for you to send or keep writing - also on a finished browse.
+
+- **A separate model for `browse_web`'s steps.** The web browser's new
+  `step_model_profile_id` names a model profile each browse step asks instead of
+  the agent's own model - steps are most of a browse's time and cost - chosen in
+  the capability's advanced settings from the same picker as the agent's model,
+  and checked at publish like any profile. A step now gets three tries at a
+  well-formed answer, and an action named by its kind with its fields beside it
+  is accepted, which is how Claude Haiku answers.
+
+- **The agent can drive the browser itself.** Beside `browse_web`, which hands a
+  whole task to a loop that asks the model for every step, the web browser now
+  gives the agent `browser_open`, `browser_read`, `browser_click`,
+  `browser_type`, `browser_select`, `browser_scroll` and `browser_back`: one
+  action a call, decided in the agent's own turn and narrated in the chat, drawn
+  in the same live side panel a person can take over. A two-click task took 13 s
+  this way where `browse_web` took about 20.
+
+- **The dashboard tells you what is easy to miss, and draws time at the right
+  step.** Everybody opens on their own view, which gains **Discover AgenticOS**, one illustrated tile each
+  for the platform's own MCP server, subagents, sandboxes, apps, routines, chat
+  apps, the browser, knowledge and skills, each leading to where it is switched
+  on. Charts over time pick their step from the data - minutes for one
+  afternoon, weeks for a quarter - instead of thirty days with the story in the
+  last pixel (`GET /stats/usage` returns a `timeline`). A group that ran nothing
+  says so once instead of eight empty cards; models show their provider's mark;
+  a handful of ratings is counted rather than drawn as a trend; and a card with
+  more rows than fit fades at the bottom instead of looking cut off.
+
+- **A new agent starts with the recommended capabilities.** The Toolbox marks
+  Recommended what the starter agent (the Claude Code like template) has, and
+  **New agent** switches exactly those on, configured as the template configures
+  them - asking, planning, a sandbox, subagents, web search and the rest - where
+  it used to start with Ask the user alone.
+
+- **Capabilities as illustrated cards.** The Toolbox shows every capability as
+  a card with its own animated isometric scene, shelved by category in
+  sideways carousels, and a capability's settings open in a panel from the
+  right - Escape closes it, as it now closes every side panel. The cards
+  replace the list and its detail column.
+
+- **An answer's sources read as documents, and open.** The footer under an
+  answer stacks one mark per document - a file's kind, a service's logo for
+  a page on Notion or GitHub, a globe for the rest of the web - and opens
+  into the list of them. The sources panel gathers a file's passages under
+  the file, names its knowledge base, renders the passages as markdown and
+  opens the original; **Knowledge bases → Search** opens a result's file
+  the same way. A passage two searches both returned is cited once.
+- **A web search shows as cards**, each led by its site's mark, under the
+  query that was searched.
+- **The app a turn published is a card under its answer**, and the step
+  that published it stays one line, so the turn's work folds away. A link to
+  an app reads *Open the app*, and a link to a known service leads with its
+  logo.
+- **Comparisons with the new always-on agents and agent platforms**: OpenAI
+  dots, Grok Bot, OpenAI Frontier, Microsoft Agent 365, Claude Managed
+  Agents and OpenClaw / NemoClaw each have a guide in four languages, and
+  the comparison overview places them beside the rest.
+- **Delegation reads as the team at work.** A delegation step is *Asked
+  Finance Analyst*, with that agent's face, and opens onto the brief and the
+  answer - after a reload too, where it was raw JSON. While delegates work a
+  strip sends the brief down a lane to each, the delegates hop in turn and
+  the answer comes back; under the finished answer the same strip names who
+  was asked, each opening what it was asked and said.
+- **Copy a quote from an answer**, as a table is copied - a suggested reply
+  comes out as its paragraphs.
+- **Sign in to a site from Settings** (#2129). **Settings → Sign-ins** opens
+  a browser on any site for you alone, held by you from the first frame: sign
+  in, hand it back with *Keep me signed in*, and your agents' browses start
+  signed in there - the same keeping a take-over does, before an agent needs
+  it. The deployment names the browser in `BROWSER_SIGN_IN_CDP_URL`; the
+  address has to be public, and nobody but the person who opened it may
+  watch, whatever they may do with runs.
+- **An agent's questions read as questions in the transcript.** The "Asked
+  you" step opened onto the JSON the call carried; it now shows each
+  question under its heading with the answer chosen, or that it is still
+  open while the run waits.
+- **Stay signed in to a site your agents browse for you (#2129).** Handing
+  the browser back now offers *Keep me signed in to* the site, to the
+  person the browse acts for; the live view says which site was kept, and
+  **Settings → Sign-ins** lists the kept sites with **Forget**. The window
+  also waits for a frame of its own size before showing the page. Documented
+  under the console's browser section.
+
+- **The Architect answers questions about AgenticOS from its documentation.**
+  Asked whether AgenticOS works from Claude Code, it searched the web, when
+  `docs/mcp.md` gives the exact command. A new gallery skill,
+  `agenticos-guide`, carries the glossary, features, concepts, MCP and API
+  pages - copied by `scripts/gen_architect_guide.py` and checked against
+  `docs/` by a test - and maps every other topic to its page on the
+  documentation site; the Architect template installs it and is told to
+  answer product questions from it rather than from a search.
+
+- **Spend over time, and each row's share.** The Activity page's Spend tab
+  draws a bar per day of the window, gives every breakdown a share column
+  and shows an agent's month against its cap. `GET /spend` gains `by_day`,
+  each run's own spend per UTC day.
+- **Ideas to start a routine from.** Routines offers the schedule templates
+  as ready-made ideas with the cadence each would run on; picking one opens
+  New schedule already filled in. A weekday cron reads as "Weekdays at
+  08:00 UTC".
+- **Watch a browse from a link, and take it over (#2128).** Every browse a run
+  makes has a live view at `/browse/{run_id}/{call_id}` - the page as it is
+  now and the steps so far - linked from the chat card and posted in the step
+  in Slack, Telegram and Mattermost. The person the run acts for, or someone
+  who may edit the agent, can take the browser over: the agent pauses after
+  its step, they click, type and scroll on the page, and hand it back. When a
+  page needs a person - a sign-in, a captcha - the agent asks for one instead
+  of stopping, and the card and the channel say *Needs you*; it waits ten
+  minutes before ending blocked. Members who may view runs can watch. What a
+  person types is never recorded. The view lives in Redis for an hour
+  after the browse's last frame (`WS /api/v1/ws/browse/{run_id}/{call_id}`).
+- **Lists grouped by department.** Apps, Skills, Context and Knowledge bases
+  each take a group filter that narrows the list to what one group was given,
+  kept in the address; the Builder's pickers and the app cards name each
+  resource's departments, and a card for something everyone may read now names
+  its departments too. `GET /skills`, `/context`, `/apps` and `/kb` take
+  `group_id`. Groups are the grouping - no separate folders (#2124).
+- **Four dashboards, chosen at the top.** **Me** shows a person's own agents,
+  conversations and what waits on them; **Organization** is the arrangeable
+  page; **Group** narrows the figures, runs, spend, models, rhythm and people
+  to one group's members; **Deployment** is the host's, for its admin. Only the
+  views a person may open are offered. `GET /stats/usage` takes a `group_id`
+  for it, refused with `scope=own` and with `group_by=version`.
+- **A script can hold a conversation with an agent.** A run over the public API
+  opens a conversation when it names none and returns its `conversation_id`; the
+  next call that sends it continues it, with the model reading what was said
+  before. `GET /api/v1/conversations/{id}/transcript` reads it back for a key
+  with `runs:view`, and such conversations show in their owner's chat list
+  labelled **API**, with a switch to hide them (#2122).
+- **The MCP catalog is checked, and says so.** `agenticos cmd mcp-catalog-check`
+  calls every curated and registry server the way a first connection would and
+  records whether it answered, how it wants to be signed into and how many of its
+  tools only read. Cards say **Checked** with the date; the 1,063 registry
+  listings that were dead, broken or duplicates are no longer offered; a category
+  reaches the registry and a new **Sign-in** filter narrows by OAuth, token or
+  none. The release ships the results, so a new deployment starts checked
+  (#2103).
+- **Meta Ads, Google Ads, Google Analytics 4 and Microsoft 365 in the catalog.**
+  Meta's hosted Ads server, Google's own Ads and GA4 servers to run yourself, and
+  Microsoft's Work IQ with its Mail, Calendar, Teams, SharePoint, OneDrive and
+  Word servers. Twelve curated entries gained the hosted server they lacked
+  and four moved to their new address (#2103).
+- **A connected server's tools say whether they only read or write**, which is
+  what decides whether a binding's calls wait for approval.
+- **A reference of every endpoint an API key can call.** **Settings → API → API
+  reference** reads the public OpenAPI document into a searchable page, grouped
+  as the document tags them: each endpoint's parameters, body, responses and a
+  `curl` call to copy. The API tab leads with the base URL and how a key signs in.
+- **Connecting an MCP client has its own tab.** **Settings → MCP clients** shows
+  the server URL and the command or configuration for Claude Code, Codex, Claude
+  Desktop, Cursor and VS Code, for signing in through the browser or with an API
+  key, above the applications already connected.
+- **Steer a running turn.** In the chat, a message sent while the agent works
+  waits for the answer on a queue panel above the composer, where it can be
+  reordered, dropped or sent now - into the running task, which reads it at its
+  next step; it then appears in the conversation where it landed. In Slack, Telegram and
+  Mattermost a mid-turn message from the same person joins the turn, and
+  `/btw ...` asks on the side, answered at once without tools (#2087).
+- **A trigger can run as the person who made it.** *Run as me* on a schedule or
+  an event trigger lets each fire reach its creator's memory and their own MCP
+  connections - the morning "what matters in my inbox" - on fixed terms: a
+  schedule writes memory and an event only reads it, past conversations stay
+  closed, only the creator can turn it on (not through impersonation or an API
+  key), and anybody else's change to the message, environment or filter turns
+  it off. The run names the trigger that fired it, audit entries carry
+  `via_trigger`, and the Builder says what an unattended run can reach.
+  Migration `0121_trigger_runs_as_creator` (#2027).
+- **The website widget looks like a product.** It wears the agent's face -
+  breathing at rest, pondering while it answers - renders answers as Markdown,
+  shows each step as a chip (*Searching the knowledge base*), streams with a
+  caret and holds the send button until the turn ends, follows the visitor's
+  light or dark setting and fills a phone's screen, and closes on Escape. The
+  Builder adds up to four **suggested messages** under the greeting and a
+  **Sources** switch that names the documents an answer drew on - names only,
+  in a new `sources` frame (#2006).
+- **The public API from a script, with no browser.** `docs/api.md` shows how a
+  script signs in, issues its own key and revokes it, what is safe to retry, and
+  what the public API does not do yet; `docs/examples/public-api.sh` runs that
+  round trip. Tests now check each key-readable list against the OpenAPI
+  document, the per-key rate limit, a run over budget made with a key, and that
+  a key appears in no log, response or document (#1796).
+
+- **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
+  languages, names each thing as the console does, says what it is and gives its
+  name in the API and the spec; the Architect uses the same names, and a test
+  holds the capability names to the console's (#2075).
+- **The Architect's agent draft is approved as a draft.** The approval card
+  shows where it is created, its name, what it may do in the capabilities' plain
+  names and its instructions, instead of the tool call's JSON (#1799).
+- **An MCP account goes to an agent from where it lives.** Each usable
+  organization account on a server offers **Add to an agent**, and connecting one
+  with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **The Architect, by that name, with a mark of its own.** The corner assistant
+  is called the Architect - "Architekt" in Polish and German - until an
+  administrator renames it, and wears a drafting-compass mark until it is given
+  a picture. `GET /assistant` says `named_by_default` (#2075). Migration
+  `0120_architect_name` renames an assistant still called "AI Architect" or
+  "AI Architect (AgenticOS)"; a name an administrator chose is kept.
+- **How well each department's people are answered.** The group page shows,
+  beside the budget, the helpful share of its people's ratings over 30 days, the
+  agents they ran most and their latest not-helpful answers with comment and
+  run, for `runs:view` and the department's lead. A new dashboard card,
+  **Answer quality by department**, ranks departments least helpful first.
+  `GET /orgs/{org_id}/groups/quality` and `.../groups/{group_id}/quality` (#2101).
+- **Every change reaches an open page, and runs arrive as they happen.** Writes
+  only the console makes - sharing, routines, channel bots, group shares,
+  notification settings - are announced to the organization's open consoles like
+  public API writes, so an agent shared in one tab shows its new audience in
+  another. Runs are announced as they start, park and finish, including those a
+  schedule fires, so Activity updates on its own. The same per-row read check
+  decides who hears what (#2099).
+- **You hear when an MCP server stops answering.** The deployment checks each
+  organization server every fifteen minutes, and runs check the servers their
+  agent uses. The first check that finds one down tells the administrators and
+  the owners of agents bound to it, once per outage, and the first that finds it
+  back says so. Both are in-app and email notifications with their own switches
+  in **Settings → Notifications**. Migration `0119_mcp_server_alerts` (#2100).
+- **A capability's settings are named for a person, in your language.** Each of
+  the 93 config fields has its own title - "Hide personal data in the question"
+  rather than "Redact Pii In" - and the Builder shows the title and description
+  in Polish and German too. A field added without a title or catalog entry fails
+  the registry test (#2098).
+- **A capability's tuning is folded under Advanced settings.** Limits, cache
+  lifetimes, prompts and similar fields - thirty-two across seventeen
+  capabilities - sit behind a fold that opens by itself where one was set (#2070).
+- **Guardrails screen what an agent passes a tool.** A fourth edge,
+  `redact_secrets_args`, `redact_pii_args` and `blocked_keywords_args`, off by
+  default, checks every string in a tool call's arguments before the tool runs:
+  the tool, the stored call and the stream all get the redacted value, and a
+  blocked keyword ends the run as `guardrail_blocked`. A delegate's streamed text
+  and reasoning now pass its delegating run's output check in the delegation
+  panel (#2000).
+- **Organization API keys.** A member issues a key under **Settings → API**
+  and calls the public API with `Authorization: Bearer aos_…` from a script,
+  Postman or an MCP client, with no browser session. A key carries its issuer's
+  authority narrowed to the permissions it was issued with (presets or a custom
+  pick) and to the issuer's *current* role, so demoting or removing the issuer
+  narrows or stops it at once; a resource grant never widens a key. The key is
+  shown once and stored as a hash, can expire, is revoked instantly, has its own
+  rate limit (`RATE_LIMIT_API_KEY_PER_MINUTE`) and is named by prefix in every
+  audit entry it causes. Keys work on the public routes only — agents, runs,
+  knowledge bases and RAG, skills, context, artifacts, ML services; the console's
+  chat socket, account and key management, and the local directory sync stay
+  session-only. Two new
+  permissions, `api_keys:create` and `api_keys:manage`; migration
+  `0107_api_keys` (#1794).
+- **Organization administration through the public API.** Listing members,
+  changing a role, removing a member, inviting (by email or link), groups, and
+  reading or changing an organization's settings and retention now authorize
+  through the caller's permission context, so an API key with `members:manage`
+  or `org:settings` can do them and one without is refused. Leaving an
+  organization and transferring ownership stay session-only. For a key, the
+  `/orgs/{org_id}` in the path must be the key's own organization (#2057).
+- **The public API's own OpenAPI document**, at `/api/v1/public/openapi.json`
+  in every environment: only the routes a key may call, the `ApiKey` bearer
+  scheme, and the error envelope every refusal actually returns (FastAPI's
+  default 422 schema described a body this API never sends). `docs/api.md`
+  writes down the v1 compatibility promise — additive changes only, 90 days'
+  deprecation — and gains worked examples for ingestion and search, runs and
+  cost, invitations, and retrying a 429 (#1796).
+- **AgenticOS is an MCP server**, built on [FastMCP](https://gofastmcp.com).
+  `/mcp` on the API's host speaks MCP over streamable HTTP: `claude mcp add --transport http agenticos <host>/mcp --header
+  "Authorization: Bearer aos_…"` gives Claude Code (or any MCP client) tools to
+  list, create and run agents, read runs and cost, create and search knowledge
+  bases and add documents to them, list skills and members, and invite a member.
+  Each tool is the public API called in-process with the caller's key, so it is
+  refused, rate limited and audited exactly as the HTTP request would be. Nothing
+  deletes, publishes or touches a credential (#2058).
+- **Claude Code connects by signing in, not by pasting a key.** The MCP server is
+  an OAuth 2.1 authorization server: `claude mcp add --transport http agenticos
+  <host>/mcp` registers the client, opens the console's consent page — pick the
+  organization and what it may do — and returns an hour-long token that renews
+  itself. FastMCP's token endpoint answers an invalid grant with `401`, as MCP
+  requires, rather than OAuth's `400`. Public clients with PKCE only; codes are single-use, refresh tokens
+  rotate, and a reused one revokes the grant with every token it issued. The
+  access token is an organization key under the grant, so it is narrowed and
+  audited like one. Connected applications are listed, and disconnected, under
+  **Settings → MCP clients**. Migration `0108_oauth_for_mcp` (#2059).
+- **The Architect.** Every organization has one, without installing
+  anything: the first time anybody opens the console it is installed from the
+  *Architect* template as the organization's owner, shared with everyone, and
+  published on the organization's first model (migration
+  `0110_organization_assistants`). It lives in the corner of every page as the
+  agent's avatar, with a speech bubble that speaks to what is waiting - approvals,
+  an organization with no agents yet - or to the page, plus an occasional "Did
+  you know?"; × silences a page and a switch silences them all. Its window, full
+  screen on a phone, opens on a greeting and four tiles and keeps its own
+  conversation history. Before it has a model it types out a short conversation
+  explaining how to connect one, in every language, and only an administrator is
+  given the button to do it. It finds agents, runs, knowledge bases, skills and
+  members, explains a failed run, and - once a person approves the exact call -
+  drafts agents, creates knowledge bases, adds documents and invites people. It
+  reaches the platform through the platform's own MCP server over the real
+  protocol, in-process, with a credential minted for whoever is asking (a new
+  `platform` kind of MCP binding), so it can never do more than they can. Who
+  may talk to it is `agents:run`, as for any agent, and its cost counts like any
+  agent's. A console link it writes opens behind its window and rings the
+  control it names; the camera in its header attaches a screenshot of the
+  page; it plans longer jobs with a visible checklist, keeps memory files, reads
+  spend with a new `get_spend` MCP tool, and undoes an agent draft it made with
+  `discard_agent_draft` - the one delete on the MCP server, refused for anything
+  published or owned by somebody else. Its bubble also speaks up about the
+  reader's own failed run and a form left open for a minute, and works above an
+  open dialog without closing it. `/me/permissions` now names the caller's
+  `user_id`. Its template carries recipes (FAQ bot, website widget, Slack bot,
+  weekly report) and a plain-words glossary. **Settings → Assistant** holds your own tips and, for whoever may
+  change the organization's settings, its name, greeting and model, and a switch
+  to turn it off. The MCP tool `create_agent` is renamed `create_agent_draft`,
+  which no longer collides with delegation's. Migration `0109_internal_api_keys`
+  (#1798, #2063).
+- **The console keeps up with changes made elsewhere.** A successful write
+  through the public API — from a script's key, Claude Code over MCP, the
+  Architect or another person's console — is announced over Redis to
+  the organization's open consoles on the new `/api/v1/ws/events` socket, and
+  each page with nothing unsaved refetches in place. The Builder stops autosaving
+  when the agent it holds changes elsewhere: it takes the new draft when nothing
+  was edited, and otherwise says who changed it and through what and waits for
+  **Reload** or **Keep my changes**. A subscriber only hears about rows it may
+  read, and a socket whose session, key or membership is gone is closed (#2061).
+- **MCP tools wait for approval when they change something.** Every MCP binding
+  has an `approval` policy: `writes` (the default) holds each tool the server does
+  not mark read-only until a person approves the exact call, `all` holds every
+  call and `none` none. The card, the queue and the resume are the ones
+  capability tools use. Existing bindings take `writes` (#2060).
+- **Variables in an agent's instructions.** `{{current_date}}`, `{{current_time}}`,
+  `{{user_name}}`, `{{organization_name}}`, `{{channel}}` and the rest are filled in
+  when each run starts, and an agent can define its own. Typing `{{` in the
+  Builder's instructions opens the list; every variable is listed under the editor
+  with what it becomes, and the time is told in the deployment's zone, each
+  person's own or one chosen. Publishing refuses an unknown name. A visitor's
+  name is never the publisher's (#2065).
+- **The Architect researches and knows how to build agents.** It searches
+  the web and reads pages (DuckDuckGo, no key), and is installed with seven
+  gallery skills - writing instructions, designing an agent, setting up a
+  knowledge base, choosing a model, budgets, testing, and importing an agent
+  written with Pydantic AI, which it turns into a draft and a list of what did
+  not translate. The platform MCP server gains `list_capabilities`, and
+  `create_agent_draft` takes the capabilities to switch on (#2069).
+- **A deployment's own sandbox needs no registering.** Where `sandboxd` runs
+  beside the API with the token `make sandbox-token` generated, an organization
+  with no default sandbox connection gets *This deployment's sandbox* set up on
+  its own - as its owner, with the token in the vault and an audit entry - the
+  first time it lists its sandboxes or runs an agent that needs one. The AI
+  Architect is installed with files and code on such a deployment (#2070).
+- **Capabilities explained in plain words, under plainer names.** The Builder
+  lists each capability with what it lets the agent do, and its panel adds two
+  or three example uses, what it needs and what it never does - in English,
+  Polish and German. Categories read "Work with data" or "The web", and five
+  capabilities that tune how a run is carried fold under **Advanced**. Renamed
+  across the API, the console and the docs: Files & shell is **Sandbox**, Run
+  Python **Calculations**, Memory files **Memory**, Conversation search **Past
+  conversations**, Web fetch **Read web pages**, Browser automation **Web
+  browser** (and **Web browser (step by step)**), Context management **Long
+  conversations**, System reminders **Instruction reminders**. Ids, the spec
+  and the docs' anchors are unchanged (#2070, #2075).
+- **Add a skill, a context file or a knowledge base to an agent from where it
+  lives.** Skill and context cards, and a knowledge base's page, have **Add to
+  an agent**: pick the agent and the resource joins its draft with the
+  capability that reads it switched on. Each card and knowledge base also says
+  which agents use it, or that none does yet - only agents the reader may see
+  are named. The listings carry `used_by`. Page descriptions for agents,
+  context, knowledge bases and sandboxes are rewritten in plain words, and
+  Workspaces is **Agent files** in the navigation (#2075).
+- **The phone chat is no longer covered by the Architect's button**, which
+  sat on the composer's send controls; on a phone it steps out of the chat page,
+  where the agent picker reaches the assistant. The chat's opening suggestions
+  are everyday tasks rather than developer ones, and the phone tab bar says
+  **Knowledge** instead of "KB" (#2075).
+- **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
+  channel run that stops for a decision, or for an `ask_user` question - which
+  now parks a channel run instead of being read as declined - is offered in the
+  chat as a message per approval or question with a button per choice. A press
+  acts as the presser's linked member (`approvals:decide` to decide; only the
+  person asked may answer), continues the run and posts its answer there. Slack
+  presses arrive at a new interactions URL, Telegram's as callback queries,
+  Mattermost's at a new actions URL with this deployment's own signature on each
+  button. Migration `0111_channel_prompts` (#2064, #2068).
+- **Telegram feels native.** A command menu with a new `/agents` (also on
+  Slack and Mattermost: which agent answers here, and what it does), *typing…*
+  while it works, answers sent as Telegram HTML converted from the agent's
+  Markdown so code and links survive, and a forum group's topic answered in that
+  topic. Every channel's working status names more of what the agent is doing
+  (#2068).
+- **The Slack bot is a Slack app.** **Copy Slack app manifest** on a Slack bot
+  creates the whole app in one paste: the assistant pane with suggested prompts
+  and an *is thinking…* status, an App Home tab with the agent and what waits on
+  the person, `/agent <question>`, the message shortcut *Ask the agent about
+  this*, and unfurls for console links to agents (#2067).
+- **The chat on a phone works like a messaging app.** The console's shell
+  follows the visual viewport, so the composer stays above an iOS or Android
+  keyboard and the conversation stays on its last message while it opens; the tab
+  bar and the Architect's button step aside while somebody types; every form
+  field is 16px on a phone, so iOS no longer zooms into it; Enter starts a new line
+  on a touch keyboard; attaching and dictating sit behind one **+** sheet; and the
+  composer, the sheet and the widget respect the notch and home indicator. A
+  `mobile` Playwright project covers what an emulated phone can (#2066).
+- **Agents ask instead of guessing.** A new `ask_user` capability, built on
+  `AskUser` from pydantic-ai-harness, gives an agent `ask_user_question`: up to ten
+  multiple-choice questions with headers, option descriptions and multi-select.
+  The console asks them as a carousel card - one question per slide, a typed
+  answer, Back, Skip and a summary before sending - on the same channel a
+  delegate's questions already used. On by default in every new agent, every
+  template and every draft created over MCP. A question left unanswered parks the
+  run in a new `awaiting_answer` status instead of being read as declined: the
+  card comes back when the person reopens the conversation, answering it through
+  `POST /runs/{run_id}/answers` continues the run, and after
+  `QUESTION_EXPIRY_HOURS` (24) the approval sweep ends it as cancelled with the
+  step closed as unanswered (#2064).
+- **`X-Organization-Id` documented as it behaves.** A session without the header
+  acts in the caller's personal organization; a key acts in its own and answers
+  `400` to a header naming another (#1903).
+- **Follow an artifact.** A **Follow** button on a page's bar puts a notice in
+  the inbox (and, if enabled, an email) whenever the page gets a new version,
+  republished or restored. A republish that changes nothing is silent, the
+  person who made the version is not told, and following grants no access: a
+  follower who loses access stops receiving notices, and the inbox re-checks
+  access when it is read. Migration `0106_artifact_followers` adds the table
+  and the `artifact_version_published` event type (#1977).
+
+- **Groups as departments.** **Groups** joins the main navigation: each group,
+  a department, has an icon, a page listing its members and everything shared
+  with it (narrowed to what the reader may open), and **Add departments**
+  creates Sales, Finance, HR and the rest from templates. Creating an agent,
+  skill, knowledge base or context file asks one question - everyone, only me,
+  or chosen groups - and defaults to the whole organization; choosing groups
+  creates it private and shares it with each at `use`, in the same request.
+  The Builder's Toolbox shows which groups an agent's knowledge comes from and
+  warns when the agent reaches people a source is not shared with. A new
+  `{{groups}}` variable names the person's groups. API: `visibility` and
+  `group_ids` on those four creates (skills, context files and knowledge bases
+  now default to `org`), `GET /orgs/{id}/groups/{id}/resources`,
+  `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
+  `0112_group_icon` (#2072).
+
+- **A department runs itself.** An administrator can make a member a group's
+  lead, who then adds and removes the group's members without administering the
+  organization. A group's page has **Add to this group**: everything the reader
+  may edit that the group lacks, shared several at once at a chosen level. A
+  group's members are told when something is shared with it, in the inbox and by
+  email unless they turn *Shared with your group* off, and cards for agents,
+  skills, context and knowledge name who they are for - everyone, their
+  departments, or private. API: `PATCH /orgs/{id}/groups/{id}/members/{user}`
+  (`is_lead`), `GET .../shareable`, `POST .../shares`, `shared_groups` on those
+  listings and the `resource_shared` notification; migration
+  `0116_group_leads_and_shares` (#2072).
+
+- **A department's monthly budget.** A department can carry a monthly cap,
+  metered on what its members ran on any agent this month and checked between
+  the agent's cap and the organization's; a run it stops names the department.
+  Its lead and the administrators hear once when it passes 80%, and again when
+  it stops a run. The group page shows the month against the cap and exports it
+  as CSV, and the dashboard's **Spend by department** card lists every
+  department. API: `monthly_budget_usd` on groups, `GET /orgs/{id}/groups/spend`,
+  `GET /orgs/{id}/groups/{id}/spend.csv` and the `budget_warning` notification;
+  migration `0117_group_budgets` (#2072).
+
+- **An MCP server's health, users and calls.** A server bound through the
+  organization's account shows on its Builder card whether its last check
+  answered, when, and why not, with **Check now** for whoever manages MCP
+  servers. On the MCP page each organization account names the agents bound to
+  it, and **What agents asked it** lists the latest tool calls agents made to it -
+  tool, agent, outcome and run, never the arguments or results. Each call records
+  the connection that served it (migration `0118_tool_call_mcp_connection`), so a
+  member's own connection with the same name is not listed. API: `used_by` on
+  `GET /mcp-connections` and `GET /mcp-connections/{id}/calls` (#2072).
+
+- **The next step, wherever a page ends.** Builders see a **Get started**
+  checklist on the dashboard until its steps are done - an agent, published,
+  with knowledge, departments, a teammate and a chat app - each ticked from what
+  exists. Creating a skill, a context file or a knowledge base offers **Add to an
+  agent** from its toast; empty agent, routine and group pages offer the way to
+  their first item; and the Architect links to an agent's test panel with
+  `?test=open` (#2072, #2074).
+
+- **The console in Polish and German, whole.** Every screen but the legal pages
+  is translated into both - about two thousand Polish messages and the last
+  German ones - and the walkthrough's first card offers the language before it
+  says anything else (#2072).
+
+- **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
+  answer streams natively under the question, with each tool call a step that goes
+  from in progress to done or failed - as a timeline or as one plan - and a step
+  that read web pages linking them; a Markdown table is drawn as a Slack table. A
+  bot can react to a question as it arrives, and a finished answer carries thumbs
+  in Slack, Mattermost and Telegram that record the presser's rating; a
+  thumbs-down asks what was wrong in a Slack modal or a Mattermost dialog. Each is
+  switched in the bot's settings. The Slack bot form asks which way the connection
+  runs - Slack calling this deployment, or the deployment connecting out over
+  Socket Mode with no public address - and the manifest follows it and is
+  org-ready for Enterprise Grid. App Home lists the person's recent conversations.
+  Mattermost gets `/agent`, verified with the slash command's token. The
+  dashboard's answer quality card splits ratings by surface, and "my" ratings now
+  include those given in a chat. Migration `0115_channel_bot_touches` (#2084).
+
+- **A department's MCP servers, and people beside groups.** A shared MCP server
+  can be limited to groups or people like any other resource: they and whoever
+  connected it see and bind it, owners and admins see every one, and a builder
+  outside them neither lists it, opens it by id nor publishes an agent bound to
+  it. An agent already bound keeps working, and the Builder lists the server
+  where the agent's knowledge comes from. The audience control finds groups and
+  people by typing and keeps each as a chip. `mcp:manage` becomes a resource
+  permission, held by builders at `SHARED`. API: `visibility`, `group_ids` and
+  `user_ids` on the organization's MCP creates and OAuth start,
+  `/mcp-connections/{id}/sharing`, and `user_ids` on every audience; migration
+  `0114_mcp_connection_audience` (#2072).
+
+- **MCP connections in plain words, and a shorter path.** The connect dialog asks
+  one question as two explained cards - one shared account for everyone, or my
+  own account - and recommends one per catalog server. A custom server's
+  address is checked for OAuth sign-in as it is typed (`POST
+  /api/v1/me/mcp-connections/probe`, the RFC 9728/8414 discovery a sign-in runs,
+  registering nothing): sign-in is chosen when it is supported, and the dialog
+  says when a client made at the provider is needed. Connecting a server from the
+  Builder binds it and opens its tools from the check that just ran (#2073).
+
+- **A test panel beside the Builder.** **Test** opens the real chat beside the
+  Builder, resizable and remembered per agent, answering as the unpublished
+  draft or as any environment's version. A draft test needs no publish - it
+  passes the publish checks, runs for whoever may edit the agent, and a parked
+  call continues on the draft it started with. Every turn is a test run,
+  budgeted like any other and marked and filterable in Activity
+  (`?test=` on the runs list and export). The panel starts over, replays the
+  last message and reruns pinned prompts. It compares two side by side - the
+  draft against production, or two environments - asked the same thing at once,
+  shows what the draft changes against the published version, and opens and
+  closes with <kbd>T</kbd>. Chat frames take `draft` and `test`; migration
+  `0113_test_runs` (#2074).
+
+### Fixed
+
+- **A browse opened on its own page fills it.** The page that a channel and
+  Settings' sign-in link open shrank to whatever its first picture was, so a
+  site could be laid out as a phone in a narrow column on a wide screen. It
+  now takes the page's width, in the same window the chat draws, and lays the
+  site out at that size on a desktop and on a phone alike.
+
+- **Credentials and the browser, tightened after review.** A key reads the
+  member list only with the new `members:view` scope (every role holds it). A
+  person's keys and connected apps are revoked when their membership ends, so
+  inviting them back wakes none. An OAuth consent is answered once. A live
+  browser view asks again whether its viewer may still watch, a take-over
+  answers only its holder (by id), the keep-my-sign-in tick is cleared after
+  each hand-back, and every browser request to a private, loopback, link-local
+  or metadata address is refused unless the agent's `allowed_domains` names it.
+  The personal-data export lists kept browser sign-ins, and the MCP
+  `create_knowledge_base` tool takes the embedding settings it needs. Department
+  lists also need `members:view`; a run an API key started stays under that
+  key's scopes when somebody else resumes it (migration
+  `0133_agent_run_key_scopes`); keys are rate limited before they are looked up;
+  a key with `agents:run` can upload the file it attaches to a run; a refused
+  channel resume can be pressed again; a failed assistant install leaves nothing
+  behind; and the browser can go out through `browser-egress`, a Squid proxy that
+  pins every address it allows (`BROWSER_EGRESS_PROXY`). A third round: a narrow
+  key's live events no longer carry member and group activity or who acted; a
+  spec's `system` time zone is the deployment's `TIMEZONE`, not UTC; resuming or
+  answering a run returns its `conversation_id`; the personal-data export lists
+  API keys and OAuth consents, never a hash; the console offers every question a
+  parked run asked at once and offers it again after a failed read; and a channel
+  question that takes free text is answered by the person's next message
+  (migration `0134_channel_prompt_free_text`). A fourth round: compose sends the
+  browser through `browser-egress` by default; a key changes roles only with
+  `roles:manage`, and the organization PATCH checks each field against the key;
+  the department spend export refuses above the export row cap; a Mattermost
+  press is accepted only from the user its server-signed trigger id names;
+  knowledge base documents and sources must belong to the knowledge base's
+  organization; and the MCP `get_run` tool says it needs `runs:view`. A fifth
+  round: a socket handshake with an API key meets the same pre-lookup limits as
+  a request; a key continues only a run a key started; a Mattermost feedback
+  dialog is bound to whoever opened it; two accounts whose labels read alike get
+  a tool prefix each; and `discard_agent_draft` works for a key issued only
+  `agents:edit`. CI now lists the lines a red coverage gate is missing. A sixth
+  round: cloning a sync source checks the credential it lends; `/rag/documents`
+  lists and resolves documents by collection and organization; an API key's
+  allowance is counted by a digest of the whole token, not its public prefix;
+  clearing the assistant's model is refused; and a channel run continues only
+  once every question it asked, across calls, is answered, with the run held so
+  two presses cannot both miss it. A seventh round: setting a department's cap
+  needs `budgets:manage`, sending an invitation or invite link needs
+  `roles:manage`, keys presented to `/mcp` meet the same limits as on the API,
+  and a resumed run answers to its starter's department caps. An eighth round:
+  refused keys stop at the auth limit rather than one past it; an MCP tool call
+  spends its key once; refused OAuth token requests are limited per address;
+  run-as-me is withdrawn by a publish made through the creator's key or by an
+  impersonator; listings name departments only for `members:view`; a lead
+  without `runs:view` is offered no run link; and Settings says when the
+  assistant could not be read. A ninth round and a second review: a platform
+  MCP binding never runs below `writes`; a resumed run's delegates and
+  `{{variables}}` stay on its own person; a hosted browser is never handed kept
+  sign-ins and leaves no cookies in a shared context; steers and `/btw` asides
+  meet the input guardrails; a call a guardrail refuses is still recorded as
+  spent; an unlinked channel sender's question, or a delegate's on a channel, is
+  declined rather than parked; department totals leave out runs no department
+  cap holds; a key needs `org:settings` to read retention; impersonation keeps
+  no browser sign-in; a lead cannot remove a co-lead; OAuth registration refuses
+  script redirect URIs; a failed fallback chain answers 502 and a failed run
+  names its conversation; and Ctrl+V attaches a pasted picture or file in chat.
+  A tenth round: a hosted browser that cannot give a browse its own context is
+  refused; an http or socks5 proxy is handed to the browser at its checked
+  address; the assistant's settings reach other open tabs; a department's agent
+  ranking leaves out runs its cap does not hold; and a deletion reaches the
+  deleting person's other tabs.
+  An eleventh: a run started with an API key reaches none of its issuer's
+  memory, conversations, kept sign-ins or personal workspace; a mid-turn
+  correction is read back into the next turn; a channel message with a file is
+  answered as a turn; the live browser view bounds its command queue; and a long
+  create answer still names the row it made.
+
+- **New chat starts a new conversation.** The console sends `conversation_id: null`
+  for a new chat, and the session read it as "no id given" and carried on in the
+  conversation the socket had open: the next message was written into the old
+  thread - with its browser panel still open - or refused with *Conversation not
+  found* once that thread had been deleted. A frame without the key still
+  continues the session's conversation.
+
+- **A browse signed in to a person's sites is theirs alone, and a key is held to its
+  scopes on the live view** (Codex review of #2062). A browse carrying someone's kept
+  sign-ins is no longer watched or driven by run viewers or agent editors; an
+  organization key may watch a live browse with `runs:view` and never drive one.
+  A key continues only conversations opened over the API - one of its issuer's
+  console or channel chats answers `400` instead of reaching the model.
+  Reading or answering a run's questions with a key needs `agents:run`, as starting
+  the run did, and a key no longer follows or unfollows an app for its issuer.
+  A person holds at most three sign-in browsers from Settings at once, an API key
+  opens none, and two sign-ins to one site handed back together both land.
+  An OAuth refresh sweeps the grant's lapsed access and refresh tokens, and a key's
+  visible prefix is drawn again when it is taken instead of failing the issue.
+
+- **A long MCP tool name no longer takes the whole conversation down.** A prefixed
+  name past 64 characters, or with a character providers refuse, reaches the
+  model fitted (cut, with a short hash) and the server is still called by its
+  real name; before, the provider refused every request of the turn.
+
+- **Stopping a turn that was asking a colleague leaves one quiet step.** The
+  step reads "Stopped asking …" instead of spinning "Asking …" beside "Done",
+  and the stopped delegation no longer stays under the answer as a panel of its own.
+
+- **A question in Slack, Telegram or Mattermost answers as the person it was
+  asked** (Codex review of #2062). Another member's press is refused before
+  anything is written; a question taking several answers collects them until
+  **Done**; and a question the chat never received no longer holds the run.
+
+- **A new chat no longer waits behind an answer from another one.** Opening a
+  new chat - or another conversation - while an agent was still answering left
+  the composer busy, so the next message went into a queue behind an answer that
+  belonged somewhere else. Leaving now lets that turn finish on its own and saves
+  it where it was asked; coming back says the answer is on its way until it lands.
+
+- **Two cards with a hole in them filled.** Latency draws its median against
+  the slowest 5% on one bar instead of leaving the middle of the card empty, and
+  Settings → MCP clients says "No connected applications" in a line rather than
+  in a framed table under its own card.
+
+- **The live browser view shows the page at the panel's size, sharply.** The
+  first step started before the watching window said its size, so it - and a
+  whole one-step browse - ran at 1024 px and was shown shrunk into the top of
+  the panel. The first step now waits up to a second for that size (it arrives
+  in about 60 ms), and frames are JPEG quality 80 instead of 60, which smeared
+  small text.
+
+- **A version's figures on the Runs page no longer overlap.** Each tile under
+  "By version" split its three figures into equal thirds, so beside an open
+  run "completed" ran into "per run". They now take the width they need and
+  wrap when the tile is narrow.
+
+- **The Architect answers in the person's language.** Its instructions said
+  nothing about language, so a one-word "hej" was answered in Swedish. It now
+  answers in the language the person writes in, and for a message too short to
+  tell, in the language of their earlier messages, else English.
+
+- **The Architect's bubble no longer covers a phone screen.** On a phone the
+  bubble took about 40% of the screen on every page; there the button now carries
+  a dot instead. And the approvals it has raised stay raised for the browser
+  tab, so a link that reloads the console does not bring the same sentence back.
+
+- **A delegation started in the background no longer reads as finished.** Its
+  `task` call answers with a handle ("Task started in background. Task ID: …"),
+  which the line under the answer showed as the delegate's finished answer. It is
+  now matched to the last check of that task in the turn: the result once it
+  completed, the error once it failed, and "working" until then.
+
+- **The web browser works on Claude again.** Each browse step asked the model
+  for a decision whose schema was a `oneOf`, which Anthropic's structured output
+  refuses outright, so every browse on a Claude model failed on its first step
+  with "The browser could not be reached". The step's actions are now a plain
+  union. Each step also records how long reading the page, the model's decision,
+  the action and the settle took, in the run's trace.
+
+- **An agent's face keeps its colour in the conversation list** and a
+  message's header, as it does in the picker and on its own page.
+- **Choosing whose account no longer switches an MCP server on.** In the
+  Builder's server settings, going to the organization's account and back
+  left an unused server bound; the choice now waits for the switch, which
+  binds the account chosen.
+- **A conversation waiting on an agent's question opens again.** A run that
+  asked its person something stored its step as `awaiting_answer`, a status
+  the transcript's read schema did not list, so reading the thread back
+  answered 500 and the conversation opened empty - with the question, and
+  the card that answers it, out of reach.
+- **The voice transcription picker shows each provider's mark**, and a
+  muted microphone beside "Do not transcribe", like every other provider
+  picker in the console.
+- **An agent remembers a file after the turn it arrived in.** The history a
+  later turn is given was rebuilt from what people typed, so a file attached
+  earlier was gone from it: an agent without a workspace had read the file
+  once and could not answer a follow-up about it, and one with a workspace was
+  never told the file was in `uploads/`. What the attachments added to a
+  prompt - the file pasted whole, or its path and first lines - is now kept
+  beside the message and replayed after it; a picture is named rather than
+  sent again.
+- **Reopening a conversation addresses its agent.** The composer kept
+  whichever agent was picked last, anywhere, so opening a Finance Analyst
+  thread with the Architect last chosen sent the next message to the
+  Architect. A thread now addresses its agent when it is opened - in a
+  thread several agents answered, the one that answered last - once, so
+  choosing another agent mid-thread still sticks.
+- **Every thread in the sidebar wears its agent's face.** The list named
+  only agents whose runs completed, so a thread whose agent failed on its
+  first turn - or one whose first run had not been listed yet - fell back to
+  a generic chat mark. Any run in the thread now names its agent, and the
+  open thread shows the agent the composer addressed until one does.
+- **A just-published agent no longer reads "Draft differs".** Publish
+  stamps the deployment's spec version on the frozen copy but left the draft
+  at the number it was saved with, so an imported agent, or one saved before
+  a spec version bump, was shown as differing from the version it had just
+  become. The draft now takes the stamped copy too.
+- **The browser tab shows the new mark.** The favicon and home-screen icon
+  were served at an unchanging `/icon`, and browsers keep a favicon long past
+  any cache header, so a tab that had ever opened the console went on showing
+  the previous logo. Both addresses now carry a version derived from the mark
+  itself, which `bun run gen:logo` writes beside it, and the app manifest no
+  longer declares the 32-pixel PNG as an SVG.
+- **Skills, knowledge bases and context files can be re-shared after they
+  exist.** Their audience was set once, in the dialog that created them, so a
+  skill made for yourself could never be handed to the organization or a
+  group. Each now has the agent page's **Share** - the skill's and the
+  context file's dialog footer, the knowledge base's header - with people,
+  groups and general access; the sharing panel learned the context type, and
+  its reach text no longer calls context files and MCP servers "secrets".
+
+- **The README's videos show on a phone.** GitHub's mobile views drop a
+  `<video>` tag, so both demos were blank there; each is now its poster
+  with a Watch pill and its length, linked to the video, in all four
+  READMEs.
+
+- **The Architect's conversation list looks like the chat page's.** Rows
+  were a grey chat icon over a title and a time; they now carry the
+  agent's face and unread dot, "Architect · 4m ago" over the title, the
+  open row's fill, and Today, Yesterday and the older days as headings.
+
+- **An answer's sources open inside the Architect's widget.** The Sources
+  panel was fixed to the page's right edge, so from the widget in the
+  corner it opened beside it, over the page underneath; in the widget it
+  now covers the conversation it belongs to.
+
+- **The browser window reads as a browser.** One toolbar instead of a tab
+  strip over an address bar: the address with its lock, host and path and
+  a Live mark, then Take over as a solid button and the window's controls
+  at full contrast. The page waits for a frame of the window's own size
+  instead of showing the default-size first frames shrunk into the column,
+  and the agent's cursor is a labelled pointer whose click ring fades out
+  rather than staying on the page as a blue disc.
+
+- **A browse stays in the turn that made it.** Its line was a strip under
+  the whole transcript, so a finished browse sat under the answer's footer,
+  out of line with the message, and vanished with the next message. Each
+  `browse_web` call now draws its line in its turn - under the folded work
+  once the turn is done - live with Open while the browse is in the chat,
+  and as a record with a link to the site afterwards.
+
+- **`code` in the markdown editor is a grey chip, not red.** Tool names in
+  an agent's instructions read as errors in rose; inline code and fenced
+  lines are now drawn in the ink colour on the neutral tint.
+
+- **Agent templates' instructions are whole paragraphs.** Every shipped
+  template, the Architect and Claude Code like among them, was hard-wrapped
+  at the repository's 80 columns, so an installed agent's instructions read
+  as a column of short lines in the Builder and in its exported spec. The
+  thirty templates and their inline specialists are rewritten as one line
+  per paragraph or list item, and a test refuses a hard wrap in the
+  catalog.
+
+- **Recent failures says "4 times" instead of a red "× 4" pill.** The
+  count of a repeated failure moves from a red badge beside the agent's
+  name into the line that says what happened, as words ("4 times", "4
+  razy", "4-mal").
+
+- **"Thought about it" no longer wears the working orb.** While a turn ran,
+  "Working for 9s…" and the reasoning under it showed the same orb one
+  above the other. The reasoning row now has a bulb in the step slot, like
+  the steps beside it, and its label shimmers while it is still arriving.
+
+- **The collapsed chat list is the same list, narrower.** The rail used to
+  show the first eight threads in server order under its own row of
+  buttons, so collapsing dropped the Unread and Favourites bands and the
+  unread dot and moved every control. It now reads the bands the list
+  does - each headed by the list's own mark, a short rule where the list
+  has a date, foldable from either - draws each thread's face with its
+  unread dot, scrolls and pages like the list, and keeps search, filters
+  and new chat in the list's order, with the filters opening beside it.
+
+- **A browser that does not answer is the agent's to say, not a failed run.**
+  When the browser service is down or its address is wrong, the agent is
+  told so and tells the person an administrator needs to start it, instead
+  of the turn ending as "Error: ... (ConnectError)".
+
+- **Skill and context cards said "Private" for everything.** Their listings
+  never sent `visibility`, so every card read it as private, including what
+  the whole organization could open.
+- **A server connected through its sign-in lists its tools at once.** The
+  consent's return checks the server and records its tools, so an agent bound
+  to it, in the Builder or a chat, has them to choose from without anyone
+  clicking Check first; a server that does not answer is recorded as the error
+  it is.
+- **A run the API started and the model provider refused names itself.** It
+  answered a bare `500`; now `502 MODEL_CALL_FAILED` (or `500 RUN_FAILED` for
+  any other failure once started) with `details.run_id` and `details.status`, so
+  the caller can read the run it was billed for (#2121).
+- **Signing in to Meta Ads works.** OAuth discovery sent its requests with no
+  User-Agent, and Facebook answers those with an "unsupported browser" page, so
+  the server read as having no OAuth metadata.
+- **A refusal before the agent starts answering is shown.** An agent with no
+  model, or nobody picked to answer, used to leave the question sitting there
+  with no reply; the refusal now appears as the answer.
+- **An agent's generated face no longer flashes before its picture loads.**
+- **A focused field's ring is no longer cut off.** Scrolling dialog bodies,
+  tab strips, toolbars on a phone, menu lists, cards and sideways-scrolling
+  tables left the ring room, or draw it inside.
+- **New skill can be finished on a phone.** The dialog scrolls as one column
+  there, so the file editor and Create are reachable.
+- **The tab you are on is in view on a phone.** A tab strip wider than the
+  screen centres the active tab.
+- **A Claude model through OpenRouter answers wherever OpenRouter sends it.**
+  Prompt-cache breakpoints no longer name a `ttl`, which Amazon Bedrock refuses;
+  the Architect failed every turn OpenRouter routed there.
+- **No rating on an answer that was never saved.** A turn that failed before
+  the server stored it offered thumbs that answered "Message not found".
+- **A `user`-scoped workspace is no longer handed to a stand-in.** A widget
+  visitor shared the publisher's own workspace, and every trigger fire opened its
+  creator's; both are refused now unless the trigger runs as its creator (#2027).
+- **A run over the API checks the conversation it names.** An unknown
+  `conversation_id` was a 500, and another member's conversation lent the run
+  its workspace and its plan; both now answer `404`.
+- **The public OpenAPI document says an error's `details` may be `null`**, which
+  a `401` sends (#1796).
+
+- **An MCP account whose OAuth sign-in could not be renewed asks to be authorized
+  again** on the server list and in the Builder, instead of reading as a server
+  that stopped answering (#2073).
+- **Self-query skips its inference at a budget cap** and searches unfiltered, as
+  query expansion, compaction and system reminders already did, instead of ending
+  the run (#1808, #1811).
+- **Workspace listings no longer decode every stored image on the event loop.**
+  Both backends draw at most one screen of thumbnails per request, the decode
+  runs on the file pool, and a workspace listed by id returns no tiles at all
+  (#1930).
+- **A hidden ingestion setting can no longer block submit.** Turning OCR,
+  LiteParse or image descriptions off resets a refused value behind the
+  now-hidden field to its default (#1930).
+- **Reduced motion skips the staggered card reveal**, and the agents label
+  filter stops offering picks past the 10-category / 20-tag cap the API applies
+  (#1930).
+
+### Changed
+
+- **The README's figures are sharper and name capabilities as the Toolbox
+  does.** Every figure renders at 2400 px for high-density screens; the
+  capability figure and the list under it say Subagents, Web browser, Sandbox,
+  Calculations and the rest by their Toolbox names, and the browser line no
+  longer mentions the dropped browser-use. The heading repeating the banner's
+  tagline is gone, and so is a second "AgenticOS is an MCP server".
+
+- **The repository's social card matches the banner.** `social-preview.png`
+  is the README banner's composition at 1280x640: the Toolbox's cards, the
+  blobs and Vstorm's mark beside the title. `render.mjs --social` builds it from
+  `docs/assets/social-preview.html`, which is now its template.
+
+- **The README opens on an animated banner.** The Toolbox's own capability
+  cards, with the blobs floating and blinking over them and Vstorm's mark under
+  the title, in place of the mark and the heading, in all four READMEs - an
+  animated WebP at twice its shown size, sharp on a high-density screen.
+  `docs/assets/readme-banner/render.mjs` rebuilds it from the current
+  illustrations.
+
+- **The AI Architect is edited in the Agent Builder, like any agent.** Its
+  name, model, knowledge and the rest of its spec are no longer a second form
+  in Settings → Assistant: an administrator changes them on its own Builder
+  page. Switching it off and its greeting moved to a card on the
+  organization's page, Settings → Assistant keeps only a person's own tips,
+  and the walkthrough for a missing model opens the Builder's model picker.
+  `PATCH /assistant` takes `enabled` and `greeting` only.
+
+- **The README shows one film: AgenticOS in two minutes.** It replaces the
+  45-second intro and the recorded planner run in all four READMEs: agents
+  handing work to each other, the Architect drafting an agent, a finance agent
+  tested and publishing a dashboard, a browse of GitHub and Notion over MCP,
+  with the console's blobs and a synthetic narrator.
+
+- **A browse draws under its message, not in a side panel.** The agent's browser
+  is a live window in the transcript, at a reading width that grows and shrinks
+  with the conversation, with the address, what the agent is doing and **Take
+  over**; several browses at once sit side by side. Maximise opens one full
+  screen and restoring puts it back. The docked side panel, its resize handle
+  and its opening by itself are gone.
+
+- **Claude Code like works in its own container, and browses.** The starter agent,
+  and so every new agent's defaults, runs in a container on the deployment's
+  sandbox service, which bootstrap now registers before anything else, and a
+  first publish sets up where nobody has yet. It searches, reads and drives a
+  real browser (pointed at the deployment's browser service, left out where
+  there is none). Calculations, knowledge search, context, past conversations and
+  tool search are off until something gives them a use, and its instructions now
+  say when to delegate to its specialists and which web tool fits.
+
+- **A conversation stops paying a second MCP handshake every turn.** A server that
+  answered its probe in the last two minutes is attached without another; if it
+  has gone down since, the turn goes on without its tools and the next turn
+  probes it again, so an outage is still reported to the model.
+
+- **Delegation is called Subagents.** The capability that lets an agent hand
+  work to another agent reads "Subagents" in the console and the docs; its id,
+  `subagents`, and its configuration are unchanged.
+
+- **`AGENTS.md` is the one instruction file for coding agents.** `CLAUDE.md`
+  is gone - Claude Code reads `AGENTS.md` when a repository has no
+  `CLAUDE.md`, and Codex reads it already - and every skill, command, rule,
+  page and the review workflow point at it. It now says what the testing
+  rules already implied: run the tests covering a change on a laptop, and
+  leave the full suites, the coverage gates and e2e to GitHub Actions, which
+  runs them on every push.
+- **Both presentations wear the new brand and show the current console.**
+  The 14-slide introduction and the 44-slide tour drop the red and beige for
+  the mark's violet, open on the animated mark, and use blobatar characters
+  where drawn people stood. Every screenshot is a new capture from the demo
+  organization, and the copy that described the old demo - a sales CSV, the
+  Meridian page, a Slack run - now describes what is on screen.
+  `docs/presentation/capture.mjs` retakes the screens and measures the areas
+  the slides outline; a slide names an area (`@builder.instructions`) rather
+  than holding coordinates, so a recapture moves the outlines and the camera
+  with the screen.
+- **Every console screen is pictured again, in both themes.** The README's
+  eight screenshots and the placeholders in "Every screen in the console" are
+  new captures of the current interface - 41 screens, light and dark - taken
+  from a demo organization whose company and figures are made up and whose
+  conversations and published app are real runs. The screens page gains
+  Apps, one app, members, roles, groups and your settings, and the chat and
+  documents sections describe what those screens now show.
+  `docs/assets/screens/capture.mjs` retakes the set against any running
+  deployment; `ORG`, `AGENT` and `CHAT` choose what it shows. The README now
+  opens on the chat: an agent asking before it charts an attached CSV,
+  beside threads with one to four agents.
+- **A link to a deployment unfurls in the new colours.** The Open Graph
+  image drops the lime-on-black of the old brand for the mark's deep violet,
+  with the title's key word in the blob's blue and the mark drawn large
+  beside it - the same card as the repository's social preview.
+
+- **The AgenticOS mark moves in the README and on the docs' front page.**
+  The blob floats, breathes, blinks and glances aside, from CSS inside the
+  SVG that GitHub runs in an image; `gen-logo.ts` writes it from the same
+  recipe as the still mark, and it holds still under reduced motion.
+
+- **The Architect blinks, and watches you type.** Its mark blinks every few
+  seconds, and the large one over an empty conversation follows the caret
+  of the text box being typed in with its eyes; neither moves under reduced
+  motion.
+
+- **A conversation's agent faces tuck together and fan out on hover.** Three
+  faces overlap more than two, so a row with several agents takes about the
+  room of two, and pointing at the stack spreads them so each face is seen
+  whole.
+
+- **Routines reads like a menu of what an agent could do on its own.** With
+  nothing scheduled, the list's empty card no longer offers a "Pick an
+  agent to schedule" button that only opened the agents list, and the ideas
+  sit in a card of their own as rows - a mark, a name, one sentence, when
+  it would run - rather than a box each. Six ideas for anyone lead
+  the list (daily briefing, inbox triage, meeting prep, weekly review,
+  content ideas, monitor a topic) ahead of the engineering ones, whose
+  names lose the cadence the line under them already states. Picking one
+  fills in the schedule's name too, and cadences read as "Every Fri at
+  16:00 UTC" and "On day 1 of each month at 09:00 UTC".
+
+- **The agent's browser opens beside the chat, like a desktop agent's.**
+  When a browse starts, its window docks to the right of the conversation
+  on a wide screen: a tab named after the page, the address, the page, and
+  what the agent is doing now in one line under it. Take over and Hand it
+  back sit in its toolbar and work in place; the step list is behind a
+  button. The transcript keeps one line per browse instead of a card with
+  a thumbnail, and the page a channel links to is the same window. The
+  page is laid out at the window's own size and screen density, so it
+  reads like the site in a browser rather than a shrunk laptop screen
+  (`resize` on the live view's socket, applied between steps). The
+  agent's cursor moves to what it is about to click or type into and
+  shows the click (`browser_pointer` frames). While somebody watches, the
+  page streams as it paints (a CDP screencast, about twelve frames a
+  second) rather than one picture per step, so a scroll or a page loading
+  shows as it happens.
+
+- **AgenticOS has a new mark: the blob its own name draws.** The light
+  face the avatar library draws for "agenticos", on a deep violet tile,
+  replaces Amigo's sombrero head in the console's sidebar and sign-in
+  header, the favicon, the home-screen and Open Graph images, the
+  documentation header and heroes, the top of every README, the desktop
+  app's icon set and the social card, which is redrawn around it.
+  `frontend/scripts/gen-logo.ts` writes the SVG, the console's data URI
+  and the desktop icon source from one recipe, and its test fails when
+  they drift. Amigo stays a desktop pet and the arcade's hero, and
+  `scripts/gen_amigo_assets.py` now cuts only his walk.
+
+- **The Architect wears a blueprint.** Its mark is now a blueprint-blue
+  disc with a faint drafting grid and the two pill eyes every agent's face
+  has, in the console and in the avatar a new install uploads.
+
+- **An approval reads as a question, not a JSON document.** In the chat,
+  in Activity and in Slack, Telegram and Mattermost a waiting call shows
+  what it wants to do in words - "Allow Search in Notion?", with the
+  service's logo - and the one argument that says what it is about; the
+  rest folds behind Details, with the empty fields an MCP schema sends
+  left out. In a channel the agent asks in its own voice.
+
+- **A new install opens with the Architect and Claude Code like.**
+  `bootstrap` installs the Architect and the Claude Code like template,
+  visible to the organization and published on the bootstrapped model
+  where the deployment can run them. The Getting Started agent and its
+  `AGENTS.md` context file are no longer created.
+
+- **Markdown fields show their structure while you write.** An agent's
+  instructions, a skill's files and every other Markdown field are set in
+  the text face with headings and bold drawn bold, the markers dimmed,
+  `code` and `{{variables}}` as tokens, and links, quotes, lists, tables
+  and fenced blocks each marked - still the same plain Markdown saved.
+
+- **The chat list keeps a short list open,** folding the older bands (last
+  7 and 30 days, Older) only when it holds more than twenty threads and
+  never the newest band, so a list with nothing recent no longer opens onto
+  folded headings alone; a band folded or opened by hand stays that way.
+  The third audience is called "Some people" instead of "Chosen groups
+  or people".
+
+- **No tool waits for a person until its author asks.** A capability's
+  `default` approval now means no approval, whatever `side_effecting` says,
+  and an MCP binding's `approval` defaults to `none` instead of `writes`. A
+  gate nobody chose parked runs in channels and routines where nobody was
+  there to answer it. The Builder still marks the capabilities that act on
+  the world and says what leaving one unanswered means; set **Always ask**
+  per capability, per tool or per server. The Architect's template keeps
+  `writes` on the platform's server.
+
+- **Clearer screens across the console.** The active tab's underline is
+  drawn in full on every tab strip. Create knowledge base shows embeddings
+  open, the parser as three choices with the rest folded, and the
+  description under More options. Documents shows one card per file, named
+  as the person called it, with the agent's face, four across. An MCP
+  server's accounts dialog leads with the service's mark and gives each
+  account one action, the rest in its menu; Configure opens with More
+  options folded. With a run open, the run list and its detail are pinned
+  as one pair, and the detail's header, figures and tool steps read in
+  words. Approvals are requests - "Architect wants to Save to memory" -
+  with their arguments as fields. Adding to a group picks by kind, with
+  faces. The chat's "Working for" mark no longer clips at the edge.
+- **One web browser, on the agent's own model (#2127).** The step-by-step
+  browser and the browser-use one are now a single "Web browser"
+  (`browser_use`, tool `browse_web`) running this repository's loop: each step
+  the agent's model judges the last action, keeps a short memory and picks one
+  action on a numbered element of the live page - click, type, select, scroll,
+  open a URL, go back, finish or report being blocked - and the chat panel
+  shows what each step did and why. The tab stays open for the turn, so a
+  browse that reaches its step limit continues where it stopped on the next
+  call; the default limit is 50 steps per call. In the chat a browse is drawn
+  as a browser window - address bar, live page, the current action and its
+  reason - with the whole trace in the side panel and the answer it found
+  when it finishes. There is no TypeSafe decision
+  model and no second key any more, and `DECISION_MODEL_ALLOWED_HOSTS` is
+  gone. A `browser` service sits in the compose files behind the `browser`
+  profile, and a browser named in `cdp_url` is reached by its address, so
+  Chromium's DevTools host check no longer needs a forwarder.
+  **`SPEC_VERSION` moves to 13**: `browser_choice` bindings load as the web
+  browser, with `browse_page` approval and renames moved to `browse_web`.
+- **Brand marks in their own colours.** Every service, connector and model
+  provider mark - in the vault, channels, MCP servers, the Builder and the
+  sign-in buttons - is drawn in its brand's colour where that colour reads on
+  both themes; a black or white brand (GitHub, OpenAI, Notion) keeps the text
+  colour. The generator records each colour beside the mark, from Simple
+  Icons' data or a short table for the sets that publish none.
+- **The dashboard in colour, and the Me view opening on you.** Charts take
+  an indigo ink and each figure its own colour - runs, finished, spend and
+  people are told apart before they are read. The Me view opens on a greeting
+  and one sentence of the period, then four figures of your own (runs,
+  finished, waiting on you, spent), then the calls waiting on you beside your
+  conversations. An approval names the agent with its face and the tool in
+  words - *Architect · Save to memory* rather than `write_memory`; a recent
+  failure carries the agent's face and its first clause; spend names each
+  provider with its logo; the agents you use most wear their avatars.
+- **MCP servers read as one kind of card, and connect in one click.** Every
+  card, on the servers page and in the Builder, is the server's logo in its own
+  colours, its name, two lines of what it does and one foot saying where it
+  stands - no address, category or check date. **Connect** on a catalog server
+  that signs in goes straight to the provider, with **Configure** beside it for
+  the form, whose known settings sit under **More options**. A server's
+  settings in the Builder switch it on, choose whose account in one control,
+  list your own accounts on the service with a way to sign one in again or
+  disconnect it, and group its tools into reads and changes, each running
+  freely or asking first. The Builder keeps its tab in the address.
+- **A quieter, denser console, item by item.** Card descriptions fold to one
+  line with **More** at its end; the chat's history reads by day (Today,
+  Yesterday, Previous 7 days…) in one-line rows, with search alone above it and
+  agent, sort, API threads and the archive behind one filter button; the
+  Builder's labels sit beside its status under the name, alert audiences take
+  two columns, Environments waits for the first publish, and Availability leads
+  with the website, page and API surfaces before the chat apps; run history names
+  the model alone beside its vendor's mark; the dashboard's view switcher is a
+  tab strip above the period control.
+- **The places people miss are pointed at (#2131).** The first publish of an
+  agent says where else it can be reached and opens its **Availability** tab;
+  the MCP servers stop in the walkthrough says a server can be connected with
+  your own account; the Architect's instructions link Availability, sharing,
+  personal MCP accounts and Documents; the getting-started page gains a short
+  **What you can already do**.
+- **Sharing reads like sharing a document.** An agent's **Share** button opens
+  one dialog: add a person or a group at a level, see who has access - the owner
+  first, faces and group icons beside the names - and set **General access** to
+  *Only people with access* or *Everyone in the organization*. The two cards of
+  radio buttons and paragraphs at the foot of the Availability tab are gone, the
+  vault's key sharing uses the same panel, and the agent's YAML export moved
+  into its **…** menu for whoever may edit it.
+- **Fixes from a screen-by-screen pass.** The Architect says what is waiting for
+  approval once a visit instead of on every page, until more arrives; badges
+  and short table values no longer break over two or three lines; an
+  organization's card says it is the current one once; the MCP servers page
+  explains itself in two lines; the period control is as wide as its choices;
+  the deployment admin is titled Administration.
+- **An organization is called an organization.** Its profile, name, avatar,
+  member count and the admin list said "workspace", a word the console now keeps
+  for nothing; the retention settings call the agents' files documents.
+- **One shape and one type floor across the console.** Fields and selects share
+  a 12px corner beside the pill buttons, borders and field edges are a step
+  stronger in both themes, small buttons and the console's 11px captions move up
+  to readable sizes, and the dashboard's period choice is a segmented control.
+  The chat's model setting uses the Builder's searchable model picker instead of
+  a plain field.
+- **Chat reads like the Architect's window.** Each turn opens with the face and
+  the name on one line, the message under them at the column's full width, and
+  the column is narrower - about the width ChatGPT and Claude keep - with nothing
+  showing through under the composer.
+- **The Builder's Toolbox opens on the capabilities.** The card listing where an
+  agent's knowledge comes from left the tab; the same answer stays at
+  `GET /agents/{agent_id}/knowledge-reach`.
+- **Agent files are Documents.** The page every file an agent keeps for you lands
+  on is called **Documents** and lives at `/documents`; `/workspaces` links
+  redirect. It opens on the list of files alone - the table of workspaces and the
+  switch to it are gone, and each file still opens the folder it sits in (#2126).
+- **A calmer sidebar.** Knowledge bases, agent files, skills and context sit
+  together under **Knowledge**; MCP servers, channels, the vault and sandboxes
+  fold under **Connections**, and organizations and groups under
+  **Organization** - each folded until opened, open by itself on any page inside
+  it, and remembered the way it was left.
+- **The dashboard opens on the numbers.** The default arrangement leads with the
+  period's figures, runs day by day and how they ended, then what needs
+  attention, then usage and cost; a deployment admin's platform band moves to
+  the end. Cards that are usually empty - integrations, channels, routines,
+  knowledge sync, departments, members, sandboxes - leave the default for the
+  catalog under **Customize**. Charts fade their wash to the baseline, the
+  heatmap's quiet hours stand clear of empty ones, the outcomes key moves under
+  the ring when the card is narrow, and a conversation that was never changed
+  no longer reads as from January 1.
+- **The Builder shows MCP servers as the servers page does.** The same cards,
+  with a switch for whether this agent uses the server; switching it on, or
+  clicking the card, opens its settings - whose account, which one, which
+  tools. Connecting a server now starts on **My own account**, so a shared
+  account is a deliberate choice.
+- **When a server was last checked sits at the foot of its card**, beside
+  Connect, with the full date and its tool counts on hover.
+- **The Architect's window and the Builder's test panel are compact.** Each
+  message carries its face and name on one line above it and takes the full
+  width, the text is smaller, there is no turn rail, and the composer sits on an
+  opaque strip at the bottom with a smaller footnote.
+- **The Architect's mark follows the theme**, light on a dark page, wherever the
+  Architect appears - until an organization gives it a picture of its own.
+- **A lone question from the agent sits level with its close button**, rather
+  than a row below a bar holding only the ×.
+- **Pickers of people show their faces** when adding a member to a group or
+  sharing with one.
+- **Notifications appear at the top right**, clear of the Architect's
+  launcher and bubbles in the bottom corner.
+- **The Architect's window and the Builder's test panel are the console's own
+  chat, not a page framed inside it.** Each keeps a conversation of its own
+  beside the main chat; the window is wider and its opening fits without
+  scrolling, and a message's actions show on hover as in `/chat`.
+- **The Architect stays out of the way.** An unanswered bubble fades after a few
+  seconds and no longer labels itself; left alone, the button tucks into the
+  right edge, keeps a dot when something waits, and stays there across pages.
+  The bell says whether tips are on, and confirms the switch.
+- **The Architect's conversation list is a panel of its own** - newest first,
+  each with when it was last touched, the open one marked, a filter, and a
+  button to start afresh.
+- **The chat's files button sits among the composer's controls**, instead of a
+  strip down the conversation's right edge that cost a margin for one icon.
+- **Artifacts are Apps.** The console page, navigation, dashboard widget,
+  notifications, the capability's name and the docs in four languages call
+  them apps; `/artifacts` console links redirect to `/apps`, and public links
+  (`/a/<key>`) are unchanged. The API serves `/api/v1/apps` and
+  `/api/v1/public/apps`; the old `/artifacts` paths stay as `deprecated` aliases
+  for the v1 policy's 90 days. Permission names, tool names, the capability id
+  and the content addresses keep their old names (#2071).
+- **Backend dependencies upgraded to their newest releases**, with the
+  context-manager annotations the newer typeshed requires (#2005).
+
+## [0.0.539] - 2026-10-15
+
+### Fixed
+
+- **The walkthrough's light can be found, and follows a path the eye can
+  follow.** In the dark theme the spotlighted control stood at 1.1:1 against the
+  dimmed page, so the reader could not tell what a caption described. The tour
+  now draws its own spotlight: a green ring with a pinging beacon on the
+  control, a step darker in the light theme and brighter in the dark one. Moves
+  between controls are eased over 280-700ms instead of crossing the screen in
+  about 200ms. A stop no longer climbs to a tab that is already open and drops
+  back down. Stops with no control dim the page instead of shrinking the light
+  to a dot in the middle. A control the pinned caption would cover is scrolled
+  clear of it. The instructions, capabilities and MCP catalog stops light their
+  card's header instead of a card up to three screens tall.
+- **Browser extensions stay usable during the walkthrough.** driver.js turned
+  off clicks for everything in the page, including what extensions inject: a
+  password manager's prompt could not be closed until the tour ended. The page
+  itself is still held under the tour.
+
+## [0.0.538] - 2026-10-15
+
+### Changed
+
+- **Backend dependencies move up.** Pydantic AI 2.55.0 with pydantic-ai-harness
+  0.55.0 and pydantic-ai-skills 2.1.0, FastAPI 0.143.1, Logfire 5.2.0,
+  genai-prices 0.1.13, asyncpg 0.32.0, the Anthropic SDK 1.13.0, the OpenAI SDK
+  3.29.0, pydantic-ai-backend 0.2.33, llama-cloud 2.18.0, boto3 1.43.111,
+  tavily-python 0.8.5, phonenumberslite 9.0.41, ruff 0.17.0 and ty 0.0.86; the
+  floors in `pyproject.toml` follow. ty 0.0.86 deprecates annotating a context
+  manager's generator as an `Iterator`, so the nineteen that did now return a
+  `Generator` or `AsyncGenerator`. Folds in Dependabot's #2132.
+
+## [0.0.537] - 2026-10-15
+
+### Fixed
+
+- **An agent can be renamed in the Builder.** The name and description are
+  spec fields, and the API stored them with the draft, but no Builder control
+  edited them. A duplicate therefore kept the name "<name> (copy)". The Build
+  tab now opens on a name and description card that autosaves with the rest
+  of the draft. A blank name is flagged and not sent. The handle (`@slug`)
+  stays the same, so delegations and mentions wired to it keep working.
+
+## [0.0.536] - 2026-10-15
+
+### Fixed
+
+- **A second page that refuses `web_fetch` no longer ends the run.** Pydantic AI
+  counts retries per tool, not per URL, so two sites answering 403 (or any two
+  failed fetches) in one run failed it with `UnexpectedModelBehavior: Tool
+  'web_fetch' exceeded max retries count of 1`. A failed fetch is now a retry
+  while the tool has one left and the same message as its result once it has not.
 
 ## [0.0.535] - 2026-10-09
 

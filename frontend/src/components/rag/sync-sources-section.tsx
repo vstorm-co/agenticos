@@ -31,6 +31,7 @@ export function SyncSourcesSection({
   connectorsFailed,
   mayEdit,
   onConnect,
+  onEdit,
   onTrigger,
   onDisconnect,
   onRetry,
@@ -44,6 +45,7 @@ export function SyncSourcesSection({
   connectorsFailed: boolean;
   mayEdit: boolean;
   onConnect: () => void;
+  onEdit: (source: SyncSourceRead) => void;
   onTrigger: (sourceId: string) => void;
   onDisconnect: (source: SyncSourceRead) => void;
   onRetry: () => void;
@@ -92,6 +94,7 @@ export function SyncSourcesSection({
                 key={source.id}
                 source={source}
                 kbId={kbId}
+                onEdit={mayEdit ? () => onEdit(source) : undefined}
                 onTrigger={mayEdit ? () => onTrigger(source.id) : undefined}
                 onDelete={mayEdit ? () => onDisconnect(source) : undefined}
               />

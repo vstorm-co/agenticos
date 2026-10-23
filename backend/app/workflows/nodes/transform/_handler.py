@@ -6,8 +6,6 @@ in, and - apart from Aggregate, Date & time and Crypto, which hand on one value 
 handled the same way by every step, described on each.
 """
 
-from __future__ import annotations
-
 import base64
 import hashlib
 import json
@@ -444,7 +442,7 @@ async def crypto(config: BaseModel | None, node_input: BaseModel | None) -> Node
     elif operation == "base64_decode":
         try:
             value = base64.b64decode(text.encode(), validate=True).decode()
-        except (ValueError, UnicodeDecodeError):
+        except ValueError, UnicodeDecodeError:
             return Failed(
                 error=WorkflowError(
                     code="NOT_BASE64", message="The text is not base64 of UTF-8 text"

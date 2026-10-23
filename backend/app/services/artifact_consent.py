@@ -27,8 +27,6 @@ grant or a group's; `consent_via_grant` names them, and the owner's membership i
 that consents); `pending` otherwise.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime

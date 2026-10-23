@@ -21,8 +21,7 @@ no other, and an `unhealthy` acted on only once a probe has run since the
 container started.
 """
 
-from __future__ import annotations
-
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -177,3 +176,186 @@ class TestWaitingForHealthIgnoresAProbeFromBeforeThisStart:
         # harness never reaches its own line.
         assert result.returncode == 1
         assert "app: unhealthy" in result.stderr
+
+
+@pytest.mark.parametrize("file_name", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -> None:
+    """A page the browser is sent to - or redirected to - must not reach Postgres,
+    Redis or MinIO (Codex review of #2062). It sits on a network of its own,
+    which only the API and the worker join to reach its DevTools port - and
+    its egress proxy, the way out it is given, which joins nothing else."""
+    services = _services(file_name)
+
+    def networks(name: str) -> set[str]:
+        declared = services[name].get("networks", [])
+        return set(declared if isinstance(declared, list) else declared.keys())
+
+    assert networks("browser") == {"browser"}
+    assert networks("browser-egress") == {"browser"}
+    on_it = {name for name in services if "browser" in networks(name)}
+    assert on_it == {"browser", "browser-egress", "app", "worker"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("compose_file", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_goes_out_through_the_egress_proxy_by_default(compose_file: str) -> None:
+    """Codex on #2062: the proxy service existed and nothing selected it.
+
+    Whatever drives the shared browser - the API for a live browse, the worker
+    for a scheduled one - starts it behind `browser-egress` unless the root
+    `.env` says otherwise.
+    """
+    services = yaml.safe_load((REPO_ROOT / compose_file).read_text())["services"]
+
+    assert "browser-egress" in services
+    for name in ("app", "worker"):
+        environment = services[name]["environment"]
+        assert (
+            "BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}" in environment
+        ), name
+
+
+_STANDARD_PROBE_MODULES = {"urllib.request", "os", "sys", "time"}
+"""What a probe may import: an HTTP check needs `urllib`, the worker's file check the rest."""
+
+
+@pytest.mark.parametrize("file_name", COMPOSE_FILES)
+def test_a_python_probe_imports_only_the_standard_library(file_name: str) -> None:
+    """Each probe is a fresh interpreter every 15-30s. Importing httpx doubled
+    what one cost on the production host - 956 ms against 431 ms with `urllib` -
+    on a machine already short of CPU (#2228)."""
+    probes = [
+        (name, " ".join(service["healthcheck"]["test"]))
+        for name, service in _services(file_name).items()
+        if "healthcheck" in service and service["healthcheck"]["test"][1:2] == ["python"]
+    ]
+    assert probes, f"{file_name}: no Python probe - the parametrization is stale"
+    for name, probe in probes:
+        imported = {
+            module.strip()
+            for statement in re.findall(r"import ([\w., ]+?);", probe)
+            for module in statement.split(",")
+        }
+        assert imported, f"{file_name}: {name} probes with {probe}"
+        assert imported <= _STANDARD_PROBE_MODULES, f"{file_name}: {name} imports {imported}"
+
+
+@pytest.mark.parametrize(
+    "file_name", ["docker-compose-prod.yml", "docker-compose-prod.frontend.yml"]
+)
+def test_every_production_service_caps_its_log(file_name: str) -> None:
+    """Docker keeps a `json-file` log until the container is removed, and nothing
+    on the host rotates it: prod held 570 MB and growing (#2228)."""
+    for name, service in _services(file_name).items():
+        options = (service.get("logging") or {}).get("options") or {}
+        assert options.get("max-size") and options.get("max-file"), (
+            f"{file_name}: {name} logs without a cap"
+        )
+
+
+_PREPARE_HARNESS = """
+set -euo pipefail
+say() {{ echo "say: $*"; }}
+{function}
+compose() {{
+  echo "compose $*"
+  [ "{mode}" = ok ]
+}}
+prepare_sandbox_runtimes {args} 2>&1 && echo "status=0" || echo "status=$?"
+"""
+
+
+class TestTheSandboxRuntimesArePreparedBeforeTheSwitch:
+    """#2222: a release that changed a runtime made the first sandboxed chat wait
+    minutes on a build. The deploy builds the images in a one-off container of
+    the new sandboxd image before the old service is replaced."""
+
+    def _run(self, *, args: str, mode: str = "ok") -> str:
+        return _run(
+            _PREPARE_HARNESS.format(
+                function=_function("prepare_sandbox_runtimes"), args=args, mode=mode
+            )
+        ).stdout
+
+    def test_it_runs_the_librarys_prepare_in_a_one_off_container(self) -> None:
+        out = self._run(args="-f docker-compose-prod.yml --profile sandbox")
+
+        assert (
+            "compose -f docker-compose-prod.yml --profile sandbox run --rm --no-deps -T "
+            "sandboxd python -m pydantic_ai_backends.remote.prepare"
+        ) in out
+        assert out.strip().endswith("status=0")
+
+    def test_a_runtime_it_cannot_prepare_does_not_fail_the_deploy(self) -> None:
+        """The service still builds it when a session asks - the old behaviour,
+        said out loud instead of silently."""
+        out = self._run(args="-f docker-compose-prod.yml --profile sandbox", mode="fail")
+
+        assert "Not every sandbox runtime is prepared" in out
+        assert out.strip().endswith("status=0")
+
+    def test_a_host_without_the_sandbox_has_nothing_to_prepare(self) -> None:
+        out = self._run(args="-f docker-compose-prod.yml")
+
+        assert "compose" not in out
+        assert out.strip() == "status=0"
+
+    def test_the_deploy_prepares_after_pulling_and_before_starting(self) -> None:
+        script = DEPLOY_SCRIPT.read_text()
+        pull = script.index("pull --quiet\n")
+        prepare = script.index('prepare_sandbox_runtimes "${BACKEND[@]}"')
+        start = script.index('compose_up "${BACKEND[@]}"')
+
+        assert pull < prepare < start
+
+
+_RETIRE_HARNESS = """
+set -euo pipefail
+APP_DIR=/opt/agenticos
+say() {{ echo "say: $*"; }}
+{retired}
+{function}
+docker() {{
+  echo "docker $*" >&2
+  case "$*" in
+    *"service=prefect-runner"*) [ "{mode}" = present ] && echo abc123 ;;
+  esac
+  return 0
+}}
+retire_services
+"""
+
+
+class TestTheRetiredServicesAreRemovedBeforeTheWorkerStarts:
+    """Codex on #2248: compose leaves a service that left the file running, and an
+    upgraded host kept Prefect's scheduler dispatching the old work beside the
+    worker that replaced it."""
+
+    def _run(self, mode: str) -> str:
+        script = DEPLOY_SCRIPT.read_text()
+        retired = next(line for line in script.splitlines() if line.startswith("RETIRED_SERVICES="))
+        done = _run(
+            _RETIRE_HARNESS.format(
+                retired=retired, function=_function("retire_services"), mode=mode
+            )
+        )
+        # The stub logs on stderr: its stdout is the ids `$(...)` reads back.
+        return done.stdout + done.stderr
+
+    def test_a_retired_container_of_this_project_is_removed(self) -> None:
+        out = self._run("present")
+
+        assert (
+            "docker ps -aq --filter label=com.docker.compose.project.working_dir=/opt/agenticos "
+            "--filter label=com.docker.compose.service=prefect-runner"
+        ) in out
+        assert "say: Removing the retired prefect-runner" in out
+        assert "docker rm -f abc123" in out
+        assert "prefect-server" in out and "Removing the retired prefect-server" not in out
+
+    def test_a_host_that_never_ran_them_removes_nothing(self) -> None:
+        assert "docker rm" not in self._run("absent")
+
+    def test_they_are_removed_before_the_api_and_worker_start(self) -> None:
+        script = DEPLOY_SCRIPT.read_text()
+        assert script.index("\nretire_services\n") < script.index('compose_up "${BACKEND[@]}"')

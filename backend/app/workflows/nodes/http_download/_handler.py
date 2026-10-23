@@ -14,8 +14,6 @@ A `GET` repeats safely, but each attempt stores a new file, so the step is
 `at_least_once`: a retry after a lost answer leaves a second copy.
 """
 
-from __future__ import annotations
-
 from urllib.parse import unquote, urlsplit
 
 import httpx2
@@ -164,7 +162,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 )
     except UrlRefusedError as exc:
         return failed("URL_REFUSED", str(exc))
-    except (httpx2.ConnectError, httpx2.ConnectTimeout):
+    except httpx2.ConnectError, httpx2.ConnectTimeout:
         return failed("HTTP_UNREACHABLE", "The server could not be reached", retryable=True)
     except httpx2.HTTPError:
         return failed("HTTP_NO_RESPONSE", "The download started and did not finish", retryable=True)

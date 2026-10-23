@@ -5,8 +5,6 @@ live column. The write carries this step's operation key, so a step redispatched
 after a crash replays its first write instead of adding a second record.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field

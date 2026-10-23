@@ -1,7 +1,5 @@
 """Records in and out in bulk, against a real database: a batch create and a CSV export."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

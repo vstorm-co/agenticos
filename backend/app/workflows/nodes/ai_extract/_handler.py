@@ -6,8 +6,6 @@ told to leave out what the text does not say rather than guess, and its answer
 is the object of that shape or the step fails.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

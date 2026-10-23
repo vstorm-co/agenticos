@@ -9,8 +9,6 @@ a row that violates a column length or carries a URL template is a row somebody
 tries to connect to.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import httpx
@@ -167,3 +165,27 @@ class TestALiveFetchThatDoesNotFinish:
                 return httpx.Response(200, json=nxt, request=httpx.Request("GET", url))
 
         monkeypatch.setattr(mcp_registry_cmd.httpx, "AsyncClient", lambda **_: _Client())
+
+
+class TestTheCategoryItReadsAs:
+    """The registry has no categories; one is inferred at sync so a category filter
+    reaches the mirror (#2103)."""
+
+    def test_the_category_it_mentions_most_wins(self):
+        assert (
+            mcp_registry.categorise("Ledger", "Create invoices, track payments and expenses")
+            == "finance"
+        )
+
+    def test_a_tie_goes_to_the_narrower_category_listed_first(self):
+        assert mcp_registry.categorise("Pager", "incident tickets") == "observability"
+
+    def test_a_listing_that_names_nothing_is_other_rather_than_a_guess(self):
+        assert mcp_registry.categorise("Brickway", "Your LEGO collection") == "other"
+
+    def test_whole_words_only(self):
+        """`ads` inside `downloads` is not advertising."""
+        assert mcp_registry.categorise("Fetcher", "Manages downloads") == "other"
+
+    def test_every_seeded_row_carries_one(self):
+        assert all(row["category"] for row in mcp_registry.seed_entries()[:50])

@@ -38,7 +38,7 @@ interface UseSandboxConnectionsResult {
   refresh: () => Promise<void>;
   create: (input: SandboxConnectionInput) => Promise<SandboxConnectionRecord>;
   update: (id: string, patch: SandboxConnectionPatch) => Promise<SandboxConnectionRecord>;
-  remove: (id: string) => Promise<void>;
+  remove: (id: string, options?: { forgetPendingDestroys?: boolean }) => Promise<void>;
 }
 
 /**
@@ -91,8 +91,8 @@ export function useSandboxConnections(enabled = true): UseSandboxConnectionsResu
   );
 
   const remove = useCallback(
-    async (id: string) => {
-      await deleteSandboxConnection(id);
+    async (id: string, options?: { forgetPendingDestroys?: boolean }) => {
+      await deleteSandboxConnection(id, options);
       await invalidate();
     },
     [invalidate],

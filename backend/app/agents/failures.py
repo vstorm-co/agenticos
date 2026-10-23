@@ -67,8 +67,9 @@ def run_failure_summary(exc: BaseException) -> str:
             # request is refused the same way until somebody adds credit.
             return (
                 "The model provider refused the request for want of credit (HTTP 402). "
-                "Add credit to the provider account behind the agent's model profile, "
-                "or start a new conversation so each request carries less history."
+                "Add credit to the provider account behind the agent's model profile, or "
+                "raise that API key's spending limit - a gateway such as OpenRouter caps "
+                "each key on its own. A new conversation also carries less history."
             )
         diagnosis = f"{diagnosis}, HTTP {cause.status_code}"
     return (

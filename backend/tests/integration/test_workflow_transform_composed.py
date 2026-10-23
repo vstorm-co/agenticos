@@ -1,7 +1,5 @@
 """The Transform steps chained as the reference's examples chain them, with no code step."""
 
-from __future__ import annotations
-
 import uuid
 from itertools import pairwise
 from typing import Any

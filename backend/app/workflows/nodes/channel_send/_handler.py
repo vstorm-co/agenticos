@@ -6,8 +6,6 @@ formatting applies: Slack's mrkdwn, Mattermost's Markdown, Telegram's plain
 text. See `app.workflows.nodes._channels`.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.channels.base import ChannelAdapter, OutgoingMessage

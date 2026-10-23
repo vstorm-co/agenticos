@@ -13,8 +13,6 @@ copy-paste in a new module, and letting the second win would make a workflow's
 behaviour depend on import order.
 """
 
-from __future__ import annotations
-
 import logging
 
 from app.core.exceptions import BadRequestError

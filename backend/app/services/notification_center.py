@@ -7,8 +7,6 @@ rows inside the caller's own transaction; the four read methods apply Decision
 mark-all-read would otherwise return gate-blind.
 """
 
-from __future__ import annotations
-
 import contextlib
 import logging
 import uuid
@@ -114,6 +112,7 @@ _DEPLOYMENT_WIDE_ELIGIBLE = frozenset(
         NotificationEventType.SECURITY_EVENT,
         NotificationEventType.CONFIGURATION_CHANGED,
         NotificationEventType.ANNOUNCEMENT,
+        NotificationEventType.BACKGROUND_TASK_PAUSED,
     }
 )
 
@@ -232,6 +231,10 @@ _COALESCED_SUMMARY: dict[NotificationEventType, str] = {
     NotificationEventType.CONFIGURATION_CHANGED: (
         "The deployment's settings were changed more times in one minute than "
         "this inbox lists individually. Every change is in the audit log."
+    ),
+    NotificationEventType.BACKGROUND_TASK_PAUSED: (
+        "More kinds of background job were paused in one minute than this inbox "
+        "lists individually. Every one is on the Background jobs page."
     ),
 }
 

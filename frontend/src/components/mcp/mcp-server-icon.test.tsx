@@ -24,6 +24,26 @@ describe("McpServerIcon", () => {
     expect(container.textContent).toBe("");
   });
 
+  it("draws a server the catalog bakes a logo for in its own colours", () => {
+    const { container } = render(
+      <McpServerIcon icon="notion" name="Notion" url="https://mcp.notion.com/mcp" />,
+    );
+
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(container.querySelector("svg")).toBeNull();
+  });
+
+  it("keeps the monochrome mark for an address with no baked logo, or none at all", () => {
+    for (const url of ["https://mcp.example.test/mcp", "not a url", null]) {
+      const { container, unmount } = render(
+        <McpServerIcon icon="sentry" name="Sentry" url={url} />,
+      );
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.querySelector("svg")).not.toBeNull();
+      unmount();
+    }
+  });
+
   it("renders the brand mark the catalog names", () => {
     const { container } = render(<McpServerIcon icon="sentry" name="Sentry" />);
     expect(container.querySelector("svg")).not.toBeNull();

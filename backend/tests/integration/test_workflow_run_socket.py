@@ -6,8 +6,6 @@ and writes goes through the real services. The run is ended from outside, the
 way a worker would, and the socket has to notice it on its own.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
@@ -57,8 +55,6 @@ class _Socket:
 @pytest.fixture(autouse=True)
 def _quick(monkeypatch):
     monkeypatch.setattr(workflow_run_socket, "POLL_SECONDS", 0.01)
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 @pytest.fixture

@@ -10,18 +10,20 @@ The practical rule when adding a tool: if the model should not be able to choose
 it, it belongs here, not in the signature.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.visual_reports import VisualReports
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
 """How a delegate reaches the person waiting on its parent, and back.
@@ -32,6 +34,16 @@ tool and nothing here calls it otherwise. A surface that batches its elicitation
 (the WebSocket asks a whole list at once) adapts that to this one-question shape at
 its edge; a surface that cannot hold a question open leaves it `None`, and a
 delegate that would ask is told a person could not be reached.
+"""
+
+QuestionsCallback = Callable[[AskUserRequest], Awaitable[AskUserResponse]]
+"""How the `ask_user` capability puts a batch of multiple-choice questions to the
+person running the agent, and gets their picks back (#2064).
+
+Distinct from :data:`AskUserCallback`, which is one free-text question for a
+delegate: these carry a header, options with descriptions and multi-select, and
+the answer is the picked labels or a custom answer per question. A surface that
+cannot put questions to anybody leaves it `None`, and the tool is not offered.
 """
 
 ApprovalCallback = Callable[[ApprovalRequest], Awaitable[ApprovalDecision]]
@@ -57,6 +69,9 @@ class AgentDeps:
     user_name: str | None = None
     agent_id: UUID | None = None
     run_id: UUID | None = None
+    # The thread the run answers in, where it has one. What a tool keeps between
+    # turns is the conversation's, even in a sandbox several conversations share.
+    conversation_id: UUID | None = None
 
     # Who will hear this run - one person, a whole channel, or nobody
     # identifiable - derived server-side in `app.agents.audience`. It decides which
@@ -86,6 +101,26 @@ class AgentDeps:
     # None on surfaces that cannot, so tools must handle its absence.
     ask_user: AskUserCallback | None = None
 
+    # Set when somebody is watching the run and may add to it mid-way (#2087):
+    # what they send lands here and reaches the model at its next request. None on
+    # every surface where nobody can, and on a delegate - a correction is to the
+    # task the person asked for, which is the parent's.
+    steering: SteeringInbox | None = None
+
+    # Set when the surface can show a card of multiple-choice questions and wait
+    # for the picks (#2064); `None` hides the `ask_user` capability's tool.
+    ask_questions: QuestionsCallback | None = None
+    # Whether `ask_questions` parks the run rather than asking live - a channel's,
+    # answered later through buttons. Not handed to a delegate: its park surfaces
+    # as a deferral of the parent's `task` call with nothing to decide, and the run
+    # would wait for ever, so a delegate's question is declined instead.
+    parks_questions: bool = False
+
+    # True in a delegated run. What it shows is not the conversation's: its tool
+    # calls stay in its own run, so a tool whose result is meant to be seen there
+    # - a drawing - has to say so rather than claim the person can see it.
+    delegated: bool = False
+
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
     request_approval: ApprovalCallback | None = None
@@ -103,6 +138,11 @@ class AgentDeps:
     # everywhere else, and the browse then runs unnarrated - the frames are a
     # progress report, not a permission, exactly as `on_compaction` is.
     browser_events: BrowserEventSink | None = None
+
+    # Set when somebody is watching the run draw (#2171): the console reports how
+    # each visual rendered, and `draw` waits a moment to hand that to the model.
+    # None everywhere else, and a drawing is then simply not checked.
+    visual_reports: VisualReports | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -131,7 +171,7 @@ class AgentDeps:
         supposed to save. A delegation's *own* run row records its identity; deps
         are about what its tools can reach.
 
-        `ask_user` and `request_approval` - the parent's channels. A specialist
+        `ask_user`, `ask_questions` and `request_approval` - the parent's channels. A specialist
         that needs a person needs the person who is already waiting.
 
         `subagent_events` - so a specialist's own delegation still narrates,
@@ -140,6 +180,9 @@ class AgentDeps:
         `browser_events` - so a specialist that browses is watched by the same
         person, in the same panel. A delegate whose browse is silent is the one
         run nobody can see, and it is the one most worth seeing.
+
+        `delegated` is set, not inherited: whatever the parent is, this run is a
+        delegate, and a drawing it makes is never shown in the conversation.
 
         What it does **not** inherit: `kb_collection_names`. Those come from the
         delegate's own spec, and inheriting the parent's would hand a specialist a
@@ -172,9 +215,12 @@ class AgentDeps:
             impersonated=self.impersonated,
             agent_id=self.agent_id,
             run_id=self.run_id,
+            conversation_id=self.conversation_id,
             ask_user=self.ask_user,
+            ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,
+            delegated=True,
             metadata=dict(self.metadata),
         )

@@ -1,7 +1,5 @@
 """A Wait that parks on a clock, and a Switch whose branches rejoin at a Merge, end to end."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any

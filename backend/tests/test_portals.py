@@ -6,8 +6,6 @@ keeps, what it sends, and that a non-201 falls back to forbidden rather than
 inventing a hook - not GitHub's behaviour.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import patch
 

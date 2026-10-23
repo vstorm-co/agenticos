@@ -8,8 +8,6 @@ run commit together, that the member a fire acts as is read afresh, and that a
 webhook's address and secret survive a publish of the same node.
 """
 
-from __future__ import annotations
-
 import contextlib
 import hashlib
 import hmac
@@ -80,17 +78,9 @@ from app.services.workflow_webhook_test import (
 )
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
-from tests.integration.workflow_run_support import SeededRun, drive
+from tests.integration.workflow_run_support import SeededRun, drive, worker_running
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    """A run's first dispatch is submitted after a real commit here, and would
-    otherwise reach for a Prefect deployment that does not exist in a test."""
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as submitted:
-        yield submitted
 
 
 async def _user(db: AsyncSession) -> User:
@@ -857,7 +847,7 @@ async def http(engine: AsyncEngine, mock_redis: MagicMock):
         await setup.commit()
         workflow_id = workflow.id
 
-    async def session() -> AsyncGenerator[AsyncSession, None]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         async with factory() as opened:
             try:
                 yield opened
@@ -903,8 +893,10 @@ class TestOverHttp:
         body = b'{"lead": 1}'
         url = f"{settings.API_V1_STR}/workflow-webhooks/{exposure['id']}"
 
-        first = await client.post(url, content=body, headers=_signed(secret, body))
-        again = await client.post(url, content=body, headers=_signed(secret, body))
+        # The run is driven by a worker claiming its jobs, as in production.
+        async with worker_running(factory):
+            first = await client.post(url, content=body, headers=_signed(secret, body))
+            again = await client.post(url, content=body, headers=_signed(secret, body))
 
         assert (first.status_code, again.status_code) == (202, 202)
         assert again.json() == {"run_id": first.json()["run_id"], "duplicate": True}
@@ -985,35 +977,19 @@ def _respond(status_code: int = 201, **headers: str) -> tuple[NodeInstance, str]
     return _step("webhook.respond", {"status_code": status_code, "headers": headers}), "out"
 
 
-def _runs_each_dispatch(submitted: AsyncMock, factory, graph: WorkflowGraph) -> None:
-    """Stand the worker in for Prefect: each submitted dispatch drives its run."""
-
-    async def run_it(*, name: str, parameters: dict[str, str], timeout: int) -> None:
-        async with factory() as fresh:
-            run = await fresh.get(WorkflowRun, uuid.UUID(parameters["workflow_run_id"]))
-            assert run is not None
-            principal = await fresh.get(User, run.execution_principal_user_id)
-            org = await fresh.get(Organization, run.organization_id)
-        assert principal is not None and org is not None
-        await drive(SeededRun(run=run, graph=graph, principal=principal, org=org, factory=factory))
-
-    submitted.side_effect = run_it
-
-
 class TestAnsweringTheSender:
-    async def test_the_sender_gets_the_respond_steps_status_headers_and_body(
-        self, http, _no_prefect_submission
-    ):
+    async def test_the_sender_gets_the_respond_steps_status_headers_and_body(self, http):
         client, workflow_id, factory = http
         graph = _answering(_respond(201, **{"X-Lead": "accepted"}))
-        _runs_each_dispatch(_no_prefect_submission, factory, graph)
         published = await _publish_over_http(client, workflow_id, graph)
         exposure, secret = published["exposure"], published["webhook_secret"]
         body = b'{"lead": 1}'
         url = f"{settings.API_V1_STR}/workflow-webhooks/{exposure['id']}"
 
-        first = await client.post(url, content=body, headers=_signed(secret, body))
-        again = await client.post(url, content=body, headers=_signed(secret, body))
+        # The run is driven by a worker claiming its jobs, as in production.
+        async with worker_running(factory):
+            first = await client.post(url, content=body, headers=_signed(secret, body))
+            again = await client.post(url, content=body, headers=_signed(secret, body))
 
         for answered in (first, again):
             assert answered.status_code == 201, answered.text
@@ -1023,9 +999,7 @@ class TestAnsweringTheSender:
             (run,) = (await fresh.execute(select(WorkflowRun))).scalars().all()
         assert run.status == WorkflowRunStatus.SUCCEEDED.value
 
-    async def test_the_sender_gets_what_the_wait_returns(
-        self, db, tenant, _no_prefect_submission, monkeypatch
-    ):
+    async def test_the_sender_gets_what_the_wait_returns(self, db, tenant, monkeypatch):
         # The wait itself is covered on its own (test_workflow_webhook_answer);
         # stood in for here, the line handing its answer back runs without a
         # background drive, which the coverage tracer can lose.
@@ -1042,35 +1016,32 @@ class TestAnsweringTheSender:
 
         assert received == answered
 
-    async def test_only_the_first_respond_step_answers(
-        self, engine, db, tenant, _no_prefect_submission
-    ):
+    async def test_only_the_first_respond_step_answers(self, engine, db, tenant):
         owner, org, workflow = tenant
         graph = _answering(_respond(201), _respond(202))
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
-        _runs_each_dispatch(
-            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
-        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
         body = b'{"lead": 2}'
 
         service = WorkflowExposureService(db)
-        answer = await service.receive_webhook(
-            exposure_id, body=body, headers=_signed(secret, body)
-        )
-        again = await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
+        async with worker_running(factory):
+            answer = await service.receive_webhook(
+                exposure_id, body=body, headers=_signed(secret, body)
+            )
+            again = await service.receive_webhook(
+                exposure_id, body=body, headers=_signed(secret, body)
+            )
 
-        assert answer == again == WebhookAnswer(status_code=201, headers={}, body={"lead": 2})
-        # The sender is answered at the first step; the run goes on to the second.
-        (run,) = await _runs(db)
-        with anyio.fail_after(30):
-            while run.status != WorkflowRunStatus.SUCCEEDED.value:
-                await anyio.sleep(0.1)
-                await db.refresh(run)
+            assert answer == again == WebhookAnswer(status_code=201, headers={}, body={"lead": 2})
+            # The sender is answered at the first step; the run goes on to the second.
+            (run,) = await _runs(db)
+            with anyio.fail_after(30):
+                while run.status != WorkflowRunStatus.SUCCEEDED.value:
+                    await anyio.sleep(0.1)
+                    await db.refresh(run)
         assert run.webhook_response == {"status_code": 201, "headers": {}, "body": {"lead": 2}}
 
-    async def test_a_run_that_fails_before_answering_says_so(
-        self, engine, db, tenant, _no_prefect_submission
-    ):
+    async def test_a_run_that_fails_before_answering_says_so(self, engine, db, tenant):
         owner, org, workflow = tenant
         # The condition is false: the run fails on that branch, and never reaches
         # the respond step on the other.
@@ -1093,31 +1064,27 @@ class TestAnsweringTheSender:
             }
         )
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
-        _runs_each_dispatch(
-            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
-        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
         body = b"{}"
 
         with pytest.raises(WorkflowWebhookUnansweredError) as refused:
-            await WorkflowExposureService(db).receive_webhook(
-                exposure_id, body=body, headers=_signed(secret, body)
-            )
+            async with worker_running(factory):
+                await WorkflowExposureService(db).receive_webhook(
+                    exposure_id, body=body, headers=_signed(secret, body)
+                )
         assert refused.value.details["status"] == WorkflowRunStatus.FAILED.value
 
-    async def test_a_run_that_never_reaches_the_step_is_admitted_as_usual(
-        self, engine, db, tenant, _no_prefect_submission
-    ):
+    async def test_a_run_that_never_reaches_the_step_is_admitted_as_usual(self, engine, db, tenant):
         owner, org, workflow = tenant
         graph = _answering((_step("logic.if", {"condition": "value.missing"}), "true"), _respond())
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
-        _runs_each_dispatch(
-            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
-        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
         body = b"{}"
 
-        admitted = await WorkflowExposureService(db).receive_webhook(
-            exposure_id, body=body, headers=_signed(secret, body)
-        )
+        async with worker_running(factory):
+            admitted = await WorkflowExposureService(db).receive_webhook(
+                exposure_id, body=body, headers=_signed(secret, body)
+            )
 
         assert isinstance(admitted, WebhookAdmitted) and admitted.duplicate is False
         (run,) = await _runs(db)
@@ -1132,6 +1099,7 @@ class TestAnsweringTheSender:
         monkeypatch.setattr(settings, "WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS", 0.3)
         body = b"{}"
 
+        # No worker runs: the answer never comes.
         admitted = await WorkflowExposureService(db).receive_webhook(
             exposure_id, body=body, headers=_signed(secret, body)
         )

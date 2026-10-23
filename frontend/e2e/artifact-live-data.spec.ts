@@ -70,9 +70,9 @@ const SETUP_TIMEOUT = 180_000;
 const BINDING = "tickets";
 
 /** Where a page's live data is read, through the console's proxy. */
-const DATA_PATH = /\/api\/artifacts\/[^/]+\/versions\/[^/]+\/data$/;
+const DATA_PATH = /\/api\/apps\/[^/]+\/versions\/[^/]+\/data$/;
 /** Where a frame's signed address is minted. A second one after Refresh is a reload. */
-const VIEW_PATH = /\/api\/artifacts\/[^/]+\/view$/;
+const VIEW_PATH = /\/api\/apps\/[^/]+\/view$/;
 /** The violation every load of the page produces, and the only one allowed. */
 const CANARY = /^CSP-VIOLATION img-src https:\/\/example\.invalid\/beacon/;
 
@@ -409,7 +409,7 @@ test.describe("artifact live data", () => {
       await ok(run, `the ${marker} run`);
       const listed = await nowMatching(
         request,
-        `/api/artifacts?q=${encodeURIComponent(title)}`,
+        `/api/apps?q=${encodeURIComponent(title)}`,
         (row) =>
           row.title === title &&
           (row.current_version as { number: number } | null)?.number === (marker === "v1" ? 1 : 2),
@@ -417,7 +417,7 @@ test.describe("artifact live data", () => {
       );
       fixture.artifactId = String(listed.id);
     }
-    const versions = await rowsAt(request, `/api/artifacts/${fixture.artifactId}/versions`);
+    const versions = await rowsAt(request, `/api/apps/${fixture.artifactId}/versions`);
     fixture.v1Id = String(versions.find((version) => version.number === 1)!.id);
   });
 
@@ -441,7 +441,7 @@ test.describe("artifact live data", () => {
         // In dependency order, as `delegation.spec.ts` does: the artifact names the
         // agent, the agent the profile.
         const paths = [
-          fixture.artifactId && `/api/artifacts/${fixture.artifactId}`,
+          fixture.artifactId && `/api/apps/${fixture.artifactId}`,
           fixture.agentId && `/api/agents/${fixture.agentId}`,
           `/api/providers/model-profiles/${fixture.profileId}`,
         ].filter(Boolean);
@@ -472,7 +472,7 @@ test.describe("artifact live data", () => {
 
   test("the current version shows the view's records", async ({ page }) => {
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
 
     const frame = framedPage(page, fixture.title);
     await expect(frame.locator("#marker")).toHaveText("v2");
@@ -495,7 +495,7 @@ test.describe("artifact live data", () => {
 
   test("Refresh updates the page in place", async ({ page }) => {
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     const frame = framedPage(page, fixture.title);
     await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
     const load = await frame.locator("#load").textContent();
@@ -525,7 +525,7 @@ test.describe("artifact live data", () => {
   test("auto-refresh fetches on its interval and remembers the choice", async ({ page }) => {
     await watch(page);
     await page.clock.install();
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     await expect(framedPage(page, fixture.title).locator("#state")).toHaveText("ok");
 
     const menu = page.getByRole("button", { name: "Refresh automatically" });
@@ -554,7 +554,7 @@ test.describe("artifact live data", () => {
   test("a member without access can ask the owner to open the page", async ({ browser }) => {
     const colleague = await (await asColleague(browser)).newPage();
     try {
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
 
       // Nothing of the page is told: not its title, its owner or its agent.
       await expect(colleague.getByText("You don't have access to this page")).toBeVisible();
@@ -569,7 +569,7 @@ test.describe("artifact live data", () => {
     const ownerApi = await ownerRequest(browser);
     const asked = await nowMatching(
       ownerApi,
-      `/api/artifacts/${fixture.artifactId}/share-requests`,
+      `/api/apps/${fixture.artifactId}/share-requests`,
       (row) => row.kind === "access" && row.note === "For the Monday review",
       "a pending request for access with the colleague's note",
     );
@@ -579,11 +579,11 @@ test.describe("artifact live data", () => {
   test("a request cannot be approved until the owner confirms the data", async ({ page }) => {
     const pending = await json<{ items: { id: string; kind: string }[] }>(
       page.request,
-      `/api/artifacts/${fixture.artifactId}/share-requests`,
+      `/api/apps/${fixture.artifactId}/share-requests`,
     );
     const request = pending.items.find((item) => item.kind === "access")!;
     const refused = await page.request.post(
-      `/api/artifacts/${fixture.artifactId}/share-requests/${request.id}/approve`,
+      `/api/apps/${fixture.artifactId}/share-requests/${request.id}/approve`,
     );
     expect(refused.status(), "approving opened a page whose data nobody confirmed").toBe(409);
     expect(((await refused.json()) as { error?: { code?: string } }).error?.code).toBe(
@@ -591,7 +591,7 @@ test.describe("artifact live data", () => {
     );
 
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     await page.getByRole("status").getByRole("button", { name: "Confirm data" }).click();
     const dialog = page.getByRole("dialog", { name: /Confirm the data v2 shares/ });
     // The words come from the query the capability resolved, not from the page.
@@ -600,14 +600,14 @@ test.describe("artifact live data", () => {
     await submitDialog(page, {
       dialog,
       submit: dialog.getByRole("button", { name: "Confirm data" }),
-      path: `/api/artifacts/${fixture.artifactId}/versions/`,
+      path: `/api/apps/${fixture.artifactId}/versions/`,
     });
     await expect(page.getByText("Data confirmed", { exact: true })).toBeVisible();
     await expect(page.getByText("v2's data isn't confirmed yet")).toHaveCount(0);
 
     const detail = await json<{ consent: { state: string; shared: boolean } }>(
       page.request,
-      `/api/artifacts/${fixture.artifactId}`,
+      `/api/apps/${fixture.artifactId}`,
     );
     expect(detail.consent).toMatchObject({ state: "consented", shared: true });
   });
@@ -617,7 +617,7 @@ test.describe("artifact live data", () => {
     browser,
   }) => {
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     await page.getByRole("button", { name: /request.* waiting for you/ }).click();
     const share = page.getByRole("dialog");
     await expect(share.getByText("Requests", { exact: true })).toBeVisible();
@@ -628,7 +628,7 @@ test.describe("artifact live data", () => {
     const colleague = await (await asColleague(browser)).newPage();
     try {
       await watch(colleague);
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       // Read with the owner's access: the colleague holds no grant on the table.
       await expect(frame.locator("#state")).toHaveText("ok");
@@ -644,14 +644,14 @@ test.describe("artifact live data", () => {
     browser,
   }) => {
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Stop sharing data" }).click();
     const stop = page.locator('[role="dialog"], [role="alertdialog"]');
     await submitDialog(page, {
       dialog: stop,
       submit: stop.getByRole("button", { name: "Stop sharing data" }),
-      path: `/api/artifacts/${fixture.artifactId}/consent`,
+      path: `/api/apps/${fixture.artifactId}/consent`,
       method: "DELETE",
     });
     await expect(page.getByText("Data sharing stopped", { exact: true })).toBeVisible();
@@ -659,7 +659,7 @@ test.describe("artifact live data", () => {
     const colleague = await (await asColleague(browser)).newPage();
     try {
       await watch(colleague);
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       await expect(frame.locator("#marker")).toHaveText("v2");
       await expect(frame.locator("#state")).toHaveText("unavailable");
@@ -677,14 +677,14 @@ test.describe("artifact live data", () => {
     await submitDialog(page, {
       dialog: reconfirm,
       submit: reconfirm.getByRole("button", { name: "Confirm data" }),
-      path: `/api/artifacts/${fixture.artifactId}/versions/`,
+      path: `/api/apps/${fixture.artifactId}/versions/`,
     });
     await expect(page.getByText("Data confirmed", { exact: true })).toBeVisible();
 
     const again = await (await asColleague(browser)).newPage();
     try {
       await watch(again);
-      await again.goto(`/artifacts/${fixture.artifactId}`);
+      await again.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(again, fixture.title);
       await expect(frame.locator("#state")).toHaveText("ok");
       await expect(frame.locator("#rows")).toContainText(LIVE_RECORD_TITLE);
@@ -699,7 +699,7 @@ test.describe("artifact live data", () => {
     page.on("request", (request) => {
       if (DATA_PATH.test(new URL(request.url()).pathname)) reads.push(request.url());
     });
-    await page.goto(`/artifacts/${fixture.artifactId}?version=${fixture.v1Id}`);
+    await page.goto(`/apps/${fixture.artifactId}?version=${fixture.v1Id}`);
 
     const frame = framedPage(page, fixture.title);
     await expect(frame.locator("#marker")).toHaveText("v1");
@@ -715,7 +715,7 @@ test.describe("artifact live data", () => {
   });
 
   test("a public link carries no data", async ({ page, browser }) => {
-    const linked = await page.request.put(`/api/artifacts/${fixture.artifactId}/public-link`);
+    const linked = await page.request.put(`/api/apps/${fixture.artifactId}/public-link`);
     await ok(linked, "turning the public link on");
     const { public_url: publicUrl } = (await linked.json()) as { public_url: string | null };
     expect(publicUrl, "the public link answered without an address").toBeTruthy();
@@ -762,7 +762,7 @@ test.describe("artifact live data", () => {
     await setPublicSwitch(request, orgId, true);
 
     // The owner turns the link on and confirms the data for it, after the disclosure.
-    const linked = await request.put(`/api/artifacts/${fixture.artifactId}/public-link`);
+    const linked = await request.put(`/api/apps/${fixture.artifactId}/public-link`);
     await ok(linked, "turning the public link on");
     const publicUrl = ((await linked.json()) as { public_url: string | null }).public_url;
     expect(publicUrl, "the public link answered without an address").toBeTruthy();
@@ -774,7 +774,7 @@ test.describe("artifact live data", () => {
         async () => {
           disclosure = await json<PublicDataDisclosure>(
             request,
-            `/api/artifacts/${fixture.artifactId}/public-data`,
+            `/api/apps/${fixture.artifactId}/public-data`,
           );
           return disclosure.confirmable;
         },
@@ -784,7 +784,7 @@ test.describe("artifact live data", () => {
     expect(disclosure.problem ?? null, "the disclosure refused confirming").toBeNull();
     expect(disclosure.member_consent, "the members' consent was missing").toBe(true);
     await ok(
-      await request.post(`/api/artifacts/${fixture.artifactId}/public-data`, {
+      await request.post(`/api/apps/${fixture.artifactId}/public-data`, {
         data: {
           fingerprint: disclosure.fingerprint,
           audience_digest: disclosure.audience_digest,
@@ -799,7 +799,7 @@ test.describe("artifact live data", () => {
           (
             await json<{ public_data: { holds: boolean } | null }>(
               request,
-              `/api/artifacts/${fixture.artifactId}`,
+              `/api/apps/${fixture.artifactId}`,
             )
           ).public_data?.holds,
         { message: "the public data consent never held" },
@@ -840,7 +840,7 @@ test.describe("artifact live data", () => {
       const src = await visitor.locator("iframe").first().getAttribute("src");
       expect(src, "the framed page had no content address").toBeTruthy();
       const contentUrl = new URL(src!, visitor.url()).toString();
-      const rotated = await request.put(`/api/artifacts/${fixture.artifactId}/public-link`);
+      const rotated = await request.put(`/api/apps/${fixture.artifactId}/public-link`);
       await ok(rotated, "rotating the public link");
       const newPath = new URL(((await rotated.json()) as { public_url: string }).public_url)
         .pathname;
@@ -877,12 +877,12 @@ test.describe("artifact live data", () => {
     page.on("request", (request) => {
       if (DATA_PATH.test(new URL(request.url()).pathname)) reads.push(request.url());
     });
-    await page.goto("/artifacts");
+    await page.goto("/apps");
     // Searched to this one artifact, so the canary check reads only its thumbnail.
-    await page.getByPlaceholder("Search artifacts…").fill(fixture.title);
+    await page.getByPlaceholder("Search apps…").fill(fixture.title);
 
     // The card's link covers it and holds no text, so the card is the link's parent.
-    const card = page.locator(`a[href$="/artifacts/${fixture.artifactId}"]`).locator("..");
+    const card = page.locator(`a[href$="/apps/${fixture.artifactId}"]`).locator("..");
     await expect(card).toContainText(fixture.title);
     await expect(card.getByText("Live", { exact: true })).toBeVisible();
     const thumbnail = card.locator(`iframe[title="${fixture.title}"]`).contentFrame();
@@ -900,7 +900,7 @@ test.describe("artifact live data", () => {
     // The colleague edits the page, runs the agent and reads the table: the
     // three things an editor's own publish needs, none of which is the owner's consent.
     const grants = [
-      [`/api/artifacts/${fixture.artifactId}/sharing/grants`, "edit"],
+      [`/api/apps/${fixture.artifactId}/sharing/grants`, "edit"],
       [`/api/agents/${fixture.agentId}/sharing/grants`, "use"],
       [`/api/tables/${fixture.tableId}/sharing/grants`, "read"],
     ] as const;
@@ -936,7 +936,7 @@ test.describe("artifact live data", () => {
 
     const waiting = await nowMatching(
       page.request,
-      `/api/artifacts/${fixture.artifactId}/share-requests`,
+      `/api/apps/${fixture.artifactId}/share-requests`,
       (row) => row.kind === "version" && row.version_number === 3,
       "a pending version request for v3",
     );
@@ -944,12 +944,12 @@ test.describe("artifact live data", () => {
     // The audience keeps v2 while v3 waits.
     const before = await json<{ consent: { audience_version: number; state: string } }>(
       page.request,
-      `/api/artifacts/${fixture.artifactId}`,
+      `/api/apps/${fixture.artifactId}`,
     );
     expect(before.consent).toMatchObject({ audience_version: 2, state: "pending" });
 
     await watch(page);
-    await page.goto(`/artifacts/${fixture.artifactId}`);
+    await page.goto(`/apps/${fixture.artifactId}`);
     await expect(page.getByText(/changed the data v3 shows/)).toBeVisible();
     await page.getByRole("button", { name: "Review data change" }).click();
     const review = page.getByRole("region", { name: "Review data change" });
@@ -966,7 +966,7 @@ test.describe("artifact live data", () => {
           (
             await json<{ consent: { audience_version: number } }>(
               page.request,
-              `/api/artifacts/${fixture.artifactId}`,
+              `/api/apps/${fixture.artifactId}`,
             )
           ).consent.audience_version,
         { message: "the audience was never moved to v3 after the owner approved it" },
@@ -976,7 +976,7 @@ test.describe("artifact live data", () => {
     const colleague = await editor.newPage();
     try {
       await watch(colleague);
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       await expect(frame.locator("#marker")).toHaveText("v3");
       await expect(frame.locator("#state")).toHaveText("ok");

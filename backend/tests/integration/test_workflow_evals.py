@@ -6,8 +6,6 @@ cover. Here it is stood in for, so a case's run can be put in any state and the
 judgement read back the way the editor reads it.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

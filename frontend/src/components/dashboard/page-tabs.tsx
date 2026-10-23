@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
+import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { useActiveRoute } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +36,29 @@ export interface PageTab {
 export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; className?: string }) {
   const isActive = useActiveRoute();
   const t = useTranslations("nav");
+  const strip = useRef<HTMLElement>(null);
+  const activeHref = tabs.find((tab) => isActive(tab.href, tab.exact))?.href;
+  useScrollFade(strip);
+
+  // On a phone the strip is wider than the screen, and a tab past its edge -
+  // API, opened from a link - was active but out of sight. Centre it, moving
+  // only the strip, never the page.
+  useEffect(() => {
+    const nav = strip.current;
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !active) return;
+    nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+  }, [activeHref]);
+
   return (
     <div className={cn("border-border border-b", className)}>
-      <nav className="-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <nav
+        ref={strip}
+        className={cn(
+          "-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          SCROLL_FADE,
+        )}
+      >
         {tabs.map((tab) => {
           const active = isActive(tab.href, tab.exact);
           return (
@@ -45,7 +67,7 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-offset-[-2px]",
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",

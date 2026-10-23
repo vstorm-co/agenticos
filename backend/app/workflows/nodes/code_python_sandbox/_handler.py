@@ -6,8 +6,6 @@ what it left - is `app.workflows.nodes._sandbox_job`'s; this step names the
 runner that executes the script and reads `result` back as JSON.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

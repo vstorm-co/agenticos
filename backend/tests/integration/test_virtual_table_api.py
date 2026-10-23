@@ -6,8 +6,6 @@ boundary, the replay header and the error envelope are shown to agree with what
 Postgres actually holds afterwards.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock
@@ -42,7 +40,7 @@ async def http(engine: AsyncEngine, mock_redis: MagicMock):
         await setup.commit()
     caller: list[AuthContext] = [ctx_for(owner, org)]
 
-    async def session() -> AsyncGenerator[AsyncSession, None]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         async with factory() as opened:
             try:
                 yield opened

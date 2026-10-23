@@ -16,8 +16,6 @@ The token is unsealed from the vault by the caller and passed in. Nothing here
 reads a secret, logs one, or puts one in a span attribute.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -149,7 +147,7 @@ def inherited_instrumentation(
     return host.instrument
 
 
-def auxiliary_model(ctx: RunContext[Any]) -> AbstractModel:
+def auxiliary_model(ctx: RunContext[Any], model: Model | None = None) -> AbstractModel:
     """The run's model for an auxiliary call, traced the way the run is.
 
     A capability that writes through an `Agent` it builds itself - a system
@@ -168,8 +166,12 @@ def auxiliary_model(ctx: RunContext[Any]) -> AbstractModel:
     default gets the model unchanged - the auxiliary agent takes the same default.
     A realtime model (not a request-response :class:`Model`) is returned unchanged
     too, since it cannot be wrapped and does not run an auxiliary agent.
+
+    `model` is a model of the call's own - a run reviewer's, on a profile of its
+    own - traced the same way the run's would be.
     """
+    chosen = ctx.model if model is None else model
     settings = inherited_instrumentation(ctx.agent)
-    if not isinstance(settings, InstrumentationSettings) or not isinstance(ctx.model, Model):
-        return ctx.model
-    return instrument_model(ctx.model, settings)
+    if not isinstance(settings, InstrumentationSettings) or not isinstance(chosen, Model):
+        return chosen
+    return instrument_model(chosen, settings)

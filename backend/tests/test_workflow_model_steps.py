@@ -5,8 +5,6 @@ these pin what each step asks for, what it makes of the answer, and the
 configurations it refuses.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal

@@ -4,10 +4,10 @@ import codecs
 import io
 import logging
 import re
-import zipfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 from xml.dom import Node
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,9 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file as chat_file_repo
+from app.repositories import conversation as conversation_repo
+from app.repositories import member_repo
+from app.services.conversation import ConversationService
 from app.services.file_storage import (
     ALLOWED_EXTENSIONS,
     ALLOWED_MIME_TYPES,
@@ -35,6 +38,8 @@ from app.services.file_storage import (
 # The web-safe raster images: no ZIP/OLE/TIFF container, but each has a cheap
 # magic-number signature the byte phase can still check (#1654 review).
 _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
+from app.services.office_archive import safe_unzip
+from app.services.office_archive import zip_has_too_many_members as zip_has_too_many_members
 from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)
@@ -50,8 +55,6 @@ reader: the file itself is one click away in the preview panel.
 PREVIEW_CHARS = 240
 """A second bound, for a file whose three lines are one long line each."""
 
-_ARCHIVE_CHUNK = 1024 * 1024
-"""How much of a ZIP member is read at a time when measuring its real size."""
 
 _ODS_MAX_CELLS = 1_000_000
 """How many cells one OpenDocument spreadsheet may expand to across all sheets.
@@ -186,7 +189,7 @@ def _decode_declared(data: bytes) -> str | None:
     if match:
         try:
             return data.decode(match.group(1).decode("ascii"))
-        except (LookupError, UnicodeDecodeError):
+        except LookupError, UnicodeDecodeError:
             return None
     return None
 
@@ -206,100 +209,6 @@ def _charset_param(content_type: str | None) -> str | None:
         if key.strip().lower() == "charset":
             return value.strip().strip('"').lower() or None
     return None
-
-
-_EOCD_SIGNATURE = b"PK\x05\x06"
-# The end-of-central-directory record is 22 bytes plus a comment of at most 65535.
-_EOCD_SEARCH_BYTES = 22 + 65_535
-# What the 16-bit count and the 32-bit directory size hold when the archive is ZIP64
-# and the real values lie in the ZIP64 end record.
-_ZIP64_ENTRY_MARKER = 0xFFFF
-_ZIP64_SIZE_MARKER = 0xFFFFFFFF
-_ZIP64_LOCATOR_SIGNATURE = b"PK\x06\x07"
-_ZIP64_RECORD_SIGNATURE = b"PK\x06\x06"
-# The most central-directory bytes a member may take on average: a 46-byte header
-# and a name. Office files name their parts in a few dozen bytes.
-_DIRECTORY_BYTES_PER_MEMBER = 512
-# What a record we cannot read reports: more than any limit, so it is refused.
-_UNREADABLE = (2**64, 2**64)
-
-
-def _directory_extent(data: bytes) -> tuple[int, int] | None:
-    """How many members a ZIP's end record claims, and how many bytes their directory takes.
-
-    Found the way `zipfile` finds it: the last 22 bytes when they are a record
-    with no comment, otherwise the last signature within the longest comment a
-    record may carry. `None` when there is no end record, which `zipfile` then
-    refuses as no archive. A record that is cut short, or a ZIP64 marker the ZIP64
-    record does not back up, reports more than any limit: it is read as too big
-    rather than as nothing.
-    """
-    tail = data[-22:]
-    if len(tail) == 22 and tail.startswith(_EOCD_SIGNATURE) and tail[-2:] == b"\0\0":
-        position = len(data) - 22
-    else:
-        position = data.rfind(_EOCD_SIGNATURE, max(0, len(data) - _EOCD_SEARCH_BYTES))
-        if position < 0:
-            return None
-        if position + 22 > len(data):
-            return _UNREADABLE
-    record = data[position : position + 22]
-    count = int.from_bytes(record[10:12], "little")
-    directory_bytes = int.from_bytes(record[12:16], "little")
-    if count != _ZIP64_ENTRY_MARKER and directory_bytes != _ZIP64_SIZE_MARKER:
-        return count, directory_bytes
-    locator = data[max(0, position - 20) : position]
-    if len(locator) != 20 or not locator.startswith(_ZIP64_LOCATOR_SIGNATURE):
-        return _UNREADABLE
-    offset = int.from_bytes(locator[8:16], "little")
-    zip64 = data[offset : offset + 56]
-    if len(zip64) != 56 or not zip64.startswith(_ZIP64_RECORD_SIGNATURE):
-        return _UNREADABLE
-    return int.from_bytes(zip64[32:40], "little"), int.from_bytes(zip64[40:48], "little")
-
-
-def zip_has_too_many_members(data: bytes) -> bool:
-    """Whether the ZIP declares more members than `CHAT_ARCHIVE_MAX_MEMBERS` allows.
-
-    The member count alone is forgeable - `zipfile` walks the directory by its
-    byte size, not by the count - so the directory's size is bounded as well.
-    """
-    extent = _directory_extent(data)
-    if extent is None:
-        return False
-    count, directory_bytes = extent
-    limit = settings.CHAT_ARCHIVE_MAX_MEMBERS
-    return count > limit or directory_bytes > limit * _DIRECTORY_BYTES_PER_MEMBER
-
-
-def safe_unzip(data: bytes) -> io.BytesIO:
-    """Validate a ZIP-backed office file's decompression, then hand back a stream.
-
-    ODF and OOXML are ZIP+XML, and a small upload can decompress to a huge amount of
-    memory. Every member is read through a bounded stream — never trusting the
-    forgeable `ZipInfo.file_size` in the central directory — and the member count and
-    running total are capped. Returns a fresh stream over the *validated* bytes for
-    the parser to open; raises `ValueError` when a bound is exceeded, which each
-    parser turns into a caught `None`.
-    """
-    if zip_has_too_many_members(data):
-        raise ValueError("archive has too many members")
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        names = archive.namelist()
-        if len(names) > settings.CHAT_ARCHIVE_MAX_MEMBERS:
-            raise ValueError("archive has too many members")
-        total = 0
-        for name in names:
-            member_total = 0
-            with archive.open(name) as member:
-                while chunk := member.read(_ARCHIVE_CHUNK):
-                    member_total += len(chunk)
-                    if member_total > settings.CHAT_ARCHIVE_MEMBER_MAX_BYTES:
-                        raise ValueError("archive member too large")
-                    total += len(chunk)
-                    if total > settings.CHAT_ARCHIVE_TOTAL_MAX_BYTES:
-                        raise ValueError("archive too large")
-    return io.BytesIO(data)
 
 
 def _clamp_odf_space_runs(node: Any, budget: int) -> int:
@@ -618,7 +527,7 @@ class DocumentText:
             if charset:
                 try:
                     return data.decode(charset)
-                except (LookupError, UnicodeDecodeError):
+                except LookupError, UnicodeDecodeError:
                     return None
             return None
 
@@ -1159,15 +1068,55 @@ class FileUploadService(DocumentText):
         await get_file_storage().delete(chat_file.storage_path)
         await chat_file_repo.delete(self.db, db_file=chat_file)
 
-    async def get_user_file(self, file_id: Any, user_id: Any) -> ChatFile:
-        """Get a file by ID, verifying ownership.
+    async def get_readable_file(self, file_id: Any, *, user_id: UUID) -> ChatFile:
+        """A file this person may open: their own upload, or one attached to a chat they read.
+
+        An attachment is part of the conversation it was sent in, so whoever may
+        read the conversation - a teammate in a project chat, somebody it was
+        shared with - opens it too; the transcript would otherwise show cards
+        that answer every click with a 404. A file not attached to anything yet
+        is still its uploader's alone.
+
+        Asked in the conversation's own organization rather than an active one:
+        an `<img>` sends no organization header, and the reader's membership
+        there is what their access to its chats is decided by anyway.
 
         Raises:
-            NotFoundError: If file does not exist or user has no access.
+            NotFoundError: If there is no such file, or it is not theirs to open.
         """
         chat_file = await chat_file_repo.get_by_id(self.db, file_id)
-        if not chat_file or str(chat_file.user_id) != str(user_id):
+        if chat_file is None:
             raise NotFoundError(message="File not found")
+        if str(chat_file.user_id) == str(user_id):
+            return chat_file
+        message = (
+            await conversation_repo.get_message_by_id(self.db, chat_file.message_id)
+            if chat_file.message_id is not None
+            else None
+        )
+        conversation = (
+            await conversation_repo.get_conversation_by_id(self.db, message.conversation_id)
+            if message is not None
+            else None
+        )
+        if conversation is None or conversation.organization_id is None:
+            raise NotFoundError(message="File not found")
+        # Still a member of that organization: a conversation share can outlive
+        # the person's membership, and the file must not.
+        if (
+            await member_repo.get(
+                self.db, organization_id=conversation.organization_id, user_id=user_id
+            )
+            is None
+        ):
+            raise NotFoundError(message="File not found")
+        # The conversation's own refusal, which names nothing about the file.
+        await ConversationService(self.db).get_conversation(
+            conversation.id,
+            organization_id=conversation.organization_id,
+            user_id=user_id,
+            include_favourite=False,
+        )
         return chat_file
 
     async def create_chat_file(

@@ -18,8 +18,6 @@ What this module does not do is decide: approving a request confirms data or app
 grant, and that is :class:`app.services.artifact_request_service.ArtifactRequestService`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
 from uuid import UUID
 

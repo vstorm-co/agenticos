@@ -37,7 +37,9 @@ interface AddShareProps {
  *
  * One picker for both, grouped under two headings, because "who else should
  * reach this" is one question whichever kind of answer it gets - searched by
- * typing a name or an address.
+ * typing a name or an address. It sits at the top of the panel, as a document's
+ * share box does: adding somebody is what the panel is opened for, and the list
+ * under it is what that changed.
  */
 export function AddShare({
   resourceType,
@@ -71,7 +73,7 @@ export function AddShare({
   ]);
 
   return (
-    <div className="flex flex-wrap items-end gap-3 border-t pt-4">
+    <div className="flex flex-wrap items-end gap-2">
       <div className="min-w-56 flex-1 space-y-2">
         <Label htmlFor="share-with">{t("addSubject")}</Label>
         <SubjectPicker
@@ -84,7 +86,7 @@ export function AddShare({
           disabled={empty}
         />
       </div>
-      <div className="w-40 space-y-2">
+      <div className="w-36 space-y-2">
         <Label htmlFor="share-level">{t("access")}</Label>
         <Select value={level} onValueChange={(value) => setLevel(toLevel(value))}>
           <SelectTrigger id="share-level">

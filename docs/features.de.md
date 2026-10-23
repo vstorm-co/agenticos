@@ -1,5 +1,5 @@
 ---
-source_sha: "15cf34650ce9"
+source_sha: "d9e290973e51"
 ---
 
 # Funktionen { #features }
@@ -94,10 +94,10 @@ sagen.
 | Der Agent kann… | Einschalten |
 |---|---|
 | **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
-| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory files · Memory (mem0) · Conversation search |
-| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Web fetch · Browser automation |
-| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Run Python · Files & shell · Charts · Image generation |
-| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Context management |
+| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
+| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
+| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Calculations · Sandbox · Charts · Image generation |
+| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
 | **Innerhalb der Linien bleiben** — schwärzen oder blockieren, was nicht durch darf, begrenzen, was ein Tool zurückgeben darf, wissen, welches Datum heute ist | Guardrails · Tool output limits · Date and time |
 
 Jede bringt ihre eigenen Einstellungen mit, ihren eigenen Permission-Scope und —
@@ -107,7 +107,7 @@ Plattform.
 
 [Jede Capability, ihre Tools und ihre Konfiguration →](reference/capabilities.md)
 
-## Jedes Modell, von 27 Providern { #any-model-from-27-providers }
+## Jedes Modell, von 28 Providern { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, ein Ollama auf Ihrer
 eigenen Hardware, ein LiteLLM-Proxy vor allem zusammen.
@@ -126,11 +126,13 @@ Endpunkt je zurückgegeben.
 Verbinden Sie einen Server, und seine Tools erscheinen in der Toolbox — mit
 Namensraum, damit zwei Server, die beide `search` anbieten, nicht kollidieren.
 
-**5.802 Server stehen im Picker.** 99 der gängigen — GitHub, Linear, Notion,
-Slack, Stripe, Postgres — kommen mit bereits verdrahteten OAuth-Flows, weil hier
-jemand jeden davon verbunden und geprüft hat. Die übrigen 5.703 sind aus dem
-öffentlichen MCP-Register gespiegelt und nach Namen durchsuchbar: die hat hier
-niemand geprüft, und die Liste sagt, welcher Art eine Zeile ist.
+**Über 4.700 Server stehen in der Galerie** - die Zahl, die die Seite MCP servers
+anzeigt. Die gängigen - GitHub, Linear, Notion, Slack, Stripe, Postgres - kommen
+mit bereits verdrahteten OAuth-Flows, weil hier jemand jeden davon verbunden und
+geprüft hat. Die übrigen sind aus dem öffentlichen MCP-Register gespiegelt und
+nach Namen durchsuchbar: die hat hier niemand geprüft, die Liste sagt, welcher
+Art eine Zeile ist, und ein Eintrag, den eine Prüfung als tot, defekt oder
+doppelt erkannt hat, fehlt.
 
 !!! info
 
@@ -179,7 +181,19 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 
-[Oberflächen →](channels.md)
+Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
+Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
+transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+
+**Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
+ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der
+Agent behält seine Tools, sein Wissen, seine Freigaben und Budgets, jede Runde
+wird als Text in der Unterhaltung gespeichert, und kein Audio wird gespeichert.
+Anrufe sind aus, bis eine Organisation sie einschaltet, und haben eigene Limits
+für Dauer und monatliche Minuten. Die Realtime-Modelle von OpenAI sind live
+getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert.
+
+[Oberflächen →](channels.md) · [Sprachgespräche →](voice.md)
 
 ## Budgets, die einen Run wirklich stoppen { #budgets-that-actually-stop-a-run }
 
@@ -189,10 +203,12 @@ Ein Run, der fehlschlägt, verzeichnet trotzdem, was er gekostet hat, denn ein
 Budget, das nur Erfolge zählt, ist kein Budget. Alerts feuern bei Schwellen, die
 Sie setzen, pro Agent.
 
-## Approval für alles mit Nebenwirkung { #approval-for-anything-side-effecting }
+## Approval, wo Sie eine Person wollen { #approval-where-you-want-a-person }
 
-Ein Tool, das die Außenwelt verändert, parkt den Run und wartet auf einen
-Menschen. Stellen Sie es pro Capability ein, überschreiben Sie es pro Tool.
+Wählen Sie, welche Tools auf eine Person warten, bevor sie laufen: pro Capability,
+pro Tool übersteuert und pro MCP-Server. Nichts wartet, bis Sie darum bitten,
+deshalb parkt ein Run in einem Kanal oder nach Zeitplan nie an einem Gate, das
+niemand gewählt hat.
 
 Eine Approval wird einmal entschieden. Eine zweite Entscheidung über eine bereits
 entschiedene Approval wird abgelehnt — was selbstverständlich klingt, bis man die

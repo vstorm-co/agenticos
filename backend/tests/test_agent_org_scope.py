@@ -8,14 +8,17 @@ Covers the two halves of the WebSocket org boundary:
 
 import uuid
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
 from fastapi import WebSocketException
 
-from app.api.deps import get_active_organization_ws
+from app.api.deps import get_active_organization, get_active_organization_ws
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.schemas.conversation import MessageReplyRef
 from app.services.agent import persist_user_turn
+from app.services.api_key import KeyCaller
 from app.services.conversation import ConversationService
 
 
@@ -31,6 +34,27 @@ def _user(user_id=None):
     return user
 
 
+def _session_socket():
+    """A socket opened with a session token: nothing about a key on its state."""
+    socket = MagicMock()
+    socket.state = SimpleNamespace()
+    return socket
+
+
+def _key_socket(organization):
+    socket = MagicMock()
+    socket.state = SimpleNamespace(
+        api_key_caller=KeyCaller(
+            user=_user(),
+            organization=organization,
+            context=MagicMock(),
+            api_key_id=uuid.uuid4(),
+            prefix="aos_0123abcd",
+        )
+    )
+    return socket
+
+
 @asynccontextmanager
 async def _fake_db_context():
     db = MagicMock()
@@ -39,38 +63,91 @@ async def _fake_db_context():
     yield db
 
 
+class TestActiveOrganizationHTTP:
+    """A session request with no `X-Organization-Id` (#2156)."""
+
+    @pytest.mark.anyio
+    async def test_it_acts_where_a_session_lands(self):
+        landing = _org()
+        request = MagicMock(state=SimpleNamespace())
+
+        with patch(
+            "app.api.deps.OrganizationService.fallback_for", new=AsyncMock(return_value=landing)
+        ):
+            org = await get_active_organization(request, _user(), MagicMock(), None)
+
+        assert org is landing
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_user_with_a_choice_is_asked_for_the_header(self):
+        """Guessing would be a script that forgot the header quietly acting in
+        another tenant."""
+        request = MagicMock(state=SimpleNamespace())
+
+        with (
+            patch(
+                "app.api.deps.OrganizationService.fallback_for", new=AsyncMock(return_value=None)
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await get_active_organization(request, _user(), MagicMock(), None)
+
+        assert refused.value.details == {"header": "X-Organization-Id"}
+
+
 class TestActiveOrganizationWS:
     """Resolving the organization a WebSocket session runs as."""
 
     @pytest.mark.anyio
-    async def test_falls_back_to_personal_org(self):
-        """No organization_id parameter -> the user's Personal org."""
+    async def test_a_key_socket_runs_in_the_key_s_organization(self):
+        """An organization key carries its organization, so the socket needs no
+        parameter and no membership read to know where it acts (#1794)."""
+        acme = _org()
+
+        org = await get_active_organization_ws(_key_socket(acme), _user(), organization_id=None)
+
+        assert org is acme
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_key_socket_naming_another_organization_is_refused(self):
+        with pytest.raises(WebSocketException) as refused:
+            await get_active_organization_ws(
+                _key_socket(_org()), _user(), organization_id=uuid.uuid4()
+            )
+
+        assert refused.value.code == 4003
+
+    @pytest.mark.anyio
+    async def test_falls_back_to_the_organization_a_session_lands_in(self):
+        """No organization_id parameter -> where a request naming none acts (#2156)."""
         user = _user()
         personal = _org()
 
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
             patch(
-                "app.api.deps.organization_repo.get_personal_for_user",
+                "app.api.deps.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=personal),
             ),
         ):
-            org = await get_active_organization_ws(user, organization_id=None)
+            org = await get_active_organization_ws(_session_socket(), user, organization_id=None)
 
         assert org.id == personal.id
 
     @pytest.mark.anyio
-    async def test_missing_personal_org_closes_socket(self):
-        """A user without a Personal org cannot open a session."""
+    async def test_a_user_with_a_choice_must_name_the_organization(self):
+        """No fallback - two organizations, neither default nor personal - closes the socket."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
             patch(
-                "app.api.deps.organization_repo.get_personal_for_user",
+                "app.api.deps.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=None),
             ),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=None)
+            await get_active_organization_ws(_session_socket(), _user(), organization_id=None)
 
         assert exc.value.code == 4001
 
@@ -81,13 +158,14 @@ class TestActiveOrganizationWS:
 
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=MagicMock())),
             patch(
-                "app.api.deps.organization_repo.get_by_id",
-                new=AsyncMock(return_value=requested),
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=(MagicMock(), requested)),
             ),
         ):
-            org = await get_active_organization_ws(_user(), organization_id=requested.id)
+            org = await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=requested.id
+            )
 
         assert org.id == requested.id
 
@@ -96,25 +174,33 @@ class TestActiveOrganizationWS:
         """Asking for an org the user does not belong to closes the socket."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=None),
+            ),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=uuid.uuid4())
+            await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=uuid.uuid4()
+            )
 
         assert exc.value.code == 4003
 
     @pytest.mark.anyio
-    async def test_unknown_org_looks_like_denied_access(self):
-        """A non-existent org must not be distinguishable from a forbidden one."""
+    async def test_a_refusal_names_no_organization(self):
+        """A missing org and a forbidden one are one answer, so ids cannot be probed."""
         with (
             patch("app.api.deps.get_db_context", _fake_db_context),
-            patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=MagicMock())),
-            patch("app.api.deps.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.deps._member_repo.get_with_organization",
+                new=AsyncMock(return_value=None),
+            ),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=uuid.uuid4())
+            await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=uuid.uuid4()
+            )
 
-        assert exc.value.code == 4003
         assert exc.value.reason == "Organization access denied"
 
 
@@ -160,6 +246,70 @@ class TestPersistUserTurnOrgScope:
         assert service.create_conversation.call_args.args[0].organization_id == org_id
 
     @pytest.mark.anyio
+    async def test_a_new_conversation_starts_in_the_project_its_author_may_work_in(self):
+        org_id, project_id = uuid.uuid4(), uuid.uuid4()
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+        allowed = AsyncMock(return_value=MagicMock(id=project_id))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch(
+                "app.services.agent.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="member")),
+            ),
+            patch("app.services.agent.ProjectService.check_can_start", new=allowed),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=org_id,
+                project_id=str(project_id),
+            )
+
+        assert service.create_conversation.call_args.args[0].project_id == project_id
+        checked_as, checked_project = allowed.await_args.args
+        assert (checked_as.organization_id, checked_as.role) == (org_id, "member")
+        assert checked_project == project_id
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("project_id", "membership", "refusal"),
+        [
+            ("not-a-uuid", MagicMock(role="member"), BadRequestError),
+            (str(uuid.uuid4()), None, AuthorizationError),
+        ],
+        # Named, not derived from the values: a random id in a test's name
+        # differs between xdist workers, which then refuse to run at all.
+        ids=["not-an-id", "not-a-member"],
+    )
+    async def test_a_project_that_cannot_be_started_in_starts_no_conversation(
+        self, project_id, membership, refusal
+    ):
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.member_repo.get", new=AsyncMock(return_value=membership)),
+            pytest.raises(refusal),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                project_id=project_id,
+            )
+
+        service.create_conversation.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_a_resumed_conversation_persists_the_user_message(self):
         """The second message of a thread is written, not logged and dropped.
 
@@ -201,14 +351,17 @@ class TestPersistUserTurnOrgScope:
         """The tenant reaches the service, which is where the check lives."""
         org_id = uuid.uuid4()
         conversation_id = uuid.uuid4()
-        service = self._conv_service(MagicMock(organization_id=org_id, title=None))
+        owner = _user()
+        service = self._conv_service(
+            MagicMock(organization_id=org_id, title=None, user_id=owner.id)
+        )
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
             patch("app.services.agent.get_conversation_service", return_value=service),
         ):
             await persist_user_turn(
-                _user(),
+                owner,
                 "hello",
                 [],
                 requested_conversation_id=str(conversation_id),
@@ -220,6 +373,120 @@ class TestPersistUserTurnOrgScope:
         # The retitling of an untitled thread goes through the same door, and it
         # was the second call #5 named.
         assert service.update_conversation.await_args.kwargs["organization_id"] == org_id
+
+    @pytest.mark.anyio
+    async def test_a_reply_is_written_with_its_message_and_read_as_the_model_hears_it(self):
+        """The text the model is handed is the turn as said - who, and to what -
+        while the transcript keeps what was typed."""
+        owner = _user()
+        replied = uuid.uuid4()
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title="Plan", user_id=owner.id)
+        )
+        service.model_text.return_value = 'Kacper: (In reply to your earlier answer: "x")\n\nyes'
+        quote = MessageReplyRef(message_id=replied, role="assistant", excerpt="x")
+        service.reply_quoted.return_value = quote
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                owner,
+                "yes",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to=str(replied),
+            )
+
+        written = service.add_message.await_args.args[1]
+        assert (written.content, written.reply_to_message_id) == ("yes", replied)
+        assert prompt.for_model is not None and prompt.for_model.endswith("yes")
+        # For the teammates following the turn live, who have no transcript yet.
+        assert prompt.reply == quote
+
+    @pytest.mark.anyio
+    async def test_a_turn_said_as_typed_hands_the_model_nothing_extra(self):
+        service = self._conv_service(MagicMock(organization_id=uuid.uuid4(), title="t"))
+        service.model_text.return_value = "hello"
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=str(uuid.uuid4()),
+                organization_id=uuid.uuid4(),
+            )
+        assert prompt.for_model is None
+
+    @pytest.mark.anyio
+    async def test_the_sockets_own_project_thread_still_says_who_is_speaking(self):
+        """A frame that names no thread continues the socket's own; in a project's
+        chat that turn reached the model with no name, so the agent could not tell
+        the people in it apart."""
+        thread = uuid.uuid4()
+        conversation = MagicMock(organization_id=uuid.uuid4(), project_id=uuid.uuid4())
+        service = self._conv_service()
+        service.find_conversation.return_value = conversation
+        service.model_text.return_value = "Anna: hello"
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=str(thread),
+                organization_id=uuid.uuid4(),
+            )
+        service.find_conversation.assert_awaited_once_with(thread)
+        assert service.model_text.await_args.args[1] is conversation
+        assert prompt.for_model == "Anna: hello"
+
+    @pytest.mark.anyio
+    async def test_a_reply_to_something_that_is_not_a_message_id_is_refused(self):
+        with pytest.raises(BadRequestError, match="not a message id"):
+            await persist_user_turn(
+                _user(),
+                "yes",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to="not-an-id",
+            )
+
+    @pytest.mark.anyio
+    async def test_a_teammate_continuing_a_project_chat_does_not_rename_it(self):
+        """Naming the thread stays its owner's, so a teammate's first words in an
+        untitled project chat are a turn and not a new title."""
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title=None, user_id=uuid.uuid4())
+        )
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_user_turn(
+                _user(),
+                "picking this up",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+        service.update_conversation.assert_not_awaited()
+        service.add_message.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_conversation_outside_the_active_org_is_refused(self):
@@ -438,6 +705,35 @@ class TestPersistAssistantTurnRecordsWhatItCost:
         written = service.add_message.await_args.kwargs["data"]
         assert (written.input_tokens, written.output_tokens) == (1200, 300)
         assert written.cost_usd == Decimal("0.0125")
+
+    @pytest.mark.anyio
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self):
+        """What a server's call log reads (#2072); a tool no organization
+        connection served is stored against none."""
+        from app.services.agent import persist_assistant_turn
+
+        service = self._conv_service()
+        linear = uuid.uuid4()
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_assistant_turn(
+                str(uuid.uuid4()),
+                "answered",
+                None,
+                [
+                    {"tool_call_id": "c1", "tool_name": "linear_search", "args": {}},
+                    {"tool_call_id": "c2", "tool_name": "web_search", "args": {}},
+                ],
+                organization_id=uuid.uuid4(),
+                mcp_origins={"linear_search": linear},
+            )
+
+        assert [
+            call.kwargs["mcp_connection_id"] for call in service.start_tool_call.await_args_list
+        ] == [linear, None]
 
     @pytest.mark.anyio
     async def test_a_turn_nobody_could_measure_records_nothing_rather_than_zero(self):

@@ -52,7 +52,7 @@ test.use({ storageState: AUTH_STATE });
 /** Long enough for the runs and the polls behind them, on a dev server that compiles. */
 const SETUP_TIMEOUT = 180_000;
 
-/** How long a started workflow may take to answer: a worker picks it up through Prefect. */
+/** How long a started workflow may take to answer: a worker picks it up through the job queue. */
 const RUN_TIMEOUT = 90_000;
 
 /** What the page calls its button's action - never the workflow's own name. */
@@ -289,7 +289,7 @@ test.describe("artifact actions", () => {
     await ok(run, "the publishing run");
     const listed = await nowMatching(
       request,
-      `/api/artifacts?q=${encodeURIComponent(title)}`,
+      `/api/apps?q=${encodeURIComponent(title)}`,
       (row) => row.title === title,
       `an artifact titled ${title}`,
     );
@@ -299,14 +299,14 @@ test.describe("artifact actions", () => {
     // workflow's real name and the field it asks for.
     const view = await json<{
       actions: { name: string; label: string; fields: { name: string }[] }[];
-    }>(request, `/api/artifacts/${fixture.artifactId}/view?data=true`);
+    }>(request, `/api/apps/${fixture.artifactId}/view?data=true`);
     expect(view.actions).toMatchObject([
       { name: fixture.workflowName, label: ACTION_LABEL, fields: [{ name: "note" }] },
     ]);
 
     // The colleague may open the page; the workflow is not shared yet.
     await ok(
-      await request.put(`/api/artifacts/${fixture.artifactId}/sharing/grants`, {
+      await request.put(`/api/apps/${fixture.artifactId}/sharing/grants`, {
         data: { subject_user_id: fixture.colleagueId, level: "read" },
       }),
       "sharing the page with the colleague",
@@ -328,7 +328,7 @@ test.describe("artifact actions", () => {
         // In dependency order: the page names the agent, the agent the workflow and
         // the profile. The workflow's runs go with it.
         const paths = [
-          fixture.artifactId && `/api/artifacts/${fixture.artifactId}`,
+          fixture.artifactId && `/api/apps/${fixture.artifactId}`,
           fixture.agentId && `/api/agents/${fixture.agentId}`,
           fixture.workflowId && `/api/workflows/${fixture.workflowId}`,
           fixture.profileId && `/api/providers/model-profiles/${fixture.profileId}`,
@@ -349,7 +349,7 @@ test.describe("artifact actions", () => {
   test("a member who may not run the workflow is offered no action", async ({ browser }) => {
     const colleague = await (await asColleague(browser)).newPage();
     try {
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       // The page is drawn, so the view that lists actions has been answered.
       await expect(frame.locator("#marker")).toHaveText("actions-v1");
@@ -375,7 +375,7 @@ test.describe("artifact actions", () => {
 
     const colleague = await (await asColleague(browser)).newPage();
     try {
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       await expect(frame.locator("#marker")).toHaveText("actions-v1");
       // The workflow's own name, never the page's label.
@@ -401,7 +401,7 @@ test.describe("artifact actions", () => {
     test.setTimeout(RUN_TIMEOUT + 60_000);
     const colleague = await (await asColleague(browser)).newPage();
     try {
-      await colleague.goto(`/artifacts/${fixture.artifactId}`);
+      await colleague.goto(`/apps/${fixture.artifactId}`);
       const frame = framedPage(colleague, fixture.title);
       await expect(frame.locator("#marker")).toHaveText("actions-v1");
 

@@ -16,8 +16,6 @@ What this service refuses is as deliberate as what it allows:
   surface get" into two hands, and they would eventually disagree.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 
@@ -214,6 +212,8 @@ class AgentEnvironmentService:
         environment = await agent_environment_repo.update(
             self.db, environment=environment, update_data=changes
         )
+        if version is not None:
+            await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
         if environment.is_default and version is not None:
             # The denormalized pointer is this environment's, so promoting the
             # default *is* the deploy every surface naming no environment reads.

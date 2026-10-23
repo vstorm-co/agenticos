@@ -137,8 +137,8 @@ history apply identically.
 Delivered in one pull request (#1925), the milestone's issues #1781-#1793 with
 #1823, #1907 and #1915. **A workflow is a versioned graph**, edited on a canvas,
 validated at publish and run durably: Postgres holds each run's position, an outbox
-row per step is dispatched by Prefect, and a step's result commits with the dispatch
-of the steps after it. **A Virtual Table is typed records** with revisions,
+row per step is dispatched by a job queued with it, and a step's result commits
+with the dispatch of the steps after it. **A Virtual Table is typed records** with revisions,
 receipts and history, reached through one service by the console, the API, agents,
 workflow steps and table triggers.
 
@@ -168,7 +168,7 @@ it reaches `frontend/src/types/runs.ts` and stops there.
 ## Testing
 
 The bar and the layers are documented in [Testing](testing.md), and in
-[`CLAUDE.md`](https://github.com/vstorm-co/agenticos/blob/main/CLAUDE.md#testing)
+[`AGENTS.md`](https://github.com/vstorm-co/agenticos/blob/main/AGENTS.md#testing)
 for anyone working in the repository.
 !!! abstract "Short version"
 

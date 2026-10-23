@@ -25,11 +25,13 @@ const words = (key: string, values?: Record<string, string>): string => {
 };
 
 const KNOWLEDGE: CapabilityCatalogEntry = {
+  recommended: null,
   id: "knowledge",
   name: "Knowledge search",
   category: "knowledge",
   description: "Search the collections this agent is connected to.",
   side_effecting: false,
+  voice: "live",
   scopes: ["knowledge:read"],
   tools: [
     {
@@ -49,11 +51,13 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
 };
 
 const CLOCK: CapabilityCatalogEntry = {
+  recommended: null,
   id: "clock",
   name: "Date and time",
   category: "utility",
   description: "Read the current date and time.",
   side_effecting: false,
+  voice: "live",
   scopes: [],
   tools: [],
   config_schema: null,
@@ -62,11 +66,13 @@ const CLOCK: CapabilityCatalogEntry = {
 };
 
 const SEND_EMAIL: CapabilityCatalogEntry = {
+  recommended: null,
   id: "send_email",
   name: "Send email",
   category: "action",
   description: "Send a message on the organization's behalf.",
   side_effecting: true,
+  voice: "live",
   scopes: [],
   tools: [],
   config_schema: null,
@@ -80,11 +86,13 @@ const SEND_EMAIL: CapabilityCatalogEntry = {
  * gating nothing would let it send.
  */
 const EMAIL: CapabilityCatalogEntry = {
+  recommended: null,
   id: "email",
   name: "Email",
   category: "action",
   description: "Read, draft and send mail.",
   side_effecting: true,
+  voice: "live",
   scopes: [],
   tools: [
     { id: "draft_email", name: "draft_email", description: "Write a message without sending it." },
@@ -199,7 +207,7 @@ describe("CapabilitySettings", () => {
     // Typed onto a stored value: a field with a default is never empty, and
     // this component is controlled by a spy, so what is on screen does not move
     // between keystrokes.
-    await userEvent.type(screen.getByLabelText(/Default top k/), "9");
+    await userEvent.type(screen.getByLabelText(/Passages per search/), "9");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "knowledge", config: { default_top_k: 19 } }),
     );
@@ -221,9 +229,9 @@ describe("CapabilitySettings", () => {
     expect(screen.getAllByText("Human approval")).toHaveLength(2);
   });
 
-  it("says what default resolves to for this particular capability", () => {
-    // The same "Follow the capability" means opposite things either side of
-    // `side_effecting`, so the label alone does not answer the question.
+  it("warns, under the default, that a capability acting on the world runs unattended", () => {
+    // Nothing is gated until somebody asks, so the one that sends email says
+    // so and names the choice that would hold it.
     render(
       <CapabilitySettings
         catalog={[KNOWLEDGE, SEND_EMAIL]}
@@ -232,8 +240,8 @@ describe("CapabilitySettings", () => {
       />,
     );
 
-    expect(screen.getByText(/Runs without approval/)).toBeInTheDocument();
-    expect(screen.getByText(/Held for approval/)).toBeInTheDocument();
+    expect(screen.getByText(/because this capability only reads/)).toBeInTheDocument();
+    expect(screen.getByText(/Choose Always ask if a person should see/)).toBeInTheDocument();
   });
 
   it("records the approval mode that was chosen", async () => {
@@ -315,7 +323,7 @@ describe("CapabilitySettings", () => {
         disabled
       />,
     );
-    await userEvent.type(screen.getByLabelText(/Default top k/), "9");
+    await userEvent.type(screen.getByLabelText(/Passages per search/), "9");
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -384,6 +392,69 @@ describe("CapabilitySettings tools", () => {
 
     expect(toolField("draft_email", "Description the model reads")).toHaveValue(
       "Write a message without sending it.\n\nArgs:\n    body: What to say.",
+    );
+  });
+
+  it("offers no Tools tab for a capability whose one tool is the capability itself", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      name: "Coding agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[binding("coding_agent")]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("tab", { name: "Tools" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText(/Every tool follows this/)).toBeNull();
+  });
+
+  it("moves a gate left on a tool that is gone up to the capability", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[
+          {
+            ...binding("coding_agent"),
+            tool_approval: { apply_code_change: "required" },
+            tool_overrides: { plan_code_change: { name: "plan" } },
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "required", tool_approval: {}, tool_overrides: {} }),
+    );
+  });
+
+  it("keeps the capability's own approval when no gate is carried over", () => {
+    const coding: CapabilityCatalogEntry = { ...EMAIL, id: "coding_agent", tool_settings: false };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[{ ...binding("coding_agent"), tool_overrides: { gone: { name: "x" } } }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "default", tool_overrides: {} }),
     );
   });
 
@@ -908,21 +979,19 @@ describe("resolveToolApproval", () => {
       resolveToolApproval(
         binding("email", { approval: "never", tool_approval: { send_email: "required" } }),
         "send_email",
-        true,
       ),
     ).toBe("required");
   });
 
   it("falls back to the capability when the tool has no answer", () => {
-    expect(
-      resolveToolApproval(binding("email", { approval: "required" }), "draft_email", false),
-    ).toBe("required");
+    expect(resolveToolApproval(binding("email", { approval: "required" }), "draft_email")).toBe(
+      "required",
+    );
   });
 
-  it("falls back to side_effecting when neither has one", () => {
-    // The last rule, and the only one nobody typed: a capability that changes
-    // something outside the agent is gated until somebody says otherwise.
-    expect(resolveToolApproval(binding("email"), "send_email", true)).toBe("required");
-    expect(resolveToolApproval(binding("knowledge"), "search_documents", false)).toBe("never");
+  it("asks nobody when neither has an answer, even for a tool that sends", () => {
+    // A gate nobody chose parks runs in channels and routines where nobody is
+    // there to answer it, so the author has to ask for one.
+    expect(resolveToolApproval(binding("email"), "send_email")).toBe("never");
   });
 });

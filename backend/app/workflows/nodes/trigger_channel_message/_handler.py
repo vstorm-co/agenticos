@@ -8,8 +8,6 @@ who published it. A message that does not fit is answered by the bot's agent as
 before. A bot's messages start one workflow at most.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator

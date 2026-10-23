@@ -6,8 +6,6 @@ before anything is allocated - the same ceiling chat attachments are held to.
 A page the document does not have fails with `PAGE_OUT_OF_RANGE`.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 from pydantic import BaseModel, ConfigDict, Field

@@ -1,7 +1,5 @@
 """When a page's data may reach an anonymous visitor (#1975): the predicate, alone."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 

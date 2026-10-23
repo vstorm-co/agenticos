@@ -1,7 +1,5 @@
 """How two versions' page queries are compared, and what each difference is marked (#1974)."""
 
-from __future__ import annotations
-
 from uuid import NAMESPACE_OID, UUID, uuid5
 
 from app.schemas.artifact import (

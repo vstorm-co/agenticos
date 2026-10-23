@@ -11,8 +11,6 @@ workspace as bytes it has no tool for, and an agent without one as nothing at al
 Which makes the parse the feature, and these the tests for it.
 """
 
-from __future__ import annotations
-
 import io
 from typing import Any
 

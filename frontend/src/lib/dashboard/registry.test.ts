@@ -34,6 +34,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   workflows: Perm.workflowsView,
   platform: "app_admin",
   health: "app_admin",
+  "background-jobs": "app_admin",
   "top-orgs": "app_admin",
   "platform-ratings": "app_admin",
   runs: Perm.runsView,
@@ -49,17 +50,23 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   approvals: Perm.approvalsDecide,
   "recent-failures": Perm.runsView,
   "budget-headroom": Perm.runsView,
+  "department-spend": Perm.runsView,
   "mcp-health": Perm.mcpManage,
   "knowledge-freshness": Perm.collectionsView,
   members: Perm.membersManage,
   "org-ratings": Perm.runsView,
+  "department-quality": Perm.runsView,
   "my-agents": Perm.agentsView,
   conversations: Perm.agentsRun,
   "my-activity": Perm.agentsRun,
+  "my-summary": Perm.agentsRun,
   "my-top-agents": Perm.agentsRun,
   "my-quality": Perm.agentsRun,
   "shared-with-you": Perm.agentsView,
   artifacts: Perm.artifactsView,
+  "voice-minutes": Perm.runsView,
+  projects: Perm.projectsView,
+  "recent-visuals": Perm.agentsRun,
   "sandbox-capacity": Perm.connectionsView,
   "sandbox-sessions": Perm.connectionsView,
   "sandbox-policy": Perm.connectionsView,
@@ -67,8 +74,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty-nine widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(39);
+  it("holds all forty-six widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(46);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {
@@ -192,6 +199,7 @@ describe("what a card lets a person change", () => {
     // `/stats/usage` takes an agent and a person; the ratings summary takes
     // neither, so the quality cards offer a window and nothing else.
     expect(optionSpec("org-ratings")).toEqual({ period: true });
+    expect(optionSpec("department-quality")).toEqual({ period: true });
     expect(optionSpec("runs").agent).toBe(true);
   });
 });

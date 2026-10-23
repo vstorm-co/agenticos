@@ -8,8 +8,6 @@ kind the partial unique indexes hold, a newer request replacing an older one und
 page's lock, requests voided by what changes under them, and who is told.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -1319,7 +1317,7 @@ class TestRequestingAccess:
         [row] = [r for r in rows if r.event_type == "artifact_share_requested"]
         assert "Pipeline" in row.summary and await _email(db, carl) in row.summary
         assert row.render_context["kind"] == "access"
-        assert row.context_url == f"/artifacts/{world.page_id}?requests=open&org={world.org.id}"
+        assert row.context_url == f"/apps/{world.page_id}?requests=open&org={world.org.id}"
         assert row.render_context["page_url"].endswith(row.context_url)
 
 

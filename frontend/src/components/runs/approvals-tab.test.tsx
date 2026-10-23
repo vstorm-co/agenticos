@@ -150,13 +150,13 @@ describe("deciding a parked call", () => {
     );
   });
 
-  it("shows a pending row's arguments in full, not just the tool's name", async () => {
+  it("says what a pending call does and what it is about, not just the tool's name", async () => {
     // Approving a tool name without seeing what it will do is a rubber stamp.
     backend({ queue: [PARKED] });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    expect(await screen.findByText("send_email")).toBeVisible();
+    expect(await screen.findByText("send email")).toBeVisible();
     expect(screen.getByText(/board@acme\.test/)).toBeVisible();
   });
 
@@ -178,10 +178,13 @@ describe("deciding a parked call", () => {
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
     expect(await screen.findByText("Change a record in Support")).toBeVisible();
+    // The ids it was made with stay one click away, under the sentence.
+    const [described] = screen.getAllByRole("button", { name: "Details" });
+    await userEvent.click(described as HTMLElement);
     expect(screen.getByText(/6f1c/)).toBeVisible();
     expect(screen.getByText("change_ticket")).toBeVisible();
-    // A call nobody described reads as it always did: the tool and its arguments.
-    expect(screen.getByText("send_email")).toBeVisible();
+    // A call nobody described gets no sentence.
+    expect(screen.getAllByText("Change a record in Support")).toHaveLength(1);
   });
 
   it("says nothing waiting only when both reads answered and were empty", async () => {
@@ -238,11 +241,12 @@ describe("the decided record in the same table", () => {
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
     expect(await screen.findByText("Rejected")).toBeVisible();
-    const row = screen.getByText("Rejected").closest("tr") as HTMLElement;
-    expect(row).toHaveTextContent("send_email");
-    expect(row).toHaveTextContent("ada@acme.test");
-    expect(row).toHaveTextContent("grace@acme.test");
-    expect(within(row).queryByRole("button")).toBeNull();
+    const row = screen.getByText("Rejected").closest("li") as HTMLElement;
+    expect(row).toHaveTextContent("Send email");
+    expect(row).toHaveTextContent("For ada@acme.test");
+    expect(row).toHaveTextContent("by grace@acme.test");
+    expect(within(row).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Reject" })).toBeNull();
   });
 
   it("says when a decision was a standing consent rather than a click", async () => {
@@ -261,7 +265,7 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("by grace@acme.test")).closest("li") as HTMLElement;
     expect(row).toHaveTextContent("waived in advance for the conversation");
   });
 
@@ -270,7 +274,7 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("by grace@acme.test")).closest("li") as HTMLElement;
     expect(row).not.toHaveTextContent("waived in advance");
   });
 
@@ -281,8 +285,8 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const disclosure = await screen.findByText("Arguments");
-    expect(screen.getByText(/board@acme\.test/)).not.toBeVisible();
+    const disclosure = await screen.findByRole("button", { name: "Details" });
+    expect(screen.queryByText(/board@acme\.test/)).toBeNull();
 
     await userEvent.click(disclosure);
 
@@ -302,9 +306,19 @@ describe("the decided record in the same table", () => {
     const onFocusRun = vi.fn();
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={onFocusRun} />, { wrapper });
-    await userEvent.click(await screen.findByText("Rejected"));
+    await userEvent.click(await screen.findByRole("button", { name: /Send email/ }));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-2");
+  });
+
+  it("opens the run behind a waiting request from the request itself", async () => {
+    backend({ queue: [PARKED] });
+    const onFocusRun = vi.fn();
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={onFocusRun} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: /Open the run/ }));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
 
   it("shows a status this build does not know as the value it is, not as Expired", async () => {
@@ -361,7 +375,7 @@ describe("reaching a request past the first page of the queue", () => {
     backend({ queue: FULL, queueTotal: 62 });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
-    await screen.findByText("tool_0");
+    await screen.findByText("tool 0");
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
 
     await waitFor(() => expect(queueSkips()).toContain("50"));
@@ -372,7 +386,7 @@ describe("reaching a request past the first page of the queue", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    await screen.findByText("send_email");
+    await screen.findByText("send email");
     expect(screen.queryByRole("button", { name: /next/i })).toBeNull();
   });
 
@@ -407,7 +421,7 @@ describe("reaching a request past the first page of the queue", () => {
     });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
-    await screen.findByText("tool_0");
+    await screen.findByText("tool 0");
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     const decide = await screen.findByRole("button", { name: "Approve" });
 
@@ -415,7 +429,7 @@ describe("reaching a request past the first page of the queue", () => {
     await userEvent.click(decide);
 
     await waitFor(() => expect(queueSkips().at(-1)).toBe("0"));
-    expect(await screen.findByText("tool_0")).toBeVisible();
+    expect(await screen.findByText("tool 0")).toBeVisible();
   });
 });
 
@@ -464,7 +478,7 @@ describe("the export beside the table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    await screen.findByText("send_email");
+    await screen.findByText("send email");
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 });

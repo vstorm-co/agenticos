@@ -142,21 +142,26 @@ class SystemRemindersConfig(BaseModel):
     """
 
     reminders: list[ReminderConfig] = Field(
+        title="Fixed reminders",
         default_factory=list,
         max_length=20,
         description="Fixed lines re-stated on their own cadences",
     )
     goal_reanchor: GoalReanchorConfig | None = Field(
+        title="Restate the original request",
         default=None,
         description="Re-state the original request on a cadence, at no token cost",
     )
     llm_reminder: LlmReminderConfig | None = Field(
+        title="Model-written reminder",
         default=None,
         description="A model-written reminder on a cadence. Costs one extra call each fire",
     )
     cache_ttl: Literal["5m", "1h"] = Field(
+        title="Prompt cache lifetime",
         default="5m",
         description="Cache lifetime of the breakpoint placed before the tail reminder",
+        json_schema_extra={"x-advanced": True},
     )
 
 
@@ -211,7 +216,7 @@ def _compile(config: SystemRemindersConfig) -> list[CompiledReminder]:
 
 @register(
     id="system_reminders",
-    name="System reminders",
+    name="Instruction reminders",
     category="reasoning",
     description=(
         "Re-state guidance mid-run so a long session stops drifting from its instructions."

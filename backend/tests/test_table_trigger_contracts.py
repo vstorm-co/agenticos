@@ -5,8 +5,6 @@ or a trigger and a filtered view disagree about which records match; each case
 here is one branch of `_predicate` in `app/repositories/virtual_table.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch

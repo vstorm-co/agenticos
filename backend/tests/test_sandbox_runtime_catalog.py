@@ -5,8 +5,6 @@ the service accepts runtimes on, and a compose file cannot call a command - so t
 whole question is whether the copy can drift. These are what says it cannot.
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any

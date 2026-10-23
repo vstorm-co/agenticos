@@ -1,7 +1,5 @@
 """A step with its own name, and one switched off: skipped when reached, refused where it breaks."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

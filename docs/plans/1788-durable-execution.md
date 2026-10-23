@@ -1,5 +1,10 @@
 # Workflows: durable execution, approvals, budgets and run history
 
+> **Note.** Prefect was replaced by the Postgres job queue in #2248. The design
+> below is unchanged where it matters: the outbox holds the run's position, and the
+> flows it names are now jobs - each outbox row is queued with a `workflow-dispatch-node`
+> job in the same transaction.
+
 Design for [#1788](https://github.com/vstorm-co/agenticos/issues/1788).
 Depends on [#1786](1786-node-contracts.md) (design only so far); this
 document treats the [shared contracts](56-shared-contracts.md) page —

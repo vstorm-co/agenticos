@@ -6,8 +6,6 @@ Every call mints a new file, so the step is `at_least_once`: a retry after a
 lost answer leaves a second copy rather than finding the first.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any, Literal
 

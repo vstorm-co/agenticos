@@ -5,8 +5,6 @@ checked at publish, a binding to `payload.<field>` is type-checked there too,
 and the run's input is checked against them before the run is admitted.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import uuid4
 

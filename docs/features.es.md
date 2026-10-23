@@ -1,5 +1,5 @@
 ---
-source_sha: "15cf34650ce9"
+source_sha: "d9e290973e51"
 ---
 
 # Funciones { #features }
@@ -90,10 +90,10 @@ capability que está desactivada, diga lo que diga en sus instrucciones.
 | El agent puede… | Qué activar |
 |---|---|
 | **Responder a partir de lo que tu empresa sabe** — tus documentos, tus procedimientos escritos y lo que se haya adjuntado a esta conversación | Knowledge search · Skills · Context |
-| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory files · Memory (mem0) · Conversation search |
-| **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Web fetch · Browser automation |
-| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen | Run Python · Files & shell · Charts · Image generation |
-| **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Context management |
+| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory · Memory (mem0) · Past conversations |
+| **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Read web pages · Web browser |
+| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen | Calculations · Sandbox · Charts · Image generation |
+| **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Long conversations |
 | **No salirse de la raya** — censurar o bloquear lo que no debe pasar, limitar lo que una tool puede devolver, saber qué día es hoy | Guardrails · Tool output limits · Date and time |
 
 Cada una trae sus propios ajustes, su propio scope de permisos y — cuando actúa
@@ -102,7 +102,7 @@ decisión que alguien toma sobre *este* agent, no un cambio en la plataforma.
 
 [Cada capability, sus tools y su configuración →](reference/capabilities.md)
 
-## Cualquier modelo, de 27 providers { #any-model-from-27-providers }
+## Cualquier modelo, de 28 providers { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, un Ollama en tu propio
 hardware, un proxy LiteLLM por delante de todo ello.
@@ -121,12 +121,13 @@ devuelve jamás.
 Conecta un servidor y sus tools aparecen en la Toolbox, con espacio de nombres
 propio para que dos servidores que ofrecen `search` no choquen.
 
-**Hay 5.802 servidores en el selector.** 99 de los más habituales — GitHub,
-Linear, Notion, Slack, Stripe, Postgres — llegan con sus flujos de OAuth ya
-cableados, porque aquí alguien conectó cada uno de ellos y lo comprobó. Los
-otros 5.703 están replicados del registro público de MCP y se pueden buscar por
-nombre: a esos no los ha revisado nadie de aquí, y la lista dice de qué tipo es
-cada fila.
+**Hay más de 4.700 servidores en la galería**: la cifra que muestra la página
+MCP servers. Los más habituales - GitHub, Linear, Notion, Slack, Stripe,
+Postgres - llegan con sus flujos de OAuth ya cableados, porque aquí alguien
+conectó cada uno de ellos y lo comprobó. El resto están replicados del registro
+público de MCP y se pueden buscar por nombre: a esos no los ha revisado nadie de
+aquí, la lista dice de qué tipo es cada fila, y una entrada que una comprobación
+encontró caída, rota o duplicada no aparece.
 
 !!! info
 
@@ -175,7 +176,20 @@ Publica una vez. El mismo runner responde en todas estas:
 - **Slack**, **Telegram** y **Mattermost**, donde una `@mention` se ejecuta como
   la persona que la envió — no como el bot
 
-[Superficies →](channels.md)
+La transcripción de voz también funciona en ellas con el propio provider de la
+organización: dictado en el chat web, en una página alojada y en el widget, y
+notas de voz transcritas en Slack, Telegram y Mattermost.
+
+**Las llamadas de voz** permiten a una persona hablar con un agent publicado e
+interrumpirlo, en el chat web, en una página alojada o en el widget. El agent
+conserva sus herramientas, su conocimiento, sus aprobaciones y sus budgets,
+cada turno se guarda como texto en la conversación y no se almacena ningún
+audio. Las llamadas están apagadas hasta que una organización las enciende, y
+tienen sus propios límites de duración y de minutos mensuales. Los modelos en
+tiempo real de OpenAI están probados en vivo; Azure OpenAI, Gemini Live y xAI
+todavía no están verificados en vivo.
+
+[Superficies →](channels.md) · [Conversaciones de voz →](voice.md)
 
 ## Budgets que de verdad paran un run { #budgets-that-actually-stop-a-run }
 
@@ -185,10 +199,11 @@ Un run que falla registra igualmente lo que gastó, porque un budget que solo
 cuenta los éxitos no es un budget. Las alertas se disparan en los umbrales que tú
 fijes, por agent.
 
-## Aprobación para cualquier cosa con efectos secundarios { #approval-for-anything-side-effecting }
+## Aprobación donde quieras a una persona { #approval-where-you-want-a-person }
 
-Una tool que cambia el mundo exterior aparca el run y espera a una persona.
-Configúralo por capability, anúlalo por tool.
+Elige qué tools esperan a una persona antes de ejecutarse: por capability, anulado
+por tool, y por servidor MCP. Nada espera hasta que lo pidas, así que un run en un
+canal o en un horario nunca se aparca en una puerta que nadie eligió.
 
 Una aprobación se decide una sola vez. Una segunda decisión sobre una aprobación
 ya decidida se rechaza — lo que suena obvio hasta que has visto la race condition

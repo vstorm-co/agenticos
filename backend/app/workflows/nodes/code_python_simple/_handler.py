@@ -12,8 +12,6 @@ fails the step with `PYTHON_ERROR`, since only a different script fixes it. The
 sandbox itself failing is `PYTHON_SANDBOX_FAILED`, and is retried.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from typing import Any
@@ -80,7 +78,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         return _failed("PYTHON_SANDBOX_FAILED", f"The sandbox failed: {exc}", retryable=True)
     try:
         json.dumps(result, allow_nan=False)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return _failed(
             "PYTHON_OUTPUT_NOT_JSON",
             f"The script's result is a {type(result).__name__}, which is not a JSON value",

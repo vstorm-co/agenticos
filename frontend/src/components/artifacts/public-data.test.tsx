@@ -78,6 +78,7 @@ function artifact(overrides: Partial<ArtifactDetail> = {}): ArtifactDetail {
     current_version: null,
     created_at: "2026-09-01T10:00:00Z",
     updated_at: null,
+    following: false,
     can_edit: true,
     may_change_owner: false,
     may_grant_edit_data: false,

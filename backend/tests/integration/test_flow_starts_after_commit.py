@@ -1,6 +1,6 @@
 """A flow dispatched from a request finds the row that dispatched it.
 
-#417: three services hand a Prefect flow to `spawn` from inside an endpoint,
+#417: three services used to hand work to `spawn` from inside an endpoint,
 and the flow's first act is to read by id the row the endpoint has just
 written. The task is created immediately and the loop starts it at the next
 suspension point - which is well before the request's transaction commits, and
@@ -61,7 +61,7 @@ Handoff = Callable[[AsyncSession, Coroutine[Any, Any, None]], None]
 
 
 @pytest.fixture
-async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
+async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine]:
     """A table to write one row into, and the engine that watches for it.
 
     Deliberately not one of the product's own tables: this asserts a property of
@@ -96,7 +96,7 @@ def _spawn_deferred(session: AsyncSession, coro: Coroutine[Any, Any, None]) -> N
 
 
 @contextlib.asynccontextmanager
-async def _awaiting_whatever_it_starts() -> AsyncGenerator[None, None]:
+async def _awaiting_whatever_it_starts() -> AsyncGenerator[None]:
     """Let the tasks created inside the block run to completion before going on.
 
     This is the ordering probe itself. Which tasks to wait for is settled by

@@ -17,8 +17,6 @@ is never written. Narrowing to an environment therefore cannot return one, which
 is a fact the surface has to state rather than one a reader should have to notice.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -324,6 +322,24 @@ class TestNarrowingByWhatRan:
         )
 
         assert (rows, total) == ([str(parent.id)], 1)
+
+
+class TestTestRuns:
+    """#2074: a run from the Builder's test panel is told apart from real use."""
+
+    async def test_the_test_filter_takes_either_half_and_unset_takes_both(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        tried = await _run(db, org, agent, is_test=True)
+        used = await _run(db, org, agent)
+
+        tests, _ = await _listed(db, org, user, filters=RunFilters(is_test=True))
+        real, _ = await _listed(db, org, user, filters=RunFilters(is_test=False))
+        both, total = await _listed(db, org, user, filters=RunFilters())
+
+        assert tests == [str(tried.id)]
+        assert real == [str(used.id)]
+        assert total == 2 and set(both) == {str(tried.id), str(used.id)}
 
 
 class TestSortingByHowLongItTook:

@@ -13,8 +13,6 @@ one name - the case that makes `get_by_collection_name` unsafe - is expressible
 here rather than only against Postgres.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -23,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, Visibility
@@ -229,6 +227,27 @@ class TestWhoMayReadACollection:
         assert await readable_kb(None, _ctx(), kb)
         assert not await readable_kb(None, _ctx(user_id=STRANGER), kb)
 
+    async def test_a_key_reaches_its_issuers_personal_collection_only_within_its_scopes(
+        self,
+    ) -> None:
+        """Codex on #2062: an `agents:view` key read and deleted personal documents."""
+        kb = _kb("notes", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+
+        def key(*perms: Perm) -> AuthContext:
+            return AuthContext(
+                user_id=CALLER,
+                organization_id=HOME_ORG,
+                role=OrgRoleName.OWNER.value,
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset(perms),
+            )
+
+        assert not await readable_kb(None, key(Perm.AGENTS_VIEW), kb)
+        assert not await writable_kb(None, key(Perm.AGENTS_VIEW), kb)
+        assert await readable_kb(None, key(Perm.COLLECTIONS_VIEW), kb)
+        assert not await writable_kb(None, key(Perm.COLLECTIONS_VIEW), kb)
+        assert await writable_kb(None, key(Perm.COLLECTIONS_EDIT), kb)
+
     async def test_an_app_collection_is_readable_by_everyone(self) -> None:
         """Deployment-wide by design: created only by a platform admin, for everyone."""
         kb = _kb("templates", scope=KBScope.APP, organization_id=None)
@@ -330,6 +349,19 @@ class TestResolvingACollectionName:
         with pytest.raises(NotFoundError):
             await service.readable_names_for(_ctx(), "someone_elses")
 
+    async def test_a_document_listing_carries_each_collection_s_organization(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """The name alone is not a tenant; the listing filters on both."""
+        rows.collections = [_kb("handbook")]
+        rows.accessible = [_kb("handbook"), _kb("shared", scope=KBScope.APP, organization_id=None)]
+
+        assert await service.readable_scopes_for(_ctx(), "handbook") == [("handbook", HOME_ORG)]
+        assert await service.readable_scopes_for(_ctx(), None) == [
+            ("handbook", HOME_ORG),
+            ("shared", None),
+        ]
+
 
 class TestClaimingACollectionName:
     async def test_a_free_name_can_be_claimed(
@@ -403,9 +435,10 @@ class TestClaimingACollectionName:
             await service.claim(_ctx(), name)
 
 
-def _document(collection_name: str) -> RAGDocument:
+def _document(collection_name: str, organization_id: uuid.UUID | None = HOME_ORG) -> RAGDocument:
     return RAGDocument(
         id=uuid.uuid4(),
+        organization_id=organization_id,
         collection_name=collection_name,
         filename="handbook.pdf",
         filesize=1,
@@ -441,6 +474,20 @@ class TestResolvingADocument:
 
         assert reading.value.message == "Document not found"
         assert writing.value.message == "Document not found"
+
+    @pytest.mark.security
+    async def test_another_tenants_document_by_the_same_name_is_a_missing_document(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Codex on #2062: the caller's own `handbook` admitted every `handbook` document."""
+        doc = _document("handbook", organization_id=OTHER_ORG)
+        rows.collections = [_kb("handbook")]
+        rows.documents = [doc]
+
+        with pytest.raises(NotFoundError):
+            await service.readable_document(_ctx(), str(doc.id))
+        with pytest.raises(NotFoundError):
+            await service.writable_document(_ctx(), str(doc.id))
 
     async def test_a_document_with_no_knowledge_base_left_is_unreachable(
         self, service: CollectionAccessService, rows: Rows

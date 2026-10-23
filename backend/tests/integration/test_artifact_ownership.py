@@ -7,8 +7,6 @@ the audit entry and both notifications, and the sharing layer's adoption of a pa
 nobody owns being an ownership change - or refused.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager

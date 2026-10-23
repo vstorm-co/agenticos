@@ -1,5 +1,5 @@
 ---
-source_sha: "d68ab617b471"
+source_sha: "767b18fe1f07"
 ---
 
 # Das Komponenteninventar { #the-component-inventory }
@@ -21,7 +21,7 @@ und nicht aus einem Build-System.
     Deployment aufgelistet werden, das es gewählt hat. Der letzte Abschnitt sagt,
     wie man diese Hälfte aufschreibt; diese Seite kann es nicht für Sie tun.
 
-Das maschinenlesbare Inventar hängt an jedem Release als vier
+Das maschinenlesbare Inventar hängt an jedem Release als sechs
 [CycloneDX](https://cyclonedx.org/)-Dokumente — eines pro Image **pro
 Architektur**, denn ein veröffentlichter Tag ist eine Manifest-Liste, und die
 beiden Varianten enthalten nicht dieselben Pakete. Die
@@ -42,8 +42,10 @@ liest, sollte beides aus demselben Tag lesen und nicht aus `main`.
 |---|---|---|
 | `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | die Assets des GitHub-Releases | der `v*`-Tag, an dem sie hängen |
 | `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | dieselben | dasselbe |
+| `sbom-browser-amd64.cdx.json`, `sbom-browser-arm64.cdx.json` | dieselben | dasselbe |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | dasselbe |
+| `ghcr.io/vstorm-co/agenticos-browser` | GHCR | dasselbe |
 | `THIRD_PARTY_NOTICES.md` | das Repository, an diesem Tag | die Lockfiles in diesem Commit |
 
 ## Komponenten, die dieses Projekt schreibt { #components-this-project-writes }
@@ -54,7 +56,7 @@ Drittanbieter-Komponente und nichts davon erscheint in den Hinweisen.
 | Komponente | Wo | Was sie ist | Ausgeliefert in |
 |---|---|---|---|
 | API und Plattform | `backend/app` | Die FastAPI-Anwendung: Routes, Services, Repositories, der Runner für Agents, die Capability-Registry | `agenticos-backend` |
-| Hintergrund-Worker | `backend/app/worker` | Der Prefect-Runner für Ingestion, Syncs, Sweeps und geplante Trigger | `agenticos-backend` |
+| Hintergrund-Worker | `backend/app/worker` | Holt Jobs aus der Queue in PostgreSQL ab - Runs von Agents, Ingestion, Syncs, Sweeps - und löst die Zeitpläne des Deployments aus (`python -m app.worker`) | `agenticos-backend` |
 | Migrationen | `backend/alembic` | Die Schema-Kette, angewandt vom Migrationsdienst bevor die API startet | `agenticos-backend` |
 | Kommandozeile | `backend/app/commands` | `agenticos cmd …` — Bootstrap, Doctor, die RAG-Befehle | `agenticos-backend` |
 | Konsole | `frontend/src` | Die Next.js-Anwendung, die ein Betreiber und ein Benutzer sehen | `agenticos-frontend` |
@@ -86,15 +88,16 @@ Zwei Audits lesen diese Lockfiles bei jedem Pull Request. `make audit` löst
 |---|---|---|---|
 | `agenticos-backend` | ein Debian-basiertes Python-Image | die API, den Worker, die Migrationen, die CLI, die Abhängigkeitshülle des Backends, die Lizenztexte | `backend/Dockerfile` |
 | `agenticos-frontend` | ein Debian-basiertes Node-Image | den Standalone-Build der Konsole, seine Produktionshülle, die Schriften, die Hinweise pro Paket | `frontend/Dockerfile` |
+| `agenticos-browser` | `debian:bookworm-slim` | Chromium mit Fenster unter Xvfb, die Desktop-Schriften und `socat` zu seinen DevTools - was das Compose-Profil `browser` für die Browser-Capability startet | `docker/browser/Dockerfile` |
 
-Beide werden für `amd64` und `arm64` gebaut, nach GHCR veröffentlicht und nach
+Alle drei werden für `amd64` und `arm64` gebaut, nach GHCR veröffentlicht und nach
 der Veröffentlichung mit Trivy gescannt. Die Debian-Pakete, die jedes Image
 installiert, stehen mit ihrer Lizenzlage in `licenses/components.toml` und
 erscheinen in den CycloneDX-Dokumenten, weil der Generator das veröffentlichte
 Image liest und nicht den Quellbaum.
 
-Dienste, die ein Deployment neben diesen beiden betreibt — PostgreSQL mit
-pgvector, Redis, ein Reverse Proxy, ein Prefect-Server — zieht der Betreiber von
+Dienste, die ein Deployment neben diesen dreien betreibt — PostgreSQL mit
+pgvector, Redis, ein Reverse Proxy, der Egress-Proxy des Browsers (Squid) — zieht der Betreiber von
 deren eigenen Herausgebern. Sie sind in den Compose-Dateien benannt, werden hier
 nicht gebaut und stehen nicht im SBOM dieses Projekts.
 
@@ -133,7 +136,7 @@ das eigene Inventar des Deployments.
 
 !!! warning "Ein Image-SBOM ist kein Systeminventar"
 
-    Die beiden CycloneDX-Dokumente beschreiben zwei Images. Ein Deployment, das
+    Die CycloneDX-Dokumente beschreiben drei Images. Ein Deployment, das
     ein gehostetes Modell, drei MCP-Server und einen Objektspeicher anschließt,
     betreibt Komponenten, die kein Scan dieser Images sehen kann. Das
     Release-SBOM für das ganze Inventar zu halten ist die Lücke, die dieser
@@ -143,7 +146,7 @@ das eigene Inventar des Deployments.
 
 | Artefakt | Erzeugt von | Wann |
 |---|---|---|
-| Die vier Release-SBOMs | dem Job `sbom` in `.github/workflows/images.yml`, eines pro Image pro Architektur, aus den veröffentlichten Manifesten | bei jeder Veröffentlichung; bei einem `v*`-Tag an das Release angehängt, sonst als Lauf-Artefakt |
+| Die sechs Release-SBOMs | dem Job `sbom` in `.github/workflows/images.yml`, eines pro Image pro Architektur, aus den veröffentlichten Manifesten | bei jeder Veröffentlichung; bei einem `v*`-Tag an das Release angehängt, sonst als Lauf-Artefakt |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | wann immer sich ein Lockfile ändert; `make licenses-check` lässt den Build scheitern, wenn es veraltet ist |
 | Diese Seite | von Hand | wann immer eine Komponente hinzukommt, entfällt oder zwischen den obigen Mengen wechselt |
 
@@ -154,7 +157,7 @@ Sie tragen die Entwicklungs- und Dokumentations-Abhängigkeitsgruppen, sofern
 installiert, und keine der Schichten darunter — kein Basis-Image, keine
 Debian-Pakete, keine gebauten Artefakte. Nützlich, um einen Abhängigkeitssatz zu
 lesen, ohne zwei Images zu ziehen; nutzlos als Beleg dafür, was ein Release
-ausliefert — dafür sind die vier Dokumente oben da. Es braucht ein installiertes
+ausliefert — dafür sind die sechs Dokumente oben da. Es braucht ein installiertes
 [syft](https://github.com/anchore/syft) und gehört bewusst nicht zu
 `make check`.
 

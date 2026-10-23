@@ -6,8 +6,6 @@ consumer import the workflow execution facade, which imports this package back,
 so they stay out of the package's own import.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

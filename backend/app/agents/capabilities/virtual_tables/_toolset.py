@@ -13,8 +13,6 @@ connection sits idle through a model call, and a tool call is its own small
 transaction.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 from uuid import UUID

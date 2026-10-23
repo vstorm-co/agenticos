@@ -12,6 +12,7 @@ import { MarkdownContent } from "./markdown-content";
 import { BUILTIN_COMMANDS, resolveBuiltin } from "./slash-commands";
 import type { Translate } from "@/lib/agent-step-captions";
 import messages from "../../../messages/en.json";
+import { useAgentSelectionStore } from "@/stores";
 
 /**
  * The built-ins as the palette receives them: `BUILTIN_COMMANDS` holds keys, and the
@@ -27,11 +28,20 @@ const commands = BUILTIN_COMMANDS.map((command) =>
 
 const auth = vi.hoisted(() => ({
   user: null as { full_name?: string | null; email?: string } | null,
+  agents: [] as Record<string, unknown>[],
 }));
-vi.mock("@/hooks", () => ({ useAuth: () => ({ user: auth.user }) }));
+vi.mock("@/hooks", () => ({
+  useAuth: () => ({ user: auth.user }),
+  useAgents: () => ({ agents: auth.agents }),
+}));
+// What the agent may be pointed at - here, nothing that draws, so the general
+// starters show; `chat-empty-state.test.tsx` covers an agent with Visuals.
+vi.mock("@/hooks/use-mentionables", () => ({ useMentionables: () => ({ items: [] }) }));
 
 beforeEach(() => {
   auth.user = null;
+  auth.agents = [];
+  useAgentSelectionStore.setState({ selectedAgentId: null });
   vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 
@@ -103,13 +113,66 @@ describe("the queue above the composer", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("numbers what is waiting, in the order it will be sent", () => {
+  it("lists what is waiting, in the order it will be sent", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 
     const rows = screen.getAllByRole("listitem");
-    expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("First question")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("2")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Second question")).toBeInTheDocument();
+  });
+
+  it("sends one into the running task on Send now", async () => {
+    const onSendNow = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onSendNow={onSendNow} />);
+
+    const rows = screen.getAllByRole("listitem");
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: /Send now/ }));
+
+    expect(onSendNow).toHaveBeenCalledWith("q-1");
+    // A file cannot ride along into a running task, so that one waits.
+    expect(within(rows[1]!).getByRole("button", { name: /Send now/ })).toBeDisabled();
+  });
+
+  it("holds a message that points at something, which a correction cannot carry", () => {
+    render(
+      <PendingMessages
+        messages={
+          [
+            {
+              id: "q-3",
+              content: "@Contracts check this",
+              mentions: [{ kind: "collection", id: "kb-1", name: "Contracts" }],
+            },
+          ] as Parameters<typeof PendingMessages>[0]["messages"]
+        }
+        onCancel={vi.fn()}
+        onSendNow={vi.fn()}
+      />,
+    );
+
+    const send = screen.getByRole("button", { name: /Send now/ });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "A message pointing at something waits for the answer");
+  });
+
+  it("offers no Send now with no task running to join", () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /Send now/ })).toBeNull();
+  });
+
+  it("shows what was sent into the task until the model has read it", () => {
+    const { container } = render(
+      <PendingMessages
+        messages={[]}
+        steers={[{ id: "s-1", text: "use the EU numbers" }]}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(container).not.toBeEmptyDOMElement();
+    expect(screen.getByText("use the EU numbers")).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   it("says a queued message carries attachments, and how many", () => {
@@ -147,10 +210,46 @@ describe("the queue above the composer", () => {
     expect(onCancel).toHaveBeenCalledWith("q-2");
   });
 
+  it("reorders with the arrows, which stop at either end", async () => {
+    const onMove = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onMove={onMove} />);
+
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]!).getByRole("button", { name: "Move up" })).toBeDisabled();
+    expect(within(rows[1]!).getByRole("button", { name: "Move down" })).toBeDisabled();
+    await userEvent.click(within(rows[1]!).getByRole("button", { name: "Move up" }));
+    expect(onMove).toHaveBeenCalledWith("q-2", 0);
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: "Move down" }));
+    expect(onMove).toHaveBeenCalledWith("q-1", 1);
+  });
+
+  it("reorders by dragging a row onto another", () => {
+    const onMove = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onMove={onMove} />);
+    const [first, second] = screen.getAllByRole("listitem");
+    const dataTransfer = { effectAllowed: "" };
+
+    // A drag that never started moves nothing.
+    fireEvent.dragOver(second!, { dataTransfer });
+    fireEvent.dragStart(second!, { dataTransfer });
+    fireEvent.dragOver(first!, { dataTransfer });
+    fireEvent.drop(first!, { dataTransfer });
+
+    expect(onMove).toHaveBeenCalledWith("q-2", 0);
+    fireEvent.dragEnd(second!);
+  });
+
+  it("folds to one line, and opens again", async () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /2 messages queued/ }));
+
+    expect(screen.queryByRole("listitem")).toBeNull();
+  });
+
   it("says when the queue will drain", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 
-    expect(screen.getByText(/sends after current reply/)).toBeInTheDocument();
+    expect(screen.getByText("Waiting for the answer")).toBeInTheDocument();
   });
 });
 
@@ -303,15 +402,27 @@ describe("the empty chat", () => {
 
     await userEvent.click(screen.getByText("Summarize my docs"));
 
-    expect(onPick).toHaveBeenCalledWith(
-      "Summarize the key points from my latest indexed documents.",
-    );
+    expect(onPick).toHaveBeenCalledWith("Summarize the key points from my latest documents.");
   });
 
-  it("names the agent that will answer", () => {
-    render(<ChatEmptyState onPick={vi.fn()} agentLabel="@support" />);
+  it("opens on the agent who will answer, by name and with what it does", () => {
+    auth.agents = [
+      {
+        id: "a-1",
+        slug: "sales-researcher",
+        name: "Sales Researcher",
+        description: "Prepares a company brief before a first call.",
+        has_avatar: false,
+        avatar_color: null,
+      },
+    ];
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
 
-    expect(screen.getByText(/Powered by @support/)).toBeInTheDocument();
+    render(<ChatEmptyState onPick={vi.fn()} />);
+
+    expect(screen.getByText("Sales Researcher")).toBeInTheDocument();
+    expect(screen.getByText(/Prepares a company brief before a first call/)).toBeInTheDocument();
+    expect(screen.queryByText(/start from one of these/)).toBeNull();
   });
 });
 

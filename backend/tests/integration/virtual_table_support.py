@@ -1,7 +1,5 @@
 """Seed helpers shared by the Virtual Tables integration tests."""
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import Callable, Sequence

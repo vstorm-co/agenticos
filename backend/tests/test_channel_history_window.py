@@ -16,8 +16,6 @@ these are written against - three surfaces reading the window three times is how
 it came to be wrong twice.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

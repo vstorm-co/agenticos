@@ -12,8 +12,6 @@ session of its own, as the tools do, so two gated calls in one model step never
 share one.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 from uuid import UUID

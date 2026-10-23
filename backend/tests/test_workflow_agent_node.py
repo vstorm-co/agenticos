@@ -5,8 +5,6 @@ what these pin is what the handler makes of each way an agent run can end, which
 real model would need an approval-gated tool or a spent budget to reach.
 """
 
-from __future__ import annotations
-
 import dataclasses
 import uuid
 from contextlib import asynccontextmanager

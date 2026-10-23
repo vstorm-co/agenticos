@@ -77,7 +77,7 @@ describe("useArtifactRequests", () => {
     const { result } = renderHook(() => useArtifactRequests("a1", true, true), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/share-requests", {
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/share-requests", {
       params: { include_decided: "true" },
     });
     expect(result.current.requests.map((item) => item.id)).toEqual(["r1", "r2", "r0"]);
@@ -85,7 +85,7 @@ describe("useArtifactRequests", () => {
 
     renderHook(() => useArtifactRequests("a1", false, true), { wrapper });
     await waitFor(() =>
-      expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/share-requests", {
+      expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/share-requests", {
         params: undefined,
       }),
     );
@@ -105,12 +105,12 @@ describe("useArtifactRequestActions", () => {
     const { result } = renderHook(() => useArtifactRequestActions("a1"), { wrapper });
 
     await act(() => result.current.approve.mutateAsync("r1"));
-    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/share-requests/r1/approve");
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/share-requests/r1/approve");
     expect(toast.success).toHaveBeenCalledWith("Request approved");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["artifacts", "a1"] });
 
     await act(() => result.current.decline.mutateAsync("r2"));
-    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/share-requests/r2/decline");
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/share-requests/r2/decline");
     expect(toast.success).toHaveBeenCalledWith("Request declined");
   });
 
@@ -141,11 +141,11 @@ describe("useRequestAccess", () => {
     const { result } = renderHook(() => useRequestAccess("a1"), { wrapper });
 
     await act(() => result.current.mutateAsync("Need the Q3 numbers"));
-    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/access-requests", {
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/access-requests", {
       note: "Need the Q3 numbers",
     });
     await act(() => result.current.mutateAsync(null));
-    expect(apiClient.post).toHaveBeenLastCalledWith("/artifacts/a1/access-requests", {
+    expect(apiClient.post).toHaveBeenLastCalledWith("/apps/a1/access-requests", {
       note: null,
     });
   });
@@ -168,6 +168,6 @@ describe("useVersionReview", () => {
 
     const { result } = renderHook(() => useVersionReview("a1", "v3", true), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions/v3/review");
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/versions/v3/review");
   });
 });

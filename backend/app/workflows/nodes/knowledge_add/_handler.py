@@ -10,8 +10,6 @@ The document is named, and a second run that adds the same name replaces it
 rather than adding a twin - which is also what makes a retry safe.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from typing import Self

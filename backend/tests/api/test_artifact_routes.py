@@ -9,12 +9,11 @@ reason the content route exists at all - the headers that isolate the page.
 These run the real service with the repository stubbed at the database edge.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -60,6 +59,24 @@ _ORGANIZATION_ID = uuid.uuid4()
 OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 
 PATH = "app.services.artifact"
+
+
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+
+
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; these tests have no database to ask."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
 
 
 def _artifact(*, public_key: str | None = None) -> Artifact:
@@ -143,7 +160,45 @@ def _public_data_edge() -> Iterator[None]:
 
 
 def _url(suffix: str = "") -> str:
-    return f"{settings.API_V1_STR}/artifacts{suffix}"
+    return f"{settings.API_V1_STR}/apps{suffix}"
+
+
+class TestFollowing:
+    async def test_following_and_unfollowing_answer_with_the_page(self, client: OpenClient) -> None:
+        row = _artifact()
+        follow = AsyncMock()
+        unfollow = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.follow", new=follow),
+            patch(f"{PATH}.artifact_repo.unfollow", new=unfollow),
+            patch(f"{PATH}.artifact_repo.is_following", new=AsyncMock(side_effect=[True, False])),
+        ):
+            async with client() as http:
+                followed = await http.put(_url(f"/{row.id}/follow"))
+                unfollowed = await http.delete(_url(f"/{row.id}/follow"))
+        assert followed.status_code == 200
+        assert followed.json()["following"] is True
+        assert unfollowed.status_code == 200
+        assert unfollowed.json()["following"] is False
+        assert follow.await_args.kwargs["artifact_id"] == row.id
+        assert unfollow.await_args.kwargs["artifact_id"] == row.id
+
+    @pytest.mark.security
+    async def test_a_page_the_caller_cannot_open_cannot_be_followed(
+        self, client: OpenClient
+    ) -> None:
+        """Following is not a way to learn that a page exists."""
+        follow = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.follow", new=follow),
+        ):
+            async with client() as http:
+                response = await http.put(_url(f"/{uuid.uuid4()}/follow"))
+        assert response.status_code == 404
+        follow.assert_not_called()
 
 
 class TestMembers:
@@ -165,6 +220,23 @@ class TestMembers:
         assert body["total"] == 1
         assert body["items"][0]["current_version"]["number"] == 3
         assert body["items"][0]["public_url"] is None
+
+    async def test_the_listing_narrows_to_a_project_the_caller_can_see(
+        self, client: OpenClient
+    ) -> None:
+        project_id = uuid.uuid4()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = AsyncMock()
+            async with client() as http:
+                response = await http.get(_url(f"?project_id={project_id}"))
+        assert response.status_code == 200
+        assert listing.await_args.kwargs["project_id"] == project_id
 
     @pytest.mark.security
     async def test_an_artifact_in_another_organization_is_not_found(
@@ -319,7 +391,7 @@ class TestStrangers:
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         ):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/{'k' * 32}")
         assert response.status_code == 200
         assert set(response.json()) == {"password_required", "title", "published_at", "view"}
 
@@ -327,7 +399,7 @@ class TestStrangers:
     async def test_a_revoked_link_is_not_found(self, client: OpenClient) -> None:
         with patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=None)):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/gone")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/gone")
         assert response.status_code == 404
 
     @pytest.mark.security
@@ -337,7 +409,7 @@ class TestStrangers:
             rate_limit, "public_artifact_allowed", new=AsyncMock(return_value=refused)
         ):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/k")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/k")
         assert response.status_code == 429
 
 
@@ -456,13 +528,70 @@ class TestTheContentRoute:
         assert "sandbox" not in response.headers.get("content-security-policy", "")
 
 
+class TestTheTileRoute:
+    @pytest.mark.security
+    async def test_a_tile_is_an_image_for_any_page_and_carries_nothing_else(
+        self, client: OpenClient
+    ) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+        with patch(
+            "app.api.routes.v1.artifacts.tile_proxy.tile",
+            new=AsyncMock(return_value=(png, "image/png")),
+        ) as fetched:
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/3/4/5")
+
+        assert response.status_code == 200
+        assert response.content == png
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["cross-origin-resource-policy"] == "cross-origin"
+        assert "set-cookie" not in response.headers
+        fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_tile_path_that_is_not_three_numbers_is_refused(
+        self, client: OpenClient
+    ) -> None:
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/tiles/3/4/secret-from-the-page"
+            )
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_an_address_fetching_too_many_tiles_is_refused_before_any_fetch(
+        self, client: OpenClient
+    ) -> None:
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
+        fetch = AsyncMock()
+        with (
+            patch.object(rate_limit, "map_tiles_allowed", new=AsyncMock(return_value=refused)),
+            patch("app.api.routes.v1.artifacts.tile_proxy.tile", new=fetch),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/tiles/1/0/0")
+        assert response.status_code == 429
+        fetch.assert_not_awaited()
+
+
 class TestWhatAPageGained:
     async def test_the_agent_filter_lists_the_publishers(self, client: OpenClient) -> None:
         agent_id = uuid.uuid4()
         with (
             patch(
                 f"{PATH}.artifact_repo.publishing_agents",
-                new=AsyncMock(return_value=[(agent_id, "Reporter")]),
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            id=agent_id,
+                            slug="reporter",
+                            has_avatar=False,
+                            avatar_color=None,
+                            name="Reporter",
+                        )
+                    ]
+                ),
             ),
             patch(
                 f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
@@ -473,7 +602,17 @@ class TestWhatAPageGained:
                 agents = await http.get(_url("/agents"))
                 filtered = await http.get(_url(f"?agent_id={agent_id}"))
         assert agents.status_code == 200
-        assert agents.json() == {"items": [{"id": str(agent_id), "name": "Reporter"}]}
+        assert agents.json() == {
+            "items": [
+                {
+                    "id": str(agent_id),
+                    "name": "Reporter",
+                    "slug": "reporter",
+                    "has_avatar": False,
+                    "avatar_color": None,
+                }
+            ]
+        }
         assert filtered.status_code == 200
         assert listing.await_args.kwargs["agent_id"] == agent_id
 
@@ -552,9 +691,9 @@ class TestStrangersWithAPassword:
             patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
         ):
             async with client() as http:
-                asked = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+                asked = await http.get(f"{settings.API_V1_STR}/public/apps/{'k' * 32}")
                 wrong = await http.post(
-                    f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}/unlock",
+                    f"{settings.API_V1_STR}/public/apps/{'k' * 32}/unlock",
                     json={"password": "wrong-one"},
                 )
         assert asked.json() == {
@@ -574,7 +713,7 @@ class TestStrangersWithAPassword:
         ):
             async with client() as http:
                 response = await http.post(
-                    f"{settings.API_V1_STR}/public/artifacts/k/unlock", json={"password": "x"}
+                    f"{settings.API_V1_STR}/public/apps/k/unlock", json={"password": "x"}
                 )
         assert response.status_code == 429
 
@@ -666,7 +805,9 @@ class TestTheDataRoute:
         row = _artifact()
         read = AsyncMock(return_value=row)
         with (
-            patch("app.api.deps.member_repo.get", new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.deps.member_repo.get_with_organization", new=AsyncMock(return_value=None)
+            ),
             patch(f"{PATH}.artifact_repo.get", new=read),
         ):
             async with client() as http:
@@ -1548,3 +1689,61 @@ class TestPublicData:
         assert body["public_data"]["consented"] is False
         assert body["public_data"]["holds"] is False
         assert audit.await_args.kwargs["action"] == "artifact.public_data_withdrawn"
+
+
+class TestTheOldPaths:
+    """Apps were artifacts until #2071; the old paths answer for the v1 policy's 90 days."""
+
+    async def test_a_public_link_still_answers_at_the_old_path(self, client: OpenClient) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        row = _artifact(public_key="k" * 32)
+        with (
+            patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
+            patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+        assert response.status_code == 200
+
+    def test_the_old_paths_are_marked_deprecated_and_the_new_ones_are_not(self) -> None:
+        paths = app.openapi()["paths"]
+        old = [p for p in paths if p.startswith(f"{settings.API_V1_STR}/artifacts")]
+        new = [p for p in paths if p.startswith(f"{settings.API_V1_STR}/apps")]
+
+        assert old and len(old) == len(new)
+        assert all(op.get("deprecated") for p in old for op in paths[p].values())
+        assert not any(op.get("deprecated") for p in new for op in paths[p].values())
+
+
+class TestTheVisualFrame:
+    @pytest.mark.security
+    async def test_the_frame_is_the_app_sandbox_and_holds_no_visual(
+        self, client: OpenClient
+    ) -> None:
+        """A drawing is model-written script that may have read hostile input, so
+        it gets exactly an app's isolation - from a header, not a meta tag."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(f"{settings.API_V1_STR}/artifact-content/visual-frame")
+        assert response.status_code == 200
+        policy = response.headers["content-security-policy"]
+        assert policy.startswith("sandbox allow-scripts allow-modals;")
+        assert "connect-src 'none'" in policy
+        assert "frame-ancestors" in policy
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert "__agenticosVisualDocument" in response.text
+
+    async def test_a_module_library_answers_cors_for_an_opaque_origin(
+        self, client: OpenClient
+    ) -> None:
+        """three.js imports as a module, fetched in CORS mode with `Origin: null`."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/lib/three-0.186.0/addons/controls/OrbitControls.js"
+            )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "*"
+        assert b"OrbitControls" in response.content

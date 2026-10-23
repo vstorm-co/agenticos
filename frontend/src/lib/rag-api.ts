@@ -10,7 +10,7 @@
 import { apiClient } from "./api-client";
 import { saveBlob, type FileAccess } from "./file-access";
 import { qk } from "./query-keys";
-import type { KBParsedContent } from "@/types";
+import type { KBDocument, KBDocumentList, KBParsedContent } from "@/types";
 import type { JsonSchema } from "@/types/agents";
 
 /** Narrowing-only business filters (FA-039). None of these can widen access:
@@ -72,6 +72,20 @@ export function kbDocumentAccess(kbId: string, doc: { id: string; filename: stri
 }
 
 /**
+ * The document a citation names, in the base it names - or null.
+ *
+ * A search result and an agent's citation carry a file's name and its collection,
+ * not a row id, so the original is found by name. Null when the base no longer
+ * holds it: a citation outlives the file it quoted.
+ */
+export async function findKBDocument(kbId: string, filename: string): Promise<KBDocument | null> {
+  const found = await apiClient.get<KBDocumentList>(
+    `/kb/${kbId}/documents?filename=${encodeURIComponent(filename)}&limit=1`,
+  );
+  return found.items[0] ?? null;
+}
+
+/**
  * How a KB document parsed: the indexed chunks, grouped back into pages.
  *
  * The counterpart of the download URL above - original bytes there, what the
@@ -106,6 +120,20 @@ export interface SyncSourceCreate {
   sync_mode?: string;
   schedule_minutes?: number | null;
 }
+
+/**
+ * A change to an existing source: only the fields that change.
+ *
+ * The connector is fixed once a source exists. `config` is merged into the
+ * stored one rather than replacing it, and a `secret_id` sent is checked again
+ * as the caller's own choice - so leave it out unless the credential changes.
+ */
+export type SyncSourceUpdate = Partial<
+  Pick<
+    SyncSourceCreate,
+    "name" | "config" | "secret_id" | "organizational_unit" | "sync_mode" | "schedule_minutes"
+  >
+>;
 
 export interface SyncSourceRead {
   id: string;

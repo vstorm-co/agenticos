@@ -71,11 +71,36 @@ That is what makes the split useful: a dev bot bound to `dev` serves whatever
 move it. One agent, two audiences, two versions, one set of books.
 
 A page the agent publishes follows the same split. A run in a named environment
-publishes an [artifact](artifacts.md#one-name-one-link) of its own, so trying
+publishes an [app](artifacts.md#one-name-one-link) of its own, so trying
 `dev` on the weekly report never republishes the page production readers open.
 An environment with a run still working, or waiting for an approval, cannot be
 removed until the run ends: deleting it would hand that run to the default, and
 its pages to production's.
+
+## Trying it from the Builder
+
+**Test**, in the Builder's header, opens a chat beside the Builder rather than over
+it - the same chat as `/chat`, with streaming, tool steps, approval cards and
+questions. It answers as the **draft**, with your unpublished changes, or as any
+environment's version, and says which. Nothing is published to test the draft: it
+must pass the checks a publish makes, and only somebody who may edit the agent can
+run it. A run parked on an approval continues on the draft as it was when the run
+started.
+
+Every turn there is a **test run**: budgeted and recorded like any other, marked
+`test` in Activity, and filterable there (**With test runs**, **Without test
+runs**, **Only test runs**; `?test=true` or `false` on `GET /api/v1/runs`). The
+panel starts a new conversation, sends the last message again after an edit, and
+keeps a few pinned prompts to rerun in one click. Its width, what answers and the
+pins are remembered per agent in your browser. The chat frame sends `draft: true`,
+or `test: true` with an `environment_id`, on each turn.
+
+**Compare** puts two chats side by side - the draft and production, or two
+environments - and the box above them asks both the same thing at once, so the
+answers differ only by what answers. **What the draft changes** shows the draft
+against the published version, as the same diff the version history draws.
+Pressing <kbd>T</kbd> anywhere on the Builder, outside a text field, opens or closes
+the panel.
 
 ## Tracing per environment
 

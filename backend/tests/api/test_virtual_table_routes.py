@@ -7,8 +7,6 @@ status codes, the replay header, the error envelope a client branches on, reques
 validation, and the OpenAPI document Kacper's external API is generated from.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -728,7 +726,7 @@ async def test_table_writes_stay_bounded_on_this_worker_when_the_shared_limiter_
     down = MagicMock()
     down.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
     monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 3)
-    monkeypatch.setattr(rate_limit, "_fallback_windows", rate_limit.LocalWindows())
+    monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
     rate_limit.configure(down)
 
     try:

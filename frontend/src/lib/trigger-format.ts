@@ -76,7 +76,14 @@ export function parseCron(expression: string): ParsedCron {
     return { ...fallback, freq: "everyNDays", time, everyDays: everyN };
   }
   if (dom === "*" && dow !== "*") {
-    const days = dow.split(",").map(Number);
+    // Ranges as well as lists - `1-5` is how a weekday schedule is usually
+    // written, and read as "advanced" it was shown as raw cron notation.
+    const days = dow.split(",").flatMap((item) => {
+      const range = /^([0-6])-([0-6])$/.exec(item);
+      if (range === null) return [Number(item)];
+      const [from, to] = [Number(range[1]), Number(range[2])];
+      return from <= to ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [Number.NaN];
+    });
     if (days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)) {
       return { ...fallback, freq: "weekly", time, weekdays: days };
     }
@@ -188,8 +195,18 @@ export function scheduleSummary(schedule: ScheduleCadence): TriggerSummary {
   return { kind: "interval", unit, count };
 }
 
+/**
+ * The fields that decide what fires a trigger - all a cadence line reads, so a
+ * template's suggested cadence can be described before any trigger exists.
+ */
+export type FiringShape = Pick<
+  Trigger,
+  "trigger_type" | "schedule_kind" | "cron_expression" | "interval_seconds"
+> &
+  Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source">>;
+
 /** What makes this trigger fire, reduced for display. */
-export function triggerSummary(trigger: Trigger): TriggerSummary {
+export function triggerSummary(trigger: FiringShape): TriggerSummary {
   if (trigger.trigger_type === "event") {
     // A preset reads in plain language - "New issue in acme/repo" - when the
     // portal and its target (the backend's `provider_target`) are both known; a
@@ -231,7 +248,7 @@ function presetEventKey(portalKey: string): string {
  * translator of its own, and answering with a key would not work for the
  * branches that interpolate.
  */
-export function cadenceText(trigger: Trigger, t: Translate): string {
+export function cadenceText(trigger: FiringShape, t: Translate): string {
   return summaryText(triggerSummary(trigger), t);
 }
 
@@ -251,6 +268,10 @@ function summaryText(summary: TriggerSummary, t: Translate): string {
     case "cronDaily":
       return t("cadence.cronDaily", { time: summary.time });
     case "cronWeekly":
+      // Monday to Friday is said as such rather than as five day names.
+      if ([...summary.weekdays].sort().join(",") === "1,2,3,4,5") {
+        return t("cadence.cronWeekdays", { time: summary.time });
+      }
       // Monday-first, the order the picker shows, not cron's Sunday-zero order.
       return t("cadence.cronWeekly", {
         time: summary.time,

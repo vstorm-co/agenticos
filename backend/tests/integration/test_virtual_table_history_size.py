@@ -6,8 +6,6 @@ size of the record each time. History now keeps only the cells that changed, and
 record limit bounds the one-off snapshots a create and a delete keep.
 """
 
-from __future__ import annotations
-
 import pytest
 from sqlalchemy import func, select, text
 

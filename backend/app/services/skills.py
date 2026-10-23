@@ -6,8 +6,6 @@ This module owns storage and access; turning skills into something an agent can
 read is the skills *capability*.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from enum import StrEnum
@@ -41,6 +39,8 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
+from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         description=skill.description,
         category=skill.category,
         enabled=skill.enabled,
+        visibility=skill.visibility,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
         excerpt=excerpt(skill.content),
@@ -195,6 +196,7 @@ class SkillService:
         shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
+        group_id: UUID | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -206,7 +208,8 @@ class SkillService:
         org-visible ones and those explicitly shared with them - the same set
         :func:`resolve_access` would admit one row at a time. `shared_with_me`
         narrows to what was deliberately shared with the caller - org-visible
-        or explicitly granted, and not their own.
+        or explicitly granted, and not their own. `group_id` narrows to the
+        skills shared with one group.
         """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # skill, which is exactly what `see_all` tells the query - so both come
@@ -234,6 +237,7 @@ class SkillService:
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
+            only_ids=await shared_with_group(self.db, ctx, resource_type=SKILL, group_id=group_id),
             search=search,
             categories=categories,
             sort=sort,
@@ -248,6 +252,7 @@ class SkillService:
         shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
+        group_id: UUID | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -278,13 +283,25 @@ class SkillService:
             shared_with_me=shared_with_me,
             search=search,
             categories=categories,
+            group_id=group_id,
             sort=sort,
             skip=skip,
             limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
+        used = await agents_using(
+            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
+        )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
+        )
         return SkillList(
-            items=[_summary(skill, bundled_names) for skill in items],
+            items=[
+                _summary(skill, bundled_names).model_copy(
+                    update={"used_by": used[skill.id], "shared_groups": groups[skill.id]}
+                )
+                for skill in items
+            ],
             total=total,
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
@@ -344,6 +361,8 @@ class SkillService:
         category: str | None = None,
         visibility: Visibility = Visibility.PRIVATE,
         library_fingerprint: str | None = None,
+        group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> Skill:
         """Create a skill.
 
@@ -387,6 +406,14 @@ class SkillService:
             target_id=str(skill.id),
             details={"name": name},
         )
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                skill,
+                resource_type=SKILL,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
+            )
         return skill
 
     async def update(self, ctx: AuthContext, skill_id: UUID, data: SkillUpdate) -> Skill:

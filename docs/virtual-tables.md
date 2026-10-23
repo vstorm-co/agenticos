@@ -473,8 +473,8 @@ workflows that start from it, pauses and resumes each, and opens its history.
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record
 committed before that moment ever starts it, and nothing added while it was off is
-replayed. A worker heartbeat reads each new record's outbox event within about ten
-seconds. It decides once per trigger and records the decision; a second pass, or a
+replayed. The `workflow-table-triggers` job, which runs every ten seconds, reads each new
+record's outbox event, so a trigger starts within about ten seconds. It decides once per trigger and records the decision; a second pass, or a
 second worker, finds that decision and starts nothing.
 
 **History** lists each decision, newest first, without the record's values:

@@ -17,8 +17,6 @@ other then fills.
   starts until the month turns or the budget is raised.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID

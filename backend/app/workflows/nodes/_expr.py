@@ -15,8 +15,6 @@ for a well-formed expression except on a type mismatch inside a function
 (`length(42)`), which `evaluate` reports as `ExpressionError`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import jmespath

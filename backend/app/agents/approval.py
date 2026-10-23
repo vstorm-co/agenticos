@@ -15,8 +15,6 @@ down a layer, below both, removes the cycle rather than tiptoeing around it.
 This module imports nothing from `app`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -74,6 +72,9 @@ class ApprovalRequest:
     tool_name: str
     tool_call_id: str
     tool_args: dict[str, Any]
+    account: str | None = None
+    """Which account of an MCP service the call acts as, where its binding names one -
+    see `app.agents.mcp.ACCOUNT`."""
 
     capability_tool_id: str | None = None
     """The stable id the owning capability declares the tool under, or `None` for a

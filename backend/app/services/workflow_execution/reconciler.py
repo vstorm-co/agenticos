@@ -19,11 +19,8 @@ findable:
   starting), this is what finds the same shape from the data alone.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +29,7 @@ from app.core.config import settings
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
-from app.services.workflow_execution import dispatcher
+from app.services.workflow_execution import dispatch_queue, dispatcher
 from app.services.workflow_execution.approval_wake import still_waiting_on
 from app.services.workflow_execution.approvals import still_parked
 
@@ -61,14 +58,14 @@ class WorkflowReconcilerService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def stale_claims(self, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
-        """`(workflow_run_id, node_run_id)` pairs whose claim expired with no
-        attempt ever made, and that were not resubmitted within the last lease.
+    async def stale_claims(self, *, limit: int = 100) -> int:
+        """Queue a dispatch job for every claim that expired with no attempt ever
+        made and was not queued within the last lease; returns how many.
 
-        Stamps each as submitted and claims nothing: the caller (`app.worker.
-        tasks.workflow_tasks.workflow_reconcile_flow`) re-triggers
-        `workflow-dispatch-node` for each, which performs the actual claim -
-        keeping exactly one code path responsible for the compare-and-swap.
+        Stamps each row and queues its job in this transaction, and claims
+        nothing: the job's own `claim` does the compare-and-swap - keeping
+        exactly one code path responsible for it. The jobs are deduped per node,
+        so a backed-up pool is not buried in copies.
         """
         now = datetime.now(UTC)
         rows = await workflow_run_repo.take_stale_claims_for_resubmission(
@@ -77,7 +74,9 @@ class WorkflowReconcilerService:
             resubmit_before=now - timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS),
             limit=limit,
         )
-        return [(row.workflow_run_id, row.node_run_id) for row in rows]
+        for row in rows:
+            await dispatch_queue.queue_dispatch_job(self.db, row)
+        return len(rows)
 
     async def resolve_orphaned_attempts(self, *, limit: int = 100) -> int:
         """Settle every `in_flight` attempt nobody can still settle.
@@ -152,12 +151,7 @@ class WorkflowReconcilerService:
                 continue
             try:
                 async with self.db.begin_nested():
-                    await workflow_run_repo.create_outbox(
-                        self.db,
-                        organization_id=run.organization_id,
-                        workflow_run_id=run.id,
-                        node_run_id=node_run.id,
-                    )
+                    await dispatch_queue.queue_dispatch(self.db, run=run, node_run_id=node_run.id)
             except IntegrityError:
                 continue
             woken += 1
@@ -189,12 +183,7 @@ class WorkflowReconcilerService:
                 continue
             try:
                 async with self.db.begin_nested():
-                    await workflow_run_repo.create_outbox(
-                        self.db,
-                        organization_id=run.organization_id,
-                        workflow_run_id=run.id,
-                        node_run_id=node_run.id,
-                    )
+                    await dispatch_queue.queue_dispatch(self.db, run=run, node_run_id=node_run.id)
             except IntegrityError:
                 continue
             woken += 1

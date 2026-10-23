@@ -4,16 +4,24 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
+import {
+  ConnectOwnServerDialog,
+  ConnectServerDialog,
+  useConnectEntry,
+  useSignInOwn,
+} from "@/components/agents/connect-server-dialog";
 import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
-import { useMcpCatalog, useOrgMcpConnections, usePermissions } from "@/hooks";
+import { useMcpCatalog, useMcpConnections, useOrgMcpConnections, usePermissions } from "@/hooks";
+import { withCapability } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
+import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { narrowedSelection } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import type { McpServerRef } from "@/types/agents";
+import type { AgentSpec, McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { Perm } from "@/types/permissions";
 
@@ -60,23 +68,37 @@ export function toolChoice(
  * connecting a new one works the same in both.
  */
 export function McpBindingsEditor({
-  value,
+  spec,
   onChange,
   disabled,
 }: {
-  value: McpServerRef[];
-  onChange: (next: McpServerRef[]) => void;
+  spec: AgentSpec;
+  onChange: (changes: Partial<AgentSpec>) => void;
   disabled?: boolean;
 }) {
+  const value = spec.mcp_servers;
+  const setServers = (mcp_servers: McpServerRef[]) => onChange({ mcp_servers });
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
-  // The organization's servers, never the author's own: a personal connection
-  // is refused at publish, so offering one would be offering a choice that
-  // cannot be published. `useMcpCatalog` only supplies the names and logos -
-  // the ids the spec stores belong to the connections.
+  // A binding to the organization's connection names its id; one to each
+  // person's own account names the catalog entry, so the author's own
+  // connections are listed to read tool counts and to connect or sign in.
+  // `useMcpCatalog` only supplies the names and logos.
   const { connections, test: probe } = useOrgMcpConnections();
+  const { connections: myConnections } = useMcpConnections();
   const { servers: catalog } = useMcpCatalog();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
+  const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
+  const connectServer = useConnectEntry("organization", {
+    openForm: setConnectingServer,
+    held: connections,
+  });
+  const signInOwn = useSignInOwn({ returnTo: hereForMcpOAuthReturn() });
+  const connectOwn = useConnectEntry("personal", {
+    returnTo: hereForMcpOAuthReturn(),
+    openForm: setConnectingOwnServer,
+    held: myConnections,
+  });
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
   // picker state rather than inside it because the dialog is shared with the
@@ -85,11 +107,24 @@ export function McpBindingsEditor({
 
   return (
     <>
+      <McpToolLoadNotice
+        className="mb-4"
+        spec={spec}
+        connections={connections}
+        personalConnections={myConnections}
+        onEnableToolSearch={() =>
+          onChange({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+        }
+        disabled={disabled}
+      />
       <McpServerPicker
         connections={connections}
         catalog={catalog}
         value={value}
-        onChange={onChange}
+        onChange={setServers}
+        personalConnections={myConnections}
+        onConnectOwn={connectOwn}
+        onSignInOwn={signInOwn}
         onTools={async (ref, connection, name) => {
           setToolBinding(bindingKey(ref));
           // A connection nobody has checked has no tool list; check it here for
@@ -107,7 +142,7 @@ export function McpBindingsEditor({
             setToolPicker(toolChoice(ref, connection, name));
           }
         }}
-        onConnect={setConnectingServer}
+        onConnect={connectServer}
         disabled={disabled}
       />
 
@@ -128,7 +163,7 @@ export function McpBindingsEditor({
             // the binding's own names, all-checked is true by construction.
             toolPicker.connection.last_tools !== null,
           );
-          onChange(
+          setServers(
             value.map((ref) =>
               bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
             ),
@@ -138,17 +173,29 @@ export function McpBindingsEditor({
         }}
       />
 
+      <ConnectOwnServerDialog
+        entry={connectingOwnServer}
+        onClose={() => setConnectingOwnServer(null)}
+        returnTo={hereForMcpOAuthReturn()}
+      />
+
       <ConnectServerDialog
         entry={connectingServer}
         onClose={() => setConnectingServer(null)}
         // Bound as soon as it exists: somebody who connected a server from
-        // here was going to tick it next.
-        onConnected={(connectionId) =>
-          onChange([
-            ...value,
-            { account: "organization", connection_id: connectionId, allowed_tools: null },
-          ])
-        }
+        // here was going to tick it next, and its tools come up at once from
+        // the check that connecting just ran (#2073).
+        onConnected={(connection) => {
+          const bound: McpServerRef = {
+            account: "organization",
+            connection_id: connection.id,
+            allowed_tools: null,
+            approval: "none",
+          };
+          setServers([...value, bound]);
+          setToolBinding(bindingKey(bound));
+          setToolPicker(toolChoice(bound, connection, connection.label ?? connection.name));
+        }}
       />
     </>
   );

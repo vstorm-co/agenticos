@@ -30,6 +30,7 @@ from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 
 pytestmark = pytest.mark.anyio
 
+QUEUE_PATH = "app.services.workflow_execution.dispatch_queue"
 RECONCILER_PATH = "app.services.workflow_execution.reconciler"
 
 
@@ -45,6 +46,8 @@ def repo():
     with (
         patch(f"{RECONCILER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatcher.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.dispatch_queue.enqueue", new=AsyncMock()),
     ):
         yield mocked
 
@@ -139,20 +142,28 @@ def _attempt(**overrides: object) -> NodeAttempt:
 
 
 class TestStaleClaims:
-    async def test_returns_the_run_and_node_run_ids_of_every_stale_claim(self, repo):
-        run_id, node_run_id = uuid.uuid4(), uuid.uuid4()
-        row = MagicMock(workflow_run_id=run_id, node_run_id=node_run_id)
+    async def test_queues_a_deduped_job_for_every_stale_claim_and_counts_them(self, repo):
+        row = MagicMock(
+            workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4(), organization_id=uuid.uuid4()
+        )
         repo.take_stale_claims_for_resubmission.return_value = [row]
 
         service = WorkflowReconcilerService(object())
-        pairs = await service.stale_claims()
+        with patch(f"{QUEUE_PATH}.enqueue", new=AsyncMock()) as enqueued:
+            count = await service.stale_claims()
 
-        assert pairs == [(run_id, node_run_id)]
+        assert count == 1
+        enqueued.assert_awaited_once()
+        assert enqueued.await_args.kwargs["dedupe_key"] == f"workflow-dispatch:{row.node_run_id}"
+        assert enqueued.await_args.kwargs["organization_id"] == row.organization_id
+        assert enqueued.await_args.kwargs.get("run_after") is None
 
-    async def test_nothing_stale_is_an_empty_list(self, repo):
+    async def test_nothing_stale_queues_nothing(self, repo):
         repo.take_stale_claims_for_resubmission.return_value = []
         service = WorkflowReconcilerService(object())
-        assert await service.stale_claims() == []
+        with patch(f"{QUEUE_PATH}.enqueue", new=AsyncMock()) as enqueued:
+            assert await service.stale_claims() == 0
+        enqueued.assert_not_called()
 
 
 class TestResolveOrphanedAttempts:

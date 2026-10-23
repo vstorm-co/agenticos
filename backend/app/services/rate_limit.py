@@ -1,13 +1,14 @@
 """How often one caller may reach a public surface.
 
-Eight of this platform's surfaces are reachable without a session: the public run
+Ten of this platform's surfaces are reachable without a session: the public run
 API, the widget's script, its config endpoint, its socket, a hosted page's config,
-that page's logo, a public artifact link and the signed address an artifact's page
-is served from. Every one of them reads at least one row before it decides
-anything, and between them and somebody else's model budget there was, until #39,
-nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
-registered on the app, and used by no route, while a second Redis-backed one sat
-unimported in `app/services/rate_limit/` and could not have been imported anyway:
+that page's logo and its file upload, the dictation a page and a widget share, a
+public app link and the signed address an app's page is served from. Every one of
+them reads at least one row before it decides anything, and between them and
+somebody else's model budget there was, until #39, nothing at all - a limiter was
+constructed in `app/core/rate_limit.py`, registered on the app, and used by no route,
+while a second Redis-backed one sat unimported in `app/services/rate_limit/` and
+could not have been imported anyway:
 it read `get_redis` from a module that does not define one.
 
 The count is load-bearing rather than decorative: it said "three" while five
@@ -40,14 +41,11 @@ control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
 the caller for as long as the outage lasts rather than none at all.
 """
 
-from __future__ import annotations
-
 import hashlib
-import hmac
 import logging
 import secrets
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -147,18 +145,6 @@ def _bounded(caller: str) -> str:
     return f"h:{hashlib.sha256(caller.encode()).hexdigest()}"
 
 
-def _log_digest(caller: str) -> str:
-    """A short stand-in for `caller` in a log line, that tells callers apart and names none.
-
-    A caller can be a credential - a public link's key, a form's or a content
-    address's token - or an id or a network address. Keyed by the deployment's
-    secret rather than a bare hash, because the IPv4 space is small enough to hash
-    in full and match the line back to an address.
-    """
-    digest = hmac.new(settings.SECRET_KEY.encode(), caller.encode(), hashlib.sha256)
-    return digest.hexdigest()[:16]
-
-
 async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     """Count one attempt by `caller` against `surface`, and say whether it may.
 
@@ -167,11 +153,10 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     limited at all", so it is a warning rather than a debug.
     """
     if _redis is None:
-        logger.warning(
-            "Rate limiting not configured - %s reached unmetered by caller %s",
-            surface,
-            _log_digest(caller),
-        )
+        # The surface, never the caller: a caller is an address, a sign-in email,
+        # a key's digest or a visitor's subject, and none of it says more about a
+        # limiter nobody configured than which surface went unmetered.
+        logger.warning("Rate limiting not configured - %s reached unmetered", surface)
         return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
@@ -189,17 +174,19 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
 class LocalWindows:
     """A per-process fixed window, for the attempts the shared limiter could not count.
 
-    `consume` fails open when Redis is down or nobody configured one - the right
-    trade for a public widget, where refusing a visitor over a cache blip is the
-    worse failure. It is the wrong trade for a surface whose per-caller limit is a
-    production control: a limiter that vanishes for the length of an outage lets a
-    permitted caller run unbounded until it recovers. This stands in for exactly
-    that stretch - wrong by the worker count, which is the very defect the shared
-    limiter exists to fix, and still a floor where there would have been none.
+    `consume` is the limit that holds across workers, and it fails open when
+    Redis is down or nobody configured one. For a public widget's socket that is
+    the documented trade; where the limit is a production control - a channel
+    bot's per-sender `rate_limit_rpm` (`SECURITY.md`), and every surface where a
+    stranger's attempt is a paid call (`consume_floored`) - a limiter that
+    vanishes for the length of a Redis outage lets a caller go as fast as they
+    like until it recovers. So this stands in for exactly that stretch: wrong by
+    the worker count, which is the defect the shared limiter exists to fix, and
+    still a floor where there would have been none.
 
     Bounded: every write drops the windows that have expired, so the map is the
-    size of the callers seen in the last window, not of every caller since the
-    process started.
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
@@ -220,36 +207,62 @@ class LocalWindows:
         return count < attempts
 
 
-_fallback_windows = LocalWindows()
+_floor = LocalWindows()
 
 
-async def consume_with_local_floor(*, surface: str, caller: str, limit: Limit) -> Decision:
-    """Count one attempt, keeping a per-process floor when the shared limiter cannot.
+async def consume_floored(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """`consume`, with a per-process floor for as long as it cannot count.
 
-    `consume` fails open (`metered=False`) when Redis is unreachable or
-    unconfigured, which removes the limit entirely for the length of the outage.
-    For a surface that is a real production control - a Virtual Tables write bounds
-    how fast a tenant grows the shared database, and a channel bot's `rate_limit_rpm`
-    is documented as one - that is not acceptable, so an unmetered decision is passed
-    through `LocalWindows` instead of taken at face value. The caller is namespaced by
-    `surface` so two surfaces sharing one process do not spend each other's floor.
+    For the surfaces where a stranger's attempt costs the organization money -
+    a dictation, a voice call - and the limit is all that bounds it: failing
+    open there turns a Redis outage into unlimited paid calls on a public link.
     """
     decision = await consume(surface=surface, caller=caller, limit=limit)
     if decision.metered:
         return decision
-    allowed = _fallback_windows.consume(
-        f"{surface}:{caller}", attempts=limit.attempts, window_seconds=limit.window_seconds
-    )
-    return Decision(
-        allowed=allowed,
-        retry_after_seconds=0 if allowed else limit.window_seconds,
-        metered=False,
-    )
+    if _floor.consume(
+        f"{surface}:{_bounded(caller)}",
+        attempts=limit.attempts,
+        window_seconds=limit.window_seconds,
+    ):
+        return decision
+    return Decision(allowed=False, retry_after_seconds=limit.window_seconds, metered=False)
+
+
+async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
+    """Whether `caller` has used all of `limit` on `surface`, without counting a hit.
+
+    For a check made before work that may not happen: an attempt is counted only
+    once it has failed, but a caller already over the line is turned away before
+    the work. False when the limiter cannot read, as `consume` allows then.
+    """
+    if _redis is None:
+        return False
+    try:
+        used = await _redis.get(f"ratelimit:{surface}:{_bounded(caller)}")
+    except Exception:
+        logger.warning("rate_limit_redis_unavailable", exc_info=True)
+        return False
+    return used is not None and int(used) >= limit.attempts
+
+
+async def consume_with_local_floor(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """`consume_floored`, under the name the Virtual Tables and page routes call it by.
+
+    For a surface whose per-caller limit is a storage or database boundary - a table
+    write, a page's data load - and so must not vanish for the length of a Redis outage.
+    """
+    return await consume_floored(surface=surface, caller=caller, limit=limit)
 
 
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
+
+
+def api_key_limit() -> Limit:
+    """Requests per minute one organization API key may make, on any public route."""
+    return Limit(attempts=settings.RATE_LIMIT_API_KEY_PER_MINUTE)
 
 
 def ml_limit() -> Limit:
@@ -324,7 +337,7 @@ async def _release(redis: RedisClient, key: str, token: str) -> None:
 @asynccontextmanager
 async def one_in_flight(
     surface: str, caller: str, *, ttl_seconds: int, message: str
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None]:
     """Hold the one claim `caller` has on `surface` for the body, or refuse at once.
 
     The claim is a Redis key taken with `SET NX EX`, holding a token of this call's
@@ -342,11 +355,7 @@ async def one_in_flight(
     redis = _redis
     claimed = None if redis is None else await _claim(redis, key, token, ttl_seconds)
     if claimed is None:
-        logger.warning(
-            "In-flight limit held per process - %s reached by caller %s",
-            surface,
-            _log_digest(caller),
-        )
+        logger.warning("In-flight limit held per process - %s", surface)
         redis = None
         claimed = key not in _held_here
         if claimed:
@@ -360,6 +369,16 @@ async def one_in_flight(
             _held_here.discard(key)
         else:
             await _release(redis, key, token)
+
+
+def dictation_limit() -> Limit:
+    """What one person may dictate into the composer, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_DICTATION_PER_MINUTE)
+
+
+def voice_preview_limit() -> Limit:
+    """How many voices one person may listen to in the Builder, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE)
 
 
 def export_limit() -> Limit:
@@ -561,6 +580,120 @@ async def embed_upload_allowed(
     )
 
 
+async def embed_dictation_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may send another dictation to a page or widget now.
+
+    **Every dictation is a paid call** to the organization's speech-to-text
+    provider, and it is not part of any model budget - so the counters here and
+    in `embed_dictation_link_allowed` are the whole of what bounds a stranger's
+    spend on it. The address is counted before the key is looked up, because it
+    is the one a stranger cannot vary for free.
+
+    The link's own ceiling is spent only once the visitor is admitted
+    (`embed_dictation_link_allowed`): spent before, anybody holding a `jwt`
+    widget's public key could exhaust its minute for every signed-in visitor
+    without a valid token (Codex on #2204).
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+
+
+async def embed_dictation_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's dictation fits the link's minute.
+
+    The ceiling no visitor can vary: whatever addresses a script rotates
+    through, one page or widget accepts at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` recordings a minute from
+    everybody together, and that number times the organization's longest
+    dictation is the worst a leaked link can cost - `docs/channels.md` works it
+    through. A `jwt` widget's visitor is counted on their own first
+    (`embed_dictation_visitor_allowed`), so one of them takes at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of it.
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may send another dictation now.
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - unlike a hosted page's continuity key, which is why a
+    page has no counter of this kind.
+    """
+    return await consume_floored(
+        surface="embed_dictation",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+
+
+async def embed_voice_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may start another voice call on a page or widget now (#54).
+
+    **Every call is a paid realtime session**, so this is the
+    `embed_dictation_allowed` shape with counters of its own: the address before
+    the key is looked up, and the link's ceiling (`embed_voice_link_allowed`) only
+    once the visitor is admitted, so nobody without a valid `jwt` token can spend
+    it for the visitors who have one.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
+    )
+
+
+async def embed_voice_link_allowed(*, public_key: str) -> Decision:
+    """Whether an admitted visitor's call fits the link's minute (#54).
+
+    Whatever addresses a script rotates through, one page or widget starts at
+    most `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` calls a minute, and that
+    number times the agent's longest call - inside the agent's and the
+    organization's budgets - is the worst a leaked link can cost.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_voice_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may start another voice call now (#54).
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - so one signed-in visitor takes at most
+    `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` of the link's starts, wherever they
+    connect from. Their open calls are bounded with everybody's by
+    `VOICE_MAX_CALLS_PER_EMBED`.
+    """
+    return await consume_floored(
+        surface="embed_voice",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
+    )
+
+
+async def map_tiles_allowed(connection: HTTPConnection) -> Decision:
+    """Whether this address may fetch another map tile through the deployment right now.
+
+    Per address: the tile route is cookieless and token-free - every page, saved
+    or shared, loads it - so the network address is the one thing to count.
+    """
+    return await consume(
+        surface="map_tiles",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_MAP_TILES_PER_MINUTE),
+    )
+
+
 async def embed_script_allowed(connection: HTTPConnection) -> Decision:
     """Whether this address may fetch a widget's script right now.
 
@@ -603,4 +736,51 @@ async def embed_admission_allowed(connection: HTTPConnection) -> Decision:
         surface="embed_admission",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_PER_MINUTE),
+    )
+
+
+async def key_attempt_refused(
+    connection: HTTPConnection, token: str, *, count: bool = True
+) -> tuple[Decision, str] | None:
+    """Why a key is turned away before it is looked up, or `None` to look it up.
+
+    Both limits come before the lookup, so neither a key over its allowance nor
+    a flood of made-up ones costs a database query - on a request, a socket
+    handshake and the MCP endpoint alike. A key is counted by a digest of the
+    whole token, readable without the database - not by its prefix, which
+    listings and audit entries show, so knowing it would let anybody spend a real
+    key's allowance with made-up tokens. Made-up keys are counted per address
+    once refused (:func:`count_refused_key`), and an address over the line is
+    turned away here.
+
+    `count=False` checks the key's allowance without spending it: the MCP
+    endpoint's tool calls each reach the API with the same key, which counts
+    them there, and charging the outer request too halved the allowance.
+    """
+    address = f"ip:{caller_ip(connection)}"
+    if await exhausted(surface="api_key_refused", caller=address, limit=auth_limit()):
+        return (
+            Decision(allowed=False, retry_after_seconds=60),
+            "Too many requests with invalid API keys. Wait and try again.",
+        )
+    caller = f"key:{hashlib.sha256(token.encode()).hexdigest()}"
+    if not count:
+        if await exhausted(surface="api_key", caller=caller, limit=api_key_limit()):
+            return (
+                Decision(allowed=False, retry_after_seconds=60),
+                "Too many requests with this API key. Wait and try again.",
+            )
+        return None
+    decision = await consume(surface="api_key", caller=caller, limit=api_key_limit())
+    if not decision.allowed:
+        return decision, "Too many requests with this API key. Wait and try again."
+    return None
+
+
+async def count_refused_key(connection: HTTPConnection) -> None:
+    """Count a key that failed its lookup against the address that presented it."""
+    await consume(
+        surface="api_key_refused",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=auth_limit(),
     )

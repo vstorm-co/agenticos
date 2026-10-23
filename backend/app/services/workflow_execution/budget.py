@@ -19,8 +19,6 @@ handler - never after, which would let the attempt that broke the cap be the
 one that gets to run anyway.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 

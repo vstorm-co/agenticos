@@ -7,8 +7,6 @@ is what the node asks it for and what it makes of the answer, not pgvector's
 ranking, which the RAG suites cover.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

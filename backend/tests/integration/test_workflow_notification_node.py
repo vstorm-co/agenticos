@@ -5,8 +5,6 @@ Postgres' own unique index and the recipient checks are the membership and
 workflow-access rules every other surface uses.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from typing import Any

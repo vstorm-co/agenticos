@@ -8,8 +8,6 @@ parked step after it commits - the step then reads it and goes on by it.
 past its time and expires when the step reads it.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from uuid import UUID
@@ -34,6 +32,7 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_approval import WorkflowApprovalList, WorkflowApprovalRead
+from app.services.workflow_execution import dispatch_queue
 
 logger = logging.getLogger(__name__)
 
@@ -173,12 +172,7 @@ async def wake_approval_step(node_run_id: UUID, *, organization_id: UUID) -> Non
             return
         try:
             async with db.begin_nested():
-                await workflow_run_repo.create_outbox(
-                    db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
-                    node_run_id=node_run.id,
-                )
+                await dispatch_queue.queue_dispatch(db, run=run, node_run_id=node_run.id)
         except IntegrityError:
             logger.info(
                 "workflow_step_approval_wake_already_dispatched",

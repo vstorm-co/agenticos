@@ -28,13 +28,17 @@ from app.api.deps import (
     Auth,
     limit_artifact_content,
     limit_artifact_data,
+    limit_map_tiles,
     limit_public_artifact,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
     library_response,
+    map_tile_response,
+    visual_frame_response,
 )
 from app.core.permissions import Perm
 from app.schemas.artifact import (
@@ -65,9 +69,11 @@ from app.schemas.artifact_share_request import (
     ArtifactShareRequestRead,
     ArtifactVersionReview,
 )
+from app.services import tile_proxy
 from app.services.artifact import library_file
+from app.services.visual import frame_document
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 public_router = APIRouter()
 content_router = APIRouter()
 embed_router = APIRouter()
@@ -85,6 +91,10 @@ async def list_artifacts(
     include_archived: bool = Query(
         False, description="List archived pages too; they are left out otherwise"
     ),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
+    project_id: UUID | None = Query(
+        None, description="Only the pages made in this project's chats"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -95,6 +105,8 @@ async def list_artifacts(
         include_archived=include_archived,
         search=q,
         agent_id=agent_id,
+        group_id=group_id,
+        project_id=project_id,
         skip=skip,
         limit=limit,
     )
@@ -414,6 +426,18 @@ async def decline_artifact_share_request(
     return await service.decline(ctx, artifact_id, request_id)
 
 
+@router.put("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Be notified in the inbox when the page gets a new version."""
+    return await service.follow(ctx, artifact_id)
+
+
+@router.delete("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Stop being notified about new versions."""
+    return await service.unfollow(ctx, artifact_id)
+
+
 @router.get("/{artifact_id}/view", response_model=ArtifactView)
 async def view_artifact(
     artifact_id: UUID,
@@ -521,11 +545,33 @@ async def unlock_public_artifact(
     return await service.public_view(public_key, password=data.password)
 
 
-@content_router.get("/lib/{name}", response_class=Response)
+@content_router.get("/lib/{name:path}", response_class=Response)
 async def get_artifact_library_file(name: str) -> Response:
     """One file of the library set pages may load. Static, versioned by name."""
     data, media_type = await library_file(name)
     return library_response(data, media_type)
+
+
+@content_router.get(
+    "/tiles/{z}/{x}/{y}", response_class=Response, dependencies=[Depends(limit_map_tiles)]
+)
+async def get_map_tile(z: int, x: int, y: int) -> Response:
+    """One map tile of the deployment's tile server, for a visual or an app to draw on.
+
+    Fetched here so a page never learns the server's address or key and can send
+    it nothing but three numbers. 404 when the deployment names no tile server.
+    """
+    data, media_type = await tile_proxy.tile(z, x, y)
+    return map_tile_response(data, media_type)
+
+
+@content_router.get("/visual-frame", response_class=Response)
+async def get_visual_frame() -> Response:
+    """The page a visual is drawn in: fixed, holding no visual, under the app sandbox.
+
+    The console posts the drawing into it while the agent writes it.
+    """
+    return visual_frame_response(await frame_document())
 
 
 @content_router.get(

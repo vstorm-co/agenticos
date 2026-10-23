@@ -324,7 +324,7 @@ function ready(n: string, subscribes = false) {
   return { type: "agenticos:ready", n, subscribes };
 }
 
-const DATA_PATH = "/artifacts/a1/versions/v3/data";
+const DATA_PATH = "/apps/a1/versions/v3/data";
 
 /** Answers every read by its path, from the function the test gives. */
 function serve(answerFor: (path: string) => unknown) {
@@ -555,10 +555,10 @@ describe("the page's live data", () => {
 
     await act(() => onBridge.mock.lastCall![0].refresh());
     expect(paths()).toEqual([
-      "/artifacts/a1/view?data=true",
+      "/apps/a1/view?data=true",
       DATA_PATH,
       DATA_PATH,
-      "/artifacts/a1/view?data=true",
+      "/apps/a1/view?data=true",
     ]);
     // The page that does not listen was not handed the new read in place.
     expect(first.post).toHaveBeenCalledTimes(1);
@@ -588,7 +588,7 @@ describe("the page's live data", () => {
     const { frame, post } = await loadedFrame("https://c/n1");
     await act(async () => {});
     // The page carries its data: no first read, and its ready is answered with nothing.
-    expect(paths()).toEqual(["/artifacts/a1/view?data=true"]);
+    expect(paths()).toEqual(["/apps/a1/view?data=true"]);
     postFromFrame(frame, ready("n1", true));
     expect(post).not.toHaveBeenCalled();
     expect(onBridge.mock.lastCall?.[0].status.subscribes).toBe(true);
@@ -596,7 +596,7 @@ describe("the page's live data", () => {
     // A refresh still reads through the data route and posts in place.
     await act(() => onBridge.mock.lastCall![0].refresh());
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(paths()).toEqual(["/artifacts/a1/view?data=true", DATA_PATH]);
+    expect(paths()).toEqual(["/apps/a1/view?data=true", DATA_PATH]);
     expect(post).toHaveBeenLastCalledWith(
       { type: "agenticos:data", n: "n1", bindings: { sales: forPage(bound({ count: 1 })) } },
       "*",
@@ -712,7 +712,7 @@ describe("the page's live data", () => {
       data: undefined,
       served: { bindings: 2, awaitingConsent: true },
     });
-    expect(paths()).toEqual(["/artifacts/a1/view?data=true"]);
+    expect(paths()).toEqual(["/apps/a1/view?data=true"]);
   });
 
   it("loads a page served with its data again, without a read of its own, when it does not subscribe", async () => {
@@ -732,7 +732,7 @@ describe("the page's live data", () => {
 
     // The new load carries the data itself, so there is no read beside it.
     await loadedFrame("https://c/n2");
-    expect(paths()).toEqual(["/artifacts/a1/view?data=true", "/artifacts/a1/view?data=true"]);
+    expect(paths()).toEqual(["/apps/a1/view?data=true", "/apps/a1/view?data=true"]);
   });
 
   it("reloads a page with no live data without reading any", async () => {
@@ -750,15 +750,15 @@ describe("the page's live data", () => {
     await act(() => onBridge.mock.lastCall![0].refresh());
 
     await loadedFrame("https://c/n2");
-    expect(paths()).toEqual(["/artifacts/a1/view?data=true", "/artifacts/a1/view?data=true"]);
+    expect(paths()).toEqual(["/apps/a1/view?data=true", "/apps/a1/view?data=true"]);
   });
 
   it("drops a reply whose nonce belongs to the previous version", async () => {
     let releaseOld!: (data: ArtifactData) => void;
     const old = new Promise<ArtifactData>((resolve) => (releaseOld = resolve));
     serve((path) => {
-      if (path === "/artifacts/a1/view?data=true") return liveView("n1", 3);
-      if (path === "/artifacts/a1/view?version_id=v2") return liveView("n2", 2);
+      if (path === "/apps/a1/view?data=true") return liveView("n1", 3);
+      if (path === "/apps/a1/view?version_id=v2") return liveView("n2", 2);
       if (path === DATA_PATH) return old;
       return answer({ older: bound({ count: 2 }) });
     });
@@ -770,7 +770,7 @@ describe("the page's live data", () => {
 
     rerender(<ArtifactFrame artifactId="a1" versionId="v2" title="Report" />);
     const second = await loadedFrame("https://c/n2");
-    await waitFor(() => expect(paths()).toContain("/artifacts/a1/versions/v2/data"));
+    await waitFor(() => expect(paths()).toContain("/apps/a1/versions/v2/data"));
     // The v1 document, late, and v1's records, later still.
     postFromFrame(second.frame, ready("n1"));
     await act(async () => releaseOld(answer({ sales: bound() })));
@@ -856,7 +856,7 @@ describe("the page's live data", () => {
     // v3 is open and listening; a run publishes v4, so v3's next read answers
     // not current. The frame mints the current version again, once, and the
     // reloaded page is answered with v4's data - never with v3's stale one.
-    const NEWER = "/artifacts/a1/versions/v4/data";
+    const NEWER = "/apps/a1/versions/v4/data";
     let mints = 0;
     let reads = 0;
     serve((path) => {
@@ -884,7 +884,7 @@ describe("the page's live data", () => {
     await waitFor(() => expect(paths()).toContain(NEWER));
 
     expect(first.post).toHaveBeenCalledTimes(1);
-    expect(paths().filter((path) => path === "/artifacts/a1/view?data=true")).toHaveLength(2);
+    expect(paths().filter((path) => path === "/apps/a1/view?data=true")).toHaveLength(2);
     expect(client.getQueryState(qk.artifacts.detail("a1"))?.isInvalidated).toBe(true);
     expect(client.getQueryState(qk.artifacts.versions("a1"))?.isInvalidated).toBe(true);
     postFromFrame(second.frame, ready("n2", true));
@@ -895,7 +895,7 @@ describe("the page's live data", () => {
       ),
     );
     await act(async () => {});
-    expect(paths().filter((path) => path === "/artifacts/a1/view?data=true")).toHaveLength(2);
+    expect(paths().filter((path) => path === "/apps/a1/view?data=true")).toHaveLength(2);
   });
 
   it("keeps a picked version where it is when a newer one is published", async () => {
@@ -992,7 +992,7 @@ describe("the list card", () => {
     );
     expect(screen.getByText("Whole organization")).toBeInTheDocument();
     expect(screen.getByText("Public link")).toBeInTheDocument();
-    expect(screen.getByRole("link").getAttribute("href")).toBe("/artifacts/a1");
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/apps/a1");
     expect(screen.getByText(/Version 3/)).toBeInTheDocument();
   });
 
@@ -1035,7 +1035,7 @@ describe("the list card", () => {
     // Archived serves nothing, so it is not live, whatever its bindings.
     expect(screen.queryByText("Live")).toBeNull();
     expect(useArtifactViewMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("link").getAttribute("href")).toBe("/artifacts/a1");
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/apps/a1");
   });
 
   function withMenu(overrides: Partial<Artifact> = {}) {
@@ -1095,6 +1095,15 @@ describe("the list card", () => {
 
     expect(container.firstElementChild).toHaveClass("pointer-events-none");
   });
+
+  it("names the departments a page is shared with, as every other card does", () => {
+    render(
+      <ArtifactCard
+        artifact={artifact({ current_version: null, shared_groups: ["Finance", "Sales", "Ops"] })}
+      />,
+    );
+    expect(screen.getByText("Finance, Sales +1")).toBeInTheDocument();
+  });
 });
 
 describe("the public link card", () => {
@@ -1111,7 +1120,7 @@ describe("the public link card", () => {
       />,
     );
     expect(
-      screen.getByText("Only people this artifact is shared with can open it."),
+      screen.getByText("Only people this app is shared with can open it."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Opened|Not opened/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Create a public link" }));
@@ -1218,8 +1227,8 @@ describe("the version picker", () => {
 
 describe("the agent filter", () => {
   const agents = [
-    { id: "ag1", name: "Reporter" },
-    { id: "ag2", name: "Analyst" },
+    { id: "ag1", name: "Reporter", slug: "reporter", has_avatar: false, avatar_color: null },
+    { id: "ag2", name: "Analyst", slug: "analyst", has_avatar: true, avatar_color: 4 },
   ];
 
   it("is not drawn with one publisher and no filter on", () => {
@@ -1522,9 +1531,9 @@ describe("the public page", () => {
     unlockMock.mockReturnValue({ mutate, data: undefined, error: null, isPending: false });
     render(<PublicArtifact artifact={locked} publicKey="k" />);
 
-    expect(screen.getByRole("heading", { name: "This page is protected" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "This app is protected" })).toBeInTheDocument();
     expect(screen.queryByText("Weekly report")).toBeNull();
-    expect(screen.getByRole("button", { name: "Open the page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open the app" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Password"), "hunter22{enter}");
     expect(mutate).toHaveBeenCalledWith("hunter22");
   });

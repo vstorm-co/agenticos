@@ -7,8 +7,6 @@ spend, because the budget counts them: a draft tried twenty times is not twenty
 runs of the workflow, but it is twenty runs somebody paid for.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast

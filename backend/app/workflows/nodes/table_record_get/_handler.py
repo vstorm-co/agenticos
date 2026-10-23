@@ -4,8 +4,6 @@ Not finding it is an answer: the output says `found: false`, so a `logic.if`
 can branch on whether a record exists without the run failing on it.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

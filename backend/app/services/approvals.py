@@ -11,13 +11,12 @@ seeing the recipient is a rubber stamp, and replaying the stored arguments means
 the model cannot change its mind between asking and acting.
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -26,7 +25,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.services.transcript import TranscriptService
@@ -65,6 +64,7 @@ class ApprovalService:
         tool_args: dict[str, Any],
         capability_tool_id: str | None = None,
         context: dict[str, str] | None = None,
+        account: str | None = None,
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
@@ -88,6 +88,8 @@ class ApprovalService:
             context: The arguments' ids as names, from the tool's describer, for
                 the card and the queue to read. `None` when the tool has none or
                 describing it failed - the call is asked about either way.
+            account: Which account of an MCP service the call acts as, where its
+                binding names one - "Send mail" from which of two mailboxes.
             subagent_name: Which delegate is acting, when the call came from inside
                 a delegation. A delegate's gated tool reaches the run's own approval
                 channel, so without this the queue says `send_email` without saying
@@ -112,6 +114,7 @@ class ApprovalService:
             tool_args=tool_args,
             capability_tool_id=capability_tool_id,
             context=context,
+            account=account,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
@@ -161,13 +164,20 @@ class ApprovalService:
         *,
         approved: bool,
         note: str | None = None,
+        via_call: bool = False,
     ) -> ToolApproval:
         """Approve or reject a parked tool call.
+
+        `via_call` is the voice bridge: a call's approval is decided by the
+        person on the call, through its socket, and nowhere else - the queue
+        refuses it while the call is live (#54).
 
         Raises:
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
+                Also when it belongs to a live voice call and this is not that
+                call deciding it.
         """
         approval = await agent_run_repo.get_approval(
             self.db, approval_id, organization_id=ctx.organization_id, for_update=True
@@ -180,6 +190,11 @@ class ApprovalService:
             raise BadRequestError(
                 message=f"This request was already {approval.status}",
                 details={"approval_id": str(approval_id), "status": approval.status},
+            )
+        if not via_call and await voice_call_repo.is_live_run(self.db, approval.run_id):
+            raise BadRequestError(
+                message="This approval belongs to a live voice call and is decided in the call",
+                details={"approval_id": str(approval_id)},
             )
 
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
@@ -204,6 +219,29 @@ class ApprovalService:
             name="workflow-approval-wake",
         )
         return decided
+
+    async def expire_now(
+        self, approval_id: UUID, *, organization_id: UUID, note: str | None = None
+    ) -> None:
+        """Expire one pending approval nobody decided - a call's 60 s ran out, or it ended (#54).
+
+        `expired` with no decider, as `expire_stale` writes, and audited the
+        same way: a decision nobody made. A row already decided is left alone.
+        """
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=organization_id, for_update=True
+        )
+        if approval is None or approval.status != ApprovalStatus.PENDING.value:
+            return
+        await agent_run_repo.decide_approval(
+            self.db,
+            approval=approval,
+            status=ApprovalStatus.EXPIRED.value,
+            decided_by_user_id=None,
+            decided_at=datetime.now(UTC),
+            note=note,
+        )
+        await self._record_decision(approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=note)
 
     async def expire_stale(self) -> int:
         """Deny by timeout every parked call nobody decided in time.
@@ -274,6 +312,43 @@ class ApprovalService:
             )
 
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
+        return len(stale)
+
+    async def expire_unanswered(self) -> int:
+        """End every run whose `ask_user` question nobody answered in time (#2064).
+
+        The same bargain as :meth:`expire_stale`: the run is ended where it stopped
+        rather than continued, because continuing is a model request nobody asked
+        for. The question's step is closed with the harness's "did not answer in
+        time", so the next turn in the conversation reads that the person never
+        answered rather than a question still open.
+
+        Returns:
+            How many runs were ended.
+        """
+        now = datetime.now(UTC)
+        stale = await agent_run_repo.list_unanswered_runs(
+            self.db, older_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
+        )
+        for run in stale:
+            questions: list[str] = (run.paused_state or {}).get("questions", [])
+            await TranscriptService(self.db).record(
+                run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
+            )
+            await agent_run_repo.finish_run(
+                self.db,
+                run=run,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+                ended_at=now,
+                error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
+                paused_state=None,
+            )
+        if stale:
+            logger.info("Question sweep: ended %d unanswered run(s)", len(stale))
         return len(stale)
 
     async def _settle_expired_run(

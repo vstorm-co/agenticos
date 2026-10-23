@@ -12,8 +12,6 @@ not owned - which is why the gate sweep in `tests/api/test_platform_routes.py`
 reaches it through the runner service.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

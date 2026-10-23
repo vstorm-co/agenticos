@@ -1,7 +1,9 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
 import { persist } from "zustand/middleware";
+
+import { scopedStore } from "./chat-scope-context";
 
 /**
  * Which published agent the chat is addressed to.
@@ -22,11 +24,14 @@ import { persist } from "zustand/middleware";
  * Picking an agent clears it, so exactly one of the two answers.
  *
  * Persisted to localStorage the same way the knowledge-base draft is, so the
- * choice survives a refresh or a new tab. Only ids are kept: the name is
+ * choice survives a refresh or a new tab. A scoped conversation - the
+ * Architect's window, the Builder's test panel - keeps its own in memory: it
+ * shares this origin's storage with the console, and writing there would switch
+ * the main chat to the agent the window is fixed on. Only ids are kept: the name is
  * server state and is resolved where it is rendered, so a renamed agent does
  * not keep answering under its old label.
  */
-interface AgentSelectionState {
+export interface AgentSelectionState {
   selectedAgentId: string | null;
   defaultAgentId: string | null;
   selectedWorkflowId: string | null;
@@ -35,21 +40,30 @@ interface AgentSelectionState {
   selectWorkflow: (workflowId: string | null) => void;
 }
 
-export const useAgentSelectionStore = create<AgentSelectionState>()(
-  persist(
-    (set) => ({
-      selectedAgentId: null,
-      defaultAgentId: null,
-      selectedWorkflowId: null,
-      select: (agentId) => set({ selectedAgentId: agentId, selectedWorkflowId: null }),
-      setDefault: (agentId) => set({ defaultAgentId: agentId }),
-      selectWorkflow: (workflowId) => set({ selectedWorkflowId: workflowId }),
-    }),
-    {
+const agentSelectionState: StateCreator<AgentSelectionState> = (set) => ({
+  selectedAgentId: null,
+  defaultAgentId: null,
+  selectedWorkflowId: null,
+  select: (agentId) => set({ selectedAgentId: agentId, selectedWorkflowId: null }),
+  setDefault: (agentId) => set({ defaultAgentId: agentId }),
+  selectWorkflow: (workflowId) => set({ selectedWorkflowId: workflowId }),
+});
+
+/** A copy of its own, held in memory and addressed to `agentId`, for a conversation in a scope - see `ChatScope`. */
+export const createAgentSelectionStore = (agentId: string) =>
+  createStore<AgentSelectionState>()((...args) => ({
+    ...agentSelectionState(...args),
+    selectedAgentId: agentId,
+  }));
+
+export const useAgentSelectionStore = scopedStore(
+  create<AgentSelectionState>()(
+    persist(agentSelectionState, {
       name: "agent-selection",
       // Still version 1: adding `defaultAgentId` and `selectedWorkflowId` is
       // backward-compatible - a persisted state without them merges over `null`.
       version: 1,
-    },
+    }),
   ),
+  (scope) => scope.agentSelection,
 );

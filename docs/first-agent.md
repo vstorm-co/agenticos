@@ -100,7 +100,7 @@ Two things are worth knowing here:
 - **A tool's name and description are prompt.** `search_refund_policy` gets
   reached for on questions `search_documents` is passed over for. Both are
   editable per agent.
-- Tools declared side-effecting request approval under the configured policy. Review capability and tool overrides before publishing.
+- Nothing asks for approval until you say so. Set **Always ask** on a capability, or on one tool, that a person should see before it runs.
 
 ## 5. Give it something to read
 
@@ -195,8 +195,7 @@ Nine steps, and the shape of them is the shape of the platform:
 2. Named a **model profile**, so the key and the model can change without the
    agent changing.
 3. Wrote **instructions**.
-4. Switched on **capabilities**, and left the side-effecting ones asking for
-   approval.
+4. Switched on **capabilities**, and chose which of them ask for approval.
 5. Attached **knowledge** to search and **skills** to read.
 6. Set a **budget** and a **step limit**, and said who is told.
 7. **Published**, which froze a version and validated the spec.
@@ -284,6 +283,23 @@ Two of them are shaped differently on purpose:
     themselves, named layouts, and the reset.
 
     Every arrangement is per-person, so experimenting moves nobody else's page.
+
+## What you can already do
+
+Four things people go looking for and do not find on their own:
+
+- **Put it on a website, a hosted page, a WebSocket or the public API** - the
+  agent's **Availability** tab. The Builder points there after the first publish.
+- **Connect a tool with your own account** - each person their own GitHub, Gmail
+  or Notion - from the server's card on **MCP servers**. See
+  [MCP](mcp.md#personal-or-organization-wide).
+- **Find the files an agent saved** - what people attached and what agents wrote
+  are in **Documents**.
+- **Share it like a document** - **Share** in the Builder's header adds a person
+  or a group and sets who else finds it. See [Permissions](permissions.md).
+
+The **Architect**, in the corner of every page, answers the same questions and
+links to the control.
 
 ## Next
 

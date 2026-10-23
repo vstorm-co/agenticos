@@ -26,8 +26,6 @@ a withdrawn grant stops the stream at its next poll rather than when the
 socket happens to close.
 """
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import logging

@@ -8,8 +8,6 @@ stays, or the downgrade turning `app` runs into `api` ones before it narrows the
 this does, on a database of its own for the reason `test_artifact_consent_migration` gives.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -26,8 +24,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_actions_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0147_artifact_public_data"
-_TARGET_REVISION = "0148_artifact_actions"
+_BASE_REVISION = "0201_artifact_public_data"
+_TARGET_REVISION = "0202_artifact_actions"
 
 
 def _url(database: str) -> str:

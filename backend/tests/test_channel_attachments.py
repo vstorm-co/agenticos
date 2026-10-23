@@ -10,8 +10,6 @@ attachment was delivered will tell the user the same, so anything a reply cannot
 carry is named in it.
 """
 
-from __future__ import annotations
-
 import contextlib
 import uuid
 from collections.abc import Iterator, Sequence
@@ -50,6 +48,13 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _no_question_waiting() -> Iterator[None]:
+    """No run in these chats is parked on a question, so every message is a turn."""
+    with patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)):
+        yield
+
+
 def _attachment(**overrides: Any) -> IncomingAttachment:
     fields: dict[str, Any] = {
         "filename": "report.csv",
@@ -62,6 +67,9 @@ def _attachment(**overrides: Any) -> IncomingAttachment:
 
 def _adapter(*, downloads: Any = b"month,total") -> MagicMock:
     adapter = MagicMock(platform="slack")
+    adapter.describe_attachments = AsyncMock(side_effect=lambda _token, found: found)
+    # No native stream: these turns answer through an edited placeholder.
+    adapter.open_answer = AsyncMock(return_value=None)
     adapter.download_attachment = AsyncMock(
         side_effect=downloads if isinstance(downloads, Exception) else None,
         return_value=downloads if not isinstance(downloads, Exception) else None,
@@ -177,7 +185,11 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         ),
         patch(
             f"{router}.get_adapter",
-            return_value=MagicMock(begin_reply=AsyncMock(return_value=None)),
+            return_value=MagicMock(
+                begin_reply=AsyncMock(return_value=None),
+                open_answer=AsyncMock(return_value=None),
+                describe_attachments=AsyncMock(side_effect=lambda _token, found: found),
+            ),
         ),
         patch(f"{router}.unseal_bot_token", return_value="xoxb-token"),
         patch(f"{router}.ChannelAttachmentService", _Attachments),
@@ -259,10 +271,11 @@ class TestReceivingWhatSomebodySent:
         assert "too large" in refused[0].lower()
         service.uploads.upload.assert_not_called()
 
-    async def test_a_voice_note_is_refused_by_what_it_is_rather_than_by_its_type(self):
-        """ "File type 'audio/ogg' is not supported" reads as a platform that cannot
-        handle files. The truth is narrower and more useful: it arrived, and nothing
-        here can listen to it yet."""
+    async def test_an_earlier_voice_note_says_how_to_have_it_heard(self):
+        """Only a thread's earlier files reach this with audio - the router
+        transcribes the message's own. Those are not transcribed on purpose, and
+        "File type 'audio/ogg' is not supported" would send people looking for a
+        bug: the sender is told to send it again."""
         service = _service()
         adapter = _adapter()
 
@@ -274,10 +287,13 @@ class TestReceivingWhatSomebodySent:
         )
 
         assert stored == []
-        assert "cannot listen to recordings yet" in refused[0]
+        assert refused == [
+            "voice.ogg: Voice messages sent before I joined this thread are not "
+            "transcribed - send it again here."
+        ]
         adapter.download_attachment.assert_not_called()
 
-    async def test_a_video_is_refused_the_same_way(self):
+    async def test_a_video_is_refused_as_a_video(self):
         service = _service()
 
         _stored, refused = await service.receive(
@@ -287,7 +303,7 @@ class TestReceivingWhatSomebodySent:
             user_id=uuid.uuid4(),
         )
 
-        assert "cannot listen to recordings yet" in refused[0]
+        assert refused == ["clip.mp4: I cannot watch videos - type it out, or send a file."]
 
     async def test_an_octet_stream_office_file_passes_preflight_on_its_extension(self):
         """Platforms routinely send `application/octet-stream` for `.odt`/`.msg`; the
@@ -974,6 +990,83 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
 
         router._receive_files.assert_awaited_once()
         router._transcribe.assert_awaited_once()
+        # The voice note's usage row names the person the sender is linked to.
+        identity = router._receive_files.await_args.args[3]
+        assert router._transcribe.await_args.kwargs["requested_by"] == identity.user_id
+
+    async def test_a_departed_members_voice_note_in_a_room_names_nobody(self):
+        """A room admits a sender whose membership is gone, as it admits an
+        unlinked one - but the usage row must not put the call on the record of
+        somebody who no longer belongs to the organization."""
+        router, _replies, _rows = _router()
+        router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._deliver = AsyncMock()  # type: ignore[method-assign]
+
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="group",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(answer_default=None), []),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        router._transcribe.assert_awaited_once()
+        assert router._transcribe.await_args.kwargs["requested_by"] is None
+
+
+class TestATypedAnswerIsNotATurn:
+    async def test_a_message_answering_a_parked_question_runs_nothing_else(self):
+        """Codex on #2062: a question that takes words is answered by the next message."""
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock()  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock()  # type: ignore[method-assign]
+        agents = _agent_router()
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="Kraków, please",
+            attachments=[_attachment()],
+        )
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.services.channels.router.ChannelPrompts.reply",
+                AsyncMock(return_value=True),
+            ) as reply,
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert reply.await_args.kwargs == {
+            "platform": "slack",
+            "platform_chat_id": "C1",
+            "platform_user_id": "U1",
+            "text": "Kraków, please",
+        }
+        router._receive_files.assert_not_awaited()
+        router._answer_mention.assert_not_awaited()
+        assert rows == []
 
 
 class TestAWorkflowListeningToTheBot:

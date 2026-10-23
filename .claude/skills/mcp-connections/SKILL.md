@@ -52,8 +52,11 @@ would make the token unreadable the moment they switched.
 probe before the turn; failures log a warning and the turn proceeds without those
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
-skipped server means the model answers *without* the tools. `/test` and `last_status`
-are how you find out.
+skipped server means the model answers *without* the tools. It is briefed, though:
+`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+server that answered within two minutes and fails on connect, both through
+`unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
+find out.
 
 **Tools are prefixed with the connection name.** `github-work` → `github_work_*`.
 Two servers exposing the same tool name make Pydantic AI raise on duplicates, which
@@ -103,6 +106,12 @@ checked with `validate_mcp_url` and then handed to a browser that resolves it it
 The **connection's own URL** is checked at save and resolved again at run time — a
 point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
+
+`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of that
+save-time check, and from nothing else. Only `_checked_url`'s four create and
+update callers pass `honour_allowlist=True`. OAuth, the sign-in probe, the catalog
+audit and every `PinnedAsyncClient` request stay strict. Never pass the flag for a
+URL a remote server chose, and never add an exemption to `resolve_pinned_url`.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.

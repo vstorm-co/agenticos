@@ -8,14 +8,12 @@ through the app with the real service behind them and a session that commits
 the way `DBSession` does.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -47,14 +45,6 @@ from app.services.workflow_execution import WorkflowExecutionService, dispatcher
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    """The direct trigger runs after a real commit here, and would otherwise
-    reach for a Prefect deployment that does not exist in a test."""
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as submitted:
-        yield submitted
 
 
 async def _user(db: AsyncSession) -> User:
@@ -251,7 +241,7 @@ async def http(engine: AsyncEngine, mock_redis: MagicMock):
         await setup.commit()
     caller: list[AuthContext] = [_ctx(owner, org)]
 
-    async def session() -> AsyncGenerator[AsyncSession, None]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         async with factory() as opened:
             try:
                 yield opened

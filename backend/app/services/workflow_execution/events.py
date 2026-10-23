@@ -7,8 +7,6 @@ alone, as a string: unlike a timestamp-ordered listing there is nothing to
 tie-break, since `seq` already orders a run's events without ambiguity.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

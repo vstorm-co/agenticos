@@ -1,5 +1,10 @@
 # #1792 — Workflows: API, WebSocket, chat, webhook and schedule adapters
 
+> **Note.** Prefect was replaced by the Postgres job queue in #2248. The design
+> below is unchanged where it matters: the outbox holds the run's position, and the
+> flows it names are now jobs - each outbox row is queued with a `workflow-dispatch-node`
+> job in the same transaction.
+
 Design for [#1792](https://github.com/vstorm-co/agenticos/issues/1792), child of
 [#56](https://github.com/vstorm-co/agenticos/issues/56). Depends on
 [#1786](1786-node-contracts.md) and [#1788](1788-durable-execution.md), both

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileClock, FileX, GitPullRequest, History, Info } from "lucide-react";
+import { Bell, BellOff, FileClock, FileX, GitPullRequest, History, Info } from "lucide-react";
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
@@ -92,6 +92,7 @@ export function ArtifactViewer({
     restoreVersion,
     archive,
     unarchive,
+    follow,
     remove,
     confirmData,
     withdrawConsent,
@@ -286,6 +287,22 @@ export function ArtifactViewer({
           onChange={setVersionId}
           live={artifact.live}
         />
+        <Button
+          size="sm"
+          variant="outline"
+          aria-pressed={artifact.following}
+          disabled={follow.isPending}
+          onClick={() => follow.mutate(!artifact.following)}
+        >
+          {artifact.following ? (
+            <BellOff className="h-3.5 w-3.5" />
+          ) : (
+            <Bell className="h-3.5 w-3.5" />
+          )}
+          <span className="sr-only sm:not-sr-only">
+            {artifact.following ? t("unfollow") : t("follow")}
+          </span>
+        </Button>
         {!artifact.live && restore}
       </ArtifactViewerBar>
       {artifact.consent !== null && (

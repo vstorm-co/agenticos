@@ -41,10 +41,12 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "schedule",
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    overlap: "skip",
     event_source: null,
     event_config: {},
     prompt: "Summarise the day",
@@ -120,6 +122,17 @@ describe("TriggerRow run list", () => {
     expect(drawer.getAllByRole("time")).toHaveLength(2);
     expect(drawer.getByText(/succeeded/)).toBeVisible();
     expect(drawer.getByText(/failed/)).toBeVisible();
+  });
+
+  it("marks a fire the loop guard stopped as one that did not finish", async () => {
+    serveRuns([run({ id: "r1", status: "loop_stopped" })]);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/stopped: looping/)).toBeVisible();
+    expect(dialog.querySelector(".text-destructive")).not.toBeNull();
   });
 
   it("says what each fire cost, which the transcript could not", async () => {

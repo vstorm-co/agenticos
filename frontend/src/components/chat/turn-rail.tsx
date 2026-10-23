@@ -2,10 +2,11 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AvatarFace } from "@/components/ui/avatar-face";
+import { scrollWithin } from "@/lib/scroll-within";
 import { cn } from "@/lib/utils";
 
 /** One tick on the rail: a message, and enough of it to recognise. */
@@ -67,10 +68,24 @@ export interface TurnRailProps {
  */
 const MIN_ENTRIES = 4;
 
+/**
+ * How far a message's top may sit from the reading line and still count as on
+ * it - so the message an arrow just landed on is not stepped to again.
+ */
+const LINE_SLACK = 4;
+
+function anchorOf(id: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+}
+
 /** Scrolls a message into view, when the transcript still holds it. */
 function jumpTo(id: string) {
-  const anchor = document.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
-  anchor?.scrollIntoView({ behavior: "smooth", block: "center" });
+  anchorOf(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/** Scrolls the transcript, and only the transcript, so a message starts at the top of it. */
+function alignTop(anchor: HTMLElement) {
+  scrollWithin(anchor, "start", "smooth");
 }
 
 /**
@@ -91,6 +106,7 @@ export function TurnRail({ entries, className }: TurnRailProps) {
   const t = useTranslations("chat.rail");
   const [hovered, setHovered] = useState<number | null>(null);
   const [active, setActive] = useState(0);
+  const navRef = useRef<HTMLElement>(null);
 
   // The ids, joined - and the only thing the observer below depends on.
   // `entries` is rebuilt on every content delta, so depending on the array tore
@@ -138,18 +154,43 @@ export function TurnRail({ entries, className }: TurnRailProps) {
 
   if (entries.length < MIN_ENTRIES) return null;
 
-  const step = (delta: number) => {
-    const next = Math.min(entries.length - 1, Math.max(0, active + delta));
+  // The arrows step from what is on screen when pressed, not from `active`: the
+  // observer marks whatever crosses its band, which after a jump or a scroll by
+  // hand can be a turn or two above the one being read - and stepping "down"
+  // from it went up. The reading line is the top of the chat column, which is
+  // where the transcript's scroller starts and where a step lands its message,
+  // so pressing again moves exactly one turn.
+  const step = (delta: 1 | -1) => {
+    const line = navRef.current?.parentElement?.getBoundingClientRect().top ?? 0;
+    const anchors = entries.map((entry) => anchorOf(entry.id));
+    let next = delta > 0 ? entries.length - 1 : 0;
+    let target: HTMLElement | null = null;
+    for (let index = 0; index < anchors.length; index++) {
+      const i = delta > 0 ? index : anchors.length - 1 - index;
+      const top = anchors[i]?.getBoundingClientRect().top;
+      if (top === undefined) continue;
+      if (delta > 0 ? top > line + LINE_SLACK : top < line - LINE_SLACK) {
+        next = i;
+        target = anchors[i] ?? null;
+        break;
+      }
+    }
+    // Nothing starts past the line: the reader is already on the last turn (or
+    // the first), so the mark moves there and the transcript stays put.
     setActive(next);
-    const entry = entries[next];
-    if (entry) jumpTo(entry.id);
+    if (target) alignTop(target);
   };
 
   return (
     <nav
+      ref={navRef}
       aria-label={t("label")}
+      // Out of sight until the pointer comes near it: drawn all the time it sat
+      // beside every answer like a scrollbar nobody asked for. The padding is
+      // the "near" - a wider box to reach than the ticks themselves - and a
+      // keyboard focus inside shows it too.
       className={cn(
-        "pointer-events-auto absolute top-1/2 left-1 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 lg:flex",
+        "pointer-events-auto absolute top-1/2 left-0 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 px-2 py-10 opacity-0 transition-opacity duration-200 focus-within:opacity-100 hover:opacity-100 @min-[68rem]/chat:flex",
         className,
       )}
     >

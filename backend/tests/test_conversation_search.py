@@ -12,8 +12,6 @@ comes back is prompt, and a transcript that loses who spoke is a transcript a
 model attributes to the wrong person.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
@@ -38,6 +36,7 @@ from app.agents.capabilities.conversation_search._toolset import (
     _MAX_TRANSCRIPT_CHARS,
     _MAX_TURN_CHARS,
     _NO_CORPUS,
+    _UNATTENDED,
     ConversationSearchToolset,
     _render,
     _speaker_label,
@@ -416,3 +415,28 @@ class TestTheBinding:
         )
 
         assert capability.max_results == 4
+
+
+class TestAFireActingAsItsCreator:
+    """Their memory and connections are open to it; their conversations are not (#2027)."""
+
+    @pytest.mark.security
+    async def test_both_tools_refuse_and_say_why(self):
+        toolset = ConversationSearchToolset(max_results=10)
+        ctx = _ctx(
+            AgentDeps(
+                organization_id=ORG,
+                audience=RunAudience(user_id=PERSON, searches_conversations=False),
+            )
+        )
+
+        assert await toolset.search_conversations(ctx, "salary") == _UNATTENDED
+        assert await toolset.read_conversation(ctx, str(THREAD)) == _UNATTENDED
+
+    async def test_it_is_promised_no_search(self):
+        deps = AgentDeps(
+            organization_id=ORG,
+            audience=RunAudience(user_id=PERSON, searches_conversations=False),
+        )
+
+        assert await ConversationSearch().get_instructions()(_ctx(deps)) == ""

@@ -150,7 +150,7 @@ class ScopeBoundary(BaseModel):
     exit_port: str
 
     @model_validator(mode="after")
-    def _exit_node_is_the_control_node_or_a_body_member(self) -> "ScopeBoundary":
+    def _exit_node_is_the_control_node_or_a_body_member(self) -> ScopeBoundary:
         if self.exit_node_id != self.scope_node_id and self.exit_node_id not in self.body_node_ids:
             raise ValueError("exit_node_id must be scope_node_id or a member of body_node_ids")
         return self
@@ -199,7 +199,7 @@ class WorkflowGraph(BaseModel):
     notes: tuple[CanvasNote, ...] = Field(default=(), max_length=MAX_CANVAS_NOTES)
 
     @model_validator(mode="after")
-    def _no_duplicate_node_ids(self) -> "WorkflowGraph":
+    def _no_duplicate_node_ids(self) -> WorkflowGraph:
         seen: set[UUID] = set()
         for node in self.nodes:
             if node.id in seen:

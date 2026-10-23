@@ -1,9 +1,11 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 import type { ConversationCost, ConversationMessage } from "@/types";
 
-interface ConversationState {
+export interface ConversationState {
   // UI state only. The conversations LIST is owned by React Query
   // (qk.conversations.list). This store holds the current selection, the
   // loaded messages for that selection, and the fetch/select status.
@@ -18,6 +20,11 @@ interface ConversationState {
    * thread in which nothing was ever measured.
    */
   currentCost: ConversationCost | null;
+  /**
+   * The project the next new conversation starts in. Read only while there is no
+   * conversation yet: a chat is in the project it was started in, and stays there.
+   */
+  pendingProjectId: string | null;
   isLoading: boolean;
   error: string | null;
 
@@ -34,6 +41,7 @@ interface ConversationState {
    * arithmetic double-counts exactly the turn somebody had to approve.
    */
   setCurrentCost: (cost: ConversationCost | null) => void;
+  setPendingProjectId: (projectId: string | null) => void;
   addMessage: (message: ConversationMessage) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -44,11 +52,12 @@ const initialState = {
   currentConversationId: null,
   currentMessages: [],
   currentCost: null,
+  pendingProjectId: null,
   isLoading: false,
   error: null,
 };
 
-export const useConversationStore = create<ConversationState>((set) => ({
+const conversationState: StateCreator<ConversationState> = (set) => ({
   ...initialState,
 
   setCurrentConversationId: (id) => set({ currentConversationId: id }),
@@ -61,6 +70,8 @@ export const useConversationStore = create<ConversationState>((set) => ({
 
   setCurrentCost: (cost) => set({ currentCost: cost }),
 
+  setPendingProjectId: (projectId) => set({ pendingProjectId: projectId }),
+
   addMessage: (message) =>
     set((state) => ({
       currentMessages: [...(state.currentMessages || []), message],
@@ -71,4 +82,12 @@ export const useConversationStore = create<ConversationState>((set) => ({
   setError: (error) => set({ error }),
 
   reset: () => set(initialState),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createConversationStore = () => createStore<ConversationState>()(conversationState);
+
+export const useConversationStore = scopedStore(
+  create<ConversationState>()(conversationState),
+  (scope) => scope.conversation,
+);

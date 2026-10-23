@@ -24,6 +24,7 @@ export type WidgetId =
   | "summary"
   | "platform"
   | "health"
+  | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
   | "runs"
@@ -39,13 +40,16 @@ export type WidgetId =
   | "approvals"
   | "recent-failures"
   | "budget-headroom"
+  | "department-spend"
   | "mcp-health"
   | "knowledge-freshness"
   | "members"
   | "org-ratings"
+  | "department-quality"
   | "my-agents"
   | "conversations"
   | "my-activity"
+  | "my-summary"
   | "my-top-agents"
   | "my-quality"
   | "shared-with-you"
@@ -57,9 +61,12 @@ export type WidgetId =
   | "activity-rhythm"
   | "routines"
   | "notifications"
+  | "artifacts"
+  | "voice-minutes"
+  | "projects"
+  | "recent-visuals"
   | "tables"
-  | "workflows"
-  | "artifacts";
+  | "workflows";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -309,6 +316,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     // these same figures a second time and now redirects here anyway (#922).
     seeAll: ROUTES.ADMIN_USERS,
   },
+  "background-jobs": {
+    id: "background-jobs",
+    gate: adminOnly,
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "platform",
+    seeAll: ROUTES.ADMIN_BACKGROUND_JOBS,
+  },
   health: {
     id: "health",
     gate: adminOnly,
@@ -415,6 +430,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
+  // Call minutes by agent, and the month against the organization's limit (#54).
+  // What `GET /voice/usage` asks, and nothing more.
+  "voice-minutes": {
+    id: "voice-minutes",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "usage",
+    options: { period: true },
+    seeAll: runsHref({ filters: { modality: "voice" } }),
+  },
   "model-mix": {
     id: "model-mix",
     gate: holds(Perm.runsView),
@@ -463,6 +489,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
   },
+  "department-spend": {
+    id: "department-spend",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+  },
   "mcp-health": {
     id: "mcp-health",
     gate: holds(Perm.mcpManage),
@@ -496,6 +529,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     options: { period: true },
   },
+  "department-quality": {
+    id: "department-quality",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "usage",
+    seeAll: ROUTES.GROUPS,
+    options: { period: true },
+  },
   "my-agents": {
     id: "my-agents",
     gate: holds(Perm.agentsView),
@@ -512,6 +554,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     seeAll: ROUTES.CHAT,
+  },
+  "my-summary": {
+    id: "my-summary",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
+    options: { period: true },
   },
   "my-activity": {
     id: "my-activity",
@@ -538,7 +588,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true },
   },
   // The pages agents published that the caller may open, newest first. What
-  // `GET /artifacts` itself asks, and nothing more.
+  // `GET /apps` itself asks, and nothing more.
   artifacts: {
     id: "artifacts",
     gate: holds(Perm.artifactsView),
@@ -546,6 +596,25 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.ARTIFACTS,
+  },
+  // The reader's projects, most recently changed first - what `GET /projects`
+  // itself asks, and nothing more.
+  projects: {
+    id: "projects",
+    gate: holds(Perm.projectsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "workspace",
+    seeAll: ROUTES.PROJECTS,
+  },
+  // The drawings agents made for the caller (#2171). Gated on running agents, the
+  // one thing that makes a drawing: `GET /visuals` lists only the caller's own.
+  "recent-visuals": {
+    id: "recent-visuals",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
   },
   "shared-with-you": {
     id: "shared-with-you",

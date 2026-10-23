@@ -14,8 +14,6 @@ cannot repeat this without the type checker saying so. These are the behavioural
 half.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
@@ -54,9 +52,9 @@ async def _run_deferred(db: MagicMock) -> None:
 
 def _patch_dispatch(monkeypatch) -> AsyncMock:
     """Stand in for the durable cleanup dispatch, so a test can assert what a
-    committed delete hands to Prefect without a runner behind it."""
+    committed delete queues as a cleanup job."""
     dispatch = AsyncMock()
-    monkeypatch.setattr("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch)
+    monkeypatch.setattr("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch)
     return dispatch
 
 
@@ -145,8 +143,9 @@ class TestTheRouteThatTheDocumentsTabUses:
         service that can remove vectors, not with `None`."""
         from app.api.routes.v1 import knowledge_bases
 
-        kb = MagicMock(collection_name="docs")
-        doc = MagicMock(id=uuid.uuid4(), collection_name="docs")
+        org = uuid.uuid4()
+        kb = MagicMock(collection_name="docs", organization_id=org)
+        doc = MagicMock(id=uuid.uuid4(), collection_name="docs", organization_id=org)
         service = MagicMock(get_for_write=AsyncMock(return_value=kb))
         documents = MagicMock(get_document=AsyncMock(return_value=doc), delete_document=AsyncMock())
         ingestion = MagicMock(remove_document=AsyncMock())
@@ -338,10 +337,10 @@ class TestTheCLISync:
 
 
 class TestDroppingACollection:
-    async def test_it_dispatches_a_durable_cleanup_after_the_commit(self, monkeypatch):
-        """The bulk row delete returns the storage paths, and their unlink is handed
-        to a durable Prefect run after the commit - so a rollback keeps the files
-        (#1265, #1293) and a worker restart mid-drain does not orphan them (#1349)."""
+    async def test_it_queues_the_unlink_on_the_drops_own_session(self, monkeypatch):
+        """The bulk row delete returns the storage paths, and their unlink is a cleanup
+        job queued on the same session - so a rollback keeps the files (#1265, #1293)
+        and a worker restart mid-drain does not orphan them (#1349)."""
         monkeypatch.setattr(
             rag_document_repo,
             "delete_by_collection",
@@ -351,24 +350,5 @@ class TestDroppingACollection:
         db = _deferring_db()
 
         await RAGDocumentService(db).delete_by_collection("docs")
-        dispatch.assert_not_awaited()
 
-        await _run_deferred(db)
-        dispatch.assert_awaited_once_with(["rag/docs/a.pdf", "rag/docs/b.md"], [])
-
-    async def test_a_rolled_back_drop_dispatches_nothing(self, monkeypatch):
-        """The cleanup is discarded when the transaction that removed the rows did
-        not commit, so the restored rows still point at their files (#1293)."""
-        monkeypatch.setattr(
-            rag_document_repo,
-            "delete_by_collection",
-            AsyncMock(return_value=["rag/docs/a.pdf"]),
-        )
-        dispatch = _patch_dispatch(monkeypatch)
-        db = _deferring_db()
-
-        await RAGDocumentService(db).delete_by_collection("docs")
-        background.discard_deferred(db)
-        await background.drain(timeout=5.0)
-
-        dispatch.assert_not_awaited()
+        dispatch.assert_awaited_once_with(db, ["rag/docs/a.pdf", "rag/docs/b.md"], [])

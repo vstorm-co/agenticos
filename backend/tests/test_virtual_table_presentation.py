@@ -1,7 +1,5 @@
 """A select's choice as an agent or a workflow step names it: by its label, both ways."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from uuid import UUID
 

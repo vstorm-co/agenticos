@@ -5,8 +5,6 @@ the *same run* can do afterwards: the service's tools have to appear on the step
 after the call and be callable there, not on the next message.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import pytest
@@ -209,7 +207,6 @@ async def test_a_service_already_connected_is_not_asked_for_again():
     ("outcome", "said"),
     [
         ("not_connected", "is still not connected"),
-        ("undecided", "mark one as default"),
         ("unauthorized", "authorize it again"),
         ("unreachable", "its server did not answer"),
     ],

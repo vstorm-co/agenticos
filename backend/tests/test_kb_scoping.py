@@ -3,6 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 
@@ -13,8 +14,20 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
+
+
+@pytest.fixture(autouse=True)
+def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent binds anything here; `test_resource_usage` covers the query."""
+
+    async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.knowledge_base.agents_using", nowhere)
+    monkeypatch.setattr("app.services.knowledge_base.groups_sharing", nowhere)
 
 
 @pytest.fixture(autouse=True)
@@ -152,9 +165,9 @@ def _readable_kb(collection_name: str) -> KnowledgeBase:
 
 
 def _patch_dispatch(monkeypatch) -> AsyncMock:
-    """Stand in for the durable cleanup dispatch a committed KB delete hands to Prefect."""
+    """Stand in for the cleanup job a KB delete queues."""
     dispatch = AsyncMock()
-    monkeypatch.setattr("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch)
+    monkeypatch.setattr("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch)
     return dispatch
 
 
@@ -412,19 +425,15 @@ class TestKBAccessControl:
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
             # The row is not the whole teardown: with nothing else on the collection,
-            # its vector table is dropped too - by a durable run handed over after the
-            # commit, so a rollback keeps it beside the rows it restores (#1266, #1349).
-            dispatch.assert_not_awaited()
+            # its vector table is dropped too - by a cleanup job queued on this
+            # session, so a rollback takes it back with the rows (#1266, #1349).
 
-            background.start_deferred(mock_db)
-            await background.drain(timeout=5.0)
-
-        dispatch.assert_awaited_once_with([], [kb.collection_name])
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
 
     @pytest.mark.anyio
     async def test_deleting_a_kb_dispatches_a_durable_cleanup(self, mock_db, monkeypatch):
-        """The stored files and the table drop are handed to a durable Prefect run
-        after the commit, so a rollback keeps them (#1293) and a worker restart
+        """The stored files and the table drop are a cleanup job queued on the delete's
+        own session, so a rollback keeps them (#1293) and a worker restart
         mid-cleanup does not orphan them (#1349)."""
         user_id = uuid.uuid4()
         kb = _kb("personal", owner_user_id=user_id)
@@ -445,13 +454,9 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
-            dispatch.assert_not_awaited()
 
-            background.start_deferred(mock_db)
-            await background.drain(timeout=5.0)
-
-        # A sibling still holds the name, so only the files ride the run, not a drop.
-        dispatch.assert_awaited_once_with(["rag/docs/a.pdf", "rag/docs/b.md"], [])
+        # A sibling still holds the name, so only the files ride the job, not a drop.
+        dispatch.assert_awaited_once_with(mock_db, ["rag/docs/a.pdf", "rag/docs/b.md"], [])
 
     @pytest.mark.anyio
     async def test_deleting_the_last_kb_locks_it_and_deactivates_its_sources(
@@ -486,13 +491,11 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
-            background.start_deferred(mock_db)
-            await background.drain(timeout=5.0)
 
         lock.assert_awaited_once_with(mock_db, kb.id)
         get_all.assert_awaited_once_with(mock_db, collection_name=kb.collection_name)
         update.assert_awaited_once_with(mock_db, source.id, is_active=False)
-        dispatch.assert_awaited_once_with([], [kb.collection_name])
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
 
     @pytest.mark.anyio
     async def test_deleting_a_kb_a_sibling_still_holds_keeps_the_collection(
@@ -524,15 +527,15 @@ class TestKBAccessControl:
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
-        # Nothing to unlink and no table to drop, so no durable run is dispatched.
+        # Nothing to unlink and no table to drop, so no cleanup is queued.
         dispatch.assert_not_awaited()
         get_all.assert_not_awaited()
         update.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_a_rolled_back_kb_delete_dispatches_nothing(self, mock_db, monkeypatch):
-        """The cleanup is discarded when the transaction that removed the rows did not
-        commit, so no durable run is submitted and the restored KB and document rows
+    async def test_the_cleanup_rides_the_deletes_own_session(self, mock_db, monkeypatch):
+        """Queued on the session that removed the rows, so a transaction that does not
+        commit takes the job back with them, and the restored KB and document rows
         still describe a live table and its files (#1293, #1347, #1349)."""
         user_id = uuid.uuid4()
         kb = _kb("personal", owner_user_id=user_id)
@@ -554,10 +557,8 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
-            background.discard_deferred(mock_db)
-            await background.drain(timeout=5.0)
 
-        dispatch.assert_not_awaited()
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
 
     @pytest.mark.anyio
     async def test_dropping_a_rag_collection_deletes_the_row_and_dispatches_the_drop(
@@ -576,11 +577,9 @@ class TestKBAccessControl:
             ),
         ):
             await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
-            background.start_deferred(mock_db)
-            await background.drain(timeout=5.0)
 
         deleted.assert_awaited_once()
-        dispatch.assert_awaited_once_with([], ["docs"])
+        dispatch.assert_awaited_once_with(mock_db, [], ["docs"])
 
     @pytest.mark.anyio
     async def test_dropping_a_default_rag_collection_keeps_the_row_but_drops_the_table(
@@ -605,12 +604,10 @@ class TestKBAccessControl:
             ),
         ):
             await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
-            background.start_deferred(mock_db)
-            await background.drain(timeout=5.0)
 
         deleted.assert_not_awaited()  # the default row is kept
         reserve.assert_awaited_once()  # reserved until the drop runs
-        dispatch.assert_awaited_once_with([], ["docs"])  # the table is dropped
+        dispatch.assert_awaited_once_with(mock_db, [], ["docs"])  # the table is dropped
 
     @pytest.mark.anyio
     async def test_clearing_a_default_whose_name_a_sibling_shares_keeps_the_table(
@@ -1558,3 +1555,33 @@ class TestCollectionCounts:
         assert listing.total == 2
         assert [item.document_count for item in listing.items] == [0, 3]
         assert [item.chunk_count for item in listing.items] == [0, 90]
+
+
+class TestWhatIsAKnowledgeBasesOwn:
+    """Codex on #2062: documents and sources were matched on the collection's name alone."""
+
+    ORG = uuid.uuid4()
+
+    def _kb(self, organization_id: UUID | None) -> KnowledgeBase:
+        return KnowledgeBase(collection_name="handbook", organization_id=organization_id)
+
+    @pytest.mark.parametrize(
+        ("kb_org", "row_collection", "row_org", "own"),
+        [
+            (ORG, "handbook", ORG, True),
+            # The same name in another tenant is another collection.
+            (ORG, "handbook", uuid.uuid4(), False),
+            (ORG, "handbook", None, False),
+            (ORG, "manuals", ORG, False),
+            # A deployment-wide one holds rows whichever organization added them.
+            (None, "handbook", uuid.uuid4(), True),
+            (None, "manuals", None, False),
+        ],
+    )
+    @pytest.mark.security
+    def test_a_row_is_its_own_only_in_its_collection_and_organization(
+        self, kb_org: UUID | None, row_collection: str, row_org: UUID | None, own: bool
+    ) -> None:
+        row = MagicMock(collection_name=row_collection, organization_id=row_org)
+
+        assert in_knowledge_base(row, self._kb(kb_org)) is own

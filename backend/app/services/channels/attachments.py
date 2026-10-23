@@ -24,8 +24,6 @@ large named in the reply rather than silently dropped: an agent told its file wa
 delivered when it was not will confidently tell the user the same.
 """
 
-from __future__ import annotations
-
 import logging
 import mimetypes
 import posixpath
@@ -78,6 +76,66 @@ through. The snapshot is taken before the attachment router
 writes, so an upload looks like a file the turn produced, and this is the only
 thing standing between that and a channel reply posting somebody's own PDF back
 at them as the agent's work."""
+
+
+UNTYPED = "application/octet-stream"
+"""What a platform sends for a file it did not type, and what an adapter
+falls back to when it sends nothing at all."""
+
+_AUDIO_EXTENSIONS: dict[str, str] = {
+    "m4a": "audio/mp4",
+    "mp3": "audio/mpeg",
+    "ogg": "audio/ogg",
+    "oga": "audio/ogg",
+    "opus": "audio/ogg",
+    "webm": "audio/webm",
+    "wav": "audio/wav",
+}
+"""Extensions that name a recording, read only when the platform did not type
+the file. `.mp4` is not here: an untyped `.mp4` is far more often a video, and
+transcribing one is a provider call billed for a soundtrack nobody asked about.
+A file the platform itself marks as a recording may say `.mp4` (see
+`routed_type`)."""
+
+
+def routed_type(
+    mime_type: str | None,
+    filename: str,
+    *,
+    extension: str | None = None,
+    recording: bool = False,
+) -> str:
+    """The MIME type a Slack or Mattermost file is routed on.
+
+    The router sends anything `audio/*` to transcription and everything else to
+    storage, so this type decides whether a voice note is heard or turned away as
+    a file the agent cannot open. The platform's own type wins when it gave one.
+    Only an untyped file - no type, or `application/octet-stream` - is typed here,
+    from the name's extension or, failing that, the platform's own `extension`
+    field (Slack's `filetype`, Mattermost's `extension`). Anything else stays
+    untyped and goes the way it always went.
+
+    `recording` is the platform saying outright that this is a recording - a
+    Slack audio clip. That signal outranks the type, because a clip recorded on a
+    phone can arrive as `video/mp4` with an `.mp4` name: a `video/*` claim
+    becomes the same container as `audio/*`, and an untyped one may take `.mp4`
+    as audio, which the plain extension table refuses.
+    """
+    claimed = (mime_type or "").split(";", 1)[0].strip().lower()
+    if recording:
+        if claimed.startswith("audio/"):
+            return str(mime_type)
+        if claimed.startswith("video/"):
+            return "audio/" + claimed.removeprefix("video/")
+    elif claimed and claimed != UNTYPED:
+        return str(mime_type)
+
+    known = {**_AUDIO_EXTENSIONS, "mp4": "audio/mp4"} if recording else _AUDIO_EXTENSIONS
+    suffix = posixpath.splitext(filename)[1].lower().lstrip(".")
+    for candidate in (suffix, (extension or "").lower().lstrip(".")):
+        if candidate in known:
+            return known[candidate]
+    return str(mime_type) if claimed else UNTYPED
 
 
 @dataclass(frozen=True)
@@ -220,19 +278,24 @@ class ChannelAttachmentService:
 def _why(attachment: IncomingAttachment, error: str | None) -> str:
     """Why a file was turned away, in terms of what somebody actually sent.
 
-    Voice notes are the case this exists for. Somebody sends one, and "File type
-    'audio/ogg' is not supported" reads as a platform that cannot handle files -
-    when the truth is narrower and more useful: the file arrived, and nothing here
-    can listen to it yet.
+    "File type 'audio/ogg' is not supported" reads as a platform that cannot
+    handle files, when the truth is narrower and more useful - so a recording
+    is refused by what it is.
 
-    Delete this along with the branch once transcription lands (#54); until then a
-    generic message would send people looking for a bug that is not there.
+    A voice note on the message itself never reaches this: the router takes it
+    out and transcribes it. One that does arrive here was posted earlier in a
+    thread, read when the bot first joined it, and is not transcribed on
+    purpose - one mention must not bill a whole thread's audio. The sender is
+    told how to have it heard. A video is a plain refusal: nothing here watches
+    one.
     """
-    if attachment.mime_type.startswith(("audio/", "video/")):
+    if attachment.mime_type.startswith("audio/"):
         return (
-            "I cannot listen to recordings yet - transcription is not wired up. "
-            "Type it out, or send a file."
+            "Voice messages sent before I joined this thread are not transcribed - "
+            "send it again here."
         )
+    if attachment.mime_type.startswith("video/"):
+        return "I cannot watch videos - type it out, or send a file."
     return error or "not supported."
 
 

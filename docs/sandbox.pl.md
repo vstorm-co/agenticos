@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "3a56d4c17513"
 ---
 
 # Sandbox { #the-sandbox }
@@ -81,6 +81,11 @@ xc-4f2a91c8-7b3e5d10-9c1f…      backend · scope · organization · host · su
 albo `agent`. Zatem `conversation`, czyli zwykły wybór, oznacza jeden kontener
 i jeden katalog na czat; `agent` oznacza, że każdy run tego agenta dzieli jeden.
 
+`user` należy do zalogowanej osoby, więc run, który kogoś zastępuje, go nie ma:
+gość widgetu i odpalenie triggera dostają odmowę zamiast workspace'u wydawcy albo
+twórcy — chyba że trigger
+[działa jako jego twórca](concepts.md#unless-its-creator-lets-it-run-as-them).
+
 Klucz jest też **nazwą** sesji na hoście — id sesji `sandboxd`, nazwą sandboksa
 Daytona — więc każdy run danego zasięgu otwiera ją po tej nazwie: pierwszy ją
 tworzy, a pozostałe się podłączają, także te równoległe, i nic nie musi zapisywać
@@ -120,6 +125,7 @@ Co oddziela jednego tenanta od drugiego:
 |---|---|
 | Zbudowany na | `python:3.12-slim` |
 | Języki | Python 3.12; Node 24.19.0 LTS z npm 11 oraz `tsx` dla TypeScriptu |
+| Coding agenci | Claude Code 2.1.288 i Codex 0.160.0, dla [coding agenta](reference/capabilities.md#coding-agent) |
 | Narzędzia | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Czytanie | **liteparse** (`lit`) — PDF-y i obrazy do tekstu lub markdownu, z OCR-em włącznie; `poppler-utils` dla szybkiej ścieżki po warstwie tekstowej i dla liczby stron |
 | Dokumenty | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless do konwersji i do starszych formatów |
@@ -345,13 +351,13 @@ przycisk.
 
 ## Kiedy pojawia się kontener { #when-a-container-appears }
 
-**Przy pierwszej operacji na workspasie, co nie jest tym samym co pierwsze
-wywołanie narzędzia przez agenta.** Run przygotowuje to, co ktoś załączył,
-i materializuje skille agenta *przed* wywołaniem modelu, a jedno i drugie otwiera
-sesję leniwie — więc kontener może istnieć w turze, w której agent nigdy nie
-sięgnął po powłokę. Warto o tym wiedzieć przy czytaniu listy sesji: sandbox,
-którego log aktywności nie zawiera nic poza zapisami, to sandbox, o który nic
-jeszcze nie poprosiło.
+**Przy pierwszej operacji na workspasie: narzędziu, które agent tam wywoła, albo
+pliku, który ktoś załączył i który trafia do workspace'u.** Skille agenta są
+zapisywane do workspace'u właśnie wtedy, tuż przed tą operacją, a nie podczas
+przygotowania runu, więc tura, która nie używa sandboxa, nie otwiera sesji i nie
+uruchamia kontenera. Tura, która go używa, ma skille na dysku od razu. Na liście
+sesji nadal może się pojawić sandbox, którego log aktywności zawiera same zapisy:
+taki, do którego załączono plik i który potem nie był używany.
 
 ## Co w nim zrobiono i gdzie żyje ten zapis { #what-was-done-in-one-and-where-that-record-lives }
 
@@ -408,8 +414,21 @@ nieudane” są żądaniami, więc pager nad trzystoma operacjami ma po czym str
 **w czasie startu usługi**, a nie w środku czyjegoś pierwszego żądania —
 budowanie to dziesięć sekund i więcej. Obrazy są cache'owane, więc host płaci raz.
 
-Co zostaje do czekania: pierwsza sesja otwarta *w trakcie* prewarmu oraz host,
-któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
+Deploy buduje je jeszcze wcześniej. `scripts/deploy.sh` uruchamia biblioteczne
+`python -m pydantic_ai_backends.remote.prepare` w jednorazowym kontenerze nowego
+obrazu sandboxd, zanim stara usługa zostanie zastąpiona. Wydanie, które zmienia
+runtime, płaci więc za build, gdy stara usługa wciąż obsługuje ruch. Wcześniej,
+18.10.2026, pierwszy czat z sandboxem po takim wydaniu czekał minuty, a każde
+żądanie sesji dostawało 409, dopóki build się nie skończył. Build, który się nie
+uda, jest tam ponawiany trzy razy, a przy starcie dwa. Runtime, który nadal nie
+jest zbudowany, buduje się na żądanie, jak wcześniej, a log deployu go wymienia.
+
+Gdy sesja czeka na taki build, czat mówi o tym nad polem wpisywania:
+„Przygotowuję sandbox”. Otwarcie czeka na niego do dziesięciu minut, a nie 30
+sekund zwykłego żądania.
+
+Co zostaje do czekania: runtime, którego deploy nie zdołał przygotować, oraz
+host, któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
 wtedy większość reszty — zamknięta sesja zachowuje swój kontener, więc następna
 sesja na tym workspasie startuje bez budowania i z tym, co agent zainstalował
 ostatnim razem, nadal zainstalowanym.
@@ -452,10 +471,10 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 
 ## Co pokazuje przeglądarka plików, a co pomija { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
-sam zbiór co to, co leży na wolumenie. Dwa prefiksy są pomijane w każdym
-zestawieniu, które czyta człowiek — w widoku płaskim, we własnych plikach
-workspace'u, w panelu rozmowy i w liczbach plików:
+**Documents** (`/documents`) wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
+sam zbiór co to, co leży na wolumenie. Trzy prefiksy są pomijane w każdym
+zestawieniu, które czyta człowiek — na liście wszystkich plików, w plikach
+jednego folderu, w panelu rozmowy i w liczbach plików:
 
 - `skills/` — treść skilla i jego zasoby, zapisywane na starcie każdego runa,
   który ma i skille, i workspace. Są tam potrzebne: zasób to skrypt, który
@@ -463,9 +482,21 @@ workspace'u, w panelu rozmowy i w liczbach plików:
   ktoś przyjmuje. Usunięto je raz, bo zestawienie składało się głównie z nich, co
   było słuszną pretensją o niewłaściwą rzecz (#1064).
 - katalog przelewowy — tam, gdzie zapisano nadmiarowe wyjście narzędzia.
+- `.agenticos/` — zdarzenia zadania coding agenta i sesja, którą kontynuuje następne.
+
+Pomijane są też foldery, które wypełnia toolchain, gdziekolwiek leżą: `.venv`,
+`venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`,
+`.ruff_cache`, `.tox`, `.git`, `.next` i `.cache`. Coding agent, który postawił
+jedną aplikację FastAPI, wrzucił ich na stronę tysiąc, między tuzin plików, które
+napisał.
 
 Liczba plików też musi je pominąć, bo workspace raportujący cztery pliki, z których
 widać jeden, to liczba, której nikt nie sprawdzi.
+**Wszystkie pliki** grupują to, co zostało, według workspace'u, który je trzyma,
+od najnowszych, pod rozmową, do której należą: luźne pliki i załączniki jako
+wiersze, każdy folder najwyższego poziomu jako jeden wiersz z pierwszymi plikami i
+link do folderu po resztę. Najnowsze pliki mają podgląd nad grupami, a wyszukiwanie
+pokazuje trafienia płasko.
 
 ### Czyj to workspace i kto jeszcze go widzi { #whose-workspace-it-is-and-who-else-can-see-it }
 
@@ -495,16 +526,17 @@ nie do odróżnienia od człowieka i nic go przed tym nie powstrzymuje.
 
 ### Wypisanie zawartości kontenera kosztuje obiegi, więc dwie rzeczy są ograniczone { #listing-a-container-costs-round-trips-so-two-things-are-bounded }
 
-`ls` z archiwum czyta jeden katalog, więc zestawienie chodzi po drzewie: wszerz,
-najwyżej na sześć poziomów w głąb, zatrzymując się na 2000 wpisach — bo host
-trzymający `node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy
-wierszy.
+`ls` z archiwum czyta jeden katalog, więc zestawienie prosi hosta o `tree`:
+jedno żądanie, drzewo przechodzone wszerz na dysku samego hosta, najwyżej na sześć
+poziomów w głąb, z zatrzymaniem na 2000 wpisach — bo host trzymający
+`node_modules` nie może zamienić jednego workspace'u w dziesięć tysięcy wierszy.
 
 **Oba ograniczenia są raportowane.** Strona workspace'u mówi wprost, że to nie są
 wszystkie pliki, bo drzewo, które zatrzymuje się bez uprzedzenia, ktoś przeczyta
 jako wszystko, co agent trzyma.
 
-Katalog, który nie chce odpowiedzieć, jest logowany i pomijany. Dopiero odmowa
+Katalog, który nie chce odpowiedzieć, jest pomijany, a zestawienie zgłasza, że jest
+niepełne. Dopiero odmowa
 *korzenia* czyni workspace nieczytelnym, bo jeden folder, któremu agent zabrał
 prawa, to nie jest host, którego nikt nie potrafi odczytać.
 
@@ -547,6 +579,22 @@ tą pracą, a użytkownik agenta oczekuje ich w przyszłym tygodniu.
 
 Usunięcie rozmowy czyści jej workspace poprzez produkt, więc rzecz dotyczy tego,
 czego nikt nie usuwa, a nie tego, co ludzie robią.
+
+To czyszczenie nie zależy od tego, czy dostawca akurat odpowiada. Usunięcie w tej
+samej transakcji zapisuje nagrobek dla każdego zdalnego sandboxa, a destroy usuwa
+nagrobek, gdy dostawca je potwierdzi. Gdy host sandboxa leży, klucz Daytony
+zostanie odrzucony albo worker zrestartuje się w międzyczasie, sweep workera
+`sandbox-destroy-retry` próbuje ponownie. Przerwa podwaja się za każdym razem, od
+2 minut do 6 godzin, aż destroy się uda. Sandbox Daytony nie ma za sobą TTL, więc
+tylko to go kończy.
+
+Połączenie wyłączone dalej ma swoje sandboxy usuwane, bo wyłączenie wstrzymuje
+nową pracę, a nie rachunek. Połączenia, na którym zostały tombstone'y, nie da się
+usunąć: zniknęłyby razem z nim, a to jedyny zapis tego, co nadal działa u
+dostawcy. Gdy sweep nie ma szans się udać, bo poświadczenie połączenia zostało
+usunięte albo unieważnione, usuń sandboxy w konsoli dostawcy. Potem usuń
+połączenie jeszcze raz i potwierdź, że to zrobiono: tombstone'y zostaną
+zapomniane, a ich liczba trafi do logu audytu.
 
 ## Podsumowanie { #recap }
 

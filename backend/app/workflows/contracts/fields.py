@@ -5,8 +5,6 @@ service behind it: the Manual, API, Form and Called by a workflow triggers decla
 these, and a form's public page draws them.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

@@ -1,7 +1,5 @@
 """Pinned data and a single step's test: what a test run hands on without running a step."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

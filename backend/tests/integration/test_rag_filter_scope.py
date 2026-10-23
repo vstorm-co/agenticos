@@ -6,8 +6,6 @@ the business dimensions, the impossible-date guard, and the facet - which only a
 real database can answer.
 """
 
-from __future__ import annotations
-
 import random
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch

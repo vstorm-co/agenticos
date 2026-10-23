@@ -5,8 +5,6 @@ confidence is below the step's floor - so a branch acts only on an answer
 somebody set a bar for. See `app.workflows.nodes._decide`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict

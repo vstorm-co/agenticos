@@ -5,8 +5,6 @@ not UTF-8, a CSV whose rows do not match its header - rather than hand on a
 best guess, because the next step would treat the guess as the file.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 from collections.abc import Mapping, Sequence

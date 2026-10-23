@@ -20,8 +20,6 @@ only one - an agent sees exactly what the bot sees, and there is no call in this
 module that widens that.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol

@@ -1,7 +1,5 @@
 """A workflow as a file: what `GET .../export` gives and `POST /workflows/import` takes (#1953)."""
 
-from __future__ import annotations
-
 from typing import Any, Literal
 from uuid import UUID
 

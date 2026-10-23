@@ -67,6 +67,27 @@ export interface CapabilityBindingSpec {
  * tokens, cost and tool names but no message text or tool arguments. */
 export type TraceContent = "full" | "none";
 
+/** Mirrors `RunReviewerSpec`: a second model that reviews a run while it goes (#2106). */
+export interface RunReviewerSpec {
+  /** What its corrections are attributed to. `^[a-z0-9][a-z0-9_-]{0,39}$`. */
+  name: string;
+  /** Null in a draft; publish requires one. */
+  model_profile_id: string | null;
+  /** What to look for. Empty in a draft; publish requires it. */
+  instructions: string;
+  /** Review every N model requests. */
+  every: number;
+  /** How many tokens of the most recent run each review reads. */
+  window: number;
+}
+
+/** Mirrors `CodeModeSpec`: many tool calls from one sandboxed script (#2107). */
+export interface CodeModeSpec {
+  enabled: boolean;
+  /** How many tool calls one script may make. */
+  max_tool_calls: number;
+}
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -78,7 +99,63 @@ export interface ObservabilitySpec {
   content?: TraceContent | null;
 }
 
+/**
+ * Which provider and language this agent's speech is transcribed with, where it
+ * differs from the organization's, and whether `/chat` dictation uses it. A null
+ * field inherits. The provider and model are a pair - both or neither, refused
+ * at publish otherwise - and the language stands alone. Written with every key,
+ * in this order, and a block at its defaults is written as `null`: the server
+ * stores it that way, and the Builder compares the draft as JSON.
+ */
+export interface SpeechToTextSpec {
+  provider: string | null;
+  model: string | null;
+  /** ISO-639-1; null inherits the organization's, then the engine detects it. */
+  language: string | null;
+  /**
+   * The vault key the pair is sent with: an API key whose purpose is the
+   * provider. Set with the pair and only with it; a language-only override
+   * keeps the organization's pair and key.
+   */
+  secret_id: string | null;
+  /**
+   * Send `/chat` dictation to the provider this block resolves to. Off - and
+   * on while no pair or key resolves - the browser's own recognition does it.
+   */
+  dictation: boolean;
+}
+
+/**
+ * How an agent holds a spoken conversation (#54): a pick from the realtime
+ * catalog and the vault key it is held with. Azure names a `deployment` (free
+ * text) and the catalog `base_model` it runs; every other provider names a
+ * `model`. Written with all nine keys, in this order, and an all-null block is
+ * written as `null`, like `SpeechToTextSpec`.
+ */
+export interface VoiceSpec {
+  provider: string | null;
+  model: string | null;
+  deployment: string | null;
+  base_model: string | null;
+  secret_id: string | null;
+  /** One of the model's voices; null is its default. */
+  voice: string | null;
+  /** ISO-639-1; null follows the caller. */
+  language: string | null;
+  /** The longest call (60-3000 s); null is the organization's. */
+  max_call_seconds: number | null;
+  /** Extra spoken-style guidance appended in calls. */
+  voice_note: string | null;
+}
+
 /** The agent's half of the two budget levels; the organization's cap is the other. */
+/** Mirrors `LoopGuardSpec`: identical calls in a row, and cycle repeats, that count as a loop. */
+export interface LoopGuardSpec {
+  enabled: boolean;
+  repeats: number;
+  cycles: number;
+}
+
 export interface BudgetSpec {
   monthly_usd?: number | null;
 }
@@ -239,7 +316,16 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
+  /**
+   * Which tools wait for a person: those not marked read-only, all, or none.
+   * Required, as the API always returns it (`none` when unset): a binding built
+   * without it never compares equal to the stored draft, so autosave never settles.
+   */
+  approval: McpApproval;
 }
+
+/** How much of an MCP server's tools wait for a person's approval (#2060). */
+export type McpApproval = "writes" | "all" | "none";
 
 /**
  * A service each person reaches through their own account.
@@ -247,17 +333,43 @@ export interface OrgMcpServerRef {
  * Names a catalog entry rather than a connection: whose connection answers is
  * decided when the turn runs, from whoever wrote the message. Where nobody did
  * - an API key, the widget, a schedule, an unlinked chat account - the server
- * is absent from that run and the agent is told so.
+ * is absent from that run and the agent is told so; a schedule that acts as its
+ * creator is the creator writing (#2027).
  */
 export interface PersonalMcpServerRef {
   account: "personal";
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
+  approval: McpApproval;
 }
 
-/** One MCP binding: the organization's connection, or each person's own account. */
-export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
+/**
+ * This deployment's own MCP server, as whoever the agent runs for (#2063).
+ * What the AI Architect operates the platform through.
+ */
+export interface PlatformMcpServerRef {
+  account: "platform";
+  allowed_tools: string[] | null;
+  approval: McpApproval;
+}
+
+/** One MCP binding: the organization's connection, each person's own, or the platform's. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef;
+
+/** A custom variable, written `{{name}}` in an agent's instructions (#2065). */
+export interface PromptVariableSpec {
+  name: string;
+  value: string;
+  description?: string | null;
+}
+
+/** A system variable, filled in by the platform when a run starts. */
+export interface SystemPromptVariable {
+  name: string;
+  description: string;
+  example: string;
+}
 
 export interface AgentSpec {
   /**
@@ -272,7 +384,12 @@ export interface AgentSpec {
   spec_version?: number;
   name: string;
   description?: string | null;
+  /** The system prompt; `{{name}}` is filled in when each run starts (#2065). */
   instructions: string;
+  /** Custom variables the instructions may use. Optional here, always on the wire. */
+  variables?: PromptVariableSpec[];
+  /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
+  time_zone?: string;
   model_profile_id?: string | null;
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
@@ -289,6 +406,8 @@ export interface AgentSpec {
    * optional in this type because `create` does not send one.
    */
   subagents?: SubagentRef[];
+  /** Remote A2A agents it may delegate to (#2092). Optional here, always on the wire. */
+  external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   /**
@@ -297,6 +416,12 @@ export interface AgentSpec {
    * absent is a free-text answer.
    */
   output_schema?: Record<string, unknown> | null;
+  /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
+  loop_guard?: LoopGuardSpec;
+  /** Second models that review the run while it goes; defaulted to none server side. */
+  reviewers?: RunReviewerSpec[];
+  /** Whether tools are called from one sandboxed script; defaulted off server side. */
+  code_mode?: CodeModeSpec;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.
@@ -308,6 +433,16 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  speech_to_text?: SpeechToTextSpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  voice?: VoiceSpec | null;
+}
+
+/** A remote A2A agent this agent may delegate to, by its registration (#2092). */
+export interface ExternalAgentRef {
+  external_agent_id: string;
+  preferred_mode?: DelegationMode | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -325,6 +460,8 @@ export interface Agent {
   description: string | null;
   status: AgentStatus;
   visibility: Visibility;
+  /** The groups it is shared with, by name (#2072). Only the listing carries it. */
+  shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
   /**
@@ -344,6 +481,8 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /** Whether other systems may reach it over A2A, by its agent card (#2092). */
+  a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -542,6 +681,12 @@ export interface CapabilityCatalogEntry {
   category: string;
   description: string;
   side_effecting: boolean;
+  /**
+   * Whether the Builder offers per-tool settings. False where the one tool is the
+   * capability itself - the coding agent's - so its approval is the capability's.
+   * Absent from an older server, which means offered.
+   */
+  tool_settings?: boolean;
   scopes: string[];
   /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];
@@ -557,6 +702,17 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
+  /**
+   * How it takes part in a voice call (#54): `live` on the call's own model,
+   * `hand_off` in the agent's text model the call hands a task to - the Voice
+   * card lists those - and `never` not at all.
+   */
+  voice: "live" | "hand_off" | "never";
+  /**
+   * How the starter agent (the Claude Code like template) binds this capability,
+   * or null where it does not. Marked Recommended, and what a new agent starts with.
+   */
+  recommended: CapabilityBindingSpec | null;
 }
 
 export interface CapabilityCatalog {
@@ -661,12 +817,35 @@ export interface JsonSchemaProperty {
    * Values a field suggests without restricting itself to them.
    *
    * The open counterpart of `enum`: the backend validates a plain string, so the
-   * form offers these and still accepts anything else. A browsing agent's
-   * `decision_model` is the case it exists for - the catalog holds the moving
-   * aliases, and an agent whose confidence floor was tuned against a pinned
-   * build has to be able to name that build. `x-enum-labels` names them.
+   * form offers these and still accepts anything else. `x-enum-labels` names them.
    */
   "x-suggestions"?: string[];
+  /**
+   * Whether this field is folded under "Advanced settings" (#2070).
+   *
+   * A capability marks limits, cache lifetimes, prompts and tuning this way
+   * through `json_schema_extra`, so the form shows the decisions that change
+   * what an agent does first and the rest a click away.
+   */
+  "x-advanced"?: boolean;
+  /**
+   * A control the form draws for a value that is a reference rather than text:
+   * `model-profile` is one of the organization's model profiles, chosen from
+   * the same picker the Builder uses for the agent's own model.
+   */
+  "x-widget"?: "model-profile";
+  /**
+   * The choices an enum offers for each value of another field of the form -
+   * the coding agent's models, which depend on its harness. A choice the other
+   * field no longer allows is cleared when that field changes.
+   */
+  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
+  /**
+   * Show this field only while another field of the same form holds one of
+   * these values - a proxy's address under "Through a proxy" and nowhere else.
+   * Hidden is not cleared: switching back finds what was typed.
+   */
+  "x-visible-when"?: { field: string; equals: string[] };
   /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
@@ -680,4 +859,10 @@ export interface JsonSchemaProperty {
     items?: { type?: string; enum?: unknown[] };
     "x-enum-labels"?: Record<string, string>;
   }[];
+}
+
+/** An agent using a skill, a context file or a knowledge base, as a listing names it. */
+export interface AgentUsage {
+  id: string;
+  name: string;
 }

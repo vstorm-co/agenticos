@@ -14,9 +14,11 @@ import type { BindingData } from "@/types/artifact";
  * a library draws, and with none they were an empty canvas on their card (#1968).
  * No `allow-modals`, so an `alert()` on load is a no-op rather than a dialog over
  * the listing. What script still costs - a page that loops or spawns workers - is
- * bounded by where it runs: a thumbnail is mounted only while its card is near
- * the viewport and unmounted when it leaves (`useNearViewport`), so a listing of
- * fifty runs the few a reader can see.
+ * bounded by how many are loaded: a thumbnail loads when its card first nears the
+ * viewport (`useSeen`), and a listing is paged. A frame scrolled out of view
+ * stays mounted, because the browser already throttles an off-screen cross-origin
+ * frame, and unmounting it meant a fresh address and a fresh page load every time
+ * the reader scrolled back.
  */
 const THUMBNAIL_SANDBOX = "allow-scripts";
 
@@ -25,27 +27,27 @@ const VIEWPORT_WIDTH = 1280;
 const VIEWPORT_HEIGHT = 960;
 
 /**
- * Whether the element is within a screen of the viewport, now - not once.
- * Scrolling away unmounts the frame, which is what stops a scripted page in a
- * card nobody is looking at. False where the browser has no observer (a test
- * environment): nothing loads.
+ * Whether the element has come within a screen of the viewport, ever.
+ *
+ * Once, not now: the answer never goes back to false, so a card scrolled past
+ * keeps the page it loaded rather than asking for it again. False where the
+ * browser has no observer (a test environment): nothing loads.
  */
-function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
-  const [near, setNear] = useState(false);
+function useSeen(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [seen, setSeen] = useState(false);
   useEffect(() => {
     const element = ref.current;
-    if (element === null || typeof IntersectionObserver === "undefined") return;
+    if (seen || element === null || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[entries.length - 1];
-        if (entry) setNear(entry.isIntersecting);
+        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
       },
       { rootMargin: "240px" },
     );
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref]);
-  return near;
+  }, [ref, seen]);
+  return seen;
 }
 
 /**
@@ -76,9 +78,9 @@ function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
  *
  * The real page rather than a screenshot, because none is kept: an artifact is
  * the HTML an agent published, and this is the one place in a listing that can
- * show what a report looks like before it is opened. It is loaded only while the
- * card is near the viewport - the signed address is a request per card - and in
- * a sandbox that allows script and nothing more, see `THUMBNAIL_SANDBOX`.
+ * show what a report looks like before it is opened. It is loaded once, when the
+ * card first nears the viewport - the signed address is a request per card - and
+ * in a sandbox that allows script and nothing more, see `THUMBNAIL_SANDBOX`.
  *
  * Inert: no pointer events, out of the tab order and hidden from assistive
  * technology, because the card around it is the link and carries the title.
@@ -98,17 +100,25 @@ export function ArtifactThumbnail({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
-  const near = useNearViewport(box);
+  const seen = useSeen(box);
   const scale = useFitScale(box);
-  const view = useArtifactView(artifactId, versionId, near);
-  const bridge = useDataBridge(frame, view.data?.nonce ?? "", NO_DATA, 0);
+  // The first address is kept, and the query stops once there is one: a refetch
+  // - on reconnect, say - mints a new address, and a new `src` reloads the page.
+  // Its nonce is kept with it, because the data bridge answers only the frame
+  // whose address that nonce was minted for.
+  const [shown, setShown] = useState<{ url: string; nonce: string } | null>(null);
+  const src = shown?.url ?? null;
+  const view = useArtifactView(artifactId, versionId, seen && shown === null);
+  const bridge = useDataBridge(frame, shown?.nonce ?? "", NO_DATA, 0);
   const [loaded, setLoaded] = useState(false);
-  // A frame unmounted off screen paints again when it comes back, so the lines
-  // return with it rather than a blank card waiting for the load.
-  const [wasNear, setWasNear] = useState(near);
-  if (wasNear !== near) {
-    setWasNear(near);
-    if (!near) setLoaded(false);
+  const page = `${artifactId}:${versionId ?? ""}`;
+  const [shownPage, setShownPage] = useState(page);
+  if (shownPage !== page) {
+    setShownPage(page);
+    setShown(null);
+    setLoaded(false);
+  } else if (shown === null && view.data !== undefined) {
+    setShown({ url: view.data.url, nonce: view.data.nonce });
   }
   const line = cn("bg-muted rounded", !view.isError && "animate-pulse");
 
@@ -126,10 +136,10 @@ export function ArtifactThumbnail({
           </div>
         </div>
       )}
-      {near && view.data !== undefined && (
+      {src !== null && (
         <iframe
           ref={frame}
-          src={view.data.url}
+          src={src}
           title={title}
           sandbox={THUMBNAIL_SANDBOX}
           referrerPolicy="no-referrer"

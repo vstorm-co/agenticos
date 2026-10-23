@@ -11,6 +11,7 @@ import {
   useVersionUsage,
 } from "./use-usage-stats";
 import { apiClient } from "@/lib/api-client";
+import { DASHBOARD_STALE_MS } from "@/lib/query-freshness";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn() },
@@ -66,6 +67,18 @@ describe("useUsageStats", () => {
         agent_id: "agent-1",
         user_id: "user-1",
       },
+    });
+  });
+
+  it("narrows to a group's members on the group view", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 1 });
+    const { result } = renderHook(() => useUsageStats(PERIOD, { filter: { groupId: "g-1" } }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: { from: PERIOD.from, to: PERIOD.to, scope: "org", group_id: "g-1" },
     });
   });
 
@@ -152,6 +165,26 @@ describe("usePeopleUsage", () => {
         scope: "org",
         group_by: "user",
         limit: "6",
+      },
+    });
+  });
+
+  it("keeps a group's narrowing on the person rows", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ by_user: [] });
+    const { result } = renderHook(
+      () => usePeopleUsage(PERIOD, { filter: { groupId: "g-1", userId: "ignored" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        group_by: "user",
+        limit: "6",
+        group_id: "g-1",
       },
     });
   });
@@ -282,15 +315,26 @@ describe("dashboard freshness", () => {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
 
-  it("asks again when the tab regains focus", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 1 });
-    const { result } = renderHook(() => useUsageStats(PERIOD), { wrapper: appWrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  it("reuses its answer for half an hour, then asks again when the tab is looked at", async () => {
+    // Half an hour because what moves is pushed: the live feed marks runs stale
+    // as they change. A focus inside the window costs nothing.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 1 });
+      const { result } = renderHook(() => useUsageStats(PERIOD), { wrapper: appWrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    focusManager.setFocused(false);
-    focusManager.setFocused(true);
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+      vi.setSystemTime(Date.now() + DASHBOARD_STALE_MS + 1);
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

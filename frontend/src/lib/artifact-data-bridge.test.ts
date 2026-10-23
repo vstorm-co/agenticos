@@ -65,7 +65,12 @@ const OK = {
 
 function start(
   config: Partial<BridgeConfig> = {},
-  options: { orphan?: boolean; readyState?: DocumentReadyState } = {},
+  options: {
+    orphan?: boolean;
+    readyState?: DocumentReadyState;
+    /** What the platform script put on `window.agenticos` before the bridge ran. */
+    base?: Record<string, unknown>;
+  } = {},
 ) {
   const bridge = (0, eval)(`(${source})`) as Bridge;
   const parent: Parent = { postMessage: vi.fn() };
@@ -81,6 +86,7 @@ function start(
     clearTimeout: (id) => clearTimeout(id),
   };
   if (options.orphan) stub.parent = stub;
+  if (options.base) stub.agenticos = Object.freeze({ ...options.base }) as unknown as Agenticos;
   // A page whose platform script runs while it is still parsing, unless told otherwise -
   // or one that runs actions, which a page may start only once it has loaded.
   const page = {
@@ -107,6 +113,16 @@ describe("the artifact data bridge", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("keeps what the platform script already put on window.agenticos, and freezes the whole", () => {
+    const map = vi.fn();
+    const followUp = vi.fn();
+    const { agenticos } = start({}, { base: { map, followUp, canFollowUp: true } });
+
+    expect(agenticos).toMatchObject({ map, followUp, canFollowUp: true });
+    expect(typeof agenticos.run).toBe("function");
+    expect(Object.isFrozen(agenticos)).toBe(true);
   });
 
   it("resolves every binding unavailable at once when not live", async () => {

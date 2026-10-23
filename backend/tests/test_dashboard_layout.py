@@ -7,8 +7,6 @@ guarantees the database enforces - one row per person per org, the cascades -
 are asserted against a real database in tests/integration/test_dashboard_layout.py.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

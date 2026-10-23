@@ -13,6 +13,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.services import access, sharing
 from app.services.access import COLLECTION
 from app.services.sharing import (
     _GUARDS,
@@ -222,6 +223,8 @@ class TestShareWithGroup:
                 new=AsyncMock(return_value=MagicMock()),
             ) as upsert,
             patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+            # Who is told is `test_group_leads_and_shares`'s, over a real database.
+            patch.object(SharingService, "_tell_the_group", new=AsyncMock()),
         ):
             await SharingService(_db()).share_with_group(
                 ctx,
@@ -572,3 +575,17 @@ class TestSharingGuard:
         with patch.dict("app.services.sharing._GUARDS", clear=False):
             register_sharing_guard(COLLECTION, guard)
             assert _GUARDS[COLLECTION.key] is guard
+
+
+@pytest.mark.parametrize(
+    "resource_type",
+    # Every kind `access` defines, so the next one added is checked without a
+    # second list to remember.
+    [kind for kind in vars(access).values() if isinstance(kind, access.ResourceType)],
+    ids=lambda kind: kind.key,
+)
+def test_every_shareable_kind_has_a_page_a_share_notification_opens(resource_type) -> None:
+    """A kind missing here made every share of it with a group a `KeyError`: the
+    notification is written in the same transaction, so the share rolled back
+    with a 500 - every project shared with a department."""
+    assert sharing._CONSOLE_PATHS[resource_type.key].startswith("/")

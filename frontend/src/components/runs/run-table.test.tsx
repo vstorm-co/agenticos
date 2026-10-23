@@ -39,6 +39,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     ...overrides,
   };
 }
@@ -87,17 +89,13 @@ describe("a run history row", () => {
 
     // Beside the label rather than inside it: the label truncates on one line,
     // so it is a span of its own with the mark next to it.
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).not.toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).not.toBeNull();
   });
 
   it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
     render(<RunTable runs={[run({ provider: null })]} />);
 
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).toBeNull();
   });
 
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
@@ -194,7 +192,7 @@ describe("opening a run from its row", () => {
     const onOpen = vi.fn();
     render(<RunTable runs={[run()]} onOpen={onOpen} />);
 
-    await userEvent.click(within(row()).getByText("openai · gpt-5"));
+    await userEvent.click(within(row()).getByText("gpt-5"));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "run-1" });
@@ -273,7 +271,8 @@ describe("who ran it, and which agent", () => {
       />,
     );
 
-    expect(within(row()).getByText("Support agent")).toBeVisible();
+    // Twice: its own column, and folded under the status for a phone.
+    expect(within(row()).getAllByText("Support agent")).toHaveLength(2);
     expect(within(row()).getByText("Kim")).toBeVisible();
   });
 
@@ -324,5 +323,52 @@ describe("the run the panel beside the table is showing", () => {
     expect(within(screen.getByRole("table")).getAllByRole("row")[1]).not.toHaveAttribute(
       "aria-selected",
     );
+  });
+
+  it("marks a run from the Builder's test panel (#2074)", () => {
+    render(<RunTable runs={[run({ is_test: true })]} />);
+
+    expect(within(row()).getByText("test")).toBeVisible();
+  });
+});
+
+describe("a voice call's row", () => {
+  it("wears a microphone and counts the whole call, every connection", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            modality: "voice",
+            cost_usd: "0.100000",
+            voice_chain: { connections: 3, seconds: 545, cost_usd: "0.420000" },
+          }),
+        ]}
+      />,
+    );
+    expect(within(row()).getByText("Voice call")).toHaveClass("sr-only");
+    expect(within(row()).getByText("9:05")).toBeInTheDocument();
+    expect(within(row()).getByText(/\$0\.4200/)).toBeInTheDocument();
+    expect(within(row()).getByText("Reconnected 2 times")).toBeInTheDocument();
+  });
+
+  it("says nothing of reconnects for a call that never dropped", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            modality: "voice",
+            voice_chain: { connections: 1, seconds: 30, cost_usd: "0.010000" },
+          }),
+        ]}
+      />,
+    );
+    expect(within(row()).getByText("0:30")).toBeInTheDocument();
+    expect(within(row()).queryByText(/Reconnected/)).toBeNull();
+  });
+
+  it("falls back to the run's own figures where the list sent no chain", () => {
+    render(<RunTable runs={[run({ modality: "voice" })]} />);
+    expect(within(row()).getByText("Voice call")).toBeInTheDocument();
+    expect(within(row()).getByText("30 s")).toBeInTheDocument();
   });
 });

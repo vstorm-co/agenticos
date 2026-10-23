@@ -11,8 +11,6 @@ Writing cases and trying them needs `workflows:edit`, as testing the draft does:
 a case holds test data, and trying one runs the draft.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any
 from uuid import UUID

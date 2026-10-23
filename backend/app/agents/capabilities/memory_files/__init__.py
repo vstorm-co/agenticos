@@ -1,7 +1,5 @@
 """Memory files - an agent's own notes, indexed by a `MEMORY.md` it maintains."""
 
-from __future__ import annotations
-
 from pydantic import BaseModel, Field
 
 from app.agents.capabilities._registry import (
@@ -34,6 +32,7 @@ class MemoryFilesConfig(BaseModel):
     """
 
     allow_personal: bool = Field(
+        title="Keep private notes per person",
         default=True,
         description=(
             "Whether the agent keeps private notes for each person it talks to, "
@@ -46,7 +45,7 @@ class MemoryFilesConfig(BaseModel):
 
 @register(
     id=MEMORY_FILES_CAPABILITY_ID,
-    name="Memory files",
+    name="Memory",
     category="knowledge",
     description=(
         "Let the agent keep its own notes across conversations, indexed by a "

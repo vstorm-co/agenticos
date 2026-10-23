@@ -6,8 +6,6 @@ run has no owner/visibility of its own - it inherits its workflow's), before
 anything about the run itself is touched.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from dataclasses import dataclass
@@ -55,7 +53,14 @@ from app.schemas.workflow_run import (
     WorkflowStepTest,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
-from app.services.workflow_execution import admission, delivery, dispatcher, events, limits
+from app.services.workflow_execution import (
+    admission,
+    delivery,
+    dispatch_queue,
+    dispatcher,
+    events,
+    limits,
+)
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowGraphUnresolvableError,
@@ -297,7 +302,7 @@ class WorkflowExecutionService:
             graph = step_subgraph(graph, step.node_id, step.outputs)
             draft_snapshot = graph.model_dump(mode="json")
         _check_declared_input(graph, payload)
-        run, entry_node_run_id = await self._admit(
+        run, _entry = await self._admit(
             ctx,
             workflow,
             graph=graph,
@@ -313,7 +318,6 @@ class WorkflowExecutionService:
             source_version_number=source_version_number,
             impersonated=impersonated,
         )
-        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)
 
     async def admit_pinned(
@@ -325,19 +329,15 @@ class WorkflowExecutionService:
         triggered_by: WorkflowRunTrigger,
         run_input: dict[str, Any],
         causation: Causation | None = None,
-        submitted: bool = True,
     ) -> tuple[WorkflowRun, UUID]:
         """Admit a run of one pinned version as `ctx` - a webhook's, a schedule's, a
         table trigger's or a failure's fire. `causation` places it in a chain of runs.
-        `submitted=False` leaves the first dispatch to the poll, for a caller that
-        cannot submit it itself once its transaction commits.
 
         The exposure layer has already decided `ctx` may run `workflow` and that
         it is not archived; this is the rest of `start`, on the version the
         exposure pinned rather than the workflow's current one. Returns the run
-        and its entry node run, whose first dispatch the caller submits once its
-        own transaction commits - a request through `trigger_dispatch`, the
-        schedule heartbeat after its claim commits.
+        and its entry node run, whose first dispatch is queued in the caller's own
+        transaction: it starts when that commits.
 
         Raises:
             WorkflowRunInputTooLargeError: `run_input` is over
@@ -358,7 +358,6 @@ class WorkflowExecutionService:
             deadline_seconds=None,
             reply_conversation_id=None,
             causation=causation,
-            submitted=submitted,
         )
 
     async def admit_call(
@@ -372,8 +371,8 @@ class WorkflowExecutionService:
         parent_node_run_id: UUID,
     ) -> WorkflowRun:
         """Admit a run of `version` that a `workflow.run` step calls, as `ctx` - the
-        calling run's principal - and submit its first dispatch once the step's
-        own transaction commits. The step is woken when the run ends.
+        calling run's principal - its first dispatch is queued in the step's own
+        transaction. The step is woken when the run ends.
 
         Raises:
             WorkflowRunInputTooLargeError: `run_input` is over the size limit.
@@ -384,7 +383,7 @@ class WorkflowExecutionService:
         graph = WorkflowGraph.model_validate(version.graph)
         payload = _checked_input(run_input)
         _check_declared_input(graph, payload)
-        run, entry_node_run_id = await self._admit(
+        run, _entry = await self._admit(
             ctx,
             workflow,
             graph=graph,
@@ -399,7 +398,6 @@ class WorkflowExecutionService:
             causation=causation,
             parent_node_run_id=parent_node_run_id,
         )
-        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return run
 
     async def _admit(
@@ -418,7 +416,6 @@ class WorkflowExecutionService:
         reply_conversation_id: UUID | None,
         causation: Causation | None = None,
         retry_of_run_id: UUID | None = None,
-        submitted: bool = True,
         parent_node_run_id: UUID | None = None,
         public_origin: bool = False,
         impersonated: bool = False,
@@ -507,15 +504,9 @@ class WorkflowExecutionService:
             node_instance_id=graph.entry_node_id,
             scope_path=[],
         )
-        # Stamped submitted when the caller submits it once its transaction
-        # commits, so the poll leaves it alone unless that submission is lost.
-        await workflow_run_repo.create_outbox(
-            self.db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
-            node_run_id=entry_node_run.id,
-            submitted=submitted,
-        )
+        # The first dispatch's job commits with the run, so it starts the moment
+        # the admitting transaction does.
+        await dispatch_queue.queue_dispatch(self.db, run=run, node_run_id=entry_node_run.id)
         run = await workflow_run_repo.update_run(
             self.db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}
         )
@@ -693,7 +684,7 @@ class WorkflowExecutionService:
             graph = await dispatcher.resolve_graph(self.db, original)
         except WorkflowGraphUnresolvableError as exc:
             raise WorkflowNotRunnableError(workflow_id=workflow.id) from exc
-        run, entry_node_run_id = await self._admit(
+        run, _entry = await self._admit(
             ctx,
             workflow,
             graph=graph,
@@ -714,7 +705,6 @@ class WorkflowExecutionService:
             source_artifact_id=original.source_artifact_id,
             source_version_number=original.source_version_number,
         )
-        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)
 
     async def graph(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunGraph:
@@ -900,15 +890,6 @@ class WorkflowExecutionService:
                     kind=ResourceRefKind.TABLE.value,
                     ref=binding.source.model_dump(mode="json"),
                 )
-
-    def _trigger_dispatch(self, *, workflow_run_id: UUID, node_run_id: UUID) -> None:
-        """The low-latency direct trigger. Losing this is not a bug -
-        `workflow-dispatch-poll` resubmits the row once its submission is a
-        lease old - so this is best-effort, never awaited.
-        """
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(self.db, workflow_run_id=workflow_run_id, node_run_id=node_run_id)
 
 
 __all__ = ["Causation", "WorkflowExecutionService", "node_run_read"]

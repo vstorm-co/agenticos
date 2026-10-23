@@ -7,8 +7,6 @@ as it answers for a page that is not there. Archiving turns the public link off,
 and restoring does not turn it back on.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime

@@ -13,8 +13,6 @@ them (`input_problems`), and the `out` port carries a `payload` typed by them
 type at publish rather than when the run reaches it.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import date
 from typing import Annotated, Any

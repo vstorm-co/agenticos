@@ -18,8 +18,6 @@ what the model may reach is resolved here from what it cannot write.
 Refusals come back as text the model reasons about; a malformed call steers it.
 """
 
-from __future__ import annotations
-
 import json
 from collections.abc import Mapping
 from enum import StrEnum

@@ -17,8 +17,6 @@ And the cost of measuring: a container's memory is a daemon round trip, so a
 report nobody will see is never fetched.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from typing import Any
@@ -277,6 +275,8 @@ class TestAssemblingIt:
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[])
         )
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
         service = UsageReportService(mock_db_session)
 
         report = await service.for_run(_ctx(), _run(), include_sandbox=True)

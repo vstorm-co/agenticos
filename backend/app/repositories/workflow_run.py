@@ -8,8 +8,6 @@ and the fallback for a lost race belong to the caller
 and its caller already use.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -23,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
+from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
@@ -40,6 +39,7 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow as workflow_repo
 from app.schemas.workflow_run import WorkflowRunFilters
+from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 
 
 async def create_run(
@@ -152,7 +152,7 @@ async def get_run_for_update(
 
 async def get_run_by_id_for_update(db: AsyncSession, run_id: UUID) -> WorkflowRun | None:
     """Unscoped, row-locked - for the dispatcher and reconciler, which act on
-    ids a trusted internal caller supplies (a Prefect flow argument, a sweep's
+    ids a trusted internal caller supplies (a job's payload, a sweep's
     own scan), never on a caller-supplied id an organization boundary must
     still be checked against. Every write this makes is still stamped with
     the row's own `organization_id`.
@@ -270,7 +270,8 @@ async def create_node_run(
 # forever would let a few failed wide runs exhaust the quota and 429 every later
 # start until each is cancelled by hand. Whatever nodes such a run still had
 # queued or running drain through the runner regardless - bounded by
-# `PREFECT_RUNNER_LIMIT`, never re-grown, since a parked run enqueues no successors.
+# the workflow pool's `WORKER_WORKFLOW_CONCURRENCY` per worker, never re-grown, since a
+# parked run enqueues no successors.
 _LIVE_RUN_STATUSES = tuple(
     status.value
     for status in WorkflowRunStatus
@@ -978,7 +979,7 @@ async def bring_forward_outbox(db: AsyncSession, *, node_run_id: UUID) -> None:
             DispatchOutbox.node_run_id == node_run_id,
             DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
         )
-        .values(available_at=func.now())
+        .values(available_at=func.now(), submitted_at=func.now())
     )
 
 
@@ -989,7 +990,6 @@ async def create_outbox(
     workflow_run_id: UUID,
     node_run_id: UUID,
     available_at: datetime | None = None,
-    submitted: bool = False,
 ) -> DispatchOutbox:
     """Insert a dispatch row. Raises `IntegrityError` if one is already live.
 
@@ -1000,16 +1000,21 @@ async def create_outbox(
     `available_at=None` means due now by the database's own clock - the clock
     `claim_outbox` compares against - so an application host running slightly
     ahead of the database cannot write a row that is not yet claimable when
-    its own trigger arrives. `submitted=True` is for a caller that submits
-    the row itself once its transaction commits, so the poll does not submit
-    it a second time.
+    its job arrives.
+
+    `submitted_at` is when the row's job is due to run - now, or `available_at`
+    when later - for the caller (`dispatch_queue.queue_dispatch`) queues that job
+    in the same transaction. The poll then looks only at rows still pending a
+    lease after they came due.
     """
     outbox = DispatchOutbox(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_run_id=node_run_id,
         available_at=func.now() if available_at is None else available_at,
-        submitted_at=func.now() if submitted else None,
+        submitted_at=func.now()
+        if available_at is None
+        else func.greatest(func.now(), available_at),
     )
     db.add(outbox)
     await db.flush()
@@ -1023,9 +1028,9 @@ async def claim_outbox(
     """The compare-and-swap claim: a `pending` row, or a `claimed` one whose lease expired.
 
     Matched on `node_run_id` rather than the outbox row's own id - the
-    `workflow-dispatch-node` deployment is triggered with `(workflow_run_id,
-    node_run_id)`, and the partial unique index guarantees at most one live
-    row per `node_run_id` to match.
+    `workflow-dispatch-node` job carries `(workflow_run_id, node_run_id)`, and
+    the partial unique index guarantees at most one live row per `node_run_id`
+    to match.
 
     `status = 'claimed' AND lease_expires_at < now()` must be its own branch:
     `status = 'pending'` alone can never match a row this same claim already
@@ -1062,10 +1067,12 @@ async def take_due_for_submission(
     """Deployment-wide: `pending` rows due now, stamped as submitted in the same statement.
 
     `workflow-dispatch-poll`'s scan. A row submitted at or after
-    `resubmit_before` is left alone - its flow run is queued and will claim it
-    - so a backed-up worker pool gets one submission per row per interval, not
-    one per tick. `SKIP LOCKED` leaves a row a worker is claiming right now to
-    that worker.
+    `resubmit_before` is left alone - its job is queued and will claim it - so
+    a backed-up worker pool gets one job per row per interval, not one per tick.
+    A row of an organization whose node kind is paused is left alone too: no job
+    could claim it, and the oldest hundred of them would take every batch from
+    the rows that need one. `SKIP LOCKED` leaves a row a worker is claiming right
+    now to that worker.
 
     Unscoped like `agent_run_repo.list_stale_approvals` - the poller has no
     tenant of its own - and every write it triggers is still scoped by the
@@ -1081,6 +1088,14 @@ async def take_due_for_submission(
             or_(
                 DispatchOutbox.submitted_at.is_(None),
                 DispatchOutbox.submitted_at < resubmit_before,
+            ),
+            ~exists().where(
+                BackgroundTaskKind.kind == WORKFLOW_DISPATCH_NODE.kind,
+                BackgroundTaskKind.paused_at.is_not(None),
+                or_(
+                    BackgroundTaskKind.organization_id.is_(None),
+                    BackgroundTaskKind.organization_id == DispatchOutbox.organization_id,
+                ),
             ),
         )
         .order_by(DispatchOutbox.available_at)

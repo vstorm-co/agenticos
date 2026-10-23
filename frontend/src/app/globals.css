@@ -13,6 +13,16 @@
  * hovers; a touchscreen laptop reports both and keeps the hover route. */
 @custom-variant touch (@media (hover: none));
 
+/* Reduced motion is the person's Motion preference, not the operating system's
+ * media query: `MotionProvider` (and, before the first paint, the root layout's
+ * inline script) sets `data-motion="reduce"` on `<html>` when Reduce is chosen,
+ * or when System is and the OS asks for less. So Full overrides the OS and
+ * Reduce works without it. Every rule below that removes motion keys off that
+ * attribute, and these redefine Tailwind's own variants to do the same - the
+ * built-in ones read `prefers-reduced-motion` and would ignore the setting. */
+@custom-variant motion-reduce (&:where([data-motion="reduce"], [data-motion="reduce"] *));
+@custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
+
 /* =========================================================================
    Design tokens.
 
@@ -82,17 +92,17 @@
      and no Tailwind utility ever names them - an `@theme` colour nothing
      references is tree-shaken out of the build.
 
-     Hue AND lightness are both spread, which is what makes five pastels
-     survivable: at equal lightness five washed tones measure ΔE 0.8 under
-     deuteranopia (one colour to about one man in twelve). This set measures
-     8.3 light and 17.5 dark on the worst pair under deuteranopia and
-     protanopia, and 19.7 / 24.4 in normal vision. Every chart drawn in it
-     still prints its numbers, because separation is not legibility. */
-  --series-1: oklch(74% 0.085 262);
-  --series-2: oklch(82% 0.085 178);
-  --series-3: oklch(88% 0.085 82);
-  --series-4: oklch(72% 0.1 22);
-  --series-5: oklch(66% 0.09 312);
+     Indigo, teal, amber, rose and violet at full colour: the washed pastels
+     this replaced read as one grey on a page of cards, and the dashboard is
+     meant to be read at a glance. Hue AND lightness are both spread, so a
+     reader with deuteranopia still tells the neighbours apart, and every
+     chart drawn in it prints its numbers, because separation is not
+     legibility. */
+  --series-1: oklch(62% 0.18 277);
+  --series-2: oklch(72% 0.13 178);
+  --series-3: oklch(80% 0.15 78);
+  --series-4: oklch(64% 0.19 22);
+  --series-5: oklch(58% 0.18 312);
 
   /* The default-avatar ramp: ten hues for a face nobody uploaded, chosen by a
      hash of the row's id so one entity keeps its colour everywhere. The one
@@ -152,23 +162,23 @@
      poster rather than as data. Data ink is that hue at about a third of its
      chroma.
 
-     Measured, not judged. The **stroke** is the only mark whose colour is its
-     whole channel - a hairline under a spike - so it keeps a real floor: 3.39:1
-     on the light card, 7.12:1 on the dark one, both clear of the 3:1 a mark owes
-     its surface. The **fill** covers area, and area takes a tint: 1.63:1 light
-     and 2.98:1 dark, deliberately under that floor, which is only allowed
-     because every list drawn in it prints its number as text beside the bar.
+     One indigo for every single-series mark - a line, a bar, a heatmap cell.
+     The **stroke** is the only mark whose colour is its whole channel - a
+     hairline under a spike - so it stays clear of the 3:1 a mark owes its
+     surface in both themes. The **fill** covers area and takes a lighter step,
+     which is allowed because every list drawn in it prints its number as text
+     beside the bar.
 
      The **track** is the fill's own hue several steps away (`dataviz`'s meter
      rule: the unfilled part of a bar is a step of the fill's hue, never a
      neutral alpha) - lighter in light, darker in dark, because what a track has
      to be is *quieter than its surface's opposite*, not lighter in the abstract.
-     It carries no value at all: 1.16:1 light, 1.25:1 dark. `brand-900` was tried
-     in dark and is why this one is measured - at 1.41:1 it read as a filled bar,
-     so a provider that spent nothing showed a full-width mark against $0.00. */
-  --color-chart: oklch(48% 0.03 265);
-  --color-chart-fill: oklch(84% 0.015 265);
-  --color-track: oklch(95% 0.005 265);
+     It carries no value at all, so it stays barely off its surface: a track
+     dark enough to read as a filled bar showed a provider that spent nothing
+     as a full-width mark against $0.00. */
+  --color-chart: oklch(55% 0.19 277);
+  --color-chart-fill: oklch(66% 0.16 277);
+  --color-track: oklch(95% 0.022 277);
 
   /* Light theme - NEUTRAL near-white, and neutral is the change. The ladder
      used to carry `0.003-0.004` of chroma at hue 250, which is a blue cast on
@@ -209,7 +219,7 @@
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(47.8% 0.006 265);
+  --color-muted-foreground: oklch(44% 0.006 265);
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -239,8 +249,8 @@
      see is not calm, it is unfinished. `input` stays darker than `border`,
      because the edge of a field somebody has to find and click is doing a
      different job from the edge of a panel. */
-  --color-border: oklch(88.5% 0.003 265);
-  --color-input: oklch(80% 0.005 265);
+  --color-border: oklch(84.5% 0.003 265);
+  --color-input: oklch(77% 0.005 265);
   /* The bright step, not the text step: a focused field ringed in the deep
      rust of `brand` read as a field in error. */
   --color-ring: var(--brand-500);
@@ -318,21 +328,21 @@
     --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
     --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(71.2% 0.006 265);
+    --color-muted-foreground: oklch(73.5% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(35% 0.003 265);
-    --color-input: oklch(43% 0.004 265);
-    --color-chart: oklch(80% 0.02 265);
-    --color-chart-fill: oklch(45% 0.015 265);
-    --color-track: oklch(31% 0.005 265);
+    --color-border: oklch(38.5% 0.003 265);
+    --color-input: oklch(47% 0.004 265);
+    --color-chart: oklch(74% 0.14 277);
+    --color-chart-fill: oklch(60% 0.16 277);
+    --color-track: oklch(31% 0.035 277);
     --color-success: oklch(74% 0.11 155);
     --color-warning: oklch(78% 0.1 78);
-    --series-1: oklch(60% 0.105 262);
-    --series-2: oklch(58% 0.08 178);
-    --series-3: oklch(66% 0.1 82);
-    --series-4: oklch(48% 0.105 22);
-    --series-5: oklch(44% 0.105 312);
+    --series-1: oklch(66% 0.16 277);
+    --series-2: oklch(70% 0.12 178);
+    --series-3: oklch(78% 0.14 78);
+    --series-4: oklch(64% 0.17 22);
+    --series-5: oklch(62% 0.16 312);
   }
 }
 
@@ -363,21 +373,21 @@
   --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(71.2% 0.006 265);
+  --color-muted-foreground: oklch(73.5% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(35% 0.003 265);
-  --color-input: oklch(43% 0.004 265);
-  --color-chart: oklch(80% 0.02 265);
-  --color-chart-fill: oklch(45% 0.015 265);
-  --color-track: oklch(31% 0.005 265);
+  --color-border: oklch(38.5% 0.003 265);
+  --color-input: oklch(47% 0.004 265);
+  --color-chart: oklch(74% 0.14 277);
+  --color-chart-fill: oklch(60% 0.16 277);
+  --color-track: oklch(31% 0.035 277);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
-  --series-1: oklch(60% 0.105 262);
-  --series-2: oklch(58% 0.08 178);
-  --series-3: oklch(66% 0.1 82);
-  --series-4: oklch(48% 0.105 22);
-  --series-5: oklch(44% 0.105 312);
+  --series-1: oklch(66% 0.16 277);
+  --series-2: oklch(70% 0.12 178);
+  --series-3: oklch(78% 0.14 78);
+  --series-4: oklch(64% 0.17 22);
+  --series-5: oklch(62% 0.16 312);
 }
 
 /* =========================================================================
@@ -391,8 +401,8 @@
   --color-card: oklch(100% 0 0);
   --color-card-foreground: oklch(15% 0 0);
   --color-muted: oklch(94% 0.004 250);
-  --color-muted-foreground: oklch(45% 0 0);
-  --color-border: oklch(88.5% 0.004 250);
+  --color-muted-foreground: oklch(44% 0 0);
+  --color-border: oklch(84.5% 0.004 250);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -406,16 +416,16 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  --color-chart: oklch(48% 0.03 265);
-  --color-chart-fill: oklch(84% 0.015 265);
-  --color-track: oklch(95% 0.005 265);
+  --color-chart: oklch(55% 0.19 277);
+  --color-chart-fill: oklch(66% 0.16 277);
+  --color-track: oklch(95% 0.022 277);
   --color-success: oklch(58% 0.1 155);
   --color-warning: oklch(64% 0.1 72);
-  --series-1: oklch(74% 0.085 262);
-  --series-2: oklch(82% 0.085 178);
-  --series-3: oklch(88% 0.085 82);
-  --series-4: oklch(72% 0.1 22);
-  --series-5: oklch(66% 0.09 312);
+  --series-1: oklch(62% 0.18 277);
+  --series-2: oklch(72% 0.13 178);
+  --series-3: oklch(80% 0.15 78);
+  --series-4: oklch(64% 0.19 22);
+  --series-5: oklch(58% 0.18 312);
 }
 
 .theme-dark {
@@ -425,8 +435,8 @@
   --color-card: oklch(26.2% 0.0025 265);
   --color-card-foreground: oklch(94.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(71.2% 0.006 265);
-  --color-border: oklch(35% 0.003 265);
+  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-border: oklch(38.5% 0.003 265);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -438,16 +448,16 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-chart: oklch(80% 0.02 265);
-  --color-chart-fill: oklch(45% 0.015 265);
-  --color-track: oklch(31% 0.005 265);
+  --color-chart: oklch(74% 0.14 277);
+  --color-chart-fill: oklch(60% 0.16 277);
+  --color-track: oklch(31% 0.035 277);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
-  --series-1: oklch(60% 0.105 262);
-  --series-2: oklch(58% 0.08 178);
-  --series-3: oklch(66% 0.1 82);
-  --series-4: oklch(48% 0.105 22);
-  --series-5: oklch(44% 0.105 312);
+  --series-1: oklch(66% 0.16 277);
+  --series-2: oklch(70% 0.12 178);
+  --series-3: oklch(78% 0.14 78);
+  --series-4: oklch(64% 0.17 22);
+  --series-5: oklch(62% 0.16 312);
 }
 
 @layer base {
@@ -460,16 +470,25 @@
   html {
     scroll-behavior: smooth;
   }
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
+  html[data-motion="reduce"] {
+    scroll-behavior: auto;
+  }
+  :root.dark body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
   }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    /* Grayscale smoothing only on dark: on macOS it turns off stem darkening,
+       which keeps light text on a dark ground from blooming - and leaves dark
+       text on a light ground thin and grey, worst on a 1x monitor. */
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     /* Disable iOS tap highlight - focus rings + active states do the job. */
@@ -479,9 +498,12 @@
   .font-mono {
     font-variant-numeric: tabular-nums;
   }
+  /* Neutral, like the rest of the console: a tint of the text colour that works
+     on either theme. A brand-blue fill with white text read as an alarm in light
+     mode and glared in dark. The text keeps its own colour. */
   ::selection {
-    background: var(--color-brand);
-    color: var(--color-brand-foreground);
+    background: color-mix(in oklab, var(--color-foreground) 18%, transparent);
+    color: inherit;
   }
 
   /* Visible focus ring on every interactive element. Browsers handle :focus-visible
@@ -499,7 +521,7 @@
 
   /* Route transition - subtle fade + slide-up on each page change.
      Keyed on pathname in components/layout/page-transition.tsx so it replays
-     on navigation. Neutralized under prefers-reduced-motion below. */
+     on navigation. Neutralized under reduced motion below. */
   .page-enter {
     animation: page-enter var(--duration-base) var(--ease-out);
   }
@@ -511,6 +533,18 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  /* The bar along the top edge while a navigation is on its way
+     (components/layout/navigation-progress.tsx): most of the way quickly, then
+     slower and slower, never to the end - arriving is what finishes it. */
+  @keyframes nav-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(0.9);
     }
   }
 
@@ -615,6 +649,15 @@
    35% of the foreground reads as a scrollbar somebody drew on purpose, in a place
    nothing else is that dark. */
 @layer utilities {
+  /* A row of chips or buttons that scrolls sideways on a phone: swiped, not
+     dragged, so no bar - the half-visible last item says there is more. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     /* Firefox: thumb + track. Colors are derived from the foreground so the
@@ -679,6 +722,43 @@
     }
   }
 
+  /* The empty composer's examples: each slides in from above as the last one
+     slides down and out. Reduced motion swaps them in place. */
+  @keyframes composer-hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(-60%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes composer-hint-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(60%);
+    }
+  }
+  .composer-hint-in {
+    animation: composer-hint-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .composer-hint-out {
+    animation: composer-hint-out 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .composer-hint-in {
+      animation: none;
+    }
+    .composer-hint-out {
+      display: none;
+    }
+  }
+
   /* Subtle background grid - fades on the edges so it doesn't fight the content */
   .bg-grid {
     background-image:
@@ -714,7 +794,7 @@
      earlier constant wobble, which made a card genuinely hard to catch and drag.
      The highlight (a brand-tinted ring plus a soft shadow) shows on any device
      with a real pointer; the small scale-up is motion, so it is gated behind
-     prefers-reduced-motion and drops out with it. */
+     reduced motion and drops out with it. */
   @media (hover: hover) {
     .dash-editable:hover {
       box-shadow:
@@ -722,8 +802,8 @@
         0 14px 34px -18px oklch(0% 0 0 / 0.28);
     }
   }
-  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-    .dash-editable:hover {
+  @media (hover: hover) {
+    :root:not([data-motion="reduce"]) .dash-editable:hover {
       transform: scale(1.012);
     }
   }
@@ -736,21 +816,19 @@
   }
   /* A card the moment it is added: it pops in at the bottom of the layout so the
      eye catches where it landed before the person drags it into place. Motion,
-     so it drops out under prefers-reduced-motion. */
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes dash-pop {
-      from {
-        opacity: 0;
-        transform: scale(0.94);
-      }
-      to {
-        opacity: 1;
-        transform: none;
-      }
+     so it drops out under reduced motion. */
+  @keyframes dash-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
     }
-    .dash-pop {
-      animation: dash-pop 280ms cubic-bezier(0.2, 0, 0, 1);
+    to {
+      opacity: 1;
+      transform: none;
     }
+  }
+  :root:not([data-motion="reduce"]) .dash-pop {
+    animation: dash-pop 280ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   /* Section accents: a divider's colour, carried on one custom property and
@@ -813,6 +891,95 @@
   }
 }
 
+/* A conversation with an answer the reader has not seen: a soft blue dot - the
+   colour chat apps give "new" - with a slow halo breathing out of it. The one hue
+   the neutral list carries, so it is read before anything else on the row. Still,
+   with no halo, under reduced motion. */
+.unread-dot {
+  background: oklch(68% 0.11 245);
+}
+.unread-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: oklch(68% 0.11 245);
+  animation: unread-halo 2.8s ease-out infinite;
+}
+/* The agent's click in the live browser: a ring that opens out and fades, once. */
+/* The Architect's blink: shut for a tenth of a second, about every five. */
+@keyframes architect-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes agent-click {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes unread-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  70%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unread-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* A line of text a light passes over while the agent works - "Working for 5s". The
+   words stay readable at every frame: the sweep is the foreground over the muted
+   colour, not a fade. Still, in the muted colour, without motion. */
+.shimmer-text {
+  color: transparent;
+  background: linear-gradient(
+      90deg,
+      var(--color-muted-foreground) 35%,
+      var(--color-foreground) 50%,
+      var(--color-muted-foreground) 65%
+    )
+    0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer-text 2.2s linear infinite;
+}
+@keyframes shimmer-text {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    animation: none;
+    background: none;
+    color: var(--color-muted-foreground);
+  }
+}
+
 /* =========================================================================
    Agent step animations - used by ToolCallCard.
    step-card-in  : card entrance (a panel appears in the timeline)
@@ -868,6 +1035,22 @@
 
 .pop-in {
   animation: pop-in var(--duration-base) var(--ease-spring) both;
+}
+
+/* The Architect's speech bubble arriving above its face (#2075): rising a few
+   pixels as it fades in, so it reads as spoken rather than as a toast. */
+.bubble-rise {
+  animation: bubble-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes bubble-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Dashes travelling along the agent map's edges - flow, from source to sink.
@@ -975,24 +1158,24 @@
 }
 
 /* =========================================================================
-   Reduced-motion - strip every long-running animation. Honors a11y opt-in.
+   Reduced-motion - strip every long-running animation. Honors a11y opt-in,
+   through the Motion preference's `data-motion` attribute on <html>.
    ========================================================================= */
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  /* Route transitions add no information - disable so navigation is instant. */
-  .page-enter {
-    opacity: 1 !important;
-    transform: none !important;
-    animation: none !important;
-  }
+:root[data-motion="reduce"],
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+/* Route transitions add no information - disable so navigation is instant. */
+:root[data-motion="reduce"] .page-enter {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
 }
 
 /* =========================================================================
@@ -1306,16 +1489,8 @@
  * spotlight cut-out moves. driver.js positions the popover inline against the
  * highlighted element, so the pin has to win with `!important`, and the arrow
  * (which would point at nothing from a fixed spot) is hidden.
- *
- * `display: block !important` is what keeps the caption from blinking as the
- * spotlight glides. With `animate` on, driver hides the popover at the start of
- * every transition (an inline `display: none`) and only rebuilds it at the
- * halfway point, so a pinned caption would vanish for ~200ms each step. The
- * `!important` overrides that inline hide, so the old caption holds until the
- * rebuilt one replaces it in the same frame — an invisible swap, no blink.
  */
 .driver-popover.tour-popover {
-  display: block !important;
   position: fixed !important;
   bottom: 1.5rem !important;
   top: auto !important;
@@ -1343,6 +1518,47 @@
   transition:
     height 0.28s ease,
     width 0.28s ease;
+}
+
+/* The welcome card's language row (#2072): plain buttons driver.js does not own,
+   drawn as the app's quiet pills, the current language marked. */
+.driver-popover.tour-popover .tour-language {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.driver-popover.tour-popover .tour-language button {
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  background: transparent;
+}
+
+.driver-popover.tour-popover .tour-language button:hover,
+.driver-popover.tour-popover .tour-language button[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+
+/*
+ * Leave what the browser put above the tour clickable. driver.css switches
+ * pointer events off for every element under `body.driver-active`, which
+ * reaches past the product into whatever a browser extension injected there: a
+ * password manager's save prompt stayed on screen, unclosable, for the whole
+ * walk. The product does not need the rule: driver's transparent overlay
+ * (z 10000) sits over every page element, and the spotlight layer below it
+ * (`.tour-spotlight`) is a full-screen shield that catches what falls through
+ * the overlay's hole. So each element gets back its user-agent default, and
+ * only something stacked above both can take the click. That is an extension's
+ * prompt, or a toast. The overlay keeps driver's `none` (its path takes the
+ * clicks), and so does everything inside the spotlight layer.
+ */
+body.driver-active *:not(.driver-overlay, .tour-spotlight, .tour-spotlight *) {
+  pointer-events: revert;
 }
 
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
@@ -1414,14 +1630,114 @@
 }
 
 /*
- * The other half of keeping the caption still: driver rebuilds the popover each
- * step while the body carries `driver-fade`, so its fade-in keyframe would replay
- * and flash the pinned text. Suppressed here. The overlay is a different element,
- * animated by its cut-out path rather than this keyframe, so the light still
- * glides smoothly from one control to the next.
+ * The tour's light, drawn by `tour-spotlight.ts` rather than by driver.js: a dim
+ * with a cut-out over the control, and a ring with a beacon on the cut-out's edge.
+ *
+ * The dim alone could not carry it. driver.js's near-black overlay over the dark
+ * theme's near-black page left the lit control at 1.1:1 against everything around
+ * it (5:1 in light), and no opacity fixes that: there is no darker than black to
+ * dim to. So the *where* is a colour rather than a brightness — a ring in its own
+ * highlight hue, not the brand, which is a near-neutral grey and would read as one
+ * more border. Green, a step darker on the light theme and a step brighter on the
+ * dark one so it holds its contrast against both; not red, which this product
+ * spends on errors and destructive actions. The beacon on the ring's corner pings
+ * outward, so the eye finds the frame even when it surrounds a large card.
+ *
+ * Below driver's own overlay (z 10000) and far below its caption. The layer
+ * itself is a transparent shield over the whole page: driver's overlay leaves a
+ * hole over the control, and without the shield a click in that hole's padding
+ * reached whatever was next to the control. Its children take no clicks.
+ * Reduced motion stills the beacon; the ring's travel is turned off in the
+ * script.
  */
-.driver-fade .driver-popover.tour-popover {
-  animation: none;
+.tour-spotlight {
+  --tour-highlight: oklch(55% 0.17 150);
+  --tour-dim: rgb(10 10 10 / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .tour-spotlight {
+    --tour-highlight: oklch(80% 0.19 150);
+    --tour-dim: rgb(0 0 0 / 0.72);
+  }
+}
+
+:root.dark .tour-spotlight {
+  --tour-highlight: oklch(80% 0.19 150);
+  --tour-dim: rgb(0 0 0 / 0.72);
+}
+
+/* `body` for the weight to beat driver.css's `.driver-active *`, which would
+   switch the shield off. */
+body .tour-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+.tour-spotlight-dim {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: var(--tour-dim);
+  fill-rule: evenodd;
+}
+
+.tour-spotlight-ring {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 2px var(--tour-highlight),
+    0 0 0 6px color-mix(in oklab, var(--tour-highlight) 22%, transparent),
+    0 0 28px 4px color-mix(in oklab, var(--tour-highlight) 35%, transparent);
+  transition: opacity 0.25s ease;
+}
+
+.tour-spotlight-ring.is-visible {
+  opacity: 1;
+}
+
+.tour-spotlight-beacon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--tour-highlight);
+  box-shadow: 0 0 0 2px var(--color-background);
+  transform: translate(50%, -50%);
+}
+
+.tour-spotlight-beacon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--tour-highlight);
+  animation: tour-beacon-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes tour-beacon-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  75%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight-beacon::after {
+    animation: none;
+  }
 }
 
 /*
@@ -1486,11 +1802,9 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .onboarding-coach-ring {
-    transition: none;
-    animation: none;
-  }
+:root[data-motion="reduce"] .onboarding-coach-ring {
+  transition: none;
+  animation: none;
 }
 
 /*
@@ -1568,18 +1882,16 @@
   opacity: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .onboarding-coach-card,
-  .onboarding-coach-card-in-flow {
-    animation: none;
-  }
-  /* Full strength rather than mid-breath: the animation is the only thing setting
-     this element's opacity, so stopping it without saying so would freeze the icon
-     at whatever the browser had painted. */
-  .onboarding-help-hint {
-    animation: none;
-    opacity: 1;
-  }
+:root[data-motion="reduce"] .onboarding-coach-card,
+:root[data-motion="reduce"] .onboarding-coach-card-in-flow {
+  animation: none;
+}
+/* Full strength rather than mid-breath: the animation is the only thing setting
+   this element's opacity, so stopping it without saying so would freeze the icon
+   at whatever the browser had painted. */
+:root[data-motion="reduce"] .onboarding-help-hint {
+  animation: none;
+  opacity: 1;
 }
 
 /*
@@ -1611,10 +1923,8 @@
   transform-origin: center;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tour-click-pulse {
-    animation: none;
-  }
+:root[data-motion="reduce"] .tour-click-pulse {
+  animation: none;
 }
 
 /* The theme switch as a sweep: the new theme's snapshot grows as a circle
@@ -1682,6 +1992,33 @@
      both solid the only difference left is the surface it sits on, and a
      sheet sits on `card` so its own contents are on the card colour they
      would be anywhere else. */
+  /* The chat's composer over the transcript: the panel's own colour, partly
+     clear and blurred, so what scrolls behind it reads as depth rather than as
+     text cut off at an opaque edge. Declared after .panel so it wins. */
+  .composer-glass {
+    /* Clearer at the top, where the text is typed, and nearly solid by the row
+       of controls, which have to read whatever has scrolled behind them. */
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-popover) 66%, transparent),
+      color-mix(in oklab, var(--color-popover) 94%, transparent)
+    );
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+  }
+  /* Menus, popovers and select lists: open for a moment and closed again, so
+     the blur the .panel note retired from everything costs a frame or two here,
+     not every scroll. Mostly opaque, so they read the same where a browser does
+     not draw the blur - a screenshot, a throttled tab. Declared after .panel. */
+  .panel-glass {
+    background: color-mix(in oklab, var(--color-popover) 88%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.6);
+    backdrop-filter: blur(16px) saturate(1.6);
+    border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.06),
+      0 16px 48px -12px rgb(0 0 0 / 0.32);
+  }
   .panel-strong {
     border: 1px solid var(--color-border);
     background: var(--color-card);
@@ -1969,6 +2306,14 @@
 .rise-in > :nth-child(n + 9) {
   animation-delay: 320ms;
 }
+/* The global reduced-motion rule shortens durations but keeps these delays, and
+   with `both` fill a later card would sit invisible for up to 320ms and then
+   appear at once (#1930). Without motion the grid is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  .rise-in > * {
+    animation: none;
+  }
+}
 
 /* A streaming answer: each block the markdown grows - a paragraph, a list, a
    heading, a table - fades up as it mounts. Blocks already on screen keep their
@@ -2006,10 +2351,8 @@
 .stream-word {
   animation: stream-word-in 700ms var(--ease-out) backwards;
 }
-@media (prefers-reduced-motion: reduce) {
-  .stream-word {
-    animation: none;
-  }
+:root[data-motion="reduce"] .stream-word {
+  animation: none;
 }
 
 /* A wizard's step arriving: the body is keyed on the step, so each one slides
@@ -2092,4 +2435,256 @@
 }
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
+}
+
+/* The composer's voice glow (components/ui/voice-glow.tsx): a blurred bloom
+   behind and below the box, scaled by `--voice-level` (0-1, written once a
+   frame from the microphone). Subtle is the theme's own ink, so it is dark on
+   the light theme and light on the dark one; vivid is the colourful wash from
+   the design mockup. While the recording is transcribing it stops listening and
+   sweeps. The component draws nothing under reduced motion, so no override is
+   needed here. */
+.voice-glow {
+  inset-inline: 16%;
+  bottom: -22px;
+  height: 36px;
+}
+.voice-glow[data-style="vivid"] {
+  inset-inline: 10%;
+  bottom: -22px;
+  height: 52px;
+}
+.voice-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform-origin: 50% 70%;
+}
+.voice-glow[data-style="subtle"]::before {
+  background: var(--color-foreground);
+  filter: blur(10px);
+  transform: scaleY(calc(0.6 + var(--voice-level, 0) * 0.7))
+    scaleX(calc(0.9 + var(--voice-level, 0) * 0.15));
+  opacity: calc(0.3 + var(--voice-level, 0) * 0.5);
+}
+.voice-glow[data-style="vivid"]::before {
+  background: linear-gradient(90deg, #ff5ea8, #a259ff 25%, #4d7cff 50%, #22d3ee 72%, #ffb547);
+  filter: blur(18px) saturate(1.3);
+  transform: scaleY(calc(0.55 + var(--voice-level, 0) * 1.1))
+    scaleX(calc(0.85 + var(--voice-level, 0) * 0.2));
+  opacity: calc((0.38 + var(--voice-level, 0) * 0.62) * 0.75);
+}
+.dark .voice-glow[data-style="vivid"]::before {
+  opacity: calc(0.38 + var(--voice-level, 0) * 0.62);
+}
+.voice-glow[data-processing="true"]::before {
+  inset-inline: 36%;
+  transform: none;
+  animation: voice-glow-sweep 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.voice-glow[data-style="subtle"][data-processing="true"]::before {
+  opacity: 0.3;
+}
+.voice-glow[data-style="vivid"][data-processing="true"]::before {
+  opacity: 0.75;
+  animation-duration: 1.1s;
+}
+@keyframes voice-glow-sweep {
+  from {
+    translate: -80% 0;
+  }
+  to {
+    translate: 80% 0;
+  }
+}
+
+/* The call bar's glow (components/voice/voice-call-bar.tsx, #54): the composer's
+   glow grown up, beneath the bar while a call is on. `--voice-level` is the
+   louder of the two voices. The theme's ink for the caller; the vivid colours
+   for the agent when the person's glow is vivid. While the agent thinks or runs
+   a tool it sweeps instead; it goes quiet for an approval and a closed
+   microphone. The component draws none of it under reduced motion. */
+.voice-call-glow {
+  position: absolute;
+  z-index: -1;
+  inset-inline: 6%;
+  bottom: -26px;
+  height: 64px;
+  pointer-events: none;
+  transition: opacity 400ms var(--ease-out);
+}
+.voice-call-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-foreground);
+  filter: blur(14px);
+  transform: scaleY(calc(0.5 + var(--voice-level, 0) * 1.1))
+    scaleX(calc(0.85 + var(--voice-level, 0) * 0.2));
+  transform-origin: 50% 70%;
+  opacity: calc(0.06 + var(--voice-level, 0) * 0.32);
+}
+.voice-call-glow[data-side="agent"]::before {
+  background: linear-gradient(90deg, #ff5ea8, #a259ff 25%, #4d7cff 50%, #22d3ee 72%, #ffb547);
+  filter: blur(22px) saturate(1.3);
+  opacity: calc((0.28 + var(--voice-level, 0) * 0.72) * 0.75);
+}
+.dark .voice-call-glow[data-side="agent"]::before {
+  opacity: calc(0.28 + var(--voice-level, 0) * 0.72);
+}
+.voice-call-glow[data-working]::before {
+  inset-inline: 36%;
+  transform: none;
+  opacity: 0.16;
+  animation: voice-glow-sweep 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.voice-call-glow[data-working="tool"]::before {
+  animation-duration: 1.3s;
+}
+.voice-call-glow[data-quiet] {
+  opacity: 0;
+}
+/* The agent's voice along the bar's bottom edge, as loud as it is. */
+.voice-call-edge {
+  position: absolute;
+  inset-inline: 14%;
+  bottom: -1px;
+  height: 1.5px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, #a259ff, #4d7cff, #22d3ee, transparent);
+}
+/* A label waiting on something with no level to show: connecting, thinking, a tool. */
+.voice-call-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-muted-foreground) 0%,
+    var(--color-foreground) 45%,
+    var(--color-muted-foreground) 90%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: voice-call-shimmer 1.8s linear infinite;
+}
+@keyframes voice-call-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+:root[data-motion="reduce"] .voice-call-shimmer {
+  background: none;
+  color: var(--color-foreground);
+}
+/* The agent's message while it is spoken: a rule in the agent's colours. */
+.voice-live-rule {
+  background: linear-gradient(var(--color-border), var(--color-border)) left / 2px 100% no-repeat;
+  padding-left: 10px;
+}
+/* The agent's step in the stepped level meter. */
+.voice-meter-agent {
+  background: var(--color-muted-foreground);
+}
+/* A control the AI Architect pointed at (#2063): a ring that pulses three times
+   and is gone, so the reader's eye lands on it without a coach mark to dismiss. */
+.assistant-highlight {
+  outline: 2px solid var(--foreground);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+  animation: assistant-highlight 1s ease-in-out 3;
+}
+@keyframes assistant-highlight {
+  50% {
+    outline-offset: 8px;
+    outline-color: transparent;
+  }
+}
+
+/* A form field on a phone is never under 16px: iOS zooms the page into any
+   smaller field the moment it is focused, and the whole console lurches
+   sideways under the person's thumb (#2066). Desktop keeps each field's own
+   size. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* A card's padding: 16px on a phone, where a card of cards spent a third of the
+   width on padding, 24px from the small breakpoint up. A variable rather than
+   "p-4 sm:p-6" on the card, because a caller's own "p-0" merges away the base
+   class and leaves the "sm:" one behind. */
+:root {
+  --card-pad: 1rem;
+}
+@media (min-width: 40rem) {
+  :root {
+    --card-pad: 1.5rem;
+  }
+}
+
+/* Delegation: a colleague at work hops - each a beat after the one before, so a
+   fan-out reads as a team rather than one pulse - and types its reply. Both are
+   decoration on a status said in words beside them, so both stop under reduced
+   motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .blob-hop {
+    animation: blob-hop 1.25s var(--ease-out) infinite;
+    transform-origin: 50% 100%;
+  }
+  .typing-dots i {
+    animation: typing-dot 1.2s ease-in-out infinite;
+  }
+  .typing-dots i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .typing-dots i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  padding: 5px 0;
+}
+.typing-dots i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.45;
+}
+@keyframes blob-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  25% {
+    transform: translateY(-5px) scale(0.94, 1.06);
+  }
+  50% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  65% {
+    transform: translateY(-1.5px) scale(0.99, 1.01);
+  }
+}
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translateY(-2px);
+  }
 }

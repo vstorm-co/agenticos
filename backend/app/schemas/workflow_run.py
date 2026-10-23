@@ -84,7 +84,7 @@ class WorkflowRunStart(BaseSchema):
     )
 
     @model_validator(mode="after")
-    def _a_step_is_tested_on_the_draft(self) -> "WorkflowRunStart":
+    def _a_step_is_tested_on_the_draft(self) -> WorkflowRunStart:
         if self.step is not None and self.mode is not WorkflowRunMode.TEST:
             raise ValueError("Only a test run can test a single step")
         return self

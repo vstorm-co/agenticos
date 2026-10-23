@@ -12,8 +12,6 @@ one sentence telling the agent the tools exist - a model holding a search tool b
 no standing note to use it answers from what is in front of it, confidently.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -71,7 +69,7 @@ class ConversationSearch(AbstractCapability[AgentDepsT]):
     async def _instructions(self, ctx: RunContext[Any]) -> str:
         deps: AgentDeps = ctx.deps
         audience = deps.audience or RunAudience()
-        if audience.user_id is None or not audience.private:
+        if audience.user_id is None or not audience.private or not audience.searches_conversations:
             return ""
         return _HABIT
 

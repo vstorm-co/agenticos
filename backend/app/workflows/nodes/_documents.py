@@ -6,8 +6,6 @@ errors below, never the parser's own exception, whose text is the library's and
 not an explanation a reader of a run can act on.
 """
 
-from __future__ import annotations
-
 import zipfile
 from dataclasses import dataclass
 

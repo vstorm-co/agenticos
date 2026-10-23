@@ -23,8 +23,6 @@ The same shape as `test_ci_parity.py` and `test_coverage_gate.py` - a gate whose
 failure mode is a green build needs something checking the checker.
 """
 
-from __future__ import annotations
-
 import importlib.util
 from pathlib import Path
 from typing import Any

@@ -22,8 +22,6 @@ come back to the model as tool output, so it can tell the user what did not
 happen instead of the run dying with a stack trace.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Mapping
@@ -45,6 +43,7 @@ from app.agents.approval import (
 )
 from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES, ApprovalDescriber
 from app.agents.deps import AgentDeps
+from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +63,10 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     queue people learn to click through. Which names land here is resolved once
     from the spec, in :func:`app.agents.capabilities.approval.tool_needs_approval`.
 
-    Tools that no capability owns - an MCP server's, say - are not gated here,
+    Tools that no capability owns - an MCP server's - are not gated by name,
     even if one happens to share a name with a gated tool. Their approval is a
-    property of the connection, decided where the connection is configured, and
-    inventing an answer for them here would be a guess.
+    property of the binding: `ApprovalMarked` marks each one from the binding's
+    policy and the server's read-only hint, and the mark is what is read here.
 
     `gate_every_tool` is the one thing that overrides both of those, and it comes
     from a person rather than from a spec: `ApprovalMode.ASK_ALL` on a chat
@@ -137,8 +136,14 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         # gate: `load_capability` is how a skill is opened, so a spec that asked
         # for approval before a skill is loaded has nowhere else to put it
         # (#1704 review).
+        # An MCP server's tool carries its binding's verdict, set by
+        # `ApprovalMarked` from the binding's policy and the server's read-only
+        # hint (#2060) - only for a tool no capability owns, so a capability's
+        # tool cannot be released by metadata.
+        marked = capability_id is None and (tool_def.metadata or {}).get(NEEDS_APPROVAL) is True
         gated = tool_def.name not in self.asking_tool_names and (
             self.gate_every_tool
+            or marked
             or (
                 tool_def.name in self.required_tool_names
                 and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
@@ -171,6 +176,9 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=asked,
+                # Only an MCP tool's, for the reason `marked` is: no capability
+                # tool can be given an account by metadata.
+                account=(tool_def.metadata or {}).get(ACCOUNT) if capability_id is None else None,
                 capability_tool_id=self.tool_ids.get(tool_def.name) if owned else None,
                 # Handed over unawaited: the channel runs it only for a call it is
                 # about to record, never for one a resumed run already decided.

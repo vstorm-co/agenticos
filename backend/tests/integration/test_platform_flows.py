@@ -11,8 +11,6 @@ Every test drives the real services, so what it asserts is what the platform
 does - not what a stub was told to return.
 """
 
-from __future__ import annotations
-
 import copy
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -20,13 +18,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from httpx import ASGITransport, AsyncClient, Response
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
@@ -37,6 +35,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
+    SpeechToTextSpec,
 )
 from app.api import deps
 from app.core.config import settings
@@ -76,6 +75,7 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
     credential_repo,
+    deployment_settings_repo,
     ingestion_spend_repo,
     mcp_connection_repo,
     organization_secret_repo,
@@ -83,6 +83,7 @@ from app.repositories import (
 )
 from app.repositories.agent_run import RunFilters
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
@@ -90,6 +91,7 @@ from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
+from app.services.api_key import ApiKeyService
 from app.services.approvals import ApprovalService
 from app.services.channel_link import ChannelLinkService
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
@@ -539,9 +541,14 @@ async def _kb_row(
     return kb
 
 
-async def _rag_document(db, *, collection_name: str, filename: str) -> RAGDocument:
+async def _rag_document(
+    db, *, collection_name: str, filename: str, tenant: Tenant | None = None
+) -> RAGDocument:
+    # Stamped with the tenant where a test reads by tenant, as an upload and a
+    # sync both stamp it: the name alone is not a tenant.
     doc = RAGDocument(
         id=uuid.uuid4(),
+        organization_id=tenant.organization.id if tenant is not None else None,
         collection_name=collection_name,
         filename=filename,
         filesize=12,
@@ -606,10 +613,13 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
         other_collection=other_collection,
         home_private=home_private,
         home_document=await _rag_document(
-            db, collection_name=home_collection.collection_name, filename="ours.txt"
+            db, tenant=home, collection_name=home_collection.collection_name, filename="ours.txt"
         ),
         other_document=await _rag_document(
-            db, collection_name=other_collection.collection_name, filename="theirs.txt"
+            db,
+            tenant=other,
+            collection_name=other_collection.collection_name,
+            filename="theirs.txt",
         ),
         home_source=await _sync_source_row(
             db, tenant=home, collection_name=home_collection.collection_name
@@ -1325,11 +1335,12 @@ class _AcceptingStore:
 
 @pytest.fixture
 def uploads(tmp_path, monkeypatch):
-    """Accept uploads without writing files or starting a parse.
+    """Accept uploads without writing files to permanent storage.
 
-    Storage and task dispatch are stubbed; everything that decides *how* a
-    document will be read is real, because that is what is under test. The
-    queued call is captured so a test can assert an upload was accepted at all.
+    Storage is stubbed; everything that decides *how* a document will be read is
+    real, because that is what is under test - and so is the parse job, queued
+    on the test's session like any other row. Its kind is recorded so a test can
+    assert an upload was accepted at all.
     """
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     storage = MagicMock()
@@ -1341,18 +1352,15 @@ def uploads(tmp_path, monkeypatch):
         lambda: storage,
     )
 
-    def capture(session, coroutine, *, name: str) -> None:
-        """Record the dispatch and close what would have parsed the file.
+    from app.services import rag_document
 
-        It patches `spawn_after_commit` rather than `spawn` because that is what
-        the upload path now hands the flow to (#417), and these tests run
-        against a real session: left queued, the flow would start for real when
-        the session committed.
-        """
-        coroutine.close()
-        queued.append(name)
+    real_enqueue = rag_document.enqueue
 
-    monkeypatch.setattr("app.core.background.spawn_after_commit", capture)
+    async def capture(db, task, payload, **options):
+        queued.append(task.kind)
+        return await real_enqueue(db, task, payload, **options)
+
+    monkeypatch.setattr(rag_document, "enqueue", capture)
     return queued
 
 
@@ -2533,6 +2541,8 @@ class TestBindingAnMcpServerToAnAgent:
                 # Null rather than a list: the binding narrows nothing, so it
                 # gets whatever the connection allows.
                 "allowed_tools": None,
+                # Nothing waits for a person until the author asks for one.
+                "approval": "none",
             }
         ]
 
@@ -2613,9 +2623,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[tuple[str, str]]] = []
 
-        async def fake_build(specs) -> list[tuple[Any, None]]:
+        # Answering: a server that did not would be briefed as unreachable, and
+        # the question here is only which connection the lookup found.
+        async def fake_build(specs) -> list[tuple[Any, str]]:
             seen.append([(spec.name, spec.url) for spec in specs])
-            return [(spec, None) for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
         monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
@@ -3431,6 +3443,244 @@ class TestGrantWidenedAccess:
                 subject_user_id=outsider.id,
                 level=GrantLevel.READ,
             )
+
+
+class TestDictationReachesOnlyAgentsTheCallerMayRun:
+    """`POST /agents/{id}/dictation` asks the registry for run access (#1797).
+
+    Against real grant rows, because the route test stubs the registry: what is
+    proven here is that a Viewer's `use` grant is what opens the door, and that
+    nothing short of it - no grant, another organization's agent - reaches the
+    paid engine. The engine itself is stubbed; it is not what is under test.
+    """
+
+    @pytest.fixture
+    async def dictate(self, db) -> AsyncIterator[tuple[Callable[[AuthContext], AsyncClient], Any]]:
+        async def unmetered() -> None:
+            return None
+
+        app.dependency_overrides[deps.get_db_session] = lambda: db
+        app.dependency_overrides[deps.limit_dictation] = unmetered
+        engine = AsyncMock(return_value="ok")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+
+            def as_caller(ctx: AuthContext) -> AsyncClient:
+                app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+                return client
+
+            with patch("app.services.ml.facade.MLService.dictate", new=engine):
+                yield as_caller, engine
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _post(client: AsyncClient, agent_id: uuid.UUID) -> Any:
+        return client.post(
+            f"{settings.API_V1_STR}/agents/{agent_id}/dictation",
+            files={"file": ("blob", b"audio", "audio/webm")},
+        )
+
+    async def test_a_viewer_without_a_grant_is_refused_and_nothing_is_transcribed(
+        self, db, dictate
+    ) -> None:
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Quiet")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
+
+    async def test_a_viewer_with_a_use_grant_may_dictate(self, db, dictate) -> None:
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Spoken")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.USE,
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 200
+        assert response.json() == {"text": "ok"}
+
+    async def test_a_read_grant_is_not_enough(self, db, dictate) -> None:
+        """Seeing an agent's configuration is not talking to it."""
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Looker")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.READ,
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_another_organizations_agent_is_not_found(self, db, dictate) -> None:
+        """Even to that organization's peer - an owner here is a stranger there."""
+        as_caller, engine = dictate
+        ours = await _tenant(db, name="Ours")
+        theirs = await _tenant(db, name="Theirs")
+        agent = await _agent_row(
+            db, organization_id=theirs.organization.id, owner_user_id=theirs.user.id, slug="support"
+        )
+
+        response = await self._post(as_caller(ours.ctx), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
+
+
+class TestDictationReadinessFollowsTheAgent:
+    """`GET /agents/{id}/dictation` against real rows (#1797).
+
+    Nothing stubbed but the auth context: the grant decides who may ask, the
+    agent's *published* override decides the provider, and the key named beside
+    it is what makes it ready. This is the agent
+    override making server dictation work in an organization with no provider
+    of its own.
+    """
+
+    @pytest.fixture
+    async def as_caller(self, db) -> AsyncIterator[Callable[[AuthContext], AsyncClient]]:
+        app.dependency_overrides[deps.get_db_session] = lambda: db
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+
+            def bind(ctx: AuthContext) -> AsyncClient:
+                app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+                return client
+
+            yield bind
+        app.dependency_overrides.clear()
+
+    async def _set_up(
+        self, db, name: str, *, visibility: Visibility = Visibility.ORG
+    ) -> tuple[Tenant, Agent, uuid.UUID]:
+        """An organization with no provider of its own, and an agent publishing
+        a Groq override with a Groq key named beside it and its Dictation switch on."""
+        tenant = await _tenant(db, name=name)
+        await _default_model(db, tenant)
+        key = await OrganizationSecretService(db).create(
+            tenant.ctx,
+            name="Team Groq",
+            value=ApiKeySecret(api_key="gsk-team-1234"),
+            purpose="groq",
+            visibility=visibility,
+        )
+        agent = await _published_agent(
+            db,
+            tenant,
+            spec=AgentSpec(
+                name="Polish desk",
+                speech_to_text=SpeechToTextSpec(
+                    provider="groq",
+                    model="whisper-large-v3",
+                    language="pl",
+                    secret_id=key.id,
+                    dictation=True,
+                ),
+            ),
+        )
+        return tenant, agent, key.id
+
+    async def test_a_viewer_with_a_use_grant_is_ready_on_the_agents_provider(
+        self, db, as_caller
+    ) -> None:
+        tenant, agent, _ = await self._set_up(db, "Spoken")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.USE,
+        )
+
+        response = await as_caller(viewer).get(f"{settings.API_V1_STR}/agents/{agent.id}/dictation")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "engine": "server",
+            "requested": True,
+            "server_available": True,
+            "unavailable": None,
+            "max_seconds": 300,
+            "provider": "groq",
+            # Raw PCM until the deployment accepts compressed audio.
+            "format": "wav",
+        }
+
+    async def test_a_deployment_accepting_compressed_audio_records_webm_for_groq(
+        self, db, as_caller
+    ) -> None:
+        """The format is the deployment's setting and the catalog's together:
+        Groq takes WebM, so once the deployment accepts it the browser records it."""
+        tenant, agent, _ = await self._set_up(db, "Compressed")
+        await deployment_settings_repo.upsert(db, update_data={"dictation_compressed_audio": True})
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.json()["format"] == "webm"
+
+    async def test_a_private_key_its_publisher_lent_makes_the_agent_ready(
+        self, db, as_caller
+    ) -> None:
+        """An agent's key follows the lending rule, not the organization's: the
+        publisher could view it, so the agent may spend it for whoever runs it."""
+        tenant, agent, _ = await self._set_up(db, "Lent", visibility=Visibility.PRIVATE)
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.json()["engine"] == "server"
+
+    async def test_a_deleted_key_leaves_the_agent_asking_for_one(self, db, as_caller) -> None:
+        """The spec still names it, but nothing is opened in its place."""
+        tenant, agent, key_id = await self._set_up(db, "Deleted")
+        await OrganizationSecretService(db).delete(tenant.ctx, key_id)
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        # The browser transcribes meanwhile, and the composer can say why.
+        assert response.json()["engine"] == "browser"
+        assert response.json()["unavailable"] == "no_key"
+        assert response.json()["provider"] == "groq"
+
+    @pytest.mark.security
+    async def test_another_organizations_agent_is_not_found(self, db, as_caller) -> None:
+        ours = await _tenant(db, name="Ours")
+        _, agent, _ = await self._set_up(db, "Theirs")
+
+        response = await as_caller(ours.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.status_code == 404
 
 
 class TestMentioningAnAgentFromAChannel:
@@ -4830,3 +5080,339 @@ class TestPublishingIsNotDeploying:
         after = await environments.list_for_agent(tenant.ctx, agent.id)
         assert next(row for row in after if row.is_default).version_id == newest.id
         assert agent.current_version_id == newest.id
+
+
+class TestTheBuildersTestPanel:
+    """Trying an agent while building it (#2074): the draft runs without a publish,
+    as a test, on a frozen copy - and only for somebody who may edit it."""
+
+    async def _agent(self, db, tenant: Tenant, *, published: bool):
+        profile = await _keyed_model_profile(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx,
+            AgentSpec(name="Refunds", instructions="Answer refunds.", model_profile_id=profile.id),
+        )
+        if published:
+            await registry.publish(tenant.ctx, agent.id)
+        return agent
+
+    async def test_a_draft_that_was_never_published_answers_as_a_test(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+        assert await _answer(prepared) == "thirty days"
+        run = prepared.run
+        assert run.is_test
+        assert run.agent_version_id is None
+        assert run.test_spec is not None and run.test_spec["instructions"] == "Answer refunds."
+
+    async def test_a_parked_test_continues_on_the_draft_it_started_with(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+        runner = AgentRunnerService(db)
+        prepared = await runner.prepare(tenant.ctx, agent.id, draft=True)
+        agent.draft_spec = {**agent.draft_spec, "instructions": "Something else entirely."}
+        await db.flush()
+
+        _, spec = await runner._parked_spec(tenant.ctx, prepared.run)
+
+        assert spec.instructions == "Answer refunds."
+
+    async def test_a_published_version_tried_from_the_panel_is_marked_a_test(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=True)
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, test=True)
+
+        assert prepared.run.is_test
+        assert prepared.run.agent_version_id == agent.current_version_id
+        assert prepared.run.test_spec is None
+
+    @pytest.mark.security
+    async def test_somebody_who_may_not_edit_the_agent_cannot_run_its_draft(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=True)
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        with pytest.raises(NotFoundError):
+            await AgentRunnerService(db).prepare(viewer, agent.id, draft=True)
+
+    async def test_a_draft_runs_in_no_environment(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+
+        with pytest.raises(BadRequestError, match="A draft has no environment"):
+            await AgentRunnerService(db).prepare(
+                tenant.ctx, agent.id, draft=True, environment_id=uuid.uuid4()
+            )
+
+    async def test_a_draft_that_would_not_publish_does_not_run(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Broken", collection_ids=[uuid.uuid4()])
+        )
+
+        with pytest.raises(BadRequestError):
+            await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+    async def test_an_archived_agent_s_draft_does_not_run(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+        agent.status = "archived"
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="archived"):
+            await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+
+class TestCallingWithAnOrganizationKey:
+    """A key reaches the runner through the public API, and the runner governs it.
+
+    Its permissions are checked at the route; what a key cannot route around is
+    everything after that - the organization's budget is checked before the model
+    is asked, the run is recorded as the issuer's on the API surface, and nothing
+    is charged for a run the budget stopped (#1796).
+    """
+
+    @staticmethod
+    async def _capped_agent_and_key(db, name: str) -> tuple[Tenant, Agent, str]:
+        """An agent in an organization already over its budget, so no model is asked."""
+        tenant = await _tenant(db, name=name, monthly_budget_usd=Decimal("1"))
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=Decimal("5"),
+            started_at=datetime.now(UTC),
+        )
+        created = await ApiKeyService(db).create(
+            tenant.ctx,
+            ApiKeyCreate(name="nightly", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_RUN]),
+        )
+        return tenant, agent, created.key
+
+    @staticmethod
+    async def _run(db, agent: Agent, key: str, **body: str) -> Response:
+        async def session():
+            yield db
+
+        app.dependency_overrides[deps.get_db_session] = session
+        app.dependency_overrides[deps.get_redis] = lambda: MagicMock()
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                return await http.post(
+                    f"{settings.API_V1_STR}/agents/{agent.id}/run",
+                    headers={"Authorization": f"Bearer {key}"},
+                    json={"prompt": "what is the refund window", **body},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.security
+    async def test_a_run_over_the_monthly_budget_is_stopped_and_recorded_as_the_issuers(
+        self, db
+    ) -> None:
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyCapped")
+
+        answer = await self._run(db, agent, key)
+
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["status"] == RunStatus.BUDGET_EXCEEDED.value
+        run = await db.get(AgentRun, uuid.UUID(answer.json()["run_id"]))
+        assert run is not None
+        assert run.surface == RunSurface.API.value
+        assert run.user_id == tenant.user.id
+        assert run.status == RunStatus.BUDGET_EXCEEDED.value
+        assert run.cost_usd == 0
+
+    async def test_a_run_files_under_a_conversation_of_the_issuers_own(self, db) -> None:
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyThread")
+        thread = Conversation(
+            organization_id=tenant.organization.id, user_id=tenant.user.id, origin="api"
+        )
+        db.add(thread)
+        await db.flush()
+
+        answer = await self._run(db, agent, key, conversation_id=str(thread.id))
+
+        assert answer.status_code == 200, answer.text
+        run = await db.get(AgentRun, uuid.UUID(answer.json()["run_id"]))
+        assert run is not None
+        assert run.conversation_id == thread.id
+
+    @pytest.mark.security
+    async def test_a_key_cannot_continue_the_issuers_console_chat(self, db) -> None:
+        """A key that may run agents was never given the person's chats: continuing
+        one would hand its history to the model and write the run into it."""
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyConsole")
+        chat = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        db.add(chat)
+        await db.flush()
+
+        answer = await self._run(db, agent, key, conversation_id=str(chat.id))
+
+        assert answer.status_code == 400, answer.text
+        assert answer.json()["error"]["details"]["fields"][0]["field"] == "conversation_id"
+        runs = await db.execute(select(AgentRun).where(AgentRun.conversation_id == chat.id))
+        assert runs.scalars().first() is None
+
+    async def test_a_run_the_model_provider_refused_names_the_run_it_recorded(
+        self, db, monkeypatch
+    ) -> None:
+        """A provider's refusal used to answer a bare 500, and the caller never
+        learnt the id of the run it had paid for (#2121)."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        from app.agents.model_resolver import ModelRequestSpec
+
+        async def refuse(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise ModelHTTPError(status_code=400, model_name="m", body={"error": "ttl"})
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(refuse))
+        tenant = await _tenant(db, name="KeyRefused")
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        created = await ApiKeyService(db).create(
+            tenant.ctx,
+            ApiKeyCreate(name="nightly", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_RUN]),
+        )
+
+        answer = await self._run(db, agent, created.key)
+
+        assert answer.status_code == 502, answer.text
+        error = answer.json()["error"]
+        assert error["code"] == "MODEL_CALL_FAILED"
+        assert error["details"]["status"] == RunStatus.FAILED.value
+        assert "ttl" not in error["message"], "the provider's body is not put on the wire"
+        run = await db.get(AgentRun, uuid.UUID(error["details"]["run_id"]))
+        assert run is not None
+        assert run.status == RunStatus.FAILED.value
+        assert run.surface == RunSurface.API.value
+
+    @staticmethod
+    async def _key_for(db, tenant: Tenant, *scopes: Perm) -> str:
+        created = await ApiKeyService(db).create(
+            tenant.ctx, ApiKeyCreate(name="script", scopes=list(scopes))
+        )
+        return created.key
+
+    @staticmethod
+    async def _get(db, path: str, key: str) -> Response:
+        async def session():
+            yield db
+
+        app.dependency_overrides[deps.get_db_session] = session
+        app.dependency_overrides[deps.get_redis] = lambda: MagicMock()
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                return await http.get(
+                    f"{settings.API_V1_STR}{path}", headers={"Authorization": f"Bearer {key}"}
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    async def test_a_conversation_continues_across_calls_and_the_agent_remembers(
+        self, db, monkeypatch
+    ) -> None:
+        """A run that names no conversation opens one, labelled as the API's, and
+        the next call that names it sends the model what was said before (#2122)."""
+        from app.agents.model_resolver import ModelRequestSpec
+
+        seen: list[list[str]] = []
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            said = [
+                part.content
+                for message in messages
+                for part in message.parts
+                if isinstance(part, UserPromptPart) and isinstance(part.content, str)
+            ]
+            seen.append(said)
+            return ModelResponse(parts=[TextPart("noted")])
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(respond))
+        tenant = await _tenant(db, name="KeyThreaded")
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        key = await self._key_for(db, tenant, Perm.AGENTS_VIEW, Perm.AGENTS_RUN, Perm.RUNS_VIEW)
+
+        first = await self._run(db, agent, key, prompt="my order number is 4417")
+        assert first.status_code == 200, first.text
+        conversation_id = first.json()["conversation_id"]
+        opened = await db.get(Conversation, uuid.UUID(conversation_id))
+        assert opened is not None
+        assert (opened.origin, opened.user_id) == ("api", tenant.user.id)
+        assert opened.title == "my order number is 4417"
+
+        second = await self._run(
+            db, agent, key, prompt="what was my order number?", conversation_id=conversation_id
+        )
+
+        assert second.status_code == 200, second.text
+        assert second.json()["conversation_id"] == conversation_id
+        assert any("4417" in text for text in seen[-1]), "the second turn reads the first"
+
+        transcript = await self._get(db, f"/conversations/{conversation_id}/transcript", key)
+        assert transcript.status_code == 200, transcript.text
+        assert [m["role"] for m in transcript.json()["items"]] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+
+    @pytest.mark.security
+    async def test_a_key_reads_only_its_issuers_conversations_and_only_with_runs_view(
+        self, db
+    ) -> None:
+        tenant = await _tenant(db, name="KeyTranscript")
+        colleague = await _join(db, tenant, OrgRoleName.MEMBER)
+        mine = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        theirs = Conversation(organization_id=tenant.organization.id, user_id=colleague.user_id)
+        db.add_all([mine, theirs])
+        await db.flush()
+        reader = await self._key_for(db, tenant, Perm.RUNS_VIEW)
+        runner = await self._key_for(db, tenant, Perm.AGENTS_RUN)
+
+        assert (
+            await self._get(db, f"/conversations/{mine.id}/transcript", reader)
+        ).status_code == 200
+        assert (
+            await self._get(db, f"/conversations/{theirs.id}/transcript", reader)
+        ).status_code == 404
+        assert (
+            await self._get(db, f"/conversations/{mine.id}/transcript", runner)
+        ).status_code == 403
+
+    @pytest.mark.security
+    async def test_a_conversation_that_is_not_the_issuers_is_reported_missing(self, db) -> None:
+        """Unknown, another member's, another tenant's: one 404, and no run.
+
+        An unknown id used to be a foreign-key 500, and somebody else's thread
+        handed the run its workspace and its plan."""
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyForeign")
+        colleague = await _join(db, tenant, OrgRoleName.MEMBER)
+        elsewhere = await _tenant(db, name="Elsewhere")
+        theirs = Conversation(organization_id=tenant.organization.id, user_id=colleague.user_id)
+        foreign = Conversation(organization_id=elsewhere.organization.id, user_id=tenant.user.id)
+        db.add_all([theirs, foreign])
+        await db.flush()
+        runs_before = await db.scalar(select(func.count()).select_from(AgentRun))
+
+        answers = [
+            await self._run(db, agent, key, conversation_id=str(conversation_id))
+            for conversation_id in (uuid.uuid4(), theirs.id, foreign.id)
+        ]
+
+        assert [answer.status_code for answer in answers] == [404, 404, 404]
+        assert {answer.json()["error"]["message"] for answer in answers} == {
+            "Conversation not found"
+        }
+        assert await db.scalar(select(func.count()).select_from(AgentRun)) == runs_before

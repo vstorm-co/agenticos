@@ -22,6 +22,8 @@ exclude: |
   (?x)^(
     .*\.lock|
     backend/app/core/catalog/artifact_lib/.*\.min\.js|
+    backend/app/core/catalog/artifact_lib/three-[^/]+/.*\.js|
+    backend/app/core/catalog/artifact_lib/leaflet-[^/]+/.*|
     frontend/src/lib/mcp-logos\.generated\.ts|
     site/.*|
     backend/media/.*
@@ -54,14 +56,16 @@ repos:
       # `mcp-registry-sync` is deterministic and works with no outbound access.
       - id: check-added-large-files
         args: [--maxkb=1024]
-        exclude: ^backend/app/core/catalog/mcp_registry\.json$
+        # The registry mirror, and the banner's eight animated cards, which do
+        # not fit in a megabyte without losing what they show.
+        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme-banner\.webp)$
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
 
   # `type(scope): summary`, checked on the message rather than trusted to
   # habit. Only the shape is enforced, not the scope vocabulary: a list of
   # allowed scopes goes stale and then people argue with the hook instead of
-  # writing the subject. The vocabulary CLAUDE.md suggests is a suggestion.
+  # writing the subject. The vocabulary AGENTS.md suggests is a suggestion.
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:
@@ -83,11 +87,13 @@ repos:
         # English page whose glossary states each term in four languages, and the
         # MCP registry snapshot, which carries 5,703 publishers' own descriptions
         # - their typos are not ours to correct, and a `--fetch` would bring every
-        # one of them back.
+        # one of them back - and the catalog check snapshot, keyed by those same
+        # publishers' names.
         exclude: |
           (?x)^(
             frontend/messages/(pl|de)\.json|
             backend/app/core/catalog/mcp_registry\.json|
+            backend/app/core/catalog/mcp_checks\.json|
             docs/howto/translate\.md
           )$
 

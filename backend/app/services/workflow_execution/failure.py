@@ -15,8 +15,6 @@ left: a failure that cannot report itself must not fail the settle that
 recorded it.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 
@@ -135,7 +133,6 @@ async def start_error_workflow(
                     public_origin=causes_public(run),
                     impersonated=run.impersonated,
                 ),
-                submitted=False,
             )
     except (
         WorkflowAdmissionQuotaError,

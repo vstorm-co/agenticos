@@ -7,8 +7,6 @@ rollup links and targets, the column a linked table names its records by - is re
 from real schemas, at the revisions they hold.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID, uuid4

@@ -10,8 +10,6 @@ The real service runs with the repository stubbed at the database edge, the
 same bargain `test_agent_metadata_routes.py` makes for agents.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

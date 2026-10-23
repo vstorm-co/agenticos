@@ -1,7 +1,5 @@
 """The Transform steps: each on an empty list, on items missing a key, and doing its job."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from typing import Any

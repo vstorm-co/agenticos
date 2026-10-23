@@ -1,4 +1,7 @@
-"""Artifacts capability - publish a report or a small dashboard under a stable link."""
+"""Apps capability - publish a report or a small dashboard under a stable link.
+
+Called artifacts until #2071; the id, the tool names and the tables keep that name.
+"""
 
 from types import MappingProxyType
 
@@ -21,6 +24,7 @@ class ArtifactsConfig(BaseModel):
 
     preview_screenshot: bool = Field(
         default=True,
+        title="Show the model a page's picture",
         description=(
             "Hand the model the picture of a page when it previews one. Turn off for a "
             "model that cannot read images; the written report still comes back."
@@ -30,15 +34,15 @@ class ArtifactsConfig(BaseModel):
 
 @register(
     id=ARTIFACTS_CAPABILITY_ID,
-    name="Artifacts",
+    name="Apps",
     category="utility",
     description=(
-        "Let the agent publish a finished page - a report, a small dashboard, a one-page "
+        "Let the agent publish a finished app - a report, a small dashboard, a one-page "
         "summary - under a link people open in a browser. Publishing again under the same "
-        "name updates the page behind the same link and keeps the earlier versions, and the "
-        "agent can list its pages, read one back to change part of it, preview one to "
+        "name updates the app behind the same link and keeps the earlier versions, and the "
+        "agent can list its apps, read one back to change part of it, preview one to "
         "see it as a reader would, and ask for one to be shared, which its owner approves. "
-        "A new page is private to the person the run was for until they share it."
+        "A new app is private to the person the run was for until they share it."
     ),
     tools=(
         CapabilityToolInfo(

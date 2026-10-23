@@ -1,5 +1,10 @@
 # #1785 — Trigger workflows when a Virtual Table record is created
 
+> **Note.** Prefect was replaced by the Postgres job queue in #2248. The design
+> below is unchanged where it matters: the outbox holds the run's position, and the
+> flows it names are now jobs - each outbox row is queued with a `workflow-dispatch-node`
+> job in the same transaction.
+
 Design for [#1785](https://github.com/vstorm-co/agenticos/issues/1785), child
 of [#56](https://github.com/vstorm-co/agenticos/issues/56). Depends on
 [#1782](https://github.com/vstorm-co/agenticos/issues/1782) (built, PR #1812,

@@ -1,5 +1,5 @@
 ---
-source_sha: "32c334c2b172"
+source_sha: "04b0a766eb58"
 ---
 
 # Permisos { #permissions }
@@ -98,9 +98,14 @@ decisiones.
 Dos clases de permiso, y se comportan de forma distinta.
 
 Los permisos **globales** son binarios y valen para toda la organización:
-`members:manage`, `roles:manage`, `org:settings`, `org:delete`,
+`members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
-`mcp:manage`, `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` permite a un miembro emitir [claves de
+API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y
+revoca las de todos. Una clave tiene un subconjunto de estos permisos, nunca más
+de lo que su emisor tiene ahora.
 
 !!! example "Por qué `ml:invoke` no es `agents:run`"
 
@@ -131,6 +136,12 @@ Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*
 agents.
 
+`mcp:manage` es uno de ellos: un servidor MCP de la organización se puede limitar
+a grupos o personas, como un skill
+([Departamentos](departments.md#a-departments-mcp-servers)). Un rol que lo tiene en
+`SHARED` ve los servidores de la organización, los suyos y los compartidos con él;
+`ALL` los ve todos.
+
 ### Scope { #scope }
 
 Ordenado `NONE < OWN < SHARED < TEAM < ALL`.
@@ -159,10 +170,10 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 |---|---|---|---|---|
 | `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
 | `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
-| `viewer` | lee | `view` `SHARED` | ninguno | ninguno |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | lee | `view` `SHARED` | ninguno | `members:view` |
 
 La distinción entre `builder` y `admin` es la interesante: un builder ve la
 organización entera para poder aprender de ella, pero edita solo lo suyo o lo que
@@ -269,6 +280,13 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `use` | además ejecutarlo o adjuntarlo |
 | `edit` | además cambiarlo |
 | `edit_data` | además cambiar qué datos muestra la página - [solo páginas](#a-page-that-reads-data) |
+
+En la consola es un solo diálogo, como se comparte un documento: el botón
+**Share** de un agent, un skill, una base de conocimiento o un archivo de contexto
+- en cualquier momento después de crearlo, no solo al crearlo - añade una persona
+o un grupo con un nivel, lista quién tiene
+acceso con el propietario primero y fija el **acceso general** - *Only people with
+access* es `private`, *Everyone in the organization* es `org`.
 
 Una concesión a un grupo alcanza a quien esté en el grupo en el momento en que se
 comprueba el acceso, así que entrar en el grupo es ganar el acceso y salir de él

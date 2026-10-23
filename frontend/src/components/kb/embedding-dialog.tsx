@@ -15,7 +15,7 @@ import {
 } from "@/components/ui";
 import { useChanged } from "@/hooks/use-changed";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { EmbeddingProviderInput, KnowledgeBase } from "@/types";
 import { useTranslations } from "next-intl";
@@ -114,7 +114,7 @@ export function EmbeddingDialog({
           <DialogTitle>{t("embeddings")}</DialogTitle>
           <DialogDescription>{t("providerMoveKeepsTheIndex")}</DialogDescription>
         </DialogHeader>
-        <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
+        <div className={cn(DIALOG_BODY, "scrollbar-thin space-y-4")}>
           <div className="border-border space-y-1 rounded-lg border p-3">
             <p className="text-muted-foreground text-xs">{t("modelIsFixed")}</p>
             <p className="font-mono text-sm">{kb.embedding_model}</p>

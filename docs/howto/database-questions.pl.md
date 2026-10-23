@@ -1,5 +1,5 @@
 ---
-source_sha: "c51412640202"
+source_sha: "0ac33e6fdc56"
 title: "Odpowiadaj na pytania z bazy danych"
 description: "Podłącz samodzielnie hostowany serwer MCP dla Postgresa za rolą tylko do odczytu i schematem zawierającym wyłącznie widoki, a potem pozwól agentowi go odpytywać."
 ---
@@ -16,7 +16,7 @@ Podłącz serwer MCP dla Postgresa, żeby agent mógł odpowiadać na pytania z 
 
 ## Dlaczego rola tylko do odczytu i schemat z samymi widokami { #why-a-read-only-role-and-a-views-only-schema }
 
-**Narzędzia MCP są poza bramką zatwierdzeń.** Narzędzia capability mogą czekać na zatwierdzenie przez człowieka, narzędzia serwera MCP nie. Nie ma przeglądu SQL-a, który uruchamia narzędzie zapytań agenta, przy każdym wywołaniu. Cokolwiek może podłączony serwer, agent może bez pytania. Zobacz [narzędzia MCP są poza bramką zatwierdzeń](../governance.md#an-approval-inside-a-delegation). Granicą musi być samo poświadczenie do bazy, a nie ustawienie agenta.
+**Zatwierdzenie nie przeczyta za ciebie SQL-a.** Polityka `approval` powiązania może zatrzymać każde zapytanie dla człowieka - `all`, z dokładnym SQL-em na karcie - ale agent zadający dziesiątki pytań zamienia to w odruchowe klikanie, a `writes` ufa, że serwer oznaczy swoje narzędzie zapytań jako tylko do odczytu. Zobacz [które wywołania czekają na człowieka](../mcp.md#which-calls-wait-for-a-person). Granicą musi być samo poświadczenie do bazy, a nie ustawienie agenta.
 
 Robią to dwie decyzje:
 
@@ -91,7 +91,9 @@ private/internal address '::1'. SSRF protection does not allow requests to
 internal networks.
 ```
 
-Adres URL połączenia MCP jest zawsze odrzucany dla każdego adresu loopback, prywatnego, link-local albo ze współdzielonej puli CGNAT. Nie ma wyjątku dla środowiska lokalnego, bo ta sama kontrola chroni też `cdp_url` i każdy krok wykrywania OAuth. Zobacz [adres URL, do którego to wdrożenie nie może sięgać, jest odrzucany](../mcp.md#a-connection). Serwera MCP dla Postgresa dostępnego tylko pod `localhost` albo adresem w sieci prywatnej, czyli tam, gdzie zwykle uruchamia się go po raz pierwszy, nie da się podłączyć z maszyny tego samego wdrożenia. Potrzebny jest routowalny adres przed serwerem: mały host z publicznym albo dostępnym przez VPN IP albo tunel.
+Adres URL połączenia MCP jest odrzucany dla każdego adresu loopback, prywatnego, link-local albo ze współdzielonej puli CGNAT, chyba że operator wpisze jego host do [`MCP_ALLOWED_HOSTS`](../configuration.md#project-settings). Zobacz [adres URL, do którego to wdrożenie nie może sięgać, jest odrzucany](../mcp.md#a-connection). Serwera MCP dla Postgresa dostępnego tylko pod `localhost` albo adresem w sieci prywatnej, czyli tam, gdzie zwykle uruchamia się go po raz pierwszy, nie da się podłączyć z maszyny tego samego wdrożenia.
+
+Aby go podłączyć, uruchom go pod własną nazwą hosta w sieci wdrożenia i wpisz tę nazwę na listę, nigdy `localhost`. Albo postaw przed serwerem routowalny adres: mały host z publicznym albo dostępnym przez VPN IP albo tunel.
 
 Powyższy SQL został uruchomiony i sprawdzony bezpośrednio w Postgresie. Odmowa dla roli i podane sumy z widoków są prawdziwe. Nie zweryfikowano tego, że agent faktycznie odpytuje bazę przez podłączony serwer, bo serwera nigdy nie dało się podłączyć.
 
@@ -107,7 +109,7 @@ Powyższy SQL został uruchomiony i sprawdzony bezpośrednio w Postgresie. Odmow
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
-- **Połączenie jest odrzucane z komunikatem o SSRF.** Adres serwera to loopback, adres prywatny albo inny wewnętrzny dla sieci tego wdrożenia; zobacz wyżej. Postaw przed nim routowalny adres.
+- **Połączenie jest odrzucane z komunikatem o SSRF.** Adres serwera to loopback, adres prywatny albo inny wewnętrzny dla sieci tego wdrożenia; zobacz wyżej. Postaw przed nim routowalny adres albo wpisz jego host do `MCP_ALLOWED_HOSTS`.
 - **Agent czyta tabelę bazową zamiast widoków.** `shop_readonly` dostała uprawnienia do `public` oprócz `reporting` albo nigdy nie odebrano jej schematu tabeli bazowej. Uruchom ponownie `REVOKE` z góry.
 - **Zapytanie agenta wygląda, jakby coś zmieniło.** Nie mogło, jeśli rola naprawdę nie ma uprawnień do zapisu. Sprawdź uprawnienia roli, zanim uznasz, że agent zachował się źle.
 - **Test połączenia przechodzi, ale Builder nie pokazuje żadnych narzędzi.** Nic go jeszcze nie odpytało albo ostatnie sprawdzenie się nie powiodło. `POST /mcp-connections/{id}/test` je odświeża.

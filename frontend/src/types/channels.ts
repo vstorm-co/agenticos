@@ -2,6 +2,22 @@
 
 export type ChannelPlatform = "telegram" | "slack" | "mattermost";
 
+/** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
+export type StepDisplay = "timeline" | "plan";
+
+/**
+ * How a bot answers, beyond what it says (#2084): a reaction on the question as it
+ * arrives, an answer streamed natively where the platform draws it (Slack), its
+ * tool calls as a timeline or a plan, and thumbs under it to rate it.
+ */
+export interface AnswerStyle {
+  /** An emoji's name without colons, `eyes`; null reacts with nothing. */
+  ack_reaction: string | null;
+  stream_answers: boolean;
+  step_display: StepDisplay;
+  rate_answers: boolean;
+}
+
 /**
  * When an agent says what a turn cost, and when it only records it.
  *
@@ -20,7 +36,7 @@ export interface UsageReporting {
   every_n: number;
 }
 
-export interface ChannelBot {
+export interface ChannelBot extends AnswerStyle {
   id: string;
   platform: ChannelPlatform;
   name: string;
@@ -37,8 +53,12 @@ export interface ChannelBot {
   has_webhook_secret: boolean;
   /** Whether inbound Slack events can be verified - never the secret itself. */
   has_slack_signing_secret: boolean;
-  /** Whether Socket Mode (dev polling) can run - never the token itself. */
+  /** Whether Socket Mode can run - never the token itself. */
   has_slack_app_token: boolean;
+  /** Mattermost only: whether `/agent` requests can be verified - never the token itself. */
+  has_command_token: boolean;
+  /** Mattermost only: the request URL to paste into the `/agent` slash command. */
+  command_url: string | null;
   /**
    * Whether the socket this bot receives on is actually up.
    *
@@ -49,16 +69,28 @@ export interface ChannelBot {
    * would put a fault on every bot in a deployment that cannot report.
    */
   connection: ChannelConnection | null;
+  /** Whether voice notes are transcribed here at all; off wins over every pair. */
+  transcribe_voice_notes: boolean;
   /**
-   * Which model transcribes voice notes here, or null for none.
+   * Which model transcribes voice notes here, or null to inherit the agent's or
+   * the organization's.
    *
    * A pair that moves together: a provider with no model has nothing to call and
    * a model with no provider has nowhere to send it. Read back plainly - these
-   * are choices somebody made, not credentials; the key they run on is the
-   * organization's own model profile and is never named here.
+   * are choices somebody made, not credentials.
    */
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  /**
+   * The vault key the bot's own pair is sent with, by id: an organization-visible
+   * API key for the provider. Null with a pair means it was deleted.
+   */
+  speech_to_text_secret_id: string | null;
+  /**
+   * What "inherit" resolves to for this bot. On the single-bot read only - the
+   * listing leaves it out - and null where nothing resolves.
+   */
+  inherited_speech_to_text?: InheritedSpeechToText | null;
   /**
    * Who answers here, from the active bindings.
    *
@@ -69,6 +101,20 @@ export interface ChannelBot {
   agents: BotAgent[];
   created_at: string;
   updated_at?: string | null;
+}
+
+/** The engine a bot's voice notes go to when it inherits rather than names one. */
+export interface InheritedSpeechToText {
+  provider: string;
+  model: string;
+  language: string | null;
+  /** Whether the bot's agent or its organization chose the pair. */
+  pair_source: "agent" | "organization";
+  language_source: "agent" | "organization" | null;
+  /** The agent the bot serves. */
+  agent_name: string | null;
+  /** Whether the level the pair comes from names a key that is still usable. */
+  has_key: boolean;
 }
 
 /** The state of the inbound socket a polling bot receives on. */
@@ -110,10 +156,25 @@ export interface ChannelBotCreate {
   webhook_secret?: string;
   /** Slack only: this app's signing secret - inbound events are verified with it. */
   slack_signing_secret?: string;
-  /** Slack only: this app's xapp- token, for Socket Mode (dev). */
+  /** Slack only: this app's xapp- token, for Socket Mode. */
   slack_app_token?: string;
+  /** Omitted inherits; `false` never transcribes. */
+  transcribe_voice_notes?: boolean;
+  /**
+   * Slack: `true` when Slack calls this deployment's address, `false` when the
+   * deployment connects out to Slack (Socket Mode) and needs no public address.
+   */
+  webhook_mode?: boolean;
+  /** Mattermost only: the token Mattermost shows for the `/agent` slash command. */
+  command_token?: string;
+  ack_reaction?: string | null;
+  stream_answers?: boolean;
+  step_display?: StepDisplay;
+  rate_answers?: boolean;
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** Required with a pair, refused without one. */
+  speech_to_text_secret_id?: string | null;
 }
 
 /**
@@ -138,7 +199,21 @@ export interface ChannelBotUpdate {
   webhook_secret?: string;
   slack_signing_secret?: string;
   slack_app_token?: string;
-  /** Both halves or neither; the server pairs them against the stored row. */
+  /** Slack only: which way the connection runs; see `ChannelBotCreate`. */
+  webhook_mode?: boolean;
+  command_token?: string;
+  ack_reaction?: string | null;
+  stream_answers?: boolean;
+  step_display?: StepDisplay;
+  rate_answers?: boolean;
+  /** `false` never transcribes and clears the pair; never `null`. */
+  transcribe_voice_notes?: boolean;
+  /**
+   * Both halves or neither; the server pairs them against the stored row. Null
+   * clears the pair, which inherits - it used to mean off.
+   */
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** The key goes with the pair: sent whenever the pair or the key moved. */
+  speech_to_text_secret_id?: string | null;
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "d0388f484f62"
+source_sha: "f9514b7d3481"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -286,6 +286,46 @@ który kłamie; odwiedzający nie ma jak wiedzieć, że reguła istnieje, i czyt
 odrzucenie jako zepsuty produkt. To także powód, dla którego dozwolone domeny są
 publikowane: nie są tajemnicą, a wdrożenie stoi na własnym hoście firmy.
 
+## Gdzie zaczyna nowe konto { #where-a-new-account-starts }
+
+Decydują o tym dwa ustawienia obok trybu rejestracji, oba w sekcji **Nowe konta**
+na `/admin/settings`, i oba dotyczą kont utworzonych później — istniejąca
+organizacja osobista zostaje (#2156).
+
+| Ustawienie | Domyślnie | Skutek |
+|---|---|---|
+| `personal_organizations` | włączone | Każde nowe konto dostaje własną organizację, z sobą jako Ownerem. |
+| `default_organization_id` | brak | Każde nowe konto dołącza do tej organizacji, z rolą `default_organization_role`. |
+| `default_organization_role` | `member` | Każda rola poza `owner`; ustawienie, które robiłoby z każdego nowego ownera, dałoby im wszystkim klucze firmy. |
+
+Wdrożenie otwarte dla niezależnych osób zostawia wartości domyślne. Wdrożenie dla
+jednej firmy wyłącza organizacje osobiste i wskazuje organizację firmy, więc
+współpracownik zaczyna tam, gdzie są agenci i wiedza firmy, i nikt nie uruchamia
+agentów pod własnym budżetem, polityką zatwierdzeń i dziennikiem audytu obok
+firmowych. Organizacja osobista nie może być domyślna, a usunięcie domyślnej
+organizacji czyści to ustawienie.
+
+**Zaproszenie do domyślnej organizacji ma pierwszeństwo.** Zaproszenie nadaje
+własną rolę, a przyjęcie go do organizacji, do której osoba już należy, jest
+odrzucane — więc nowa osoba, która rejestruje się z zaproszeniem do domyślnej
+organizacji albo ma oczekujące zaproszenie na swój adres, nie dołącza do niej przy
+rejestracji. Dołącza, gdy je przyjmie, z rolą z zaproszenia.
+
+**Dołącza do niej tylko reguła samego wdrożenia.** Konto wpuszczone przez sam
+tryb rejestracji — otwarte wdrożenie, adres w dozwolonej domenie — dołącza do
+domyślnej organizacji. Konto wpuszczone wyłącznie przez zaproszenie albo
+mapowanie katalogu innej organizacji nie dołącza: menedżerowie tamtej organizacji
+poręczyli za tę osobę wobec własnej organizacji, a dołączenie do domyślnej
+pozwoliłoby im dodawać ludzi do organizacji, którą nie zarządzają.
+
+**Domyślna organizacja to także miejsce, w którym ląduje sesja.** Żądanie z tokenem
+sesji i bez `X-Organization-Id` działa w domyślnej organizacji, gdy osoba do niej
+należy, potem w jej osobistej, potem w jedynej. Osoba, która ma wybór i nie wysłała
+nagłówka, dostaje `400` wskazujące nagłówek zamiast zgadywania — zobacz
+[nagłówek organizacji](api.md#the-organization-header). Konsola wybiera tę samą
+organizację, gdy nic innego nie jest wybrane, a przyjęcie zaproszenia przełącza
+konsolę na organizację, do której osoba dołączyła.
+
 ## Znalezienie jednego tenanta wśród wszystkich { #finding-one-tenant-among-all-of-them }
 
 `GET /admin/organizations` to jedyna powierzchnia, która odpowiada na pytanie
@@ -302,7 +342,7 @@ trzeba mu pokazać.
 | `search` | Nazwa, slug albo adres właściciela. Fraza jest tekstem, a nie wzorcem — `100%` znajduje tenanta o takiej nazwie, a nie wszystkie |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Cokolwiek innego to 422 |
 | `sort_dir` | `asc` / `desc`, domyślnie od najnowszych |
-| `kind` | `personal`, `team` albo `all`. Każde konto dostaje przy rejestracji organizację osobistą, więc na większości wdrożeń to one stanowią większość listy |
+| `kind` | `personal`, `team` albo `all`. Każde konto dostaje przy rejestracji organizację osobistą, chyba że wdrożenie to wyłączyło, więc na większości wdrożeń to one stanowią większość listy |
 | `skip`, `limit` | Jedna strona serwera, do 100 |
 
 **Wszystko to dzieje się w SQL, przed `OFFSET`/`LIMIT`**, a `total` liczy to, do
@@ -509,6 +549,32 @@ Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu
 z nich organizację osobistą.
 
+## W jakim formacie można wgrać dyktowanie { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **domyślnie wyłączone**, rozstrzyga format każdego
+[dyktowania](ml-services.md#dictation-in-chat) na wdrożeniu — w composerze
+`/chat`, na hostowanych stronach i w widgetach, w każdej organizacji. Wyłączone
+sprawia, że serwer przyjmuje jeden format: WAV z 16-bitowym PCM 16 kHz mono,
+który nagrywa każda przeglądarka. Jego długość to jego rozmiar, 32 000 bajtów na
+sekundę, więc serwer liczy próbki, a najdłuższe dyktowanie dokładnie ogranicza
+koszt jednego nagrania.
+
+Włączone dopuszcza dodatkowo WebM, Ogg i MP4, a przesyłane pliki są mniej więcej
+ośmiokrotnie mniejsze. Ich długość jest odczytywana z własnego nagłówka pliku, który
+plik zbudowany ręcznie może zaniżyć: jedno dyktowanie może wtedy nieść w ramach
+limitu rozmiaru nawet około czterdziestokrotność najdłuższego dyktowania. Na
+[publicznej stronie albo w widgecie](channels.md#what-it-costs-and-what-bounds-it)
+każdy, kto ma link, może takie wysłać, na rachunek konta organizacji u providera
+i poza każdym budżetem.
+
+Dlatego przełącznik na `/admin/settings` najpierw pyta. Włączenie otwiera okno
+dialogowe, które nazywa te ryzyka, a jego przycisk potwierdzenia staje się
+aktywny dopiero po zaznaczeniu pola z oświadczeniem, że zostały przeczytane;
+wyłączenie o nic nie pyta. Tak czy inaczej zmiana jest zapisywana razem z resztą
+formularza i audytowana jak każde inne pole. Przeglądarki stosują się do niej,
+gdy strona następnym razem zapyta: format, w którym nagrywają, to ten, który
+ogłasza serwer, nigdy lista trzymana w kliencie.
+
 ## Ten wiersz { #the-row }
 
 Jeden wiersz na całą instalację, pilnowany przez bazę danych, a nie przez
@@ -561,6 +627,39 @@ w gałęzi zabezpieczonej. Wciąż niepoprawione w upstreamie na 0.65b0,
 a `tests/test_otel_route_details.py` zawodzi, gdy zostanie poprawione — i wtedy
 moduł znika.
 
+## Zadania w tle { #background-jobs }
+
+**Admin → Background jobs** (`/admin/background-jobs`) to kolejka widziana oczami
+właściciela wdrożenia i tylko app admin może ją otworzyć: kolejka należy do
+wdrożenia, więc właściciel organizacji dostaje odmowę. Nagłówek liczy zadania w
+każdym stanie, wskazuje każdy wstrzymany rodzaj i powód, wymienia żyjące workery
+i najbliższy termin każdego harmonogramu. Pod nim są zadania, od najnowszych,
+filtrowane po stanie i puli, każde z liczbą prób i błędem, na którym ostatnio się
+skończyło.
+
+Pod licznikami **Activity** pokazuje na wykresie, co zakończyło się w
+ostatnich 24 godzinach albo 7 dniach, z podziałem na to, jak się skończyło, a
+obok najdłuższe czekanie zadania, które jest już do wykonania. **By kind**
+podaje dla każdego rodzaju liczbę zadań, liczbę martwych, czas wykonania w
+medianie i 95. percentylu oraz to, jak długo jego zadania czekały na workera:
+rosnące czekanie mówi, że pula potrzebuje więcej workerów. Dashboard wdrożenia
+pokazuje ten sam dzień jako kartę.
+
+Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
+
+- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
+- **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
+
+Rodzaj wstrzymuje bezpiecznik workera: jego zadania zabiły swojego workera
+`WORKER_BREAKER_DEATHS` razy z rzędu, najczęściej dokument, przy którym
+parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomienie w
+aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
+się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
+zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
+usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+[Konfiguracji](configuration.md#background-work).
+
 ## Podsumowanie { #recap }
 
 - Tożsamość wdrożenia to **jeden wiersz**, edytowany z `/admin/settings`,
@@ -568,10 +667,16 @@ moduł znika.
 - `signup_mode` jest stosowany w **jednym miejscu** i bramkuje obie ścieżki, które
   tworzą konto. Zaproszenie ma pierwszeństwo przed listą domen; `closed` nie
   ustępuje niczemu.
+- Nowe konto dostaje **organizację osobistą, chyba że to wyłączono**, i dołącza do
+  **domyślnej organizacji**, gdy jest ustawiona; tam też trafia sesja, która nie
+  wskazuje organizacji.
 - App admin **nie może odciąć sam siebie** z poziomu konsoli.
 - **Impersonacja jest sesją**: uruchamiana z konsoli bez żadnego tokena
   w schowku, nazwana w banerze, kończona przez administratora, przez wylogowanie
   się danej osoby wszędzie albo przez upływ godziny. To, czy ta osoba zostanie
   poinformowana, rozstrzyga `notify_impersonated_users`, domyślnie wyłączone.
+- Dyktowanie to **surowy PCM, chyba że `dictation_compressed_audio` jest
+  włączone**, a administrator włącza je dopiero po oknie dialogowym, które nazywa,
+  ile to kosztuje.
 - Każde odrzucenie z tego wdrożenia wygląda tak samo, niezależnie od tego, która
   warstwa je wyprodukowała.

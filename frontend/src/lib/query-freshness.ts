@@ -1,23 +1,26 @@
 import { keepPreviousData } from "@tanstack/react-query";
 
+/** How long a dashboard card's answer is reused before a look at the page asks again. */
+export const DASHBOARD_STALE_MS = 30 * 60 * 1000;
+
 /**
  * The freshness a dashboard card needs, as one object every such query spreads.
  *
- * The app-wide defaults in `providers.tsx` hold data fresh for five minutes and
- * never refetch on focus, which is right for a page somebody is reading: moving
- * around the product should not re-ask every list. A dashboard is the opposite
- * shape - it is left open in a background tab while the person does the thing
- * the numbers are about, and comes back expecting to see it.
+ * Thirty minutes, because what moves on a dashboard is already pushed: a run,
+ * an approval, an agent or a connection changed anywhere arrives on the live
+ * feed, which marks its queries stale and refetches the ones on screen. What the
+ * feed does not carry - the usage and spend aggregates - is reused for half an
+ * hour. A card asked again on every focus and every visit cost the page about
+ * thirty requests each time somebody came back to the tab (#2248).
  *
- * **All three fields are load-bearing.** React Query refetches on focus only when a
- * query is already stale, so `refetchOnWindowFocus` on its own is a no-op for
- * the whole five minutes somebody is watching to see whether their run landed -
- * the symptom is a dashboard that only ever moves on a full page reload.
+ * `refetchOnWindowFocus` still matters: React Query refetches on focus only once
+ * a query is stale, so a tab left open past the half hour catches up when it is
+ * looked at rather than on a full reload.
  */
 export const DASHBOARD_FRESHNESS = {
   refetchOnWindowFocus: true,
-  staleTime: 0,
-  // The third: hold the last answer while the next one is in flight.
+  staleTime: DASHBOARD_STALE_MS,
+  // Hold the last answer while the next one is in flight.
   //
   // A period change is a new query key, so without this `isLoading` is true and
   // ten cards drop to skeletons at once - the page blanks, reflows, and comes

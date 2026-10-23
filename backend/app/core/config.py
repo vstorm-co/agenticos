@@ -1,12 +1,17 @@
 """Application configuration using Pydantic BaseSettings."""
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
+import ipaddress
+import socket
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+from app.core.sanitize import METADATA_ADDRESSES, METADATA_HOSTS
 
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
@@ -280,7 +285,12 @@ class Settings(BaseSettings):
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
-    DB_POOL_TIMEOUT: int = 30
+    # How long a caller waits for a free connection. Five seconds, not thirty:
+    # under a burst a request that waited thirty was lost anyway, and the queue
+    # of waiters held every connection long after the burst had passed - the
+    # load suite's recovery phase failed 65-78% at 30 s and 5-20% at 5 s (#2219).
+    # The handler answers the timeout `503` with `Retry-After`.
+    DB_POOL_TIMEOUT: int = 5
 
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
@@ -314,6 +324,18 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long an agent's unanswered `ask_user` question keeps its run parked
+    # before the run is ended with the question expired (#2064).
+    QUESTION_EXPIRY_HOURS: int = 24
+    # How long a chat turn goes on after the person who asked it has left - a
+    # closed tab, a quit app, a dropped connection - before it is stopped (#2108).
+    # The answer lands in the conversation and they are notified, so this bounds
+    # spend on an answer that may never be read rather than gating the feature.
+    # Long enough for a research or browsing task; a run still has its budget.
+    # At most two hours, the `RUNNING_HORIZON` past which the conversation list
+    # stops calling a run at work: a longer turn would go on unseen, and someone
+    # reopening the thread could ask again over an answer still being written.
+    CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in
@@ -424,7 +446,7 @@ class Settings(BaseSettings):
     LDAP_KERBEROS_FILTER: str = "(userPrincipalName={principal})"
 
     @model_validator(mode="after")
-    def validate_directory_sign_in(self) -> "Settings":
+    def validate_directory_sign_in(self) -> Settings:
         """A directory configuration that would send a password in the clear, or find nobody, is refused.
 
         Checked at startup rather than at the first sign-in: a typo here would
@@ -489,7 +511,7 @@ class Settings(BaseSettings):
     VAULT_MASTER_KEYS: dict[int, str] = {}
 
     @model_validator(mode="after")
-    def validate_vault_master_keys(self) -> "Settings":
+    def validate_vault_master_keys(self) -> Settings:
         """A deployment holding real credentials must say which key seals them.
 
         An unset master key falls back to `SECRET_KEY`, whose default is a
@@ -684,40 +706,92 @@ class Settings(BaseSettings):
     # refusal; this caps it the way CHAT_CONVERT_MAX_CONCURRENCY and
     # ML_MAX_CONCURRENT_PARSES cap their own pools of concurrent work.
     TABLES_MAX_CONCURRENT_QUOTA_AUDITS: int = Field(default=4, gt=0)
+    # How many requests one organization API key may make per minute, across
+    # every public route. A key is a program, not a person, so the bound is on
+    # what one integration can do to the deployment; a run or an ML call is
+    # additionally counted against its own, smaller limit.
+    RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Voice previews per person per minute (#54): the Builder's ▶ beside a voice.
+    # Each uncached one is a short paid session on the organization's realtime
+    # provider, outside every model budget.
+    RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE: int = 6
+    # Dictations a visitor may send from a hosted page or a widget, per minute
+    # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
+    # by the token's subject. Each one is a paid call to the organization's
+    # speech-to-text provider, outside every model budget.
+    RATE_LIMIT_EMBED_DICTATION_PER_MINUTE: int = 6
+    # Dictations one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked or public link costs: this many
+    # recordings a minute, each at most the organization's longest dictation.
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
+    # Voice calls one address may start on a hosted page or a widget, per minute
+    # (#54). Each is a paid realtime session, so it is counted before the key is
+    # looked up, the way dictation is.
+    RATE_LIMIT_EMBED_VOICE_PER_MINUTE: int = 3
+    # Voice calls one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked link costs: this many calls a minute,
+    # each at most the organization's longest call, within its monthly minutes.
+    RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE: int = 6
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
     # image: behind a proxy every visitor arrives as the proxy and shares one
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
+    # Map tiles one address may fetch through this deployment in a minute (#2302).
+    # A map is a few dozen tiles and panning adds more; the bound is what keeps
+    # the deployment from being anybody's free proxy to its tile server.
+    RATE_LIMIT_MAP_TILES_PER_MINUTE: int = 600
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
+    # Concurrent voice calls one person may hold (#54). One by default: a second
+    # tab's call is almost always a mistake, and each is billed.
+    VOICE_MAX_CALLS_PER_USER: int = 1
+    # Concurrent voice calls one hosted page or widget may hold, from everybody
+    # together (#54). Visitors have no account to count against, so this is what
+    # stops a leaked link from spending the organization's monthly minutes - and
+    # with them every member's calls - in parallel.
+    VOICE_MAX_CALLS_PER_EMBED: int = 3
 
-    PREFECT_API_URL: str = "http://localhost:4200/api"
-    PREFECT_API_KEY: str | None = None
-    # How many flow runs the runner may execute at once. Each one is a separate
-    # Python process that imports the whole application, so the ceiling is memory
-    # rather than CPU: five of them is about 600 MB. It matters most after
-    # downtime, when the runner picks up a backlog of scheduled runs and would
-    # otherwise start all of them - see app/worker/prefect_app.py.
-    PREFECT_RUNNER_LIMIT: int = 5
-    # A floor under every scheduled interval, for a machine that is not a server.
-    #
-    # Four deployments tick every sixty seconds - the trigger heartbeat, the RAG
-    # sync check, the portal poll and the notification delivery sweep. On a
-    # deployment that is the point of them: a schedule that fires a minute late
-    # is a schedule nobody trusts. On a laptop running the whole stack beside an
-    # editor it is four fresh Python processes a minute, each importing the
-    # application before doing about two tenths of a second of work, and the
-    # import is what costs - measured at roughly seven seconds a run, four at a
-    # time.
-    #
-    # `0` changes nothing and is the default, so a deployment keeps the
-    # intervals the code declares. Raising it lengthens only the schedules
-    # already faster than it, which is why this is a floor rather than a
-    # multiplier: at 600 the four minute-ticks become ten minutes and the
-    # fifteen-minute, hourly and daily sweeps are untouched. `make dev` sets it;
-    # see `docs/configuration.md`.
-    WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
+    # The background workers (`python -m app.worker`, #2219). Each process serves
+    # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
+    # container runs two workers, one with `agent,system` and one with `ingest`.
+    WORKER_POOLS: str = "agent,ingest,system,workflow"
+    # Agent runs at once per worker process. They wait on models rather than
+    # compute, so this is bounded by the database pool and the providers' rate
+    # limits more than by CPU.
+    WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Workflow nodes at once per worker process. Most wait on a network call, a
+    # sandbox or a timer, but one holding a file takes up to `WORKFLOW_RUN_MAX_FILE_BYTES`
+    # of memory, so size the worker for this many of them.
+    WORKER_WORKFLOW_CONCURRENCY: int = Field(default=5, ge=1)
+    # Sweeps, cleanups and reports at once per worker process.
+    WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
+    # Child processes of the ingest pool: one parse each at a time. Each holds an
+    # imported application (about 450 MB) plus what its parse needs.
+    WORKER_INGEST_CHILDREN: int = Field(default=2, ge=1)
+    # The memory one ingest child may hold, with whatever it started, before the
+    # watchdog stops it and the job is written down as over the limit. Below the
+    # container's own limit, so the watchdog - which says why - acts before the
+    # kernel does.
+    WORKER_INGEST_MEMORY_MB: int = Field(default=1536, ge=256)
+    # Jobs an ingest child runs before it is replaced, so a parser that leaks a
+    # little per document is bounded by the recycling.
+    WORKER_INGEST_MAX_JOBS: int = Field(default=100, ge=1)
+    # How long a claimed job is held without a heartbeat. A worker that dies
+    # gives its jobs back this long after it stopped, at the latest.
+    WORKER_LEASE_SECONDS: int = Field(default=60, ge=10)
+    # Worker deaths in a row, across a kind's jobs, that pause the kind and tell
+    # the deployment's owners. A single job's own attempts already stop it from
+    # looping; this stops a kind from killing workers job after job.
+    WORKER_BREAKER_DEATHS: int = Field(default=5, ge=2)
+    # The file the container's health check reads: touched after every heartbeat
+    # that reached the database. The compose probes read the same variable.
+    WORKER_HEALTH_FILE: str = "/tmp/agenticos-worker-alive"  # noqa: S108 - per-container
+    # Finished jobs kept for the panel; older ones are deleted daily.
+    BACKGROUND_JOB_RETENTION_DAYS: int = Field(default=14, ge=1)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local
@@ -746,8 +820,9 @@ class Settings(BaseSettings):
     # How much of an agent's `state` workspace the platform will store, per
     # workspace. It lives in a JSONB column, so this is a real ceiling on a real
     # row rather than a policy: past it, writes are refused with a message the
-    # model reads.
-    SANDBOX_STATE_MAX_BYTES: int = 4 * 1024 * 1024
+    # model reads. A run holds the whole document in memory, so the ceiling is
+    # also what one open workspace may cost the API process.
+    SANDBOX_STATE_MAX_BYTES: int = 32 * 1024 * 1024
     # Above this, an attached image is written to the workspace and *not* also
     # sent inline. Below it the model gets both: it should see the picture, and
     # it should be able to run something over the file. The ceiling is where
@@ -825,7 +900,7 @@ class Settings(BaseSettings):
     WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL: int = Field(default=2000, gt=0)
 
     @model_validator(mode="after")
-    def validate_workflow_admission_quota(self) -> "Settings":
+    def validate_workflow_admission_quota(self) -> Settings:
         """Keep each admission ceiling at least one graph's worth of nodes.
 
         A ceiling below `WORKFLOW_GRAPH_MAX_NODES` turns the quota into a
@@ -938,15 +1013,93 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
-    # Where a browsing agent's decision model may run, beyond the vendor's own
-    # endpoint. `decision_base_url` is in the agent spec and the vault key is
-    # unsealed and handed to that address, so an author who may *bind* a shared
-    # TypeSafe key - without being able to read it - could point it at a server
-    # of their own and collect it from the request header. This is
-    # `MEM0_ALLOWED_HOSTS` again, one field along, and the answer is the same
-    # one. Empty allows only the vendor endpoint, which is the default and the
-    # configuration nobody has to think about.
-    DECISION_MODEL_ALLOWED_HOSTS: list[str] = []
+    # The browser a person signs in to a site with from Settings (#2129). An
+    # agent's browser is named in its spec; signing in from Settings involves no
+    # agent, so the deployment names the one it runs - the compose `browser`
+    # service, `http://browser:9222`. Its host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
+    BROWSER_SIGN_IN_CDP_URL: str = ""
+
+    # The browser a visual is drawn to a picture with (#2171), where no frame can
+    # run it: a chat app's reply and a dashboard thumbnail of a page. The compose
+    # `browser` service, `http://browser:9222`, whose host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there - every
+    # request it makes is answered by the deployment or refused. Empty sends a
+    # drawing's title instead of its picture.
+    VISUAL_RENDER_CDP_URL: str = ""
+
+    # The tile server a drawing's map is drawn on (#2302): a preset -
+    # `openstreetmap`, `usgs-topo` - or a https URL template with {z}, {x} and
+    # {y}, which then needs VISUAL_MAP_TILES_ATTRIBUTION. Every visual and
+    # published page may then load images from that server's tile path, and
+    # nothing else remote. Empty draws a map as a plain outline. See
+    # `app/core/map_tiles.py`.
+    VISUAL_MAP_TILES: str = ""
+    VISUAL_MAP_TILES_ATTRIBUTION: str = ""
+
+    def map_tiles(self) -> MapTiles | None:
+        """The tile server a drawing's map uses, or `None` when the deployment names none."""
+        return resolve_map_tiles(self.VISUAL_MAP_TILES, self.VISUAL_MAP_TILES_ATTRIBUTION)
+
+    @model_validator(mode="after")
+    def validate_map_tiles(self) -> Settings:
+        """A tile setting that cannot be served is refused at startup, not at the first map."""
+        self.map_tiles()
+        return self
+
+    # The proxy the deployment's own browser reaches every site through - the
+    # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
+    # anything inside the deployment's network and connects to the address it
+    # checked. Used by every browse that has no proxy of the organization's own
+    # and is not on a hosted browser; empty sends the browser straight out.
+    BROWSER_EGRESS_PROXY: str = ""
+
+    # Hosts an MCP connection's own URL may name although they resolve inside the
+    # deployment's network, such as a compose service. A listed host skips the
+    # address check in `app.agents.mcp.validate_mcp_url`, and only when a
+    # connection's URL is saved. Matched exactly, case-folded. Empty refuses all.
+    MCP_ALLOWED_HOSTS: list[str] = []
+
+    @field_validator("MCP_ALLOWED_HOSTS")
+    @classmethod
+    def validate_mcp_allowed_hosts(cls, v: list[str]) -> list[str]:
+        """Refuse an entry that can only be a cloud metadata service or this host.
+
+        A listed host skips the SSRF check, and `169.254.169.254` or
+        `metadata.google.internal` is never an MCP server, only the instance's
+        credentials - the same refusals `app.schemas.urls` makes for a service
+        an organization runs. Loopback is refused too: it is the API's own host,
+        where every port the deployment binds would open to every account. A
+        trailing dot is folded here because the URL may keep one and still
+        reach the same address, and an IPv4 address is read the way the
+        resolver reads it, so `2852039166` is `169.254.169.254`.
+        """
+        for entry in v:
+            host = entry.strip().removeprefix("[").removesuffix("]").lower().rstrip(".")
+            if host in METADATA_HOSTS or host == "localhost" or host.endswith(".localhost"):
+                refused = True
+            else:
+                try:
+                    address = ipaddress.ip_address(host)
+                except ValueError:
+                    try:
+                        address = ipaddress.IPv4Address(socket.inet_aton(host))
+                    except OSError:
+                        address = None
+                if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+                    address = address.ipv4_mapped
+                refused = address is not None and (
+                    address.is_link_local
+                    or address.is_loopback
+                    or address.is_unspecified
+                    or address in METADATA_ADDRESSES
+                )
+            if refused:
+                raise ValueError(
+                    f"MCP_ALLOWED_HOSTS lists {entry!r}, a cloud metadata, link-local or "
+                    "loopback address. A listed host skips the SSRF check, so remove it."
+                )
+        return v
 
     @field_validator("CORS_ORIGINS")
     @classmethod
@@ -961,7 +1114,7 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def rag(self) -> "RAGSettings":
+    def rag(self) -> RAGSettings:
         """The RAG settings with nothing of the deployment's in them.
 
         There is no deployment-level half any more: the embedding model, the

@@ -8,8 +8,6 @@ viewer and version the token names, that a slow binding costs itself alone, and 
 no record reaches a log.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import re
@@ -413,8 +411,8 @@ class TestNoRecordInALog:
     @pytest.mark.security
     async def test_an_injected_record_never_reaches_a_log(self, db, caplog):
         page = await _page(db)
-        sentinel = f"needle-{uuid.uuid4().hex}"
-        await insert_rows(db, page.table, [{cid(page.table, "Customer"): sentinel}])
+        needle = f"needle-{uuid.uuid4().hex}"
+        await insert_rows(db, page.table, [{cid(page.table, "Customer"): needle}])
         await page.consent(
             await page.publish(await page.bind("orders", page.query(customer="Customer")))
         )
@@ -422,7 +420,7 @@ class TestNoRecordInALog:
 
         document = await _served(page, page.owner)
 
-        assert sentinel in document.decode()
+        assert needle in document.decode()
         for record in caplog.records:
-            assert sentinel not in record.getMessage()
-            assert sentinel not in repr(vars(record))
+            assert needle not in record.getMessage()
+            assert needle not in repr(vars(record))

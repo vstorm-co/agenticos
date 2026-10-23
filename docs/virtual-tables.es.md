@@ -1,5 +1,5 @@
 ---
-source_sha: "98c1d7098b28"
+source_sha: "863f2bbf1772"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -506,8 +506,8 @@ tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de
 registros, así que ningún registro confirmado antes de ese momento lo inicia y nada de lo
-añadido mientras estuvo apagado se reproduce. Un heartbeat del worker lee el evento de
-outbox de cada registro nuevo en unos diez segundos. Decide una vez por trigger y registra
+añadido mientras estuvo apagado se reproduce. El job `workflow-table-triggers`, que se ejecuta cada diez segundos, lee el evento de
+outbox de cada registro nuevo, así que un trigger arranca en unos diez segundos. Decide una vez por trigger y registra
 la decisión; una segunda pasada, o un segundo worker, la encuentra y no inicia nada.
 
 **History** lista cada decisión, de la más reciente a la más antigua, sin los valores del

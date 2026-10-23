@@ -7,8 +7,6 @@ dispatches to, and that a version comparison without an agent is refused
 rather than answered for some agent the caller never named.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -84,6 +82,36 @@ async def test_group_by_version_without_an_agent_is_refused():
 
     assert resp.status_code == 422
     service.usage_by_version.assert_not_called()
+
+
+async def test_a_version_comparison_narrowed_to_a_group_is_refused():
+    # A version strip compares one agent's versions for everybody; a group
+    # would silently compare a different population per version.
+    service = _service()
+
+    async with _client(service) as client:
+        resp = await client.get(
+            "/api/v1/stats/usage",
+            params={"group_by": "version", "agent_id": str(uuid4()), "group_id": str(uuid4())},
+        )
+
+    assert resp.status_code == 422
+    service.usage_by_version.assert_not_called()
+
+
+async def test_a_group_reaches_every_question_that_takes_one():
+    service = _service()
+    group_id = uuid4()
+
+    async with _client(service) as client:
+        for extra in ({}, {"group_by": "hour"}, {"group_by": "user"}):
+            resp = await client.get(
+                "/api/v1/stats/usage", params={"group_id": str(group_id), **extra}
+            )
+            assert resp.status_code == 200
+
+    for method in (service.usage, service.usage_by_hour, service.usage_by_user):
+        assert method.call_args.kwargs["group_id"] == group_id
 
 
 async def test_group_by_user_asks_the_person_question_without_an_agent():

@@ -49,6 +49,8 @@ export interface Artifact {
   public_url: string | null;
   /** Whether the current version is bound to saved views of Virtual Tables. */
   live: boolean;
+  /** The groups it is shared with, by name (#2124). Only the listing carries it. */
+  shared_groups?: string[];
   published_at: string;
   current_version: ArtifactVersion | null;
   /**
@@ -117,6 +119,8 @@ export interface ArtifactDetail extends Artifact {
   /** Whether the caller may give someone the "including data" level: its owner, or an Owner or Admin. */
   may_grant_edit_data: boolean;
   bindings: ArtifactBindingInfo[];
+  /** Whether the caller is told in their inbox when a new version is published. */
+  following: boolean;
   public_link: ArtifactPublicLink;
   /** Whether the caller may confirm the page's data for its public link: the owner, or an Owner or Admin. */
   may_confirm_public_data: boolean;
@@ -256,6 +260,9 @@ export interface ArtifactPublicLinkUpdate {
 export interface ArtifactAgent {
   id: string;
   name: string;
+  slug: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface ArtifactList {

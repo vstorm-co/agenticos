@@ -89,6 +89,8 @@ function aRun(): AgentRun {
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     down_rated: false,
     conversation_id: null,
     provider: null,
@@ -240,13 +242,15 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ statuses: ["failed"] });
   });
 
-  it("problems is failed and stopped-by-budget together, the way they are stored apart", async () => {
+  it("problems is failed, stopped-by-budget and stopped-for-looping together", async () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Problems" }));
 
-    expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+    expect(lastOptions()).toMatchObject({
+      statuses: ["failed", "budget_exceeded", "loop_stopped"],
+    });
   });
 
   it("narrows to one surface", async () => {
@@ -256,6 +260,15 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "Slack" }));
 
     expect(lastOptions()).toMatchObject({ surface: "slack" });
+  });
+
+  it("narrows to voice calls", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by kind" }));
+    await userEvent.click(screen.getByRole("option", { name: "Voice calls" }));
+
+    expect(lastOptions()).toMatchObject({ modality: "voice" });
   });
 
   it("asks for the runs people liked, not only the ones they did not", async () => {
@@ -340,7 +353,7 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
-    await userEvent.click(screen.getByText("openai · gpt-5"));
+    await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
@@ -439,5 +452,17 @@ describe("the model narrowing", () => {
     await userEvent.click(await screen.findByRole("option", { name: "gpt-4o-mini" }));
 
     expect(lastOptions()).toMatchObject({ modelLabel: "gpt-4o-mini" });
+  });
+
+  it.each([
+    ["Only test runs", true],
+    ["Without test runs", false],
+  ])("narrows to the Builder's test runs or away from them (%s)", async (option, isTest) => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+
+    expect(lastOptions()).toMatchObject({ isTest });
   });
 });

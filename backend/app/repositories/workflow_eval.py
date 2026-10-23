@@ -1,7 +1,5 @@
 """Persistence for a model step's eval cases and the tries of them."""
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1176d12d1a25"
+source_sha: "c2f42c5e922e"
 title: "Convierte un CSV en un gráfico que puedas comprobar"
 description: "Adjunta un pequeño archivo sintético de ventas, deja que el agent lo calcule y lo represente en una sandbox, y cuadra cada número con las filas de origen."
 ---
@@ -37,7 +37,7 @@ La primera sesión construye la imagen `workbench`, de unos 2 GB. Cuenta con un 
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, no **Files**: el workspace de Files no tiene shell, así que el agent no puede ejecutar un script. Selecciona la conexión y el runtime `workbench`, y mantén el ámbito de conversación.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, no **Files**: el workspace de Files no tiene shell, así que el agent no puede ejecutar un script. Selecciona la conexión y el runtime `workbench`, y mantén el ámbito de conversación.
 3. Activa **Charts**. Dibuja números que el agent ya tiene, así que el gráfico muestra lo que calculó el script.
 4. Define un budget y un límite de pasos para la prueba. El run registrado usó 25 pasos y costó unos 0,11 USD.
 5. Pon las instrucciones de abajo y pulsa **Publish**.

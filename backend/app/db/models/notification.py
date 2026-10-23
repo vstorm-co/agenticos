@@ -45,6 +45,12 @@ class NotificationEventType(enum.StrEnum):
     SECURITY_EVENT = "security_event"
     CONFIGURATION_CHANGED = "configuration_changed"
     ANNOUNCEMENT = "announcement"
+    ARTIFACT_VERSION_PUBLISHED = "artifact_version_published"
+    RESOURCE_SHARED = "resource_shared"
+    BUDGET_WARNING = "budget_warning"
+    MCP_SERVER_DOWN = "mcp_server_down"
+    MCP_SERVER_RECOVERED = "mcp_server_recovered"
+    BACKGROUND_TASK_PAUSED = "background_task_paused"
     # Written by a workflow's `notification.send` step. Its audience is the step's
     # own recipient list, already checked against the workflow's reach, rather
     # than a setting on an agent (#1789).
@@ -144,8 +150,10 @@ class Notification(Base, TimestampMixin):
             "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
-            "'announcement', 'workflow_notification', 'artifact_owner_changed', "
-            "'artifact_share_requested')",
+            "'announcement', 'artifact_version_published', 'resource_shared', "
+            "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
+            "'background_task_paused', 'workflow_notification', "
+            "'artifact_owner_changed', 'artifact_share_requested')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

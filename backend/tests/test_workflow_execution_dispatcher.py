@@ -535,6 +535,8 @@ def repo():
     with (
         patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),
         patch(f"{DISPATCHER_PATH}.failure.start_error_workflow", new=AsyncMock()),
+        patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.dispatch_queue.enqueue", new=AsyncMock()),
     ):
         yield mocked
 
@@ -2104,11 +2106,9 @@ class TestAdvance:
         assert repo.create_node_run.await_args.kwargs["node_instance_id"] == target.id
         repo.create_outbox.assert_awaited_once()
         assert repo.create_outbox.await_args.kwargs["node_run_id"] == created.id
-        # Handed back for the settling flow to submit after its commit, and
-        # stamped so the poll does not submit it a second time - without it,
-        # every node past the first would wait out the poll's interval.
+        # Its job is queued with the row, in the settling transaction - without
+        # it, every node past the first would wait for the poll backstop.
         assert ready == [(run.id, created.id)]
-        assert repo.create_outbox.await_args.kwargs["submitted"] is True
 
     async def test_a_downstream_node_with_an_undone_predecessor_is_not_dispatched(
         self, repo, test_node

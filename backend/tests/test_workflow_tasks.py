@@ -1,18 +1,12 @@
-"""`app.worker.tasks.workflow_tasks`: the direct trigger and the poll/reconcile fan-out.
+"""`app.worker.tasks.workflow_tasks`: the dispatch job and the sweeps' bodies.
 
-`workflow_dispatch_node_flow` itself is exercised end to end against a real
-Postgres by `tests/integration/test_workflow_run_commit_boundary.py`, calling
-`dispatcher.claim`/`begin_attempt`/`settle` directly rather than through this
-flow wrapper - matching every other test of this module, none of which call
-a `@flow`-decorated function here directly. What is worth unit-testing in
-isolation is the *submission* mechanics this module owns: `trigger_dispatch`'s
-defer-until-commit, `_submit_dispatch`'s `run_deployment` call, and that the
-poll/reconcile sweeps submit each row through `_submit_dispatch` rather than
-awaiting the whole dispatch flow inline - the fix for #1788's round 2 finding
-that a hung handler in one row could block every later row in the same batch.
+The phases `dispatch_node` sequences are exercised end to end against a real
+Postgres by `tests/integration/test_workflow_run_dispatch.py` and
+`tests/integration/test_workflow_job_dispatch.py`. What is worth unit-testing in
+isolation is what this module owns: the status word each outcome answers, that
+the poll stamps and queues in one session, that the sweeps report what the
+services admitted, and the lease renewer.
 """
-
-from __future__ import annotations
 
 import asyncio
 import uuid
@@ -21,41 +15,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.workflow_execution.context import ClaimState
+from app.worker.jobs import DispatchWorkflowNode
 from app.worker.tasks import workflow_tasks
 
 pytestmark = pytest.mark.anyio
 
 TASKS_PATH = "app.worker.tasks.workflow_tasks"
-
-
-class TestTriggerDispatch:
-    async def test_queues_a_submission_for_after_the_session_commits(self):
-        db = MagicMock()
-        workflow_run_id, node_run_id = uuid.uuid4(), uuid.uuid4()
-
-        with patch("app.core.background.spawn_after_commit") as spawn_after_commit:
-            workflow_tasks.trigger_dispatch(
-                db, workflow_run_id=workflow_run_id, node_run_id=node_run_id
-            )
-
-        spawn_after_commit.assert_called_once()
-        assert spawn_after_commit.call_args.args[0] is db
-        assert spawn_after_commit.call_args.kwargs["name"] == "workflow-dispatch-node"
-        # The deferred coroutine is `_submit_dispatch`'s own, never awaited by
-        # this test - close it rather than leave it to warn at GC time.
-        spawn_after_commit.call_args.args[1].close()
-
-
-class TestSubmitDispatch:
-    async def test_submits_to_the_registered_deployment_without_waiting_for_it(self):
-        with patch(f"{TASKS_PATH}.run_deployment", new=AsyncMock()) as run_deployment:
-            await workflow_tasks._submit_dispatch(workflow_run_id="r-1", node_run_id="n-1")
-
-        run_deployment.assert_awaited_once_with(
-            name="workflow-dispatch-node/workflow-dispatch-node",
-            parameters={"workflow_run_id": "r-1", "node_run_id": "n-1"},
-            timeout=0,
-        )
+DISPATCHER_PATH = "app.services.workflow_execution.dispatcher"
 
 
 class _AsyncDBContext:
@@ -71,106 +37,128 @@ class _AsyncDBContext:
         return None
 
 
-class TestPollFlowFanOut:
-    async def test_submits_each_pending_row_independently_not_the_flow_inline(self):
-        """Each row goes through `_submit_dispatch` (a `run_deployment` submit,
+def _job() -> DispatchWorkflowNode:
+    return DispatchWorkflowNode(workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4())
 
-        not the flow function called directly) - one hung handler in an
-        earlier row must not hold up claiming a later one in the same batch.
-        """
-        row_a = MagicMock(workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4())
-        row_b = MagicMock(workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4())
 
-        with (
-            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
-            patch(
-                "app.repositories.workflow_run.take_due_for_submission",
-                new=AsyncMock(return_value=[row_a, row_b]),
-            ),
-            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
+class TestDispatchNode:
+    @pytest.fixture(autouse=True)
+    def _session(self):
+        with patch(
+            f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())
         ):
-            count = await workflow_tasks.workflow_dispatch_poll_flow()
+            yield
 
-        assert count == 2
-        assert submit.await_count == 2
-        submit.assert_any_await(
-            workflow_run_id=str(row_a.workflow_run_id), node_run_id=str(row_a.node_run_id)
-        )
-        submit.assert_any_await(
-            workflow_run_id=str(row_b.workflow_run_id), node_run_id=str(row_b.node_run_id)
-        )
+    async def test_a_row_nobody_can_claim_answers_nothing_to_claim(self):
+        with patch(f"{DISPATCHER_PATH}.claim", new=AsyncMock(return_value=None)):
+            outcome = await workflow_tasks.dispatch_node(_job())
 
+        assert outcome.status == "nothing_to_claim"
 
-class TestReconcileFlowFanOut:
-    async def test_submits_each_stale_claim_independently_not_the_flow_inline(self):
-        pair = (uuid.uuid4(), uuid.uuid4())
-
-        reconciler = MagicMock()
-        reconciler.stale_claims = AsyncMock(return_value=[pair])
-        reconciler.resolve_orphaned_attempts = AsyncMock(return_value=0)
-        reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
-        reconciler.wake_stale_step_approvals = AsyncMock(return_value=0)
-
+    async def test_an_attempt_that_is_not_begun_answers_not_dispatched(self):
+        claimed = MagicMock(claimed_by=uuid.uuid4())
         with (
-            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
-            patch(
-                "app.services.workflow_execution.reconciler.WorkflowReconcilerService",
-                return_value=reconciler,
-            ),
-            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
+            patch(f"{DISPATCHER_PATH}.claim", new=AsyncMock(return_value=claimed)),
+            patch(f"{DISPATCHER_PATH}.begin_attempt", new=AsyncMock(return_value=None)),
+            patch(f"{DISPATCHER_PATH}.call_handler", new=AsyncMock()) as call_handler,
         ):
-            result = await workflow_tasks.workflow_reconcile_flow()
+            outcome = await workflow_tasks.dispatch_node(_job())
 
-        assert result["reclaimed_claims"] == 1
-        submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+        assert outcome.status == "not_dispatched"
+        call_handler.assert_not_awaited()
 
-
-class TestSubmissionIsolation:
-    async def test_one_failed_poll_submission_does_not_cost_the_rest_of_the_batch(self):
-        rows = [MagicMock(workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4()) for _ in range(3)]
-
+    async def test_a_node_that_runs_is_settled_with_the_handlers_outcome(self):
+        job = _job()
+        claimed = MagicMock(claimed_by=uuid.uuid4())
+        begun, outcome = MagicMock(), MagicMock()
         with (
-            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(f"{DISPATCHER_PATH}.claim", new=AsyncMock(return_value=claimed)),
+            patch(f"{DISPATCHER_PATH}.begin_attempt", new=AsyncMock(return_value=begun)) as begin,
+            patch(f"{DISPATCHER_PATH}.call_handler", new=AsyncMock(return_value=outcome)),
+            patch(f"{DISPATCHER_PATH}.settle", new=AsyncMock(return_value=[])) as settle,
+        ):
+            answered = await workflow_tasks.dispatch_node(job)
+
+        assert answered.status == "settled"
+        assert begin.await_args.kwargs["workflow_run_id"] == job.workflow_run_id
+        assert begin.await_args.kwargs["node_run_id"] == job.node_run_id
+        assert begin.await_args.kwargs["token"] == claimed.claimed_by
+        assert settle.await_args.kwargs == {"begun": begun, "outcome": outcome}
+
+
+class TestPollDueDispatches:
+    async def test_queues_a_job_for_each_row_it_took_in_the_session_that_stamped_them(self):
+        rows = [MagicMock(), MagicMock()]
+        db = MagicMock()
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(db)),
             patch(
                 "app.repositories.workflow_run.take_due_for_submission",
                 new=AsyncMock(return_value=rows),
+            ) as taken,
+            patch(
+                "app.services.workflow_execution.dispatch_queue.queue_dispatch_job",
+                new=AsyncMock(),
+            ) as queue,
+        ):
+            count = await workflow_tasks.poll_due_dispatches()
+
+        assert count == 2
+        assert taken.await_args.args[0] is db
+        assert [call.args for call in queue.await_args_list] == [(db, rows[0]), (db, rows[1])]
+
+    async def test_a_poll_with_nothing_due_queues_nothing(self):
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.repositories.workflow_run.take_due_for_submission",
+                new=AsyncMock(return_value=[]),
             ),
             patch(
-                f"{TASKS_PATH}._submit_dispatch",
-                new=AsyncMock(side_effect=[RuntimeError("prefect down"), None, None]),
-            ) as submit,
+                "app.services.workflow_execution.dispatch_queue.queue_dispatch_job",
+                new=AsyncMock(),
+            ) as queue,
         ):
-            submitted = await workflow_tasks.workflow_dispatch_poll_flow()
+            assert await workflow_tasks.poll_due_dispatches() == 0
 
-        assert submit.await_count == 3
-        assert submitted == 2
+        queue.assert_not_awaited()
 
-    async def test_a_failed_reconcile_submission_still_reports_the_sweeps(self):
+
+class TestReconcile:
+    def _reconciler(self, *, stale: int = 0, resolved: int = 0) -> MagicMock:
         reconciler = MagicMock()
-        reconciler.stale_claims = AsyncMock(return_value=[(uuid.uuid4(), uuid.uuid4())] * 2)
-        reconciler.resolve_orphaned_attempts = AsyncMock(return_value=1)
+        reconciler.stale_claims = AsyncMock(return_value=stale)
+        reconciler.resolve_orphaned_attempts = AsyncMock(return_value=resolved)
         reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
         reconciler.wake_stale_step_approvals = AsyncMock(return_value=0)
+        return reconciler
 
+    async def test_reports_what_each_of_the_four_sweeps_did(self):
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
                 "app.services.workflow_execution.reconciler.WorkflowReconcilerService",
-                return_value=reconciler,
-            ),
-            patch(
-                f"{TASKS_PATH}._submit_dispatch",
-                new=AsyncMock(side_effect=[RuntimeError("prefect down"), None]),
+                return_value=self._reconciler(stale=2, resolved=1),
             ),
         ):
-            result = await workflow_tasks.workflow_reconcile_flow()
+            result = await workflow_tasks.reconcile()
 
         assert result == {
-            "reclaimed_claims": 1,
+            "reclaimed_claims": 2,
             "resolved_attempts": 1,
             "woken_approvals": 0,
             "woken_step_approvals": 0,
         }
+
+    async def test_a_quiet_sweep_reports_zeros(self):
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.workflow_execution.reconciler.WorkflowReconcilerService",
+                return_value=self._reconciler(),
+            ),
+        ):
+            assert not any((await workflow_tasks.reconcile()).values())
 
 
 class TestLeaseRenewal:
@@ -226,25 +214,20 @@ class TestLeaseRenewal:
 
 
 class TestWorkflowSchedulesCheck:
-    async def test_it_fires_due_schedules_then_submits_each_admitted_run(self):
-        """The runs are submitted only after the transaction that admitted them
-        closed - the heartbeat hands `_submit_each` what `fire_due` returned."""
+    async def test_it_fires_due_schedules_and_counts_the_runs_it_admitted(self):
         pair = (uuid.uuid4(), uuid.uuid4())
         service = MagicMock(fire_due=AsyncMock(return_value=[pair]))
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch("app.services.workflow_exposure.WorkflowExposureService", return_value=service),
-            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
         ):
-            assert await workflow_tasks.workflow_schedules_check_flow() == 1
+            assert await workflow_tasks.check_workflow_schedules() == 1
             service.fire_due.return_value = []
-            assert await workflow_tasks.workflow_schedules_check_flow() == 0
-
-        submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+            assert await workflow_tasks.check_workflow_schedules() == 0
 
 
 class TestWorkflowTableTriggers:
-    async def test_it_consumes_added_records_then_submits_each_admitted_run(self):
+    async def test_it_consumes_added_records_and_counts_the_runs_it_admitted(self):
         pair = (uuid.uuid4(), uuid.uuid4())
         consumer = MagicMock(consume=AsyncMock(return_value=[pair]))
         with (
@@ -252,13 +235,10 @@ class TestWorkflowTableTriggers:
             patch(
                 "app.services.virtual_tables.triggers.TableTriggerConsumer", return_value=consumer
             ),
-            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
         ):
-            assert await workflow_tasks.workflow_table_triggers_flow() == 1
+            assert await workflow_tasks.consume_table_triggers() == 1
             consumer.consume.return_value = []
-            assert await workflow_tasks.workflow_table_triggers_flow() == 0
-
-        submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+            assert await workflow_tasks.consume_table_triggers() == 0
 
 
 class TestWorkflowRunRetention:
@@ -270,7 +250,7 @@ class TestWorkflowRunRetention:
             patch("app.repositories.workflow_run.take_expired_runs", new=taken),
             patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as unlink,
         ):
-            assert await workflow_tasks.workflow_run_retention_sweep_flow() == 2
+            assert await workflow_tasks.sweep_workflow_run_retention() == 2
 
         assert [call.args[0] for call in unlink.await_args_list] == [["a", "b"], []]
 
@@ -282,5 +262,20 @@ class TestWorkflowRunRetention:
             ),
             patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as unlink,
         ):
-            assert await workflow_tasks.workflow_run_retention_sweep_flow() == 0
+            assert await workflow_tasks.sweep_workflow_run_retention() == 0
         unlink.assert_not_awaited()
+
+    async def test_a_backlog_is_cleared_a_bounded_number_of_batches_per_sweep(self):
+        """A workflow whose retention was just shortened clears over several days,
+        not in one long hold."""
+        taken = AsyncMock(return_value=[(uuid.uuid4(), [])])
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch("app.repositories.workflow_run.take_expired_runs", new=taken),
+            patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()),
+        ):
+            assert await workflow_tasks.sweep_workflow_run_retention() == (
+                workflow_tasks.RETENTION_BATCHES
+            )
+
+        assert taken.await_count == workflow_tasks.RETENTION_BATCHES

@@ -5,8 +5,6 @@ record's id - or by `no`, so a workflow can skip a lead it already has, or
 update it instead of adding a second.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

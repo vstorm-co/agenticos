@@ -8,8 +8,6 @@ pauses, and that a chain of runs writing into each other's tables stops at the
 trigger it already passed.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -92,12 +90,6 @@ from tests.integration.workflow_run_support import (
 )
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as submitted:
-        yield submitted
 
 
 def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInstance:
@@ -1011,7 +1003,7 @@ async def test_a_trigger_in_a_workflow_the_caller_cannot_open_blocks_without_a_n
 
 @pytest.fixture
 async def http(world: _World, mock_redis: MagicMock) -> AsyncIterator[AsyncClient]:
-    async def session() -> AsyncGenerator[AsyncSession, None]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         async with world.factory() as opened:
             try:
                 yield opened

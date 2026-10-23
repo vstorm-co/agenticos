@@ -1,7 +1,5 @@
 """Knowledge search over the collections an agent is bound to."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -19,12 +17,15 @@ class KnowledgeConfig(BaseModel):
     """Per-agent settings for knowledge search."""
 
     default_top_k: int = Field(
+        title="Passages per search",
         default=5,
         ge=1,
         le=50,
         description="Passages returned when the model does not ask for a number",
+        json_schema_extra={"x-advanced": True},
     )
     self_query_enabled: bool = Field(
+        title="Infer filters from the question",
         default=False,
         description=(
             "Infer FA-039 business filters (source, document type, organizational "
@@ -35,6 +36,7 @@ class KnowledgeConfig(BaseModel):
         ),
     )
     query_analysis_mode: QueryAnalysisMode = Field(
+        title="Query expansion",
         default="off",
         description=(
             "Optionally analyse and expand the query before retrieval to improve "
@@ -54,6 +56,7 @@ class KnowledgeConfig(BaseModel):
         },
     )
     query_analysis_max_variants: int = Field(
+        title="Rephrasings at most",
         default=3,
         ge=1,
         le=5,
@@ -61,11 +64,13 @@ class KnowledgeConfig(BaseModel):
             "How many rephrasings `multi_query` may add, bounding its fan-out and "
             "cost. Ignored by the other modes"
         ),
+        json_schema_extra={"x-advanced": True},
     )
     # A `Literal`, not the `ParentContextMode` enum: the Builder's schema form
     # renders a select only from an inline `enum`, and an enum class reaches the
     # JSON schema as a `$ref` it shows as a free-text box.
     parent_context: Literal["off", "window", "parent"] = Field(
+        title="Include the surrounding text",
         default="off",
         description=(
             "Small-to-big retrieval: return each matched chunk with the text "

@@ -6,8 +6,6 @@ between two endpoints that should send the same one. This is the one place a
 CSV export becomes a download.
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import quote
 

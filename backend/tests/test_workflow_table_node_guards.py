@@ -6,8 +6,6 @@ the guards are proved here directly, as `test_workflow_node_guards.py` does for
 the other nodes.
 """
 
-from __future__ import annotations
-
 import uuid
 from types import SimpleNamespace
 from typing import Any

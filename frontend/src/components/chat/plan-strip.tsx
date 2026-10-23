@@ -19,18 +19,18 @@ import { PlanChecklist, PlanMeter } from "./plan-checklist";
  * current - the fold in `lib/plan-state.ts` folds every planning call, so a status
  * change three turns later moves this bar.
  *
- * Open while there is work in flight and closed once every step is settled, until
- * somebody says otherwise - a finished plan is a receipt, and a receipt does not
- * need to hold six lines of the composer's height. `null` is "nobody has decided",
- * which is what lets the default follow the plan rather than being frozen at mount.
+ * Folded until somebody opens it: the bar already says the step in flight and how
+ * far along the run is, and six open lines over the composer took the room the
+ * conversation needed - beside a page, under a question, most of the window.
+ * `null` is "nobody has decided".
  */
-export function PlanStrip({ plan }: { plan: PlanProgress | null }) {
+export function PlanStrip({ plan, live }: { plan: PlanProgress | null; live: boolean }) {
   const t = useTranslations("chat.plan");
   const [choice, setChoice] = useState<boolean | null>(null);
 
   if (plan === null) return null;
 
-  const open = choice ?? !plan.finished;
+  const open = choice ?? false;
   const headline = plan.active?.content ?? (plan.finished ? t("allDone") : t("heading"));
 
   return (
@@ -56,7 +56,7 @@ export function PlanStrip({ plan }: { plan: PlanProgress | null }) {
       </button>
       {open && (
         <div className="border-foreground/8 max-h-56 scrollbar-thin overflow-y-auto border-t px-3 py-2.5">
-          <PlanChecklist steps={plan.steps} />
+          <PlanChecklist steps={plan.steps} live={live} />
         </div>
       )}
     </div>

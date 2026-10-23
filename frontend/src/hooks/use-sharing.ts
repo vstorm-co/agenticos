@@ -32,9 +32,13 @@ const SHARING_ROOT = {
   // path the app has never served - and went unnoticed because the panel is
   // only mounted on agents so far.
   collection: "/kb",
+  context: "/context",
   secret: "/secrets",
   table: "/tables",
-  artifact: "/artifacts",
+  artifact: "/apps",
+  // An organization's MCP server, narrowed to the groups that use it (#2072).
+  mcp_connection: "/mcp-connections",
+  project: "/projects",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**
@@ -49,9 +53,12 @@ const RESOURCE_KEYS = {
   agent: qk.agents.all,
   skill: qk.skills.all,
   collection: qk.kb.all,
+  context: qk.context.all,
   secret: qk.secrets.all,
   table: qk.tables.all,
   artifact: qk.artifacts.all,
+  mcp_connection: qk.mcpConnections.org,
+  project: qk.projects.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
 
 /**
@@ -123,6 +130,9 @@ export function useSharing(
     onSuccess: async (result) => {
       if (isDeferred(result)) return requested(result);
       await invalidate();
+      // The resource's own rows show who it reaches - an audience chip - so they
+      // are read again too, as a visibility change already has them read.
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("sharingUpdated"));
     },
     onError: refused,
@@ -138,6 +148,7 @@ export function useSharing(
         : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("accessRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

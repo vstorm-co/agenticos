@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -9,8 +10,10 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
 from app.repositories import (
+    api_key_repo,
     group_repo,
     member_repo,
+    oauth_repo,
     organization_repo,
     resource_grant_repo,
     user_repo,
@@ -18,6 +21,30 @@ from app.repositories import (
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
+
+
+async def end_membership(db: AsyncSession, membership: OrganizationMember) -> None:
+    """Remove a membership and every credential that acted through it.
+
+    Keys and connected apps are revoked with it, in the same transaction. Left
+    active, a missing membership only refused them for now - inviting the person
+    back would have woken every old key, and any copy of one, under the new role.
+    """
+    at = datetime.now(UTC)
+    organization_id, user_id = membership.organization_id, membership.user_id
+    await group_repo.delete_memberships_in_org(db, organization_id=organization_id, user_id=user_id)
+    await oauth_repo.revoke_grants_for_member(
+        db, organization_id=organization_id, user_id=user_id, at=at
+    )
+    await api_key_repo.revoke_for_member(
+        db, organization_id=organization_id, user_id=user_id, at=at
+    )
+    await member_repo.delete(db, membership)
+    # The editor keeps what they could always do on the leaver's pages; only the owner's
+    # standing consent to their republishes goes with the owner.
+    await resource_grant_repo.lower_edit_data(
+        db, organization_id=organization_id, owner_user_id=user_id
+    )
 
 
 class MemberService:
@@ -198,13 +225,7 @@ class MemberService:
             )
 
         removed_role = target.role
-        await group_repo.delete_memberships_in_org(
-            self.db, organization_id=organization_id, user_id=target_user_id
-        )
-        await member_repo.delete(self.db, target)
-        await resource_grant_repo.lower_edit_data(
-            self.db, organization_id=organization_id, owner_user_id=target_user_id
-        )
+        await end_membership(self.db, target)
         await record_audit(
             self.db,
             actor_user_id=requester_id,
@@ -233,13 +254,7 @@ class MemberService:
             if total > 1:
                 raise BadRequestError(message="Transfer ownership before leaving the organization")
 
-        await group_repo.delete_memberships_in_org(
-            self.db, organization_id=organization_id, user_id=requester_id
-        )
-        await member_repo.delete(self.db, membership)
-        await resource_grant_repo.lower_edit_data(
-            self.db, organization_id=organization_id, owner_user_id=requester_id
-        )
+        await end_membership(self.db, membership)
 
     async def transfer_ownership(
         self,

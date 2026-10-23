@@ -1,56 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { CheckCircle2, XCircle } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { ApprovalDelegate } from "@/components/runs/approval-delegate";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { CheckCircle2 } from "lucide-react";
+
+import { DecidedApproval, PendingApproval } from "@/components/runs/approval-cards";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { ErrorState } from "@/components/states";
-import {
-  Badge,
-  Button,
-  DataTable,
-  ListCard,
-  ListCardEmpty,
-  ListCardFootRow,
-  Pager,
-  type Column,
-} from "@/components/ui";
+import { ListCard, ListCardEmpty, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
 import { useApprovalHistory, useApprovals } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
-import { approvalSummary } from "@/lib/agent-step-captions";
-import { formatDate } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { ToolApproval } from "@/types/runs";
-
-const DECISION_LABEL: Record<string, string> = {
-  pending: "decisionPending",
-  approved: "decisionApproved",
-  rejected: "decisionRejected",
-  expired: "decisionExpired",
-};
-
-const DECISION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "default",
-  approved: "secondary",
-  rejected: "destructive",
-  expired: "outline",
-};
 
 /**
- * Every approval, one table: what is waiting on a person at the top, the
- * record of what was decided under it - the same rows in two states, so two
- * different cards for them was one container too many.
+ * Every approval, one card: what is waiting on a person at the top, as
+ * requests - who wants to do what, for whom, with what - and the record of
+ * what was decided under it, as lines.
  *
- * A pending row keeps its arguments *expanded*: approving a tool name without
- * seeing what it will do is a rubber stamp, not approval. A decided row folds
+ * A pending request keeps its arguments *open*: approving a tool name without
+ * seeing what it will do is a rubber stamp, not approval. A decided line folds
  * them - the decision has been made, the arguments are the record's detail.
  * Deciding the last outstanding call also resumes the run (see `useApprovals`);
  * the buttons disable while any decision settles, so a double-click cannot
  * decide twice.
  *
- * Every row opens the run it belongs to - the drawer is where the surrounding
+ * Each opens the run it belongs to - the panel is where the surrounding
  * conversation is read, which is usually what an approver wants before saying
  * yes.
  *
@@ -65,13 +41,17 @@ const APPROVALS_PAGE = 50;
 export function ApprovalsTab({
   period,
   onFocusRun,
+  periodControl,
 }: {
   period: Period;
   onFocusRun: (runId: string | null) => void;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
 }) {
   const t = useTranslations("pages.runs");
-  const tTools = useTranslations("chat.tools");
-  const locale = useLocale();
   const range = { from: periodStart(period), to: periodEnd(period) };
   // Which page of the queue. Not keyed on the window the way the history below
   // is: `/approvals` does not narrow the pending queue by date, so the page's
@@ -89,131 +69,6 @@ export function ApprovalsTab({
   const pageCount = Math.max(1, Math.ceil(total / APPROVALS_PAGE));
   if (page >= pageCount) setPage(pageCount - 1);
 
-  const rows: ToolApproval[] = [...approvals, ...history.approvals];
-
-  const columns: Column<ToolApproval>[] = [
-    {
-      key: "tool",
-      header: t("toolColumn"),
-      className: "pl-5",
-      cell: (approval) => {
-        const summary = approvalSummary(approval.capability_tool_id, approval.context, tTools);
-        return (
-          <div className="max-w-xl space-y-2">
-            <div className="space-y-1">
-              <span className="block font-mono text-xs">{approval.tool_id}</span>
-              <ApprovalDelegate approval={approval} />
-            </div>
-            {/* The call in names, above the ids it was made with - the arguments
-              stay below, because they are what runs. */}
-            {summary !== null && <p className="text-sm">{summary}</p>}
-            {approval.status === "pending" ? (
-              <pre className="bg-muted/40 overflow-x-auto rounded p-2 text-xs">
-                {JSON.stringify(approval.tool_args, null, 2)}
-              </pre>
-            ) : (
-              <details>
-                {/* Toggling the disclosure must not also open the run the row
-                  would - the reader asked to see the arguments, not to leave. */}
-                <summary
-                  onClick={(event) => event.stopPropagation()}
-                  className="text-muted-foreground cursor-pointer text-xs select-none"
-                >
-                  {t("showArguments")}
-                </summary>
-                <pre className="bg-muted/40 mt-1 overflow-x-auto rounded p-2 text-xs">
-                  {JSON.stringify(approval.tool_args, null, 2)}
-                </pre>
-              </details>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: "decision",
-      header: t("decisionColumn"),
-      cell: (approval) => {
-        // A status this build does not know is shown as the data it is -
-        // labelling it "Expired" would put a specific claim on a row the
-        // backend said something newer about.
-        const labelKey = DECISION_LABEL[approval.status];
-        return (
-          <Badge variant={DECISION_VARIANT[approval.status] ?? "outline"}>
-            {labelKey ? t(labelKey) : approval.status}
-          </Badge>
-        );
-      },
-    },
-    {
-      key: "askedBy",
-      header: t("askedByColumn"),
-      cell: (approval) => (
-        <span className="text-muted-foreground text-xs">{approval.triggered_by_email ?? "-"}</span>
-      ),
-    },
-    {
-      key: "decidedBy",
-      header: t("decidedBy"),
-      // Who, and how. A call granted by a conversation that had waived approvals
-      // is `approved` like any other, and nobody read these arguments before they
-      // ran - so the row says so, or the record is a list of green ticks (#925).
-      cell: (approval) => (
-        <span className="text-muted-foreground block text-xs">
-          {approval.decided_by_email ?? "-"}
-          {approval.decided_via === "standing" && (
-            <span className="text-muted-foreground block text-xs">
-              {t("decidedByStandingConsent")}
-            </span>
-          )}
-        </span>
-      ),
-    },
-    {
-      key: "parked",
-      header: t("parkedColumn"),
-      cell: (approval) => (
-        <span className="text-muted-foreground text-xs whitespace-nowrap">
-          {approval.created_at ? formatDate(approval.created_at, locale) : "-"}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      className: "w-0 pr-5",
-      cell: (approval) =>
-        approval.status === "pending" ? (
-          <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              disabled={decide.isPending}
-              onClick={(event) => {
-                event.stopPropagation();
-                decide.mutate({ id: approval.id, approved: true });
-              }}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {t("approve")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={decide.isPending}
-              onClick={(event) => {
-                event.stopPropagation();
-                decide.mutate({ id: approval.id, approved: false });
-              }}
-            >
-              <XCircle className="h-4 w-4" />
-              {t("reject")}
-            </Button>
-          </div>
-        ) : null,
-    },
-  ];
-
   return (
     <ListCard
       title={t("approvalsTitle")}
@@ -223,22 +78,25 @@ export function ApprovalsTab({
           : t("approvalsCounted", { waiting: total, decided: history.total })
       }
       controls={
-        <ExportMenu
-          permission={Perm.approvalsDecide}
-          endpoint="/approvals/export"
-          kind="approvals"
-          // Every status the table shows, queue and record alike - absent, the
-          // route exports the pending queue alone. Pairs, because the
-          // parameter repeats.
-          params={[
-            ["status", "pending"],
-            ["status", "approved"],
-            ["status", "rejected"],
-            ["status", "expired"],
-          ]}
-          rangeParams={{ from: "created_from", to: "created_to" }}
-          range={range}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {periodControl}
+          <ExportMenu
+            permission={Perm.approvalsDecide}
+            endpoint="/approvals/export"
+            kind="approvals"
+            // Every status the table shows, queue and record alike - absent, the
+            // route exports the pending queue alone. Pairs, because the
+            // parameter repeats.
+            params={[
+              ["status", "pending"],
+              ["status", "approved"],
+              ["status", "rejected"],
+              ["status", "expired"],
+            ]}
+            rangeParams={{ from: "created_from", to: "created_to" }}
+            range={range}
+          />
+        </div>
       }
       contentClassName="p-0"
     >
@@ -251,21 +109,51 @@ export function ApprovalsTab({
         />
       ) : (
         <>
-          <DataTable<ToolApproval>
-            columns={columns}
-            rows={rows}
-            getRowKey={(approval) => approval.id}
-            loading={isLoading}
-            onRowClick={(approval) => onFocusRun(approval.run_id)}
-            empty={
-              <ListCardEmpty
-                icon={CheckCircle2}
-                title={t("nothingWaiting")}
-                description={t("agentsAreRunningWithout")}
-              />
-            }
-            className="rounded-none border-0 bg-transparent"
-          />
+          {/* What is waiting first, as requests a person reads, then the record
+              of what was answered, as lines - one card for both, because they
+              are the same calls in two states. */}
+          {isLoading ? (
+            <div className="space-y-3 p-5">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : approvals.length === 0 ? (
+            <ListCardEmpty
+              icon={CheckCircle2}
+              title={t("nothingWaiting")}
+              description={t("agentsAreRunningWithout")}
+            />
+          ) : (
+            <section aria-label={t("waitingSection")}>
+              <ul className="divide-y">
+                {approvals.map((approval) => (
+                  <PendingApproval
+                    key={approval.id}
+                    approval={approval}
+                    deciding={decide.isPending}
+                    onDecide={(approved) => decide.mutate({ id: approval.id, approved })}
+                    onOpenRun={() => onFocusRun(approval.run_id)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+          {history.approvals.length > 0 && (
+            <section aria-label={t("decidedSection")} className="border-t">
+              <h3 className="text-muted-foreground px-5 pt-4 pb-1 text-xs font-medium">
+                {t("decidedSection")}
+              </h3>
+              <ul className="divide-y">
+                {history.approvals.map((approval) => (
+                  <DecidedApproval
+                    key={approval.id}
+                    approval={approval}
+                    onOpenRun={() => onFocusRun(approval.run_id)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {/* The queue is server-paged. It used to be one page of fifty with a
               line explaining the gap, which left the newest request - the one an
               alert is about - unreachable until enough older calls were decided

@@ -1,6 +1,6 @@
 # `.claude/` — what lives here
 
-Agent configuration for this repository. `CLAUDE.md` at the root is the always-loaded
+Agent configuration for this repository. `AGENTS.md` at the root is the always-loaded
 brief; everything here is loaded on demand.
 
 ```
@@ -8,7 +8,7 @@ brief; everything here is loaded on demand.
   rules/       path-scoped conventions, matched by the `paths` in each file's frontmatter
   skills/      task-scoped guidance, selected by the `description` in SKILL.md
   commands/    slash commands (/add-endpoint, /fix-issue, /review)
-  references/  task-specific procedures linked from CLAUDE.md (issue triage)
+  references/  task-specific procedures linked from AGENTS.md (issue triage)
   settings.json          permission allowlist, committed
   settings.local.json    per-machine, not shared
 ```
@@ -56,7 +56,7 @@ nothing until one is relevant.
 | `mcp-connections` | MCP servers, the catalog, OAuth, prefixing |
 | `rag-knowledge` | Ingestion, retrieval, connectors, parsers |
 | `channel-bot` | Telegram / Slack / Mattermost, mentions, webhooks |
-| `background-task` | Prefect flows and the in-process handoff |
+| `background-task` | The job queue, schedules, the worker, and the in-process handoff |
 | `alembic-migration` | Schema changes and backfills |
 | `backend-tests` | The four test layers and the 100% platform gate |
 | `e2e-tests` | Playwright journeys and seeded fixtures |
@@ -84,7 +84,7 @@ stale claim is worse than no skill — it is confidently wrong. Two rules:
 
 `type(scope): summary`, Conventional Commits, enforced by a `commit-msg` hook. The
 types, the scope vocabulary, what belongs in a body, and how to reference an issue
-are in `CLAUDE.md` under *Git*. The scope names the subsystem; it is not a fixed
+are in `AGENTS.md` under *Git*. The scope names the subsystem; it is not a fixed
 list enforced by the hook.
 
 `make install` wires both hook types. Plain `pre-commit install` wires only
@@ -98,7 +98,7 @@ moved, it names the pages owed.
 
 A reminder, never a gate — it always exits 0. A refactor with no behaviour change and
 a test-only change legitimately owe nothing, and a check that blocked those would be
-routed around within a week. The trigger map lives in the script; `CLAUDE.md` under
+routed around within a week. The trigger map lives in the script; `AGENTS.md` under
 *Documentation* points to it and provides the topic-to-page index.
 
 Run it by hand any time: `python3 scripts/docs_drift.py`. Review or disable the hook

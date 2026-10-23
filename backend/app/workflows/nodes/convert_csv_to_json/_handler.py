@@ -4,8 +4,6 @@ The CSV must be exact - UTF-8, every row as wide as its header - or the step
 fails with `FILE_PARSE_FAILED`; a half-converted file is worse than none.
 """
 
-from __future__ import annotations
-
 import json
 
 from pydantic import BaseModel, ConfigDict, Field

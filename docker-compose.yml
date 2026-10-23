@@ -2,7 +2,7 @@
 #
 # On its own - downloaded into an empty directory, no clone - this file pulls
 # `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend`, starts
-# Postgres (pgvector), Redis, the Prefect server and runner, the API and the
+# Postgres (pgvector), Redis, the background worker, the API and the
 # console, runs the migrations, and answers on http://localhost:3000. Every
 # variable carries a default, so there is no `.env` to write first; write one
 # beside this file when there is something to change - `AGENTICOS_VERSION` to
@@ -33,7 +33,7 @@
 # them and where the rest of this repository says to look.
 
 services:
-  # Runs the migrations and exits. `app` and `prefect-runner` wait for it to have
+  # Runs the migrations and exits. `app` and `worker` wait for it to have
   # *completed*, not for the database to be up, so a first `up` on an empty
   # volume is one command and a second `up` on a migrated one is a no-op that
   # takes a second. `docker compose logs migrate` is where a failed migration
@@ -85,7 +85,10 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the sandbox service below.
@@ -102,26 +105,34 @@ services:
     # chat is a WebSocket.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-1} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-1}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       - backend
       # Where `artifact-render` is, when its profile is up. Empty otherwise.
       - render
+      - browser
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    # This probe used to be a HEALTHCHECK in backend/Dockerfile, which the Prefect
-    # runner inherited along with the image and could never answer. It lives with
-    # the service that serves it now; see prefect-runner for the other half.
-    # Two things are not carried over verbatim. `raise_for_status`: `httpx.get` on
-    # its own returns a response object whatever the status, so the old probe
-    # passed on a 500 as happily as on a 200. And `start_period`, which was 5s -
-    # shorter than this application takes to import on any machine measured, so
-    # every start went through a spell of `unhealthy` before settling.
+    # This probe used to be a HEALTHCHECK in backend/Dockerfile, which every
+    # service built from the image inherited and only the API could answer. It
+    # lives with the service that serves it now; see `worker` for the other half.
+    # Two things are not carried over verbatim. The status: `httpx.get` on its
+    # own returns a response object whatever the status, so the old probe passed
+    # on a 500 as happily as on a 200 - `urlopen` raises on anything >= 400. And
+    # `start_period`, which was 5s - shorter than this application takes to
+    # import on any machine measured, so every start went through a spell of
+    # `unhealthy` before settling.
+    #
+    # The standard library, not httpx: a probe is a fresh interpreter every 30s,
+    # and importing httpx doubled what each one cost (956 ms against 431 ms on
+    # the production host, #2228).
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -187,32 +198,17 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  prefect-server:
-    # Pinned for the reason given in docker-compose-prod.yml.
-    image: prefecthq/prefect:3.8.8-python3.12
-    command: prefect server start --host 0.0.0.0
-    volumes:
-      # $PREFECT_HOME, where the database lives; see docker-compose-prod.yml.
-      - prefect_data:/root/.prefect/
-    environment:
-      - PREFECT_UI_URL=http://localhost:4200/api
-      - PREFECT_API_URL=http://localhost:4200/api
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-
-  prefect-runner:
+  # The background worker (#2219): fired triggers, ingestion, syncs, cleanups and
+  # every scheduled sweep, claimed from a queue in Postgres. One long-lived
+  # process imports the application once and serves every pool; ingestion runs
+  # in child processes under a memory watchdog (`WORKER_INGEST_MEMORY_MB`) set
+  # below this container's limit, so the watchdog - which says why - acts before
+  # the kernel does. A second worker, here or on another host, shares the queue.
+  worker:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
-    command: python -m app.worker.prefect_app
+    command: python -m app.worker
     env_file:
       - path: ./.env
         required: false
@@ -226,33 +222,37 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
-      - PREFECT_API_URL=http://prefect-server:4200/api
-      # The runner's own health endpoint, started by app/worker/prefect_app.py.
-      # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
-      # `/shutdown`, and the only caller that should reach it is the probe below,
-      # inside this container. Pinned here rather than left to Prefect's defaults
-      # so a value in an env file cannot move the port out from under the probe.
-      - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
-      - PREFECT_RUNNER_SERVER_PORT=8080
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
     networks:
       - backend
       - render
+      - browser
     depends_on:
-      prefect-server:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # Answers 503 once the runner has missed two polls, so a process that is alive
-    # but no longer polling reads as unhealthy - which is the failure this status
-    # exists to show. The long start_period covers importing the whole application
-    # and registering the deployments: until the first poll `/health` has no
-    # `last_polled` to compare against and errors.
+      redis:
+        condition: service_healthy
+    # The worker touches its health file only after a heartbeat that reached the
+    # database, so a worker whose loop is stuck or whose database is gone reads
+    # unhealthy: older than 90s is six missed 15s heartbeats. The standard library
+    # only, like every probe here (#2228). The start period covers importing the
+    # application and starting the ingest children, each of which imports it too.
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 90s
+    # Longer than the worker's own drain (30s), so a stop lets running jobs
+    # finish or be given back with their attempt rather than being killed mid-write.
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: ${WORKER_MEMORY_LIMIT:-4g}
     restart: unless-stopped
 
   # The console. `BACKEND_URL` is the server-side address its route handlers
@@ -355,7 +355,8 @@ services:
     # `backend/.env` ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222, with the
     # backend image built with the `browser` extra (`BACKEND_EXTRAS="--extra
     # browser"` locally). Never on BROWSER_CDP_ALLOWED_HOSTS: that list is what
-    # agent authors may drive, and `browser_choice` refuses this host anyway.
+    # agent authors may drive, and the browser tool's endpoint guard
+    # (`browser_use._endpoint.is_renderer`) refuses this host anyway.
     #
     # On `render` alone, which has no route off the host. The API answers every
     # request a render makes, so the browser needs no network of its own, and a
@@ -391,9 +392,49 @@ services:
       - render
     restart: unless-stopped
 
+  # The browser the web browser capability drives (#2127). Behind a profile,
+  # because only an agent bound to `browser_use` needs one: `docker compose
+  # --profile browser up -d browser`. Never published - the API reaches it on the
+  # compose network as `http://browser:9222`, which `BROWSER_CDP_ALLOWED_HOSTS`
+  # has to name. A full Chromium with a window under a virtual display
+  # (`docker/browser`), so a site sees a desktop browser rather than a headless
+  # shell it refuses on sight (#2130). `TZ` and `BROWSER_LANG` are where and in
+  # which language it says it is.
+  browser:
+    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    profiles: [browser]
+    environment:
+      - TZ=${BROWSER_TZ:-UTC}
+      - BROWSER_LANG=${BROWSER_LANG:-en-US}
+    # Room for pages that use shared memory; the default 64 MB crashes tabs.
+    shm_size: 1gb
+    networks:
+      - browser
+    restart: unless-stopped
+
+  # The browser's egress proxy (`docker/browser-egress`): the app and the worker
+  # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
+  # proxy goes out through it. It resolves each host itself, refuses
+  # private, loopback, link-local and metadata addresses, and connects to the
+  # address it checked - so neither a redirect nor a name that rebinds between
+  # two lookups takes a page inside the deployment's network.
+  browser-egress:
+    image: ubuntu/squid:6.6-24.04_edge
+    profiles: [browser]
+    volumes:
+      - ./docker/browser-egress/squid.conf:/etc/squid/squid.conf:ro
+    networks:
+      - browser
+    restart: unless-stopped
+
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
+    # Without an init the server is PID 1, and Python reaps only the children it
+    # waits on: anything orphaned under it stays a zombie for the container's
+    # lifetime, and production once showed more than 600. docker-init reaps
+    # them, as it already does in every sandbox this service starts.
+    init: true
     # The token comes from the same files every other secret in this stack comes
     # from, rather than through compose interpolation: interpolation reads the
     # project root's `.env` only, so a token generated into `backend/.env` -
@@ -448,7 +489,7 @@ services:
       # `prewarm` rebuilds what it names as the service starts rather than inside
       # somebody's first request - which is minutes on a cold cache, and the
       # reason this deployment ships one runtime rather than eight.
-      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
+      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx @anthropic-ai/claude-code@2.1.288 @openai/codex@0.160.0 && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
       # An escape starts from whoever the container runs as, and the default is
       # root. The image is built around this uid - a home directory and a
       # virtualenv it owns, without which an agent's `pip install` fails - so it
@@ -498,9 +539,13 @@ networks:
   render:
     # The page renderer's network: the API and the browser, and no way out.
     internal: true
+  browser:
+    # The browser's own network, which only the API and the worker share with it
+    # to reach `browser:9222`. A page it is sent to - or redirected to - cannot
+    # reach the database, Redis or MinIO, because nothing else is on it.
+    driver: bridge
 
 volumes:
   media_data:
   minio_data:
   postgres_data:
-  prefect_data:

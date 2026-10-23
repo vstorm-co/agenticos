@@ -6,8 +6,6 @@ failures no fallback may bypass, a timeout's verdict, and every refusal
 publishing makes before a graph with a loop or an error route can run.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Callable
 from typing import Any

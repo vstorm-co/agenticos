@@ -171,10 +171,10 @@ do not lend it their **identity**. Nobody is listening to an unattended run, so
 it answers to no identified person, the same as an embedded widget visitor. These
 per-person stores are closed to it:
 
-- [Memory files](reference/capabilities.md#memory-files) and
+- [Memory](reference/capabilities.md#memory-files) and
   [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
   conversation has no memory.
-- [Conversation search](reference/capabilities.md#conversation-search): both
+- [Past conversations](reference/capabilities.md#conversation-search): both
   tools refuse.
 - A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
 - [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is
@@ -182,24 +182,38 @@ per-person stores are closed to it:
   whole page rather than editing one.
 
 This is deliberate. A store kept for a person is read back to that person, and a
-fire nobody started must not write into it on their behalf. No setting changes it
-today.
+fire nobody started must not write into it on their behalf. A
+[sandbox](sandbox.md) with `session_scope: user` keeps the same rule: a fire has
+no workspace of its own there.
 
-!!! warning "A user-scoped sandbox is the exception"
+### Unless its creator lets it run as them
 
-    A [sandbox](sandbox.md) with `session_scope: user` is not closed. A fire
-    opens the creator's own workspace for that agent, and it can read and write
-    the creator's files there. A member without `agents:edit` cannot edit or fire
-    a trigger that another member created, because a changed prompt could copy
-    those files out on the next fire.
+**Run as me**, a setting on the trigger, is the one exception, and only the
+creator can turn it on, for themselves. A fire then reaches their memory and
+their own MCP connections as their own chat does — the morning *tell me what
+matters in my inbox* the default cannot do — on these terms:
+
+- **A schedule reads and writes memory; an event only reads it.** An event's
+  prompt carries a mail or a webhook body nobody vetted, and a note written from
+  it would be read by every later chat as the creator's own.
+- **Past conversations stay closed** either way.
+- **Somebody else's edit turns it off.** Changing the message, the environment or
+  the filter of a trigger you did not create switches it off, so nobody rewrites
+  what runs as you. An administrator acting as you through impersonation, or a
+  script holding your API key, cannot turn it on.
+- **So does a new version you did not publish yourself.** A publish, a
+  promotion or a rollback by anybody else turns it off - and so does one made
+  through your API key or by an administrator impersonating you.
+- **The record says so.** The run names the trigger that fired it, and every audit
+  entry the fire records carries `via_trigger` with the member it acted as.
 
 The rule decides how you design an agent that runs on a trigger:
 
 | An unattended run needs | Use |
 |---|---|
-| Standing facts or preferences | The trigger's own prompt, or a [context file](context.md) bound to the agent |
+| Standing facts or preferences | The trigger's own prompt, a [context file](context.md) bound to the agent, or the creator's memory with **Run as me** |
 | State kept from one fire to the next | A [sandbox](sandbox.md) with `session_scope: conversation`: every fire of one trigger appends to the same run-log conversation |
-| A mailbox or another external service | A connection bound with the organization's account, not each person's |
+| A mailbox or another external service | A connection bound with the organization's account, or the creator's own with **Run as me** |
 
 [Competitor monitoring](howto/competitor-monitoring.md) and
 [a personal assistant](howto/personal-assistant.md) both meet this rule and show
@@ -255,7 +269,7 @@ Any trigger can also be **run now**: one extra fire on demand that leaves its
 cadence untouched.
 
 It is *accepted* rather than awaited. The request answers as soon as the fire is
-handed to the worker as its own flow run — the same durable door a scheduled or
+queued as a job for the worker — the same durable door a scheduled or
 delivered fire goes through — and the run appears in the trigger's run-log
 conversation as it happens.
 
@@ -296,6 +310,7 @@ correctly:
 | `failed` | broke |
 | `budget_exceeded` | reached a cap — a spending limit doing its job |
 | `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](governance.md#step-limits) |
 | `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
 | `awaiting_approval` | parked on an approval, and is **resumable** — its message history is stored, so the decision applies to the conversation it belongs to |
 
@@ -431,7 +446,7 @@ Approval resolves most-specific-first:
 
 1. the tool's own override, then
 2. the capability's mode, then
-3. whether the capability is `side_effecting`.
+3. no approval, when neither says anything.
 
 The Builder states the *outcome* in words rather than describing the rule, because
 a rule the reader has to run in their head is a setting nobody dares touch.
@@ -495,6 +510,12 @@ somebody else's spec.
 So use a specialist for work that should not require publishing an agent —
 "summarise this in three bullets" — and a delegate for a capability the
 organization owns and reuses.
+
+A third kind sits beside them: a **remote agent**, another vendor's agent reached
+over A2A and registered in the organization by its agent card. It is called the
+same way and billed against the same budget, but it is not versioned here — its
+owner changes it on their side — so a reference names the registration rather than
+a version. See [Remote agents over A2A](reference/capabilities.md#remote-agents).
 
 #### Dynamic specialists, and the way out
 

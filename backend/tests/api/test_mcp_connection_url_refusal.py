@@ -11,8 +11,6 @@ The service is the real one; only the session and Redis are mocked. Validation
 refuses before any row is read, so nothing here reaches the database.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -121,6 +119,53 @@ class TestTheRefusalReachesTheOperator:
         message = response.json()["error"]["message"]
         assert "127.0.0.1" in message
         assert message != "An unexpected error occurred"
+
+
+class TestOAuthIgnoresTheAllowlist:
+    """`MCP_ALLOWED_HOSTS` exempts a connection's own address when it is saved,
+    and nothing on the way into OAuth.
+
+    Both routes below run `mcp_oauth.discover` next, which never honours the
+    list. A listed URL let through here would be refused hop by hop instead,
+    with the full URL in `_send`'s warning line. So they keep the strict
+    refusal, named by field. A discovery `OAuthError` is a 400 too, but it names
+    no field, so the field is what tells the two apart.
+    """
+
+    async def test_starting_oauth_against_a_listed_host_is_still_refused_by_field(
+        self, client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["127.0.0.1"])
+
+        async with client() as opened:
+            response = await opened.post(
+                f"{settings.API_V1_STR}/me/mcp-connections/oauth/start",
+                json={"name": "internal", "url": _LOOPBACK_URL},
+            )
+
+        assert response.status_code == 400
+        error = response.json()["error"]
+        assert error["code"] == "BAD_REQUEST"
+        fields = (error["details"] or {}).get("fields", [])
+        assert [problem["field"] for problem in fields] == ["url"]
+
+    async def test_the_sign_in_probe_of_a_listed_host_is_still_refused_by_field(
+        self, client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Let through, this would answer 200 `sign_in: false` rather than a
+        refusal."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["127.0.0.1"])
+
+        async with client() as opened:
+            response = await opened.post(
+                f"{settings.API_V1_STR}/me/mcp-connections/probe", json={"url": _LOOPBACK_URL}
+            )
+
+        assert response.status_code == 400
+        error = response.json()["error"]
+        assert error["code"] == "BAD_REQUEST"
+        fields = (error["details"] or {}).get("fields", [])
+        assert [problem["field"] for problem in fields] == ["url"]
 
 
 class TestTheRefusalQuotesNoSecret:

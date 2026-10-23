@@ -24,8 +24,6 @@ it is offered as what it is - the answer when none of the others fit. Its
 since a service nobody anticipated has none the catalog could name.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 

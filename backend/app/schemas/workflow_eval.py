@@ -1,7 +1,5 @@
 """A model step's evals: its cases, and how a try of them went."""
 
-from __future__ import annotations
-
 import json
 from datetime import datetime
 from typing import Any, Literal

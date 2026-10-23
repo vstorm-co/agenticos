@@ -42,10 +42,12 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "schedule",
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    overlap: "skip",
     event_source: null,
     event_config: {},
     prompt: "summarise",
@@ -163,6 +165,12 @@ describe("the routines widget", () => {
     renderWidget([trigger()], [run({ status: "guardrail_blocked" })]);
 
     expect(screen.getByText("guardrail blocked")).toBeVisible();
+  });
+
+  it("marks a routine stopped for looping as a failure", () => {
+    renderWidget([trigger()], [run({ status: "loop_stopped" })]);
+
+    expect(screen.getByText("stopped looping")).toBeVisible();
   });
 
   it("shows the cadence and what the last run cost", () => {

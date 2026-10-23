@@ -1,7 +1,5 @@
 """Retrying a run from where it stopped, and filtering a run history."""
 
-from __future__ import annotations
-
 import uuid
 from collections import Counter
 from collections.abc import Iterator
@@ -49,12 +47,6 @@ class _Out(BaseModel):
 
 
 calls: Counter[str] = Counter()
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission() -> Iterator[None]:
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 @pytest.fixture

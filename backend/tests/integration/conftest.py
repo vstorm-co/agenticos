@@ -22,8 +22,6 @@ throwaway Postgres for it (`make docker-test-db`), so that only happens when
 `TEST_DB=external` points at a database that is not there.
 """
 
-from __future__ import annotations
-
 import asyncio
 import os
 import re
@@ -291,7 +289,7 @@ async def _reset(engine: AsyncEngine) -> None:
 
 
 @pytest.fixture
-async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine, None]:
+async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine]:
     """An engine on the suite's database, with every table emptied first.
 
     Function-scoped because anyio's backend fixture is: the reset has to run on
@@ -322,7 +320,7 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture
-async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """A session rolled back after each test, so tests cannot affect each other."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:

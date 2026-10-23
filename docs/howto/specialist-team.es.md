@@ -1,5 +1,5 @@
 ---
-source_sha: "62fe6a8232a7"
+source_sha: "3d12840934e5"
 title: "Enruta solicitudes a un equipo de agents especialistas"
 description: "Construye un agent de recepción que delega una pregunta de facturación o técnica en un especialista publicado, y pregunta cuando la duda es ambigua."
 ---
@@ -51,7 +51,7 @@ question to tell which team it belongs to before delegating anything.
 Relay the specialist's answer; do not add facts of your own.
 ```
 
-`task` no tiene efectos secundarios, así que ninguna de las dos delegaciones pide aprobación por defecto: lo que una persona aprobaría son las herramientas del propio especialista, en la spec del especialista.
+Ninguna de las dos delegaciones pide aprobación (ninguna herramienta lo hace hasta que su autor lo diga): lo que una persona aprobaría son las herramientas del propio especialista, en la spec del especialista.
 
 ## Quién paga y qué ve el usuario { #who-pays-and-what-the-user-sees }
 

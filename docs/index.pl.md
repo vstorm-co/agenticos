@@ -1,10 +1,10 @@
 ---
-source_sha: "42ec3d82641d"
+source_sha: "b04c9562a2e8"
 ---
 
 <div class="agenticos-hero" markdown>
 
-![AgenticOS](assets/amigo.svg){ .agenticos-hero__mark }
+![AgenticOS](assets/logo-animated.svg){ .agenticos-hero__mark }
 
 <p class="agenticos-hero__name">AgenticOS</p>
 
@@ -16,7 +16,7 @@ Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -138,7 +138,7 @@ Dlatego AgenticOS wyprowadza agenta poza kod, a w zamian otacza go nadzorem.
 Docker i Docker Compose. To cała lista — Postgres (z pgvector), Redis, API,
 worker i konsola wstają razem.
 
-Wolisz uruchamiać usługi ręcznie? Python 3.12, Node z [bun](https://bun.sh),
+Wolisz uruchamiać usługi ręcznie? Python 3.15, Node z [bun](https://bun.sh),
 PostgreSQL 16 z [pgvector](https://github.com/pgvector/pgvector) oraz Redis.
 
 ## Instalacja { #installation }
@@ -240,7 +240,7 @@ przyszło pytanie.
 | **Agenci** | Budowani w UI, wersjonowani przy publikacji, eksportowalni jako YAML do Twojego własnego repozytorium git |
 | **[Capabilities](reference/capabilities.md)** | Wyszukiwanie w wiedzy, wyszukiwanie i pobieranie z sieci, prawdziwa przeglądarka, Python, sandbox z plikami i powłoką, wykresy, obrazy, delegacja, planowanie, guardraile — włączane per agent |
 | **[Integracje](mcp.md)** | Zgodne serwery MCP, z 59 popularnymi w wyborze — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modele](models.md)** | 27 providerów, klucze per organizacja, fallbacki oraz hostowana u siebie Ollama albo proxy LiteLLM |
+| **[Modele](models.md)** | 28 providerów, klucze per organizacja, fallbacki oraz hostowana u siebie Ollama albo proxy LiteLLM |
 | **[Wiedza](file-processing.md)** | Wyszukiwanie po Twoich dokumentach z trzema parserami PDF, własnym chunkingiem, OCR-em i opisem obrazów — per kolekcja, nadpisywalne per wgranie. Synchronizacja Google Drive i S3 |
 | **[Skille](skills.md)** | Spisane know-how, które agent wczytuje tylko wtedy, gdy uzna je za istotne |
 | **[Nadzór](governance.md)** | Miesięczne budżety, zatwierdzanie przez człowieka, ślad audytowy, alerty per agent |
@@ -290,8 +290,8 @@ przyszło pytanie.
 ## Stack { #stack }
 
 FastAPI i Pydantic v2 na PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) jako
-środowisko uruchomieniowe agentów, pgvector do wyszukiwania, Prefect do pracy w
-tle i Next.js 15 dla konsoli.
+środowisko uruchomieniowe agentów, pgvector do wyszukiwania, kolejka zadań w tym
+samym PostgreSQL do pracy w tle i Next.js 15 dla konsoli.
 
 Zewnętrzne miejsca przetwarzania zależą od konfiguracji modeli, parserów, embeddingów, narzędzi, kanałów, sandboxów i tracingu. Sprawdź [przepływ danych](security.md).
 

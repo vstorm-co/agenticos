@@ -35,6 +35,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
@@ -47,6 +48,8 @@ from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
+from app.repositories import api_key as api_key_repo
+from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import artifact_share_request as artifact_share_request_repo
 from app.repositories import context as context_repo
@@ -57,6 +60,10 @@ from app.repositories import memory as memory_repo
 from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
+from app.repositories import channel_prompt as channel_prompt_repo
+from app.repositories import external_agent as external_agent_repo
+from app.repositories import project as project_repo
+from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
 
@@ -66,9 +73,11 @@ from app.repositories import dashboard_preset as dashboard_preset_repo
 
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import mcp_registry_server as mcp_registry_server_repo
+from app.repositories import mcp_server_check as mcp_server_check_repo
 from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
+from app.repositories import voice_call as voice_call_repo
 
 __all__ = [
     "user_repo",
@@ -89,6 +98,10 @@ __all__ = [
     "channel_link_request_repo",
     "channel_session_repo",
     "organization_repo",
+    "channel_prompt_repo",
+    "external_agent_repo",
+    "project_repo",
+    "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
     "user_slash_command_repo",
@@ -97,6 +110,7 @@ __all__ = [
     "dashboard_preset_repo",
     "mcp_connection_repo",
     "mcp_registry_server_repo",
+    "mcp_server_check_repo",
     "organization_secret_repo",
     "resource_grant_repo",
     "group_repo",
@@ -113,12 +127,15 @@ __all__ = [
     "agent_trigger_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
+    "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
+    "api_key_repo",
+    "oauth_repo",
     "artifact_repo",
     "artifact_share_request_repo",
     "context_repo",
@@ -126,4 +143,5 @@ __all__ = [
     "table_view_repo",
     "memory_repo",
     "notification_repo",
+    "voice_call_repo",
 ]

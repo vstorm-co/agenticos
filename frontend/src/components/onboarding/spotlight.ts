@@ -1,5 +1,7 @@
 import { driver, type Driver } from "driver.js";
 
+import { prefersReducedMotion } from "@/lib/motion";
+
 /**
  * A driver.js instance configured for the tour, so the rest of the feature never
  * touches the library's config directly.
@@ -20,40 +22,47 @@ import { driver, type Driver } from "driver.js";
  * the popover to a fixed spot at the bottom (see `globals.css`): the text and its
  * Next button hold still for the whole walk, and only the spotlight moves.
  *
- * `animate: true` glides the spotlight from one control to the next instead of
- * snapping it there, so a transition reads as a movement the eye can follow
- * rather than a jump. driver.js drives that glide by interpolating the overlay's
- * cut-out path over `duration`, reusing the one overlay element across steps — so
- * the backdrop itself never fades or flashes. The popover is the exception:
- * driver.js destroys and recreates it every step, and because the fresh one is
- * inserted while the body still carries `driver-fade`, its fade-in keyframe
- * replays each time — against a caption pinned to one spot that reads as a flash
- * of the text. `globals.css` suppresses that single keyframe for `.tour-popover`,
- * so the caption holds still while only the light moves.
- *
- * A reader who asks for reduced motion gets `animate: false` — the cut-out snaps
- * rather than glides — matching the click flourish, which the same media query
- * turns off in `globals.css`.
+ * What the reader sees of the light is not driver.js's: `tour-spotlight.ts`
+ * draws the dim, the cut-out and the ring. driver.js's own overlay stays — it is
+ * the click shield `allowClose: false` relies on — but at `overlayOpacity: 0`, and
+ * with `animate: false` so it does not run a glide nobody can see. Off, driver.js
+ * also builds the caption in the same tick as the highlight rather than halfway
+ * through a transition, so the pinned text swaps the moment the step does.
  *
  * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
  * overlay work, and the hook layer is held to a 100% line-coverage gate this
  * could only meet by asserting on driver.js's internals.
  */
 export function createTourDriver(): Driver {
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return driver({
     allowClose: false,
-    overlayColor: "#0a0a0a",
-    overlayOpacity: 0.6,
+    overlayOpacity: 0,
     stagePadding: 8,
     stageRadius: 10,
     disableActiveInteraction: true,
-    animate: !reducedMotion,
+    animate: false,
     popoverClass: "tour-popover",
   });
+}
+
+// The reader's Motion preference resolved against the system's - the one answer
+// every surface reads (`lib/motion`), offered here for the tour that imports it.
+export { prefersReducedMotion };
+
+/**
+ * Scroll `element` to the middle of its scroller when `cover` sits over it.
+ *
+ * The caption is pinned to one spot rather than anchored to the control, so a
+ * control near that edge of the page — the Knowledge row low in the builder's
+ * capability list — lands underneath the caption describing it. driver.js only
+ * scrolls a control that is off screen, and this one is on screen, just covered.
+ */
+export function keepClearOf(element: Element, cover: Element | null): void {
+  if (cover === null) return;
+  const a = element.getBoundingClientRect();
+  const b = cover.getBoundingClientRect();
+  const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  if (overlaps) element.scrollIntoView({ block: "center", inline: "nearest" });
 }
 
 /**
@@ -81,6 +90,13 @@ export function createTourDriver(): Driver {
  * scrolling; a second one here only fights it.
  */
 export function activateTab(trigger: HTMLElement): void {
+  // A popover's trigger opens on a click, not a press: the chat's settings, whose
+  // approval-mode and connection stops sit inside it, waited out their timeout
+  // behind a closed popover and the walk stood still between them.
+  if (trigger.getAttribute("aria-haspopup") === "dialog") {
+    trigger.click();
+    return;
+  }
   trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
   trigger.focus({ preventScroll: true });
 }

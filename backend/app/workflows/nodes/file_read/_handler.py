@@ -7,8 +7,6 @@ does not parse, a CSV row with the wrong number of fields - fails with
 `FILE_PARSE_FAILED` rather than handing on part of it.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any, Literal
 

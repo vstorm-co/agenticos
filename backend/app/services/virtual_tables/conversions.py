@@ -9,8 +9,6 @@ values, or adds a new column - rather than leaving records holding a value their
 column no longer accepts.
 """
 
-from __future__ import annotations
-
 import re
 from datetime import UTC, datetime
 

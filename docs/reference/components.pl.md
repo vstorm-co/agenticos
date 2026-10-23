@@ -1,5 +1,5 @@
 ---
-source_sha: "d68ab617b471"
+source_sha: "767b18fe1f07"
 ---
 
 # Inwentarz komponentów { #the-component-inventory }
@@ -19,7 +19,7 @@ podczas przeglądu bezpieczeństwa, a nie w systemie budowania.
     zostać wypisane wyłącznie przez to wdrożenie, które je wybrało. Ostatnia
     sekcja mówi, jak spisać tę drugą połowę; ta strona nie zrobi tego za Ciebie.
 
-Inwentarz odczytywalny maszynowo jest dołączany do każdego wydania jako cztery
+Inwentarz odczytywalny maszynowo jest dołączany do każdego wydania jako sześć
 dokumenty [CycloneDX](https://cyclonedx.org/) — po jednym na obraz **na
 architekturę**, bo opublikowany tag jest listą manifestów, a oba warianty nie
 zawierają tych samych pakietów. Dowody licencyjne dla każdego
@@ -40,8 +40,10 @@ czytać oba z tego samego tagu, a nie z `main`.
 |---|---|---|
 | `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | zasoby wydania GitHub | tag `v*`, do którego są dołączone |
 | `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | tam samo | tak samo |
+| `sbom-browser-amd64.cdx.json`, `sbom-browser-arm64.cdx.json` | tam samo | tak samo |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | tak samo |
+| `ghcr.io/vstorm-co/agenticos-browser` | GHCR | tak samo |
 | `THIRD_PARTY_NOTICES.md` | repozytorium, na tym tagu | pliki lock w tym commicie |
 
 ## Komponenty pisane w tym projekcie { #components-this-project-writes }
@@ -52,7 +54,7 @@ komponentem firmy trzeciej i nic z tego nie pojawia się w notach.
 | Komponent | Gdzie | Czym jest | Dostarczany w |
 |---|---|---|---|
 | API i platforma | `backend/app` | Aplikacja FastAPI: routes, services, repositories, runner agentów, rejestr capability | `agenticos-backend` |
-| Worker w tle | `backend/app/worker` | Runner Prefecta dla ingestii, synchronizacji, sweepów i wyzwalaczy harmonogramu | `agenticos-backend` |
+| Worker w tle | `backend/app/worker` | Pobiera zadania z kolejki w PostgreSQL - runy agentów, ingestię, synchronizacje, sweepy - i odpala harmonogramy wdrożenia (`python -m app.worker`) | `agenticos-backend` |
 | Migracje | `backend/alembic` | Łańcuch schematu, stosowany przez usługę migracji przed startem API | `agenticos-backend` |
 | Wiersz poleceń | `backend/app/commands` | `agenticos cmd …` — bootstrap, doctor, polecenia RAG | `agenticos-backend` |
 | Konsola | `frontend/src` | Aplikacja Next.js, którą widzi operator i użytkownik | `agenticos-frontend` |
@@ -84,15 +86,16 @@ rozwiązuje `backend/uv.lock` i sprawdza go wobec bazy podatności;
 |---|---|---|---|
 | `agenticos-backend` | obraz Pythona oparty na Debianie | API, worker, migracje, CLI, domknięcie zależności backendu, teksty licencji | `backend/Dockerfile` |
 | `agenticos-frontend` | obraz Node'a oparty na Debianie | standalone build konsoli, jej produkcyjne domknięcie zależności, fonty, noty per pakiet | `frontend/Dockerfile` |
+| `agenticos-browser` | `debian:bookworm-slim` | Chromium z oknem pod Xvfb, fonty z pulpitu i `socat` do jego DevTools - to, co uruchamia profil `browser` w compose dla capability przeglądarki | `docker/browser/Dockerfile` |
 
-Oba są budowane dla `amd64` i `arm64`, publikowane do GHCR i skanowane Trivy po
+Wszystkie trzy są budowane dla `amd64` i `arm64`, publikowane do GHCR i skanowane Trivy po
 publikacji. Pakiety Debiana instalowane przez każdy obraz są zapisane w
 `licenses/components.toml` wraz z ich pozycją licencyjną i pojawiają się
 w dokumentach CycloneDX, bo generator czyta opublikowany obraz, a nie drzewo
 źródeł.
 
-Usługi, które wdrożenie uruchamia obok tych dwóch — PostgreSQL z pgvector, Redis,
-reverse proxy, serwer Prefecta — operator pobiera od ich własnych wydawców. Są
+Usługi, które wdrożenie uruchamia obok tych trzech — PostgreSQL z pgvector, Redis,
+reverse proxy, proxy wyjściowe przeglądarki (Squid) — operator pobiera od ich własnych wydawców. Są
 nazwane w plikach compose, nie są tu budowane i nie ma ich w SBOM-ie tego
 projektu.
 
@@ -128,7 +131,7 @@ do własnego inwentarza wdrożenia.
 
 !!! warning "SBOM obrazu to nie inwentarz systemu"
 
-    Dwa dokumenty CycloneDX opisują dwa obrazy. Wdrożenie, które podłącza
+    Dokumenty CycloneDX opisują trzy obrazy. Wdrożenie, które podłącza
     hostowany model, trzy serwery MCP i storage obiektowy, uruchamia komponenty,
     których żaden skan tych obrazów nie zobaczy. Traktowanie SBOM-u wydania jako
     całego inwentarza jest luką, którą ta sekcja ma nazwać.
@@ -137,7 +140,7 @@ do własnego inwentarza wdrożenia.
 
 | Artefakt | Wytwarzany przez | Kiedy |
 |---|---|---|
-| Cztery SBOM-y wydania | zadanie `sbom` w `.github/workflows/images.yml`, po jednym na obraz na architekturę, z opublikowanych manifestów | przy każdej publikacji; dołączane do wydania na tagu `v*`, w pozostałych przypadkach jako artefakt przebiegu |
+| Sześć SBOM-ów wydania | zadanie `sbom` w `.github/workflows/images.yml`, po jednym na obraz na architekturę, z opublikowanych manifestów | przy każdej publikacji; dołączane do wydania na tagu `v*`, w pozostałych przypadkach jako artefakt przebiegu |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | gdy zmienia się plik lock; `make licenses-check` przerywa budowanie, gdy plik jest nieaktualny |
 | Ta strona | ręcznie | gdy komponent zostaje dodany, usunięty lub przeniesiony między powyższymi zbiorami |
 
@@ -147,7 +150,7 @@ i `sbom-source-frontend.cdx.json` są inwentarzami tego, co **deklaruje drzewo
 i dokumentacyjnych, jeśli są zainstalowane, i żadnej z warstw pod spodem — bez
 obrazu bazowego, bez pakietów Debiana, bez zbudowanych artefaktów. Przydatne do
 przeczytania zbioru zależności bez pobierania dwóch obrazów; bezużyteczne jako
-dowód tego, co dostarcza wydanie, do czego służą cztery dokumenty powyżej.
+dowód tego, co dostarcza wydanie, do czego służy sześć dokumentów powyżej.
 Wymaga zainstalowanego [syfta](https://github.com/anchore/syft) i świadomie nie
 należy do `make check`.
 

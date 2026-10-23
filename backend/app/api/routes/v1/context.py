@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, ContextSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.context import ContextSort
 from app.schemas.context import (
@@ -24,7 +25,7 @@ from app.schemas.context import (
     ContextFileUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("", response_model=ContextFileList, dependencies=[Depends(require(Perm.CONTEXT_VIEW))])
@@ -33,6 +34,7 @@ async def list_context_files(
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     sort: ContextSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
@@ -44,6 +46,7 @@ async def list_context_files(
         ctx,
         shared_with_me=shared_with_me,
         search=q,
+        group_id=group_id,
         sort=sort,
         skip=skip,
         limit=limit,
@@ -64,6 +67,9 @@ async def create_context_file(data: ContextFileCreate, service: ContextSvc, ctx:
         content=data.content,
         content_format=data.format,
         mode=data.mode,
+        visibility=data.visibility,
+        group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 

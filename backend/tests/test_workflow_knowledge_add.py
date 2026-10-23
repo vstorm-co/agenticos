@@ -1,7 +1,5 @@
 """`knowledge.add` around a stubbed upload: what it adds, where, and what it refuses."""
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field

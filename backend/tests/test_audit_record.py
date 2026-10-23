@@ -6,15 +6,20 @@ did not even buy silence, since a flushed-then-abandoned session made the
 request's commit raise anyway (#20).
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.audit import chain_hash, current_impersonator, record_audit, set_impersonator
+from app.core.audit import (
+    _acting_trigger,
+    chain_hash,
+    current_impersonator,
+    record_audit,
+    set_acting_trigger,
+    set_impersonator,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -178,3 +183,29 @@ class TestImpersonatorContext:
 
     def test_no_impersonator_by_default(self) -> None:
         assert current_impersonator() is None
+
+
+class TestAFireActingAsItsCreator:
+    """The trail says "trigger X, acting as member Y", not only "member Y" (#2027)."""
+
+    def teardown_method(self) -> None:
+        _acting_trigger.set(None)
+
+    async def test_every_entry_the_fire_records_names_the_trigger(self) -> None:
+        trigger, creator = uuid.uuid4(), uuid.uuid4()
+        set_acting_trigger(trigger, creator)
+        db = _CapturingDB()
+
+        await record_audit(db, actor_user_id=creator, action="agent.mcp_called", details={"x": 1})
+
+        assert db.added[0].details == {
+            "x": 1,
+            "via_trigger": {"id": str(trigger), "acting_as": str(creator)},
+        }
+
+    async def test_an_entry_outside_a_fire_names_none(self) -> None:
+        db = _CapturingDB()
+
+        await record_audit(db, actor_user_id=uuid.uuid4(), action="settings.updated")
+
+        assert "via_trigger" not in (db.added[0].details or {})

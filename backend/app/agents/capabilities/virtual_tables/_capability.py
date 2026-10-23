@@ -1,7 +1,5 @@
 """Letting an agent read and write the Virtual Tables its binding grants."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -40,9 +38,15 @@ class VirtualTablesConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tables: list[TableGrant] = Field(default_factory=list, max_length=50)
+    tables: list[TableGrant] = Field(
+        default_factory=list,
+        max_length=50,
+        title="Tables it may use",
+        description="The tables the agent may reach, and what it may do in each.",
+    )
     allow_create: bool = Field(
         default=False,
+        title="Create tables",
         description=(
             "Let the agent create new tables. The member it acts for still needs the "
             "tables:create permission."

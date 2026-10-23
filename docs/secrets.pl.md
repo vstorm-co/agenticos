@@ -1,5 +1,5 @@
 ---
-source_sha: "3354f9a35a24"
+source_sha: "d11abc7958ae"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -99,6 +99,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
+| `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -108,6 +109,14 @@ być dokładnie jeden**: prywatne poświadczenie członka nigdy nie zostaje po c
 użyte dla połączenia całej organizacji, a przy dwóch zapisanych aplikacjach
 widocznych dla organizacji łączenie zostaje odrzucone (z nazwaniem obu), zamiast
 zostać przypisane do tej, której nazwa sortuje się pierwsza.
+
+Ta sama reguła — **tylko widoczne dla organizacji** — obejmuje klucz API,
+z którym wysyłane są domyślne ustawienie zamiany mowy na tekst organizacji i
+własna para transkrypcji bota kanału: platforma wydaje go na dyktowanie każdego
+członka i każdą notatkę głosową, którą bot odbiera, więc prywatny klucz członka
+jest odrzucany przy zapisie każdego z nich, a klucz, który później stał się
+prywatny, przestaje być używany. W odróżnieniu od `github_oauth_app` te klucze
+są wskazywane po identyfikatorze, więc może ich być kilka obok siebie.
 
 `git_token` niesie swój host, bo źródło synchronizacji Git wysyła token pod adres
 URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został
@@ -129,6 +138,13 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+`openai_codex` to jedyny rodzaj, którego nikt nie wpisuje. Zapisuje się go przez
+[zalogowanie do ChatGPT](models.md#running-on-a-chatgpt-subscription) i zmienia
+się w trakcie używania: każde odświeżenie zużywa refresh token, więc nowa para
+jest zapieczętowywana z powrotem pod tym samym id. Jego podpowiedź to ostatnie
+cztery znaki id konta. Gdy logowanie przestaje działać, **Reconnect** loguje
+ponownie w jego miejsce.
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole
@@ -154,6 +170,33 @@ jest jeszcze otwarty.
 **Providerzy modeli.** Nazywani przez [profil modelu](models.md). Wydatek jest
 przypisywany do sekretu, do którego rozwiązał się dany run, i tak właśnie pytanie
 „który klucz kosztuje najwięcej" dostaje odpowiedź.
+
+**Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
+wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie
+konfiguruje się zamianę mowy na tekst: w domyślnym ustawieniu organizacji,
+w nadpisaniu agenta i we własnej parze bota kanału. Nic nie wyszukuje klucza
+w czasie działania. Klucz organizacji i bota musi być widoczny dla organizacji;
+klucz agenta podlega regule pożyczania — publikujący musi go widzieć.
+[Zapis zużycia](ml-services.md#what-is-recorded) każdej transkrypcji wskazuje
+klucz, z którym ją wysłano. Zobacz
+[do którego silnika trafia nagranie](ml-services.md#which-engine-a-recording-reaches).
+Lista agentów używających klucza nie pokazuje tego użycia.
+
+**Rozmowy głosowe.** Klucz, z którym prowadzona jest
+[rozmowa głosowa](voice.md), jest wskazany na karcie Głos (Voice) agenta, obok
+providera i modelu realtime. Jego przeznaczeniem musi być ten provider, a jego
+rodzajem rodzaj tego providera: `api_key` albo, dla Azure, sekret
+`azure_openai`, który niesie też endpoint i wersję API. Podlega regule
+pożyczania — publikujący musi go widzieć — i nic nie wyszukuje klucza w czasie
+działania. Klucz jest odpieczętowywany, by otworzyć rozmowę, i nigdy nie trafia
+do przeglądarki: serwer odpowiada na ofertę WebRTC i żaden sekret klienta nie
+jest wydawany.
+
+Aby rozłączyć rozmowę, której proces padł, sprzątanie rozmów głosowych czyta go
+przez `OrganizationSecretService.voice_call_key`, czytnik, którego tekst jawny
+trafia do endpointu rozłączania providera i nigdzie indziej. Wiersz rozmowy
+przechowuje tylko identyfikator klucza, a usunięty klucz sprawia, że agent nie
+może odbierać rozmów, dopóki nie zostanie wybrany inny.
 
 **Capabilities.** Capability deklaruje, że potrzebuje poświadczenia danego
 *rodzaju* — nigdy konkretnej instancji. Kod mówi „potrzebuję klucza API";
@@ -207,7 +250,6 @@ przynieść własny klucz:
 | Exa | `web_research` |
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
-| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — model, który na każdym kroku przeglądania wybiera operację i element. Nie jest providerem modeli: odpowiada na pytania z typem, a nie generuje tekst, więc nie jest oferowany jako model do uruchomienia agenta |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — cała capability, która trzyma semantyczne wspomnienia agenta w usłudze mem0 (chmurowej albo self-hosted), a nie tutaj. Nic nie jest zapisywane w tym wdrożeniu, więc mem0 rozlicza własny embedding poza pasmem, a wysyłanie wspomnień do chmury mem0 jest decyzją o rezydencji danych, którą podejmuje Builder. Self-hostowany `base_url` musi być https i musi być na liście dozwolonych `MEM0_ALLOWED_HOSTS`, więc klucz z vault nigdy nie trafia do originu kontrolowanego przez agenta. Dla tych wspomnień nie ma konsoli operatora: mem0 ma własny magazyn, własne listowanie i własne usuwanie. |
 
 ## Co nigdy się nie zdarza { #what-never-happens }

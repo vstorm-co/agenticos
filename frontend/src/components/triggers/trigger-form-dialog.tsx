@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Cog, MessageSquare, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -31,12 +30,14 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import { OverlapField } from "@/components/triggers/overlap-field";
+import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import {
   type CronFrequency,
   eventFilterConfig,
@@ -54,6 +55,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerCreated,
+  TriggerOverlap,
   TriggerType,
   TriggerUpdate,
 } from "@/types/triggers";
@@ -124,6 +126,8 @@ interface TriggerFormDialogProps {
   trigger?: Trigger | null;
   /** Which concept a new trigger starts on. Ignored when editing. */
   initialType?: TriggerType;
+  /** A template the new trigger starts from - an idea picked on the Routines page. */
+  initialTemplate?: TriggerTemplate | null;
 }
 
 /**
@@ -146,6 +150,7 @@ export function TriggerFormDialog({
   onOpenChange,
   trigger = null,
   initialType = "schedule",
+  initialTemplate = null,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const editing = trigger !== null;
@@ -187,6 +192,11 @@ export function TriggerFormDialog({
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
+  const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
+  // A new trigger is the caller's own; an existing one is whoever made it.
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const isCreator = trigger === null || trigger.created_by_user_id === me;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -276,12 +286,18 @@ export function TriggerFormDialog({
     );
   }
 
+  // The name a template wrote, so picking another replaces it and Start from
+  // scratch clears it - while a name somebody typed is theirs and stays.
+  const [templateName, setTemplateName] = useState<string | null>(null);
+
   /** Prefill what the template's mode can use, still editable below: the
-   *  message always, the cadence only from a schedule template - an event
-   *  template has none. */
+   *  message and the name always, the cadence only from a schedule template -
+   *  an event template has none. */
   function applyTemplate(template: TriggerTemplate) {
     setTemplateKey(template.key);
     setPrompt(template.prompt);
+    if (name.trim() === "" || name === templateName) setName(template.label);
+    setTemplateName(template.label);
     const cadence = template.suggested_cadence;
     if (!cadence) return;
     setCadenceTouched(true);
@@ -302,10 +318,20 @@ export function TriggerFormDialog({
     }
   }
 
+  // Seeded once, during render rather than in an effect, so the first frame
+  // already shows the picked idea instead of a blank form flashing to it.
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && initialTemplate !== null && trigger === null) {
+    setSeeded(true);
+    applyTemplate(initialTemplate);
+  }
+
   /** Clear the template prefill and return to a blank message. */
   function scratchTemplate() {
     setTemplateKey(null);
     setPrompt("");
+    if (name === templateName) setName("");
+    setTemplateName(null);
   }
 
   /** Set the cadence controls to a quick preset; they stay editable below it. */
@@ -361,9 +387,12 @@ export function TriggerFormDialog({
       name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      // Only when asked for: off is the server's default, and the request then
+      // says nothing about acting as anybody.
+      ...(runsAsCreator ? { runs_as_creator: true } : {}),
     };
     if (type === "schedule") {
-      return { ...base, ...scheduleCadence() };
+      return { ...base, ...scheduleCadence(), overlap };
     }
     return {
       ...base,
@@ -385,6 +414,10 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
+        if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
+          patch.overlap = overlap;
+        }
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -433,14 +466,14 @@ export function TriggerFormDialog({
   const steps: WizardStep[] =
     type === "schedule"
       ? [
-          { id: "configure", label: t("stepConfigure"), icon: Cog },
-          { id: "message", label: t("stepMessage"), icon: MessageSquare },
-          { id: "schedule", label: t("stepSchedule"), icon: CalendarClock },
+          { id: "configure", label: t("stepConfigure") },
+          { id: "message", label: t("stepMessage") },
+          { id: "schedule", label: t("stepSchedule") },
         ]
       : [
-          { id: "event", label: t("stepEvent"), icon: Zap },
-          { id: "configure", label: t("stepConfigure"), icon: Cog },
-          { id: "message", label: t("stepMessage"), icon: MessageSquare },
+          { id: "event", label: t("stepEvent") },
+          { id: "configure", label: t("stepConfigure") },
+          { id: "message", label: t("stepMessage") },
         ];
   const stepIdx = steps.findIndex((entry) => entry.id === step);
   const isLastStep = stepIdx === steps.length - 1;
@@ -543,6 +576,9 @@ export function TriggerFormDialog({
             <PromptField value={prompt} onChange={setPrompt} />
 
             {scheduleFields}
+            {trigger.trigger_type === "schedule" && (
+              <OverlapField value={overlap} onChange={setOverlap} />
+            )}
 
             {trigger.trigger_type === "event" && trigger.webhook_url && (
               <WebhookField url={trigger.webhook_url} />
@@ -590,6 +626,13 @@ export function TriggerFormDialog({
                 defaultEnvironment={defaultEnvironment}
               />
             )}
+
+            <RunAsCreatorField
+              checked={runsAsCreator}
+              onChange={setRunsAsCreator}
+              type={trigger.trigger_type}
+              isCreator={isCreator}
+            />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -695,6 +738,13 @@ export function TriggerFormDialog({
                   defaultEnvironment={defaultEnvironment}
                 />
               )}
+
+              <RunAsCreatorField
+                checked={runsAsCreator}
+                onChange={setRunsAsCreator}
+                type={type}
+                isCreator={isCreator}
+              />
             </div>
           )}
 
@@ -726,6 +776,7 @@ export function TriggerFormDialog({
                 onApply={applyPreset}
               />
               {scheduleFields}
+              <OverlapField value={overlap} onChange={setOverlap} />
             </div>
           )}
         </div>
@@ -1054,7 +1105,7 @@ function CronBuilder({
                       className={cn(
                         // The same pill the quick presets wear, so the two rows
                         // of toggles in this dialog read as one control family.
-                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
+                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 text-sm font-medium transition-colors",
                         active
                           ? "bg-foreground text-background border-foreground"
                           : "text-foreground/65 hover:text-foreground hover:border-foreground/40",

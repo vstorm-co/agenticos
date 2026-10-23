@@ -11,8 +11,6 @@ can reach obeys exactly the rule the file store obeys - a person's only where
 that person is the sole listener, a room's only inside that room.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext
@@ -29,6 +27,11 @@ _NO_STORE = (
     "This conversation has no memory. It has no identified person and is not a group "
     "chat, so anything remembered would have to land somewhere other people read. "
     "Answer from what you have rather than saving."
+)
+_READ_ONLY = (
+    "Your notes here can be read but not changed: this run was started by an event, "
+    "and what it carries came from outside, so nothing from it is remembered. "
+    "Mention in your answer anything worth remembering instead."
 )
 
 # The model supplies `recall`'s `limit`; uncapped it would reach mem0 directly.
@@ -52,7 +55,9 @@ class Mem0Toolset(FunctionToolset[AgentDeps]):
         self.add_function(self.remember, name="remember")
         self.add_function(self.recall, name="recall")
 
-    def _scope(self, ctx: RunContext[AgentDeps]) -> tuple[UUID, UUID, str] | str:
+    def _scope(
+        self, ctx: RunContext[AgentDeps], *, writing: bool = False
+    ) -> tuple[UUID, UUID, str] | str:
         """(organization_id, agent_id, owner_key), or a refusal.
 
         The same rule the note store keeps, and the same single store: whichever
@@ -65,6 +70,8 @@ class Mem0Toolset(FunctionToolset[AgentDeps]):
         owner_key = memory_owner_key(audience, allow_personal=self._allow_personal)
         if deps.organization_id is None or deps.agent_id is None or owner_key is None:
             return _NO_STORE
+        if writing and not audience.writes_memory:
+            return _READ_ONLY
         return deps.organization_id, deps.agent_id, owner_key
 
     async def remember(self, ctx: RunContext[AgentDeps], content: str) -> str:
@@ -84,7 +91,7 @@ class Mem0Toolset(FunctionToolset[AgentDeps]):
             person's when you are alone with them, this group chat's when you are
             not.
         """
-        scope = self._scope(ctx)
+        scope = self._scope(ctx, writing=True)
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope

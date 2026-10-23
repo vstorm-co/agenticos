@@ -17,10 +17,9 @@ Effective access to one resource is `max(role scope, grant on that resource)`
 allows for a single row; it never narrows it.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from app.core.exceptions import AuthorizationError
@@ -78,6 +77,13 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
+    # A project: shared files in one container, standing instructions, and the
+    # chats people have in it. Three levels because they are three acts - seeing
+    # a project and reading its files, working in it (chatting, adding files), and
+    # managing it (its settings, sharing, deletion).
+    PROJECTS_VIEW = "projects:view"
+    PROJECTS_USE = "projects:use"
+    PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
@@ -90,6 +96,11 @@ class Perm(StrEnum):
     CONNECTIONS_MANAGE = "connections:manage"
     MCP_MANAGE = "mcp:manage"
     CHANNELS_MANAGE = "channels:manage"
+    # Who is in the organization: names, emails, roles. Every role holds it - any
+    # member may see who they work with - and it exists so an API key reads the
+    # member list only when it was issued for that, not as a side effect of any
+    # other scope.
+    MEMBERS_VIEW = "members:view"
     MEMBERS_MANAGE = "members:manage"
     ROLES_MANAGE = "roles:manage"
     ORG_SETTINGS = "org:settings"
@@ -104,6 +115,12 @@ class Perm(StrEnum):
     # widening `agents:run` to cover it would have handed every such integration
     # the ability to spend the organization's model budget as well.
     ML_INVOKE = "ml:invoke"
+    # Organization API keys (#1794). Creating one for yourself is everyday work -
+    # a script that uploads into your own knowledge base - and the key can never
+    # reach further than its issuer does. Seeing and revoking everybody's is the
+    # administration of that, and a separate authority.
+    API_KEYS_CREATE = "api_keys:create"
+    API_KEYS_MANAGE = "api_keys:manage"
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -127,6 +144,12 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        Perm.PROJECTS_VIEW,
+        Perm.PROJECTS_USE,
+        Perm.PROJECTS_EDIT,
+        # Per connection since an organization's MCP server can be narrowed to the
+        # groups that use it (#2072): Finance's ledger server is Finance's.
+        Perm.MCP_MANAGE,
     }
 )
 
@@ -234,6 +257,10 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.ALL,
+        Perm.PROJECTS_USE: Scope.ALL,
+        Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_MANAGE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -257,6 +284,10 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.ALL,
+        Perm.PROJECTS_USE: Scope.ALL,
+        Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_MANAGE: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -280,9 +311,16 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
+        # A project holds people's own files, so unlike agents a builder does not
+        # see every one of them - only what is theirs or shared with them.
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
-        Perm.MCP_MANAGE: Scope.ALL,
+        # The organization's servers, its own, and those shared with its groups -
+        # not a department's server narrowed to somebody else's group.
+        Perm.MCP_MANAGE: Scope.SHARED,
         # Both halves, spelled out. Nothing in this catalog models one permission
         # implying another - `agents:edit` does not carry `agents:view` either -
         # so a role that manages connections is given the read as well, or it
@@ -291,6 +329,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -307,11 +347,16 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.ALL,
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -334,9 +379,14 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_EDIT: Scope.OWN,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_USE: Scope.SHARED,
+        Perm.PROJECTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -346,6 +396,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.SHARED,
         Perm.TABLES_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.PROJECTS_VIEW: Scope.SHARED,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
 }
 
@@ -443,12 +495,43 @@ class AuthContext:
     exists so a person store can refuse to attribute a stranger's note to the
     owner rather than leak it into the owner's store (#788).
 
-    Invariant: set `True` in exactly one place - `publisher_context`, the sole
-    constructor that runs a turn as someone other than the asker. Any future
-    stand-in constructor must set it too, or a person-store write silently lands
-    in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
-    the one assignment site by grep, the way `AuthContext.anonymous` is the one
-    subject-less constructor.
+    Invariant: set in exactly two places. `publisher_context` sets it `True` -
+    the sole constructor that runs a turn as someone other than the asker - and
+    `AgentTriggerService._creator_context` sets it for a fire, where `user_id` is
+    the trigger's creator as an authority rather than a person at the keyboard,
+    unless the creator let the trigger act as them (`fired_as_creator`). Any
+    future stand-in constructor must set it too, or a person-store write silently
+    lands in the owner's store as if it were the visitor's.
+    `test_publisher_standing.py` pins both assignment sites by grep, the way
+    `AuthContext.anonymous` is the one subject-less constructor.
+    """
+
+    fired_as_creator: Literal["schedule", "event"] | None = None
+    """Set when a trigger fires acting as its creator, and which kind fired (#2027).
+
+    Then `user_id` is the creator as a real subject: their memory and their own
+    MCP connections are open, as in their own chat. On the creator's terms,
+    though, not all of them: a schedule may write their memory and an event may
+    only read it, because an event's prompt carries a mail or a webhook body
+    nobody vetted and a note written from it would be read by every later chat;
+    and their past conversations stay closed to search either way.
+    """
+
+    api_key_id: UUID | None = None
+    """The organization API key this request authenticated with, if any (#1794).
+
+    `user_id` is still the member who issued it - every budget, grant and audit
+    entry keys on a person - and this names the credential that person handed to
+    a script, so an audit entry can say which key acted.
+    """
+
+    key_scopes: frozenset[Perm] | None = None
+    """What the key was issued for, or `None` for a session.
+
+    Effective permissions are the issuer's *current* role intersected with this,
+    in :attr:`permissions`, so a key never reaches further than its issuer does
+    today: demoting the issuer narrows every key they hold without touching one.
+    A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
     @classmethod
@@ -512,8 +595,22 @@ class AuthContext:
         if self.is_anonymous:
             return {}
         if self.is_app_admin:
-            return dict.fromkeys(Perm, Scope.ALL)
-        return dict(ROLE_PERMS.get(self.role, {}))
+            held = dict.fromkeys(Perm, Scope.ALL)
+        else:
+            held = dict(ROLE_PERMS.get(self.role, {}))
+        if self.key_scopes is not None:
+            return {perm: scope for perm, scope in held.items() if perm in self.key_scopes}
+        return held
+
+    def key_allows(self, perm: Perm) -> bool:
+        """Whether the credential behind this request was issued for `perm` at all.
+
+        Always true for a session. For an API key it is the check a resource grant
+        has to pass before it may widen access: a grant answers "what may this
+        person do to this row", and a read-only key held by somebody with an edit
+        grant must still not edit.
+        """
+        return self.key_scopes is None or perm in self.key_scopes
 
     def scope_for(self, perm: Perm) -> Scope:
         """How far this permission reaches, or `Scope.NONE` if not held."""

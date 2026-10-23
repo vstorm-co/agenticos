@@ -11,8 +11,6 @@ bound - so the approver decides on exactly what the run will act on. A decision
 cannot be revisited: the step reads it once, when it wakes.
 """
 
-from __future__ import annotations
-
 import enum
 import uuid
 from datetime import datetime

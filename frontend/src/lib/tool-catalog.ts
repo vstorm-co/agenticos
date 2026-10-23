@@ -63,11 +63,14 @@ export type ToolRenderer =
   | "web-search"
   | "rag"
   | "run-python"
+  | "coding-agent"
   | "loaded-skill"
   | "load-skill"
   | "skill-list"
   | "context-list"
   | "plan"
+  | "asked"
+  | "delegation"
   | "workspace"
   | "generic";
 
@@ -164,14 +167,22 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
-  // artifacts - the published page is the answer, so its card opens where it lands.
+  // ask_user - multiple-choice questions to the person running the agent (#2064).
+  ask_user_question: {
+    kind: "read",
+    render: "asked",
+    captionKey: "askingYou",
+    displayNameKey: "askedYou",
+  },
+  // artifacts - the published page is the answer, so its card sits under the
+  // answer (`publishedApps` in `message-item.tsx`) and the step stays one line,
+  // which lets the work fold away like any other turn's.
   publish_artifact: {
     kind: "write",
     render: "artifact",
     captionKey: "publishingArtifact",
     displayNameKey: "publishArtifact",
-    opensWhenDone: true,
-    opensOnSight: true,
+    staysClosed: true,
   },
   read_artifact: {
     kind: "read",
@@ -200,23 +211,83 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "shareArtifact",
   },
 
-  // browser_choice - a whole browse. The step card stays generic because the live
-  // view is its own panel beside the transcript: a frame per step folded into the
-  // message list would rewrite the transcript thirty times over.
-  browse_page: {
-    kind: "web",
+  // visuals - the drawing is its own panel under the message, drawn while it is
+  // written; the step stays a line, since opening it would print the drawing's
+  // source as JSON.
+  draw: {
+    kind: "image",
     render: "generic",
-    captionKey: "workingThroughPage",
-    displayNameKey: "browsePage",
+    captionKey: "drawingVisual",
+    displayNameKey: "drawVisual",
+    staysClosed: true,
+  },
+  revise_visual: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "revisingVisual",
+    displayNameKey: "reviseVisual",
+    staysClosed: true,
+  },
+  read_visual: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingVisual",
+    displayNameKey: "readVisual",
   },
 
-  // browser_use - one autonomous browsing step; what comes back is a text result, so
-  // the generic renderer, not a browser view.
+  // browser_use - a whole browse. The step card stays generic because the live view
+  // is its own panel beside the transcript: a frame per step folded into the message
+  // list would rewrite the transcript thirty times over.
   browse_web: {
     kind: "web",
     render: "generic",
     captionKey: "browsingWeb",
     displayNameKey: "browseWeb",
+  },
+  // The agent's own hands on the same tab - one action a call. Each is a line in
+  // the transcript; the page itself is drawn in the browse panel the first one
+  // opened, which every later one adds its step to.
+  browser_open: {
+    kind: "web",
+    render: "generic",
+    captionKey: "openingPage",
+    displayNameKey: "openPage",
+  },
+  browser_read: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_click: {
+    kind: "web",
+    render: "generic",
+    captionKey: "clickingOnPage",
+    displayNameKey: "clickOnPage",
+  },
+  browser_type: {
+    kind: "web",
+    render: "generic",
+    captionKey: "typingOnPage",
+    displayNameKey: "typeOnPage",
+  },
+  browser_select: {
+    kind: "web",
+    render: "generic",
+    captionKey: "choosingOnPage",
+    displayNameKey: "chooseOnPage",
+  },
+  browser_scroll: {
+    kind: "web",
+    render: "generic",
+    captionKey: "scrollingPage",
+    displayNameKey: "scrollPage",
+  },
+  browser_back: {
+    kind: "web",
+    render: "generic",
+    captionKey: "goingBack",
+    displayNameKey: "goBack",
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
@@ -288,6 +359,17 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
   execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
+
+  // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
+  // panel of their own while it works; what it read, ran and changed opens under
+  // the step afterwards, because that is what a person checks before trusting it.
+  run_coding_agent: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningCodingAgent",
+    displayNameKey: "runCodingAgent",
+    opensWhenDone: true,
+  },
 
   // code_execution
   run_python: {
@@ -364,14 +446,39 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
-  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking", staysClosed: true },
-  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading", staysClosed: true },
-  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving", staysClosed: true },
-  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating", staysClosed: true },
+  list_memory: {
+    kind: "list",
+    render: "generic",
+    captionKey: "memoryChecking",
+    displayNameKey: "listMemory",
+    staysClosed: true,
+  },
+  read_memory: {
+    kind: "read",
+    render: "generic",
+    captionKey: "memoryReading",
+    displayNameKey: "readMemory",
+    staysClosed: true,
+  },
+  write_memory: {
+    kind: "write",
+    render: "generic",
+    captionKey: "memorySaving",
+    displayNameKey: "writeMemory",
+    staysClosed: true,
+  },
+  edit_memory: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "memoryUpdating",
+    displayNameKey: "editMemory",
+    staysClosed: true,
+  },
   delete_memory: {
     kind: "edit",
     render: "generic",
     captionKey: "memoryForgetting",
+    displayNameKey: "deleteMemory",
     staysClosed: true,
   },
   remember: {
@@ -407,7 +514,9 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
 
   // subagents - the parent's half of a delegation. The delegate's own run is a panel
   // of its own, built from `subagent_*` frames rather than from these calls.
-  task: { kind: "delegate", render: "generic", captionKey: "handingWork" },
+  // `task` is one agent asking another, and is drawn as that: the delegate's face
+  // and name on the step, the brief and the answer under it.
+  task: { kind: "delegate", render: "delegation", captionKey: "handingWork" },
   check_task: { kind: "delegate", render: "generic", captionKey: "checkingDelegate" },
   wait_tasks: { kind: "delegate", render: "generic", captionKey: "waitingDelegates" },
   list_active_tasks: {
@@ -554,6 +663,24 @@ export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
 };
 
 /**
+ * Tools a voice call adds that no capability registers (#54).
+ *
+ * `hand_off` is how a call's realtime model hands a task to the agent's own text
+ * model, which has the sandbox, the browser and the delegates a call cannot
+ * carry. Out of `TOOL_CATALOG` for the reason `FRAMEWORK_TOOLS` is: the drift
+ * check there is against the capability registry, and the backend checks this
+ * table against the tool's own name instead.
+ */
+export const CALL_TOOLS: Record<string, ToolEntry> = {
+  hand_off: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "workingInText",
+    displayNameKey: "workedInText",
+  },
+};
+
+/**
  * Tools no agent emits any more, kept for the conversations that recorded them.
  *
  * A stored turn holds the tool name it actually called and the result it actually
@@ -583,7 +710,9 @@ export const LEGACY_TOOLS: Record<string, ToolEntry> = {
 
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null;
+  return (
+    TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? CALL_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null
+  );
 }
 
 /**
@@ -594,4 +723,16 @@ export function toolEntry(name: string): ToolEntry | null {
  */
 export function isWorkspaceTool(name: string): boolean {
   return TOOL_CATALOG[name]?.render === "workspace";
+}
+
+/**
+ * A tool's name as a person reads it, in `chat.tools`: the catalog's own name
+ * where it has one - "Save to memory" - and the identifier spelled as words
+ * otherwise, so `create_issue` reads "Create issue" rather than as code.
+ */
+export function toolLabel(name: string, t: (key: string) => string): string {
+  const key = toolEntry(name)?.displayNameKey;
+  if (key !== undefined) return t(key);
+  const words = name.split(/[_-]+/).filter(Boolean).join(" ");
+  return words === "" ? name : words.charAt(0).toUpperCase() + words.slice(1);
 }

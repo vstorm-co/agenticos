@@ -8,8 +8,6 @@ since no Python library writes the OLE compound format. A malformed input is a c
 rather than the parse (#1591).
 """
 
-from __future__ import annotations
-
 import io
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -18,6 +16,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from app.services import file_upload as fu
+from app.services import office_archive
 from app.services.file_upload import FileUploadService
 
 if TYPE_CHECKING:
@@ -543,7 +542,7 @@ class TestArchiveBombGuards:
 
         monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MAX_MEMBERS", 2)
         data = self._zip({str(number): b"" for number in range(10)})
-        monkeypatch.setattr(fu.zipfile, "ZipFile", lambda *_: pytest.fail("listed"))
+        monkeypatch.setattr(office_archive.zipfile, "ZipFile", lambda *_: pytest.fail("listed"))
 
         with pytest.raises(ValueError, match="too many members"):
             fu.safe_unzip(data)

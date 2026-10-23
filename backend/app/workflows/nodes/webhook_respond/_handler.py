@@ -8,8 +8,6 @@ in the same run answers nobody. Outside a run a webhook started, nothing waits,
 and the step only records what it would have answered.
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 

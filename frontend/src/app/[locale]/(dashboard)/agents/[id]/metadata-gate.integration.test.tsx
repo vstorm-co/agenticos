@@ -56,51 +56,62 @@ const mutation = () => ({
 let allowed: Set<Permission>;
 let shown: AgentDetail = AGENT;
 
-vi.mock("@/hooks", () => ({
-  useAgent: () => ({
-    agent: shown,
-    isLoading: false,
-    saveDraft: mutation(),
-    validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
-    publish: mutation(),
-    rollback: mutation(),
-    setAvatar: mutation(),
-    setColor: mutation(),
-    setMetadata: mutation(),
-  }),
-  useAgentEnvironments: () => ({ environments: [], promote: mutation() }),
-  useAgents: () => ({
-    agents: [],
-    clone: mutation(),
-    archive: mutation(),
-    unarchive: mutation(),
-    remove: mutation(),
-  }),
-  useAgentVersions: () => ({ versions: [], total: 0, isLoading: false }),
-  useCapabilityCatalog: () => ({ capabilities: [] }),
-  useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
-  useEmbeds: () => ({ embeds: [] }),
-  useExposures: () => ({ exposures: [] }),
-  useKnowledgeBases: () => ({ kbs: [], isLoading: false, listError: null }),
-  useMcpCatalog: () => ({ servers: [], isLoading: false, error: null }),
-  useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
-  useOrgMcpConnections: () => ({
-    connections: [],
-    test: vi.fn(),
-    isLoading: false,
-    error: null,
-  }),
-  usePermissions: () => ({
-    can: (permission: Permission) => allowed.has(permission),
-    isLoaded: true,
-  }),
-  useRuns: () => ({ runs: [] }),
-  useSkills: () => ({ skills: [], total: 0, isLoading: false, error: null }),
-}));
+vi.mock("@/hooks", async () => {
+  // The real one: the Builder keeps its tab in `?tab=`, as local state here.
+  const { useUrlState } =
+    await vi.importActual<typeof import("@/hooks/use-url-state")>("@/hooks/use-url-state");
+  return {
+    useUrlState,
+    useAgent: () => ({
+      agent: shown,
+      isLoading: false,
+      saveDraft: mutation(),
+      validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
+      publish: mutation(),
+      rollback: mutation(),
+      setAvatar: mutation(),
+      setColor: mutation(),
+      setMetadata: mutation(),
+    }),
+    useAgentEnvironments: () => ({ environments: [], promote: mutation() }),
+    useAgents: () => ({
+      agents: [],
+      clone: mutation(),
+      archive: mutation(),
+      unarchive: mutation(),
+      remove: mutation(),
+    }),
+    useAgentVersions: () => ({ versions: [], total: 0, isLoading: false }),
+    useCapabilityCatalog: () => ({ capabilities: [] }),
+    usePromptVariables: () => ({ variables: [] }),
+    useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
+    useEmbeds: () => ({ embeds: [] }),
+    useExposures: () => ({ exposures: [] }),
+    useKnowledgeBases: () => ({ kbs: [], isLoading: false, listError: null }),
+    useMcpCatalog: () => ({ servers: [], isLoading: false, error: null }),
+    usePlatformMcpTools: () => ({ tools: [], isLoading: false, error: null }),
+    useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
+    useMcpConnections: () => ({ connections: [] }),
+    useOrgMcpConnections: () => ({
+      connections: [],
+      test: vi.fn(),
+      isLoading: false,
+      error: null,
+    }),
+    usePermissions: () => ({
+      can: (permission: Permission) => allowed.has(permission),
+      isLoaded: true,
+    }),
+    useRuns: () => ({ runs: [] }),
+    useSkills: () => ({ skills: [], total: 0, isLoading: false, error: null }),
+  };
+});
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0, isLoading: false, error: null }),
 }));
+let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => searchParams,
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/agents/a1",
 }));
@@ -113,6 +124,9 @@ vi.mock("@/components/agents/stale-references", () => ({ StaleReferences: () => 
 vi.mock("@/components/agents/model-profile-picker", () => ({ ModelProfilePicker: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
+// The test panel brings the whole chat with it, and is not what this test is about.
+vi.mock("@/components/agents/test-panel/test-panel", () => ({ TestPanel: () => null }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -162,6 +176,30 @@ describe("the detail page's metadata editor gate", () => {
 
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Add a tag" })).toBeInTheDocument();
+  });
+
+  it("opens on the tab its address names, so a reload lands where it was", async () => {
+    allowed = new Set([Perm.agentsEdit]);
+    searchParams = new URLSearchParams("tab=mcp");
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: /MCP servers/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    searchParams = new URLSearchParams("tab=nonsense");
+  });
+
+  it("opens on Build for a tab it does not have", async () => {
+    allowed = new Set([Perm.agentsEdit]);
+    searchParams = new URLSearchParams("tab=nonsense");
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    searchParams = new URLSearchParams();
   });
 
   it("hides the editor from a caller who may not edit", async () => {

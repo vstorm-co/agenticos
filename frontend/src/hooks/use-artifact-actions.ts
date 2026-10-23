@@ -92,7 +92,7 @@ export function useArtifactActionApi(artifactId: string) {
     () => ({
       start: (versionId: string, workflowId: string, input: Record<string, unknown>) =>
         apiClient.post<ArtifactActionRunStarted>(
-          `/artifacts/${artifactId}/versions/${versionId}/actions/${workflowId}/runs`,
+          `/apps/${artifactId}/versions/${versionId}/actions/${workflowId}/runs`,
           { input },
         ),
       // Never served from the cache: a run moves, and every read is the point.
@@ -100,7 +100,7 @@ export function useArtifactActionApi(artifactId: string) {
         queryClient.fetchQuery({
           queryKey: qk.artifacts.actionRun(artifactId, runId),
           queryFn: () =>
-            apiClient.get<ArtifactActionRun>(`/artifacts/${artifactId}/actions/runs/${runId}`),
+            apiClient.get<ArtifactActionRun>(`/apps/${artifactId}/actions/runs/${runId}`),
           staleTime: 0,
           gcTime: 0,
           retry: false,

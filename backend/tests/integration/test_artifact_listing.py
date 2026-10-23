@@ -7,8 +7,6 @@ organization-wide page read into a group chat - by `list_artifacts` or
 `preview_artifact` - and a reader who has left.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -433,4 +431,4 @@ class TestWhatARunMayRepublish:
             ArtifactMediaType.HTML,
         )
         assert (row.bindings, row.visibility, row.public) == ([], "private", False)
-        assert row.console_path == f"/artifacts/{world.shared}?org={world.organization.id}"
+        assert row.console_path == f"/apps/{world.shared}?org={world.organization.id}"

@@ -18,8 +18,6 @@ a reference to an empty cell in arithmetic - is no value rather than an error:
 one record's odd data leaves its cell empty and the rest of the table reads.
 """
 
-from __future__ import annotations
-
 import ast
 import io
 import math
@@ -171,7 +169,7 @@ def _parse(formula: str, labels: Sequence[str]) -> ast.Expression:
     source = _REFERENCE.sub(placeholder, formula).strip()
     try:
         return ast.parse(_spreadsheet_words(source), mode="eval")
-    except (SyntaxError, tokenize.TokenError):
+    except SyntaxError, tokenize.TokenError:
         raise FormulaProblem("The formula is not written correctly") from None
 
 
@@ -179,6 +177,7 @@ def _spreadsheet_words(source: str) -> str:
     """`source` with TRUE, AND, `=`, `<>` and the like in Python's spelling - outside text
     only, so `"R AND D"` stays as it was written."""
     tokens: list[tuple[int, str]] = []
+    previous: tokenize.TokenInfo | None = None
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
         word = token.string.upper()
         if token.type == tokenize.NAME and word in _WORDS:
@@ -186,10 +185,20 @@ def _spreadsheet_words(source: str) -> str:
         elif token.type == tokenize.NAME and word in FUNCTIONS:
             # Named as a person types it: `if(` is Python's keyword, `IF(` a call.
             tokens.append((token.type, word))
+        elif (
+            token.type == tokenize.OP
+            and token.string == ">"
+            and previous is not None
+            and previous.string == "<"
+            and previous.end == token.start
+        ):
+            # Python 3.15 reads `<>` as `<` then `>`; older ones as one token.
+            tokens[-1] = (token.type, "!=")
         elif token.type == tokenize.OP and token.string in ("<>", "="):
             tokens.append((token.type, "!=" if token.string == "<>" else "=="))
         else:
             tokens.append((token.type, token.string))
+        previous = token
     return tokenize.untokenize(tokens)
 
 
@@ -326,7 +335,7 @@ def work_out(formula: str, columns: Sequence[ColumnDef], record: Mapping[str, Va
     values = [_as_read(by_label[label], record.get(str(by_label[label].id))) for label in named]
     try:
         result = _evaluate(tree, values)
-    except (ArithmeticError, TypeError, ValueError, IndexError):
+    except ArithmeticError, TypeError, ValueError, IndexError:
         return None
     if isinstance(result, float):
         if not math.isfinite(result):

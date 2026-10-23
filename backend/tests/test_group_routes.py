@@ -7,9 +7,8 @@ caller and the body to the service, and serializes what comes back - including
 the directory `source` a client branches on.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -20,7 +19,17 @@ from httpx import AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.group import (
+    GroupDownRatedAnswer,
+    GroupQualityDetail,
+    GroupQualityList,
+    GroupQualityRead,
+    GroupSpendList,
+    GroupSpendRead,
+)
+from app.services.exporting import ExportResult
 
 pytestmark = pytest.mark.anyio
 
@@ -32,13 +41,19 @@ V1 = settings.API_V1_STR
 
 def _group(name: str = "Finance") -> SimpleNamespace:
     return SimpleNamespace(
-        id=uuid4(), organization_id=ORG, name=name, description=None, created_at=NOW
+        id=uuid4(),
+        organization_id=ORG,
+        name=name,
+        description=None,
+        icon=None,
+        monthly_budget_usd=None,
+        created_at=NOW,
     )
 
 
 def _member_row(source: str = "directory") -> tuple[SimpleNamespace, str, str | None]:
     return (
-        SimpleNamespace(user_id=uuid4(), source=source, created_at=NOW),
+        SimpleNamespace(user_id=uuid4(), source=source, is_lead=False, created_at=NOW),
         "jane@corp.example",
         "Jane",
     )
@@ -46,7 +61,12 @@ def _member_row(source: str = "directory") -> tuple[SimpleNamespace, str, str | 
 
 @pytest.fixture
 def signed_in() -> None:
+    """An Admin of the path's organization: the routes gate writes on
+    `members:manage` in that organization before the service is reached (#2057)."""
     app.dependency_overrides[deps.get_current_user] = lambda: CALLER
+    app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+        user_id=CALLER.id, organization_id=ORG, role=OrgRoleName.ADMIN
+    )
 
 
 @pytest.fixture
@@ -78,6 +98,32 @@ class TestGroupRoutes:
         assert body["items"][0]["name"] == "Finance"
         assert body["items"][0]["member_count"] == 3
         assert groups.list_groups.await_args.args == (ORG, CALLER.id)
+
+    async def test_a_group_s_resources_are_listed_with_their_kind_and_level(
+        self, client: AsyncClient, groups: MagicMock
+    ) -> None:
+        from app.schemas.group import GroupResource
+
+        shared = GroupResource(kind="skill", id=uuid4(), name="month-end-close", level="use")
+        groups.resources = AsyncMock(return_value=[shared])
+
+        resp = await client.get(f"{V1}/orgs/{ORG}/groups/{uuid4()}/resources")
+
+        assert resp.status_code == 200
+        assert resp.json()["items"][0] | {"id": None} == {
+            "kind": "skill",
+            "id": None,
+            "name": "month-end-close",
+            "level": "use",
+        }
+
+    def test_a_stored_icon_reads_back_as_one_of_the_marks_and_nothing_else(self) -> None:
+        from app.schemas.group import as_group_icon
+
+        assert as_group_icon("banknote") == "banknote"
+        assert as_group_icon(None) is None
+        with pytest.raises(ValueError, match="Not a group icon"):
+            as_group_icon("rocket")
 
     async def test_creating_answers_201_with_an_empty_group(
         self, client: AsyncClient, groups: MagicMock
@@ -147,9 +193,123 @@ class TestGroupRoutes:
 
         assert added.status_code == 201
         assert added.json()["email"] == "jane@corp.example"
-        assert groups.add_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
+        # The whole context, so the service holds a key to its scopes.
+        assert groups.add_member.await_args.args[:3] == (ORG, group_id, user_id)
+        assert groups.add_member.await_args.args[3].user_id == CALLER.id
         assert removed.status_code == 204
-        assert groups.remove_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
+        assert groups.remove_member.await_args.args[:3] == (ORG, group_id, user_id)
+        assert groups.remove_member.await_args.args[3].user_id == CALLER.id
+
+    async def test_naming_a_lead(self, client: AsyncClient, groups: MagicMock) -> None:
+        member, email, name = _member_row("manual")
+        member.is_lead = True
+        groups.set_lead = AsyncMock(return_value=(member, email, name))
+        group_id, user_id = uuid4(), uuid4()
+
+        resp = await client.patch(
+            f"{V1}/orgs/{ORG}/groups/{group_id}/members/{user_id}", json={"is_lead": True}
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["is_lead"] is True
+        assert groups.set_lead.await_args.kwargs == {"is_lead": True}
+
+    async def test_offering_and_sharing_from_a_group_s_page(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_sharing_service] = lambda: service
+        item_id = uuid4()
+        service.shareable = AsyncMock(
+            return_value=[
+                SimpleNamespace(kind="skill", id=item_id, name="Month-end close", level="use")
+            ]
+        )
+        service.share = AsyncMock()
+        group_id = uuid4()
+
+        offered = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/shareable")
+        shared = await client.post(
+            f"{V1}/orgs/{ORG}/groups/{group_id}/shares",
+            json={"items": [{"kind": "skill", "id": str(item_id)}], "level": "read"},
+        )
+
+        assert offered.json()["items"][0]["name"] == "Month-end close"
+        assert shared.status_code == 204
+        assert service.share.await_args.kwargs == {"level": "read"}
+        assert service.share.await_args.args[2][0].id == item_id
+
+    async def test_each_department_s_month_and_one_department_s_export(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_spend_service] = lambda: service
+        group_id = uuid4()
+        service.month = AsyncMock(
+            return_value=GroupSpendList(
+                since=NOW,
+                items=[
+                    GroupSpendRead(
+                        group_id=group_id,
+                        name="Finance",
+                        member_count=3,
+                        monthly_budget_usd=Decimal("50"),
+                        spent_usd=Decimal("41.5"),
+                        run_count=12,
+                    )
+                ],
+            )
+        )
+        service.export = AsyncMock(
+            return_value=ExportResult(
+                content="member,agent,runs,cost_usd\n", filename="Finance-spend.csv", row_count=0
+            )
+        )
+
+        month = await client.get(f"{V1}/orgs/{ORG}/groups/spend")
+        export = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/spend.csv")
+
+        assert month.json()["items"][0]["spent_usd"] == "41.5"
+        assert export.headers["content-type"].startswith("text/csv")
+        assert "Finance-spend.csv" in export.headers["content-disposition"]
+        assert service.export.await_args.args[1] == group_id
+
+    async def test_each_department_s_ratings_and_one_department_s_detail(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        """The window is the dashboard's, spelled `from`/`to` like `/stats` (#2101)."""
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_quality_service] = lambda: service
+        group_id, run_id = uuid4(), uuid4()
+        service.overview = AsyncMock(
+            return_value=GroupQualityList(
+                from_date=NOW.date(),
+                to_date=NOW.date(),
+                items=[GroupQualityRead(group_id=group_id, name="Finance", likes=3, dislikes=1)],
+            )
+        )
+        service.detail = AsyncMock(
+            return_value=GroupQualityDetail(
+                group_id=group_id,
+                from_date=NOW.date(),
+                to_date=NOW.date(),
+                likes=3,
+                dislikes=1,
+                top_agents=[],
+                down_rated=[GroupDownRatedAnswer(rated_at=NOW, comment="Wrong", run_id=run_id)],
+            )
+        )
+
+        overview = await client.get(
+            f"{V1}/orgs/{ORG}/groups/quality", params={"from": "2026-10-01", "to": "2026-10-11"}
+        )
+        detail = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/quality")
+
+        assert overview.json()["items"][0]["dislikes"] == 1
+        assert str(service.overview.await_args.kwargs["from_date"]) == "2026-10-01"
+        assert detail.json()["down_rated"][0]["run_id"] == str(run_id)
+        assert service.detail.await_args.args[1] == group_id
+        assert service.detail.await_args.kwargs == {"from_date": None, "to_date": None}
 
     @pytest.mark.security
     async def test_a_refusal_from_the_service_is_a_403(

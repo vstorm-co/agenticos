@@ -13,8 +13,6 @@ against the access of whoever the run acts as. An unchanged spec reuses its
 version, so a step that runs a thousand times publishes once.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

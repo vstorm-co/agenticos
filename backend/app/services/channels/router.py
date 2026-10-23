@@ -1,23 +1,26 @@
 """Channel message router - processes incoming messages end-to-end."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+import time
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import (
+    agent_exposure_repo,
+    agent_repo,
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
@@ -25,12 +28,13 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.services import rate_limit
+from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
+    CHANNEL_COMMANDS,
     ChannelAdapter,
     ChannelDirectoryUnsupported,
     IncomingAttachment,
@@ -43,17 +47,33 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
-from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
+from app.services.channels.live_reply import (
+    WORKING,
+    AnswerSink,
+    LiveReply,
+    StreamedReply,
+    channel_stream,
+)
 from app.services.channels.mentions import (
     AnsweredTurn,
     ChannelAgentRouter,
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.channels.prompts import ChannelPrompts
+from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
-from app.services.rate_limit import Limit, LocalWindows
+from app.services.ml import measure_audio_seconds
+from app.services.rate_limit import Limit
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
-from app.services.transcription import Recording, TranscriptionService
+from app.services.transcription import (
+    RECORDING_EXTENSIONS,
+    Recording,
+    TranscriptionService,
+    recording_type,
+)
+from app.services.transcription_usage import TranscriptionCall
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowBudgetReachedError,
@@ -97,7 +117,7 @@ class _ChatLocks:
         return len(self._held)
 
     @asynccontextmanager
-    async def hold(self, bot_id: str, chat_id: str) -> AsyncIterator[None]:
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncGenerator[None]:
         key = f"{bot_id}:{chat_id}"
         lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
         self._held[key] = (lock, waiting + 1)
@@ -114,11 +134,15 @@ class _ChatLocks:
 
 _chat_locks = _ChatLocks()
 
+# The turn each chat is running in this process, so a message that arrives
+# behind it can join it rather than wait for it (#2087). Per process like the
+# lock beside it: the turn and its inbox live where the lock is held.
+_in_flight: dict[str, InFlight] = {}
 
-#: A per-process floor for the turns the shared limiter could not count. The
-#: primitive lives in `rate_limit` (it is a rate-limiting concept, not a channel
-#: one); this instance holds the channel bot's own fallback windows.
-_fallback_windows = LocalWindows()
+
+# The per-process floor under a sender while the shared limiter cannot count:
+# `rate_limit.LocalWindows` says why a channel bot keeps one.
+_fallback_windows = rate_limit.LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -204,8 +228,13 @@ def _empty_answer(answered: Any) -> str:
     """
     if answered.awaiting_approval_run_id is not None:
         return _needs_approval(answered.awaiting_approval_run_id)
+    if answered.status == RunStatus.AWAITING_ANSWER:
+        # The question itself follows, as its own message with buttons (#2064).
+        return "I have a question for you before I go on."
     if answered.status == RunStatus.BUDGET_EXCEEDED:
         return "This assistant has reached its usage limit."
+    if answered.status == RunStatus.LOOP_STOPPED:
+        return "I kept repeating the same steps without getting anywhere, so I stopped. Try asking in a different way."
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
@@ -251,9 +280,50 @@ class ChannelMessageRouter:
                 incoming.message_id,
             )
             return
+        key = f"{incoming.bot_id}:{incoming.platform_chat_id}"
+        running = _in_flight.get(key)
+        question = aside_question(incoming.text)
+        if question is not None:
+            # The command is a gesture, not part of what is asked.
+            incoming = replace(incoming, text=question)
         try:
+            if running is not None and question is not None:
+                # A question on the side of the running turn: answered now, from
+                # the thread so far, rather than queued behind what it asks about.
+                # With nothing running it is simply the next message.
+                with answering_aside():
+                    await self._route_inner(incoming, db)
+                return
+            steer = (
+                running.inbox.add(incoming.text)
+                if running is not None
+                and running.sender == incoming.platform_user_id
+                and incoming.text.strip()
+                and not incoming.text.lstrip().startswith("/")
+                # A remark to a colleague in the thread is not to the bot; a
+                # second after the turn it would be ignored, and it is now too.
+                and not self._is_overheard(incoming)
+                # A steer carries words only. A message with a file or a voice
+                # note waits for the turn to end and is answered as one of its
+                # own, with what it carries.
+                and not incoming.attachments
+                else None
+            )
             async with _chat_locks.hold(incoming.bot_id, incoming.platform_chat_id):
-                await self._route_inner(incoming, db)
+                if steer is not None and steer.applied:
+                    # It reached the turn it was sent into, which answered it.
+                    return
+                if steer is not None:
+                    # Too late for that turn's last request; mark it taken so the
+                    # unapplied list stays honest, and answer it as its own turn.
+                    steer.applied = True
+                inbox = SteeringInbox()
+                _in_flight[key] = InFlight(inbox=inbox, sender=incoming.platform_user_id)
+                try:
+                    with steerable(inbox):
+                        await self._route_inner(incoming, db)
+                finally:
+                    _in_flight.pop(key, None)
         except BaseException:
             await release_delivery(incoming)
             raise
@@ -347,6 +417,17 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
+        # A run parked on a question to this person that takes a typed answer:
+        # the message is that answer, not a new turn beside a run still waiting.
+        if await ChannelPrompts(db).reply(
+            bot,
+            platform=incoming.platform,
+            platform_chat_id=incoming.platform_chat_id,
+            platform_user_id=incoming.platform_user_id,
+            text=incoming.text,
+        ):
+            return
+
         # Built here, once, from the row that admitted the message - so an agent
         # that asks about the channel asks about *this* channel, with the bot's
         # own token, and never about one named by the model. Free to build for a
@@ -360,11 +441,27 @@ class ChannelMessageRouter:
         # pointing at it (#683).
         # A voice note goes one way and every other attachment the other: the
         # recording is transcribed and never handed to the agent, which cannot open
-        # it, and the rest is stored and can be read.
+        # it, and the rest is stored and can be read. The split reads the type, so
+        # an adapter whose payload named a file by id alone describes it first.
+        if incoming.attachments:
+            incoming.attachments = await get_adapter(bot.platform).describe_attachments(
+                unseal_bot_token(bot), incoming.attachments
+            )
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
-        transcripts, voice_refusals = await self._transcribe(db, bot, recordings)
+        # Attributed to the linked person only while they are still a member: a
+        # room admits an unlinked or departed sender, and a usage row naming a
+        # former member puts a call on the record of somebody who no longer
+        # belongs to the organization.
+        requested_by = (
+            identity.user_id
+            if recordings and await self._sender_is_active_member(db, bot, identity)
+            else None
+        )
+        transcripts, voice_refusals = await self._transcribe(
+            db, bot, recordings, requested_by=requested_by
+        )
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
 
@@ -418,7 +515,14 @@ class ChannelMessageRouter:
         if await self._start_workflow(bot, incoming, identity, db, files=files):
             return
 
-        live, handle = await self._open_reply(bot, incoming)
+        await self._acknowledge(bot, incoming)
+        streamed = await self._open_streamed(bot, incoming) if bot.stream_answers else None
+        live: AnswerSink | None
+        handle: str | None
+        if streamed is not None:
+            live, handle = streamed, streamed.handle
+        else:
+            live, handle = await self._open_reply(bot, incoming)
 
         # Loaded before the run, so the turn being run is the prompt and
         # everything before it is the history. The turn itself is written by the
@@ -456,6 +560,7 @@ class ChannelMessageRouter:
             handle=lambda: handle,
             files=files,
             file_refusals=file_refusals,
+            streamed=streamed,
         )
 
     async def _deliver(
@@ -465,6 +570,7 @@ class ChannelMessageRouter:
         answer: str,
         answered: Any,
         handle: str | None,
+        streamed: StreamedReply | None = None,
     ) -> None:
         """Finish the turn in the message the person has been watching.
 
@@ -473,14 +579,32 @@ class ChannelMessageRouter:
         the silence this replaced. A chart or a produced file still needs a
         second post: no platform lets a message gain an attachment by being
         edited.
+
+        A finished answer is offered thumbs to rate it (#2084): in a streamed
+        answer as it ends, on an edited one once the edit landed.
         """
         text = answer or _empty_answer(answered)
-        if handle is not None:
-            adapter = get_adapter(incoming.platform)
-            try:
-                await adapter.update_reply(
-                    unseal_bot_token(bot), self._message(bot, incoming, text), handle
+        rated = (
+            str(answered.run_id)
+            if bot.rate_answers
+            and answered.run_id is not None
+            and answered.status == RunStatus.COMPLETED
+            else None
+        )
+        if streamed is not None:
+            if not await self._finish_streamed(bot, incoming, streamed, text, rated):
+                await self._send_reply(
+                    bot, incoming, text, answered.attachments, image_png=answered.image_png
                 )
+                return
+            if answered.image_png is None and not answered.attachments:
+                return
+            text = ""
+        elif handle is not None:
+            adapter = get_adapter(incoming.platform)
+            token = unseal_bot_token(bot)
+            try:
+                await adapter.update_reply(token, self._message(bot, incoming, text), handle)
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -491,6 +615,8 @@ class ChannelMessageRouter:
                     "live reply final edit failed; re-posting the answer whole", exc_info=True
                 )
             else:
+                if rated is not None:
+                    await self._offer_feedback(bot, incoming, text, handle, rated)
                 if answered.image_png is None and not answered.attachments:
                     return
                 text = ""
@@ -610,6 +736,7 @@ class ChannelMessageRouter:
         handle: Callable[[], str | None],
         files: list[Any],
         file_refusals: list[str],
+        streamed: StreamedReply | None = None,
     ) -> bool:
         """Run one turn's answering coroutine and answer, refuse or apologise once.
 
@@ -649,22 +776,40 @@ class ChannelMessageRouter:
             return False
         except AppException as exc:
             await self._discard_files(db, files)
-            await self._post_failure(bot, incoming, handle(), exc.message)
+            await self._post_failure(bot, incoming, handle(), exc.message, streamed)
             return True
         except Exception:
             logger.exception("Agent run failed for bot %s", incoming.bot_id)
             await self._discard_files(db, files)
             await self._post_failure(
-                bot, incoming, handle(), "Sorry, something went wrong. Please try again."
+                bot,
+                incoming,
+                handle(),
+                "Sorry, something went wrong. Please try again.",
+                streamed,
             )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle())
+        await self._deliver(bot, incoming, answer, answered, handle(), streamed)
+        # What the run stopped for - a decision, a question - offered here as
+        # buttons rather than as a link to the console (#2064, #2067).
+        if answered.parked_run_id is not None:
+            await ChannelPrompts(db).offer(
+                bot,
+                platform=incoming.platform,
+                platform_chat_id=incoming.platform_chat_id,
+                run_id=answered.parked_run_id,
+            )
         return True
 
     async def _post_failure(
-        self, bot: ChannelBot, incoming: IncomingMessage, handle: str | None, message: str
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        handle: str | None,
+        message: str,
+        streamed: StreamedReply | None = None,
     ) -> None:
         """Show a refusal or apology, replacing an open live reply rather than
         stranding its placeholder.
@@ -678,7 +823,14 @@ class ChannelMessageRouter:
         placeholder was opened - a crash before the first token, a refusal on the
         default path - it is `_refuse_if_named`, silent in a room it was not named
         in.
+
+        A streamed answer is ended as failed and then rewritten as the refusal,
+        so its steps and partial text do not read as an answer.
         """
+        if streamed is not None:
+            if not await self._finish_streamed(bot, incoming, streamed, message, None, failed=True):
+                await self._send_reply(bot, incoming, message)
+            return
         if handle is not None:
             adapter = get_adapter(incoming.platform)
             try:
@@ -719,6 +871,8 @@ class ChannelMessageRouter:
             nonlocal opened
             if not opened:
                 opened = True
+                # Only now is the question known to be ours to answer.
+                await self._acknowledge(bot, incoming)
                 state["handle"] = await self._post_placeholder(
                     adapter, token, bot, incoming, text or WORKING
                 )
@@ -817,14 +971,35 @@ class ChannelMessageRouter:
 
         On the mime type, which every adapter sets: Telegram invents
         `voice.ogg` / `audio/ogg` for a voice note because the platform sends
-        neither a name nor a type, and the other two carry what was uploaded.
+        neither a name nor a type, and Slack and Mattermost carry what was
+        uploaded, typed from the extension or the clip marker where the platform
+        left it untyped (`attachments.routed_type`).
+
+        Each recording is logged with its type, because the type is the
+        platform's and this is the line that says why a voice note was or was
+        not heard - and by the platform's message id and its place on the
+        message rather than its file name, which a sender chose and which can
+        be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
+        for index, recording in enumerate(recordings):
+            logger.info(
+                "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
+                incoming.bot_id,
+                incoming.message_id,
+                index,
+                recording.mime_type,
+            )
         return recordings, rest
 
     async def _transcribe(
-        self, db: AsyncSession, bot: ChannelBot, recordings: list[IncomingAttachment]
+        self,
+        db: AsyncSession,
+        bot: ChannelBot,
+        recordings: list[IncomingAttachment],
+        *,
+        requested_by: UUID | None,
     ) -> tuple[list[str], list[str]]:
         """What the voice notes on this message said, and what could not be read.
 
@@ -832,17 +1007,43 @@ class ChannelMessageRouter:
         returns, because they are answered the same way: the reply carries what did
         not make it, and the turn goes ahead with what did.
 
-        A bot with no transcription configured says so once rather than silently
-        dropping the recording - a voice note that produces no reaction is
-        indistinguishable from a bot that is broken, and the sender has no way to
-        learn that this deployment simply does not listen.
+        The engine resolves through `speech_to_text_settings`: the bot's own
+        pair and key, then its exposed agent's published override, then the
+        organization's; the language from the agent, then the organization. The
+        agent is the one this bot serves - never one an `@mention` names, since
+        a handle said aloud cannot be routed and this runs before routing.
+
+        A bot that cannot listen says so once rather than silently dropping the
+        recording - a voice note that produces no reaction is indistinguishable
+        from a bot that is broken - and says which of two reasons it is,
+        because they are fixed by different people: the bot's operator turned
+        transcription off, or nobody has set up a provider at all. A bot with no
+        agent bound says nothing here: the message is refused anyway, and
+        transcribing it first would be a paid call for nothing.
+
+        Every recording handed to the provider leaves a usage row
+        (`transcription_usage`), succeeded or failed, attributed to this bot,
+        the agent it serves and `requested_by` - the person the sender's
+        account is linked to, or nobody. Its length is the provider's figure,
+        else the platform's (`IncomingAttachment.duration_seconds`). The row is
+        flushed into this turn's transaction and committed with it; a
+        recording refused before the provider (too large, not downloaded) or
+        never attempted (off, nothing resolves) writes none.
         """
         if not recordings:
             return [], []
-        if not bot.speech_to_text_provider or not bot.speech_to_text_model:
+        if not bot.transcribe_voice_notes:
             return [], [
-                "This bot cannot listen to voice messages - nobody has chosen a "
-                "transcription model for it."
+                "This bot does not listen to voice messages - transcription is turned off for it."
+            ]
+        settings = await SpeechToTextSettingsService(db).for_bot(bot)
+        if not settings.exposed:
+            return [], []
+        resolved = settings.resolved
+        if resolved is None:
+            return [], [
+                "This bot cannot listen to voice messages - nobody has set up a "
+                "transcription provider for it."
             ]
 
         adapter = get_adapter(bot.platform)
@@ -870,21 +1071,93 @@ class ChannelMessageRouter:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
                 continue
-            text = await service.transcribe(
-                Recording(
-                    content=content,
-                    filename=recording.filename,
-                    mime_type=recording.mime_type,
-                ),
+            # Held to the organization's longest dictation before any provider is
+            # paid: 25 MB of low-bitrate audio is hours of it, and the sender's
+            # limit counts messages, not minutes (Codex on #2204). Read off the
+            # file where its container says, else as the platform reported it.
+            seconds = measure_audio_seconds(content) or recording.duration_seconds
+            if settings.max_seconds is not None:
+                # A length nobody can state is refused, not taken as short: on a
+                # public surface it is exactly the file a byte cap does not bound.
+                if seconds is None:
+                    refusals.append(
+                        f"{recording.filename}: its length could not be read, so it "
+                        "was not transcribed."
+                    )
+                    continue
+                if seconds > settings.max_seconds:
+                    refusals.append(
+                        f"{recording.filename}: too long to transcribe (the limit is "
+                        f"{settings.max_seconds} seconds)."
+                    )
+                    continue
+            call = TranscriptionCall(
                 organization_id=bot.organization_id,
-                provider=bot.speech_to_text_provider,
-                model=bot.speech_to_text_model,
+                surface="channel",
+                provider=resolved.provider,
+                model=resolved.model,
+                requested_by_user_id=requested_by,
+                agent_id=settings.agent_id,
+                channel_bot_id=bot.id,
+                secret_id=resolved.secret_id,
             )
-            if text is None:
+            started = time.monotonic()
+            try:
+                result = await service.transcribe(
+                    self._as_sent(recording, content),
+                    organization_id=bot.organization_id,
+                    provider=resolved.provider,
+                    model=resolved.model,
+                    secret_id=resolved.secret_id,
+                    shared_key=resolved.shared_key,
+                    language=resolved.language,
+                )
+            except AppException as exc:
+                await transcription_usage.record(
+                    db,
+                    call,
+                    input_bytes=len(content),
+                    audio_seconds=seconds,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    failure=exc,
+                )
+                # Logged by the service with what actually happened; the sender is
+                # owed the same one line whatever the reason.
                 refusals.append(f"{recording.filename}: could not be transcribed.")
                 continue
-            transcripts.append(text)
+            await transcription_usage.record(
+                db,
+                call,
+                input_bytes=len(content),
+                # The provider's figure, else the one measured above - read off
+                # the file or reported by the platform.
+                audio_seconds=(
+                    result.audio_seconds if result.audio_seconds is not None else seconds
+                ),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            transcripts.append(result.text)
         return transcripts, refusals
+
+    @staticmethod
+    def _as_sent(recording: IncomingAttachment, content: bytes) -> Recording:
+        """The recording as the provider is sent it: `voice.<ext>` for its type.
+
+        OpenAI and Groq choose the decoder from the file name, and a platform's
+        name is whatever somebody called the file - `audio` with no extension
+        for a Telegram upload, `.opus` for an Ogg voice note, `.mp4` for a Slack
+        clip. Renamed from the type through the table dictation uses
+        (`transcription.RECORDING_EXTENSIONS`). A type that table does not know
+        keeps its own name and type: it is still audio, and the provider is the
+        one that knows whether it can read it.
+        """
+        mime_type = recording_type(recording.mime_type)
+        extension = RECORDING_EXTENSIONS.get(mime_type)
+        if extension is None:
+            return Recording(
+                content=content, filename=recording.filename, mime_type=recording.mime_type
+            )
+        return Recording(content=content, filename=f"voice.{extension}", mime_type=mime_type)
 
     @staticmethod
     def _with_transcripts(text: str, transcripts: list[str]) -> str:
@@ -1173,14 +1446,23 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/help":
-            return (
-                "Available commands:\n"
-                "/start - Show welcome message\n"
-                "/new - Start a new conversation\n"
-                "/help - Show this help\n"
-                "/link - Connect your chat account to your account here\n"
-                "/unlink - Unlink your account"
+            return "Available commands:\n" + "\n".join(
+                f"/{name} - {what}" for name, what in CHANNEL_COMMANDS
             )
+
+        if cmd == "/agents":
+            # A bot serves exactly one agent, so "which agents are here" is "who am
+            # I" - asked the way a chat asks it (#2068).
+            binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+            agent = (
+                await agent_repo.get(db, binding.agent_id, organization_id=bot.organization_id)
+                if binding is not None
+                else None
+            )
+            if agent is None:
+                return "No agent answers on this bot yet - ask an administrator to add one."
+            about = f": {agent.description}" if agent.description else "."
+            return f"I am {agent.name}{about}\nAsk me anything, or send /new to start over."
 
         if cmd == "/new":
             admitted, issuer = await _admission()
@@ -1359,6 +1641,75 @@ class ChannelMessageRouter:
             await adapter.update_reply(token, self._message(bot, incoming, text), handle)
 
         return LiveReply(push), handle
+
+    async def _open_streamed(
+        self, bot: ChannelBot, incoming: IncomingMessage
+    ) -> StreamedReply | None:
+        """An answer the platform renders natively as it streams, where it can (#2084)."""
+        native = await get_adapter(incoming.platform).open_answer(
+            unseal_bot_token(bot),
+            incoming,
+            steps="plan" if bot.step_display == "plan" else "timeline",
+        )
+        return None if native is None else StreamedReply(native)
+
+    async def _finish_streamed(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        streamed: StreamedReply,
+        text: str,
+        rated: str | None,
+        *,
+        failed: bool = False,
+    ) -> bool:
+        """End a streamed answer with `text`; `False` when it has to be posted instead.
+
+        What was streamed stays when `text` continues it. When it does not - a
+        guardrail rewrote the answer, or this is a refusal - the message is
+        rewritten whole, so nobody is left reading the text that was taken back.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        try:
+            if not await streamed.finish(text, failed=failed, feedback_run_id=rated):
+                await adapter.update_reply(
+                    token, self._message(bot, incoming, text), streamed.handle
+                )
+        except Exception:
+            logger.warning("Could not finish a streamed answer; posting it whole", exc_info=True)
+            return False
+        return True
+
+    async def _offer_feedback(
+        self, bot: ChannelBot, incoming: IncomingMessage, text: str, handle: str, run_id: str
+    ) -> None:
+        """Thumbs under an edited answer; a platform refusing them costs nothing else."""
+        try:
+            await get_adapter(incoming.platform).offer_feedback(
+                unseal_bot_token(bot),
+                self._message(bot, incoming, text),
+                handle,
+                run_id,
+                bot_id=str(bot.id),
+            )
+        except Exception:
+            logger.warning("Could not offer feedback on an answer", exc_info=True)
+
+    async def _acknowledge(self, bot: ChannelBot, incoming: IncomingMessage) -> None:
+        """React to the question with the bot's emoji, when it has one (#2084).
+
+        Never fatal: an emoji the workspace does not have, or a missing scope,
+        costs the reaction and nothing else.
+        """
+        if not bot.ack_reaction:
+            return
+        try:
+            await get_adapter(incoming.platform).acknowledge_message(
+                unseal_bot_token(bot), incoming, bot.ack_reaction
+            )
+        except Exception:
+            logger.warning("Could not react to a message on %s", incoming.platform, exc_info=True)
 
     async def _refuse_if_named(
         self, bot: ChannelBot, incoming: IncomingMessage, message: str

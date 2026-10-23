@@ -8,12 +8,12 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import {
   useModelProviders,
@@ -84,7 +85,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
-  const { models: suggestions } = useProviderModels(providerId);
+  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
@@ -147,7 +148,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               </span>
             )}
           </span>
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider uppercase">
+          <span className="text-muted-foreground shrink-0 font-mono text-xs tracking-wider uppercase">
             {value === null ? t("agentModel") : t("thisChat")}
           </span>
         </p>
@@ -198,30 +199,21 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
           <div className="space-y-1.5">
             <Label htmlFor="chat-model-id">{t("model")}</Label>
-            {/* A list where the provider publishes one, and a plain field where it
-                does not - the same control either way, because the list is never
-                authoritative. */}
-            <Input
+            {/* The Builder's own picker: the provider's catalog, searchable, and
+                still able to carry an id that is not in it. */}
+            <ModelCombobox
               id="chat-model-id"
-              list={suggestions.length > 0 ? "chat-model-suggestions" : undefined}
               value={model}
-              onChange={(event) => {
-                setModel(event.target.value);
+              onChange={(next) => {
+                setModel(next);
                 setFailure(null);
               }}
+              options={suggestions}
+              source={source}
+              loading={loadingModels}
               disabled={provider === undefined}
               placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
-              className="font-mono"
             />
-            {suggestions.length > 0 && (
-              <datalist id="chat-model-suggestions">
-                {suggestions.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </datalist>
-            )}
             {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
           </div>
 
@@ -229,14 +221,21 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-          {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
-            <InlineSecret
-              kind="api_key"
-              purpose={provider.id}
-              suggestedName={provider.label}
-              onCreated={() => setFailure(null)}
-            />
-          )}
+          {provider !== undefined &&
+            !secrets.some((secret) => secret.purpose === provider.id) &&
+            (provider.kind === "openai_codex" ? (
+              <InlineChatGPTSignIn
+                suggestedName={provider.label}
+                onCreated={() => setFailure(null)}
+              />
+            ) : (
+              <InlineSecret
+                kind="api_key"
+                purpose={provider.id}
+                suggestedName={provider.label}
+                onCreated={() => setFailure(null)}
+              />
+            ))}
 
           <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
             {t("runModel")}

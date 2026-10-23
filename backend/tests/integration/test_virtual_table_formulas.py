@@ -1,7 +1,5 @@
 """Formula columns against a real database: worked out on read, kept in step with renames."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

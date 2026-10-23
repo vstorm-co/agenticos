@@ -81,9 +81,10 @@ describe("New-schedule template picker", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       prompt: "Summarise what happened overnight.",
-      name: null,
+      name: "Daily standup",
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "interval",
       interval_seconds: 86400,
     });
@@ -94,18 +95,64 @@ describe("New-schedule template picker", () => {
     vi.mocked(apiClient.post).mockResolvedValue({});
     const dialog = await open();
 
-    await user.click(await dialog.findByRole("button", { name: /Weekly report/ }));
+    // A second pick replaces the name the first one wrote.
+    await user.click(await dialog.findByRole("button", { name: /Daily standup/ }));
+    await user.click(dialog.getByRole("button", { name: /Weekly report/ }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       prompt: "Write this week's report.",
-      name: null,
+      name: "Weekly report",
       trigger_type: "schedule",
       environment_id: null,
+      overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1",
     });
+  });
+
+  it("opens already filled in from an idea picked before it", async () => {
+    // The Routines page's ideas open the form with one chosen: the first frame
+    // shows it, rather than a blank form somebody has to pick it in again.
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    render(
+      <TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} initialTemplate={WEEKLY} />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents/a1/triggers",
+      expect.objectContaining({
+        prompt: "Write this week's report.",
+        schedule_kind: "cron",
+        cron_expression: "0 9 * * 1",
+      }),
+    );
+  });
+
+  it("keeps a name somebody typed when a template is picked after it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
+    const dialog = within(await screen.findByRole("dialog"));
+
+    await user.type(dialog.getByLabelText("Name"), "Board update");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(await dialog.findByRole("button", { name: /Weekly report/ }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents/a1/triggers",
+      expect.objectContaining({ name: "Board update" }),
+    );
   });
 
   it("clears the prefill when starting from scratch", async () => {
@@ -123,6 +170,9 @@ describe("New-schedule template picker", () => {
       "aria-pressed",
       "true",
     );
+    // The name the template wrote goes with it.
+    await user.click(dialog.getByRole("button", { name: "Back" }));
+    expect(dialog.getByLabelText<HTMLInputElement>("Name").value).toBe("");
   });
 
   it("draws a mark on every card, so the grid is scannable", async () => {

@@ -8,8 +8,6 @@ when the owner changes or leaves, and `share_artifact`'s request being filed, me
 never applied.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

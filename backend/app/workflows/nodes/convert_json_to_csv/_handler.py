@@ -6,8 +6,6 @@ fails with `NOT_TABULAR`, never a guessed flattening nobody asked for. The
 header is every key, in the order it first appears.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any
 

@@ -1,7 +1,5 @@
 """Table triggers, their revisions and admissions, and the outbox they consume (#1785)."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any
 from uuid import UUID

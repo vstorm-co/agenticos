@@ -152,7 +152,7 @@ export function SlashCommandsManager() {
                       /{cmd.name}
                     </code>
                     {cmd.action.kind === "client" && (
-                      <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+                      <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                         {t("local")}
                       </span>
                     )}

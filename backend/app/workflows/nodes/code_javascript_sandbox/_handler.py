@@ -7,8 +7,6 @@ values as `args`, input files from the `inputs` folder, writes files to
 `outputs`, may `await`, and what it `return`s is the step's `result`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

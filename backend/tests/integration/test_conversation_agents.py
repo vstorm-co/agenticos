@@ -19,8 +19,6 @@ recovers an old conversation's agents would list every delegate the orchestrator
 called as a participant the user never chose.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -208,15 +206,19 @@ class TestWhoAnsweredHere:
 
         assert await _agents_of(db, conversation) == ["Analyst", "Writer"]
 
-    async def test_an_agent_whose_run_never_finished_did_not_answer(self, db) -> None:
-        """This list is read as "who answered here". A cancelled run did not."""
+    @pytest.mark.parametrize("status", ["failed", "cancelled", "running"])
+    async def test_an_agent_that_broke_or_is_still_answering_is_still_who_was_asked(
+        self, db, status: str
+    ) -> None:
+        """The list is read as "who is this thread with". A thread whose agent failed
+        on its first turn is still with that agent, and showed no face at all."""
         organization = await _org(db)
         owner = await _user(db)
         agent = await _agent(db, organization, owner, "Analyst")
         conversation = await _conversation(db, organization, owner)
-        await _run(db, conversation, agent, at=_START, status="cancelled")
+        await _run(db, conversation, agent, at=_START, status=status)
 
-        assert await _agents_of(db, conversation) == []
+        assert await _agents_of(db, conversation) == ["Analyst"]
 
     async def test_an_agent_the_orchestrator_delegated_to_is_not_a_participant(self, db) -> None:
         """A delegate answered the parent agent, not the conversation.

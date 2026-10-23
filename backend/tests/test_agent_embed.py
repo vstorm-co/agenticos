@@ -18,14 +18,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
 import pytest
+from pydantic import TypeAdapter, ValidationError
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, RateLimitError
 from app.core.vault import VaultScope, rewrap, seal_fields
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo
-from app.schemas.agent_embed import EmbedUpdate, EmbedVariable
-from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
+from app.schemas.agent_embed import (
+    EmbedConfig,
+    EmbedCreate,
+    EmbedUpdate,
+    EmbedVariable,
+    WidgetConfig,
+)
+from app.services.agent_embed import Admission, AgentEmbedService, EmbedDenied, _origin_of
 from app.services.embed_session import (
     HISTORY_MESSAGES,
     EmbedSession,
@@ -33,6 +40,10 @@ from app.services.embed_session import (
     _buckets,
     continuity_key,
 )
+from app.services.ml.facade import ServerDictation
+from app.services.rate_limit import Decision
+
+_CONFIG: TypeAdapter[EmbedConfig] = TypeAdapter(EmbedConfig)
 
 # One fixed instant, so a replayed turn's time is assertable.
 _AT = datetime(2026, 8, 12, 17, 46, tzinfo=UTC)
@@ -102,7 +113,9 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
         ),
         patch(
             "app.services.embed_session.conversation_repo.get_conversation_by_id",
-            new=AsyncMock(return_value=MagicMock(summary_messages=None, summary_ordinal=None)),
+            new=AsyncMock(
+                return_value=MagicMock(summary_messages=None, summary_ordinal=None, project_id=None)
+            ),
         ),
         patch(
             "app.services.access.member_repo.get_active",
@@ -467,7 +480,14 @@ class TestTheWidgetRemembersWhatWasSaid:
 
     @staticmethod
     def _message(role: str, content: str) -> MagicMock:
-        return MagicMock(role=role, content=content)
+        # The fields a stored turn always has: nobody named, nothing replied to.
+        return MagicMock(
+            role=role,
+            content=content,
+            attachment_context=None,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
 
     @pytest.mark.anyio
     async def test_the_previous_turns_reach_the_model(self):
@@ -1112,7 +1132,8 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "title": "",
             "welcome": "",
             "accent": "#4f46e5",
-            "allow_voice": False,
+            "dictation": "off",
+            "voice_conversation": False,
             "allow_new_conversation": True,
             "allow_files": False,
             "show_thinking": False,
@@ -1487,3 +1508,487 @@ class TestAPagesOwnPicture:
 
         assert config.logo_url is not None
         assert config.logo_url.endswith(f"/api/v1/embed/{embed.public_key}/logo")
+
+
+def _published_agent(**overrides) -> MagicMock:
+    agent = MagicMock()
+    agent.id = uuid.uuid4()
+    agent.name = "Support"
+    agent.current_version_id = uuid.uuid4()
+    agent.status = "published"
+    for key, value in overrides.items():
+        setattr(agent, key, value)
+    return agent
+
+
+def _server(available: bool = True, fmt: str = "wav") -> ServerDictation:
+    return ServerDictation(
+        available=available,
+        unavailable=None if available else "no_key",
+        provider="openai",
+        format=fmt,
+    )
+
+
+class TestAStoredAllowVoiceIsReadAsDictation:
+    """`allow_voice` is withdrawn, and a page stored with it must not lose its
+    microphone silently - the schema ignores unknown keys, so nothing would fail."""
+
+    @pytest.mark.parametrize(
+        ("stored", "dictation"),
+        [
+            ({"kind": "page", "title": "Help", "allow_voice": True}, "browser"),
+            ({"kind": "page", "title": "Help", "allow_voice": False}, "off"),
+            ({"kind": "page", "title": "Help"}, "off"),
+            ({"kind": "page", "allow_voice": True, "dictation": "server"}, "server"),
+        ],
+        ids=["true", "false", "missing", "already-migrated"],
+    )
+    def test_verbatim_old_configs_keep_their_microphone(self, stored, dictation):
+        config = _CONFIG.validate_python(stored)
+
+        assert config.dictation == dictation
+        assert "allow_voice" not in config.model_dump()
+
+    def test_a_widget_has_no_microphone_until_somebody_chooses_one(self):
+        assert _CONFIG.validate_python({"kind": "widget"}).dictation == "off"
+
+
+class TestServerDictationOnASave:
+    """`server` is refused only when it is being switched on and nothing would
+    answer it - never on a later save of a page that already had it."""
+
+    @pytest.mark.anyio
+    async def test_switching_server_on_without_a_provider_is_refused(self):
+        embed = _embed(kind="page", config={"dictation": "browser"})
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.MLService.server_dictation",
+                new=AsyncMock(return_value=_server(available=False)),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate({"config": {"kind": "page", "dictation": "server"}}),
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "config.dictation"
+
+    @pytest.mark.anyio
+    async def test_a_page_already_on_server_can_still_be_renamed(self):
+        """A credential deleted since must not make the page uneditable; the
+        public config sends it as `off` meanwhile."""
+        embed = _embed(kind="page", config={"dictation": "server"})
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.MLService.server_dictation",
+                new=AsyncMock(return_value=_server(available=False)),
+            ) as checked,
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(
+                f"{MODULE}.agent_embed_repo.update",
+                new=AsyncMock(side_effect=lambda db, **kw: embed),
+            ),
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate(
+                    {"config": {"kind": "page", "title": "New", "dictation": "server"}}
+                ),
+            )
+
+        checked.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_creating_a_widget_on_server_checks_the_agent_it_publishes(self):
+        agent = _published_agent()
+        service = _service()
+        with (
+            patch.object(service.agents, "get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{MODULE}.MLService.server_dictation",
+                new=AsyncMock(return_value=_server(available=False)),
+            ) as checked,
+            pytest.raises(BadRequestError),
+        ):
+            await service.create(
+                MagicMock(organization_id=uuid.uuid4()),
+                EmbedCreate.model_validate(
+                    {
+                        "agent_id": str(agent.id),
+                        "name": "Shop",
+                        "config": {"kind": "widget", "dictation": "server"},
+                        "allowed_origins": ["https://shop.example"],
+                    }
+                ),
+            )
+
+        assert checked.await_args.args[0] is agent
+
+    @pytest.mark.anyio
+    async def test_browser_dictation_needs_no_provider(self):
+        service = _service()
+        with patch(f"{MODULE}.MLService.server_dictation", new=AsyncMock()) as checked:
+            await service._check_dictation(
+                _published_agent(),
+                before=None,
+                after=_CONFIG.validate_python({"kind": "page", "dictation": "browser"}),
+            )
+
+        checked.assert_not_awaited()
+
+
+class TestWhatAVisitorIsToldAboutTheMicrophone:
+    @pytest.mark.anyio
+    async def test_a_ready_server_page_says_so_with_the_limit_and_format(self):
+        embed = _embed(kind="page", config={"dictation": "server", "logo": "none"})
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(dictation_max_seconds=90)),
+            ),
+            patch(
+                f"{MODULE}.MLService.server_dictation",
+                new=AsyncMock(return_value=_server(fmt="webm")),
+            ),
+        ):
+            config = await _service().page_config(embed)
+
+        # The format is `server_dictation`'s to decide, deployment setting and all.
+        assert (config.dictation, config.dictation_max_seconds, config.dictation_format) == (
+            "server",
+            90,
+            "webm",
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("agent", "available"),
+        [
+            (_published_agent(), False),
+            (_published_agent(current_version_id=None), True),
+            (_published_agent(status="archived"), True),
+            (None, True),
+        ],
+        ids=["no-provider", "unpublished", "archived", "agent-gone"],
+    )
+    async def test_server_that_would_be_refused_is_sent_as_off(self, agent, available):
+        """A visitor gets no microphone rather than a broken one, and nothing
+        about the operator's setup."""
+        embed = _embed(kind="widget", config={"dictation": "server"})
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{MODULE}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(dictation_max_seconds=90)),
+            ),
+            patch(
+                f"{MODULE}.MLService.server_dictation",
+                new=AsyncMock(return_value=_server(available=available)),
+            ),
+        ):
+            config = await _service().public_config(embed)
+
+        assert (config.dictation, config.dictation_format) == ("off", "wav")
+
+    @pytest.mark.anyio
+    async def test_browser_is_sent_without_reading_the_organization(self):
+        embed = _embed(kind="widget", config={"dictation": "browser"})
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_published_agent())),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock()) as organization,
+        ):
+            config = await _service().public_config(embed)
+
+        assert config.dictation == "browser"
+        # Nothing assumes WebM: the format nobody records in is still PCM's.
+        assert config.dictation_format == "wav"
+        organization.assert_not_awaited()
+
+
+class TestAdmittingARecording:
+    @pytest.mark.anyio
+    async def test_a_widget_is_admitted_by_its_allow_list(self):
+        with patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=_embed())):
+            admission = await _service().admit_dictation(
+                "key-123", origin="https://acme.test", token=None, visitor_key=None
+            )
+
+        assert admission.visitor is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_widget_from_another_site_is_refused(self):
+        with (
+            patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=_embed())),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit_dictation(
+                "key-123", origin="https://evil.test", token=None, visitor_key=None
+            )
+
+    @pytest.mark.anyio
+    async def test_a_page_needs_a_visitor_key_and_no_origin(self):
+        page = _embed(kind="page")
+        with patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=page)):
+            admitted = await _service().admit_dictation(
+                "key-123", origin=None, token=None, visitor_key="a" * 32
+            )
+            with pytest.raises(BadRequestError):
+                await _service().admit_dictation(
+                    "key-123", origin=None, token=None, visitor_key=None
+                )
+
+        assert admitted.embed is page
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "embed",
+        [_embed(kind="socket"), _embed(is_active=False), None],
+        ids=["socket", "paused", "unknown"],
+    )
+    async def test_everything_else_is_one_refusal(self, embed):
+        with (
+            patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=embed)),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit_dictation(
+                "key-123", origin="https://acme.test", token=None, visitor_key="a" * 32
+            )
+
+
+class TestAVisitorsDictation:
+    @staticmethod
+    def _admission(kind: str = "page", dictation: str = "server", visitor: str | None = None):
+        return Admission(embed=_embed(kind=kind, config={"dictation": dictation}), visitor=visitor)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["page", "widget"])
+    async def test_it_is_the_agents_and_the_surfaces_and_nobody_elses(self, kind):
+        """No requester - a visitor is not a member, and the publisher did not make
+        the call - and the organization is the embed's, never one a request names."""
+        admission = self._admission(kind=kind)
+        agent = _published_agent()
+        organization = MagicMock()
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ) as read,
+            patch(
+                f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock(return_value="hi")
+            ) as transcribe,
+        ):
+            text = await _service().dictate(
+                admission, content=b"a", mime_type="audio/webm", reported_seconds=2.0
+            )
+
+        assert text == "hi"
+        assert read.await_args.args[1] == admission.embed.organization_id
+        call = transcribe.await_args.args[0]
+        assert call.organization_id == admission.embed.organization_id
+        assert call.surface == ("hosted" if kind == "page" else "widget")
+        assert (call.agent_id, call.requested_by_user_id) == (agent.id, None)
+        sent = transcribe.await_args.kwargs
+        assert (sent["organization"], sent["agent"]) == (organization, agent)
+        assert sent["reported_seconds"] == 2.0
+        # A stranger's recording of unknown length is never sent to be paid for.
+        assert sent["accept_unmeasured"] is False
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("dictation", ["off", "browser"])
+    async def test_an_embed_not_on_server_takes_no_recording(self, dictation):
+        """Its own setting is the gate - the organization's `/chat` engine has no
+        say here, in either direction."""
+        with (
+            patch(f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock()) as transcribe,
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().dictate(
+                self._admission(dictation=dictation),
+                content=b"a",
+                mime_type="audio/webm",
+                reported_seconds=None,
+            )
+
+        transcribe.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_nothing_published_means_nothing_is_paid_for(self):
+        with (
+            patch(
+                f"{MODULE}.agent_repo.get",
+                new=AsyncMock(return_value=_published_agent(current_version_id=None)),
+            ),
+            patch(f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock()) as transcribe,
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().dictate(
+                self._admission(), content=b"a", mime_type="audio/webm", reported_seconds=None
+            )
+
+        transcribe.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_signed_in_visitor_has_an_allowance_of_their_own(self):
+        """Counted by the token's subject, so one visitor cannot spend the link's."""
+        admission = self._admission(kind="widget", visitor="customer-42")
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.rate_limit.embed_dictation_visitor_allowed",
+                new=AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=60)),
+            ) as counted,
+            patch(f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock()) as transcribe,
+            pytest.raises(RateLimitError) as refused,
+        ):
+            await _service().dictate(
+                admission, content=b"a", mime_type="audio/webm", reported_seconds=None
+            )
+
+        assert counted.await_args.kwargs["visitor"] == "customer-42"
+        assert refused.value.details == {"retry_after_seconds": 60}
+        transcribe.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_links_minute_is_spent_only_once_the_visitor_is_admitted(self):
+        """Codex on #2204: spent before the token was checked, anybody holding the
+        public key could exhaust it for every signed-in visitor."""
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_published_agent())),
+            patch(
+                f"{MODULE}.rate_limit.embed_dictation_link_allowed",
+                new=AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=30)),
+            ) as link,
+            patch(f"{MODULE}.MLService.transcribe_dictation", new=AsyncMock()) as transcribe,
+            pytest.raises(RateLimitError) as refused,
+        ):
+            await _service().dictate(
+                self._admission(), content=b"a", mime_type="audio/webm", reported_seconds=None
+            )
+
+        assert link.await_args.kwargs["public_key"] == self._admission().embed.public_key
+        assert refused.value.details == {"retry_after_seconds": 30}
+        transcribe.assert_not_awaited()
+
+
+def _faced_agent(*, avatar_url: str | None = None, slot: int | None = 4) -> MagicMock:
+    agent = _agent(avatar_url)
+    agent.slug = "clerk"
+    agent.avatar_color = slot
+    return agent
+
+
+def _storage(*, exists: bool) -> MagicMock:
+    storage = MagicMock()
+    storage.exists = AsyncMock(return_value=exists)
+    return storage
+
+
+class TestTheWidgetsFace:
+    """The widget wears the agent's face, as the console does (#2006)."""
+
+    @pytest.mark.anyio
+    async def test_a_drawn_face_comes_from_the_console_with_a_thinking_twin(self, monkeypatch):
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://console.example/api/public/face?seed=clerk&slot=4"
+        assert config.avatar_thinking_url == f"{config.avatar_url}&thinking=1"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_colour_lets_its_handle_pick_one(self, monkeypatch):
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent(slot=None))):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://console.example/api/public/face?seed=clerk"
+
+    @pytest.mark.anyio
+    async def test_an_uploaded_picture_is_served_by_the_widget_and_has_no_twin(self, monkeypatch):
+        monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example")
+        agent = _faced_agent(avatar_url="0f9c/clerk.png")
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=True)),
+        ):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://api.example/api/v1/embed/key-123/avatar"
+        assert config.avatar_thinking_url is None
+
+    @pytest.mark.anyio
+    async def test_a_picture_whose_file_is_gone_falls_back_to_the_drawn_face(self):
+        """A browser cannot tell a 404 from a slow image; it draws a broken glyph."""
+        agent = _faced_agent(avatar_url="0f9c/gone.png")
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=False)),
+        ):
+            config = await _service().public_config(_embed())
+
+        assert "/api/public/face?seed=clerk" in config.avatar_url
+
+    @pytest.mark.anyio
+    async def test_an_agent_that_is_gone_still_has_a_face(self):
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)):
+            config = await _service().public_config(_embed())
+
+        assert "seed=key-123" in config.avatar_url
+
+    @pytest.mark.anyio
+    async def test_the_quick_replies_reach_the_widget(self):
+        embed = _embed(config={"quick_replies": ["Opening hours?", "Refunds?"]})
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            config = await _service().public_config(embed)
+
+        assert config.quick_replies == ["Opening hours?", "Refunds?"]
+
+    def test_quick_replies_are_few_and_short(self):
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=["a", "b", "c", "d", "e"])
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=["x" * 61])
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=[""])
+
+
+class TestTheWidgetsPicture:
+    """The uploaded picture, served without a session for a widget and nothing wider."""
+
+    @pytest.mark.anyio
+    async def test_an_active_widget_hands_out_its_agents_picture(self):
+        service = _service()
+        service.find_public = AsyncMock(return_value=_embed(is_active=True))
+        with (
+            patch(
+                f"{MODULE}.agent_repo.get",
+                new=AsyncMock(return_value=_faced_agent(avatar_url="0f9c/clerk.png")),
+            ),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=True)),
+        ):
+            assert await service.widget_avatar_path("key-123") == "0f9c/clerk.png"
+
+    @pytest.mark.anyio
+    async def test_nothing_for_another_kind_a_paused_widget_or_no_picture(self):
+        service = _service()
+        service.find_public = AsyncMock(return_value=None)
+        assert await service.widget_avatar_path("key-123") is None
+
+        service.find_public = AsyncMock(return_value=_embed(is_active=False))
+        assert await service.widget_avatar_path("key-123") is None
+
+        service.find_public = AsyncMock(return_value=_embed(is_active=True))
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            assert await service.widget_avatar_path("key-123") is None

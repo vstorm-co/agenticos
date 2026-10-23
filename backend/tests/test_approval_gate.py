@@ -9,8 +9,6 @@ The last test is the one that would have caught the bug this exists to fix: a
 parked run that never continues. It drives a real agent through park and resume.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import uuid
@@ -55,6 +53,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
+from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -280,6 +279,98 @@ class TestGate:
             )
 
         assert tool.calls == []
+
+
+class TestMcpToolsMarkedByTheirBinding:
+    """#2060: an MCP tool carries its binding's verdict, and the gate honours it."""
+
+    @staticmethod
+    def _mcp(
+        marked: bool, capability_id: str | None = None, account: str | None = None
+    ) -> ToolDefinition:
+        named = {} if account is None else {ACCOUNT: account}
+        return ToolDefinition(
+            name="notion_create_page",
+            parameters_json_schema={"type": "object", "properties": {}},
+            capability_id=capability_id,
+            metadata={NEEDS_APPROVAL: marked, "annotations": None, **named},
+        )
+
+    @pytest.mark.anyio
+    async def test_a_marked_mcp_tool_waits_for_a_person(self):
+        tool = _Recorder()
+        ask = _ctx(ApprovalGranted(tool_args={"title": "approved"}))
+
+        result = await ApprovalGate().wrap_tool_execute(
+            ask,
+            call=_call({"title": "proposed"}),
+            tool_def=self._mcp(marked=True),
+            args={"title": "proposed"},
+            handler=tool,
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].capability_id is None
+        assert tool.calls == [{"title": "approved"}]
+        assert result == "sent"
+
+    @pytest.mark.anyio
+    async def test_an_unmarked_mcp_tool_runs(self):
+        tool = _Recorder()
+
+        await ApprovalGate().wrap_tool_execute(
+            _ctx(None),
+            call=_call({}),
+            tool_def=self._mcp(marked=False),
+            args={},
+            handler=tool,
+        )
+
+        assert tool.calls == [{}]
+
+    @pytest.mark.anyio
+    async def test_a_capability_tool_cannot_be_marked_into_or_out_of_the_gate(self):
+        """The mark is read only off a tool no capability owns."""
+        tool = _Recorder()
+
+        await ApprovalGate().wrap_tool_execute(
+            _ctx(None),
+            call=_call({}),
+            tool_def=self._mcp(marked=True, capability_id="email"),
+            args={},
+            handler=tool,
+        )
+
+        assert tool.calls == [{}]
+
+    @pytest.mark.anyio
+    async def test_the_request_names_the_account_the_binding_acts_as(self):
+        ask = _ctx(ApprovalGranted(tool_args={}))
+
+        await ApprovalGate().wrap_tool_execute(
+            ask,
+            call=_call({}),
+            tool_def=self._mcp(marked=True, account="Work"),
+            args={},
+            handler=_Recorder(),
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].account == "Work"
+
+    @pytest.mark.anyio
+    async def test_a_capability_tool_cannot_name_an_account(self):
+        """Gated by the spec, a capability's tool still says nothing about an account
+        its metadata claims: only an MCP binding stamps one."""
+        ask = _ctx(ApprovalGranted(tool_args={}))
+
+        await ApprovalGate(required_tool_names=frozenset({"notion_create_page"})).wrap_tool_execute(
+            ask,
+            call=_call({}),
+            tool_def=self._mcp(marked=True, capability_id="email", account="Work"),
+            args={},
+            handler=_Recorder(),
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].account is None
 
 
 class TestAskingAboutEverything:
@@ -613,6 +704,8 @@ class TestApprovalQueue:
             "capability_tool_id": None,
             # Nothing described it: the arguments alone are what the approver reads.
             "context": None,
+            # A capability's tool is nobody's account: only an MCP binding names one.
+            "account": None,
             # Nobody delegated: the agent whose run this is asked directly. Pinned
             # rather than left out of the comparison, because "null" is what tells
             # a reviewer the run's own agent is acting - and the caller that does

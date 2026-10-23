@@ -12,6 +12,17 @@ export interface ConversationAgent {
   slug: string;
   name: string;
   has_avatar: boolean;
+  /** The colour its face was given; absent from an older backend. */
+  avatar_color?: number | null;
+}
+
+/** A member of the organization, as much as a chat needs to draw them. */
+export interface ChatPerson {
+  user_id: string;
+  /** Their name, or their address where they never set one. */
+  name: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface Conversation {
@@ -19,7 +30,8 @@ export interface Conversation {
   user_id?: string;
   title?: string;
   created_at: string;
-  updated_at: string;
+  /** Null until the conversation is first changed after it was created. */
+  updated_at: string | null;
   is_archived: boolean;
   /**
    * Whether **the caller** has starred it. A property of the reader rather than
@@ -29,6 +41,26 @@ export interface Conversation {
   is_favourite?: boolean;
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
+  /** The project it was started in, whose files and instructions its runs share. */
+  project_id?: string | null;
+  /** `api` for a conversation an organization key's run opened (#2122). */
+  origin?: "api" | null;
+  /** Holds an answer the caller has not seen since they last had it open. Listings only. */
+  unread?: boolean;
+  /** When the run still at work in it began; null when none is. Listings only. */
+  running_since?: string | null;
+}
+
+/** One of a project's chats, with the people around it - a project's chats are its members'. */
+export interface ProjectChat extends Conversation {
+  /** Who started it; null when that account is gone. */
+  owner: ChatPerson | null;
+  /** Everyone who has had it open, most recently first. */
+  seen_by: (ChatPerson & { read_at: string })[];
+  /** Whose run is at work in it now; null when none is. */
+  working: ChatPerson | null;
+  /** Who has it open right now. */
+  here: ChatPerson[];
 }
 
 export interface ConversationMessage {
@@ -51,6 +83,8 @@ export interface ConversationMessage {
    */
   input_tokens?: number | null;
   output_tokens?: number | null;
+  cache_read_tokens?: number | null;
+  cache_write_tokens?: number | null;
   /** A string, like every other money field the API returns: `Numeric` is serialized
    *  as one so a sum of a thousand turns cannot drift from the budget it is compared
    *  against. */

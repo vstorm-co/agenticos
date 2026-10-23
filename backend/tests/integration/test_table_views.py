@@ -3,8 +3,6 @@
 and the dependency checker that refuses archiving a column a view still uses.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock
 

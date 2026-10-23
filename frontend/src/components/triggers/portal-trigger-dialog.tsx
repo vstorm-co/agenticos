@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Cog, MessageSquare, Zap } from "lucide-react";
+import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -222,9 +222,9 @@ export function PortalTriggerDialog({
           <DialogDescription>{tt("createDescription")}</DialogDescription>
           <WizardSteps
             steps={[
-              { id: "preset", label: t("presetTab"), icon: Zap },
-              { id: "configure", label: t("configureTab"), icon: Cog },
-              { id: "message", label: tt("stepMessage"), icon: MessageSquare },
+              { id: "preset", label: t("presetTab") },
+              { id: "configure", label: t("configureTab") },
+              { id: "message", label: tt("stepMessage") },
             ]}
             current={step}
           />

@@ -1,7 +1,5 @@
 """A workflow exported as a file and imported from one, against a real Postgres (#1953)."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

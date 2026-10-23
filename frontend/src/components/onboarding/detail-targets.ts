@@ -13,6 +13,7 @@ import {
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
+  GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
   ORG_ROLES,
@@ -20,10 +21,12 @@ import {
   TABLE_DETAIL,
   WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
+  PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { AgentList } from "@/types/agents";
+import type { GroupList } from "@/types/groups";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
 
@@ -48,6 +51,7 @@ function orgIdFromPath(path: string): string | null {
 export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
   AGENT_BUILDER,
   KB_DETAIL,
+  GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
   ORG_ROLES,
@@ -89,7 +93,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     enabled,
   });
   const agentId =
-    agents.data?.items.find((agent) => agent.slug === "getting-started")?.id ??
+    agents.data?.items.find((agent) => agent.slug === "claude-code-like")?.id ??
     agents.data?.items[0]?.id ??
     null;
 
@@ -124,6 +128,15 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     null;
   const orgPending = enabled && !routeOrgId && !activeOrgId && orgs.isPending;
 
+  // The department page opens on the organization's first group, read under the
+  // key `useGroups` caches the whole list under.
+  const groups = useQuery({
+    queryKey: qk.organizations.groups(activeOrgId ?? ""),
+    queryFn: () => apiClient.get<GroupList>(`/orgs/${activeOrgId}/groups`),
+    enabled: enabled && !!activeOrgId,
+  });
+  const groupId = groups.data?.items[0]?.id ?? null;
+
   return useMemo(
     () => ({
       [AGENT_BUILDER]: {
@@ -154,11 +167,15 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: orgPending,
         href: orgId ? ROUTES.ORG_DIRECTORY(orgId) : null,
       },
-      // Five "?"-only sections with nothing to fetch. Settings resolves to its own
+      [GROUP_DETAIL]: {
+        pending: enabled && !!activeOrgId && groups.isPending,
+        href: groupId ? ROUTES.GROUP_DETAIL(groupId) : null,
+      },
+      // Six "?"-only sections with nothing to fetch. Settings resolves to its own
       // first page for the rare navigation into it, but its stop is really shown in
       // place on whichever settings page the reader opened help from. A workspace
       // has no seeded example to open — it is a person's own agent output — and
-      // neither has a table or a workflow, so none resolves an href and none is walked into
+      // neither has a table, a workflow or a project, so none resolves an href and none is walked into
       // from its list - nor an artifact's page, which is the viewer's own page, not a
       // row to open; the entry exists only so the engine treats it as a detail it
       // need not navigate to. Without it the engine reads the pseudo-page as a
@@ -168,7 +185,19 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       [TABLE_DETAIL]: { pending: false, href: null },
       [WORKFLOW_RUNS_DETAIL]: { pending: false, href: null },
       [ARTIFACT_DETAIL]: { pending: false, href: null },
+      [PROJECT_DETAIL]: { pending: false, href: null },
     }),
-    [enabled, agents.isPending, agentId, kbs.isPending, kbId, orgPending, orgId],
+    [
+      enabled,
+      agents.isPending,
+      agentId,
+      kbs.isPending,
+      kbId,
+      orgPending,
+      orgId,
+      activeOrgId,
+      groups.isPending,
+      groupId,
+    ],
   );
 }

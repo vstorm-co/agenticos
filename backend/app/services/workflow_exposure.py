@@ -14,8 +14,6 @@ Firing ends in the one admission path every surface shares
 (`WorkflowExecutionService.admit_pinned`), on the version the exposure pinned.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import secrets
@@ -28,7 +26,6 @@ import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.background import start_deferred
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -645,7 +642,7 @@ class WorkflowExposureService:
         problems = input_problems(config, submission.values)
         if problems:
             raise WorkflowRunInputInvalidError(problems=problems)
-        run, entry_node_run_id = await self.runs.admit_pinned(
+        run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,
             version,
@@ -657,9 +654,6 @@ class WorkflowExposureService:
             exposure=exposure,
             update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
         )
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return thanks
 
     async def _open_form(
@@ -722,7 +716,7 @@ class WorkflowExposureService:
                 user_id=sender_user_id,
             ),
         )
-        run, entry_node_run_id = await self.runs.admit_pinned(
+        run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,
             version,
@@ -734,9 +728,6 @@ class WorkflowExposureService:
             exposure=exposure,
             update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
         )
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return True
 
     async def receive_polled_email(
@@ -811,7 +802,6 @@ class WorkflowExposureService:
                 version,
                 triggered_by=WorkflowRunTrigger.GMAIL,
                 run_input=message.model_dump(mode="json"),
-                submitted=False,
             )
         except WorkflowAdmissionQuotaError:
             return False
@@ -917,7 +907,7 @@ class WorkflowExposureService:
             delivery_id=delivery_id,
             payload=payload,
         )
-        run, entry_node_run_id = await self.runs.admit_pinned(
+        run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,
             version,
@@ -936,9 +926,6 @@ class WorkflowExposureService:
             exposure=exposure,
             update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
         )
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return WebhookAdmitted(run_id=run.id, duplicate=False)
 
     async def receive_webhook(
@@ -1014,7 +1001,7 @@ class WorkflowExposureService:
                 details={"exposure_id": str(exposure_id)},
             )
         ctx, workflow, version = fire
-        run, entry_node_run_id = await self.runs.admit_pinned(
+        run, _entry = await self.runs.admit_pinned(
             ctx,
             workflow,
             version,
@@ -1033,9 +1020,6 @@ class WorkflowExposureService:
             exposure=exposure,
             update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
         )
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
         if answers_webhook(WorkflowGraph.model_validate(version.graph)):
             answer = await self._answer(run.id)
             if answer is not None:
@@ -1072,10 +1056,9 @@ class WorkflowExposureService:
         Commits the request's transaction first - the one route that does: the
         run and its delivery record must be visible to the worker before there
         is anything to wait for, and the request's own commit comes only once
-        the route returns. The dispatch `spawn_after_commit` queued is started
-        here too, since only the session's own closing commit starts it.
-        Nothing is written after, so the `DBSession` commit that follows has
-        nothing left to do.
+        the route returns. The run's first dispatch job commits with it, and
+        `NOTIFY` wakes a worker on that commit. Nothing is written after, so the
+        `DBSession` commit that follows has nothing left to do.
 
         Returns None when the time runs out, or when the run succeeded without
         answering - the sender then gets the `202` any delivery gets.
@@ -1084,7 +1067,6 @@ class WorkflowExposureService:
             WorkflowWebhookUnansweredError: The run ended badly before answering.
         """
         await self.db.commit()
-        start_deferred(self.db)
         with anyio.move_on_after(settings.WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS):
             while True:
                 status, answer = await workflow_run_repo.get_run_answer(self.db, run_id)
@@ -1098,7 +1080,7 @@ class WorkflowExposureService:
         return None
 
     async def fire_due(self, *, now: datetime, limit: int = 100) -> list[tuple[UUID, UUID]]:
-        """Fire every schedule due by `now`, and return what to dispatch.
+        """Fire every schedule due by `now`, and return what it admitted.
 
         Each claimed schedule's clock advances in this transaction whatever
         happens next, so a tick is spent once: a schedule whose last run is still
@@ -1107,8 +1089,8 @@ class WorkflowExposureService:
         next tick. A schedule whose member can no longer run it is switched off
         and audited - retrying against a wall every minute helps nobody.
 
-        Returns `(run_id, entry_node_run_id)` for every admitted run; the caller
-        submits their first dispatch after this transaction commits.
+        Returns `(run_id, entry_node_run_id)` for every admitted run. Each run's
+        first dispatch job is queued in this transaction, with the run.
         """
         admitted: list[tuple[UUID, UUID]] = []
         for exposure in await workflow_exposure_repo.claim_due_schedules(

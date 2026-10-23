@@ -7,8 +7,6 @@ what it was told. That is what lets these tests prove *which version* answered:
 the instructions each version was published with reach the model or they do not.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import patch

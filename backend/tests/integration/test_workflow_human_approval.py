@@ -6,8 +6,6 @@ reconciler, a cancelled run closes its requests, and who may decide is who the
 step names.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Coroutine, Iterator
 from datetime import UTC, datetime, timedelta

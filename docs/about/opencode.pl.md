@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7c5763a7d2"
+source_sha: "c53ca829ee5e"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: dwa narzędzia agentowe open source"
 description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. AgenticOS to platforma Apache-2.0 dla agentów AI firmy, z rolami, budżetami i logami audytu."
@@ -9,7 +9,7 @@ description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. Agen
 
 OpenCode to open-source'owy agent programistyczny na licencji MIT. Działa w terminalu, w aplikacji desktopowej lub w IDE i łączy się z ponad 75 providerami modeli. To dobry wybór dla dewelopera, który chce mieć własnego agenta we własnym repozytorium. AgenticOS też jest open source, ale powstał do innej pracy: wielu agentów, wielu użytkowników, jedno zarządzane wdrożenie.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres OpenCode: dokumentacja na opencode.ai i repozytorium `anomalyco/opencode` w wersji v1.18.32, bez testowanego wdrożenia enterprise.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres OpenCode: dokumentacja na opencode.ai, w tym strony Console dla OpenCode 2 pod `/v2/`, oraz repozytorium `anomalyco/opencode` w wersji v1.19.3 z linii 1.x, bez testowanego wdrożenia enterprise.
 
 ## W skrócie { #at-a-glance }
 
@@ -18,13 +18,12 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Dla kogo | Deweloper, w repozytorium | Organizacja: zespoły biznesowe, użytkownicy końcowi i inżynierowie |
 | Gdzie działa | Maszyna dewelopera; `opencode serve` jako lokalny serwer HTTP | Usługa współdzielona na twojej infrastrukturze |
 | Kod | MIT | Apache-2.0 |
-| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 27 providerów, w tym lokalne |
-| Użytkownicy i dostęp | Jeden użytkownik; zespoły Zen mają role Admin i Member | Organizacje, sześć ról, 27 uprawnień, uprawnienia per zasób |
+| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 28 providerów, w tym lokalne |
+| Użytkownicy i dostęp | Jeden użytkownik; workspace'y w Console mają właścicieli, adminów i członków | Organizacje, sześć ról, 33 uprawnienia, uprawnienia per zasób |
 | Zatwierdzenia | `allow`, `ask` lub `deny` dla każdego narzędzia, z odpowiedzią przy klawiaturze | Osoba z `approvals:decide`, ze wspólnej kolejki |
-| Kontrola wydatków | Miesięczne limity w bramce Zen | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
+| Kontrola wydatków | Miesięczne budżety dla workspace'u w Console i każdego członka | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Audyt | Nieudokumentowany | Odporny na manipulacje dziennik audytu |
-| Udostępnianie | Publiczne linki na `opncd.ai`, dopóki udostępnienie nie zostanie cofnięte | Uprawnienia do zasobów, hostowane strony i artefakty z właścicielem i widocznością |
-| Cennik | Za darmo; opcjonalnie Zen w modelu pay-as-you-go i Go za 10 USD miesięcznie; Enterprise za stanowisko | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
+| Cennik | Za darmo; opcjonalnie kredyty Console w modelu pay-as-you-go, Go za 10 USD albo Go Plus za 40 USD miesięcznie; Enterprise za stanowisko | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -86,5 +85,4 @@ Tak. Capability to typowany Python w repozytorium, a OpenCode może pomóc ją n
 - [Repozytorium](https://github.com/anomalyco/opencode): licencja MIT i wydania.
 - [Providers](https://opencode.ai/docs/providers/): ponad 75 providerów i modele lokalne.
 - [Permissions](https://opencode.ai/docs/permissions/): `allow`, `ask` i `deny`.
-- [Share](https://opencode.ai/docs/share/): publiczne linki udostępniania.
-- [Zen](https://opencode.ai/docs/zen/), [Go](https://opencode.ai/docs/go/) i [Enterprise](https://opencode.ai/docs/enterprise/): płatne opcje i limity.
+- [Console models](https://opencode.ai/v2/docs/console/models/), [Go](https://opencode.ai/v2/docs/console/go/) i [Enterprise](https://opencode.ai/docs/enterprise/): workspace'y, budżety, płatne plany i Enterprise za stanowisko.

@@ -25,8 +25,6 @@ Two directions, both scoped to one dispatch call by `dispatching_as`:
   carries none of them, so they travel beside the return value rather than in it.
 """
 
-from __future__ import annotations
-
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from decimal import Decimal

@@ -5,8 +5,6 @@ real Postgres; what is left here is what a graph can only reach by bypassing
 validation.
 """
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock
 
 import pytest

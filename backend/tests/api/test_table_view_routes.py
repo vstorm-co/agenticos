@@ -6,8 +6,6 @@ client builds on, the same split `test_virtual_table_routes.py` documents for
 its own routes.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

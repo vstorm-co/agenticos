@@ -18,8 +18,6 @@ actually builds, and the names `KnowledgeBaseService` derives when a caller
 supplies none.
 """
 
-from __future__ import annotations
-
 import pytest
 
 import app.db.models  # noqa: F401  - registers every table on the metadata

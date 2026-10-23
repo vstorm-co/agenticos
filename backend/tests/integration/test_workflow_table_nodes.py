@@ -8,8 +8,6 @@ columns fail typed, and a table a live workflow uses cannot be archived out from
 under it.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import replace
 from itertools import pairwise

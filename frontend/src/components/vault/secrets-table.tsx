@@ -1,22 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Lock, RotateCw, Trash2, Users } from "lucide-react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import {
-  Badge,
-  Button,
-  DataTable,
-  EntityAvatar,
-  ListCardControlsRow,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  type Column,
-} from "@/components/ui";
+import { Badge, Button, DataTable, EntityAvatar, type Column } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -37,11 +26,6 @@ function purposeLabel(
 ): string {
   if (!purpose || purpose === "custom") return t("customService");
   return purposes.find((entry) => entry.id === purpose)?.label ?? purpose;
-}
-
-/** The stored purpose as one filterable id, `custom` for a missing one. */
-function purposeId(secret: Secret): string {
-  return secret.purpose && secret.purpose !== "custom" ? secret.purpose : "custom";
 }
 
 /**
@@ -82,40 +66,27 @@ export function SecretsTable({
   const t = useTranslations("vault");
   const tc = useTranslations("common");
 
-  // The service narrowing, in the controls strip like every list's filters -
-  // never a second header row under the columns (the rejected pattern).
-  const [purpose, setPurpose] = useState("all");
-  const rows = useMemo(
-    () =>
-      purpose === "all" ? [...secrets] : secrets.filter((secret) => purposeId(secret) === purpose),
-    [secrets, purpose],
-  );
-
-  const purposeOptions = useMemo(() => {
-    const present = new Map<string, string>();
-    for (const secret of secrets) {
-      const id = purposeId(secret);
-      if (!present.has(id)) present.set(id, purposeLabel(purposes, secret.purpose, t));
-    }
-    return [...present]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [secrets, purposes, t]);
-
   const columns = useMemo<Column<Secret>[]>(() => {
     const cols: Column<Secret>[] = [
       {
         key: "key",
         header: t("key"),
-        className: "pl-5",
+        // The column that gives way: it takes what the others leave and cuts a
+        // long name short, rather than pushing the actions off a phone.
+        className: "w-full max-w-0 pl-5",
         sortable: true,
         sortValue: (secret) => secret.name,
         cell: (secret) => (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {/* The service's own mark. A vault is scanned, not read:
                 fifty rows of identical text is a list nobody finds
                 anything in, and the logo is what the eye lands on. */}
-            <ProviderIcon provider={secret.purpose ?? "custom"} />
+            <ProviderIcon
+              provider={secret.purpose ?? "custom"}
+              // The catalog's mark for a service whose id is not a brand -
+              // GitHub App, LlamaParse, S3 - as the vault's picker draws it.
+              brand={purposes.find((entry) => entry.id === secret.purpose)?.icon || undefined}
+            />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{secret.name}</p>
               <p className="text-muted-foreground font-mono text-xs">····{secret.hint}</p>
@@ -124,16 +95,19 @@ export function SecretsTable({
         ),
       },
       {
+        // Not on a phone, where they pushed the actions off the screen: the mark already says what a key is for, and the key's dialog has the rest.
         key: "for",
+        hideBelow: "sm",
         header: t("for"),
         cell: (secret) => (
-          <span className="text-muted-foreground text-sm">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
             {purposeLabel(purposes, secret.purpose, t)}
           </span>
         ),
       },
       {
         key: "access",
+        hideBelow: "sm",
         header: t("access"),
         cell: (secret) => {
           const access = reach(secret, t);
@@ -152,6 +126,7 @@ export function SecretsTable({
       },
       {
         key: "addedBy",
+        hideBelow: "sm",
         header: t("addedBy"),
         sortable: true,
         sortValue: (secret) => secret.created_by_email ?? null,
@@ -179,10 +154,16 @@ export function SecretsTable({
         key: "usedBy",
         header: t("usedBy"),
         className: canManage ? undefined : "pr-5",
+        hideBelow: "sm",
         cell: (secret) => {
           const used = secret.used_by ?? [];
           return (
-            <span className="text-muted-foreground text-xs">
+            <span
+              className={cn(
+                "text-muted-foreground text-xs",
+                used.length === 0 && "whitespace-nowrap",
+              )}
+            >
               {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
             </span>
           );
@@ -209,7 +190,10 @@ export function SecretsTable({
             <Button
               variant="ghost"
               size="icon"
-              aria-label={t("rotateNamed", { name: secret.name })}
+              aria-label={t(
+                secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
+                { name: secret.name },
+              )}
               onClick={() => onRotate(secret)}
             >
               <RotateCw className="h-4 w-4" />
@@ -232,24 +216,9 @@ export function SecretsTable({
 
   return (
     <>
-      <ListCardControlsRow>
-        <Select value={purpose} onValueChange={setPurpose}>
-          <SelectTrigger className="h-8 w-[200px]" aria-label={t("filterByService")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("anyService")}</SelectItem>
-            {purposeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </ListCardControlsRow>
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={[...secrets]}
         getRowKey={(secret) => secret.id}
         className="rounded-none border-0 bg-transparent"
       />

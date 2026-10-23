@@ -7,8 +7,6 @@ so a model cannot invent a branch the graph has no wire for. Like `logic.switch`
 the chosen category is part of the stored output and `routes` reads it back.
 """
 
-from __future__ import annotations
-
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

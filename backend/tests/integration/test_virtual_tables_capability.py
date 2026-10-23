@@ -6,8 +6,6 @@ may only create with the switch on and the permission held - plus that a
 retried call replays its first write rather than making a second one.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from dataclasses import dataclass

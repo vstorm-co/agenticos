@@ -5,8 +5,6 @@ they start is checked again on the way in, so a page script that names another v
 another workflow or another person's run is told nothing.
 """
 
-from __future__ import annotations
-
 import re
 import uuid
 from collections.abc import Iterator
@@ -33,7 +31,6 @@ from app.repositories import artifact_repo
 from app.schemas.artifact import ActionRequest, ArtifactActionRunCreate
 from app.services.artifact import ArtifactService
 from app.services.file_storage import LocalFileStorage
-from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowRunInputInvalidError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.test_artifact_actions import _World, _world
@@ -52,12 +49,6 @@ def storage(tmp_path: Path) -> Iterator[LocalFileStorage]:
         patch("app.services.file_storage.get_file_storage", return_value=local),
     ):
         yield local
-
-
-@pytest.fixture(autouse=True)
-def _no_dispatch() -> Iterator[None]:
-    with patch.object(WorkflowExecutionService, "_trigger_dispatch"):
-        yield
 
 
 def _graph(fields: list[dict] | None = None) -> dict:

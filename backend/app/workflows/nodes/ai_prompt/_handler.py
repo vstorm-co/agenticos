@@ -6,8 +6,6 @@ No tools, so nothing it does needs an approval. It runs as the step's own agent
 (see `_model_step`), which is where its budget, cost and trace come from.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

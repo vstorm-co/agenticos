@@ -15,8 +15,6 @@ An agent running as a workflow's own step starts nothing: a workflow calls
 another with a `workflow.run` step, which keeps the chain of calls and its limits.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 from collections.abc import Awaitable, Callable

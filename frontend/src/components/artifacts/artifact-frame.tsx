@@ -195,7 +195,10 @@ export function useDataBridge(
  * open, and taking the newer address would swap the one the reader is checking
  * for one they never saw, just before they click.
  */
-function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>, asking: AskingGate) {
+export function useLinkRequests(
+  frame: React.RefObject<HTMLIFrameElement | null>,
+  asking: AskingGate,
+) {
   const [pending, setPending] = useState<string | null>(null);
   useEffect(() => {
     const listen = (event: MessageEvent) => {
@@ -233,7 +236,6 @@ interface ArtifactFrameViewProps {
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
 export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFrameViewProps) {
-  const t = useTranslations("artifacts");
   const own = useRef<HTMLIFrameElement>(null);
   const frame = bridge?.frame ?? own;
   const ownAsking = useAskingGate();
@@ -250,26 +252,7 @@ export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFra
         referrerPolicy="no-referrer"
         className={cn("h-full min-h-[32rem] w-full rounded-lg border bg-white", className)}
       />
-      <ConfirmDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) close();
-        }}
-        title={t("openLinkTitle")}
-        description={
-          <>
-            {t("openLinkWhy")}
-            <span className="text-foreground mt-2 block font-mono text-xs break-all">
-              {pending}
-            </span>
-          </>
-        }
-        confirmLabel={t("openLink")}
-        onConfirm={() => {
-          if (pending !== null) window.open(pending, "_blank", "noopener,noreferrer");
-          close();
-        }}
-      />
+      <LinkRequestDialog pending={pending} onDone={close} />
     </>
   );
 }
@@ -315,6 +298,37 @@ const NO_ACTIONS: ArtifactActionView[] = [];
  * in as unavailable at once rather than waiting out its own deadline.
  */
 const NO_DATA: Record<string, BindingData> = {};
+
+/** The address a framed page asked to open, read by a person before it opens. */
+export function LinkRequestDialog({
+  pending,
+  onDone,
+}: {
+  pending: string | null;
+  onDone: () => void;
+}) {
+  const t = useTranslations("artifacts");
+  return (
+    <ConfirmDialog
+      open={pending !== null}
+      onOpenChange={(open) => {
+        if (!open) onDone();
+      }}
+      title={t("openLinkTitle")}
+      description={
+        <>
+          {t("openLinkWhy")}
+          <span className="text-foreground mt-2 block font-mono text-xs break-all">{pending}</span>
+        </>
+      }
+      confirmLabel={t("openLink")}
+      onConfirm={() => {
+        if (pending !== null) window.open(pending, "_blank", "noopener,noreferrer");
+        onDone();
+      }}
+    />
+  );
+}
 
 interface ArtifactFrameProps {
   artifactId: string;

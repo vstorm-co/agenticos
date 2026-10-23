@@ -1,7 +1,5 @@
 """`email.send` around a stubbed provider: who gets a copy, and what a refusal leaves."""
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace

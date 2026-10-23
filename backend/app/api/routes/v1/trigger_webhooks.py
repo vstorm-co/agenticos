@@ -3,20 +3,16 @@
 Authentication is the trigger's own HMAC secret, not a session, so these routes
 carry no auth dependency - exactly like the channel webhooks. The decision to fire
 is the service's; this layer only reads the raw body (the bytes the signature
-covers), hands them over, and submits the fire as its own capped Prefect flow so
-the provider gets a fast 202 while the agent run happens in the worker, out of the
-API process.
+covers) and hands it over. The service queues the fire as a job, so the provider
+gets a fast 202 while the agent run happens in a worker, out of the API process.
 """
 
-import logging
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AgentTriggerSvc
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -39,29 +35,13 @@ async def ingest_github_app_event(request: Request, service: AgentTriggerSvc) ->
     A delivery matching nothing answers 202, the same as one that fired
     everything: among verified deliveries the response gives nothing away.
 
-    **Each submission is isolated**, the way the scheduled and polling dispatch
-    loops isolate theirs. `prepare_app_fires` has already claimed this delivery
-    id for every decision it returned, so a raise part-way through the loop would
-    abandon the remaining triggers *and* leave them unreachable by GitHub's retry
-    for the claim's fifteen minutes - one Prefect hiccup silently losing three
-    organizations' events. A failure is logged against its own trigger and the
-    next one is still tried.
+    Each fire is a job queued in this request's transaction, so every matched
+    trigger is queued or - if the commit fails - none is, and the 202 goes out
+    only once they are.
     """
     headers = dict(request.headers)
     body = await request.body()
-    decisions = await service.prepare_app_fires(body=body, headers=headers)
-
-    from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
-
-    for decision in decisions:
-        try:
-            await dispatch_trigger_fire(
-                str(decision.trigger_id), event_context=decision.event_context
-            )
-        except Exception:
-            logger.exception(
-                "github_app_dispatch_failed", extra={"trigger_id": str(decision.trigger_id)}
-            )
+    await service.queue_app_fires(body=body, headers=headers)
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
@@ -88,31 +68,14 @@ async def ingest_trigger_event(
     trigger ids are unguessable UUIDs, so the 403 is not a practical oracle. Both
     come from the service.
 
-    A matched delivery is submitted as its own `run-scheduled-trigger` flow -
-    the same capped, isolated door the scheduled heartbeat uses - rather than run
-    in this process. A burst of deliveries therefore starts capped worker runs
-    instead of that many concurrent agent runs competing with request handling on
-    the API's event loop. The submit is one fast Prefect call, well inside a
-    provider's delivery timeout.
+    A matched delivery is queued as a `fire-trigger` job - the same capped,
+    isolated door the scheduled heartbeat uses - rather than run in this process.
+    A burst of deliveries therefore queues capped worker runs instead of that many
+    concurrent agent runs competing with request handling on the API's event
+    loop. The job is one row in this request's transaction, well inside a
+    provider's delivery timeout, and the 202 goes out only once it has committed.
     """
     headers = dict(request.headers)
     body = await request.body()
-    decision = await service.prepare_event_fire(source, trigger_id, body=body, headers=headers)
-    if decision is None:
-        return Response(status_code=status.HTTP_202_ACCEPTED)
-
-    # Imported here, not at module scope: `trigger_tasks` pulls in Prefect, and the
-    # API import must stay free of it (`test_main`, #520). The webhook path is the
-    # one place in the API that submits a flow, so it pays that cost on first use.
-    from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
-
-    # A raise out of the dispatch is ambiguous, exactly as it is for the heartbeat
-    # (#589): `run_deployment` can enqueue the flow on the Prefect API and then
-    # lose or time out the response, so "it raised" does not mean "no run was
-    # started". The delivery's dedupe claim is therefore deliberately kept - giving
-    # it back would let the provider's retry of the resulting 500 enqueue a second
-    # run on top of an accepted-but-queued one, a duplicate spend. Kept, the retry
-    # is answered as a duplicate while the claim lives, and a dispatch that truly
-    # failed is recovered by a provider retry after the claim's TTL lapses.
-    await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+    await service.queue_event_fire(source, trigger_id, body=body, headers=headers)
     return Response(status_code=status.HTTP_202_ACCEPTED)

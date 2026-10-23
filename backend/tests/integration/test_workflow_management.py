@@ -1,7 +1,5 @@
 """Looking after a workflow from the console: its name and tags, its switch, archiving, deleting."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
@@ -31,12 +29,6 @@ from tests.integration.workflow_run_support import seed_member
 pytestmark = pytest.mark.anyio
 
 HOURLY = {"schedule_kind": "interval", "interval_seconds": 3600}
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _graph(definition_id: str, config: dict | None = None) -> WorkflowGraph:

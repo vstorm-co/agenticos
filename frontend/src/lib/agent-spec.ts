@@ -13,6 +13,7 @@ import type {
   AgentVersion,
   CapabilityBindingSpec,
   NotificationSpec,
+  OrgMcpServerRef,
   SpecialistSpec,
   SubagentRef,
   SubagentsConfig,
@@ -23,7 +24,27 @@ export const SKILLS_ID = "skills";
 
 /** The capability that publishes pages, and the bundled skill that teaches it to build them. */
 export const ARTIFACTS_ID = "artifacts";
+/** The `ask_user` capability, on by default in every new agent (#2064). */
+export const ASK_USER_ID = "ask_user";
 export const ARTIFACT_PAGES_SKILL = "artifact-pages";
+
+/** The capability that draws in the conversation, and the bundled skill that teaches it how. */
+export const VISUALS_ID = "visuals";
+export const VISUAL_DESIGN_SKILL = "visual-design";
+
+/** The capability that draws a chart natively - the form a table of numbers takes next (#2302). */
+export const CHARTS_ID = "charts";
+
+/**
+ * The bundled skill each capability is better with, by capability id.
+ *
+ * Offered in the capability's own panel, where the work it teaches happens, so
+ * nobody has to know to look for it in the Skills tab.
+ */
+export const COMPANION_SKILLS: Readonly<Record<string, string>> = {
+  [ARTIFACTS_ID]: ARTIFACT_PAGES_SKILL,
+  [VISUALS_ID]: VISUAL_DESIGN_SKILL,
+};
 
 /** The capability that searches the collections bound in `collection_ids`. */
 export const KNOWLEDGE_ID = "knowledge";
@@ -40,6 +61,7 @@ export const IMAGE_GENERATION_ID = "image_generation";
 /** Reads and writes Virtual Tables - its grants are drawn by a panel of their own. */
 export const VIRTUAL_TABLES_ID = "virtual_tables";
 export const WORKFLOWS_ID = "workflows";
+export const CODING_AGENT_ID = "coding_agent";
 
 /**
  * The binding a capability would get if somebody switched it on.
@@ -94,6 +116,17 @@ export const THINKING_ID = "thinking";
  * decision as switching on a chart tool.
  */
 export const SANDBOX_ID = "sandbox";
+
+/**
+ * The capabilities that reach one person's own things - their notes, their past
+ * conversations. A schedule or an event reaches them only when it acts as the
+ * person who made it, and conversation search never (#2027).
+ */
+export const PERSONAL_CAPABILITIES: readonly string[] = [
+  "memory_files",
+  "memory_mem0",
+  "conversation_search",
+];
 
 /**
  * The memory-files capability, whose panel carries one action as well as settings.
@@ -165,6 +198,39 @@ export function withSkills(
   };
 }
 
+/**
+ * Switch on the visuals capability with the skill that teaches it to draw (#2171).
+ *
+ * The house style and the worked templates are what make a drawing look designed
+ * rather than generated, and an author switching on drawing has no reason to want
+ * it without them - so the skill comes along, with the Skills capability that
+ * reads it. Left alone when the organization has no such skill: there is nothing
+ * to bind, and the drawing still works. Switching visuals off leaves the skill
+ * bound - that is the Skills tab's to undo.
+ *
+ * Charts come along too (#2302): the skill tells the agent to answer numbers with
+ * a native chart rather than a hand-drawn one, which needs `create_chart`. Only
+ * when the agent has no charts binding at all - one an author switched off stays off.
+ */
+export function withVisuals(
+  spec: Pick<AgentSpec, "capabilities" | "skill_ids">,
+  skills: readonly { id: string; name: string }[],
+): Pick<AgentSpec, "skill_ids" | "capabilities"> {
+  const capabilities = withCapability(
+    withCapability(spec.capabilities, VISUALS_ID, true),
+    CHARTS_ID,
+    true,
+  );
+  const design = skills.find((skill) => skill.name === VISUAL_DESIGN_SKILL);
+  if (design === undefined) return { skill_ids: spec.skill_ids, capabilities };
+  // Through `withSkills` even when the skill is already bound: it may be bound
+  // with the Skills capability since switched off, which reads nothing.
+  const bound = spec.skill_ids.includes(design.id)
+    ? spec.skill_ids
+    : [...spec.skill_ids, design.id];
+  return withSkills({ capabilities }, bound);
+}
+
 /** The capability that injects bound context files and exposes the linked ones. */
 export const CONTEXT_ID = "context";
 
@@ -218,7 +284,14 @@ export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
  * every question the panel asks.
  */
 export function readSubagentsConfig(binding: CapabilityBindingSpec | undefined): SubagentsConfig {
-  return { ...DEFAULT_SUBAGENTS_CONFIG, ...(binding?.config as Partial<SubagentsConfig>) };
+  const config = { ...DEFAULT_SUBAGENTS_CONFIG, ...(binding?.config as Partial<SubagentsConfig>) };
+  // A binding's config is stored as written, so a specialist from a template
+  // or an imported YAML holds only the fields its author set - and the panel
+  // reads every one of them. Filled here, once, rather than guarded at each read.
+  return {
+    ...config,
+    inline: config.inline.map((specialist) => ({ ...newSpecialist(), ...specialist })),
+  };
 }
 
 /** A specialist with nothing filled in, which is what "add one" produces. */
@@ -378,4 +451,60 @@ export function capabilityConfigErrors(
     errors[problem.field.slice(prefix.length)] = problem.message;
   }
   return errors;
+}
+
+/** Something an organization owns that an agent can be given from where it lives. */
+export interface AgentResourceRef {
+  /** `mcp` is one of the organization's MCP connections, by its id. */
+  kind: "skill" | "context" | "collection" | "mcp";
+  id: string;
+}
+
+/**
+ * The spec with one more resource bound, and the capability that reads it on.
+ *
+ * What "Add to an agent" on a skill, a context file, a knowledge base or one of
+ * the organization's MCP servers writes (#2075): the same binding the Builder
+ * writes, so an agent given a knowledge base from its page can search it rather
+ * than holding an id nothing reads. Binding one already bound changes nothing.
+ */
+export function withResource(spec: AgentSpec, resource: AgentResourceRef): AgentSpec {
+  if (resource.kind === "mcp") {
+    if (hasResource(spec, resource)) return spec;
+    // Every tool the connection allows, under the default approval policy: the
+    // Builder narrows either, and a server bound here is one somebody chose.
+    const bound: OrgMcpServerRef = {
+      account: "organization",
+      connection_id: resource.id,
+      allowed_tools: null,
+      approval: "none",
+    };
+    return { ...spec, mcp_servers: [...spec.mcp_servers, bound] };
+  }
+  const add = (ids: string[]) => (ids.includes(resource.id) ? ids : [...ids, resource.id]);
+  if (resource.kind === "skill") return { ...spec, ...withSkills(spec, add(spec.skill_ids)) };
+  if (resource.kind === "context") {
+    return { ...spec, ...withContextFiles(spec, add(spec.context_ids)) };
+  }
+  return {
+    ...spec,
+    collection_ids: add(spec.collection_ids),
+    capabilities: withCapability(spec.capabilities, KNOWLEDGE_ID, true),
+  };
+}
+
+/** Whether a spec already holds this resource. */
+export function hasResource(spec: AgentSpec, resource: AgentResourceRef): boolean {
+  if (resource.kind === "mcp") {
+    return spec.mcp_servers.some(
+      (ref) => ref.account === "organization" && ref.connection_id === resource.id,
+    );
+  }
+  const ids =
+    resource.kind === "skill"
+      ? spec.skill_ids
+      : resource.kind === "context"
+        ? spec.context_ids
+        : spec.collection_ids;
+  return ids.includes(resource.id);
 }

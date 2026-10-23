@@ -5,8 +5,6 @@ The name is matched whole and without regard to case, and the step leaves by
 the first time it runs and reuse it after.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

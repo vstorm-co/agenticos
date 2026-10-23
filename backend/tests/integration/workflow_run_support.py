@@ -4,18 +4,20 @@ The node suites (#1789 onward) test what a graph *does*, not one dispatch
 phase: they seed a run the way `WorkflowExecutionService.start` leaves one,
 then tick every node whose outbox row is waiting - `claim`, `begin_attempt`,
 `call_handler`, `settle`, one committed transaction each, the order
-`workflow_dispatch_node_flow` runs them in - until nothing is left to claim.
+`workflow_tasks.dispatch_node` runs them in - until nothing is left to claim.
 `tests/integration/test_workflow_run_dispatch.py` is where the phases
-themselves are tested one at a time.
+themselves are tested one at a time, and `run_next_job` / `worker_running` stand a
+worker in for the job queue: they claim `workflow-dispatch-node` jobs and run the
+production handlers.
 """
 
-from __future__ import annotations
-
+import asyncio
+import contextlib
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -29,6 +31,7 @@ from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
+from app.db.models.background_job import BackgroundJob
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
@@ -43,9 +46,11 @@ from app.db.models.workflow_run import (
     WorkflowRunMode,
     WorkflowRunStatus,
 )
+from app.repositories import background_job as job_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.workflow_execution import dispatcher
+from app.worker import handlers
 from app.workflows.graph.model import WorkflowGraph
 
 
@@ -152,6 +157,29 @@ async def seed_run(
         )
         await db.commit()
     return SeededRun(run=run, graph=graph, principal=principal, org=org, factory=factory)
+
+
+async def queued_dispatches(
+    factory: async_sessionmaker[AsyncSession], *, workflow_run_id: uuid.UUID | None = None
+) -> list[BackgroundJob]:
+    """The `workflow-dispatch-node` jobs in the queue, oldest first, of one run if named."""
+    async with factory() as db:
+        jobs = (
+            (
+                await db.execute(
+                    select(BackgroundJob)
+                    .where(BackgroundJob.kind == "workflow-dispatch-node")
+                    .order_by(BackgroundJob.created_at, BackgroundJob.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return [
+        job
+        for job in jobs
+        if workflow_run_id is None or job.payload["workflow_run_id"] == str(workflow_run_id)
+    ]
 
 
 async def tick(seeded: SeededRun, node_run_id: uuid.UUID) -> None:
@@ -291,3 +319,62 @@ def run_people() -> Iterator[list[uuid.UUID | None]]:
         patch("app.services.agent_runner.build_agent", recording),
     ):
         yield seen
+
+
+async def run_next_job(
+    factory: async_sessionmaker[AsyncSession], *, pool: str = "workflow"
+) -> bool:
+    """Claim the next due job of `pool` the way a worker does, run its production
+    handler and settle it. `False` when nothing is due."""
+    async with factory() as db:
+        job = await job_repo.claim(
+            db, pool=pool, worker_id="test-worker", lease=timedelta(minutes=1)
+        )
+        await db.commit()
+    if job is None:
+        return False
+    try:
+        result = await handlers.production()[job.kind].execute(job.payload)
+    except Exception as exc:
+        async with factory() as db:
+            await job_repo.fail(
+                db, job.id, fence=job.attempts, error=repr(exc), retry_in=timedelta(0)
+            )
+            await db.commit()
+        raise
+    async with factory() as db:
+        await job_repo.complete(db, job.id, fence=job.attempts, result=result)
+        await db.commit()
+    return True
+
+
+async def run_jobs(factory: async_sessionmaker[AsyncSession], *, limit: int = 200) -> int:
+    """Run every due job, successors included, until none is due; returns how many ran."""
+    ran = 0
+    while await run_next_job(factory):
+        ran += 1
+        assert ran <= limit, "the queue did not drain"
+    return ran
+
+
+@asynccontextmanager
+async def worker_running(factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[None]:
+    """A worker claiming and running jobs in the background, for a test that waits on a run."""
+
+    async def loop() -> None:
+        while True:
+            try:
+                ran = await run_next_job(factory)
+            except Exception:
+                # The job is settled failed; the test sees it in the run's status.
+                ran = True
+            if not ran:
+                await asyncio.sleep(0.05)
+
+    task = asyncio.create_task(loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

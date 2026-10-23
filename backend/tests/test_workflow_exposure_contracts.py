@@ -6,8 +6,6 @@ the one branch of a chat answer the end-to-end suite does not reach - a run
 with a text answer.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

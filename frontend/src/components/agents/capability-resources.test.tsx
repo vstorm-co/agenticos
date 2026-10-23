@@ -121,6 +121,20 @@ describe("what a capability reads of the organization's", () => {
     expect(resources.onSkillToggle).toHaveBeenCalledWith("s2");
   });
 
+  it("offers the visual-design skill where the agent draws, and says when it is missing", () => {
+    const design = { ...SKILL, id: "s3", name: "visual-design", description: "Draw well." };
+    mount("visuals", { skills: [SKILL, design], skillTotal: 2 });
+
+    expect(resourceTabKey("visuals")).toBe("visualDesignHeading");
+    expect(screen.getByText("visual-design")).toBeInTheDocument();
+    expect(screen.queryByText("refund-policy")).toBeNull();
+  });
+
+  it("says the visual-design skill is missing where the library has none", () => {
+    mount("visuals");
+    expect(screen.getByText(/no visual-design skill/)).toBeInTheDocument();
+  });
+
   it("does not call the agent's other skills missing from the page-style tab", () => {
     // The tab lists one skill; handed every bound id, the gallery read each of
     // the others as a skill that no longer exists.

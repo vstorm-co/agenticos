@@ -171,8 +171,8 @@ PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f dock
 # name from the directory, so both invocations were `agenticos` - and the
 # frontend one then reported the five backend containers as **orphans**, with
 # compose's own suggestion to "run this command with the --remove-orphans flag to
-# clean it up". Following that advice takes the API, the database, Redis and both
-# Prefect services down. The volumes survive; nothing else does.
+# clean it up". Following that advice takes the API, the database, Redis and the
+# worker down. The volumes survive; nothing else does.
 PROD_FRONTEND_FILES := -p agenticos-frontend -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
 PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
 
@@ -301,7 +301,7 @@ deps-upgrade-all:
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
 # the guard scripts, while CI additionally ran eslint, prettier and tsc - so
-# `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
+# `make lint` passed on a branch with a type error in a `.tsx`, and AGENTS.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling lint-precommit
 
@@ -411,9 +411,11 @@ format:
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML and a terminal diff is no use
-# in a log nobody reads when it is green. Same run, same gate, either way.
+# CI overrides the report because Codecov wants XML. The terminal list of
+# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
+# only "99.99%" sends whoever reads it hunting through every module by hand.
 COV_REPORT ?= term-missing
+COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
 
 # The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
 # rather than the development one. The integration reset TRUNCATEs the tables
@@ -450,7 +452,7 @@ endif
 # stays serial: worker startup is not worth paying for one file.
 test:
 	$(TEST_DB_START)
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) -n auto --maxprocesses 4
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
@@ -675,6 +677,13 @@ load-seed:
 	uv run --directory backend python ../loadtest/seed.py \
 		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
 
+# The whole run from an empty database - migrate, bootstrap, stub, API, worker,
+# seed, scenario - and the thresholds as its exit status. What
+# `.github/workflows/load.yml` runs; `LOAD_SCALE`, `LOAD_REPORT` and the rest are
+# in `loadtest/cold_run.sh`.
+load-cold:
+	bash loadtest/cold_run.sh
+
 # `API_PID` and `DATABASE_URL` are optional; without them the run measures
 # requests and says which probes it could not take.
 load-test:
@@ -708,9 +717,9 @@ load-test:
 #     backend: `make dev && make platform-bootstrap && make test-e2e`.
 #   - the image build, publish and Trivy scan, which `images.yml` runs on a push
 #     to `main` and on a `v*` tag.
-#   - `test-migrations`. CI cycles the chain against a throwaway database; here
-#     `alembic downgrade base` points at whatever `backend/.env` says, which on a
-#     laptop is the database with your own work in it.
+#   - `test-migrations`. CI cycles the chain against its service database;
+#     locally it runs against a database of its own on the throwaway Postgres,
+#     but it is slow and rarely needed, so `check` leaves it to a hand run.
 CHECK_DB_PORT ?= 5432
 # Where `test` reached its database: the throwaway one, or the one `CHECK_DB_PORT` names.
 INTEGRATION_DB_PORT = $(if $(TEST_DB_START),$(TEST_DB_PORT),$(CHECK_DB_PORT))
@@ -751,9 +760,9 @@ docs-slug-check:
 	uv run --directory backend --group docs pytest -q \
 		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
-# Two decks are published pages, and the only copies: the 14-slide open-source
+# Two decks are published pages, and the only copies: the 17-slide open-source
 # introduction at `docs/presentation/index.html` (served at /presentation/) and the
-# 44-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
+# 47-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
 # which shares the introduction's `media/` and `fonts/`. Both are guided decks that
 # show one slide at a time, so printing either page gives one page, not a deck.
 # This checks what the README promises - each deck's slide count - and that every
@@ -763,7 +772,7 @@ docs-slug-check:
 # CONTENT_OS points at the content toolkit behind the `content-deck` skill, which is
 # not in this repository; `scripts/gen` runs its tools with the toolkit's Python.
 CONTENT_OS ?= $(HOME)/PycharmProjects/content-os
-PRESENTATIONS := docs/presentation/index.html:14 docs/presentation/tour/index.html:44
+PRESENTATIONS := docs/presentation/index.html:17 docs/presentation/tour/index.html:47
 presentation:
 	@test -x "$(CONTENT_OS)/scripts/gen" || { echo "content toolkit not found at $(CONTENT_OS); set CONTENT_OS="; exit 1; }
 	@for entry in $(PRESENTATIONS); do \
@@ -776,10 +785,24 @@ presentation:
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.
+#
+# Locally this starts the throwaway test Postgres and cycles the chain in a
+# database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
+# can never empty a database with your work in it. With `TEST_DB=external` (CI)
+# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
+ifeq ($(TEST_DB),throwaway)
+	$(TEST_DB_START)
+	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base
 	uv run --directory backend alembic upgrade head
+endif
 	@echo "Migration chain applies and rolls back cleanly."
 
 # Do the models and the migrations still agree? `alembic check` autogenerates
@@ -1003,7 +1026,8 @@ help:
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""
-	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "Load and resilience (NFA-004, nightly in CI - see docs/load-testing.md):"
+	@echo "  make load-cold        The whole run from an empty database, thresholds as exit status"
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"

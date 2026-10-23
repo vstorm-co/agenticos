@@ -5,8 +5,6 @@ somebody else, or not shared with the principal, is not in it. `search` is part
 of a name, bound or typed; archived tables are left out.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field

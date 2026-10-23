@@ -113,6 +113,7 @@ export function AgentPicker() {
               agentId={selected.id}
               slug={selected.slug}
               hasAvatar={selected.has_avatar}
+              colorSlot={selected.avatar_color}
               size="sm"
             />
           ) : (
@@ -139,7 +140,13 @@ export function AgentPicker() {
           {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
-        <div role="radiogroup" aria-label={t("label")} className="space-y-px">
+        <div
+          role="radiogroup"
+          aria-label={t("label")}
+          // Scrolls on its own, under the line that says what it is, so an
+          // organization with many agents does not run the menu off the screen.
+          className="max-h-[min(60vh,26rem)] scrollbar-thin space-y-px overflow-y-auto"
+        >
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}
@@ -217,12 +224,18 @@ function AgentOption({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
       >
-        <AgentAvatar agentId={agent.id} slug={agent.slug} hasAvatar={agent.has_avatar} size="sm" />
+        <AgentAvatar
+          agentId={agent.id}
+          slug={agent.slug}
+          hasAvatar={agent.has_avatar}
+          colorSlot={agent.avatar_color}
+          size="sm"
+        />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>
             {isDefault && (
-              <span className="text-muted-foreground shrink-0 text-[11px]">{t("default")}</span>
+              <span className="text-muted-foreground shrink-0 text-xs">{t("default")}</span>
             )}
           </span>
           {/* One line, truncated. Wrapped to two, a description made every row a

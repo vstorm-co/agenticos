@@ -6,8 +6,6 @@ handler handing on the run's input, the one refusal only a test run can reach,
 and the graph rule placing a trigger at the entry.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace

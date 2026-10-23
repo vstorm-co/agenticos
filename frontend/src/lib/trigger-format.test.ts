@@ -20,10 +20,12 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "schedule",
     schedule_kind: "interval",
     interval_seconds: 300,
     cron_expression: null,
+    overlap: "skip",
     event_source: null,
     event_config: {},
     prompt: "run",
@@ -82,7 +84,7 @@ describe("parseCron", () => {
     advanced("0 24 * * *"); // hour out of range
     advanced("0 9 * 6 *"); // a fixed month is not a builder shape
     advanced("0 9 * * 9"); // weekday out of range
-    advanced("0 9 * * 1-5"); // a range is not the builder's comma list
+    advanced("0 9 * * 5-1"); // a backwards range is no builder shape
     advanced("0 9 15 * 1"); // day-of-month and weekday together
     advanced("0 9 0 * *"); // day-of-month out of range
     advanced("0 9 */2 * 1"); // every-N-days combined with a weekday
@@ -113,6 +115,19 @@ describe("triggerSummary", () => {
     expect(cron("0 9 * * *")).toEqual({ kind: "cronDaily", time: "09:00" });
     expect(cron("30 18 * * 1,2")).toEqual({ kind: "cronWeekly", time: "18:30", weekdays: [1, 2] });
     expect(cron("0 9 15 * *")).toEqual({ kind: "cronMonthly", time: "09:00", day: 15 });
+    // A range is days too - `1-5` is how a weekday schedule is usually written.
+    expect(cron("0 8 * * 1-5")).toEqual({
+      kind: "cronWeekly",
+      time: "08:00",
+      weekdays: [1, 2, 3, 4, 5],
+    });
+    expect(cron("0 8 * * 0,5-6")).toEqual({
+      kind: "cronWeekly",
+      time: "08:00",
+      weekdays: [0, 5, 6],
+    });
+    // A backwards range is not one the builder writes; it stays notation.
+    expect(cron("0 8 * * 5-1")).toEqual({ kind: "cron", expression: "0 8 * * 5-1" });
     // Every N days reads exactly like an interval in days - same label, same key.
     expect(cron("0 9 */2 * *")).toEqual({ kind: "interval", unit: "days", count: 2 });
   });
@@ -210,6 +225,8 @@ describe("cadenceText", () => {
       'cadence.cronWeekly({"time":"09:00","days":"weekdayMon, weekdayTue"})',
     );
     expect(cron("0 9 3 * *")).toBe('cadence.cronMonthly({"day":3,"time":"09:00"})');
+    // Monday to Friday is said as weekdays, not as five day names.
+    expect(cron("0 8 * * 1-5")).toBe('cadence.cronWeekdays({"time":"08:00"})');
     expect(cron("0 9 */3 * *")).toBe('cadence.everyDays({"count":3})');
   });
 

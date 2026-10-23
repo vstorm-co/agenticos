@@ -1,8 +1,11 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
+  Button,
+  Checkbox,
   Input,
   Label,
   Select,
@@ -12,6 +15,9 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { EmbedDictationField } from "@/components/agents/embed-dictation-field";
+import { EmbedVoiceField } from "@/components/agents/embed-voice-field";
+import type { EmbedVoiceChoice, ServerDictationChoice } from "@/components/agents/page-fields";
 import type { WidgetConfig } from "@/types/embeds";
 
 const MAX_TITLE = 80;
@@ -19,6 +25,8 @@ const MAX_SUBTITLE = 120;
 const MAX_GREETING = 400;
 const MAX_PLACEHOLDER = 80;
 const MAX_LAUNCHER = 24;
+const MAX_QUICK_REPLIES = 4;
+const MAX_QUICK_REPLY = 60;
 
 /**
  * What the bubble in the corner of somebody else's page says.
@@ -41,10 +49,16 @@ const MAX_LAUNCHER = 24;
 export function WidgetFields({
   config,
   disabled,
+  serverDictation,
+  voiceCall,
   onChange,
 }: {
   config: WidgetConfig;
   disabled: boolean;
+  /** What `EmbedDictationField` needs to offer `server` honestly. */
+  serverDictation: ServerDictationChoice;
+  /** What `EmbedVoiceField` needs to offer calls honestly. */
+  voiceCall: EmbedVoiceChoice;
   onChange: (config: WidgetConfig) => void;
 }) {
   const t = useTranslations("agents");
@@ -86,6 +100,12 @@ export function WidgetFields({
         />
         <p className="text-muted-foreground text-xs">{t("widgetGreetingHint")}</p>
       </div>
+
+      <QuickReplies
+        replies={config.quick_replies}
+        disabled={disabled}
+        onChange={(quick_replies) => onChange({ ...config, quick_replies })}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
@@ -149,6 +169,100 @@ export function WidgetFields({
           </Select>
         </div>
       </div>
+
+      {/* The widget's own copy is English whatever this form's locale - the
+          bubble's voice messages and its call included - so only the choices
+          are made here. */}
+      <EmbedDictationField
+        name="widget-dictation"
+        value={config.dictation}
+        disabled={disabled}
+        serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
+        wasServer={serverDictation.wasServer}
+        onChange={(dictation) => onChange({ ...config, dictation })}
+      />
+
+      <EmbedVoiceField
+        name="widget-voice"
+        value={config.voice_conversation}
+        disabled={disabled}
+        available={voiceCall.available}
+        unchecked={voiceCall.unchecked}
+        wasOn={voiceCall.wasOn}
+        onChange={(voice_conversation) => onChange({ ...config, voice_conversation })}
+      />
+      <Label className="flex items-start gap-2 font-normal">
+        <Checkbox
+          checked={config.show_sources}
+          disabled={disabled}
+          onCheckedChange={(checked) => onChange({ ...config, show_sources: checked === true })}
+        />
+        <span>
+          <span className="text-sm">{t("widgetShowSources")}</span>
+          <span className="text-muted-foreground block text-xs">{t("widgetShowSourcesHint")}</span>
+        </span>
+      </Label>
+    </div>
+  );
+}
+
+/**
+ * Suggested first messages, offered as buttons under the greeting. A few and
+ * short, because they sit in a bubble in the corner of somebody else's page.
+ */
+function QuickReplies({
+  replies,
+  disabled,
+  onChange,
+}: {
+  replies: string[];
+  disabled: boolean;
+  onChange: (replies: string[]) => void;
+}) {
+  const t = useTranslations("agents");
+  const set = (index: number, text: string) =>
+    onChange(replies.map((reply, at) => (at === index ? text : reply)));
+
+  return (
+    <div className="space-y-2">
+      <Label>{t("widgetQuickReplies")}</Label>
+      <p className="text-muted-foreground text-xs">{t("widgetQuickRepliesHint")}</p>
+      {replies.map((reply, index) => (
+        // The position is the identity: two replies may read the same while typed.
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            value={reply}
+            maxLength={MAX_QUICK_REPLY}
+            disabled={disabled}
+            aria-label={t("widgetQuickReplyLabel", { number: index + 1 })}
+            onChange={(event) => set(index, event.target.value)}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            disabled={disabled}
+            aria-label={t("widgetQuickReplyRemove", { number: index + 1 })}
+            onClick={() => onChange(replies.filter((_, at) => at !== index))}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      {replies.length < MAX_QUICK_REPLIES && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => onChange([...replies, ""])}
+        >
+          <Plus className="h-4 w-4" />
+          {t("widgetQuickReplyAdd")}
+        </Button>
+      )}
     </div>
   );
 }

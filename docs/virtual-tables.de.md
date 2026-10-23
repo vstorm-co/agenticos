@@ -1,5 +1,5 @@
 ---
-source_sha: "98c1d7098b28"
+source_sha: "863f2bbf1772"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -548,8 +548,8 @@ auf der Seite der Tabelle listet die Workflows, pausiert und setzt jeden fort un
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
 Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder
 Schreibzugriff wartet, sodass kein vorher committeter Datensatz ihn je startet und nichts
-nachgeholt wird, was hinzukam, während er aus war. Ein Worker-Heartbeat liest das
-Outbox-Ereignis jedes neuen Datensatzes innerhalb von etwa zehn Sekunden. Er entscheidet
+nachgeholt wird, was hinzukam, während er aus war. Der Job `workflow-table-triggers`, der alle zehn Sekunden läuft, liest das
+Outbox-Ereignis jedes neuen Datensatzes, sodass ein Trigger nach etwa zehn Sekunden startet. Er entscheidet
 einmal pro Trigger und hält die Entscheidung fest; ein zweiter Durchlauf oder ein zweiter
 Worker findet sie und startet nichts.
 

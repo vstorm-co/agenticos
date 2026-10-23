@@ -96,15 +96,16 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the twenty togglable pairs the backend produces", () => {
+  it("offers exactly the thirty togglable pairs the backend produces", () => {
     render(<NotificationsSettingsPage />);
 
-    // run_completed, run_failed, ingestion_completed, ingestion_failed,
-    // announcement, workflow_notification, artifact_owner_changed and
-    // artifact_share_requested each offer both channels (8*2 = 16);
-    // budget_exceeded, approval_requested, usage_report and agent_usage_report
-    // offer only in-app (4*1 = 4). 16 + 4 = 20, plus the three legacy email
-    // switches above = 23 switches on the page total.
+    // run_completed, run_failed, artifact_version_published, resource_shared,
+    // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
+    // ingestion_failed, announcement, workflow_notification,
+    // artifact_owner_changed and artifact_share_requested each offer both
+    // channels (13*2 = 26); budget_exceeded, approval_requested, usage_report and
+    // agent_usage_report offer only in-app (4*1 = 4). 26 + 4 = 30, plus the three
+    // legacy email switches above = 33 on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -113,6 +114,19 @@ describe("the notifications settings page", () => {
     expect(
       screen.queryByRole("switch", { name: "Per-agent usage report - Email" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "App updated - Email" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Shared with your group - Email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Department budget at 80% - Email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "MCP server not answering - Email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "MCP server answering again - In-app" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: "Workflow notifications - Email" }),
     ).toBeInTheDocument();
@@ -121,7 +135,7 @@ describe("the notifications settings page", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Page requests - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Page requests - Email" })).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(23);
+    expect(screen.getAllByRole("switch")).toHaveLength(33);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

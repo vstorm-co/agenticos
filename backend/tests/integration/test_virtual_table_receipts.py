@@ -10,8 +10,6 @@ Three guarantees, none of which a mock can show:
   key produce one winner and a typed loser, never a duplicate.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import pytest

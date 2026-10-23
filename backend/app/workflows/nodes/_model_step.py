@@ -14,8 +14,6 @@ the model.
 two kinds of step fail with the same codes for the same reasons.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from decimal import Decimal

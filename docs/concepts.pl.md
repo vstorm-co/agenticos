@@ -1,5 +1,5 @@
 ---
-source_sha: "f7adaf5c100d"
+source_sha: "b1c2a3e35524"
 ---
 
 # Koncepcje { #concepts }
@@ -174,36 +174,52 @@ swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada 
 żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
 magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
-- [Pliki pamięci](reference/capabilities.md#memory-files) i
+- [Pamięć](reference/capabilities.md#memory-files) i
   [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
   rozmowa nie ma pamięci.
-- [Wyszukiwanie w rozmowach](reference/capabilities.md#conversation-search): oba
+- [Poprzednie rozmowy](reference/capabilities.md#conversation-search): oba
   narzędzia odmawiają.
 - [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
   własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
-- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+- [Aplikacje](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
   prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
   całą stronę od nowa zamiast ją edytować.
 
 Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
 odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.
-Dziś żadne ustawienie tego nie zmienia.
+[Sandbox](sandbox.md) z `session_scope: user` trzyma się tej samej reguły:
+odpalenie nie ma tam własnego workspace'u.
 
-!!! warning "Wyjątkiem jest sandbox o zakresie użytkownika"
+### Chyba że twórca pozwoli mu działać jako on { #unless-its-creator-lets-it-run-as-them }
 
-    [Sandbox](sandbox.md) z `session_scope: user` nie jest zamknięty. Odpalenie
-    otwiera własny workspace twórcy dla tego agenta i może czytać oraz zapisywać
-    tam pliki twórcy. Członek bez `agents:edit` nie może edytować ani odpalić
-    triggera utworzonego przez innego członka, bo zmieniony prompt mógłby
-    wynieść te pliki przy następnym odpaleniu.
+**Uruchamiaj jako ja**, ustawienie triggera, to jedyny wyjątek, i włączyć je może
+tylko twórca, dla siebie. Odpalenie sięga wtedy do jego pamięci i jego własnych
+połączeń MCP tak jak jego własny czat — poranne *powiedz mi, co ważnego w mojej
+skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
+
+- **Harmonogram czyta i zapisuje pamięć; zdarzenie tylko ją czyta.** Prompt
+  zdarzenia niesie maila albo treść webhooka, której nikt nie sprawdził, a
+  notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
+  własna notatka twórcy.
+- **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
+  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
+  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+  ani skrypt z twoim kluczem API nie mogą go włączyć.
+- **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
+  albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
+  kluczem API albo przez administratora w impersonacji.
+- **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
+  audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
+  działało.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
 | Run bez nadzoru potrzebuje | Użyj |
 |---|---|
-| Stałych faktów albo preferencji | Własnego promptu triggera albo [pliku kontekstowego](context.md) podpiętego do agenta |
+| Stałych faktów albo preferencji | Własnego promptu triggera, [pliku kontekstowego](context.md) podpiętego do agenta albo pamięci twórcy z **Uruchamiaj jako ja** |
 | Stanu zachowanego od jednego odpalenia do następnego | [Sandboksa](sandbox.md) z `session_scope: conversation`: każde odpalenie jednego triggera dopisuje się do tej samej rozmowy z logiem runów |
-| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji, a nie kontem każdej osoby |
+| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji albo własnego połączenia twórcy z **Uruchamiaj jako ja** |
 
 [Obserwowanie stron pod kątem zmian](howto/competitor-monitoring.md) i
 [osobisty asystent](howto/personal-assistant.md) trafiają na tę regułę i
@@ -261,7 +277,7 @@ Każdy trigger można też **uruchomić teraz**: jedno dodatkowe odpalenie na
 żądanie, które nie rusza jego kadencji.
 
 Jest ono *przyjmowane*, a nie oczekiwane. Żądanie odpowiada, gdy tylko odpalenie
-zostanie przekazane workerowi jako jego własny flow run — te same trwałe drzwi,
+zostanie zakolejkowane dla workera jako job — te same trwałe drzwi,
 przez które przechodzi odpalenie z harmonogramu albo z dostarczenia — a run
 pojawia się w rozmowie-dzienniku runów triggera na bieżąco.
 
@@ -303,6 +319,7 @@ działającą platformę:
 | `failed` | zepsuł się |
 | `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
 | `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
 | `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
 | `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
 
@@ -446,7 +463,7 @@ Zatwierdzenie rozstrzyga się od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, potem
 2. tryb capability, potem
-3. to, czy capability jest `side_effecting`.
+3. brak zatwierdzania, gdy żadne z nich nic nie mówi.
 
 Builder podaje *wynik* słowami, zamiast opisywać regułę, bo reguła, którą
 czytelnik musi przeliczyć w głowie, to ustawienie, którego nikt nie śmie
@@ -512,6 +529,12 @@ czyimś specu.
 Używaj więc specjalisty do pracy, która nie powinna wymagać publikowania agenta —
 „streść to w trzech punktach” — a delegata do zdolności, którą organizacja
 posiada i wykorzystuje wielokrotnie.
+
+Trzeci rodzaj stoi obok nich: **zdalny agent**, agent innego dostawcy osiągalny
+przez A2A i zarejestrowany w organizacji po jego agent card. Wywołuje się go tak samo
+i rozlicza z tego samego budżetu, ale nie jest tu wersjonowany — jego właściciel
+zmienia go po swojej stronie — więc odwołanie wskazuje rejestrację, a nie wersję.
+Zobacz [Zdalni agenci przez A2A](reference/capabilities.md#remote-agents).
 
 #### Specjaliści dynamiczni i droga wyjścia { #dynamic-specialists-and-the-way-out }
 

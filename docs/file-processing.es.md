@@ -1,5 +1,5 @@
 ---
-source_sha: "217a295cc0a5"
+source_sha: "79b06939c535"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -130,6 +130,13 @@ recibe el archivo en lugar del texto:
 | pdf, docx, spreadsheet, document, presentation, email | texto parseado pegado en línea | escrito en `uploads/`, con el texto extraído al lado salvo que el runtime pueda leerlo (`email` siempre lo recibe — `lit` no lee `.msg`); referencia y 20 primeras líneas |
 | imagen | `BinaryContent` | `BinaryContent` **y** escrita; la referencia nombra la ruta |
 | tiff | página(s) PNG como `BinaryContent`, con el tope de páginas indicado | `.tiff` original escrito; página(s) PNG mostradas, con el tope de páginas indicado |
+
+**Un turno posterior sigue teniendo el archivo.** Lo que el adjunto añadió al
+prompt - el texto pegado, o la referencia con sus primeras líneas - se guarda junto
+al mensaje y se reproduce con el historial, así que «¿y marzo?» llega a un modelo
+que todavía sabe que el archivo existe. Una imagen se nombra en ese historial en
+lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
+abre desde `uploads/` si tiene workspace.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,
@@ -395,10 +402,10 @@ descarta junto con el trabajo del flow.**
 **Un solo bucle es dueño de los pools del proceso, y todo lo demás construye su
 propio engine.** El lifespan de la API los reclama al arrancar: atiende cada
 petición y los descarta al apagarse, así que es el único bucle cuyas conexiones
-pueden cachear. Fuera de ese bucle `get_db_context` se comporta como
-`get_worker_db_context` — un engine con `NullPool` para la llamada, descartado al
-final — porque se llega a él desde flows de Prefect (el informe, el refresco de
-MCP, las tareas de invitación y de aprobación, los bucles de canal) y desde el
+pueden cachear. El worker los reclama igual para su único bucle, y cada proceso
+hijo de ingesta para el suyo. Fuera del bucle dueño `get_db_context` se comporta
+como `get_worker_db_context` — un engine con `NullPool` para la llamada,
+descartado al final — porque se llega a él desde los bucles de canal y desde el
 resolvedor de embeddings de un agent, cada uno en un bucle propio
 ([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
 
@@ -613,7 +620,7 @@ deployment a la que caer, así que el rechazo nunca aconseja una variable.
 
 Esa degradación se anuncia en vez de darse por supuesta. La resolución lleva en
 cuál de las cinco fuentes cayó, y la ingesta escribe cada caso degradado en el
-log del run de Prefect, incluida una colección que sencillamente no nombra
+log del worker, incluida una colección que sencillamente no nombra
 ninguna clave. Antes de la incidencia #306 el worker de ingesta era el único
 llamante que nunca preguntaba al resolvedor, así que cada documento subido se
 embebía con el modelo del deployment y una clave de todo el deployment eligiera
@@ -1036,12 +1043,15 @@ exhausted: $40.15 spent of $40.00 limit"*.
 
 Lo que **no** se guarda es el texto del cliente que falló. Un SDK de provider,
 `httpx`, `boto3` y el cliente de Google Drive ponen la petición que hacían en su
-mensaje de excepción, a menudo un endpoint, un host interno, un bucket o una URL
-con una clave en su query string — y, a diferencia de un cuerpo de error HTTP,
-una columna la relee semanas después quien abra el documento fallido. No se
-pierde: todas estas llamadas lo registran con `logger.exception`, así que el log
-del worker tiene el mensaje y la traza, y un flow de Prefect que relanza los
-tiene en su run. `app/services/rag/failures.py` es donde se separan ambos.
+mensaje de excepción, a menudo un endpoint, un host interno, un bucket o una URL con
+una clave en su query string — y, a diferencia de un cuerpo de error HTTP, una
+columna la relee semanas después quien abra el documento fallido.
+
+No se pierde: todas estas llamadas lo registran con `logger.exception`, así que el
+log del worker tiene el mensaje y la traza, y un job que relanza tiene su tipo, su
+mensaje y los últimos frames en su fila de `background_jobs`, donde solo los lee el
+propietario del despliegue. `app/services/rag/failures.py` es donde se separan la
+columna y el log.
 
 El log es un público más pequeño que la columna, no uno seguro — trata el log de
 un worker como algo que solo leen los operadores, y consulta [#440] para ver por
@@ -1338,9 +1348,11 @@ consecuencia es la misma (#982).
 
 Clonar también lo dice, y por el motivo de arriba: es la única forma de cambiar la
 audiencia de una fuente desde la propia UI de este producto. Reapuntar una
-existente es un `PATCH` sobre `collection_name`, que hoy no envía ninguna pantalla
-- no hay un editor de fuentes - así que se llega a ello por la API y por la CLI,
-donde la entrada de auditoría de arriba es lo que lo registra.
+existente es un `PATCH` sobre `collection_name` a `/rag/sync/sources/{id}`. El
+editor de fuentes de la pestaña **Sync** de una base de conocimiento no lo envía,
+y el `PATCH /kb/{kb_id}/sync-sources/{source_id}` propio de esa base rechaza un
+`collection_name` que nombre otra base - así que se llega a ello por la API y por
+la CLI, donde la entrada de auditoría de arriba es lo que lo registra.
 
 ### Qué debe traer un conector nuevo { #what-a-new-connector-owes }
 

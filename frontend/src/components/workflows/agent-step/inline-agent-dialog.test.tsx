@@ -32,11 +32,17 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
   ),
 }));
 vi.mock("@/components/agents/mcp-bindings-editor", () => ({
-  McpBindingsEditor: ({ onChange }: { onChange: (next: unknown[]) => void }) => (
+  McpBindingsEditor: ({
+    onChange,
+  }: {
+    onChange: (changes: { mcp_servers: unknown[] }) => void;
+  }) => (
     <button
       type="button"
       onClick={() =>
-        onChange([{ account: "organization", connection_id: "c1", allowed_tools: null }])
+        onChange({
+          mcp_servers: [{ account: "organization", connection_id: "c1", allowed_tools: null }],
+        })
       }
     >
       bind-server

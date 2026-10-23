@@ -7,8 +7,6 @@ hands the graph what `trigger.manual` does: the answers as `payload`, typed by
 the fields, and `triggered_by` naming the form.
 """
 
-from __future__ import annotations
-
 from pydantic import Field, model_validator
 
 from app.workflows.nodes.core_input._handler import (

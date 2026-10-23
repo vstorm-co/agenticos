@@ -22,8 +22,6 @@ laptop, where the override file builds the image locally under another name.
     publishes, at the `AGENTICOS_VERSION` interpolation and nothing hard-coded.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from typing import Any
@@ -35,7 +33,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "images.yml"
 
 PUBLISHED = frozenset(
-    {"ghcr.io/vstorm-co/agenticos-backend", "ghcr.io/vstorm-co/agenticos-frontend"}
+    {
+        "ghcr.io/vstorm-co/agenticos-backend",
+        "ghcr.io/vstorm-co/agenticos-frontend",
+        "ghcr.io/vstorm-co/agenticos-browser",
+    }
 )
 
 # Every compose file that runs the application from a published image. The
@@ -165,8 +167,31 @@ class TestEveryJobBoundsItsOwnRuntime:
         assert not excessive
 
 
+class TestEveryPackagePageHasADescription:
+    """GHCR shows a multi-architecture package's description from the manifest
+    list's annotations; the per-architecture labels `metadata-action` writes
+    never reach the page."""
+
+    def test_every_published_image_has_one(self, workflow: dict[str, Any]) -> None:
+        include = workflow["jobs"]["publish"]["strategy"]["matrix"]["include"]
+        described = {entry["image"]: entry["description"] for entry in include}
+        assert set(described) == {"backend", "frontend", "browser"}
+        for image, description in described.items():
+            assert "https://vstorm-co.github.io/agenticos/" in description, image
+            assert len(description) <= 512, f"GHCR truncates {image}'s description at 512"
+
+    def test_the_manifest_list_carries_it(self, workflow: dict[str, Any]) -> None:
+        join = next(
+            step
+            for step in workflow["jobs"]["publish"]["steps"]
+            if "imagetools create" in step.get("run", "")
+        )
+        assert join["env"]["DESCRIPTION"] == "${{ matrix.description }}"
+        assert '"index:org.opencontainers.image.description=$DESCRIPTION"' in join["run"]
+
+
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
-    def test_the_workflow_names_both_images(self, workflow: dict[str, Any]) -> None:
+    def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
         prefix = workflow["env"]["IMAGE_PREFIX"]
         images = workflow["jobs"]["build"]["strategy"]["matrix"]["image"]
         assert {f"{prefix}-{image}" for image in images} == PUBLISHED
@@ -209,10 +234,11 @@ class TestTheReleaseCarriesAnInventory:
     run artifact is the honest place for `edge`'s inventory.
     """
 
-    def test_both_images_get_one(self, workflow: dict[str, Any]) -> None:
+    def test_every_published_image_gets_one(self, workflow: dict[str, Any]) -> None:
         assert set(workflow["jobs"]["sbom"]["strategy"]["matrix"]["image"]) == {
             "backend",
             "frontend",
+            "browser",
         }
 
     def test_each_published_architecture_gets_its_own(self, workflow: dict[str, Any]) -> None:

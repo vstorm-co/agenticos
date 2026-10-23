@@ -23,8 +23,6 @@ shows images; it simply has nowhere to build with them, which is the honest
 difference between the two.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any, Literal
 
@@ -202,7 +200,7 @@ def build_image_toolset(
             try:
                 await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", image.data)
                 workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-            except (OSError, WorkspaceError):
+            except OSError, WorkspaceError:
                 # A full workspace - a `state` document past its ceiling raises
                 # `OSError`, a container's shell `WorkspaceError` - the image is
                 # still stored and linked above, and naming a path that holds

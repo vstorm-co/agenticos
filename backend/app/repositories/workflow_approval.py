@@ -1,7 +1,5 @@
 """The decisions workflow runs wait on (`human.approval`), and the steps parked on them."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

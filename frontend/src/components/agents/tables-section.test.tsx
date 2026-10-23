@@ -33,6 +33,8 @@ const DEFINITION: CapabilityCatalogEntry = {
     },
   },
   requires_secret: null,
+  voice: "live",
+  recommended: null,
 };
 
 function mount(config: Record<string, unknown> = {}, disabled = false) {

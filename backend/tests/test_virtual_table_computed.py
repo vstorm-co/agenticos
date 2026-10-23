@@ -1,7 +1,5 @@
 """What naming a column makes a reader read: a formula's inputs, a rollup's link, a linked table."""
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from app.schemas.virtual_table import ColumnDef

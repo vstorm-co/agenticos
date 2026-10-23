@@ -3,7 +3,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+
 import { useChat } from "./use-chat";
+import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
@@ -13,6 +16,7 @@ import {
   useChatStore,
   useConversationStore,
   useOrgStore,
+  useWorkingStore,
 } from "@/stores";
 
 // The socket itself is not under test: what matters is the frame the hook hands
@@ -25,10 +29,11 @@ const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
+const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   sent: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
+  reopen: vi.fn(),
   socket: {
     onMessage: null as ((event: MessageEvent) => void) | null,
     onClose: null as (() => void) | null,
@@ -90,6 +95,7 @@ vi.mock("./use-websocket", () => ({
       isConnected: socket.isConnected,
       connect,
       disconnect,
+      reopen,
       sendMessage: sent,
     };
   },
@@ -140,6 +146,7 @@ beforeEach(() => {
   useOrgStore.setState({ activeOrgId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  useWorkingStore.getState().reset();
   window.history.replaceState({}, "", "/chat");
 });
 
@@ -189,6 +196,23 @@ describe("useChat - which agent a turn is addressed to", () => {
       agent_id: "agent-1",
       model_profile_id: "profile-1",
     });
+  });
+});
+
+describe("useChat - replying to a message", () => {
+  it("sends what the turn answers once, and quotes it on the question", () => {
+    const reply = { messageId: "m-2", role: "assistant" as const, excerpt: "Plan: A" };
+    act(() => useChatStore.getState().setReplyTo(reply));
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("make it bigger"));
+
+    expect(lastFrame()).toMatchObject({ message: "make it bigger", reply_to: "m-2" });
+    const asked = useChatStore.getState().messages.at(-1);
+    expect(asked?.replyTo).toEqual(reply);
+    expect(asked?.isTemporaryId).toBe(true);
+    // Spent: the next turn answers nothing in particular.
+    expect(useChatStore.getState().replyTo).toBeNull();
   });
 });
 
@@ -391,15 +415,14 @@ describe("useChat - the streamed answer", () => {
       tool_call_id: "tc-1",
     });
     expect(streaming()?.toolCalls).toEqual([
-      { id: "tc-1", name: "write_file", args: {}, status: "pending", argsChars: 0 },
+      { id: "tc-1", name: "write_file", args: {}, status: "pending" },
     ]);
 
+    // The arguments streaming in change nothing on screen: the step is already there.
+    const before = streaming()?.toolCalls;
     receive("tool_call_delta", { index: 1, args_delta: '{"path": ' });
     receive("tool_call_delta", { index: 1, args_delta: { content: "ab" } });
-    receive("tool_call_delta", { index: 1, args_delta: null });
-    expect(streaming()?.toolCalls?.[0]?.argsChars).toBe(
-      9 + JSON.stringify({ content: "ab" }).length,
-    );
+    expect(streaming()?.toolCalls).toBe(before);
 
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: { path: "a.md" } });
     expect(streaming()?.toolCalls).toEqual([
@@ -408,10 +431,62 @@ describe("useChat - the streamed answer", () => {
         name: "write_file",
         args: { path: "a.md" },
         status: "running",
-        argsChars: undefined,
       },
     ]);
     expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("gathers a drawing's arguments for its panel, and drops them once the call is whole", () => {
+    vi.useFakeTimers();
+    try {
+      useVisualStreamStore.setState({ args: {} });
+      renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("part_start", {
+        index: 1,
+        part_type: "ToolCallPart",
+        tool_name: "draw",
+        tool_call_id: "tc-draw",
+      });
+      const before = streaming()?.toolCalls;
+
+      receive("tool_call_delta", { index: 1, args_delta: '{"title": "Flow"' });
+      act(() => vi.advanceTimersByTime(100));
+
+      expect(useVisualStreamStore.getState().args).toEqual({ "tc-draw": '{"title": "Flow"' });
+      expect(streaming()?.toolCalls).toBe(before);
+
+      receive("tool_call", { tool_call_id: "tc-draw", tool_name: "draw", args: { title: "Flow" } });
+      expect(useVisualStreamStore.getState().args).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a drawing's pictures when the socket sends them", () => {
+    useVisualImagesStore.setState({ images: {} });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("visual_images", {
+      tool_call_id: "tc-draw",
+      images: { logo: "data:image/png;base64,AA" },
+    });
+
+    expect(useVisualImagesStore.getState().images).toEqual({
+      "tc-draw": { logo: "data:image/png;base64,AA" },
+    });
+  });
+
+  it("tells the running turn how a drawing rendered", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.reportVisual("tc-draw", ["boom"]));
+
+    expect(lastFrame()).toEqual({
+      type: "visual_report",
+      tool_call_id: "tc-draw",
+      errors: ["boom"],
+    });
   });
 
   it("ignores a delta for a part that is not a tool call it drew", () => {
@@ -452,7 +527,7 @@ describe("useChat - the streamed answer", () => {
     receive("model_request_start", {});
     receive("tool_call_delta", { index: 1, args_delta: '{"q":' });
 
-    expect(streaming()?.toolCalls?.[0]?.argsChars).toBeUndefined();
+    expect(streaming()?.toolCalls?.[0]?.status).toBe("running");
   });
 
   it("ignores the narration frames the server sends around every turn", () => {
@@ -489,6 +564,18 @@ describe("useChat - failures and interruptions", () => {
     expect(streaming()?.content).toContain("❌ Error: Budget exceeded");
   });
 
+  it("answers a refusal that came before the turn opened a message, instead of dropping it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+
+    receive("error", { message: "This agent has no model" });
+
+    const answer = useChatStore.getState().messages.at(-1);
+    expect(answer).toMatchObject({ role: "assistant", isStreaming: false });
+    expect(answer?.content).toContain("This agent has no model");
+    expect(result.current.isProcessing).toBe(false);
+  });
+
   it("says an error happened even when the server named no reason", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
@@ -498,10 +585,14 @@ describe("useChat - failures and interruptions", () => {
     expect(streaming()?.content).toContain("Unknown error");
   });
 
+  // Every ending ends the call that was already out too, not only the one still
+  // being written: a colleague asked a moment before a stop kept spinning
+  // "Asking …", and a planning call kept "Running…" under a finished turn (#2149).
   it.each([
     ["the turn failed", () => receive("error", { message: "Timed out" })],
     ["the run was cancelled", () => receive("complete", { stopped: true })],
-  ])("marks a call still being written unfinished when %s", (_, end) => {
+    ["the turn finished", () => receive("complete", {})],
+  ])("marks every call still out unfinished when %s", (_, end) => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("part_start", {
@@ -523,10 +614,30 @@ describe("useChat - failures and interruptions", () => {
     end();
 
     const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
-    expect(calls?.map((call) => [call.id, call.status, call.argsChars])).toEqual([
-      ["tc-0", "running", undefined],
-      ["tc-1", "unfinished", undefined],
+    expect(calls?.map((call) => [call.id, call.status])).toEqual([
+      ["tc-0", "unfinished"],
+      ["tc-1", "unfinished"],
     ]);
+  });
+
+  it("ends a colleague's call that was already out when the person presses stop", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "task",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "task",
+      args: { subagent_type: "sales-researcher", description: "News about Neno?" },
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("unfinished");
   });
 
   it("marks a call still being written unfinished when the person presses stop", () => {
@@ -1032,6 +1143,73 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(listener).toHaveBeenCalled();
     expect(result.current.isProcessing).toBe(false);
     window.removeEventListener("billing:refresh", listener);
+  });
+});
+
+describe("useChat - a sandbox still being opened", () => {
+  // The first session after an update builds the runtime's image on the host:
+  // minutes in which nothing streams (#2222).
+  it("says so when the server does", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("sandbox_preparing", {});
+
+    expect(result.current.sandboxPreparing).toBe(true);
+  });
+
+  it("keeps saying so through another tool's result", () => {
+    // A faster tool beside the sandbox one finishes while the image still builds.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("tool_result", { tool_call_id: "t-1", content: "ok" });
+
+    expect(result.current.sandboxPreparing).toBe(true);
+  });
+
+  it("stops saying so once the sandbox is open", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("sandbox_ready", {});
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+
+  it("stops saying so when the turn fails", () => {
+    // A failed open sends `error` and no `complete` after it.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("error", { message: "The sandbox could not be opened." });
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+
+  it("stops saying so when the turn ends", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("complete", {});
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+
+  it("stops saying so when the socket drops mid-preparation", () => {
+    // The lost socket can bring no `sandbox_ready`, and the next turn on the
+    // open sandbox sends no preparation frames to clear it (#2251).
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("run the analysis"));
+    receive("sandbox_preparing", {});
+    expect(result.current.sandboxPreparing).toBe(true);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.sandboxPreparing).toBe(false);
   });
 });
 
@@ -2014,7 +2192,39 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.pendingQuestions).toEqual([
-      { question: "Which invoice?", options: [], allowCustom: true },
+      {
+        question: "Which invoice?",
+        header: undefined,
+        options: [],
+        multiSelect: false,
+        allowCustom: true,
+      },
+    ]);
+  });
+
+  it("carries a card's headers, option descriptions and multi-select (#2064)", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("ask_user", {
+      questions: [
+        {
+          question: "Who will use it?",
+          header: "Audience",
+          options: [{ label: "Everyone", description: "The whole organization" }],
+          multi_select: true,
+          allow_custom: true,
+        },
+      ],
+    });
+
+    expect(result.current.pendingQuestions).toEqual([
+      {
+        question: "Who will use it?",
+        header: "Audience",
+        options: [{ label: "Everyone", description: "The whole organization" }],
+        multiSelect: true,
+        allowCustom: true,
+      },
     ]);
   });
 
@@ -2029,7 +2239,7 @@ describe("useChat - approvals and questions", () => {
   it("sends the answers and closes the prompt", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
-      questions: [{ question: "Which?", options: ["a"], allow_custom: false }],
+      questions: [{ question: "Which?", options: [{ label: "a" }], allow_custom: false }],
     });
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
@@ -2083,6 +2293,22 @@ describe("useChat - what goes out with a turn", () => {
     expect(frame(0)).not.toHaveProperty("file_ids");
   });
 
+  it("files a new thread into the project picked for it, and only the first turn", () => {
+    useConversationStore.getState().setPendingProjectId("p-1");
+    const { result, rerender } = renderHook(({ id }) => useChat({ conversationId: id }), {
+      wrapper,
+      initialProps: { id: null as string | null },
+    });
+
+    act(() => result.current.sendMessage("hello"));
+    expect(frame(0)).toMatchObject({ conversation_id: null, project_id: "p-1" });
+
+    rerender({ id: "c-1" });
+    receive("complete", {});
+    act(() => result.current.sendMessage("again"));
+    expect(frame(1)).not.toHaveProperty("project_id");
+  });
+
   it("carries the per-turn model override, and only when it is set", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
@@ -2122,6 +2348,121 @@ describe("useChat - what goes out with a turn", () => {
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).not.toHaveProperty("approval_mode");
+  });
+});
+
+describe("useChat - the Builder's test panel", () => {
+  it.each([
+    [
+      { draft: true, environmentId: null },
+      { test: true, draft: true },
+    ],
+    [
+      { draft: false, environmentId: "env-dev" },
+      { test: true, environment_id: "env-dev" },
+    ],
+    [{ draft: false, environmentId: null }, { test: true }],
+  ])("marks every turn a test, of the draft or an environment (%o)", (testing, expected) => {
+    const { result } = renderHook(() => useChat({ testing }), { wrapper });
+
+    act(() => result.current.sendMessage("try it"));
+
+    expect(frame(0)).toMatchObject(expected);
+    if (!testing.draft) expect(frame(0)).not.toHaveProperty("draft");
+    if (!testing.environmentId) expect(frame(0)).not.toHaveProperty("environment_id");
+  });
+
+  it("sends nothing of the sort from the ordinary chat", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("hello"));
+
+    expect(frame(0)).not.toHaveProperty("test");
+  });
+});
+
+describe("useChat - leaving a conversation whose agent is still answering", () => {
+  // The server serves one turn per socket and drops a message sent during it, so
+  // a new chat opened mid-answer queued its first message behind an answer that
+  // belonged to another conversation.
+  it("lets the turn go, so the next conversation sends straight away", () => {
+    reopen.mockClear();
+    let conversationId: string | null = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    expect(result.current.isProcessing).toBe(true);
+
+    conversationId = null;
+    act(() => useConversationStore.getState().setCurrentConversationId(null));
+    rerender();
+
+    expect(reopen).toHaveBeenCalledTimes(1);
+    expect(result.current.isProcessing).toBe(false);
+    sent.mockClear();
+    act(() => result.current.sendMessage("something else, in a new chat"));
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("says on coming back that the answer is on its way, until it lands", () => {
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    conversationId = "c-b";
+    rerender();
+    expect(result.current.leftTurnPending).toBe(false);
+
+    conversationId = "c-a";
+    rerender();
+    expect(result.current.leftTurnPending).toBe(true);
+
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "landed",
+        role: "assistant",
+        content: "the answer, saved while nobody watched",
+        timestamp: new Date(),
+      }),
+    );
+    expect(result.current.leftTurnPending).toBe(false);
+  });
+
+  it("keeps the thread it left marked as working, for the listing to take over", () => {
+    // The listing may not have seen the run yet - the gap the working mark is
+    // there for - so leaving the thread must not take the mark down with the turn.
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    expect(useWorkingStore.getState().since["c-a"]).toBeDefined();
+
+    conversationId = "c-b";
+    rerender();
+
+    expect(useWorkingStore.getState().since["c-a"]).toBeDefined();
+    expect(useWorkingStore.getState().handedOff["c-a"]).toBe(true);
+  });
+
+  it("stops saying so once the reader goes to look", () => {
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    conversationId = "c-b";
+    rerender();
+    conversationId = "c-a";
+    rerender();
+
+    act(() => result.current.acknowledgeDetachedTurn());
+
+    expect(result.current.leftTurnPending).toBe(false);
+  });
+
+  it("leaves a conversation with nothing running alone", () => {
+    reopen.mockClear();
+    let conversationId = "c-a";
+    const { rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    conversationId = "c-b";
+    rerender();
+    expect(reopen).not.toHaveBeenCalled();
   });
 });
 
@@ -2293,7 +2634,11 @@ describe("useChat - a socket that went away mid-answer", () => {
     });
 
     expect(result.current.queuedMessages).toHaveLength(1);
-    expect(sent).toHaveBeenCalledTimes(1);
+    // The reconnect asks to follow the interrupted turn; nothing queued went out.
+    const sentNotFollowing = sent.mock.calls.filter(
+      ([sentFrame]) => (sentFrame as { type?: string }).type !== "attach",
+    );
+    expect(sentNotFollowing).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -2372,7 +2717,7 @@ describe("useChat - a socket that went away mid-answer", () => {
 });
 
 describe("useChat - the outbound queue", () => {
-  it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
+  it("queues what is sent to wait for the answer, and drains it when the agent is idle", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
@@ -2409,6 +2754,23 @@ describe("useChat - the outbound queue", () => {
     rerender();
 
     expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("sends what the person pointed at, and keeps it with a message that waited", async () => {
+    vi.useFakeTimers();
+    const drive = { kind: "mcp" as const, id: "gdrive", name: "Google Drive" };
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first", undefined, undefined, [drive]));
+    expect(frame(0)).toMatchObject({ mentions: [{ kind: "mcp", id: "gdrive" }] });
+    expect(useChatStore.getState().messages[0]).toMatchObject({ mentions: [drive] });
+
+    act(() => result.current.sendMessage("second", undefined, undefined, [drive]));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(1)).toMatchObject({ message: "second", mentions: [{ id: "gdrive" }] });
+    vi.useRealTimers();
   });
 
   it("queues what is typed while the socket is offline", () => {
@@ -2702,7 +3064,7 @@ describe("useChat - watching a browse", () => {
       step: 1,
       operation: "CLICK",
       target: "Accept all",
-      confidence: 0.42,
+      reason: "Close the banner",
     });
     browserFrame("browser_finished", { step: 2, outcome: "blocked", detail: "Sign in first" });
 
@@ -2714,7 +3076,7 @@ describe("useChat - watching a browse", () => {
     });
     expect(result.current.browses[0]?.steps[0]).toMatchObject({
       operation: "CLICK",
-      confidence: 0.42,
+      reason: "Close the banner",
     });
   });
 
@@ -2746,7 +3108,7 @@ describe("useChat - watching a browse", () => {
   it("keeps taking frames while the panel somebody opened is closed again", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     browserFrame("browser_opened", { step: 0, goal: "g" });
-    act(() => useBrowserPanelStore.getState().open("c1", "panel"));
+    act(() => useBrowserPanelStore.getState().open("c1"));
     act(() => useBrowserPanelStore.getState().close());
 
     browserFrame("browser_step", { step: 1, operation: "CLICK" });
@@ -2754,5 +3116,620 @@ describe("useChat - watching a browse", () => {
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
     // The frames still arrive; only the panel is closed. The card is still there.
     expect(result.current.browses[0]?.steps).toHaveLength(1);
+  });
+});
+
+/** A stored turn whose run parked on a question its person left unanswered (#2064). */
+function askedTurn() {
+  return {
+    id: "m-1",
+    role: "assistant" as const,
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-1",
+    runId: "r-1",
+    toolCalls: [
+      { id: "ask-1", name: "ask_user_question", args: {}, status: "awaiting_answer" as const },
+    ],
+  };
+}
+
+const ASKED = [
+  {
+    tool_call_id: "ask-1",
+    questions: [
+      {
+        question: "How formal?",
+        header: "Tone",
+        options: [{ label: "Formal" }, { label: "Casual" }],
+        allow_custom: true,
+      },
+    ],
+  },
+];
+
+describe("useChat - a question its person came back to", () => {
+  it("puts the card back when a reloaded conversation is waiting on an answer", async () => {
+    get.mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(get.mock.calls).toEqual([["/runs/r-1/questions"]]);
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({
+      question: "How formal?",
+      header: "Tone",
+      allowCustom: true,
+    });
+  });
+
+  it("answers over HTTP, closes the step and draws the continuation", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Here it is, casually.",
+      status: "completed",
+      settled: [{ tool_call_id: "ask-1", result: '{"Tone": ["Casual"]}' }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", {
+      responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+    });
+    // Nothing went over the socket: its turn ended when the run parked.
+    expect(sent.mock.calls.some(([sentFrame]) => sentFrame.type === "ask_user_response")).toBe(
+      false,
+    );
+    const messages = useChatStore.getState().messages;
+    expect(messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: '{"Tone": ["Casual"]}',
+    });
+    expect(messages.at(-1)?.content).toBe("Here it is, casually.");
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("puts the question back when the answer never landed", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("Network down"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("awaiting_answer");
+  });
+
+  it("does not offer it again once the continuation itself failed", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(
+      new ApiError(500, "The run failed", {
+        error: {
+          code: "RUN_EXECUTION_FAILED",
+          message: "The run failed",
+          details: { run_id: "r-1", status: "failed" },
+        },
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("puts a question asked again on the continuation back up", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "",
+      status: "awaiting_answer",
+      steps: [{ tool_call_id: "ask-2", tool_name: "ask_user_question", args: {} }],
+      questions: [{ ...ASKED[0], tool_call_id: "ask-2" }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Formal"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(useChatStore.getState().messages.at(-1)?.toolCalls?.[0]?.status).toBe("awaiting_answer");
+  });
+
+  it("offers every call the run parked on, and answers each with its own", async () => {
+    get.mockResolvedValue([
+      ...ASKED,
+      {
+        tool_call_id: "ask-2",
+        questions: [
+          { question: "Which day?", header: "Day", options: [{ label: "Mon" }] },
+          { question: "Who signs?", header: "Signer", options: [{ label: "Ann" }] },
+        ],
+      },
+    ]);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Booked.",
+      status: "completed",
+      settled: [
+        { tool_call_id: "ask-1", result: "formal" },
+        { tool_call_id: "ask-2", result: "mon, ann" },
+      ],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      toolCalls: [
+        ...askedTurn().toolCalls,
+        { id: "ask-2", name: "ask_user_question", args: {}, status: "awaiting_answer" as const },
+      ],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.pendingQuestions?.map((question) => question.header)).toEqual([
+      "Tone",
+      "Day",
+      "Signer",
+    ]);
+    const formal = { answer: "", selected: ["Formal"], skipped: false };
+    const monday = { answer: "", selected: ["Mon"], skipped: false };
+    const ann = { answer: "", selected: ["Ann"], skipped: false };
+    await act(async () => {
+      result.current.sendAskUserResponses([formal, monday, ann]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", {
+      responses: { "ask-1": [formal], "ask-2": [monday, ann] },
+    });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.map((call) => call.status)).toEqual([
+      "completed",
+      "completed",
+    ]);
+  });
+
+  it("asks again after a read of the questions failed", async () => {
+    get.mockRejectedValueOnce(new Error("Network down")).mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.pendingQuestions).toBeNull();
+
+    // Any later render - a message arriving, the conversation reopened - retries.
+    act(() => useChatStore.getState().addMessage({ ...askedTurn(), id: "m-2", runId: "r-1" }));
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
+  });
+
+  it("says why when the answer could not continue the run", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("nope"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", skipped: true }]);
+    });
+
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("asks once per run, and offers nothing when the run is not waiting on this reader", async () => {
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    act(() => {
+      useChatStore
+        .getState()
+        .addMessage({ id: "m-2", role: "user", content: "hi", timestamp: new Date() });
+    });
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("stays quiet when the questions could not be read", async () => {
+    get.mockRejectedValue(new Error("offline"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("useChat - adding to a running turn (#2087)", () => {
+  beforeEach(() => {
+    sent.mockClear();
+    useChatStore.setState({ messages: [] });
+  });
+
+  it("waits for the answer, and Send now puts it into the task where it landed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+
+    act(() => result.current.sendMessage("use the EU numbers"));
+    // As in any chat, it waits for the answer.
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "use the EU numbers",
+    ]);
+    expect(result.current.steers).toEqual([]);
+
+    const id = result.current.queuedMessages[0]!.id;
+    act(() => result.current.sendQueuedNow(id));
+    expect(frame(1)).toEqual({ type: "steer", text: "use the EU numbers" });
+    expect(result.current.steers.map((steer) => steer.text)).toEqual(["use the EU numbers"]);
+    expect(result.current.queuedMessages).toEqual([]);
+    // Gone from the queue, so a second press sends nothing.
+    act(() => result.current.sendQueuedNow(id));
+    expect(sent).toHaveBeenCalledTimes(2);
+
+    receive("steer_applied", { text: "use the EU numbers" });
+    expect(result.current.steers).toEqual([]);
+    const answer = useChatStore.getState().messages.at(-1);
+    expect(answer?.parts?.at(-1)).toMatchObject({ type: "steer", content: "use the EU numbers" });
+    // A second notice for the same words finds nothing left to clear.
+    receive("steer_applied", { text: "use the EU numbers" });
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("sends one that came too late as the next message", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    act(() => result.current.sendMessage("and the totals"));
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    receive("steer_unapplied", { texts: ["and the totals"] });
+
+    expect(result.current.steers).toEqual([]);
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["and the totals"]);
+  });
+
+  it("reorders the queue, which is the order the messages go in", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    const [first, second] = result.current.queuedMessages;
+
+    act(() => result.current.moveQueued(second!.id, 0));
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "second",
+      "first",
+    ]);
+    // Out of range, to where it already is, or an unknown id: nothing moves.
+    act(() => result.current.moveQueued(first!.id, 5));
+    act(() => result.current.moveQueued(first!.id, 1));
+    act(() => result.current.moveQueued("gone", 0));
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "second",
+      "first",
+    ]);
+  });
+
+  it("holds a message with a file for the answer - a correction carries no file", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() => result.current.sendMessage("this one", ["file-1"]));
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("holds a message that points at something - a correction carries no mention", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() =>
+      result.current.sendMessage("@Contracts this one", undefined, undefined, [
+        { kind: "collection", id: "kb-1", name: "Contracts" },
+      ]),
+    );
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "@Contracts this one",
+    ]);
+    expect(result.current.steers).toEqual([]);
+  });
+});
+
+describe("useChat - coming back to a turn still being written", () => {
+  function storedQuestion(conversationId = "c-1") {
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "u-1",
+        role: "user",
+        content: "build a landing page",
+        timestamp: new Date(),
+        conversationId,
+      }),
+    );
+  }
+
+  it("asks to follow the conversation's turn once its transcript is here", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    expect(sent).not.toHaveBeenCalled();
+
+    storedQuestion();
+
+    expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-1" });
+  });
+
+  it("leaves the room it was in when a new chat opens, and not before one was joined", () => {
+    const { rerender } = renderHook(
+      ({ conversationId }: { conversationId: string | null }) => useChat({ conversationId }),
+      { wrapper, initialProps: { conversationId: null as string | null } },
+    );
+    expect(sent).not.toHaveBeenCalled();
+
+    rerender({ conversationId: "c-1" });
+    storedQuestion();
+    rerender({ conversationId: null });
+
+    expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+  });
+
+  it("draws nothing of a turn announced for a chat no longer on screen", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Somebody else's answer" });
+    expect(streaming()).toBeUndefined();
+
+    // Its end lets the next turn's frames through again.
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "This chat's answer" });
+    expect(streaming()?.content).toContain("This chat's answer");
+  });
+
+  it("draws the followed turn as it would have been drawn live, and re-reads it at the end", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(true);
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Writing index.html" });
+    expect(streaming()?.content).toContain("Writing index.html");
+
+    receive("turn_followed_to_end", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(false);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a turn of another conversation, and an end it was not following", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("draws the followed answer as the agent's that answers it, from its first word", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+      agent_id: "a-9",
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Up 4%." });
+
+    expect(useChatStore.getState().messages.at(-1)?.agentId).toBe("a-9");
+  });
+
+  it("draws a teammate's question before the answer it is following", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    // Not followed yet: nothing to draw it under.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+      agent_id: "a-9",
+    });
+    // Already in the transcript - a person who came back mid-turn read it there.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "u-1",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_prompt", { conversation_id: "c-1", message_id: null, content: "", sender: anna });
+
+    const asked = useChatStore.getState().messages.filter((message) => message.role === "user");
+    expect(asked.map((message) => message.content)).toEqual([
+      "build a landing page",
+      "and the budget?",
+      "",
+    ]);
+    expect(asked[1]?.sender).toEqual(anna);
+  });
+
+  it("draws a teammate's reply with the quote it answers", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "yes, do that",
+      sender: anna,
+      reply_to: { message_id: "m-1", role: "assistant", excerpt: "Plan: A, B", agent_id: "a-9" },
+    });
+
+    expect(useChatStore.getState().messages.at(-1)?.replyTo).toEqual({
+      messageId: "m-1",
+      role: "assistant",
+      excerpt: "Plan: A, B",
+      sender: undefined,
+      agentId: "a-9",
+    });
+  });
+
+  it("says who has the open conversation, and nobody for another one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    expect(result.current.present).toEqual([]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.present).toEqual([anna]);
+
+    receive("presence", { conversation_id: "c-other", people: [anna] });
+    expect(result.current.present).toEqual([]);
+  });
+
+  it("says who else is typing here, until a while after their last keystroke", () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+      const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+
+      receive("typing", { conversation_id: "c-1", person: anna });
+      receive("typing", { conversation_id: "c-other", person: ola });
+      expect(result.current.typing).toEqual([anna]);
+
+      // Renewed by the next keystroke, not doubled.
+      act(() => vi.advanceTimersByTime(4000));
+      receive("typing", { conversation_id: "c-1", person: anna });
+      act(() => vi.advanceTimersByTime(4000));
+      expect(result.current.typing).toEqual([anna]);
+
+      act(() => vi.advanceTimersByTime(3000));
+      expect(result.current.typing).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops saying somebody types once their message lands, or they leave", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+    receive("typing", { conversation_id: "c-1", person: anna });
+    receive("typing", { conversation_id: "c-1", person: ola });
+
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-1",
+      content: "hi",
+      sender: anna,
+    });
+    expect(result.current.typing).toEqual([ola]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.typing).toEqual([]);
+  });
+
+  it("tells the room it types only when somebody else is in it, and not every keystroke", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const me = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const typed = () => sent.mock.calls.filter(([frame]) => frame.type === "typing").length;
+
+    receive("presence", { conversation_id: "c-1", people: [me] });
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(0);
+
+    receive("presence", { conversation_id: "c-1", people: [me, anna] });
+    act(() => result.current.notifyTyping());
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(1);
+  });
+
+  it("stops following rather than stopping a turn this socket does not own", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    sent.mockClear();
+
+    act(() => result.current.stopGeneration());
+
+    expect(sent).toHaveBeenCalledWith({ type: "unfollow" });
+    expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
+    expect(result.current.isProcessing).toBe(false);
   });
 });

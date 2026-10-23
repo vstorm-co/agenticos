@@ -326,7 +326,7 @@ class ArtifactData(BaseSchema):
     bindings: dict[str, BindingData]
     current: bool = Field(
         description=(
-            "Whether the version asked about is still the artifact's current one. "
+            "Whether the version asked about is still the app's current one. "
             "False once a newer version was published: every binding is then unavailable, "
             "and the viewer moves to the current version"
         )
@@ -397,6 +397,10 @@ class ArtifactRead(BaseSchema):
     )
     created_at: datetime
     updated_at: datetime | None = None
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - only the listing carries it.",
+    )
 
 
 class ArtifactPublicLinkRead(BaseSchema):
@@ -555,6 +559,9 @@ class ArtifactDetail(ArtifactRead):
             "owner, or an Owner or Admin, each signed in as themselves - decided by the server"
         ),
     )
+    following: bool = Field(
+        description="Whether the caller is told in their inbox when a new version is published"
+    )
     public_link: ArtifactPublicLinkRead
     public_data: ArtifactPublicDataRead | None = Field(
         default=None,
@@ -582,10 +589,15 @@ class ArtifactList(BaseSchema):
 
 
 class ArtifactAgent(BaseSchema):
-    """An agent behind at least one artifact the caller may open."""
+    """An agent behind at least one artifact the caller may open, with what its
+    face is drawn from - the filter shows each publisher as the rest of the
+    console does."""
 
     id: UUID
     name: str
+    slug: str
+    has_avatar: bool
+    avatar_color: int | None
 
 
 class ArtifactAgentList(BaseSchema):

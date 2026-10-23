@@ -6,8 +6,6 @@ to the origins it is sealed for. The rules for each of those live here once, so
 the three steps cannot drift into refusing different things.
 """
 
-from __future__ import annotations
-
 import base64
 import json
 import re

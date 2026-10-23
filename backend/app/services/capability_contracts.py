@@ -20,8 +20,6 @@ something to work with does build, and nothing more, because what is read back
 is the shape of the tools and never a result.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from dataclasses import dataclass

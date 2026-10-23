@@ -16,7 +16,7 @@ const PERIOD: Period = { preset: "30d", from: "2026-08-23", to: "2026-09-22" };
 function widget() {
   return render(
     <TooltipProvider>
-      <ArtifactsWidget title="Artifacts" hint="Recent pages" period={PERIOD} seeAll="/artifacts" />
+      <ArtifactsWidget title="Artifacts" hint="Recent pages" period={PERIOD} seeAll="/apps" />
     </TooltipProvider>,
   );
 }
@@ -36,10 +36,7 @@ describe("ArtifactsWidget", () => {
     });
     widget();
     expect(useArtifactsMock).toHaveBeenCalledWith({ limit: 5 });
-    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
-      "href",
-      "/artifacts/a1",
-    );
+    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute("href", "/apps/a1");
     expect(screen.getByRole("link", { name: /Churn dashboard/ })).toBeInTheDocument();
   });
 

@@ -22,21 +22,22 @@ describe("SidebarSearch", () => {
     window.removeEventListener("command-palette:open", opened);
   });
 
-  it("is named for what it does, and prints no shortcut", () => {
-    // The ⌘K chip is gone from both variants. It taught the shortcut once and
-    // then sat in the column forever, and in the icon row it made search the
-    // one control wider than every other single-icon button beside it. The
-    // palette still opens on ⌘K and still says so on its own placeholder,
-    // which is where the reminder can actually be used.
+  it("is named for what it does, and the row prints no shortcut", () => {
     render(<SidebarSearch />);
 
     expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
     expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
   });
 
-  it("is a square button in the icon row, the size of the bell beside it", () => {
-    const { container } = render(<SidebarSearch variant="icon" />);
+  it("carries its shortcut as a badge in the icon row, the keyboard's own", () => {
+    // How anybody learns ⌘K exists; a Mac writes the symbol, the rest name the key.
+    const { unmount } = render(<SidebarSearch variant="icon" />);
+    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("searchShortcut");
+    unmount();
 
-    expect(container.querySelector("button")).toHaveClass("w-9", "h-9");
+    const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    render(<SidebarSearch variant="icon" />);
+    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("⌘K");
+    platform.mockRestore();
   });
 });

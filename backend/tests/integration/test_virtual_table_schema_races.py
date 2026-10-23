@@ -9,8 +9,6 @@ and the record would land in an archived table, or a column would become require
 while an uncommitted record without a value sat beside it.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import pytest

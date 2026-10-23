@@ -32,13 +32,12 @@ attempt already executing has settled. That does not reopen the backlog this
 bounds: `cancel` drains every pending and claimed outbox row, `begin_attempt`
 refuses to start a new attempt on a terminal run, and `settle` short-circuits
 without enqueuing successors - so no new queued work appears. The one attempt
-still in flight is bounded by `PREFECT_RUNNER_LIMIT` (global concurrency), and
-how fast start-then-cancel can be cycled is bounded by the per-minute run limit.
+still in flight is bounded by the workflow pool's `WORKER_WORKFLOW_CONCURRENCY` per
+worker, and how fast start-then-cancel can be cycled is bounded by the per-minute
+run limit.
 So the queue-depth guarantee holds; only in-flight concurrency, already capped
 elsewhere, is briefly held past a cancel.
 """
-
-from __future__ import annotations
 
 from uuid import UUID
 

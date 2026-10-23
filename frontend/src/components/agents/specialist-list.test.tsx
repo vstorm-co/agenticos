@@ -39,11 +39,13 @@ vi.mock("@/hooks", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const CHARTS: CapabilityCatalogEntry = {
+  recommended: null,
   id: "charts",
   name: "Charts",
   category: "analysis",
   description: "Draw a chart so the user can see the numbers.",
   side_effecting: false,
+  voice: "live",
   scopes: [],
   tools: [{ id: "create_chart", name: "create_chart", description: "Draw a chart." }],
   contracts: [],
@@ -301,6 +303,7 @@ describe("what a specialist can do", () => {
         description: "How refunds work here.",
         category: null,
         enabled: true,
+        visibility: "org",
         file_count: 0,
         built_in: false,
         excerpt: "",

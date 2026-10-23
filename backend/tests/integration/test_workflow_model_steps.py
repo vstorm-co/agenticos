@@ -6,8 +6,6 @@ branch it chooses is the one the run continues down, while the others are
 skipped.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

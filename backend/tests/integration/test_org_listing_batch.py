@@ -6,8 +6,6 @@ one grouped read - both replacing a query per row. Only a real database shows
 the join carries the role and the `GROUP BY` keys the counts correctly.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

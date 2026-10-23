@@ -4,8 +4,6 @@ What the table looks like now - which is what a step that builds a record, a
 prompt or a report from it needs to know. Archived columns are left out.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict

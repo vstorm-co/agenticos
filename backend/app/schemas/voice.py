@@ -1,0 +1,308 @@
+"""Voice conversations on the wire (#54): readiness, socket frames, usage."""
+
+from datetime import datetime
+from typing import Annotated, Literal
+from uuid import UUID
+
+from pydantic import Field, StringConstraints
+
+from app.agents.spec import VoiceSpec
+from app.schemas.base import BaseSchema
+
+# An SDP description, kept byte for byte. `BaseSchema` strips whitespace from every
+# string, and that takes the CRLF closing the last line, which OpenAI refuses as
+# "failed to unmarshal SDP: EOF".
+Sdp = Annotated[str, StringConstraints(strip_whitespace=False)]
+
+
+class VoiceReadinessRead(BaseSchema):
+    available: bool
+    unavailable: Literal["no_voice", "not_offered", "no_key"] | None = None
+    transport: Literal["webrtc", "relay"] | None = None
+    provider: str | None = None
+    model: str | None = None
+    cap_seconds: int = Field(
+        description="The longest this call could run: the agent's longest call"
+    )
+
+
+class StartFrame(BaseSchema):
+    """The first frame on the voice socket: which agent, which conversation, the SDP offer."""
+
+    type: Literal["start"]
+    agent_id: UUID | None = None
+    conversation_id: UUID | None = None
+    sdp_offer: Sdp | None = Field(default=None, max_length=20_000)
+    resume_of: UUID | None = Field(
+        default=None, description="The call this connection continues after a drop, within 10 s"
+    )
+    resume_token: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "With `resume_of`: the `resume_token` the `ready` frame of that connection carried. "
+            "A resume without it is refused"
+        ),
+    )
+    context: dict[str, str | int | float | bool | None] | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "On an embed's call, what the page says about the visitor - the `context` a text "
+            "message frame carries. Only variables the embed declares are read, as unverified "
+            "data; ignored on a console call"
+        ),
+    )
+
+
+class ApprovalFrame(BaseSchema):
+    """The person on the call deciding an approval the call is waiting on."""
+
+    type: Literal["approval"]
+    id: str
+    decision: Literal["approve", "deny"]
+
+
+class AnswersFrame(BaseSchema):
+    """The person on the call answering the questions card the call is waiting on."""
+
+    type: Literal["answers"]
+    id: str = Field(max_length=64)
+    answers: list[dict[str, object]] = Field(
+        max_length=10,
+        description=(
+            "One entry per question, in order, as the chat's question card answers: "
+            "`selected` labels, a typed `answer`, or `skipped`"
+        ),
+    )
+
+
+class MuteFrame(BaseSchema):
+    """The caller's microphone muted or unmuted."""
+
+    type: Literal["mute"]
+    muted: bool
+
+
+class EndFrame(BaseSchema):
+    """The caller hanging up."""
+
+    type: Literal["end"]
+
+
+class PlayedFrame(BaseSchema):
+    """How many bytes of the agent's audio the browser has played (the relay)."""
+
+    type: Literal["played"]
+    bytes: int = Field(ge=0)
+
+
+ClientFrame = Annotated[
+    StartFrame | ApprovalFrame | AnswersFrame | MuteFrame | EndFrame | PlayedFrame,
+    Field(discriminator="type"),
+]
+
+
+class AnswerFrame(BaseSchema):
+    """The provider's SDP answer, for the browser's peer connection (WebRTC)."""
+
+    type: Literal["answer"]
+    sdp: Sdp
+
+
+class ReadyFrame(BaseSchema):
+    """The call is set up: its ids, its transport and its limits."""
+
+    type: Literal["ready"]
+    call_id: UUID
+    run_id: UUID | None = Field(
+        default=None, description="The call's run; left out for a visitor, as a text embed does"
+    )
+    conversation_id: UUID
+    transport: Literal["webrtc", "relay"]
+    input_sample_rate: int
+    output_sample_rate: int
+    cap_seconds: int
+    resume_token: str = Field(
+        description=(
+            "What a reconnect of this connection sends as `start.resume_token`. Sent only "
+            "here, to this caller; the server keeps its hash"
+        )
+    )
+
+
+class StateFrame(BaseSchema):
+    """Who is talking, or what the agent is doing."""
+
+    type: Literal["state"]
+    state: Literal[
+        "connecting",
+        "listening",
+        "user_speaking",
+        "thinking",
+        "agent_speaking",
+        "interrupted",
+        "tool_running",
+        "awaiting_approval",
+    ]
+
+
+class CaptionFrame(BaseSchema):
+    """One speech part's caption, as it is spoken.
+
+    `turn_id` is the `turn_id` of the message the part is saved in
+    (`<call id>:<n>:<role>`), so a `turn_saved` frame replaces every caption
+    carrying it. One caller utterance is one turn; all of the agent's parts in
+    one response are one turn, told apart by `part`. Exactly one of the text
+    fields is set: `delta` appends words, `text` replaces the part's caption with
+    the screened text so far (an agent with an output guardrail, whose captions
+    arrive a sentence at a time), and `final` replaces it with the finished,
+    screened part.
+    """
+
+    model_config = BaseSchema.model_config | {"str_strip_whitespace": False}
+
+    type: Literal["caption"]
+    role: Literal["user", "assistant"]
+    turn_id: str
+    part: int
+    delta: str | None = None
+    text: str | None = None
+    final: str | None = None
+
+
+class ToolFrame(BaseSchema):
+    """A tool the agent is running, or has finished."""
+
+    type: Literal["tool"]
+    name: str
+    status: Literal["running", "done"]
+
+
+class TurnSavedFrame(BaseSchema):
+    """A finished turn, as the message it was saved as; it replaces its caption."""
+
+    type: Literal["turn_saved"]
+    message: dict[str, object]
+
+
+class ApprovalRequiredFrame(BaseSchema):
+    """A tool call waiting on the person on the call: its exact arguments and what they said."""
+
+    type: Literal["approval_required"]
+    id: str
+    tool: str
+    args: dict[str, object]
+    said: str | None = None
+    timeout_seconds: int
+
+
+class ApprovalUnavailableFrame(BaseSchema):
+    """A tool call this caller cannot approve by voice."""
+
+    type: Literal["approval_unavailable"]
+    tool: str
+    args: dict[str, object]
+
+
+class ApprovalSettledFrame(BaseSchema):
+    """How an approval the call was waiting on ended."""
+
+    type: Literal["approval_settled"]
+    id: str
+    outcome: Literal["approved", "denied", "expired"]
+
+
+class QuestionsFrame(BaseSchema):
+    """Questions the agent is waiting on the person to answer, as the chat's card draws them."""
+
+    type: Literal["questions"]
+    id: str
+    questions: list[dict[str, object]]
+    timeout_seconds: int
+
+
+class QuestionsSettledFrame(BaseSchema):
+    """The questions card is answered - by a tap or aloud - or no longer waited on."""
+
+    type: Literal["questions_settled"]
+    id: str
+
+
+class NoticeFrame(BaseSchema):
+    """Something the call view says in words: a guardrail hit, a provider error, a limit."""
+
+    type: Literal["notice"]
+    kind: str
+    message: str | None = None
+
+
+class LimitFrame(BaseSchema):
+    """The call's time is nearly up."""
+
+    type: Literal["limit"]
+    seconds_left: int
+
+
+class EndedFrame(BaseSchema):
+    """The call is over, and why."""
+
+    type: Literal["ended"]
+    reason: str
+    message: str | None = None
+
+
+class ClearPlaybackFrame(BaseSchema):
+    """The relay: drop the agent's queued audio, the caller talked over it."""
+
+    type: Literal["clear_playback"]
+
+
+ServerFrame = Annotated[
+    AnswerFrame
+    | ReadyFrame
+    | StateFrame
+    | CaptionFrame
+    | ToolFrame
+    | TurnSavedFrame
+    | ApprovalRequiredFrame
+    | ApprovalUnavailableFrame
+    | ApprovalSettledFrame
+    | QuestionsFrame
+    | QuestionsSettledFrame
+    | NoticeFrame
+    | LimitFrame
+    | EndedFrame
+    | ClearPlaybackFrame,
+    Field(discriminator="type"),
+]
+"""Every JSON frame the server sends on the voice socket: the contract the call view reads."""
+
+
+class AgentMinutesRead(BaseSchema):
+    agent_id: UUID | None = Field(description="Null for the calls of agents since deleted")
+    agent_name: str | None = Field(description="Null for the calls of agents since deleted")
+    seconds: int
+    calls: int = Field(description="Calls started; a reconnect is part of the call it resumed")
+
+
+class VoiceUsageRead(BaseSchema):
+    """Call time over a window, by agent."""
+
+    start: datetime
+    end: datetime
+    seconds: int = Field(description="Call seconds in the window, every agent together")
+    calls: int
+    by_agent: list[AgentMinutesRead] = Field(
+        description="Most seconds first; one row with no id for deleted agents"
+    )
+
+
+class VoicePreviewRequest(BaseSchema):
+    """What to listen to: the draft's Voice section, and the console's language."""
+
+    voice: VoiceSpec = Field(description="The Voice section as the Builder holds it, unpublished")
+    locale: Literal["en", "pl", "de"] = Field(
+        default="en",
+        description="The console's language: the sentence is said in it unless the section names one",
+    )

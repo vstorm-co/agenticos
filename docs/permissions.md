@@ -86,10 +86,14 @@ from `OrgRoleName`. This is where the great majority of decisions are made.
 
 Two kinds of permission, and they behave differently.
 
-**Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
+**Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`.
+`connections:view`, `connections:manage`, `channels:manage`,
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
+for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a
+subset of the permissions here, never more than its issuer holds now.
 
 !!! example "Why `ml:invoke` is not `agents:run`"
 
@@ -118,6 +122,11 @@ Two kinds of permission, and they behave differently.
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
 
+`mcp:manage` is one of them: an organization's MCP server can be narrowed to
+groups or people, like a skill ([Departments](departments.md#a-departments-mcp-servers)).
+A role holding it at `SHARED` sees the organization's servers, its own, and
+those shared with it; `ALL` sees every one.
+
 ### Scope
 
 Ordered `NONE < OWN < SHARED < TEAM < ALL`.
@@ -145,10 +154,10 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
-| `viewer` | reads | `view` `SHARED` | none | none |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | reads | `view` `SHARED` | none | `members:view` |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the
 whole organization in order to learn from it, but edits only what is theirs or was
@@ -247,6 +256,12 @@ who can see it, not what it does.
 | `use` | also run or attach it |
 | `edit` | also change it |
 | `edit_data` | also change what data the page shows - [pages only](#a-page-that-reads-data) |
+
+In the console this is one dialog, the way a document is shared: the **Share**
+button on an agent, a skill, a knowledge base or a context file - at any time
+after it was made, not only when it is created - adds a person or a group at a level, lists who has access with
+the owner first, and sets **General access** - *Only people with access* is
+`private`, *Everyone in the organization* is `org`.
 
 A grant to a group reaches whoever is in the group at the moment access is
 checked, so joining the group is gaining the access and leaving it is losing it.

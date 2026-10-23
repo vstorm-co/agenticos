@@ -11,8 +11,6 @@ reaches it, since the route delegates to the grant-aware service.
 The real service runs with the repository stubbed at the database edge.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -51,6 +49,8 @@ def _agent(*, categories: list[str] | None = None, tags: list[str] | None = None
         draft_spec={},
         categories=categories or [],
         tags=tags or [],
+        # What the column's default gives every stored row.
+        a2a_enabled=False,
     )
 
 
@@ -138,6 +138,10 @@ async def test_a_viewer_with_an_edit_grant_reaches_the_route(viewer_client: Open
             new=AsyncMock(return_value=GrantLevel.EDIT),
         ),
         patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+        patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         async with viewer_client() as http:
             response = await http.patch(_url(agent.id), json={"tags": ["ops"]})

@@ -561,10 +561,10 @@ class DispatchOutbox(Base, TimestampMixin):
         nullable=False,
     )
     available_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
-    # A fencing token minted fresh per claim - not a Prefect flow-run identity
-    # - so a hung flow and a reclaiming poller's flow can never both believe
-    # they own the row: every status transition after a claim re-checks
-    # `claimed_by` (booking a reported cost deliberately does not).
+    # A fencing token minted fresh per claim - not a job's identity - so a hung
+    # job and the job that reclaims the row can never both believe they own it:
+    # every status transition after a claim re-checks `claimed_by` (booking a
+    # reported cost deliberately does not).
     claimed_by: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(
         SADateTime(timezone=True), nullable=True

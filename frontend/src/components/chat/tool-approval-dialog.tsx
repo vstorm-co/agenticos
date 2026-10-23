@@ -1,12 +1,23 @@
 "use client";
 
+import {
+  AGENT_DRAFT_TOOL,
+  AgentDraftProposal,
+  draftArgs,
+} from "@/components/chat/agent-draft-proposal";
+import {
+  AccountBadge,
+  ApprovalDetails,
+  ToolMark,
+  useActionPhrase,
+} from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
-import { approvalSummary, toolDisplayName } from "@/lib/agent-step-captions";
+import { approvalSummary } from "@/lib/agent-step-captions";
+import { callSummary } from "@/lib/approval-view";
 import { cn } from "@/lib/utils";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Perm } from "@/types/permissions";
-import { Check, ShieldAlert, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface ToolApprovalDialogProps {
@@ -36,10 +47,12 @@ interface ToolApprovalDialogProps {
  * the edit path was dead, and the raw JSON box it needed was the loudest thing in
  * the transcript.
  *
- * What replaces it is the shape the rest of the chat uses: a card, the step's own
- * name from `lib/tool-catalog.ts`, its arguments as read-only code, and
- * two plain answers. Approve and Reject rather than "Submit 1 call" - the question
- * is not how many calls there are.
+ * What replaces it is a question a person can answer at a glance: the service's
+ * logo or the tool's mark, "Allow Search in Notion?", the one argument that says
+ * what it is about, and two plain answers - with every other argument folded
+ * behind Details, because a page of `"page_url": ""` leads with nothing. Approve
+ * and Reject rather than "Submit 1 call" - the question is not how many calls
+ * there are.
  */
 export function ToolApprovalDialog({
   actionRequests,
@@ -50,114 +63,96 @@ export function ToolApprovalDialog({
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
+  const phrase = useActionPhrase();
 
   const decideAll = (type: "approve" | "reject") =>
     onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    // The voice call's approval card, in the chat: the warning tone and ring of
-    // anything waiting on a person, the step's name, why it is asked, and its
-    // arguments one row each - a JSON object read as a stray code block.
-    <section
-      role="group"
-      aria-label={t("toolApprovalRequired")}
-      className="bg-card border-warning/60 flex w-full max-w-[560px] flex-col gap-3 rounded-[14px] border p-3.5 shadow-[0_0_0_3px_color-mix(in_oklch,var(--color-warning)_16%,transparent),0_8px_30px_-12px_rgb(0_0_0/0.25)]"
-    >
-      <div className="flex items-center gap-2 text-[13px] font-semibold">
-        <ShieldAlert className="text-warning h-4 w-4 shrink-0" aria-hidden />
-        <span>{t("toolApprovalRequired")}</span>
-      </div>
+    // The answers sit beside the question rather than under it: under it, a
+    // folded Details left a band of empty card between what was asked and the
+    // buttons that answer it.
+    // Laid out by the card's own width, not the window's: in the Architect's
+    // widget the window is wide and the card is not, and buttons beside the
+    // question squeezed what was asked into a column a third of the card.
+    <div className="@container">
+      <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm @xl:flex-row @xl:items-start">
+        <ul className="min-w-0 flex-1 space-y-4">
+          {actionRequests.map((action) => {
+            // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
+            const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
+            const { reason, ...args } = action.args ?? {};
+            // What the call will do in names rather than the ids below, resolved when
+            // it was parked as the person the run acts for; else the one telling argument.
+            const summary =
+              draft === null
+                ? (approvalSummary(action.capability_tool_id, action.context, tTools) ??
+                  callSummary(args))
+                : null;
+            return (
+              <li key={action.id} className="flex gap-3">
+                <ToolMark toolName={action.tool_name} />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-muted-foreground text-xs font-medium">
+                    {t("toolApprovalRequired")}
+                  </p>
+                  {/* The question, in the words the step above it uses - "Allow
+                    Search in Notion?" - rather than `notion_notion-search`. */}
+                  <p className="text-foreground text-sm font-medium">
+                    {draft !== null
+                      ? t("draftProposalTitle")
+                      : t("approvalAsk", { action: phrase(action.tool_name) })}
+                  </p>
+                  <AccountBadge account={action.account} />
+                  {/* Why the agent asks, in its own words, first: a request to share a
+                    view mid-way through "publish a page" reads as unrelated without it. */}
+                  {typeof reason === "string" && reason !== "" && (
+                    <p className="text-sm leading-relaxed">{reason}</p>
+                  )}
+                  {/* The one argument that says what the call is about. A command
+                    is read by its characters, so it keeps a code face. */}
+                  {summary !== null && (
+                    <p
+                      className={cn(
+                        "text-foreground/80 truncate text-sm",
+                        "command" in args && "font-mono text-xs",
+                      )}
+                      title={summary}
+                    >
+                      {summary}
+                    </p>
+                  )}
+                  {draft !== null ? (
+                    <AgentDraftProposal draft={draft} />
+                  ) : (
+                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
 
-      {actionRequests.map((action) => {
-        const { reason, ...rest } = action.args ?? {};
-        const summary = approvalSummary(action.capability_tool_id, action.context, tTools);
-        return (
-          <div key={action.id} className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <b className="text-base font-semibold tracking-tight">
-                {toolDisplayName(action.tool_name, tTools)}
-              </b>
-              <code className="bg-muted rounded px-1.5 font-mono text-xs">{action.tool_name}</code>
-            </div>
-            {/* Why the agent asks, in its own words, first: a request to share a
-                view mid-way through "publish a page" reads as unrelated without it. */}
-            {typeof reason === "string" && reason !== "" && (
-              <p className="text-sm leading-relaxed">{reason}</p>
-            )}
-            {/* What will happen, in names rather than the ids below - resolved when
-                the call was parked, as the person the run acts for. */}
-            {summary !== null && <p className="text-sm leading-relaxed font-medium">{summary}</p>}
-            {Object.keys(rest).length > 0 && <Arguments args={rest} />}
-            <details>
-              <summary className="text-muted-foreground w-fit cursor-pointer text-xs">
-                {t("approvalExactJson")}
-              </summary>
-              <pre className="bg-muted mt-1.5 max-h-48 overflow-auto rounded-lg px-2.5 py-2 font-mono text-xs">
-                {JSON.stringify(action.args ?? {}, null, 2)}
-              </pre>
-            </details>
+        {mayDecide ? (
+          <div className="flex shrink-0 justify-end gap-2 @xl:pt-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => decideAll("reject")}
+              disabled={disabled}
+            >
+              {t("reject")}
+            </Button>
+            <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+              {t("approve")}
+            </Button>
           </div>
-        );
-      })}
-
-      {mayDecide ? (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            variant="outline"
-            className="min-w-[104px]"
-            onClick={() => decideAll("reject")}
-            disabled={disabled}
-          >
-            <X aria-hidden />
-            {t("reject")}
-          </Button>
-          <Button
-            className="min-w-[104px]"
-            onClick={() => decideAll("approve")}
-            disabled={disabled}
-          >
-            <Check aria-hidden />
-            {t("approve")}
-          </Button>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-xs">{t("decidingNeedsPermission")}</p>
-      )}
-    </section>
-  );
-}
-
-/** A value as the tool will receive it: a scalar as written, anything else as JSON. */
-function shown(value: unknown): string {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-    ? String(value)
-    : JSON.stringify(value, null, 2);
-}
-
-/**
- * The arguments as something a person judges, one row each, as the voice card
- * draws them: a single command or path is read as itself, with no escaping in
- * the way, and the exact JSON stays one click away.
- */
-function Arguments({ args }: { args: Record<string, unknown> }) {
-  return (
-    <dl className="divide-border divide-y overflow-hidden rounded-[10px] border">
-      {Object.entries(args).map(([key, value]) => (
-        <div
-          key={key}
-          className="grid grid-cols-[minmax(92px,auto)_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
-        >
-          <dt className="text-muted-foreground font-mono text-xs">{key}</dt>
-          <dd
-            className={cn(
-              "max-h-48 min-w-0 overflow-auto text-sm font-medium [overflow-wrap:anywhere] whitespace-pre-wrap",
-              typeof value === "number" && "font-mono",
-            )}
-          >
-            {shown(value)}
-          </dd>
-        </div>
-      ))}
-    </dl>
+        ) : (
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+            {t("decidingNeedsPermission")}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

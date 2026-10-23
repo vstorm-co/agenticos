@@ -9,8 +9,6 @@ table describers are proved against Postgres in
 `tests/integration/test_approval_context.py`.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import AsyncIterator, Mapping

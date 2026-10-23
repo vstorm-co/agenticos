@@ -4,8 +4,6 @@ The integration tests drive a real run; these pin each outcome of the wait
 without one, so none depends on how fast a background drive gets scheduled.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

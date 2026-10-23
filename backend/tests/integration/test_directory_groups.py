@@ -7,8 +7,6 @@ that the sync, run over real rows, joins, re-roles and removes exactly the
 memberships it owns and nothing an administrator made.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest
@@ -342,7 +340,12 @@ class TestGroupService:
         service = GroupService(db)
         zeta = await service.create(org.id, owner.id, GroupCreate(name="Zeta"))
         await service.create(org.id, owner.id, GroupCreate(name="Alpha"))
-        await service.add_member(org.id, zeta.id, member.id, owner.id)
+        await service.add_member(
+            org.id,
+            zeta.id,
+            member.id,
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        )
 
         listed = await service.list_groups(org.id, member.id)
 
@@ -355,7 +358,12 @@ class TestGroupService:
         group = await GroupService(db).create(org.id, owner.id, GroupCreate(name="Finance"))
 
         with pytest.raises(BadRequestError):
-            await GroupService(db).add_member(org.id, group.id, outsider.id, owner.id)
+            await GroupService(db).add_member(
+                org.id,
+                group.id,
+                outsider.id,
+                AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+            )
 
     async def test_adding_by_hand_takes_over_a_directory_membership(self, db):
         org, owner = await _org(db)
@@ -364,7 +372,12 @@ class TestGroupService:
         db.add(GroupMember(group_id=group.id, user_id=member.id, source="directory"))
         await db.flush()
 
-        row, email, _ = await GroupService(db).add_member(org.id, group.id, member.id, owner.id)
+        row, email, _ = await GroupService(db).add_member(
+            org.id,
+            group.id,
+            member.id,
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        )
 
         assert row.source == MembershipSource.MANUAL
         assert email == member.email
@@ -412,12 +425,22 @@ class TestGroupService:
         member = await _member(db, org)
         service = GroupService(db)
         group = await service.create(org.id, owner.id, GroupCreate(name="Finance"))
-        await service.add_member(org.id, group.id, member.id, owner.id)
+        await service.add_member(
+            org.id,
+            group.id,
+            member.id,
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        )
 
         listed = await service.list_members(org.id, group.id, member.id)
         assert [(row.user_id, email) for row, email, _ in listed] == [(member.id, member.email)]
 
-        await service.remove_member(org.id, group.id, member.id, owner.id)
+        await service.remove_member(
+            org.id,
+            group.id,
+            member.id,
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        )
         assert await service.list_members(org.id, group.id, owner.id) == []
 
         await service.delete(org.id, group.id, owner.id)

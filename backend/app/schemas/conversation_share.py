@@ -18,7 +18,17 @@ __all__ = [
     "ConversationShareCreate",
     "ConversationShareList",
     "ConversationShareRead",
+    "SharedConversationRead",
 ]
+
+
+class SharedVisual(BaseSchema):
+    """A drawing in a shared thread, as a finished document - never the call that made it."""
+
+    id: str
+    title: str
+    kind: Literal["svg", "html", "mermaid"]
+    content: str = Field(description="The drawing, revisions applied and pictures inlined")
 
 
 class ConversationShareCreate(BaseSchema):
@@ -89,6 +99,7 @@ class SharedMessageRead(BaseSchema):
     role: str
     content: str | None = None
     created_at: datetime | None = None
+    visuals: list[SharedVisual] = Field(default_factory=list)
 
 
 class SharedConversationBody(BaseSchema):

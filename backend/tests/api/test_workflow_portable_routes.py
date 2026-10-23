@@ -3,8 +3,6 @@
 `tests/integration/test_workflow_portable.py` drives the real service.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime

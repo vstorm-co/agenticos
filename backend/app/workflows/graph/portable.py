@@ -18,8 +18,6 @@ an MCP server, a secret in a capability's settings. Those go, each listed, and
 the rest of the spec stays.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from typing import Any

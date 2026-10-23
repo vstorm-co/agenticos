@@ -27,11 +27,9 @@ recorded at zero with a warning and flags the run's total as a floor, rather
 than being guessed at.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
@@ -63,6 +61,8 @@ class BudgetScope(StrEnum):
     """
 
     AGENT = "agent"
+    GROUP = "group"
+    """A department's month, across every agent its members run (#2072)."""
     ORGANIZATION = "organization"
     RUN = "run"
     """One run's own ceiling, set by whoever started it - a workflow step's
@@ -76,6 +76,7 @@ class BudgetScope(StrEnum):
 
 _SCOPE_LABELS = {
     BudgetScope.AGENT: "Agent monthly",
+    BudgetScope.GROUP: "Department monthly",
     BudgetScope.ORGANIZATION: "Organization monthly",
     BudgetScope.RUN: "This run's",
 }
@@ -89,12 +90,22 @@ class BudgetExceeded(Exception):
     on a WebSocket, a failed row in run history, a message in Slack.
     """
 
-    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal, scope: BudgetScope) -> None:
+    def __init__(
+        self,
+        *,
+        limit_usd: Decimal,
+        spent_usd: Decimal,
+        scope: BudgetScope,
+        subject: str | None = None,
+    ) -> None:
         self.limit_usd = limit_usd
         self.spent_usd = spent_usd
         self.scope = scope
+        # A person can sit in several capped departments, so "Department monthly"
+        # alone would not say whose cap to go and ask about.
+        label = f"{subject} department monthly" if subject else scope.label
         super().__init__(
-            f"{scope.label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
+            f"{label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
         )
 
 
@@ -174,6 +185,10 @@ class SpendEntry:
     output_tokens: int
     cost_usd: Decimal
     priced: bool
+    cache_read_tokens: int = 0
+    """Of `input_tokens`, those served from the provider's cache - priced lower."""
+    cache_write_tokens: int = 0
+    """Of `input_tokens`, those written to the provider's cache - priced higher."""
 
     delegation: str | None = None
     """The delegation whose agent issued this request, or `None` for the run's own.
@@ -234,6 +249,8 @@ class SpendShare:
     cost_usd: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     has_unpriced_models: bool = False
     """Whether any request in this share went unpriced - the cost is then a floor.
 
@@ -269,6 +286,16 @@ class SpendLedger:
     @property
     def output_tokens(self) -> int:
         return sum(entry.output_tokens for entry in self.entries)
+
+    @property
+    def cache_read_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those read from the provider's cache (#2170)."""
+        return sum(entry.cache_read_tokens for entry in self.entries)
+
+    @property
+    def cache_write_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those written to the provider's cache (#2170)."""
+        return sum(entry.cache_write_tokens for entry in self.entries)
 
     @property
     def has_unpriced_models(self) -> bool:
@@ -328,6 +355,8 @@ class SpendLedger:
             cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
             input_tokens=sum(entry.input_tokens for entry in mine),
             output_tokens=sum(entry.output_tokens for entry in mine),
+            cache_read_tokens=sum(entry.cache_read_tokens for entry in mine),
+            cache_write_tokens=sum(entry.cache_write_tokens for entry in mine),
             has_unpriced_models=any(not entry.priced for entry in mine),
         )
 
@@ -365,6 +394,10 @@ class SpendLedger:
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
                 priced=cost is not None,
+                # The split the price was computed from, kept so a run can be
+                # reconciled with a provider's console (#2170).
+                cache_read_tokens=usage.cache_read_tokens or 0,
+                cache_write_tokens=usage.cache_write_tokens or 0,
             )
         )
 
@@ -392,7 +425,7 @@ panel (agenticos#228). `None` is the run's own agent, whose row is the whole led
 
 
 @contextmanager
-def booked_to(delegation: str, *, has_own_row: bool) -> Iterator[None]:
+def booked_to(delegation: str, *, has_own_row: bool) -> Generator[None]:
     """Attribute what is metered inside this block to one delegation.
 
     Opened around the tool call that starts a delegation, which is what makes it
@@ -428,7 +461,7 @@ _active_ledger: ContextVar[SpendLedger | None] = ContextVar("active_spend_ledger
 
 
 @contextmanager
-def metered_by(ledger: SpendLedger) -> Iterator[None]:
+def metered_by(ledger: SpendLedger) -> Generator[None]:
     """Attribute ambient model usage inside this block to `ledger`.
 
     Exists for spend the request wrapper cannot see. Embedding calls go through
@@ -460,7 +493,7 @@ library it borrows.
 
 
 @contextmanager
-def guarded_by(guard: BudgetGuard) -> Iterator[None]:
+def guarded_by(guard: BudgetGuard) -> Generator[None]:
     """Let code outside the request wrapper ask whether the budget is spent.
 
     The sibling of :func:`metered_by`, and it exists for the same gap read from
@@ -540,7 +573,7 @@ def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
 
 
 @contextmanager
-def metered_nested_run(usage: RunUsage, model_name: str) -> Iterator[RunUsage]:
+def metered_nested_run(usage: RunUsage, model_name: str | None) -> Generator[RunUsage]:
     """A private usage for a nested ambient run, booked concurrency-safely.
 
     Yields a *copy* of `usage` for the nested `Agent.run` to spend into, and folds
@@ -555,7 +588,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Iterator[RunUsage]:
     request, token and cost caps still meter the nested run against where the run
     already is rather than from zero. On exit the own-spend is added to the shared
     `usage` and booked once through :func:`record_ambient_usage`; a run that spent
-    nothing books nothing.
+    nothing books nothing. With `model_name` `None` the caller books each response
+    itself - a model behind fallbacks has no one name a price is found under.
     """
     private = copy(usage)
     start = copy(private)
@@ -565,7 +599,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Iterator[RunUsage]:
         own = private - start
         if own != RunUsage():
             usage.incr(own)
-            record_ambient_usage(model_name, own)
+            if model_name is not None:
+                record_ambient_usage(model_name, own)
 
 
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
@@ -633,6 +668,14 @@ class SpendLimit:
     scope: BudgetScope
     limit_usd: Decimal
     period_spend: PeriodSpendLookup | None = None
+    subject_id: UUID | None = None
+    """Which department a `GROUP` limit is; a person can be under several."""
+    subject_name: str | None = None
+
+    @property
+    def key(self) -> str:
+        """What its baseline is cached under: two departments are two quantities."""
+        return f"{self.scope}:{self.subject_id}" if self.subject_id else str(self.scope)
 
 
 @dataclass
@@ -660,6 +703,19 @@ class RunSpendState:
 
     baselines: dict[str, Decimal] = field(default_factory=dict)
     check: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+class RefusedAfterAnswer(Exception):
+    """A refusal raised after the model answered, carrying the answer it refused.
+
+    The answer was paid for. A capability that refuses a response as it arrives -
+    a guardrail screening a tool call's arguments - raises inside the request,
+    past :class:`BudgetGuard`'s chance to record it, so the run would be stored
+    as costing nothing for a call the provider billed. The guard records what
+    the refusal carries before letting it go.
+    """
+
+    response: ModelResponse | None = None
 
 
 @dataclass
@@ -723,9 +779,9 @@ class BudgetGuard(AbstractCapability[Any]):
         """
         if limit.period_spend is None:
             return Decimal(0)
-        if limit.scope not in self.run_state.baselines:
-            self.run_state.baselines[limit.scope] = await limit.period_spend()
-        return self.run_state.baselines[limit.scope]
+        if limit.key not in self.run_state.baselines:
+            self.run_state.baselines[limit.key] = await limit.period_spend()
+        return self.run_state.baselines[limit.key]
 
     async def _first_exceeded(self) -> SpendLimit | None:
         """The first ceiling the run has already reached, or `None` if it is clear.
@@ -760,7 +816,12 @@ class BudgetGuard(AbstractCapability[Any]):
         limit = await self._first_exceeded()
         if limit is not None:
             spent = await self._baseline_for(limit) + self.ledger.total_usd
-            raise BudgetExceeded(limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope)
+            raise BudgetExceeded(
+                limit_usd=limit.limit_usd,
+                spent_usd=spent,
+                scope=limit.scope,
+                subject=limit.subject_name,
+            )
 
     async def can_afford_next_request(self) -> bool:
         """Whether the run may issue another model request under every cap.
@@ -773,6 +834,31 @@ class BudgetGuard(AbstractCapability[Any]):
         """
         return await self._first_exceeded() is None
 
+    async def headroom(self) -> Decimal | None:
+        """How much this run may still spend before the tightest cap binds, or `None` uncapped.
+
+        What a voice call passes as its `cost_limit` and checks its worst case
+        against at setup (#54). Each cap meters its own spend, so this is the
+        smallest of the per-cap remainders, never a `min()` of the caps
+        themselves. Never negative: a cap already passed has no room.
+        """
+        async with self.run_state.check:
+            remaining: Decimal | None = None
+            for limit in self.limits:
+                left = limit.limit_usd - (await self._baseline_for(limit) + self.ledger.total_usd)
+                remaining = left if remaining is None else min(remaining, left)
+        return None if remaining is None else max(remaining, Decimal(0))
+
+    def refresh_baselines(self) -> None:
+        """Forget what other runs had booked, so the next check reads it again (#54).
+
+        A voice call can last fifty minutes while the month moves underneath it.
+        The lookups open short sessions of their own (`agent_period_spend`,
+        `org_period_spend` in the runner), never the run's shared one, so a
+        heartbeat may call this and then `can_afford_next_request`.
+        """
+        self.run_state.baselines.clear()
+
     async def wrap_model_request(
         self,
         ctx: RunContext[Any],
@@ -783,10 +869,17 @@ class BudgetGuard(AbstractCapability[Any]):
         """Check the budget, make the request, then record what it cost."""
         await self.assert_within_budget()
 
-        response = await handler(request_context)
+        try:
+            response = await handler(request_context)
+        except RefusedAfterAnswer as refused:
+            if refused.response is not None:
+                self._record(refused.response)
+            raise
+        self._record(response)
+        return response
 
+    def _record(self, response: ModelResponse) -> None:
         model_name = getattr(response, "model_name", None) or "unknown"
         usage = getattr(response, "usage", None)
         if usage is not None:
             self.ledger.record(model_name, usage, self.provider)
-        return response

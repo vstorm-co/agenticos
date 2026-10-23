@@ -1,10 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { preferredOrg, useOrganizationList, useOrganizations } from "./use-organizations";
+import {
+  preferredOrg,
+  serverFallbackOrg,
+  useOrganizationList,
+  useOrganizations,
+  useTenantId,
+} from "./use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
 import type { Organization } from "@/types";
@@ -28,6 +34,10 @@ function org(overrides: Partial<Organization> = {}): Organization {
     slug: "acme",
     is_personal: false,
     avatar_url: null,
+    speech_to_text_provider: null,
+    speech_to_text_model: null,
+    speech_to_text_language: null,
+    dictation_max_seconds: 300,
     created_at: "2026-07-01T00:00:00Z",
     ...overrides,
   } as Organization;
@@ -67,6 +77,12 @@ describe("preferredOrg", () => {
     expect(preferredOrg([org({ id: "a" }), org({ id: "b", is_personal: true })])?.id).toBe("b");
   });
 
+  it("prefers the deployment's default organization over a personal one (#2156)", () => {
+    expect(
+      preferredOrg([org({ id: "a", is_personal: true }), org({ id: "b", is_default: true })])?.id,
+    ).toBe("b");
+  });
+
   it("takes the first one when none is personal", () => {
     expect(preferredOrg([org({ id: "a" }), org({ id: "b" })])?.id).toBe("a");
   });
@@ -82,6 +98,51 @@ describe("preferredOrg", () => {
       "b",
     );
     expect(preferredOrg([org({ id: "a" })], ["a"])).toBeNull();
+  });
+});
+
+describe("serverFallbackOrg", () => {
+  // Where the backend acts for a request with no organization header - the same
+  // order as `OrganizationService.fallback_for` (#2156).
+  it("is the default organization, then the personal one", () => {
+    const personal = org({ id: "p", is_personal: true });
+    expect(serverFallbackOrg([personal, org({ id: "d", is_default: true })])?.id).toBe("d");
+    expect(serverFallbackOrg([org({ id: "a" }), personal])?.id).toBe("p");
+  });
+
+  it("is the only organization when there is one, and nothing when there is a choice", () => {
+    expect(serverFallbackOrg([org({ id: "a" })])?.id).toBe("a");
+    expect(serverFallbackOrg([org({ id: "a" }), org({ id: "b" })])).toBeNull();
+    expect(serverFallbackOrg([])).toBeNull();
+  });
+});
+
+describe("useTenantId", () => {
+  it("is the selection when there is one", () => {
+    useOrgStore.setState({ activeOrgId: "chosen" });
+    serve([org({ id: "d", is_default: true })]);
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    expect(result.current).toBe("chosen");
+  });
+
+  it("is where the server falls back to while nothing is selected", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    serve([org({ id: "p", is_personal: true }), org({ id: "d", is_default: true })]);
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    await waitFor(() => expect(result.current).toBe("d"));
+  });
+
+  it("cannot tell before the list arrives", () => {
+    useOrgStore.setState({ activeOrgId: null });
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    expect(result.current).toBeNull();
   });
 });
 
@@ -248,6 +309,26 @@ describe("useOrganizations", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { public_live_data: true });
     await waitFor(() => expect(result.current.orgs[0]?.public_live_data).toBe(true));
+  });
+
+  it("sends the voice settings in one PATCH and caches the answer", async () => {
+    // One request, because the server validates them together: a provider
+    // without its model is refused whole.
+    const settings = {
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "gpt-4o-transcribe",
+      speech_to_text_language: null,
+      dictation_max_seconds: 120,
+    };
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org(settings));
+
+    await act(() => result.current.setVoiceSettings("org-1", settings));
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", settings);
+    await waitFor(() =>
+      expect(result.current.orgs[0]?.speech_to_text_model).toBe("gpt-4o-transcribe"),
+    );
   });
 
   it("drops a deleted organization and clears the selection if it was the one", async () => {

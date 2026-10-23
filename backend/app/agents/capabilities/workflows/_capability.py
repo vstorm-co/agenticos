@@ -1,7 +1,5 @@
 """Letting an agent start the workflows its binding names, and read how they went."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -32,6 +30,7 @@ class WorkflowsConfig(BaseModel):
         default_factory=list,
         max_length=MAX_WORKFLOWS,
         json_schema_extra={"x-resource": "workflow"},
+        title="Workflows it may start",
         description="Published workflows that start by hand, by the API or by a call.",
     )
     wait_seconds: int = Field(

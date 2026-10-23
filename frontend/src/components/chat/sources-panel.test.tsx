@@ -6,6 +6,28 @@ import { SourcesPanel } from "./sources-panel";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { SourceItem } from "@/lib/chat-sources";
 
+const bases = [{ id: "kb-1", name: "Support handbook", collection_name: "support_aa" }];
+vi.mock("@/hooks/use-knowledge-bases", () => ({
+  useKnowledgeBaseFor: () => (collection: string | undefined) =>
+    bases.find((kb) => kb.collection_name === collection),
+}));
+vi.mock("./markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <p>{content}</p>,
+}));
+vi.mock("@/components/kb/source-viewer", () => ({
+  SourceViewer: ({
+    cited,
+    onClose,
+  }: {
+    cited: { kbId: string; filename: string };
+    onClose: () => void;
+  }) => (
+    <button type="button" onClick={onClose}>
+      viewing {cited.filename} in {cited.kbId}
+    </button>
+  ),
+}));
+
 function rag(index: number, overrides: Partial<SourceItem> = {}): SourceItem {
   return {
     index,
@@ -130,9 +152,9 @@ describe("the sources panel", () => {
 
     const { container } = open([rag(1), rag(2)], 2);
 
-    const rows = container.querySelectorAll(".rounded-xl.border");
-    expect(rows[1]).toHaveClass("bg-foreground/[0.04]");
-    expect(rows[0]).not.toHaveClass("bg-foreground/[0.04]");
+    const marked = container.querySelectorAll("[data-highlighted]");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent("2");
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
 
     Element.prototype.scrollIntoView = original;
@@ -147,6 +169,42 @@ describe("the sources panel", () => {
 
     expect(scrollIntoView).toHaveBeenCalled();
     Element.prototype.scrollIntoView = original;
+  });
+
+  it("gathers a file's passages under the file, named by the base it is in", () => {
+    open([
+      rag(1, { collection: "support_aa" }),
+      rag(2, { collection: "support_aa", content: "Duplicates are refunded at once." }),
+    ]);
+
+    // One card for the handbook, not two rows each repeating its name.
+    expect(screen.getAllByTitle("handbook.pdf")).toHaveLength(1);
+    expect(screen.getByText("Support handbook")).toBeInTheDocument();
+    expect(screen.getByText("Duplicates are refunded at once.")).toBeInTheDocument();
+  });
+
+  it("opens the cited file whole, from the base it came from", async () => {
+    open([rag(1, { collection: "support_aa" })]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open the original" }));
+
+    await userEvent.click(screen.getByText("viewing handbook.pdf in kb-1"));
+    expect(screen.queryByText("viewing handbook.pdf in kb-1")).toBeNull();
+  });
+
+  it("folds a passage that was not cited, and opens it on request", async () => {
+    open([rag(1), rag(2, { content: "Second passage." })], 1);
+
+    // The cited one is open already, so only the other offers more.
+    const more = screen.getByRole("button", { name: "Show more" });
+    await userEvent.click(more);
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
+
+  it("offers no original for a file whose base the reader cannot see", () => {
+    open([rag(1, { collection: "someone_elses" })]);
+
+    expect(screen.queryByRole("button", { name: "Open the original" })).toBeNull();
   });
 
   it("closes on the button", async () => {
@@ -185,5 +243,25 @@ describe("the sources panel", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+  });
+});
+
+describe("where the panel opens", () => {
+  it("covers the conversation it belongs to inside a widget, not the page's edge", () => {
+    useSourcesPanelStore.getState().open([web(1)]);
+    const { container } = render(<SourcesPanel contained />);
+
+    const panel = container.firstElementChild!;
+    expect(panel).toHaveClass("absolute", "inset-0");
+    expect(panel).not.toHaveClass("fixed");
+    // The widget's back arrow, the one its conversation list wears, closes it.
+    fireEvent.click(screen.getByRole("button", { name: "Close sources panel" }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+  });
+
+  it("stays at the page's right edge on the chat page", () => {
+    const { container } = open([web(1)]);
+
+    expect(container.firstElementChild).toHaveClass("fixed", "right-0");
   });
 });

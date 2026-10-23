@@ -14,8 +14,6 @@ preset's entries as the active arrangement through
 single write path — and a single validation — for what the dashboard renders.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError

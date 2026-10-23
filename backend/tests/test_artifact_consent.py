@@ -7,8 +7,6 @@ else the newest consented one, and a consent holds only under the owner's member
 now and only until it is withdrawn.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from datetime import UTC, datetime

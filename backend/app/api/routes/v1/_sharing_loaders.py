@@ -1,7 +1,7 @@
 """Per-resource row loaders for the sharing routers.
 
 Loading a row is the only thing that differs between sharing an agent, a
-collection, a skill, a vault secret and an artifact, so each loader is injected into
+collection, a skill, a vault secret, an artifact and an MCP server, so each loader is injected into
 `build_sharing_router`. They live here - beside the factory, not in an endpoint
 module and not in `SharingService`, which stays agnostic about what it is
 sharing.
@@ -21,7 +21,9 @@ from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.project import Project
 from app.db.models.skill import Skill
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
@@ -65,6 +67,13 @@ async def load_table(db: AsyncSession, table_id: UUID, ctx: AuthContext) -> Virt
     return table
 
 
+async def load_project(db: AsyncSession, project_id: UUID, ctx: AuthContext) -> Project:
+    project = await db.get(Project, project_id)
+    if project is None or project.organization_id != ctx.organization_id:
+        raise NotFoundError(message="Project not found", details={"project_id": str(project_id)})
+    return project
+
+
 async def load_secret(db: AsyncSession, secret_id: UUID, ctx: AuthContext) -> OrganizationSecret:
     secret = await db.get(OrganizationSecret, secret_id)
     if secret is None or secret.organization_id != ctx.organization_id:
@@ -81,3 +90,19 @@ async def load_workflow(db: AsyncSession, workflow_id: UUID, ctx: AuthContext) -
 
 async def load_artifact(db: AsyncSession, artifact_id: UUID, ctx: AuthContext) -> Artifact:
     return await ArtifactService(db).load(ctx, artifact_id)
+
+
+async def load_mcp_connection(
+    db: AsyncSession, connection_id: UUID, ctx: AuthContext
+) -> McpConnection:
+    """An organization's MCP server; a member's own is nobody else's to share."""
+    connection = await db.get(McpConnection, connection_id)
+    if (
+        connection is None
+        or connection.scope != "org"
+        or connection.organization_id != ctx.organization_id
+    ):
+        raise NotFoundError(
+            message="MCP connection not found", details={"connection_id": str(connection_id)}
+        )
+    return connection

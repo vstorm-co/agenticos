@@ -8,8 +8,6 @@ page's allowance bound what the tables are asked, and that a stranger is told no
 of why and no record reaches a log.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re
@@ -561,13 +559,13 @@ class TestNoRecordInALog:
     @pytest.mark.security
     async def test_a_record_served_to_a_stranger_never_reaches_a_log(self, db, caplog):
         page = await _public_page(db)
-        sentinel = f"needle-{uuid.uuid4().hex}"
-        await insert_rows(db, page.table, [{cid(page.table, "Customer"): sentinel}])
+        needle = f"needle-{uuid.uuid4().hex}"
+        await insert_rows(db, page.table, [{cid(page.table, "Customer"): needle}])
         caplog.set_level(logging.DEBUG)
 
         document = await _load(page, await _mint(page))
 
-        assert sentinel in document.decode()
+        assert needle in document.decode()
         for record in caplog.records:
-            assert sentinel not in record.getMessage()
-            assert sentinel not in repr(vars(record))
+            assert needle not in record.getMessage()
+            assert needle not in repr(vars(record))

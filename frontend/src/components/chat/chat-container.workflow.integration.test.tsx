@@ -119,7 +119,8 @@ describe("the chat with a workflow picked to answer", () => {
     await waitFor(() => expect(FakeSocket.opened).toHaveLength(1));
     expect(FakeSocket.opened[0]?.url).toContain("/api/v1/ws/workflow-runs");
     expect(post).toHaveBeenCalledWith("/conversations", expect.anything());
-    expect(agentSend).not.toHaveBeenCalled();
+    // The agent's socket may attach to the new conversation, but is never asked to answer.
+    expect(agentSend).not.toHaveBeenCalledWith(expect.objectContaining({ type: "message" }));
     expect(await screen.findByText("Lead triage", { selector: "p" })).toBeTruthy();
   });
 

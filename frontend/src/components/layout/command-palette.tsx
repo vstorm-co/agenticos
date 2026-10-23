@@ -159,7 +159,7 @@ export function CommandPalette() {
           placeholder={t("searchJump")}
           className="text-foreground placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
         />
-        <kbd className="border-foreground/15 text-muted-foreground hidden rounded-md border px-1.5 py-0.5 font-mono text-[11px] sm:inline-block">
+        <kbd className="border-foreground/15 text-muted-foreground hidden rounded-md border px-1.5 py-0.5 font-mono text-xs sm:inline-block">
           {t("esc")}
         </kbd>
       </div>
@@ -255,7 +255,7 @@ export function CommandPalette() {
         </Group>
       </Command.List>
 
-      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-[11px] tracking-wider uppercase">
+      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-xs tracking-wider uppercase">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
           {t("navigate")}
@@ -273,7 +273,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
     >
       {children}
     </Command.Group>

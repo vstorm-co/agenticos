@@ -20,7 +20,8 @@ export type SecretKind =
   | "google_oauth_app"
   | "git_token"
   | "entra_app"
-  | "http_credential";
+  | "http_credential"
+  | "openai_codex";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -40,6 +41,11 @@ export type StorableSecretKind = Exclude<SecretKind, "none">;
  */
 export interface SecretRequirement {
   kind: StorableSecretKind;
+  /**
+   * Further kinds that satisfy it besides `kind` - the coding agent takes an API
+   * key or a ChatGPT sign-in. Optional here, always on the wire.
+   */
+  also_accepts?: StorableSecretKind[];
   /** What the capability's author said it is for, shown beside the picker. */
   description: string;
   /**
@@ -52,6 +58,11 @@ export interface SecretRequirement {
    * not asking for one it will.
    */
   required_when: SecretCondition | null;
+  /**
+   * Configurations that may use a key without needing one - a browser's proxy
+   * that may or may not sign in. The picker is offered with a "none" choice.
+   */
+  optional_when?: SecretCondition | null;
   /**
    * Which service in the catalog the key is for - a `services.json` id such as
    * `mem0` - or null where `required_when` already names it.
@@ -79,6 +90,25 @@ export function secretIsRequired(
   const condition = requirement.required_when;
   if (!condition) return true;
   return condition.equals.includes(String(config[condition.field]));
+}
+
+/** Whether a secret of `kind` satisfies the requirement, as the server checks at publish. */
+export function acceptsKind(requirement: SecretRequirement, kind: string): boolean {
+  return (
+    kind === requirement.kind || (requirement.also_accepts ?? []).some((also) => also === kind)
+  );
+}
+
+/** Whether the picker belongs on the form: the key is needed, or merely usable. */
+export function secretIsOffered(
+  requirement: SecretRequirement,
+  config: Record<string, unknown>,
+): boolean {
+  const optional = requirement.optional_when;
+  return (
+    secretIsRequired(requirement, config) ||
+    (optional != null && optional.equals.includes(String(config[optional.field])))
+  );
 }
 
 /**

@@ -6,13 +6,12 @@ the platform script that turns a link into a question. The database is stubbed
 at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -53,6 +52,26 @@ def _no_public_data_state() -> Any:
 
 
 PATH = "app.services.artifact"
+
+
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; the session here is a mock."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
+
+
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository is mocked call by call here, and following is its own
+    concern - `TestFollowing` in `test_artifact_followers.py` covers it."""
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
 
 
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
@@ -644,6 +663,7 @@ class TestAppendingAVersion:
                 bindings=[],
                 actions=[],
                 consent=_UNBOUND,
+                actor_user_id=None,
             )
         assert create.await_args.kwargs["number"] == 3
         assert create.await_args.kwargs["consent"]["consent_state"] == "not_needed"
@@ -1074,7 +1094,7 @@ class TestTheLibrarySet:
         assert calls(script_3) - calls(script_2) == {"onData", "onRun", "records", "run"}
 
 
-_SCRIPT = artifacts.PLATFORM_SCRIPT
+_SCRIPT = artifacts.base_platform_script()
 """What the placement tests put in: where it goes does not depend on what it is."""
 
 
@@ -1120,7 +1140,7 @@ class TestThePlatformScript:
 
     @pytest.mark.security
     def test_it_asks_the_parent_and_never_opens_anything_itself(self) -> None:
-        script = artifacts.PLATFORM_SCRIPT
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
         assert "agenticos:open-link" in script
         assert "parent.postMessage" in script
         assert "location.assign" not in script
@@ -1133,7 +1153,9 @@ class TestThePlatformScript:
         # them - so this is the escaping alone, asked of the function directly.
         names = ["</script><img src=x onerror=alert(1)>", "a&b", "x\u2028y\u2029z"]
         script = artifacts.platform_script(nonce="n-0_Q", live=True, names=names)
-        assert script.startswith(artifacts.PLATFORM_SCRIPT + '<script data-agenticos="data">(')
+        assert script.startswith(
+            artifacts.base_platform_script() + '<script data-agenticos="data">('
+        )
         call = ")(window, document, "
         config = script[script.rindex(call) + len(call) : script.rindex(");</script>")]
         for raw in ("<", ">", "&", "\u2028", "\u2029"):
@@ -1226,6 +1248,41 @@ class TestPageActionsFlag:
             served = await _service().content(token)
         assert self._config(served.document)["actions"] is False
 
+    def test_a_follow_up_is_only_ever_asked_for_and_only_where_the_host_takes_one(self) -> None:
+        """#2302: the page posts a request; nothing in it sends a message itself."""
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
+        assert 'post({ type: "agenticos:follow-up", text: message })' in script
+        assert 'post({ type: "agenticos:hello" })' in script
+        # Off until the parent - and only the parent - says it takes follow-ups.
+        assert "var host = { followUp: false };" in script
+        assert "event.source !== parent" in script
+        assert f"message.length > {artifacts.FOLLOW_UP_MAX_CHARS}" in script
+        assert "if (!host.followUp" in script
+
+    def test_a_deployment_without_tiles_tells_a_page_there_is_no_map(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "")
+        assert "var MAP = null;" in artifacts.platform_script(nonce="n0", live=False, names=[])
+
+    @pytest.mark.security
+    def test_a_page_is_told_the_deployment_s_tile_path_never_the_server_or_its_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            artifacts.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png?key=secret"
+        )
+        monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES_ATTRIBUTION", "</script> & co")
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
+        assert f'"url": "{artifacts.tile_source()}{{z}}/{{x}}/{{y}}"' in script
+        assert "t.example" not in script
+        assert "secret" not in script
+        assert '"maxZoom": 18' in script
+        # Written into a script element: an attribution cannot close it.
+        assert "<\\/script> & co" in script
+        # The link bridge's own close and the data bridge's: none from the attribution.
+        assert script.count("</script>") == 2
+
 
 class TestAgentFilter:
     async def test_the_filter_offers_the_publishers_of_what_the_caller_can_see(self) -> None:
@@ -1236,11 +1293,24 @@ class TestAgentFilter:
             patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=shared)),
             patch(
                 f"{PATH}.artifact_repo.publishing_agents",
-                new=AsyncMock(return_value=[(agent_id, "Reporter")]),
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            id=agent_id,
+                            slug="reporter",
+                            has_avatar=True,
+                            avatar_color=3,
+                            name="Reporter",
+                        )
+                    ]
+                ),
             ) as agents,
         ):
             result = await _service().publishing_agents(ctx)
-        assert [(item.id, item.name) for item in result.items] == [(agent_id, "Reporter")]
+        assert [
+            (item.id, item.name, item.slug, item.has_avatar, item.avatar_color)
+            for item in result.items
+        ] == [(agent_id, "Reporter", "reporter", True, 3)]
         assert agents.await_args.kwargs["see_all"] is False
         assert agents.await_args.kwargs["shared_ids"] == shared
 
@@ -1311,5 +1381,5 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
-        for name in artifacts.ARTIFACT_LIBRARY:
+        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

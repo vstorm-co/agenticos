@@ -1,8 +1,6 @@
 """What a portable graph leaves out: every pinned resource, pinned data, and
 table or file references - and the step kinds it cannot carry at all."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

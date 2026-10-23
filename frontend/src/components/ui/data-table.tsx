@@ -226,7 +226,9 @@ export function DataTable<T>({
         )}
       >
         <table className="w-full border-collapse text-sm">
-          <thead className={cn(fillHeight && "bg-card sticky top-0 z-10")}>
+          {/* No column headings over no rows: an empty table read as a grid
+              with a hole in it, the empty state boxed again inside it. */}
+          <thead className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}>
             <tr className="border-border border-b">
               {columns.map((col) => {
                 const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
@@ -239,7 +241,9 @@ export function DataTable<T>({
                       sorted ? (sorted.dir === "asc" ? "ascending" : "descending") : undefined
                     }
                     className={cn(
-                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider uppercase",
+                      // One line: a two-word heading wrapped to two rows made every
+                      // header taller than the rows under it.
+                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider whitespace-nowrap uppercase",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
@@ -332,7 +336,9 @@ export function DataTable<T>({
       )}
 
       {showEmpty && (
-        <div className="text-muted-foreground px-4 py-12 text-center text-sm">
+        // The table is the frame: an empty state that brings its own border and
+        // fill is drawn without them here.
+        <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
           {empty ?? t("noResults")}
         </div>
       )}

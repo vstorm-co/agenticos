@@ -9,8 +9,6 @@ step's effect, one that dies inside a model call, and a member who loses access
 halfway - to show what is and is not repeated.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import json
@@ -21,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -78,12 +76,6 @@ from app.workflows.nodes.knowledge_search import _handler as search_handler
 from tests.integration.workflow_run_support import SeededRun, drive, seed_member, tick
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as submitted:
-        yield submitted
 
 
 # The model and the search
@@ -510,7 +502,7 @@ async def _lead_pipeline(world: _World) -> _LeadPipeline:
 
 @asynccontextmanager
 async def _api(world: _World, redis: MagicMock) -> AsyncIterator[AsyncClient]:
-    async def session() -> AsyncGenerator[AsyncSession, None]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         async with world.factory() as opened:
             try:
                 yield opened

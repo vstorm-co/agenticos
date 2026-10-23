@@ -169,6 +169,9 @@ if (inBrowser && !Element.prototype.hasPointerCapture) {
 if (inBrowser && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+if (inBrowser && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}
 
 // `@xyflow/react` measures an edge label with `SVGElement.getBBox`, which jsdom
 // does not implement — the workflow canvas (#1787) draws a control node's branch

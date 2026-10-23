@@ -5,8 +5,6 @@ itself answers in the shape the protocol reads - the script's return value, its
 throw, a value that is no JSON, and the marker written however it ended.
 """
 
-from __future__ import annotations
-
 import json
 import shutil
 import subprocess

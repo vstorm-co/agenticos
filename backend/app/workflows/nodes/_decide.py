@@ -17,8 +17,6 @@ continues down its `unsure` port instead of acting on a coin flip, and a
 workflow decides there what a person, an agent or a default does with it.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable
 from typing import Any

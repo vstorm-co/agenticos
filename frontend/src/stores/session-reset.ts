@@ -9,6 +9,8 @@ import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 import { useTableViewStore } from "./table-view-store";
+import { resetVisualState } from "./visual-stream-store";
+import { useWorkingStore } from "./working-store";
 
 /**
  * Empty every store holding something that belonged to one organization.
@@ -27,6 +29,7 @@ export function resetTenantState(): void {
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   useChatStore.getState().setStreaming(false);
+  useWorkingStore.getState().reset();
   useFilePreviewStore.getState().close();
   // `setState`, not `close()`: closing leaves the retrieved chunks in the store,
   // and those are the previous tenant's documents. Nothing renders them while
@@ -50,6 +53,9 @@ export function resetTenantState(): void {
   // A conflict banner names a record id and holds its values, both of another
   // tenant's table once the switch has happened.
   useTableViewStore.getState().reset();
+  // Visuals' pictures and saved apps are keyed by the provider's call id, which
+  // another tenant's thread may reuse.
+  resetVisualState();
 }
 
 /**

@@ -5,8 +5,6 @@ column keeps its id across a rename, nothing is deleted, a type never changes,
 and records written under version 1 stay readable and editable under version 3.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

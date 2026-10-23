@@ -13,8 +13,6 @@ loop back into a workflow already in the chain, or go deeper than
 `MAX_CALL_DEPTH`, is refused.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

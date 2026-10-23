@@ -7,8 +7,6 @@ the same session after a worker died, finish a half-done launch, and import
 what the job left behind.
 """
 
-from __future__ import annotations
-
 import itertools
 import json
 import uuid

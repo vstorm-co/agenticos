@@ -12,8 +12,6 @@ ever called, and `settle`'s result and its downstream dispatch commit
 together, never one without the other.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
@@ -43,6 +41,7 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatcher
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from tests.integration.workflow_run_support import queued_dispatches
 
 pytestmark = pytest.mark.anyio
 
@@ -263,7 +262,7 @@ async def test_a_full_dispatch_tick_runs_the_one_node_graph_to_completion(
 ):
     """The whole thing, in one assertion: `debug.echo`, the one node #1786
     ships with a real handler, run end to end through claim/begin/call/settle
-    exactly as `workflow_dispatch_node_flow` sequences them."""
+    exactly as `workflow_tasks.dispatch_node` sequences them."""
     run, node_run = await _seeded_run(db)
     factory = await _fresh(engine)
 
@@ -307,13 +306,26 @@ async def test_a_lease_expired_before_any_attempt_is_reclaimed_exactly_once_more
         await dispatcher.claim(claim_db, node_run_id=node_run.id, lease_seconds=0)
         await claim_db.commit()
 
-    async with factory() as reconcile_db:
-        pairs = await WorkflowReconcilerService(reconcile_db).stale_claims()
-    assert (run.id, node_run.id) in pairs
+    # Its job came due more than a lease ago and never claimed it.
+    async with factory() as aged:
+        await aged.execute(
+            sql_update(DispatchOutbox)
+            .where(DispatchOutbox.node_run_id == node_run.id)
+            .values(submitted_at=datetime.now(UTC) - timedelta(minutes=10))
+        )
+        await aged.commit()
 
-    # The reconciler's own job is only to *find* it - `workflow_reconcile_flow`
-    # re-triggers the ordinary dispatch flow for each pair, which is what
-    # actually reclaims and dispatches. Reused here directly.
+    async with factory() as reconcile_db:
+        queued = await WorkflowReconcilerService(reconcile_db).stale_claims()
+        await reconcile_db.commit()
+    assert queued == 1
+    assert [job.payload["node_run_id"] for job in await queued_dispatches(factory)] == [
+        str(node_run.id)
+    ]
+
+    # The reconciler's own job is only to *find* it - it queues the ordinary
+    # dispatch job, which is what actually reclaims and dispatches. Run here
+    # directly.
     async with factory() as claim_db:
         outbox = await dispatcher.claim(claim_db, node_run_id=node_run.id)
         await claim_db.commit()

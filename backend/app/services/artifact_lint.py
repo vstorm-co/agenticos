@@ -13,8 +13,6 @@ module is imported, one set per `agenticos-<version>.css`, so a class added to a
 kit is known here without a second list to keep in step.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
@@ -53,11 +51,37 @@ LATEST_KIT = max(KIT_CLASSES)
 LUCIDE_FILE = "lucide-1.46.0.min.js"
 """The icon library a page loads for `data-lucide`, as the library set names it."""
 
-# One whitespace byte or one comment per step, and a comment body cannot contain `-->`, so
-# no input can be split two ways and the match stays linear (`\s+` or `.*?` inside `*` is not).
-_DOCTYPE = re.compile(
-    rb"\A(?:\xef\xbb\xbf)?(?:\s|<!--(?:(?!-->).)*-->)*<!doctype\s+html\b", re.I | re.S
-)
+_ASCII_SPACE = b" \t\n\r\f\v"
+_WORD = frozenset(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
+
+def _starts_with_doctype(data: bytes) -> bool:
+    """Whether `data` opens with `<!doctype html>`, after only a BOM, whitespace and comments."""
+    # A scanner, not a regex: each comment ends at its first `-->` found with `bytes.find`,
+    # so the scan is linear, which no regex over repeated comments was shown to be.
+    pos = 3 if data.startswith(b"\xef\xbb\xbf") else 0
+    while pos < len(data):
+        if data[pos] in _ASCII_SPACE:
+            pos += 1
+        elif data.startswith(b"<!--", pos):
+            end = data.find(b"-->", pos + 4)
+            if end < 0:
+                return False
+            pos = end + 3
+        else:
+            break
+    if data[pos : pos + 9].lower() != b"<!doctype":
+        return False
+    pos += 9
+    spaces = pos
+    while pos < len(data) and data[pos] in _ASCII_SPACE:
+        pos += 1
+    if pos == spaces or data[pos : pos + 4].lower() != b"html":
+        return False
+    pos += 4
+    return pos == len(data) or data[pos] not in _WORD
+
+
 _KIT_CSS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.css(?:[?#]|$)")
 _KIT_JS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.js(?:[?#]|$)")
 _LUCIDE = re.compile(r"(?:^|/)lib/lucide-[\d.]+(?:\.min)?\.js(?:[?#]|$)")
@@ -212,7 +236,7 @@ def lint_page(data: bytes, *, bound: Collection[str] = ()) -> list[str]:
             "string, not a closing tag - so the browser reads the rest of the page as script "
             "and none of it runs. End each script with `</script>`."
         )
-    if not _DOCTYPE.match(data):
+    if not _starts_with_doctype(data):
         problems.append(
             "It does not start with `<!doctype html>`, so it is drawn in quirks mode: tables "
             "lose the page's text size, among other things. Make that the first line."

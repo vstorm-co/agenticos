@@ -6,6 +6,7 @@ unpriced rather than silently free.
 """
 
 import asyncio
+import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -16,6 +17,7 @@ from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
     BudgetScope,
+    SpendEntry,
     SpendLedger,
     SpendLimit,
     can_afford_ambient_call,
@@ -324,6 +326,42 @@ class TestSeveralCapsAtOnce:
         assert "Organization monthly budget exhausted" in str(exc.value)
 
     @pytest.mark.anyio
+    async def test_two_departments_are_two_quantities_and_the_refusal_names_which(self):
+        """A person in Finance and Sales is under both caps, each on its own month (#2072).
+
+        Cached under the scope alone, the second department would read the
+        first one's baseline - Sales' $1 of $5 would be checked as Finance's $9.
+        """
+        finance, sales = uuid.uuid4(), uuid.uuid4()
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.GROUP,
+                    limit_usd=Decimal("100"),
+                    period_spend=AsyncMock(return_value=Decimal("9")),
+                    subject_id=finance,
+                    subject_name="Finance",
+                ),
+                SpendLimit(
+                    scope=BudgetScope.GROUP,
+                    limit_usd=Decimal("5"),
+                    period_spend=AsyncMock(return_value=Decimal("5")),
+                    subject_id=sales,
+                    subject_name="Sales",
+                ),
+            ],
+        )
+
+        with pytest.raises(BudgetExceeded) as exc:
+            await self._run(guard, _response("gpt-4.1"))
+
+        assert exc.value.scope is BudgetScope.GROUP
+        assert str(exc.value).startswith("Sales department monthly budget exhausted")
+        assert set(guard.run_state.baselines) == {f"group:{finance}", f"group:{sales}"}
+        assert BudgetScope.GROUP.label == "Department monthly"
+
+    @pytest.mark.anyio
     async def test_a_cap_with_no_lookup_meters_only_this_run(self):
         """The preview case: no database to ask, so the cap binds on what this
         run alone has booked - and a first conversation that has spent nothing
@@ -596,3 +634,82 @@ class TestMeteredNestedRun:
             pass
         assert usage.requests == 2
         assert ledger.entries == []
+
+
+class TestHeadroom:
+    """What a voice call may still spend, and re-reading the month under a long call (#54)."""
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_headroom_is_the_smallest_remaining_cap(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("10"),
+                    period_spend=AsyncMock(return_value=Decimal("7")),
+                ),
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION,
+                    limit_usd=Decimal("100"),
+                    period_spend=AsyncMock(return_value=Decimal("50")),
+                ),
+            ],
+        )
+        guard.ledger.book(
+            SpendEntry(
+                model_name="m", input_tokens=0, output_tokens=0, cost_usd=Decimal("1"), priced=True
+            )
+        )
+
+        assert await guard.headroom() == Decimal("2")
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_an_uncapped_run_has_no_headroom_figure(self):
+        assert await BudgetGuard(ledger=SpendLedger(), limits=[]).headroom() is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_refreshing_rereads_what_other_runs_spent(self):
+        """A call lasts up to fifty minutes; other runs keep spending under it."""
+        lookup = AsyncMock(side_effect=[Decimal("1"), Decimal("9.5")])
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION, limit_usd=Decimal("10"), period_spend=lookup
+                )
+            ],
+        )
+        guard.ledger.book(
+            SpendEntry(
+                model_name="m",
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=Decimal("0.6"),
+                priced=True,
+            )
+        )
+
+        assert await guard.can_afford_next_request()
+        assert await guard.can_afford_next_request()
+        guard.refresh_baselines()
+        assert not await guard.can_afford_next_request()
+        assert lookup.await_count == 2
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_headroom_never_goes_below_zero(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("1"),
+                    period_spend=AsyncMock(return_value=Decimal("3")),
+                )
+            ],
+        )
+        assert await guard.headroom() == Decimal(0)

@@ -6,8 +6,6 @@ bot that is gone or off, a member without `channels:manage`, a platform that
 does not let a bot do what was asked, a platform that did not answer.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

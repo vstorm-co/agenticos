@@ -21,12 +21,24 @@ function fields(config: Partial<WidgetConfig> = {}) {
     <WidgetFields
       config={{ ...DEFAULT_WIDGET_CONFIG, ...config }}
       disabled={false}
+      serverDictation={{ available: true, unchecked: false, wasServer: false }}
+      voiceCall={{ available: true, unchecked: false, wasOn: false }}
       onChange={onChange}
     />,
   );
 }
 
 beforeEach(() => onChange.mockClear());
+
+describe("calls from the bubble", () => {
+  it("carries the voice switch into the config", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Voice calls" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ voice_conversation: true }));
+  });
+});
 
 describe("what the bubble says", () => {
   it("carries the header", async () => {
@@ -103,5 +115,51 @@ describe("where the bubble sits and what colour it is", () => {
     await userEvent.type(screen.getAllByLabelText("Accent colour")[1]!, "#");
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ accent: "#" }));
+  });
+});
+
+describe("the bubble's microphone", () => {
+  it("carries the choice of browser dictation", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Browser/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dictation: "browser" }));
+  });
+});
+
+describe("what the bubble offers before anybody types (#2006)", () => {
+  it("adds a suggested message, edits it and takes it off", async () => {
+    fields();
+    await userEvent.click(screen.getByRole("button", { name: "Add a suggested message" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ quick_replies: [""] }));
+
+    onChange.mockClear();
+    fields({ quick_replies: ["Hours?", "Refunds?"] });
+    fireEvent.change(screen.getByLabelText("Suggested message 2"), {
+      target: { value: "Returns?" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quick_replies: ["Hours?", "Returns?"] }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove suggested message 1" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quick_replies: ["Refunds?"] }),
+    );
+  });
+
+  it("offers no fifth", () => {
+    fields({ quick_replies: ["a", "b", "c", "d"] });
+
+    expect(screen.queryByRole("button", { name: "Add a suggested message" })).toBeNull();
+  });
+
+  it("names the sources only when asked to", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /Name the sources/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ show_sources: true }));
   });
 });

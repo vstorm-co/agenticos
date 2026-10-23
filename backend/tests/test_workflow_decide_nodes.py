@@ -7,8 +7,6 @@ what the steps ask, what they hand on and which port they leave by - and every
 way they refuse, before or instead of asking.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

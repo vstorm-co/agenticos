@@ -5,8 +5,6 @@ offered as one step with a task rather than three near-identical ones. The
 step's settings become the model's instructions; the text is the prompt.
 """
 
-from __future__ import annotations
-
 from typing import Literal, Self
 from uuid import UUID
 

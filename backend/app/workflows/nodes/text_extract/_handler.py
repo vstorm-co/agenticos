@@ -12,8 +12,6 @@ The text travels inline to the next step, so it is bounded by `max_chars`;
 write a long one to a file with `convert.text_to_file`.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import Literal
 
@@ -99,7 +97,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         )
     except _documents.DocumentEncrypted:
         return files.failed("DOCUMENT_ENCRYPTED", "This document is protected by a password")
-    except (_documents.DocumentCorrupt, ParseError):
+    except _documents.DocumentCorrupt, ParseError:
         return files.failed("DOCUMENT_CORRUPT", "This document is damaged or not what it claims")
     if isinstance(result, Failed):
         return result

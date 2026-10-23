@@ -44,72 +44,80 @@ const state = {
   permissionsLoaded: true,
 };
 
-vi.mock("@/hooks", () => ({
-  useAgent: () => ({
-    agent: {
-      id: "a-1",
-      name: "Support",
-      status: "draft",
-      has_avatar: false,
-      draft_spec: {
+vi.mock("@/hooks", async () => {
+  // The real one: the Builder keeps its tab in `?tab=`, as local state here.
+  const { useUrlState } =
+    await vi.importActual<typeof import("@/hooks/use-url-state")>("@/hooks/use-url-state");
+  return {
+    useUrlState,
+    useAgent: () => ({
+      agent: {
+        id: "a-1",
         name: "Support",
-        instructions: "Be helpful.",
-        model_profile_id: null,
-        model_settings: {},
-        capabilities: [],
-        collection_ids: [],
-        skill_ids: [],
-        context_ids: [],
-        mcp_servers: [],
-        subagents: [],
-      } satisfies AgentSpec,
-    },
-    isLoading: false,
-    saveDraft: { mutateAsync: vi.fn(), isPending: false },
-    validate: { mutateAsync: vi.fn() },
-    publish: { mutateAsync: vi.fn(), isPending: false },
-    rollback: { mutateAsync: vi.fn() },
-    setAvatar: { mutateAsync: vi.fn(), isPending: false },
-    setColor: { mutate: vi.fn(), isPending: false },
-    setMetadata: { mutate: vi.fn(), isPending: false },
-  }),
-  useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
-  useAgents: () => ({
-    agents: [],
-    clone: { mutateAsync: vi.fn() },
-    archive: { mutateAsync: vi.fn() },
-    unarchive: { mutateAsync: vi.fn() },
-    remove: { mutateAsync: vi.fn() },
-  }),
-  useAgentVersion: () => ({ version: undefined, isLoading: false }),
-  useAgentVersions: () => ({ versions: [] }),
-  useAllAgentVersions: () => ({ versions: [] }),
-  useCapabilityCatalog: () => ({ capabilities: [] }),
-  useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
-  useExposures: () => ({ exposures: [] }),
-  useEmbeds: () => ({ embeds: [] }),
-  useKnowledgeBases: () => ({ kbs: [] }),
-  useMcpCatalog: () => ({ servers: [] }),
-  useModelProviders: () => ({
-    profiles: state.profiles,
-    profilesStatus: state.profilesStatus,
-    refetchProfiles,
-    isLoading: false,
-    deleteProfile: { mutate: vi.fn() },
-    createProfile: { mutateAsync: vi.fn(), isPending: false },
-    catalog: [],
-  }),
-  useOrgMcpConnections: () => ({ connections: [] }),
-  usePermissions: () => ({
-    can: (permission: Permission) => state.permissions.includes(permission),
-    isLoaded: state.permissionsLoaded,
-  }),
-  useProviderModels: () => ({ models: [], source: null, isLoading: false }),
-  useRuns: () => ({ runs: [] }),
-  useSecretPurposes: () => ({ purposes: [] }),
-  useSecrets: () => ({ secrets: [] }),
-  useSkills: () => ({ skills: [], total: 0 }),
-}));
+        status: "draft",
+        has_avatar: false,
+        draft_spec: {
+          name: "Support",
+          instructions: "Be helpful.",
+          model_profile_id: null,
+          model_settings: {},
+          capabilities: [],
+          collection_ids: [],
+          skill_ids: [],
+          context_ids: [],
+          mcp_servers: [],
+          subagents: [],
+        } satisfies AgentSpec,
+      },
+      isLoading: false,
+      saveDraft: { mutateAsync: vi.fn(), isPending: false },
+      validate: { mutateAsync: vi.fn() },
+      publish: { mutateAsync: vi.fn(), isPending: false },
+      rollback: { mutateAsync: vi.fn() },
+      setAvatar: { mutateAsync: vi.fn(), isPending: false },
+      setColor: { mutate: vi.fn(), isPending: false },
+      setMetadata: { mutate: vi.fn(), isPending: false },
+    }),
+    useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
+    useAgents: () => ({
+      agents: [],
+      clone: { mutateAsync: vi.fn() },
+      archive: { mutateAsync: vi.fn() },
+      unarchive: { mutateAsync: vi.fn() },
+      remove: { mutateAsync: vi.fn() },
+    }),
+    useAgentVersion: () => ({ version: undefined, isLoading: false }),
+    useAgentVersions: () => ({ versions: [] }),
+    useAllAgentVersions: () => ({ versions: [] }),
+    useCapabilityCatalog: () => ({ capabilities: [] }),
+    usePromptVariables: () => ({ variables: [] }),
+    useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
+    useExposures: () => ({ exposures: [] }),
+    useEmbeds: () => ({ embeds: [] }),
+    useKnowledgeBases: () => ({ kbs: [] }),
+    useMcpCatalog: () => ({ servers: [] }),
+    useModelProviders: () => ({
+      profiles: state.profiles,
+      profilesStatus: state.profilesStatus,
+      refetchProfiles,
+      isLoading: false,
+      deleteProfile: { mutate: vi.fn() },
+      createProfile: { mutateAsync: vi.fn(), isPending: false },
+      catalog: [],
+    }),
+    useMcpConnections: () => ({ connections: [] }),
+    useOrgMcpConnections: () => ({ connections: [] }),
+    usePermissions: () => ({
+      can: (permission: Permission) => state.permissions.includes(permission),
+      isLoaded: state.permissionsLoaded,
+    }),
+    useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+    useRuns: () => ({ runs: [] }),
+    useSecretPurposes: () => ({ purposes: [] }),
+    useSecrets: () => ({ secrets: [] }),
+    useSkills: () => ({ skills: [], total: 0 }),
+  };
+});
 
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
@@ -120,6 +128,7 @@ vi.mock("@/stores", () => ({
     select({ select: vi.fn() }),
   useConversationStore: (select: (state: { reset: () => void }) => unknown) =>
     select({ reset: vi.fn() }),
+  useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
 }));
 
 // Composition the Model panel does not depend on. Each is covered where it
@@ -128,7 +137,11 @@ vi.mock("@/stores", () => ({
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
-vi.mock("@/components/ui/markdown-editor", () => ({ MarkdownEditor: () => null }));
+vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
+vi.mock("@/components/ui/markdown-editor", () => ({
+  MarkdownEditor: () => null,
+  MarkdownModeToggle: () => null,
+}));
 
 /**
  * The page reads its route params with `use()`, so the first render suspends and

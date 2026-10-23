@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useAgentSelectionStore } from "./agent-selection-store";
+import { createAgentSelectionStore, useAgentSelectionStore } from "./agent-selection-store";
 
 describe("Agent selection store", () => {
   beforeEach(() => {
@@ -70,5 +70,19 @@ describe("Agent selection store", () => {
     });
     useAgentSelectionStore.getState().select("a2");
     expect(useAgentSelectionStore.getState().selectedWorkflowId).toBeNull();
+  });
+});
+
+describe("a scoped copy", () => {
+  it("starts on its own agent and keeps its selection out of the console's storage", () => {
+    localStorage.removeItem("agent-selection");
+    const scoped = createAgentSelectionStore("assistant");
+
+    expect(scoped.getState().selectedAgentId).toBe("assistant");
+    scoped.getState().select("other");
+    scoped.getState().setDefault("other");
+
+    expect(localStorage.getItem("agent-selection")).toBeNull();
+    expect(useAgentSelectionStore.getState().selectedAgentId).not.toBe("other");
   });
 });

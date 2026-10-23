@@ -11,8 +11,6 @@ the run's audience (`app.agents.audience`), so the corpus is one person's - the
 person the run is answering - and there is no argument the model can widen.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext
@@ -34,6 +32,11 @@ _IN_A_ROOM = (
 _NO_CORPUS = (
     "Nobody is identified in this conversation, so there are no past conversations to "
     "search. Answer from what you have here."
+)
+_UNATTENDED = (
+    "Searching past conversations is off for a run a trigger started, even one acting "
+    "as the person who set it up: their memory and their own connections are open "
+    "here, their conversations are not. Answer from what you have."
 )
 
 _MAX_TURN_CHARS = 1500
@@ -109,6 +112,8 @@ class ConversationSearchToolset(FunctionToolset[AgentDeps]):
             return _IN_A_ROOM
         if audience.user_id is None:
             return _NO_CORPUS
+        if not audience.searches_conversations:
+            return _UNATTENDED
         return deps.organization_id, audience.user_id
 
     async def search_conversations(

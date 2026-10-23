@@ -10,8 +10,6 @@ round trips to answer one question, and has to know that "never signed in" and
 "no session open now" are different answers.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -74,7 +72,7 @@ def _session(*, last_used: datetime, created: datetime) -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
-def _clear() -> AsyncGenerator[None, None]:
+def _clear() -> AsyncGenerator[None]:
     yield
     app.dependency_overrides.clear()
 

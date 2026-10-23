@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "a43a833ec82f"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -62,12 +62,17 @@ Por perfil, y sobrescribibles por agent a través de `model_settings` del spec:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Ver
 [la referencia del spec](reference/spec.md#model-settings).
 
-**El caché de prompts está activado por defecto** en los perfiles de Anthropic y
-OpenRouter. Cada petición de un run vuelve a enviar las instrucciones, los esquemas
-de herramientas y todo el historial, así que cada petición marca las instrucciones,
-las herramientas y su último mensaje como puntos de caché y lee la anterior desde
-la caché. Un perfil desactiva cualquiera de ellos poniéndolo a `false` -
-`anthropic_cache_messages`, `openrouter_cache_instructions`, etcétera.
+**El caché de prompts está activado por defecto**, mediante el ajuste `cache` de
+Pydantic AI, neutral respecto al proveedor. Cada petición de un run vuelve a enviar
+las instrucciones, los esquemas de herramientas y todo el historial, así que el
+prefijo estable y la conversación se marcan como puntos de caché y cada petición
+lee la anterior desde la caché. Se aplica donde un proveedor admite caché
+explícita - Anthropic, los modelos Anthropic y Nova de Bedrock, los modelos
+Anthropic y Gemini de OpenRouter, OpenAI desde GPT-5.6 - y no cambia nada en uno
+que cachea por su cuenta, como Google. Un perfil lo apaga con `cache: false`, o
+cachea solo instrucciones y herramientas con `cache: {"messages": false}`. Un
+indicador propio de un proveedor que el perfil ya fija, como
+`anthropic_cache_messages`, sigue mandando para ese perfil.
 
 El esfuerzo de razonamiento **no** está aquí. Es
 [la capability `thinking`](reference/capabilities.md#thinking), porque «razona
@@ -108,7 +113,7 @@ guardada. Un perfil que la quiera pone `openai_store` a `true` en sus ajustes.
 
 ## Providers { #providers }
 
-Veintisiete, que es todo lo que trae Pydantic AI a lo que un perfil de chat puede
+Veintiocho, que es todo lo que trae Pydantic AI a lo que un perfil de chat puede
 apuntar.
 
 Aquí no hay un constructor por provider. Pydantic AI infiere la clase del
@@ -195,8 +200,9 @@ autenticarse.
 | Azure OpenAI | `azure` | clave **+** endpoint **+** versión de API fijada |
 | AWS Bedrock | `bedrock` | id de clave de acceso, clave secreta, región, token de sesión opcional |
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
+| ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
 
-Estos tres son la razón de que un secreto tenga un *kind*. Un formulario que
+Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar
 correctamente y que aun así falla en el primer run. Ver
 [los kinds de secreto](secrets.md#kinds).
@@ -210,6 +216,52 @@ correctamente y que aun así falla en el primer run. Ver
 
     `google_cloud` se construye como `google-cloud`. Ninguno de los dos cambia lo
     que guardas.
+
+### Ejecutar con una suscripción de ChatGPT { #running-on-a-chatgpt-subscription }
+
+`openai_codex` ejecuta modelos de OpenAI en el backend de Codex a través de una
+suscripción de ChatGPT, en vez de a través de una clave de API medida. Está
+pensado para **uso personal**: el inicio de sesión es la suscripción de una
+persona, y cada run en un perfil que lo usa cuenta contra los límites de ChatGPT
+de esa persona.
+
+Nadie puede teclear la credencial. En su lugar inicias sesión con ChatGPT:
+
+1. En **Vault → add a secret** (o en **Agents → add a model**, con **ChatGPT
+   (Codex subscription)** seleccionado), elige **Sign in with ChatGPT**. Se abre
+   un inicio de sesión de ChatGPT en una pestaña nueva.
+2. Apruébalo. ChatGPT envía entonces el navegador a `http://localhost:1455/...`,
+   que no carga. Es lo esperado: OpenAI fija esa dirección para todos los
+   clientes salvo el suyo propio.
+3. Copia la dirección completa de la barra de direcciones y pégala de vuelta en
+   el formulario.
+
+El código de esa dirección funciona una sola vez, solo para la persona que inició
+el inicio de sesión, y solo durante 15 minutos.
+
+El access token caduca y se renueva mientras los modelos se ejecutan. Cada
+renovación gasta el refresh token, así que el par nuevo se vuelve a sellar en el
+mismo secreto del vault de inmediato. Dos runs que renuevan en el mismo momento
+aún pueden competir. El que pierde se rechaza, y la solución es **Reconnect** en
+el secreto, que vuelve a iniciar sesión sin cambiar su id.
+
+!!! warning "Lo que no es un inicio de sesión de ChatGPT"
+
+    - **No es el `auth.json` de la CLI de Codex.** Ese archivo guarda la
+      concesión propia de la CLI. Los refresh tokens son de un solo uso, así que
+      cualquiera de los dos que renovara primero cerraría la sesión del otro.
+    - **No es una credencial de la organización.** Un secreto se crea privado por
+      defecto, y un modelo sobre él solo funciona para quien puede ver ese inicio de
+      sesión en el vault y pregunta él mismo. Para cualquier otro - un visitante de
+      una página pública o un embed, quien llama con una clave API - y para el
+      trabajo en segundo plano como describir las imágenes de un documento, el
+      modelo se rechaza y un fallback sobre él se omite.
+    - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
+      la API de OpenAI para el mismo modelo, que es lo que un
+      [budget](governance.md#budgets) puede razonar. La suscripción en sí la
+      factura OpenAI a tarifa plana.
+    - **Algunos ajustes se ignoran.** El backend de Codex descarta `max_tokens`,
+      `temperature` y `top_p`.
 
 ### Ausentes a propósito { #deliberately-absent }
 
@@ -248,15 +300,15 @@ aquella de la que se derivan todas es la primera:
 
 Cada clave de cualquiera de los dos archivos de catálogo tiene que nombrar un
 provider que `PROVIDERS` tenga. También cada entrada del catálogo de imágenes. Y
-cada provider tiene que aparecer en esta página. Añadir el vigesimoctavo es una
+cada provider tiene que aparecer en esta página. Añadir el vigesimonoveno es una
 edición más lo que ese test pida después.
 
 Merece la pena conocer dos cruces, porque son búsquedas que pueden no responder
 nada:
 
-- El snapshot de precios escribe tres providers de otra forma — `xai` es `x-ai`,
-  `bedrock` es `aws`, `google_cloud` es `google` — y `_PRICE_PROVIDER_ALIASES`
-  los puentea.
+- El snapshot de precios escribe cuatro providers de otra forma — `xai` es
+  `x-ai`, `bedrock` es `aws`, `google_cloud` es `google`, y `openai_codex` se
+  tarifa como `openai` — y `_PRICE_PROVIDER_ALIASES` los puentea.
 - El catálogo de imágenes lleva su propio par `provider` y `prefix`, que es un
   tercer vocabulario otra vez.
 
@@ -338,6 +390,7 @@ abajo.
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
+| `openai_codex` | los mismos cuatro que `openai` |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -445,11 +498,50 @@ La fila del run hijo que escribe una delegación nombra el modelo que la
 respondió, así que el panel de costes agrupa un turno delegado bajo el modelo que
 realmente se ejecutó y no bajo el del padre.
 
+## Modelos realtime { #realtime-models }
+
+Una [llamada de voz](voice.md) no usa un perfil de modelo. Su modelo se elige de
+un catálogo que trae este despliegue, `backend/app/core/catalog/realtime_models.json`,
+que lee `backend/app/services/realtime_models.py` y que se sirve al Builder en
+`GET /api/v1/providers/realtime-models`. La clave se nombra en la sección Voice
+del agent como un secreto del vault, no en un perfil. Es la misma forma que usa
+la voz a texto: una elección del catálogo más una clave explícita.
+
+Cada entrada nombra un provider, sus modelos y, para cada modelo:
+
+| Campo | Qué decide |
+|---|---|
+| `transport` | `webrtc` (el navegador habla con el provider; este despliegue mantiene un sideband) o `relay` (el audio pasa por el socket de este despliegue) |
+| `input_sample_rate`, `output_sample_rate` | Las frecuencias PCM a las que el navegador graba y reproduce, a través del relay |
+| `voices`, `default_voice` | Lo que ofrece la sección Voice, y lo que significa no elegir nada |
+| `supports_thinking` | Si la capability de thinking del agent se traduce al ajuste de razonamiento propio del modelo |
+| `context_window` | Dónde una reconexión pasa de reproducir los turnos a un resumen de los más antiguos |
+| `pricing` | `kind` (`tokens` o `per_minute`), `worst_case_usd_per_minute` para la comprobación previa a una llamada, y `usd_per_minute` para un modelo por minuto |
+
+La familia `gpt-realtime` de OpenAI funciona sobre WebRTC y es el único provider
+probado en vivo. Azure OpenAI, Gemini Live y xAI funcionan sobre el relay y **no
+están verificados en vivo**. GPT-Live no está en el catálogo: no puede recibir
+historial después de que empiece una sesión, así que una reconexión no podría
+continuar una llamada.
+
+**Azure es un deployment más un modelo base.** El nombre de un deployment lo
+elige su propietario y no dice nada de lo que ejecuta, así que la sección Voice
+toma el nombre del deployment como texto libre y el modelo del catálogo que
+ejecuta como `base_model`. El modelo base decide las voces y el precio: los
+tokens de una llamada de Azure se tarifan como ese modelo en OpenAI. El endpoint
+y la versión de la API vienen del secreto `azure_openai`.
+
+**Precios.** Los modelos tarifados por token se tarifan por respuesta a partir
+del mismo snapshot incluido que los runs de texto. Un modelo por minuto (xAI) se
+factura por el tiempo conectado al `usd_per_minute` del catálogo. Un modelo
+tarifado por token que el snapshot no sabe tarifar se rechaza cuando empieza una
+llamada, en vez de funcionar con un budget que no puede hacer cumplir.
+
 ## Resumen { #recap }
 
 - Un **perfil** es un modelo con nombre más una clave con nombre, y los agents
   apuntan a perfiles para que rotar cualquiera de los dos toque una sola fila.
-- **27 providers**, y lo único que esta plataforma sabe de cada uno es la forma
+- **28 providers**, y lo único que esta plataforma sabe de cada uno es la forma
   de la credencial — construirlo es trabajo de Pydantic AI.
 - El id de modelo es **texto libre**, porque ninguna lista es autoritativa.
 - La **longitud de contexto** se lee una vez y se guarda, porque el snapshot de
@@ -457,6 +549,9 @@ realmente se ejecutó y no bajo el del padre.
 - El **coste** viene de un snapshot incluido, un modelo desconocido se registra
   como sin tarifar y no como gratis, y un provider sin clave no registra gasto
   alguno.
+- Los **modelos realtime** de las llamadas de voz son una elección del catálogo
+  más una clave con nombre, sin perfil; solo los de OpenAI están verificados en
+  vivo.
 
 ## Configurar uno { #setting-one-up }
 

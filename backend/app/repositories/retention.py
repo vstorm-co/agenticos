@@ -14,8 +14,6 @@ removes nothing - which also makes a sweep that is killed halfway simply resume,
 rather than start again.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -66,6 +64,7 @@ _RETIRABLE = (
     RunStatus.CANCELLED,
     RunStatus.BUDGET_EXCEEDED,
     RunStatus.GUARDRAIL_BLOCKED,
+    RunStatus.LOOP_STOPPED,
 )
 
 
@@ -259,11 +258,16 @@ async def delete_workspaces(
     For the `state` backend the row is the storage, so this is the whole purge.
     A workspace on a sandbox backend keeps its files in the sandbox, whose own
     TTL reaps them; what leaves here is the platform's record of it.
+
+    Never a project's: its files are the project's, kept as long as the project
+    is, however long nobody has run an agent in them - and deleted with it.
     """
     expiring = (
         select(AgentWorkspace.id)
         .where(
-            AgentWorkspace.organization_id == organization_id, AgentWorkspace.last_used_at < cutoff
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.last_used_at < cutoff,
+            AgentWorkspace.project_id.is_(None),
         )
         .order_by(AgentWorkspace.last_used_at)
         .limit(limit)

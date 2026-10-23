@@ -12,8 +12,6 @@ finds the one it made instead of asking again, and every iteration of a loop
 asks on its own.
 """
 
-from __future__ import annotations
-
 import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal

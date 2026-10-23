@@ -2,16 +2,10 @@
 
 import { type RefObject, useLayoutEffect, useRef } from "react";
 
+import { prefersReducedMotion } from "@/lib/motion";
+
 /** How long a card takes to glide to its new place, and on what curve. */
 const FLIP_TRANSITION = "transform 220ms cubic-bezier(0.2, 0, 0, 1)";
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
 
 /**
  * FLIP: glide grid children to their new positions after a layout change,

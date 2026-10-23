@@ -20,8 +20,6 @@ text rules are a length ceiling and refusing NUL, which PostgreSQL cannot store
 in a JSONB string and would otherwise surface as a 500.
 """
 
-from __future__ import annotations
-
 import math
 import re
 from collections.abc import Callable

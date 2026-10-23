@@ -1,7 +1,5 @@
 """Switch, Filter a list and Combine lists, as their handlers decide - no database."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import pytest

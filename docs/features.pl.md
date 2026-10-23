@@ -1,5 +1,5 @@
 ---
-source_sha: "15cf34650ce9"
+source_sha: "d9e290973e51"
 ---
 
 # Funkcje { #features }
@@ -89,10 +89,10 @@ capability, która jest wyłączona, cokolwiek mówią jego instrukcje.
 | Agent może… | Włącz |
 |---|---|
 | **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury i to, co dołączono do tej rozmowy | Knowledge search · Skills · Context |
-| **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory files · Memory (mem0) · Conversation search |
-| **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Web fetch · Browser automation |
-| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz | Run Python · Files & shell · Charts · Image generation |
-| **Poradzić sobie z pracą za dużą na jedną odpowiedź** — zdelegować do specjalistów, prowadzić listę zadań, pomyśleć dłużej przed odpowiedzią, ciągnąć długą rozmowę bez gubienia jej początku | Delegation · Planning · Thinking · Context management |
+| **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory · Memory (mem0) · Past conversations |
+| **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Read web pages · Web browser |
+| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz | Calculations · Sandbox · Charts · Image generation |
+| **Poradzić sobie z pracą za dużą na jedną odpowiedź** — zdelegować do specjalistów, prowadzić listę zadań, pomyśleć dłużej przed odpowiedzią, ciągnąć długą rozmowę bez gubienia jej początku | Delegation · Planning · Thinking · Long conversations |
 | **Trzymać się w ryzach** — zredagować albo zablokować to, co nie może przejść, ograniczyć to, co może zwrócić jedno narzędzie, wiedzieć, jaka jest dzisiaj data | Guardrails · Tool output limits · Date and time |
 
 Każda z nich niesie własne ustawienia, własny scope uprawnień i — tam, gdzie
@@ -101,7 +101,7 @@ decyzją, którą ktoś podejmuje wobec *tego* agenta, a nie zmianą w platformi
 
 [Każda capability, jej narzędzia i jej konfiguracja →](reference/capabilities.md)
 
-## Dowolny model, od 27 providerów { #any-model-from-27-providers }
+## Dowolny model, od 28 providerów { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, Ollama na Twoim
 własnym sprzęcie, proxy LiteLLM przed tym wszystkim.
@@ -120,11 +120,13 @@ Klucze są per organizacja, zapieczętowane w vaulcie i nigdy nie zwracane przez
 Podłącz serwer, a jego narzędzia pojawią się w Toolboksie, z przestrzenią nazw,
 więc dwa serwery oferujące `search` nie zderzą się ze sobą.
 
-**W wyborze jest 5802 serwerów.** 99 tych popularnych — GitHub, Linear, Notion,
-Slack, Stripe, Postgres — przychodzi z gotowo podłączonymi przepływami OAuth, bo
-ktoś tutaj podłączył każdy z nich i to sprawdził. Pozostałe 5703 są lustrzaną
-kopią publicznego rejestru MCP i da się je wyszukać po nazwie: nikt tutaj ich nie
-przejrzał, a lista mówi, którego rodzaju jest dany wiersz.
+**W galerii jest ponad 4700 serwerów** - tyle, ile pokazuje strona MCP servers.
+Te popularne - GitHub, Linear, Notion, Slack, Stripe, Postgres - przychodzą
+z gotowo podłączonymi przepływami OAuth, bo ktoś tutaj podłączył każdy z nich
+i to sprawdził. Pozostałe są lustrzaną kopią publicznego rejestru MCP i da się je
+wyszukać po nazwie: nikt tutaj ich nie przejrzał, lista mówi, którego rodzaju
+jest dany wiersz, a wpisu, który sprawdzenie uznało za martwy, zepsuty albo
+zdublowany, na niej nie ma.
 
 !!! info
 
@@ -171,7 +173,19 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **Slack**, **Telegram** i **Mattermost**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
 
-[Powierzchnie →](channels.md)
+Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
+dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
+transkrypcja wiadomości głosowych w Slacku, Telegramie i Mattermost.
+
+**Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
+w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje
+narzędzia, wiedzę, zatwierdzenia i budżety, każda tura jest zapisywana jako
+tekst w konwersacji, a żadne audio nie jest przechowywane. Rozmowy są
+wyłączone, dopóki organizacja ich nie włączy, i mają własne limity czasu
+i miesięcznych minut. Modele realtime OpenAI są przetestowane na żywo; Azure
+OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo.
+
+[Powierzchnie →](channels.md) · [Rozmowy głosowe →](voice.md)
 
 ## Budżety, które naprawdę zatrzymują run { #budgets-that-actually-stop-a-run }
 
@@ -181,10 +195,12 @@ Run, który się nie powiódł, i tak zapisuje, ile wydał, bo budżet liczący 
 sukcesy nie jest budżetem. Alerty odpalają się przy progach, które ustawiasz, per
 agent.
 
-## Approval dla wszystkiego, co ma skutki uboczne { #approval-for-anything-side-effecting }
+## Approval tam, gdzie chcesz człowieka { #approval-where-you-want-a-person }
 
-Narzędzie, które zmienia świat zewnętrzny, parkuje run i czeka na człowieka.
-Ustaw to per capability, nadpisz per narzędzie.
+Wybierz, które narzędzia czekają na człowieka, zanim się wykonają: per capability,
+z nadpisaniem per narzędzie, i per serwer MCP. Nic nie czeka, dopóki o to nie
+poprosisz, więc run w kanale albo w harmonogramie nigdy nie parkuje na bramce,
+której nikt nie wybrał.
 
 Approval jest rozstrzygany raz. Druga decyzja na rozstrzygniętym approvalu jest
 odrzucana — co brzmi oczywiście, dopóki nie zobaczy się wyścigu, który czyni to

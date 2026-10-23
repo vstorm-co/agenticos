@@ -12,8 +12,6 @@ has no signing secret yet. What it keeps lives in Redis - short-lived, and never
 an at-rest record - for `KEEP_SECONDS`, and only the workflow's editors read it.
 """
 
-from __future__ import annotations
-
 import json
 import secrets
 from collections.abc import Mapping

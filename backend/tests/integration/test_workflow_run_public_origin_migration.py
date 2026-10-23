@@ -12,8 +12,6 @@ model-built integration database already has the column, so the revision's
 `add_column` could not run there at all.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -29,8 +27,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_run_public_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0136_artifact_bindings"
-_TARGET_REVISION = "0137_workflow_run_public_origin"
+_BASE_REVISION = "0190_artifact_bindings"
+_TARGET_REVISION = "0191_workflow_run_public_origin"
 
 
 def _url(database: str) -> str:

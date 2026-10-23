@@ -1,7 +1,5 @@
 """`mcp.call` around a stubbed server: what it calls, when it asks first, and what it refuses."""
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from contextlib import asynccontextmanager

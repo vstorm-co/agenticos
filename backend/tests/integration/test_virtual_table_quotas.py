@@ -6,8 +6,6 @@ its transaction would go with it. A test that kept everything in one uncommitted
 could not see that the entry survives.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 import pytest

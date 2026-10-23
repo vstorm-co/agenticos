@@ -1,12 +1,9 @@
 """A workflow's own limits - runs at once, one run's spend, a month's - and its figures."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select, update
@@ -31,12 +28,6 @@ from app.workflows.graph.model import Edge, NodeInstance, NodePosition, Workflow
 from tests.integration.workflow_run_support import seed_member
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _graph(definition_id: str = "trigger.manual", config: dict[str, Any] | None = None):

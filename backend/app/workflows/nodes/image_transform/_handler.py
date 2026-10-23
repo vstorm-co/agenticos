@@ -12,8 +12,6 @@ location does not travel with it. Operations run in a fixed order - crop,
 then resize, then rotate - whatever order the config lists them in.
 """
 
-from __future__ import annotations
-
 import asyncio
 import io
 from typing import Literal

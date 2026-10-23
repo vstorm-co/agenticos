@@ -3,17 +3,18 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 import {
-  AUTH_STATE,
-  SEEDED_AGENT_HANDLE,
-  SEEDED_AGENT_NAME,
-  SEEDED_KB_NAME,
-  FAKE_KEY_LABEL,
-  SEEDED_SKILL_NAME,
   agentCard,
+  AUTH_STATE,
+  DASHBOARD_GREETING,
+  FAKE_KEY_LABEL,
   gotoRoleMatrix,
   openAgent,
   pageHeading,
   pageStatus,
+  SEEDED_AGENT_HANDLE,
+  SEEDED_AGENT_NAME,
+  SEEDED_KB_NAME,
+  SEEDED_SKILL_NAME,
   skillCard,
 } from "./helpers";
 
@@ -40,7 +41,8 @@ const DASHBOARD_PAGES: {
     // The seeded agent's name inside the "Your agents" card: the card frame
     // renders whatever happens, the name only once GET /agents answered.
     path: "/dashboard",
-    heading: "Dashboard",
+    // Everybody opens on their own view, headed by a greeting.
+    heading: DASHBOARD_GREETING,
     proof: (page) => page.getByRole("main").getByText(SEEDED_AGENT_NAME).first(),
   },
   {
@@ -128,6 +130,8 @@ test.describe("Dashboard navigation", () => {
     ["/settings/providers", "/vault"],
     ["/providers", "/vault"],
     ["/settings/mcp-servers", "/mcp-servers"],
+    // Apps were artifacts until #2071.
+    ["/artifacts", "/apps"],
   ];
 
   for (const [from, to] of MOVED_ROUTES) {

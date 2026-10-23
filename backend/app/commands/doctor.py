@@ -18,17 +18,17 @@ same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
-from __future__ import annotations
-
 import asyncio
 from typing import TYPE_CHECKING
 
 import click
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.db.session import get_db_context
+from app.schemas.health import SystemCheck
 from app.services.health import (
     probe_database,
     probe_model_access,
@@ -106,6 +106,21 @@ async def _redis_reachable() -> tuple[str, str]:
     return ("healthy", "PING answered") if answered else ("unhealthy", "PING failed")
 
 
+async def _scheduler() -> SystemCheck:
+    """`probe_scheduler`, on a session of its own: it reads the background job tables.
+
+    A database that cannot be reached is reported here as what failed, rather
+    than as a doctor that crashed before saying anything about the rest.
+    """
+    try:
+        async with get_db_context() as db:
+            return await probe_scheduler(db)
+    except (OSError, SQLAlchemyError) as exc:
+        return SystemCheck(
+            key="scheduler", status="unhealthy", detail=f"the database did not answer: {exc}"
+        )
+
+
 async def _postgres_tls(db: AsyncSession) -> tuple[str, str]:
     """Whether the connection this doctor made to Postgres was encrypted.
 
@@ -131,6 +146,32 @@ def _redis_tls() -> tuple[str, str]:
         if settings.REDIS_URL.startswith("rediss://")
         else ("unconfigured", "tls=off")
     )
+
+
+async def _query_statistics(db: AsyncSession) -> tuple[str, str]:
+    """Whether Postgres records which statements cost what (#2228).
+
+    Without `pg_stat_statements` a slow query is found by reading logs. Not a
+    failure when absent: it needs the library preloaded at server start, which a
+    managed database may not offer. Read under a savepoint, because the error a
+    missing extension raises would otherwise abort the session the checks after
+    this one share.
+    """
+    try:
+        async with db.begin_nested():
+            await db.execute(text("SELECT 1 FROM pg_stat_statements LIMIT 1"))
+    except Exception as exc:
+        reason = str(getattr(exc, "orig", exc)).splitlines()[0]
+        return "unconfigured", f"pg_stat_statements unavailable - {reason}"
+    return "healthy", "pg_stat_statements is recording"
+
+
+def _tracing() -> tuple[str, str]:
+    """Whether spans leave this process. Production prints none to the console,
+    so with no token a slow request leaves no trace anywhere (#2228)."""
+    if settings.LOGFIRE_TOKEN:
+        return "healthy", f"Logfire, environment {settings.LOGFIRE_ENVIRONMENT}"
+    return "unconfigured", "LOGFIRE_TOKEN is unset - no request, query or run is traced"
 
 
 def _vault_configured() -> tuple[str, str]:
@@ -165,7 +206,7 @@ def _file_storage() -> tuple[str, str]:
 
 
 async def _browser_endpoints() -> tuple[str, str]:
-    """Whether the browsers a `browser_choice` agent may drive are answering.
+    """Whether the browsers a web-browsing agent may drive are answering.
 
     `BROWSER_CDP_ALLOWED_HOSTS` is the whole list an author can name, so it is
     the whole list worth looking at - and looking here is the difference between
@@ -344,6 +385,9 @@ async def _run(profile: str | None = None) -> int:
         model = await probe_model_access(db)
         failures += _report("model access", model.status, model.detail)
 
+        status, detail = await _query_statistics(db)
+        failures += _report("query statistics", status, detail)
+
     status, detail = await _redis_reachable()
     failures += _report("redis", status, detail)
 
@@ -356,7 +400,10 @@ async def _run(profile: str | None = None) -> int:
     status, detail = _file_storage()
     failures += _report("file storage", status, detail)
 
-    scheduler = await probe_scheduler()
+    status, detail = _tracing()
+    failures += _report("tracing", status, detail)
+
+    scheduler = await _scheduler()
     failures += _report("scheduler", scheduler.status, scheduler.detail)
 
     # A session of its own, after the vault check rather than beside the database

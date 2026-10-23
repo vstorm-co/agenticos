@@ -11,8 +11,6 @@ byte split and the deadline, which stops a slow page without ever cancelling a q
 from Python.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 import uuid
@@ -790,15 +788,15 @@ class TestTheDeadline:
     @pytest.mark.security
     async def test_a_caught_timeout_logs_no_filter_values(self, db, monkeypatch, caplog):
         page = await _page(db)
-        sentinel = f"needle-{uuid.uuid4().hex}"
-        await insert_rows(db, page.table, [{cid(page.table, "Customer"): sentinel}])
+        needle = f"needle-{uuid.uuid4().hex}"
+        await insert_rows(db, page.table, [{cid(page.table, "Customer"): needle}])
         await page.publish(
             await page.bind(
                 "needle",
                 BindingRequest(
                     table=page.table.id,
                     fields={"customer": "Customer"},
-                    filters=[BindingFilter(column="Customer", op="eq", value=sentinel)],
+                    filters=[BindingFilter(column="Customer", op="eq", value=needle)],
                 ),
             )
         )
@@ -806,9 +804,7 @@ class TestTheDeadline:
 
         async def sizes(db: AsyncSession, **kwargs: Any) -> Any:
             # Carries the filter value as a bound parameter, as the real query does.
-            await db.execute(
-                text("SELECT pg_sleep(1), CAST(:needle AS text)"), {"needle": sentinel}
-            )
+            await db.execute(text("SELECT pg_sleep(1), CAST(:needle AS text)"), {"needle": needle})
             raise AssertionError("pg_sleep should have been cancelled")
 
         monkeypatch.setattr(virtual_table_repo, "list_record_sizes", sizes)
@@ -824,7 +820,7 @@ class TestTheDeadline:
             "reason": "timeout",
         }
         for record in caplog.records:
-            assert sentinel not in record.getMessage()
-            assert sentinel not in repr(record.args)
-            assert sentinel not in repr(vars(record))
+            assert needle not in record.getMessage()
+            assert needle not in repr(record.args)
+            assert needle not in repr(vars(record))
             assert record.exc_info is None

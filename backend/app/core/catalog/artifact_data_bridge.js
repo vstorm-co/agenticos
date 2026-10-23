@@ -182,7 +182,11 @@ function agenticosDataBridge(window, document, config) {
     });
   }
 
-  window.agenticos = { data: data, onData: onData, run: run, onRun: onRun };
+  // Joined onto what the platform script already put there (`map`, `followUp`,
+  // `canFollowUp`), which is a frozen object, so it is replaced rather than extended.
+  window.agenticos = Object.freeze(
+    Object.assign({}, window.agenticos, { data: data, onData: onData, run: run, onRun: onRun })
+  );
 
   // Answered at load: the server wrote the data in, so there is nothing to wait
   // for. Names are only ever own keys of the answer (`put`), whatever they are.

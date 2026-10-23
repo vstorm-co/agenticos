@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { bytesKey, readFileBytes, readFileText, textKey } from "./workspace-files";
+import { bytesKey, documentName, readFileBytes, readFileText, textKey } from "./workspace-files";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
@@ -39,6 +39,24 @@ describe("addressing a file", () => {
     );
   });
 
+  it("reads a project's file through the project, text decoded from its bytes", async () => {
+    vi.mocked(apiClient.raw).mockImplementation(async () => new Response("# Brief"));
+    await expect(readFileText({ kind: "project", id: "p1" }, "brief.md")).resolves.toEqual({
+      content: "# Brief",
+      truncated: false,
+    });
+    await readFileBytes({ kind: "project", id: "p1" }, "a.png", { download: true });
+    expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+      "/projects/p1/files/raw?path=a.png&download=true",
+    );
+    expect(textKey({ kind: "project", id: "p1" }, "a")).not.toEqual(
+      textKey({ kind: "workspace", id: "p1" }, "a"),
+    );
+    expect(bytesKey({ kind: "project", id: "p1" }, "a")).not.toEqual(
+      bytesKey({ kind: "workspace", id: "p1" }, "a"),
+    );
+  });
+
   it("keys the two addresses apart, so one cache entry cannot answer for the other", () => {
     expect(textKey({ kind: "conversation", id: "x" }, "/a")).not.toEqual(
       textKey({ kind: "workspace", id: "x" }, "/a"),
@@ -47,5 +65,20 @@ describe("addressing a file", () => {
     expect(bytesKey({ kind: "conversation", id: "x" }, "/a")).not.toEqual(
       textKey({ kind: "conversation", id: "x" }, "/a"),
     );
+  });
+});
+
+describe("documentName - a file as a person calls it", () => {
+  it("drops the folders and an attachment's filing prefix", () => {
+    expect(documentName("/uploads/0d7d5756-handbook.pdf", true)).toBe("handbook.pdf");
+  });
+
+  it("keeps an agent's own name whole, prefix-like or not", () => {
+    expect(documentName("/reports/0d7d5756-q3.csv", false)).toBe("0d7d5756-q3.csv");
+    expect(documentName("notes.md", false)).toBe("notes.md");
+  });
+
+  it("keeps a name that is nothing but the prefix", () => {
+    expect(documentName("/uploads/0d7d5756-", true)).toBe("0d7d5756-");
   });
 });

@@ -6,8 +6,6 @@ has switched public live data on. These prove who may give and take back the pub
 consent, what each refusal is, and every way it is voided - on rows, with the audit trail.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import Iterator

@@ -9,8 +9,6 @@ they say, and a worker dying mid-loop resumes at the right iteration without
 writing anything twice.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import Iterator

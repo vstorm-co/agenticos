@@ -7,8 +7,6 @@ skipped node by node, the merge carries the branch that ran, and the output is
 recorded on the run.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

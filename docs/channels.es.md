@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b480efa06c"
+source_sha: "0a3f9c10e3c6"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -105,10 +105,18 @@ En el Builder, abre el agent → **Availability** → *Website widget*. Eliges:
   vacía, lo que dice el botón lanzador, el color de acento y en qué esquina se
   coloca. Los siete, y el saludo lo dibuja el widget en vez de enviarlo al modelo:
   un saludo en el historial del modelo es un turno que el agent cree haber dado.
+- **Mensajes sugeridos** — hasta cuatro primeros mensajes como botones bajo el
+  saludo; un clic envía uno como el visitante.
+- **Fuentes** — desactivadas por defecto. Activadas, una respuesta apoyada en la
+  base de conocimiento nombra esos documentos debajo: solo los nombres de archivo,
+  nunca los pasajes, en un frame `sources` propio.
 - **Contexto** — una nota añadida al primer mensaje del visitante: *«Estás en la
   página de precios»*, *«Responde en alemán»*. Nunca sustituye a las instrucciones
   propias del agent, que pertenecen a la versión publicada.
 - **Rate limit** — mensajes por visitante y minuto.
+- **Entrada de voz** — `off`, `browser` o `server`, que decide adónde va la voz
+  de un visitante. Ver
+  [dictado en un widget o en una página alojada](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "Una lista de orígenes vacía no permite nada, y es a propósito"
 
@@ -287,6 +295,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | Un paso. `args` solo cuando el operador muestra los resultados. |
 | `tool_call_delta` | `index`, `args_delta` | Los argumentos de una llamada según llegan. |
 | `tool_result` | `tool_call_id`, `content` | Lo que devolvió el paso. |
+| `sources` | `names` | Los documentos que devolvió una búsqueda en la base de conocimiento, por nombre. **Solo en un widget cuyo operador activó las fuentes**, y nunca los pasajes. |
 | `final_result_start` | `tool_name` | La respuesta la está produciendo una output tool. |
 | `final_result` | `output` | Con qué terminó el run. Vacío en un turno que quedó aparcado. |
 | `complete` | — | El turno ha terminado. **No lleva uso**: lo que costó un run es asunto del operador, no del visitante. |
@@ -310,10 +319,12 @@ llama (`app/agents/ask_user.py`) y el modelo sigue adelante y responde sin esa
 entrada — una respuesta degradada, no un run aparcado.
 
 **Un cliente ignora lo que no dibuja**, y `widget.js` es el ejemplo resuelto: lee
-`model_request_start`, `text_delta`, `final_result`, `complete` y `error`, e
-ignora el razonamiento y los pasos a propósito — una respuesta que llega palabra a
-palabra merece la pena en una burbuja en la esquina de una página, y una narración
-de llamadas a herramientas no. La página alojada los dibuja todos.
+`model_request_start`, `text_delta`, `final_result`, `complete` y `error` para la
+respuesta, `tool_call` y `tool_result` para mostrar cada paso como una etiqueta
+(*Buscando en la base de conocimiento*), y `sources` para los documentos que
+nombró una respuesta. Ignora el razonamiento a propósito. Lleva la cara del agent,
+convierte la respuesta de Markdown en nodos y no en HTML, sigue el tema claro u
+oscuro del visitante y ocupa toda la pantalla de un teléfono.
 
 **Códigos de cierre**
 
@@ -378,6 +389,7 @@ estaría mal» o bien «esto todavía no está construido» — nunca silencio.
 | Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira |
 | Aprobaciones: aparcan la ejecución | sí | sí | sí |
 | Aprobaciones: un camino hasta la decisión | sí (`/runs`) | una frase, deliberadamente: a un desconocido con un enlace no se le enseña una URL a la consola de otra persona | sí — el resultado lleva `parked`, que nombra qué espera y a qué aprobación enviar la decisión |
+| Menciones `@` | sí (`mentions`) | **no, todavía no**: un widget no tiene menú del que elegir, y la mención de un visitante necesitaría la misma comprobación en su nombre | **no, todavía no**: un script nombra qué usar en el propio mensaje |
 
 ### `environment_id` en el socket, y por qué es de quien publica { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -525,18 +537,19 @@ que un valor caducado en el navegador de alguien no es una página que no carga.
 
 ### Qué ofrece { #what-it-offers }
 
-Dos interruptores, y los dos son del operador y no de la página — una capability
-que una página se activara a sí misma sería una que nadie podría desactivar.
+Tres opciones, y todas son del operador y no de la página — una capability que
+una página se activara a sí misma sería una que nadie podría desactivar.
 
 - **Un botón para empezar un hilo nuevo**, activado por defecto. Acuña una clave
   de continuidad nueva, así que el hilo viejo no se borra: deja de ser el que
   retoma ese navegador.
-- **Un micrófono en el composer**, desactivado por defecto. Dicta en la caja
-  usando el *propio navegador del visitante*, así que ningún audio llega a este
-  despliegue y aquí no se transcribe nada — pero un navegador que ofrece
-  reconocimiento de voz le entrega el audio a su proveedor, que es la mitad que
-  merece leerse antes de activarlo para el público. A un navegador que no lo
-  ofrece no se le muestra micrófono, en vez de un botón que no hace nada.
+- **Entrada de voz**, desactivada por defecto: `browser` dicta con el propio
+  navegador del visitante, y `server` con el provider de speech-to-text de la
+  organización. Cuál de los dos decide adónde va la voz de un visitante - ver
+  [dictado en un widget o en una página alojada](#dictation-on-a-widget-or-a-hosted-page).
+  Una página publicada antes de que existiera la opción conserva lo que tenía:
+  su antiguo *micrófono en el composer* pasó a ser `browser`, y sin micrófono
+  pasó a ser `off`.
 - **Una forma de adjuntar un fichero**, desactivada por defecto. Ver más abajo: es
   lo único en esta superficie que permite a un desconocido *almacenar* algo.
 
@@ -715,6 +728,260 @@ rastreador que siga uno lo ha publicado.
 
 ---
 
+## Dictado en un widget o en una página alojada { #dictation-on-a-widget-or-a-hosted-page }
+
+Un widget y una página alojada tienen cada uno un ajuste `dictation`: `off`,
+`browser` o `server`. **`browser`** usa el propio navegador del visitante para
+reconocer la voz, así que el audio va al fabricante del navegador - Google en
+Chrome, Apple en Safari - y nada llega a este despliegue. A un navegador sin
+reconocedor, Firefox entre ellos, no se le muestra micrófono. **`server`** graba
+en la página y envía el audio aquí, donde lo transcribe el provider de
+speech-to-text de la organización: la anulación del agent y su clave si la tiene,
+y si no, el predeterminado de la organización y su clave - la misma resolución
+que el
+[dictado en el chat](ml-services.md#dictation-in-chat).
+
+El motor de la organización para `/chat` no influye en ninguna de las dos
+superficies. Una organización que mantiene a sus miembros en el reconocedor del
+navegador puede igualmente dar a una página pública el dictado `server`, y al
+revés.
+
+**Activar `server` se rechaza** mientras no se resuelva para el agent ningún
+provider con una clave utilizable, y el formulario del embed muestra la opción
+desactivada junto con el motivo. Solo se comprueba el cambio, así que una página
+cuya clave se borró después todavía puede renombrarse. Mientras no se resuelva
+nada, su config pública dice `off` y los visitantes no ven micrófono, en vez de
+uno que falla. El agent además tiene que estar publicado: una grabación para un
+agent que nadie ejecuta se rechaza antes de pagar nada.
+
+**La página alojada** usa la propia grabadora del composer de la consola: la
+barra de grabación con su forma de onda y su temporizador, las indicaciones bajo
+la caja y el brillo de voz. Sus textos siguen el idioma del visitante y no
+nombran a ningún administrador ni ajuste. **El widget** tiene una grabadora
+propia en JavaScript plano: un botón de micrófono, una barra de nivel en el
+color de acento, un temporizador, Stop y Cancel, y una línea bajo la caja cuando
+algo sale mal. Sus textos están en inglés, como el resto del widget, y no tiene
+brillo. En ambos, el texto cae en la caja y nunca se envía solo; Enter detiene
+una grabación y Escape la descarta.
+
+Ambos graban en el formato que el servidor anuncia en el `dictation_format` de
+la config pública: WAV PCM de 16 bits, mono y 16 kHz, construido a partir de las
+muestras del micrófono, salvo que el despliegue
+[acepte audio comprimido](deployment.md#what-a-dictation-may-be-uploaded-as)
+y el provider admita lo que produce `MediaRecorder` - WebM, Ogg o MP4. Mistral,
+que no documenta ni WebM ni Opus, recibe WAV en cualquier caso.
+
+### El endpoint { #the-endpoint }
+
+`POST /api/v1/embed/{public_key}/dictation` recibe un `file` multipart y un
+`duration` opcional, y responde `{"text": ...}`. La admisión sigue a la
+superficie. Un **widget** se admite como su socket: el `Origin` tiene que estar
+en su lista de permitidos, y en modo `jwt` el token del visitante viaja como
+campo de formulario `token` - nunca en la URL, que acaba en los logs de acceso,
+ni en una cabecera, que necesitaría un preflight de CORS que el sitio de otro no
+supera. Una **página alojada** envía su clave de continuidad en `X-Visitor-Key`,
+una cabecera propia que solo puede enviar el origen de este despliegue. Un
+**socket en crudo** no tiene dónde dictar y recibe un 404.
+
+Los rechazos llevan el mismo `details.reason` que la
+[ruta del composer](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` o `too_large`, 503 `not_configured`, `provider_error` o
+`timeout`. A diferencia de la ruta del composer, esta rechaza como
+`unsupported_type` una grabación comprimida cuya duración no se puede leer
+([más abajo](#what-it-costs-and-what-bounds-it)). Todo lo relativo al propio embed - desconocido, en pausa, no en
+`server`, un origen que no permite - es 404. Una vez admitido un widget, cada
+respuesta lleva su origen en `Access-Control-Allow-Origin`, rechazos incluidos;
+si no, el navegador oculta el motivo y una grabación demasiado larga le parecería
+al visitante una falta de conexión.
+
+### Lo que cuesta y lo que lo limita { #what-it-costs-and-what-bounds-it }
+
+Una transcripción está **fuera de todo budget de modelo**: el budget del embed
+cuenta los runs, no los dictados. Lo que limita el gasto de un desconocido son
+dos rate limits y el dictado más largo de la organización. Cada dirección puede
+enviar `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` grabaciones por minuto (6 por
+defecto), y lo mismo cada visitante de un widget `jwt`, según el sujeto del
+token. Cada página o widget acepta `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE`
+por minuto (10 por defecto) de todos a la vez, por muchas direcciones que vaya
+rotando un script.
+
+La dirección se cuenta antes de buscar el enlace, así que una petición
+rechazada gasta el minuto de su dirección. Las diez grabaciones del enlace solo
+se gastan cuando el visitante ha sido admitido, así que alguien sin un token
+`jwt` válido no puede agotarlas a los visitantes que sí lo tienen. En una página
+alojada o un widget público se admite a todos, así que cualquiera con el enlace
+puede seguir gastando su minuto; a la organización le cuesta como mucho esas
+diez grabaciones.
+
+Mientras el Redis del despliegue no está disponible, estos límites **no se
+abren**: cada worker cuenta las mismas cuotas en su propia memoria hasta que
+Redis vuelve. El techo pasa a ser la cuota por el número de workers de la API,
+en lugar de ningún techo. Los límites de inicio de las llamadas de voz se
+comportan igual.
+
+**La duración se mide antes de llamar al provider**, y una grabación más larga
+que `dictation_max_seconds` se rechaza como `too_large`, con tres segundos de
+margen porque el navegador solo detiene la grabación una vez por segundo. Por
+defecto una grabación es PCM en crudo y su duración es su tamaño: el servidor
+cuenta las muestras, así que la cifra no puede ser otra que la real. Donde el
+despliegue acepta audio comprimido, la duración de una grabación WebM, Ogg o MP4
+se lee de su propia cabecera - la última página Ogg, las marcas de tiempo de los
+bloques WebM, las cabeceras de película o de fragmento de MP4 - y una cuya
+duración no puede leerse se rechaza como `unsupported_type`. Un límite de bytes
+no bastaría: Opus a un bitrate bajo mete horas en los bytes de una grabación de
+cinco minutos.
+
+!!! danger "El peor caso para un enlace filtrado o público"
+
+    El límite del enlace por el dictado más largo: 10 grabaciones por minuto de
+    hasta 300 segundos cada una son 50 minutos de audio cada minuto. A unos
+    $0.006 por minuto, que es el precio de lista de `whisper-1`, eso son cerca
+    de $0.30 por minuto, $18 por hora o $430 al día, cobrados a la cuenta del
+    provider de la organización. Baja `dictation_max_seconds` o el límite del
+    enlace, pon el embed en pausa, o déjalo en `browser` donde eso sea demasiado.
+
+    Con el valor por defecto, PCM en crudo, la cifra es exacta: ningún archivo
+    puede contener más segundos de los que dice su tamaño. Donde el despliegue
+    acepta audio comprimido, solo vale para un archivo cuya cabecera indica su
+    duración real, como hace la de cualquier navegador. Un archivo hecho a mano
+    para declarar menos duración de la que tiene queda limitado en cambio por el
+    límite de bytes - `dictation_max_seconds` más tres segundos a 32.000 bytes
+    por segundo -, que un audio de bitrate bajo puede llenar con hasta unas
+    cuarenta veces más segundos. Ese es el riesgo que acepta el administrador al
+    activarlo.
+
+Cada intento que llega al provider deja un registro de uso con la superficie
+(`hosted` o `widget`) y el agent, y **ninguna persona**: un visitante no es
+miembro, y la llamada no es del que publicó la página. El audio nunca se guarda.
+
+**El aviso del micrófono es del sitio del cliente.** El navegador pregunta en
+nombre de la página en la que se ejecuta el widget, así que un sitio que envía
+`Permissions-Policy: microphone=()`, un `<iframe>` sin `allow="microphone"` o
+HTTP sin cifrar lo bloquea. El widget lo dice bajo su caja en vez de fallar en
+silencio.
+
+## Llamadas de voz en un widget o en una página alojada { #voice-calls-on-a-widget-or-a-hosted-page }
+
+Un widget y una página alojada tienen cada uno un interruptor **Voice calls**
+(`voice_conversation`), apagado por defecto e independiente del dictado. Con él
+encendido, los visitantes pueden mantener una [llamada de voz](voice.md) con el
+agent: la misma llamada que un miembro hace desde `/chat`, con los mismos
+límites, ejecutada en el contexto del publicador y registrada con la superficie
+`embed`.
+
+**Encenderlo se rechaza** mientras el agent no tenga una sección Voice
+publicada con la que se pueda mantener una llamada. Solo se comprueba el cambio, así que un embed cuyo agent pierda la voz
+más tarde todavía puede editarse. Mientras una llamada no pudiera empezar, la
+config pública dice `voice_conversation: false` y a los visitantes no se les
+ofrece ninguna llamada; cuando sí pudiera, la config indica además qué
+transporte usa la llamada (`voice_transport`).
+
+**En una página alojada** aparece un botón de llamada en el composer, y la
+llamada usa la propia [barra de llamada](console.md#voice-calls) de la consola:
+el estado, el tiempo frente al límite de la llamada, la forma de onda, silenciar,
+push-to-talk y End, con los subtítulos dentro del mensaje que se está diciendo.
+Está recortada a lo que necesita un visitante: sin controles de aprobación, sin
+el recuento de minutos de la organización, y con los finales y los rechazos
+explicados en palabras de visitante. Cada turno guardado se suma al hilo de la
+página, así que el visitante puede seguir escribiendo; **New chat** cuelga la
+llamada.
+
+**En el widget**, la llamada es un script aparte, `voice.js`, que se descarga la
+primera vez que un visitante abre el panel y solo si la config pública ofrece
+llamadas, para que el script que descargan todos los visitantes siga siendo
+pequeño. Se sirve en `/api/v1/embed/{public_key}/voice.js` con el mismo contador
+que el script del widget, y su URL lleva un hash del script, así que una copia en
+caché nunca se combina con un widget más nuevo.
+
+La fila de entrada del widget se convierte en una barra de llamada reducida - un
+medidor de nivel en el color de acento del widget, el estado, el tiempo frente al
+límite, Mute y End -, sin push-to-talk ni tarjeta de aprobación. Los subtítulos
+aparecen en la lista de mensajes y dejan paso a los turnos guardados, y un
+rechazo, un límite alcanzado o la línea ocupada se muestran en una sola línea
+bajo la barra.
+
+**Una llamada en el widget es una conversación aparte.** El chat escrito del
+widget no guarda clave de visitante - cada carga de la página empieza de cero -,
+así que los turnos de una llamada se guardan en una conversación propia, y un
+mensaje escrito después empieza otra. En pantalla comparten una lista; para el
+agent, lo dicho en la llamada no es contexto de lo que se escribe luego. La
+página alojada tiene clave de visitante, y allí la llamada y lo escrito son un
+mismo hilo.
+
+End, cerrar el panel, salir de la página o una conexión que no llega a
+establecerse terminan la llamada y liberan el micrófono, el audio y la conexión;
+si la conexión se cae a mitad de llamada, se reintenta una vez, en un plazo de
+ocho segundos. Los textos de llamada del widget están en inglés, como el resto
+del widget.
+
+**Un visitante no puede aprobar nada.** Las herramientas que necesitan una aprobación
+quedan fuera por completo de la llamada de un visitante, así que el agent nunca
+recurre a una; dice claramente cuándo no puede hacer algo ahí. Una llamada
+recibe también la nota de ubicación del embed y las variables declaradas de la
+página, exactamente igual que un mensaje escrito, así que el agent se comporta
+igual en ambos casos.
+
+**A un visitante se le dice solo lo que un visitante necesita.** Los
+interruptores de [qué ve el visitante del
+trabajo](#what-the-visitor-sees-of-the-work) filtran los frames de una llamada
+igual que filtran las respuestas escritas: sin *Qué está haciendo el agent* un
+visitante no sabe que se ejecutó una herramienta, y sin *Qué devolvió cada paso*
+un paso no lleva con qué se llamó a la herramienta ni lo que volvió. El límite
+que ve un visitante es el límite propio de la llamada, y un rechazo por la
+configuración, el precio o el budget del operador dice solo que las llamadas no
+están disponibles ahora. Pausar el embed, desactivar sus llamadas o apuntarlo a otro agent termina
+las llamadas en él en un heartbeat. Los frames están en [la página de la
+API](api.md#voice-calls).
+
+### El socket de llamada { #the-call-socket }
+
+`/api/v1/embed/{public_key}/voice/ws` habla los mismos frames que el
+`/api/v1/ws/voice` de la consola ([API](api.md#voice-calls)). La admisión sigue
+a la superficie, como la del socket de chat. Un **widget** se admite por su
+lista de permitidos y, en modo `jwt`, por el token del cliente en `?token=`.
+Una **página alojada** se admite por el propio origen de este despliegue y la
+clave de continuidad en `?visitor=`, y la llamada cae en el hilo que guarda esa
+clave, así que una llamada cortada puede reanudarse ahí. Un **socket en crudo**
+no tiene desde dónde llamar.
+
+El socket se cierra con `4029` al pasar un rate limit y con `4003` por cualquier
+cosa relativa al embed - desconocido, en pausa, un socket en crudo, llamadas
+apagadas, un origen que no permite - sin decir cuál. Todo lo que ocurre después
+de la admisión es el rechazo propio de la llamada, enviado como un frame `ended`
+con su motivo.
+
+### Lo que cuesta una llamada a un enlace público { #what-a-call-costs-a-public-link }
+
+Las llamadas están dentro de los budgets: cada una es un run, medido en los
+budgets del agent y de la organización, y dura como mucho la llamada más larga
+del agent. Además, un enlace público tiene límites propios:
+
+| Límite | Por defecto | Qué cuenta |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Inicios de llamada por dirección, y por sujeto del token del visitante en un widget `jwt` |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Inicios de llamada en una página o widget, de todos a la vez |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Llamadas abiertas a la vez en un embed; el siguiente que llama se rechaza como `line_busy` |
+
+El propio `rate_limit_per_minute` del embed cuenta **mensajes**, no inicios de
+llamada, así que no limita las llamadas. La dirección se cuenta antes de buscar
+la clave, así que un inicio rechazado gasta el minuto de su dirección; los
+inicios del enlace solo se gastan una vez admitido el visitante. El límite
+por sujeto `jwt` es una tasa de inicios, no un tope de llamadas abiertas; las
+llamadas abiertas quedan limitadas, junto con las de todos, por el del embed.
+
+!!! danger "El peor caso para un enlace filtrado"
+
+    Tres llamadas abiertas a la vez, cada una como mucho la llamada más larga
+    del agent - 10 minutos por defecto, 50 como máximo -, gastan como mucho tres
+    minutos de llamada por minuto, en la cuenta de la organización en el
+    provider. Lo que lo detiene son los budgets del agent y de la organización:
+    cada llamada se compara con lo que queda antes de empezar, y termina cuando
+    el budget se agota, incluidos los runs de los miembros. Dale al agent un
+    budget propio, pon el embed en pausa o apaga sus llamadas si eso es
+    demasiado.
+
+---
+
 ## La API pública { #the-public-api }
 
 Ningún frontend, y ningún navegador. Una petición, una respuesta:
@@ -739,6 +1006,42 @@ decide.
 
 Limitado por llamante y no por dirección — una oficina detrás de un NAT no es un
 solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
+
+## Otros agents, por A2A { #a2a }
+
+El agent de otro sistema puede enviar tareas a un agent mediante el
+[protocolo Agent2Agent](https://a2a-protocol.org). Está desactivado para cada agent
+hasta que alguien que pueda publicarlo active **Agent2Agent (A2A)** en su pestaña
+**Availability**, que muestra las dos direcciones que hay que dar al otro lado:
+
+- la **agent card**, en `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  legible sin clave — el nombre del agent, su descripción, su versión, su única
+  habilidad y cómo autenticarse;
+- el **endpoint** de tareas, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Quien llama envía una clave API de la organización, o un token de acceso OAuth que
+emitió este despliegue, como bearer token, y debe tener permiso para ejecutar el
+agent: uno que no lo tiene recibe un HTTP `403`, o un `404` cuando ni siquiera puede
+ver el agent, porque A2A deja la autorización al transporte. `message/send` solo
+acepta partes de texto, y rechaza con `-32005` un mensaje con una parte de datos o
+de archivo, en lugar de ejecutarlo solo con su texto.
+
+`message/send` ejecuta la versión publicada como un run normal marcado `a2a`,
+así que se aplican el budget, la aprobación, la auditoría y Activity. El id de la
+tarea es el del run y su `contextId` es la conversación en la que se archiva el run,
+así que volver a enviarlo continúa esa conversación. Un run que se detiene en una
+aprobación responde `input-required`; se decide en la consola, y `tasks/get` lee
+dónde está desde entonces.
+
+Una tarea la lee quien la envió, o quien puede leer todos los runs
+(`runs:view`); para cualquier otro su id es desconocido. Un mensaje con `taskId` se
+rechaza en lugar de ejecutarse junto a la tarea que espera: para preguntar algo
+nuevo, se envía sin él, en el mismo `contextId`.
+
+Se responde de forma síncrona: `message/stream`, las notificaciones push y
+`tasks/cancel` se rechazan por su nombre, y la card dice que no se ofrece streaming.
+Un agent que no se sirve — desactivado, sin publicar, archivado o de otra
+organización — responde `404`, tanto la card como el endpoint.
 
 ---
 
@@ -836,6 +1139,66 @@ solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
     luego deja de funcionar. Las redirect URLs, PKCE, los user token scopes, los
     rangos de IP y la Enterprise-Managed Authorization de esa página tampoco se
     usan — déjalos en paz.
+
+### La app de Slack desde un manifiesto { #the-slack-app-from-one-manifest }
+
+Los pasos de arriba construyen la app a mano. Los ajustes del bot aquí también
+ofrecen **Copy Slack app manifest**: en Slack elige *Create New App → From a
+manifest*, pega, instala y vuelve a pegar aquí el token del bot y el signing
+secret. El manifiesto dirige cada petición a este despliegue y activa lo que hace
+del bot una app:
+
+- **El panel del asistente.** Un hilo nuevo en la vista de IA de Slack recibe tres
+  prompts sugeridos, y el hilo muestra *is thinking…* mientras el agent trabaja.
+- **App Home.** La pestaña propia del bot nombra su agent, dice cuántos runs de la
+  persona esperan una aprobación y enlaza a la consola y al Architect.
+- **`/agent <pregunta>`** pregunta al agent donde se escribió, y el atajo de
+  mensaje **Ask the agent about this** pregunta por un mensaje en su propio hilo.
+  Ambos se ejecutan exactamente como una mención: la misma comprobación de enlace,
+  los mismos límites y la misma auditoría.
+- **Botones** en aprobaciones y preguntas — ver
+  [Aprobaciones y preguntas como botones](#approvals-and-questions-as-buttons).
+- **Unfurls.** Un enlace de la consola a un agent de la organización muestra su
+  nombre.
+
+Un bot sirve a exactamente un agent, así que en un mensaje directo no hay selector
+de agent; un segundo agent es un segundo bot.
+
+El manifest es **org-ready**, así que un administrador de Enterprise Grid puede
+instalar la app una vez para todos los workspaces de la organización; un workspace
+corriente la instala como antes. Cada respuesta nombra el workspace de quien
+pregunta, que es lo que Slack necesita para transmitirla bajo Grid.
+
+### En qué sentido va la conexión { #which-way-the-connection-runs }
+
+Los ajustes del bot preguntan **cómo llega Slack a AgenticOS**:
+
+- **Slack llama a este deployment.** Slack envía cada mensaje a la dirección
+  pública de este deployment, verificada con el signing secret. El manifest nombra
+  las URLs.
+- **AgenticOS se conecta a Slack.** El deployment abre la conexión por sí mismo
+  (Socket Mode) con el token `xapp-` de nivel de app, así que no necesita dirección
+  pública - la opción para un deployment detrás de un firewall u on-premise. El
+  manifest activa Socket Mode y no nombra ninguna URL, porque nada respondería en
+  ella.
+
+El formulario pide solo la credencial que usa el sentido elegido.
+
+### Respuestas que Slack dibuja solo { #answers-slack-draws-itself }
+
+Las apps de IA de Slack dibujan una respuesta mientras se escribe en vez de
+editarla en su sitio. La respuesta se transmite bajo la pregunta, y cada cosa que
+hace el agent por el camino - una búsqueda web, una consulta al conocimiento, un
+cálculo - es una fila que pasa de en curso a hecha o fallida. Un paso que leyó
+páginas web las enlaza. Los ajustes del bot muestran los pasos como una **línea de
+tiempo** o como un **plan** encabezado por la pregunta, o desactivan la
+transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
+ocurre solo si Slack se niega a empezarla.
+
+Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
+llega como imagen, como siempre. También un [visual](reference/capabilities.md#visuals),
+dibujado por el navegador del despliegue cuando `VISUAL_RENDER_CDP_URL` lo indica. Si la respuesta terminada no es lo transmitido -
+un guardrail de salida redactó algo -, el mensaje se reescribe entero.
 
 ### Scopes y events { #scopes-and-events }
 
@@ -963,6 +1326,13 @@ que a un bot que se pasa de polling a modo webhook hay que registrarle el webhoo
 antes de que responda a nada: el secreto se acuña cuando cambia el modo, y Telegram
 solo se entera de él cuando se registra el webhook.
 
+El bot define su menú de comandos — `/agents` dice qué agent responde y qué hace,
+junto a `/new`, `/link` y `/help` —, muestra *escribiendo…* mientras trabaja y
+nombra el paso en el que está, envía las respuestas como HTML de Telegram
+convertido desde el Markdown del agent para que los bloques de código y los
+enlaces sobrevivan, y responde en el tema de un grupo con temas dentro de ese
+tema.
+
 ## Mattermost { #mattermost }
 
 Mattermost es autoalojado, así que un bot lleva **la URL de tu servidor** además de
@@ -1072,6 +1442,20 @@ justo el despliegue para el que existe esto. Las direcciones de metadatos de
 instancia son la excepción y se rechazan. La frontera que realmente sostiene esto
 es el permiso para gestionar bots de canal, no esta comprobación.
 
+Las aprobaciones y las preguntas llegan como botones. Mattermost llama a cada botón
+en `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, así que el
+servidor de Mattermost tiene que alcanzar la API; en una red privada, añade el
+host de la API en *System Console → Developer → Allow untrusted internal
+connections to*.
+
+### `/agent` en Mattermost { #agent-in-mattermost }
+
+Un slash command pregunta al agent donde se escribió, como `/agent` en Slack. En
+Mattermost: *Integrations → Slash Commands → Add Slash Command*: palabra
+`agent`, método `POST` y la URL de solicitud que muestran los ajustes del bot.
+Mattermost muestra entonces un token; pégalo en el campo **Slash command token**
+del bot. Cada solicitud lo lleva, y un bot sin él las rechaza todas.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 El polling de Telegram, el Socket Mode de Slack y el stream de events de Mattermost
@@ -1101,7 +1485,95 @@ así que la política no puede desviarse entre ellas.
 
 ---
 
+## Aprobaciones y preguntas como botones { #approvals-and-questions-as-buttons }
+
+Un run iniciado en Slack, Telegram o Mattermost puede detenerse por una persona:
+una llamada a herramienta con aprobación espera una decisión, o el agent hace una
+pregunta `ask_user`. El chat recibe las opciones donde está — un mensaje por
+aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opciones
+y **Skip**. Pulsar uno decide o responde, el run continúa y su respuesta se
+publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
+elegido.
+
+Una pregunta que admite varias respuestas queda abierta: cada pulsación añade o
+quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía. La ejecución sigue
+cuando todo aquello por lo que se detuvo está resuelto - cada aprobación decidida,
+cada pregunta que hizo respondida, en cuantos mensajes sea - y la última respuesta
+las envía todas juntas.
+
+Una pregunta que admite una respuesta con palabras propias — y una sin ninguna
+opción — lo dice debajo: el siguiente mensaje de esa persona en ese chat es la
+respuesta, no un turno nuevo junto a una ejecución que sigue esperando. Solo
+cuenta un mensaje de la persona a quien se hizo, y va a la pregunta más antigua.
+
+Una pregunta solo puede hacerse a un miembro vinculado. Un remitente sin cuenta
+vinculada se ejecuta como el publicador del binding, así que una pregunta que el
+agent le haga se rechaza y el turno sigue sin la respuesta, en vez de esperar a
+botones que solo el publicador podría pulsar.
+
+Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
+hacer y el único argumento que dice de qué trata — *I need your approval to
+**search in Notion**: “what's new in releases”*. Una herramienta de un servidor MCP
+se nombra por su servicio y su acción, no por su identificador con prefijo, y el
+resto de los argumentos se queda en **Approvals** de la consola, donde la misma
+petición empieza por esa línea y pliega lo demás tras **Details**.
+
+Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
+decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede
+responder. A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
+respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
+`APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
+pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
+de este despliegue sobre su valor y una pulsación sin ella se rechaza.
+
+Quién pulsó
+tampoco se toma del cuerpo de la pulsación: el trigger id que el servidor de
+Mattermost firma en cada pulsación nombra a la persona y se comprueba con la clave
+pública que el servidor publica, así que una pulsación que nadie puede probar
+también se rechaza.
+
+**Una navegación que necesita a una persona.** Un agente con el
+[navegador web](reference/capabilities.md#browser-automation) publica en su paso el
+enlace a la vista en directo de la navegación — *Watch or take over* — en Slack,
+Telegram y Mattermost por igual. Cuando la página necesita a alguien, un inicio de
+sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra quién tiene
+el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
+el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
+puede editar el agente.
+
+## Reacciones y valoraciones { #reactions-and-ratings }
+
+Dos detalles que comparte cada plataforma de chat aquí, ambos en los ajustes del
+bot:
+
+- **Una reacción a la pregunta.** El bot reacciona en cuanto llega una pregunta
+  que va a responder, con el emoji nombrado en sus ajustes - `eyes`, por ejemplo -
+  para que quien pregunta vea que se le ha oído. Slack y Mattermost aceptan el
+  nombre de cualquier emoji; Telegram permite un conjunto fijo, y los nombres que
+  acepta son `eyes`, `+1`, `ok_hand`, `fire`, `thinking_face`, `writing_hand`,
+  `zap` y `hourglass`.
+- **Pulgares bajo una respuesta.** Una respuesta terminada lleva un pulgar arriba y
+  otro abajo. Pulsar uno es la valoración de la respuesta de ese run por quien
+  pulsa, la misma que registra la consola, y pulsar de nuevo la cambia. Un pulgar
+  abajo pregunta luego **¿qué estuvo mal?** en un modal de Slack o un diálogo de
+  Mattermost; la respuesta queda como comentario de la valoración. Telegram acepta
+  los pulgares sin la pregunta.
+
+Una valoración necesita un miembro vinculado, como pulsar en una aprobación; los
+pulgares de una persona sin vincular no cuentan. La tarjeta *Answer quality* del
+dashboard reparte el porcentaje de buenas respuestas por superficie en cuanto hay
+valoraciones en más de una, así que un agent que va bien en la consola y mal en
+Slack lo muestra.
+
 ## Qué comparte cada canal { #what-every-channel-shares }
+
+- **Un mensaje enviado mientras el agent trabaja se suma a su tarea.** De la
+  persona cuyo turno es, un mensaje normal en el mismo chat llega al turno en curso
+  en su siguiente paso en lugar de esperar un turno propio; uno que llega después
+  del último paso del agent se responde como el siguiente mensaje. `/btw` seguido de
+  una pregunta pregunta aparte: se responde al momento a partir del hilo hasta
+  ahora, sin herramientas, mientras el turno sigue. El mensaje de un colega en un
+  chat de grupo es siempre un turno propio.
 
 - **Al modelo se le recuerdan los turnos más recientes, no los primeros.** Un hilo
   de canal se indexa por el chat y nunca pasa página, así que un canal de soporte
@@ -1181,7 +1653,7 @@ así que la política no puede desviarse entre ellas.
     hablando, cosa que ningún enrutado puede. `@slug` se sigue interpretando — como
     un alias del agent que hay detrás de este bot, rechazado cuando nombra a
     cualquier otro.
-- **Un mensaje de voz se transcribe, allí donde a un bot se le ha dado un modelo.**
+- **Un mensaje de voz se transcribe, salvo que el bot lo tenga desactivado.**
   Es el único adjunto que no se le puede entregar a un agent como fichero: lee un
   PDF y mira una captura, y un blob `audio/ogg` es un recuento de bytes.
 
@@ -1195,14 +1667,109 @@ así que la política no puede desviarse entre ellas.
     instrucciones que alguien escribió. Una nota de voz con pie sigue siendo un
     mensaje, porque eso es lo que alguien envió.
 
-    Qué modelo es un **par en el bot** — un provider y uno de sus modelos, de
-    `app/core/catalog/speech_to_text_models.json` — elegido bajo **Channels**, y
-    nulo por defecto: la transcripción gasta el crédito de provider de la
-    organización en cada grabación, así que hay que activarla explícitamente. La
-    clave es la que ya está configurada para ese provider en los perfiles de modelo
-    de la organización; no hay nada nuevo que guardar. Un bot sin modelo elegido
-    dice que no puede escuchar en vez de descartar la grabación, porque una nota de
-    voz que no produce ninguna reacción es indistinguible de un bot roto.
+    El formulario de cada bot bajo **Channels** ofrece tres respuestas. **Inherit**,
+    la opción por defecto, usa el provider y el modelo del agent al que sirve el
+    bot, después los de la organización, y el idioma del agent, después el de la
+    organización ([el orden](ml-services.md#which-engine-a-recording-reaches)).
+    **Choose** nombra el par propio del bot — un provider y uno de sus modelos, de
+    `app/core/catalog/speech_to_text_models.json` — y la clave del vault con la
+    que se envía. **Off** no transcribe nunca, digan lo que digan el agent o la
+    organización. Junto a la elección, Inherit nombra a qué se resuelve, cuál de
+    los dos lo eligió y si ese nivel aún necesita una clave.
+
+    **El par propio de un bot necesita su propia clave**: una clave de API cuyo
+    propósito es el provider, y **visible para toda la organización**, porque las
+    notas de voz de un bot se pagan en nombre de quien le escriba. La clave
+    privada de un miembro se rechaza al guardar el bot, y una que se vuelve
+    privada después deja de usarse. El selector ofrece solo las claves que
+    encajan, dice cuándo un provider no tiene ninguna y enlaza al vault para
+    añadir una. Un bot que hereda toma la clave del nivel heredado junto con su
+    par, nunca una propia. Borrar la clave deja el par pidiendo otra, y el bot no
+    transcribe nada hasta que alguien la elige.
+
+    Heredar no cuesta nada hasta que alguien configura un provider: sin ninguno en
+    el agent ni en la organización no se transcribe nada, así que gastar el crédito
+    de provider de la organización sigue siendo decisión de la organización. Un bot
+    registrado desde la CLI, o por un cliente que no envía el interruptor, hereda.
+
+    **Una nota de voz se ajusta al dictado más largo de la organización** antes
+    de pagar a ningún provider: su duración se lee del archivo cuando el
+    contenedor lo dice (Ogg, WebM, MP4, WAV, MP3), y si no, tal como la informó
+    la plataforma. Una nota más larga se rechaza con una línea que lo dice, y
+    también una cuya duración no indica ninguno de los dos - un MP3 de Mattermost
+    con algo más que una etiqueta tras su último frame, por ejemplo. Los bytes no
+    la acotan por sí solos - 25 MB de audio de baja tasa de bits son horas - y el
+    límite del remitente cuenta mensajes, no minutos. El uso registra la duración
+    del provider, y si no, la medida aquí.
+
+    Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
+    una nota de voz que no produce ninguna reacción es indistinguible de un bot roto
+    — y dice por qué motivo, porque cada uno lo arregla otra persona: el bot está
+    desactivado, o nadie ha configurado un provider. Un bot sin agent vinculado,
+    o cuyo agent está archivado o no tiene versión que ejecutar, no transcribe
+    nada en absoluto, porque el mensaje se rechaza de todos modos.
+
+    Cada grabación enviada al provider deja un
+    [registro de uso](ml-services.md#what-is-recorded) que nombra el bot, su agent
+    y la persona con la que está vinculada la cuenta del remitente - mientras
+    siga siendo miembro de la organización -, con la duración de la grabación
+    donde Telegram, Slack o el provider la indican.
+
+    !!! note "Al actualizar: un bot que no transcribía sigue sin transcribir"
+
+        Antes de que existiera este interruptor, un bot sin par era un bot que no
+        transcribía, y la API vaciaba el par para desactivar la transcripción. La
+        migración `0151_bot_transcription_switch.py` pone todos esos bots en
+        **off**, así que ninguno empieza a enviar audio a un provider al
+        actualizar; un bot con par lo conserva. A partir de ahí, un cliente que
+        vacía el par obtiene **inherit**, y **off** es
+        `transcribe_voice_notes: false`, que también vacía el par. El idioma de la
+        organización o del agent llega ahora también a un bot con su propio par.
+
+        Un bot con par transcribía hasta ahora con el primer perfil de modelo,
+        por etiqueta, que tuviera una clave para su provider. La misma migración
+        anota esa clave como la propia del bot, cuando es una clave de API del
+        provider visible para la organización y el perfil no tiene `base_url`
+        propio. Un bot sin un perfil así conserva su par sin clave: su
+        formulario dice «elige una clave» y no transcribe nada hasta que alguien
+        lo haga.
+
+    Lo que cuenta como mensaje de voz se lee del tipo del fichero, y cada
+    plataforma tipa sus ficheros a su manera. Una nota de voz o un fichero de
+    audio de Telegram cuenta siempre. En Slack cuenta un clip de audio grabado en
+    el cuadro de mensaje, sea cual sea el tipo que le dé Slack — un clip de la
+    app del móvil puede llegar como `video/mp4` —, y también cualquier fichero de
+    audio subido. Un fichero al que la plataforma no dio tipo cuenta cuando su
+    extensión indica audio: `.m4a`, `.mp3`, `.ogg`, `.oga`, `.opus`, `.webm` o
+    `.wav`. Un `.mp4` sin tipo que Slack no marcó como clip sigue siendo un
+    fichero normal: mucho más a menudo es un vídeo, y transcribirlo sería pagar
+    por una banda sonora.
+
+    En Mattermost cuenta cualquier fichero de audio subido, por su tipo o por su
+    extensión. Un webhook saliente envía solo el id de cada fichero, así que para
+    un bot en modo webhook el router consulta antes el fichero con
+    `GET /api/v4/files/{id}/info`; si la consulta falla, queda como un adjunto
+    normal. Un clip de Slack que llega antes de que Slack termine de procesarlo
+    aún no tiene URL de descarga y se omite, porque el bot no se suscribe al
+    evento `file_shared` que llega después. El backend registra ambos casos, y
+    registra cada grabación que envía a transcripción con su tipo y su nombre de
+    fichero — la línea que hay que leer cuando una no se ha oído.
+
+    El provider recibe la grabación como `voice.<ext>`, nombrada por su tipo y no
+    por cómo alguien llamó al fichero: OpenAI y Groq eligen el decodificador por
+    el nombre y rechazan `.opus` o un nombre sin extensión para audio que sí
+    saben leer. Una nota de voz de Telegram es Ogg/Opus y un clip grabado en la
+    app de escritorio de Slack es WebM, y Mistral no incluye ninguno entre los
+    formatos que acepta, así que un bot de Telegram o de Slack que llega a
+    Mistral — elegido o heredado — puede no lograr transcribir; el formulario lo
+    dice.
+
+    Los mensajes de voz publicados en un hilo antes de que el bot se uniera a él
+    no se transcriben. La primera mención lee los ficheros anteriores del hilo, y
+    transcribir cada grabación entre ellos cobraría el audio de todo un hilo por
+    una pregunta. En su lugar, cada una se nombra en la respuesta: «Voice
+    messages sent before I joined this thread are not transcribed - send it
+    again here.»
 
     Vienen tres providers: OpenAI, Groq y Mistral, todos sirviendo el
     `POST /audio/transcriptions` de OpenAI. Añadir un modelo es una entrada en ese
@@ -1354,6 +1921,21 @@ así que la política no puede desviarse entre ellas.
   inmediato, por la misma razón: el stream se vuelve a abrir para coincidir con lo
   que la fila dice ahora. Se abre *después* de que la transacción confirme, así que
   un registro que falla no deja ninguna conexión detrás.
+- **Una conexión por bot, tenga los workers de API que tenga.** Telegram permite
+  un `getUpdates` por bot y dos sockets de Mattermost recibirían cada evento, así
+  que el worker que tiene la conexión de un bot tiene también un lease sobre ella
+  en el Redis compartido y lo renueva cada 10 segundos. Los demás no tocan ese
+  bot. Un worker que se apaga pasa sus bots a otro en unos 10 segundos, y uno que
+  cae, en unos 40. Una edición que atiende otro worker abre la conexión nueva al
+  momento, y la vieja se cierra en la siguiente renovación de quien la tenía. Con
+  Redis inalcanzable, se conecta cada worker, como antes.
+- **Un segundo poller de Telegram se detecta, no se combate.** Cuando Telegram
+  corta el poll de un bot porque otro proceso consulta el mismo token, el worker
+  que no tiene el lease de ese bot cierra su copia en el acto. El que lo tiene
+  sigue consultando y marca el bot como caído en la página de canales: «otro
+  proceso está consultando el token de este bot». Ese proceso está fuera del
+  despliegue, normalmente otro despliegue o un script con el mismo token, y solo
+  su dueño puede pararlo.
 - **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
   plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
@@ -1445,6 +2027,7 @@ que lo que se guarda es lo que su lector vio de verdad.
 | `@mention` en un canal | Lo mismo, con el handle quitado del prompt registrado |
 | Widget embebido | Lo mismo. El visitante es anónimo; el run y los turnos pertenecen al dueño del widget |
 | API HTTP | Lo mismo cuando la llamada lleva un `conversation_id`. Nada sin él — no hay ningún hilo en el que escribir un turno, y la fila del run sigue siendo el registro de que ocurrió |
+| A2A | Lo mismo. Cada tarea se archiva en una conversación, nueva o la que nombra su `contextId` |
 | Un run reanudado tras una aprobación | Su continuación — la respuesta y las llamadas que hizo, y las llamadas incluso cuando no hay respuesta, que es lo que tiene una continuación que vuelve a aparcarse en una segunda llamada con puerta. Ningún turno de usuario: retoma en la llamada en la que se detuvo, e inventar una pregunta sería poner palabras en boca de alguien |
 
 **Lo que se registra es lo que escribió la persona, no el prompt ensamblado a su
@@ -1494,6 +2077,17 @@ Qué herramientas cuentan como de ese tipo es `opensOnSight` en
 `lib/tool-catalog.ts`, la misma fila que lee el paso para decidir si se abre solo,
 así que el raíl y el paso no pueden discrepar. Nada marca un paso que simplemente
 funcionó, así que una marca significa lo que dice.
+
+En cuanto el turno ha respondido, **el trabajo sobre la respuesta se pliega en una
+línea** — *Worked for 12s · 3 steps* —, con el razonamiento, las llamadas y la breve
+narración entre ellas detrás, a un clic. La duración es la del run, de su inicio a
+su fin, así que incluye cualquier espera por una aprobación. Mientras el turno sigue
+trabajando, en el mismo sitio se lee *Working for 5s…* con una luz que pasa por
+encima.
+
+Lo que nunca se pliega se queda en la página: los tres tipos de tramo de
+arriba, una pregunta que hizo el agente, lo que la persona añadió a mitad del turno
+y un pasaje lo bastante largo como para ser una respuesta por sí mismo.
 
 **Lo que se abre solo sigue a lo que alguien está mirando, salvo cuando el resultado
 es lo importante.**

@@ -12,8 +12,6 @@ It owns a database of its own, for the reason `test_workflow_run_public_origin_m
 does: the model-built integration database already has the columns.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import subprocess
@@ -32,8 +30,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_artifact_consent_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0141_approval_capability_tool"
-_TARGET_REVISION = "0142_artifact_consent"
+_BASE_REVISION = "0195_approval_capability_tool"
+_TARGET_REVISION = "0196_artifact_consent"
 _TABLE, _STAGE = uuid.uuid4(), uuid.uuid4()
 _BINDING = ArtifactBinding(
     name="deals",

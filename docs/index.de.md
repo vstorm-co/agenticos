@@ -1,10 +1,10 @@
 ---
-source_sha: "42ec3d82641d"
+source_sha: "b04c9562a2e8"
 ---
 
 <div class="agenticos-hero" markdown>
 
-![AgenticOS](assets/amigo.svg){ .agenticos-hero__mark }
+![AgenticOS](assets/logo-animated.svg){ .agenticos-hero__mark }
 
 <p class="agenticos-hero__name">AgenticOS</p>
 
@@ -16,7 +16,7 @@ Geben Sie KI-Agents konkrete Aufgaben in Ihrem Team. Erstellen Sie Agents im Bro
 <a href="https://github.com/vstorm-co/agenticos/actions"><img src="https://img.shields.io/github/actions/workflow/status/vstorm-co/agenticos/ci.yml?branch=main&label=tests" alt="Tests"></a>
 <a href="https://github.com/vstorm-co/agenticos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence"></a>
 <a href="https://github.com/vstorm-co/agenticos"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat" alt="Stars"></a>
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+<img src="https://img.shields.io/badge/python-3.15-blue" alt="Python 3.15">
 </p>
 
 <p class="agenticos-hero__links" markdown>
@@ -143,7 +143,7 @@ um ihn herum.
 Docker und Docker Compose. Das ist die ganze Liste — Postgres (mit pgvector),
 Redis, die API, der Worker und die Konsole starten gemeinsam.
 
-Sie wollen die Dienste lieber von Hand betreiben? Python 3.12, Node mit
+Sie wollen die Dienste lieber von Hand betreiben? Python 3.15, Node mit
 [bun](https://bun.sh), PostgreSQL 16 mit
 [pgvector](https://github.com/pgvector/pgvector) und Redis.
 
@@ -250,7 +250,7 @@ Frage kam.
 | **Agents** | In einer UI gebaut, beim Veröffentlichen versioniert, als YAML in Ihr eigenes git-Repository exportierbar |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, Websuche und Abruf, ein echter Browser, Python, eine Sandbox mit Dateien und Shell, Diagramme, Bilder, Delegation, Planung, Guardrails — pro Agent eingeschaltet |
 | **[Integrationen](mcp.md)** | Kompatible MCP-Server, mit 59 gängigen im Picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modelle](models.md)** | 27 Provider, Schlüssel pro Organisation, Fallbacks und selbst gehostetes Ollama oder ein LiteLLM-Proxy |
+| **[Modelle](models.md)** | 28 Provider, Schlüssel pro Organisation, Fallbacks und selbst gehostetes Ollama oder ein LiteLLM-Proxy |
 | **[Wissen](file-processing.md)** | Retrieval über Ihre Dokumente mit drei PDF-Parsern, Ihrem eigenen Chunking, OCR und Bildbeschreibung — pro Collection, pro Upload überschreibbar. Google-Drive- und S3-Sync |
 | **[Skills](skills.md)** | Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält |
 | **[Governance](governance.md)** | Monatsbudgets, menschliche Approval, eine Audit-Spur, Alerts pro Agent |
@@ -304,8 +304,8 @@ Frage kam.
 ## Stack { #stack }
 
 FastAPI und Pydantic v2 auf PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
-für die Agent-Laufzeit, pgvector für Retrieval, Prefect für Hintergrundarbeit und
-Next.js 15 für die Konsole.
+für die Agent-Laufzeit, pgvector für Retrieval, eine Job-Queue in demselben
+PostgreSQL für Hintergrundarbeit und Next.js 15 für die Konsole.
 
 Externe Ziele hängen von Modell-, Parser-, Embedding-, Werkzeug-, Kanal-, Sandbox- und Tracing-Konfiguration ab. Prüfen Sie den [Datenfluss](security.md).
 

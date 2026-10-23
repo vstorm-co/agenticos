@@ -9,8 +9,6 @@ is why it is a MAC nobody can derive without the secret, compared in constant
 time, and why a wrong one answers as if the run did not exist.
 """
 
-from __future__ import annotations
-
 import secrets
 from typing import Any
 from uuid import UUID
@@ -21,6 +19,7 @@ from app.core.config import settings
 from app.db.models.workflow_run import NodeRunStatus, WorkflowRunStatus
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import WorkflowResumed
+from app.services.workflow_execution import dispatch_queue
 from app.services.workflow_execution.dispatcher import resolve_graph
 from app.services.workflow_execution.exceptions import (
     WorkflowNotWaitingError,
@@ -77,16 +76,13 @@ class WorkflowResumeService:
         ]
         if not steps:
             raise WorkflowNotWaitingError(run_id=run_id)
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
         for step in steps:
             await workflow_run_repo.update_node_run(
                 self.db, node_run=step, update_data={"resume_payload": payload}
             )
             # Its dispatch row waits for the step's time limit; brought forward, it
             # is due now, and the step reads what it was sent.
-            await workflow_run_repo.bring_forward_outbox(self.db, node_run_id=step.id)
-            trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=step.id)
+            await dispatch_queue.wake_now(self.db, run=run, node_run_id=step.id)
         return WorkflowResumed(run_id=run.id, resumed=len(steps))
 
 

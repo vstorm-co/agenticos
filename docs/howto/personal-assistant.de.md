@@ -1,5 +1,5 @@
 ---
-source_sha: "54d365e1b9c3"
+source_sha: "f1635d7c302a"
 title: "Einen persönlichen Assistenten bauen, der sich an Sie erinnert"
 description: "Geben Sie einem Agent ein Gedächtnis für Ihre Vorlieben, prüfen Sie, dass eine spätere Konversation sie anwendet, und bestätigen Sie dann, dass er eine auf Wunsch vergessen kann."
 ---
@@ -11,7 +11,7 @@ Bauen Sie einen Assistenten, der über Konversationen hinweg eigene Notizen übe
 ## Was Sie brauchen { #what-you-need }
 
 - Eine [laufende Installation](../install.md) mit einem Modellprofil.
-- Keine Sandbox, kein Embedding-Modell und keine MCP-Verbindung. [Memory files](../reference/capabilities.md#memory-files) funktionieren ohne jede Bindung.
+- Keine Sandbox, kein Embedding-Modell und keine MCP-Verbindung. [Gedächtnis](../reference/capabilities.md#memory-files) funktioniert ohne jede Bindung.
 
 ## Die Eingabe vorbereiten { #prepare-the-input }
 
@@ -26,7 +26,7 @@ Summary format: short bullet points, not paragraphs
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Memory files**, **Date and time** und **Conversation search**. Fügen Sie **Web search** hinzu, wenn das Briefing unten etwas nachschlagen soll; die Prüfungen hier brauchen es nicht.
+2. Aktivieren Sie in der **Toolbox** **Memory**, **Date and time** und **Past conversations**. Fügen Sie **Web search** hinzu, wenn das Briefing unten etwas nachschlagen soll; die Prüfungen hier brauchen es nicht.
 3. Legen Sie Budget und Schrittlimit für den Versuch fest. Die festgehaltenen Runs nutzten 5–15 Schritte und kosteten jeweils etwa 0,01–0,04 USD.
 4. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 
@@ -38,7 +38,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` und `delete_memory` haben Seiteneffekte, daher parkt jedes Speichern oder Vergessen standardmäßig als **Tool approval required**, wie jeder andere Schreibvorgang. Genehmigen Sie es, um fortzufahren.
+`write_memory`, `edit_memory` und `delete_memory` laufen ohne Genehmigung, wie jedes Tool, bis sein Autor es hinter ein Gate stellt. Diese Anleitung tut das: Setzen Sie im Builder **Always ask** für alle drei, damit jedes Speichern oder Vergessen als **Tool approval required** parkt. Genehmigen Sie es, um fortzufahren.
 
 ## Ausführen { #run-it }
 
@@ -97,7 +97,7 @@ In einem Gruppenchat ändert sich die Regel: Die Notizen gehören dem Raum, und 
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
-- **Ein Speichern oder Vergessen passiert nie.** `write_memory`, `edit_memory` und `delete_memory` haben Seiteneffekte und sind standardmäßig geschützt. Prüfen Sie **Approvals** in Activity auf einen geparkten Aufruf, bevor Sie annehmen, das Modell habe die Anweisung ignoriert.
+- **Ein Speichern oder Vergessen passiert nie.** Wenn `write_memory`, `edit_memory` und `delete_memory` hinter einem Gate stehen, prüfen Sie **Approvals** in Activity auf einen geparkten Aufruf, bevor Sie annehmen, das Modell habe die Anweisung ignoriert.
 - **Eine spätere Konversation kennt eine gespeicherte Vorliebe nicht.** Prüfen Sie `MEMORY.md` selbst. Eine gespeicherte, aber nicht indexierte Notiz ist unsichtbar, bis das Modell `list_memory` aufruft, was ein leichteres Modell ungefragt vielleicht nicht tut.
 - **Ein geplantes Briefing rät, statt Ihre Notizen zu nutzen.** Erwartet; siehe oben [was ein Zeitplan nicht lesen kann](#what-a-schedule-cannot-read). Schreiben Sie die Tatsache in den Prompt des Zeitplans.
 - **Das Löschen einer Notiz entfernt sie nicht überall.** `delete_memory` entfernt die Notiz selbst. Wird die Zeile in `MEMORY.md`, die sie nennt, nicht auch per `edit_memory` umgeschrieben, beschreibt der Index weiter etwas, das es nicht mehr gibt.

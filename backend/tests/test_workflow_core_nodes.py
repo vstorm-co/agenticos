@@ -5,8 +5,6 @@ the dispatcher; what is left here is each refusal a graph could only reach by
 bypassing validation, and the expression checks themselves.
 """
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

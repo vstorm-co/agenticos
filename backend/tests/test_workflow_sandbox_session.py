@@ -1,7 +1,5 @@
 """The sandboxd session a workflow script step talks to: what each call becomes."""
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

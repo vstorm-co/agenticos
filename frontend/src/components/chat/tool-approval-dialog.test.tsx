@@ -20,6 +20,9 @@ vi.mock("@/hooks", () => ({
     can: (permission: Permission) => held.permissions.includes(permission),
   }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizationList: () => ({ data: [] }),
+}));
 
 beforeEach(() => {
   held.permissions = [Perm.approvalsDecide];
@@ -62,39 +65,58 @@ describe("the tool approval dialog", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
     expect(screen.getByText("Tool approval required")).toBeVisible();
-    // The catalog's words - the same ones the step above it uses.
-    expect(screen.getByText("Run Python")).toBeVisible();
+    // The catalog's words - the same ones the step above it uses - as a question.
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
-  it("falls back to the tool's own name when the catalog has none", () => {
-    mount([action("a-1", { tool_name: "linear_create_issue" })]);
+  it("reads a call from an MCP server as its service and what it does there", () => {
+    mount([action("a-1", { tool_name: "notion_notion-search", args: { query: "changelog" } })]);
 
-    expect(screen.getByText("linear_create_issue")).toBeVisible();
+    expect(screen.getByText("Allow Search in Notion?")).toBeVisible();
+    expect(screen.getByText("changelog")).toBeVisible();
   });
 
-  it("shows a string argument as itself, not as escaped JSON", () => {
+  it("names the account a call acts as, and none where there is only one", () => {
+    mount([
+      action("a-1", { tool_name: "gmail_send", account: "Work" }),
+      action("a-2", { tool_name: "notion_notion-search", args: { query: "changelog" } }),
+    ]);
+
+    expect(screen.getAllByText(/^Account: /).map((badge) => badge.textContent)).toEqual([
+      "Account: Work",
+    ]);
+  });
+
+  it("leads with a command's first line, and keeps the whole of it a click away", async () => {
     // A gated call is nearly always one string that matters, and
     // `{"command": "python - <<'PY'\nimport …"}` hides it: the newlines that make
     // a script readable arrive as `\n`.
     mount([action("a-1", { tool_name: "execute", args: { command: "ls -la\ncat x.txt" } })]);
 
-    // The literal text, newline and all. Read off the element rather than matched,
-    // because the matcher normalises the whitespace this test is about.
-    expect(document.querySelector("dd")?.textContent).toBe("ls -la\ncat x.txt");
+    expect(screen.getByText("ls -la")).toHaveClass("font-mono");
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    // The literal text, newline and all - read off the element rather than
+    // matched, because the matcher normalises the whitespace this is about.
+    expect(screen.getByText(/cat x\.txt/).textContent).toBe("ls -la\ncat x.txt");
   });
 
-  it("lists each argument by name, with the exact JSON one click away", () => {
+  it("names the rest of the arguments in words once asked, not as JSON", async () => {
     mount([action("a-1")]);
 
-    expect(screen.getByText("to", { selector: "dt" })).toBeVisible();
-    expect(screen.getByText("customer@example.com", { selector: "dd" })).toBeVisible();
-    expect(screen.getByText("Exact JSON sent to the tool")).toBeInTheDocument();
-    expect(document.querySelector("details pre")?.textContent).toContain(
-      '"to": "customer@example.com"',
-    );
+    // An email's subject says what it is about; who it goes to is the detail.
+    expect(screen.getByText("Refund")).toBeVisible();
+    expect(screen.queryByText("customer@example.com")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText("To")).toBeVisible();
+    expect(screen.getByText("customer@example.com")).toBeVisible();
   });
 
-  it("says why the agent asks before what it would run", () => {
+  it("asks about a call that takes nothing without a line of arguments", () => {
+    mount([action("a-1", { tool_name: "run_python", args: undefined })]);
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
+  });
+
+  it("says why the agent asks before what it would run", async () => {
     mount([
       action("a-1", {
         tool_name: "update_record",
@@ -104,11 +126,13 @@ describe("the tool approval dialog", () => {
 
     expect(screen.getByText("So the order shows as shipped.")).toBeVisible();
     // The reason is the sentence on top, not one more row.
-    expect(screen.queryByText("reason", { selector: "dt" })).toBeNull();
-    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.queryByText("Reason")).toBeNull();
+    // Once as the call's one telling argument, once in the details.
+    expect(screen.getAllByText("t-1")).toHaveLength(2);
   });
 
-  it("says what the call will do in names, under the reason and over the ids", () => {
+  it("says what the call will do in names, under the reason and over the ids", async () => {
     mount([
       action("a-1", {
         tool_name: "update_record",
@@ -124,7 +148,8 @@ describe("the tool approval dialog", () => {
     expect(
       screen.getByText("So the order shows as shipped.").compareDocumentPosition(sentence),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText("t-1")).toBeVisible();
   });
 
   it("names the table a record is written to, never the record", () => {
@@ -168,7 +193,7 @@ describe("the tool approval dialog", () => {
     expect(screen.queryByText(/Archive/)).toBeNull();
   });
 
-  it("draws the plain card when the call came with no names, or not the ones it needs", () => {
+  it("draws the plain card when the call came with no names, or not the ones it needs", async () => {
     mount([
       action("a-1", {
         tool_name: "update_record",
@@ -185,8 +210,11 @@ describe("the tool approval dialog", () => {
     ]);
 
     expect(screen.queryByText(/Change a record/)).toBeNull();
-    expect(screen.getByText("t-1", { selector: "dd" })).toBeVisible();
-    expect(screen.getByText("t-2", { selector: "dd" })).toBeVisible();
+    for (const details of screen.getAllByRole("button", { name: "Details" })) {
+      await userEvent.click(details);
+    }
+    expect(screen.getAllByText("t-1")).toHaveLength(2);
+    expect(screen.getAllByText("t-2")).toHaveLength(2);
   });
 
   it("approves every call it is showing", async () => {
@@ -223,7 +251,7 @@ describe("the tool approval dialog", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
     expect(screen.getByText("Tool approval required")).toBeVisible();
-    expect(screen.getByText("Run Python")).toBeVisible();
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
   it("accepts nothing at all while the decision is being sent", () => {
@@ -239,5 +267,20 @@ describe("the tool approval dialog", () => {
 
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  });
+
+  it("shows the AI Architect's agent draft as a draft, not as a call (#1799)", () => {
+    mount([
+      action("a-1", {
+        tool_name: "agenticos_create_agent_draft",
+        args: { name: "Helpdesk", instructions: "Answer from the handbook." },
+      }),
+      action("a-2", { tool_name: "agenticos_create_agent_draft", args: { instructions: "x" } }),
+    ]);
+
+    expect(screen.getByText("A new agent draft")).toBeVisible();
+    expect(screen.getByText("Helpdesk")).toBeVisible();
+    // Arguments that are not a draft are asked about as any call is.
+    expect(screen.getByText("Allow Agenticos create agent draft?")).toBeVisible();
   });
 });

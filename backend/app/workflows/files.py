@@ -13,8 +13,6 @@ insert fails takes its stored object with it, so a failed write leaves
 nothing behind.
 """
 
-from __future__ import annotations
-
 import io
 import json
 import zipfile

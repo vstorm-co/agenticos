@@ -173,12 +173,12 @@ const SECRET_KINDS = {
   items: [
     {
       kind: "api_key",
-      label: "API key",
+      name: "API key",
       json_schema: { type: "object", properties: { api_key: { type: "string" } } },
     },
     {
       kind: "github_oauth_app",
-      label: "GitHub OAuth App",
+      name: "GitHub OAuth App",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
@@ -186,7 +186,7 @@ const SECRET_KINDS = {
     },
     {
       kind: "google_oauth_app",
-      label: "Google OAuth client",
+      name: "Google OAuth client",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
@@ -237,12 +237,14 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     has_auth_token: false,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "github",
     is_default: false,
     label: null,
@@ -374,7 +376,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    expect(await screen.findByRole("dialog", { name: /secret/i })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: /add a key/i })).toBeInTheDocument();
   });
 
   it("sends you to the vault to remove one when two are stored, and offers no add", async () => {
@@ -397,7 +399,7 @@ describe("PortalCatalog", () => {
 
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
-    expect(card.getByText(/GitHub OAuth app credentials/)).toBeVisible();
+    expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
     expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
     // And the toast that used to be the only way to learn this is not the path:
     // nothing was clicked to get here.
@@ -410,6 +412,26 @@ describe("PortalCatalog", () => {
     expect(
       within(screen.getByRole("group", { name: "GitHub" })).getByText(/cannot tell which one/),
     ).toBeVisible();
+  });
+
+  it("names the credential the portal's own flow spends, not GitHub's", async () => {
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    const card = within(screen.getByRole("group", { name: "GitHub" }));
+
+    expect(card.getByText(/organization's GitHub OAuth App credentials/)).toBeVisible();
+    expect(screen.queryAllByText(/GitHub OAuth App/)).toHaveLength(1);
+  });
+
+  it("asks a Gmail card for the Google client its consent flow spends", async () => {
+    // The sentence was GitHub's on every card: Gmail said it needed the
+    // organization's GitHub OAuth App credentials.
+    await mount({ polled: "oauth_app_secret" });
+
+    const gmail = within(screen.getByRole("group", { name: "Gmail" }));
+
+    expect(gmail.getByText(/organization's Google OAuth client credentials/)).toBeVisible();
+    expect(gmail.queryByText(/GitHub/)).toBeNull();
   });
 
   it("says a polled portal's own prerequisite, not the GitHub one beside it", async () => {
@@ -443,7 +465,7 @@ describe("PortalCatalog", () => {
     // The shortcut passed the dialog one kind and left its own pickers alone, so
     // it opened on Model provider with OpenAI chosen - and `kindInfo` then found
     // nothing for `api_key` in a list holding only `github_oauth_app`, leaving a
-    // form with no value fields and Store secret disabled for ever.
+    // form with no value fields and Store key disabled for ever.
     const user = userEvent.setup();
     await mount({ org: [], blockedBy: "oauth_app_secret" });
 
@@ -453,7 +475,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    const dialog = within(await screen.findByRole("dialog", { name: /add a key/i }));
     expect(dialog.getByDisplayValue("GitHub OAuth App")).toBeInTheDocument();
   });
 
@@ -470,7 +492,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    const dialog = within(await screen.findByRole("dialog", { name: /add a key/i }));
     expect(dialog.getByDisplayValue("Google OAuth client")).toBeInTheDocument();
   });
 

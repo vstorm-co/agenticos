@@ -6,8 +6,6 @@ against addresses the test chooses. Secrets are real vault rows: sealed,
 stored and opened the way a deployment does it.
 """
 
-from __future__ import annotations
-
 import base64
 import socket
 import uuid

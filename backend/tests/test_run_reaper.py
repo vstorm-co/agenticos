@@ -16,7 +16,7 @@ import pytest
 from app.repositories import agent_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
-from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.run_tasks import reap_stale_runs
 
 pytestmark = pytest.mark.anyio
 
@@ -82,6 +82,6 @@ class TestTheFlow:
         ):
             ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            assert await stale_run_sweep_flow() == 3
+            assert await reap_stale_runs() == 3
 
         service.reap_stale.assert_awaited_once()

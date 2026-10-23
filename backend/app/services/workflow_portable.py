@@ -6,8 +6,6 @@ writes is parsed, sized and scoped exactly as an edit's is. What makes a graph
 portable - no id of this deployment's, no pinned data - is `graph.portable`.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError

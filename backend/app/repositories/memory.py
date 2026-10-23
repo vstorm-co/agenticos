@@ -10,8 +10,6 @@ what this module used to hold - an ordered read set, a `CASE` precedence, an
 owner-kind filter for an operator listing - went with it (#1470).
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID

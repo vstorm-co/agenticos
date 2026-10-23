@@ -19,8 +19,6 @@ the config allows. A capability walking it at run time would need a session per
 delegation, on a shared `AsyncSession` that is not concurrency-safe.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -36,6 +34,7 @@ from app.agents.spec import DelegationMode
 
 if TYPE_CHECKING:
     from app.agents.capabilities.budget import SpendLedger
+    from app.agents.capabilities.guardrails import ScreenedStream
 
 SUBAGENT_RUNTIME_RESOURCE = "subagent_runtime"
 """Where the runner leaves the resolved delegation tree for this run.
@@ -291,6 +290,11 @@ class DelegationOutcome:
     input_tokens: int
     output_tokens: int
     cost_is_partial: bool = False
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    loop_stopped: bool = False
+    """The delegate was stopped by the loop guard - recorded as `loop_stopped`,
+    which `status` (the library's three outcomes) cannot say."""
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None
@@ -348,6 +352,8 @@ class DelegationSpend:
     billed_cost_usd: Decimal = Decimal(0)
     billed_input_tokens: int = 0
     billed_output_tokens: int = 0
+    billed_cache_read_tokens: int = 0
+    billed_cache_write_tokens: int = 0
     billed_has_unpriced_models: bool = False
     """The same four numbers again, but for what this delegation's *row* is owed
     rather than what its *panel* shows (agenticos#228).
@@ -630,6 +636,15 @@ class SubagentRuntime:
     Resolved by the runner for the same reason `ResolvedSubagent` is: building one
     needs a model profile out of the database and the run's budget guard, and a
     capability may reach neither.
+    """
+
+    output_screen: ScreenedStream | None = None
+    """The delegating run's output check, applied to what its delegates stream.
+
+    A delegate's text and reasoning reach the same reader as the run's own, in
+    its delegation panel, so the run's output check screens them as it screens
+    its own (agenticos#2000). The run's, at every level of the tree: the panel
+    belongs to the run somebody started. `None` when that run has no output check.
     """
 
     stash: DelegationStash = field(default_factory=DelegationStash, repr=False)

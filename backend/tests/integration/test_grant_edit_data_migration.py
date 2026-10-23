@@ -8,8 +8,6 @@ or that the downgrade keeps the grants it would otherwise fail on - this does, o
 database of its own for the reason `test_artifact_consent_migration` gives.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -26,8 +24,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_grant_edit_data_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0144_artifact_share_requests"
-_TARGET_REVISION = "0145_grant_edit_data"
+_BASE_REVISION = "0198_artifact_share_requests"
+_TARGET_REVISION = "0199_grant_edit_data"
 
 
 def _url(database: str) -> str:

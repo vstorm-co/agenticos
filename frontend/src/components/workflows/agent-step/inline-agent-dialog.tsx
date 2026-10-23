@@ -161,6 +161,9 @@ function InlineAgentForm({
               }
               subagents={[]}
               onSubagentsChange={() => undefined}
+              // Delegation is not offered to a step's agent, so neither are remote delegates.
+              externalAgents={[]}
+              onExternalAgentsChange={() => undefined}
               resources={{
                 contextFiles,
                 contextTotal,
@@ -181,10 +184,7 @@ function InlineAgentForm({
             />
           </TabsContent>
           <TabsContent value="mcp" className="mt-0">
-            <McpBindingsEditor
-              value={spec.mcp_servers}
-              onChange={(mcp_servers) => update({ mcp_servers })}
-            />
+            <McpBindingsEditor spec={spec} onChange={update} />
           </TabsContent>
         </div>
       </Tabs>

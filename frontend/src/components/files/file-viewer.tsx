@@ -155,7 +155,7 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
             that same line, opposite the name. `pr-10` keeps it clear of the close
             button in the corner. */}
         <DialogHeader className="gap-0 pr-10">
-          <div className="flex min-w-0 items-baseline justify-between gap-3">
+          <div className="flex min-w-0 items-center justify-between gap-3">
             <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base">
               <FileIcon
                 name={file.name}
@@ -176,37 +176,39 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
                 the files that happen to have no tabs at all. Still exactly one
                 `DialogDescription`, because Radix wires `aria-describedby` to it
                 wherever it sits and two would be one sentence read twice. */}
-            <DialogDescription className="shrink-0 truncate text-xs">
-              {describe(file, kind, t, tTime, locale)}
-              {strip !== null &&
-                ` · ${t("fileOfTotal", { index: strip.index + 1, total: strip.names.length })}`}
-            </DialogDescription>
+            <div className="flex shrink-0 items-center gap-2">
+              <DialogDescription className="truncate text-xs">
+                {describe(file, kind, t, tTime, locale)}
+                {strip !== null &&
+                  ` · ${t("fileOfTotal", { index: strip.index + 1, total: strip.names.length })}`}
+              </DialogDescription>
+              {/* In the title's row, opposite the name: a band of its own put a
+                  lone button between the name and the file. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={download}
+                className="h-8 w-8 p-0"
+                aria-label={t("download")}
+                title={t("download")}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            {tabs.length > 1 && (
-              <Tabs value={view} onValueChange={setView}>
-                <TabsList>
-                  {tabs.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value}>
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            )}
-          </div>
-          {/* Download alone. "Open in new tab" sat beside it doing very nearly the
-              same thing - the API answers most types as `application/octet-stream`
-              precisely so a browser cannot render them, so for anything but an image
-              or a PDF the new tab *was* a download, with a blank tab left over. */}
-          <Button variant="outline" size="sm" onClick={download} className="shrink-0">
-            <Download className="h-3.5 w-3.5" />
-            {t("download")}
-          </Button>
-        </div>
+        {tabs.length > 1 && (
+          <Tabs value={view} onValueChange={setView}>
+            <TabsList>
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
 
         {error !== null && <p className="text-destructive text-xs">{error}</p>}
 

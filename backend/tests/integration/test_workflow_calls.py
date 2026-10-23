@@ -1,7 +1,5 @@
 """One workflow running another as a step: the call, the wait, the answer, the limits."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -27,6 +25,7 @@ from tests.integration.workflow_run_support import (
     SeededRun,
     drive,
     node_statuses,
+    queued_dispatches,
     seed_member,
     seed_run,
 )
@@ -34,12 +33,6 @@ from tests.integration.workflow_run_support import (
 pytestmark = pytest.mark.anyio
 
 FIELDS = {"fields": [{"name": "name", "type": "text", "required": True}]}
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInstance:
@@ -473,7 +466,7 @@ class TestAdmittingACall:
     """`admit_call` called directly: the step's own call reaches it past an await the
     coverage tracer loses."""
 
-    async def test_the_called_run_is_linked_to_the_step_and_its_dispatch_submitted(
+    async def test_the_called_run_is_linked_to_the_step_and_its_dispatch_queued(
         self, engine: AsyncEngine
     ):
         from app.services.workflow_execution import WorkflowExecutionService
@@ -494,24 +487,26 @@ class TestAdmittingACall:
                 scope_path=[],
             )
             assert entry is not None
-            with patch("app.worker.tasks.workflow_tasks.trigger_dispatch") as dispatched:
-                called = await WorkflowExecutionService(db).admit_call(
-                    ctx,
-                    workflow,
-                    version,
-                    run_input={"name": "Ada"},
-                    causation=Causation(
-                        root_run_id=seeded.run.id,
-                        causation_run_id=seeded.run.id,
-                        visited_trigger_ids=[],
-                        depth=1,
-                    ),
-                    parent_node_run_id=entry.id,
-                )
+            called = await WorkflowExecutionService(db).admit_call(
+                ctx,
+                workflow,
+                version,
+                run_input={"name": "Ada"},
+                causation=Causation(
+                    root_run_id=seeded.run.id,
+                    causation_run_id=seeded.run.id,
+                    visited_trigger_ids=[],
+                    depth=1,
+                ),
+                parent_node_run_id=entry.id,
+            )
+            await db.commit()
 
         assert called.parent_node_run_id == entry.id
         assert called.triggered_by == "workflow_call"
-        dispatched.assert_called_once()
+        queued = await queued_dispatches(seeded.factory, workflow_run_id=called.id)
+        assert len(queued) == 1
+        assert queued[0].organization_id == called.organization_id
 
 
 class TestOneCallPerStep:
@@ -539,20 +534,19 @@ class TestOneCallPerStep:
                 assert workflow is not None
                 version = await other.get(WorkflowVersion, workflow.current_version_id)
                 assert version is not None
-                with patch("app.worker.tasks.workflow_tasks.trigger_dispatch"):
-                    await WorkflowExecutionService(other).admit_call(
-                        ctx,
-                        workflow,
-                        version,
-                        run_input={"name": "Ada"},
-                        causation=Causation(
-                            root_run_id=seeded.run.id,
-                            causation_run_id=seeded.run.id,
-                            visited_trigger_ids=[],
-                            depth=1,
-                        ),
-                        parent_node_run_id=node_run_id,
-                    )
+                await WorkflowExecutionService(other).admit_call(
+                    ctx,
+                    workflow,
+                    version,
+                    run_input={"name": "Ada"},
+                    causation=Causation(
+                        root_run_id=seeded.run.id,
+                        causation_run_id=seeded.run.id,
+                        visited_trigger_ids=[],
+                        depth=1,
+                    ),
+                    parent_node_run_id=node_run_id,
+                )
                 await other.commit()
             return None
 

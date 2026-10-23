@@ -1,5 +1,5 @@
 ---
-source_sha: "66365d6bce1a"
+source_sha: "f89434252ef2"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -218,7 +218,7 @@ nichts mit dem Diff zu tun hat.
 
 `ci.yml` trägt eine Concurrency-Gruppe mit Schlüssel `github.ref`, sodass ein
 erneuter Push auf einen Branch dessen vorigen Lauf abbricht. Das ist wichtig,
-weil `CLAUDE.md` einen Commit und einen Push pro fertigem Teilstück verlangt:
+weil `AGENTS.md` einen Commit und einen Push pro fertigem Teilstück verlangt:
 ohne Abbruch wurden 75 der 369 Läufe in den ersten sechs Augusttagen überholt,
 während sie noch liefen — etwa 1.800 abgerechnete Minuten, die Fragen zu Commits
 beantworteten, auf die niemand wartete.
@@ -284,7 +284,7 @@ Jobs und meldet sich dann als der Abbruch von jemand anderem.
 !!! important "Die Beschreibung des Pull Requests *ist* die Commit-Nachricht, die überlebt"
 
     `main` behält einen Commit pro Pull Request, gebaut aus Titel und Rumpf statt
-    aus den eigenen Commits des Branches. `CLAUDE.md` hat das Format.
+    aus den eigenen Commits des Branches. `AGENTS.md` hat das Format.
 
 Also erreichen `wip`, `fixup` und `try again` es nie — und die Beschreibung ist
 keine Höflichkeit.
@@ -342,6 +342,15 @@ sie verstanden waren:
   `pull_request` bekommt ein schreibgeschütztes Token, wenn Dependabot ihn
   ausgelöst hat, ganz gleich was sein `permissions`-Block sagt, also kann er das
   Ergebnis nicht zurückpushen.
+
+**Dependabot kann das Backend nicht lesen, solange es Python 3.15 verlangt.**
+Sein uv-Job bricht an der Zeile `requires-python` ab, öffnet also keine Pull
+Requests für das Backend - den Lock bewegt `make deps-upgrade` von Hand -, und
+seine Alerts würden weiter die zuvor gesperrten Versionen abgleichen. Deshalb
+übermittelt `.github/workflows/dependency-graph.yml` den Graphen selbst: Bei
+jedem Push auf `main`, der `backend/uv.lock` ändert, listet
+`scripts/dependency_snapshot.py` jede gesperrte Version, und Alerts öffnen und
+schließen sich an diesen.
 
 ## Reviews { #reviews }
 

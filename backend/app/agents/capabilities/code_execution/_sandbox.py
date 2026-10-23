@@ -69,7 +69,7 @@ def _format_result(stdout: str, output: Any) -> str:
     if output is not None:
         try:
             rendered = json.dumps(output, default=str)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             rendered = str(output)
         parts.append(f"result: {rendered}")
     text = "\n\n".join(parts) if parts else "(code ran successfully with no output)"

@@ -30,15 +30,21 @@ from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
 from app.agents.capabilities.budget import BudgetExceeded
+from app.api.embed_cors import embed_cors_headers
 from app.core.exceptions import AppException, ValidationError
 from app.core.field_errors import request_field_problems
 from app.core.middleware import security_headers_for_error
 
 logger = logging.getLogger(__name__)
+
+# How long a refused caller is told to wait. Long enough for a burst to pass,
+# short enough that a person retrying by hand is not kept waiting.
+POOL_EXHAUSTED_RETRY_AFTER_SECONDS = 5
 
 
 def _envelope(
@@ -160,6 +166,9 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
         retry_after = (exc.details or {}).get("retry_after_seconds")
         if isinstance(retry_after, int):
             headers["Retry-After"] = str(retry_after)
+    # A widget on somebody else's site has to be able to read why it was refused
+    # - see `app.api.embed_cors`. Empty on every other request.
+    headers.update(embed_cors_headers(request))
 
     return _envelope(
         status_code=exc.status_code,
@@ -254,6 +263,31 @@ async def unhandled_exception_handler(
     )
 
 
+async def pool_exhausted_handler(
+    request: HTTPConnection, exc: PoolTimeoutError
+) -> JSONResponse | None:
+    """No database connection came free within `DB_POOL_TIMEOUT`: busy, not broken (503).
+
+    It used to reach `unhandled_exception_handler` as a 500 with a full traceback
+    logged - once per request, in a process already out of CPU, which is the
+    moment a burst arrives. A 503 with `Retry-After` is what the condition is: a
+    client may come back, and a load balancer reads it as shed load rather than
+    as a failing node. One line is logged, not a traceback; the cause is known.
+    """
+    logger.warning("db_pool_exhausted", extra=_connection_meta(request))
+
+    if _is_websocket(request):
+        return None
+
+    return _envelope(
+        status_code=503,
+        code="SERVICE_BUSY",
+        message="The server is busy. Try again in a few seconds.",
+        details=None,
+        headers={"Retry-After": str(POOL_EXHAUSTED_RETRY_AFTER_SECONDS)},
+    )
+
+
 async def http_exception_handler(
     request: HTTPConnection, exc: StarletteHTTPException
 ) -> JSONResponse | None:
@@ -288,12 +322,13 @@ async def http_exception_handler(
     if _is_websocket(request):
         return None
 
+    headers = {**(exc.headers or {}), **embed_cors_headers(request)}
     return _envelope(
         status_code=status_code,
         code=_http_error_code(status_code),
         message=detail if isinstance(detail, str) and detail else phrase,
         details=None if isinstance(detail, str) or detail is None else {"detail": detail},
-        headers=dict(exc.headers) if exc.headers else None,
+        headers=headers or None,
     )
 
 
@@ -310,4 +345,5 @@ def register_exception_handlers(app: FastAPI) -> None:
     # Starlette's, not FastAPI's: `fastapi.HTTPException` subclasses it, so one
     # registration covers both the routes that raise one and the router's own 405.
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # ty: ignore[invalid-argument-type]
+    app.add_exception_handler(PoolTimeoutError, pool_exhausted_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)  # ty: ignore[invalid-argument-type]

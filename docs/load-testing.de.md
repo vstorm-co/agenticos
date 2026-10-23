@@ -1,5 +1,5 @@
 ---
-source_sha: "53546688c766"
+source_sha: "d8f1a51c851b"
 ---
 
 # Last- und Belastbarkeitstests { #load-and-resilience-testing }
@@ -114,9 +114,9 @@ Start, statt ein Deployment zu messen, das die Arbeit nicht tun kann:
 1. eine migrierte Datenbank und Redis;
 2. das antwortende Stub-Modell, **unter einer Adresse, die die API erreicht** — siehe unten;
 3. die Fixture — `make load-seed`, einmal;
-4. Prefect, wenn die Last `trigger_fire` etwas bedeuten soll. Ohne ihn wird ein
-   Webhook angenommen und seine Weitergabe scheitert, was der Bericht als 500er auf
-   dieser Last zeigt, statt es zu verbergen.
+4. ein Worker (`python -m app.worker`), wenn die Last `trigger_fire` etwas
+   bedeuten soll. Ohne ihn wird ein Webhook angenommen, und sein Auslösen wartet
+   in der Queue, die Last misst also die Tür und nicht den Run.
 
 ### Wo der Stub lauschen muss { #where-the-stub-has-to-listen }
 
@@ -168,6 +168,22 @@ standardmäßig aus dem Szenario ab — Spitzenrate mal langsamste Anfrage, 3240
 den ausgelieferten Phasen. Eine Grenze darunter macht aus einem Lauf mit offener
 Ankunft genau im Burst einen geschlossenen, also dann, wenn es zählt: Anfragen
 stauen sich im Client, und ein Teil der berichteten Latenz gehört dem Treiber.
+
+### Von einem kalten Start, und in CI { #from-a-cold-start-and-in-ci }
+
+`make load-cold` ist der ganze Lauf von einer leeren Datenbank aus: Es migriert,
+legt einen Eigentümer an, startet den Stub, die API und einen Worker auf diesem
+Host, erzeugt die Fixture, fährt das Szenario und stoppt alles wieder. Der Seed
+lädt sein Korpus über die API hoch und wartet, bis jedes Dokument durchsuchbar
+ist, braucht also den Worker. Der Exit-Status ist das Urteil - ein Schwellenwert,
+der verfehlt oder nicht gemessen wurde, lässt den Lauf scheitern -, und
+`LOAD_SCALE` und `LOAD_REPORT` bestimmen die Länge und wohin der Bericht geht.
+
+Der Workflow `Load` führt genau das jede Nacht auf `main` aus, auf Anforderung und
+auf einem Pull Request mit dem Label `load-test`, und veröffentlicht den Bericht
+als Zusammenfassung des Jobs und als Artefakt. Er ist kein Pflicht-Check: Die
+CPU eines geteilten Runners ist geteilt, er fängt also eine Regression anderer
+Größenordnung, nicht einen langsameren Nachmittag.
 
 ## Den Bericht lesen { #reading-the-report }
 

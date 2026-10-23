@@ -5,8 +5,6 @@ handler exactly the config and input its schemas validated - so they are proved
 here directly rather than through a run that could not produce them.
 """
 
-from __future__ import annotations
-
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace

@@ -5,8 +5,6 @@ worker, a script or a second code path writes through the same tables, and a
 duplicate external id or a skipped revision must be impossible there too.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 

@@ -23,9 +23,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const create = () => screen.getByRole("button", { name: "Create" });
 
-/** Open the disclosure the parser options live behind. */
+/** Unfold the settings the parser cards leave folded: chunking, OCR and images. */
 async function openIngestion() {
-  await userEvent.click(screen.getByText("How documents are parsed"));
+  await userEvent.click(screen.getByRole("button", { name: "Chunking, OCR and images" }));
 }
 
 /** The body of the one `POST /kb` the dialog made. */
@@ -85,6 +85,42 @@ describe("CreateKBDialog", () => {
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(posted()).not.toHaveProperty("ingestion_config");
+  });
+
+  it("asks for the parser as three choices, and sends the one picked", async () => {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    expect(screen.getByRole("radio", { name: /PyMuPDF/ })).toHaveAttribute("aria-checked", "true");
+
+    await userEvent.click(screen.getByRole("radio", { name: /LiteParse/ }));
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted().ingestion_config).toMatchObject({ pdf_parser: "liteparse" });
+  });
+
+  it("unfolds the details itself when the parser picked needs something there", async () => {
+    // LlamaParse needs a key, and a required field behind a closed fold is a
+    // Create button that stays grey for no reason anybody can see.
+    expect(screen.queryByLabelText("LlamaParse key")).toBeNull();
+
+    await userEvent.click(screen.getByRole("radio", { name: /LlamaParse/ }));
+
+    expect(screen.getByRole("button", { name: "Chunking, OCR and images" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("keeps the description folded under More options, and sends it", async () => {
+    expect(screen.queryByLabelText("Description (optional)")).toBeNull();
+
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.type(screen.getByLabelText("Description (optional)"), "The staff handbook");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted().description).toBe("The staff handbook");
   });
 
   it("sends the whole configuration once one field is moved off it", async () => {

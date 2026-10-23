@@ -19,8 +19,6 @@ what makes that trigger live, the way a builder expects from n8n or Zapier:
 surfaces that list what they can start.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from uuid import UUID
 

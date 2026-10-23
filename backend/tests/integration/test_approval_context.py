@@ -6,8 +6,6 @@ name. Proved here against the real access checks, because a mocked
 service would prove only that the mock was asked.
 """
 
-from __future__ import annotations
-
 import uuid
 from dataclasses import dataclass
 

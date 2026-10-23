@@ -14,8 +14,6 @@ OTLP exporter can send on its own. So Logfire is configured here by
 The app is instrumented exactly as `create_app` instruments the real one.
 """
 
-from __future__ import annotations
-
 import contextlib
 import json
 import secrets

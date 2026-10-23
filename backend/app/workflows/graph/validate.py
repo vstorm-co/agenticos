@@ -60,8 +60,6 @@ contradicted in its own derive-scopes walkthrough (see that document's
 could not be expressed against at all.
 """
 
-from __future__ import annotations
-
 import json
 import types
 from collections import deque
@@ -83,7 +81,6 @@ from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.virtual_table import ColumnDef
 from app.services.access import TABLE, WORKFLOW, resolve_access
-from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
 from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
 from app.workflows.contracts.io import (
@@ -438,6 +435,10 @@ def _scope_access_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> 
     binding's scopes, rather than per-organization: nothing in this codebase
     grants a scope per tenant today.
     """
+    # Imported here: `agent_registry` reaches the capability registry, which
+    # reaches this module through the table and artifact services (an import cycle).
+    from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
+
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions[node.id]

@@ -14,8 +14,6 @@ value* per entry point rather than that a call was made - the code paths were
 already exercised by other tests, and none of them looked at what was written.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any
@@ -36,13 +34,14 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_eight_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_nine_surfaces_that_exist(self):
         # `workflow` is written by a workflow's `agent.run` step; that it is written
         # is proven in `tests/integration/test_workflow_agent_node.py`.
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
             "api",
+            "a2a",
             "slack",
             "telegram",
             "mattermost",

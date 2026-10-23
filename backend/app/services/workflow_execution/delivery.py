@@ -12,8 +12,6 @@ exactly once: a retried dispatch finds the run already terminal and settles
 nothing, and a reconnecting chat reads the message rather than asking again.
 """
 
-from __future__ import annotations
-
 import logging
 
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +22,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.conversation import MessagePart
+from app.services.workflow_execution import dispatch_queue
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +85,6 @@ async def wake_caller(db: AsyncSession, *, run: WorkflowRun) -> None:
         return
     try:
         async with db.begin_nested():
-            await workflow_run_repo.create_outbox(
-                db,
-                organization_id=caller.organization_id,
-                workflow_run_id=caller.id,
-                node_run_id=step.id,
-            )
+            await dispatch_queue.queue_dispatch(db, run=caller, node_run_id=step.id)
     except IntegrityError:
         logger.info("workflow_caller_already_dispatched", extra={"node_run_id": str(step.id)})

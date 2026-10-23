@@ -1,8 +1,6 @@
 """Table trigger schemas - the workflows a table runs when a record is added, changed or
 deleted (#1785)."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

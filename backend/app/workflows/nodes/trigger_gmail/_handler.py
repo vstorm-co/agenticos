@@ -5,8 +5,6 @@ once a minute by the same poll that fires agent triggers. Each new message that
 fits this node's filter starts one run, as the member who published it.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.workflows.contracts.results import Completed, Failed, NodeResult

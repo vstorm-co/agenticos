@@ -195,7 +195,7 @@ unrelated to the diff.
 ### One run per branch
 
 `ci.yml` carries a concurrency group keyed on `github.ref`, so pushing again to a
-branch cancels its previous run. That matters because `CLAUDE.md` asks for a commit
+branch cancels its previous run. That matters because `AGENTS.md` asks for a commit
 and a push per finished piece: with nothing cancelling, 75 of the 369 runs in the
 first six days of August were superseded while still in flight — about 1,800 billed
 minutes answering questions about commits nobody was waiting on.
@@ -253,7 +253,7 @@ then reports as somebody else's cancellation.
 !!! important "The pull request description *is* the commit message that survives"
 
     `main` keeps one commit per pull request, built from the title and body rather
-    than from the branch's own commits. `CLAUDE.md` has the format.
+    than from the branch's own commits. `AGENTS.md` has the format.
 
 So `wip`, `fixup` and `try again` never reach it — and the description is not a
 courtesy.
@@ -308,6 +308,14 @@ understood:
   Automating that is harder than it looks: a workflow on `pull_request` gets a
   read-only token when Dependabot triggered it, whatever its `permissions` block
   says, so it cannot push the result back.
+
+**Dependabot cannot read the backend while it requires Python 3.15.** Its uv
+job stops at the `requires-python` line, so it opens no backend pull requests -
+`make deps-upgrade` moves the lock by hand - and its alerts would keep matching
+the versions locked before. `.github/workflows/dependency-graph.yml` therefore
+submits the graph itself: on every push to `main` that moves `backend/uv.lock`,
+`scripts/dependency_snapshot.py` lists each locked version, and alerts open and
+close against those.
 
 ## Reviews
 

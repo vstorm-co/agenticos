@@ -1,7 +1,5 @@
 """A page's read deadline: one clock reading per arm, and never a statement with no limit."""
 
-from __future__ import annotations
-
 import pytest
 
 from app.services.virtual_tables import ReadDeadline

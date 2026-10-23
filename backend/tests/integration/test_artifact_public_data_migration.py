@@ -8,8 +8,6 @@ deleted user, or the downgrade taking the columns away - this does, on a databas
 for the reason `test_artifact_consent_migration` gives.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -26,8 +24,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_public_data_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0145_grant_edit_data"
-_TARGET_REVISION = "0147_artifact_public_data"
+_BASE_REVISION = "0199_grant_edit_data"
+_TARGET_REVISION = "0201_artifact_public_data"
 
 
 def _url(database: str) -> str:
@@ -179,7 +177,7 @@ def test_0146_adds_the_switch_off_for_organizations_that_exist_and_the_downgrade
     _at_base()
     _, org_id = _seed_at_base()
 
-    _alembic("upgrade", "0146_org_public_live_data")
+    _alembic("upgrade", "0200_org_public_live_data")
     assert _scalar("SELECT public_live_data FROM organizations WHERE id = :id", id=org_id) is False
 
     _alembic("downgrade", _BASE_REVISION)

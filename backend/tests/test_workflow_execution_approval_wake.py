@@ -2,13 +2,13 @@
 
 The queued coroutine `ApprovalService.decide` hands to `spawn_after_commit` -
 opens its own session (mocked here at `get_worker_db_context`), so it is
-tested the same way a Prefect flow body is: the session factory is stubbed,
+tested the way a job handler is: the session factory is stubbed,
 the repository is mocked at the database edge.
 """
 
 import uuid
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, create_autospec, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -74,7 +74,11 @@ def repo():
     mocked.get_node_run_by_id_for_update.side_effect = lambda _db, _id: (
         mocked.find_node_run_waiting_on_agent_run.return_value
     )
-    with patch(f"{WAKE_PATH}.workflow_run_repo", new=mocked):
+    with (
+        patch(f"{WAKE_PATH}.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.dispatch_queue.enqueue", new=AsyncMock()),
+    ):
         yield mocked
 
 

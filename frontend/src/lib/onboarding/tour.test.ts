@@ -4,6 +4,7 @@ import {
   AGENT_BUILDER,
   ARTIFACT_DETAIL,
   KB_DETAIL,
+  GROUP_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -17,6 +18,7 @@ import {
   visibleTourSteps,
   WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
+  PROJECT_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
 import { FLOWS } from "@/lib/onboarding/flows";
@@ -28,7 +30,6 @@ import { Perm, type Permission } from "@/types/permissions";
 // permission drops out — including the whole builder walk, which is agents:view.
 const UNGATED_LAUNCH = [
   "welcome",
-  "dashboard-actions",
   "dashboard-filters",
   "chat-start",
   "chat-agent-picker",
@@ -40,6 +41,8 @@ const UNGATED_LAUNCH = [
 const BUILDER_STEPS = [
   "agent-instructions",
   "agent-model",
+  "agent-voice",
+  "agent-identity",
   "agent-toolbox",
   "agent-mcp",
   "agent-knowledge",
@@ -47,6 +50,8 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test",
+  "agent-share",
   "agent-publish",
 ];
 
@@ -54,9 +59,17 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
-// The organization detail walk: the members page (profile, then the list), then
-// across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-public-live-data", "org-members", "org-roles"];
+// The organization detail walk: the members page (profile, the public-data switch,
+// the Voice card, the AI Architect's card, then the list), then across into the
+// roles matrix. None are inTour — orgs is a "?"-only section.
+const ORG_STEPS = [
+  "org-profile",
+  "org-public-live-data",
+  "org-voice",
+  "org-assistant",
+  "org-members",
+  "org-roles",
+];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -67,6 +80,7 @@ describe("pageKey", () => {
   it("collapses every concrete collection route onto the one KB identity", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
+    expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -83,7 +97,8 @@ describe("pageKey", () => {
   it("collapses each settings tab and each workspace onto one identity", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
-    expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
   });
 
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
@@ -159,7 +174,6 @@ describe("visibleTourSteps", () => {
     const held = new Set<Permission>([Perm.agentsView, Perm.skillsView, Perm.collectionsView]);
     expect(visibleTourSteps((permission) => held.has(permission)).map((step) => step.id)).toEqual([
       "welcome",
-      "dashboard-actions",
       "dashboard-filters",
       "chat-start",
       "chat-agent-picker",
@@ -195,7 +209,9 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-plan",
+      "chat-visual",
       "chat-model-picker",
+      "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
     ]);
@@ -217,14 +233,22 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its five tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory stop
-    // is optional - its card renders only where an agent has written something.
+    // Settings collapses its eight tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The Appearance,
+    // memory, sign-in and API key stops are optional - each card renders on one
+    // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "settings-appearance",
       "my-memory",
+      "sign-in-to-site",
+      "my-sign-ins",
+      "settings-api-usage",
+      "settings-api-keys",
+      "settings-mcp-connect",
+      "settings-connected-apps",
     ]);
-    expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
+    expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
     ]);
   });
@@ -247,7 +271,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agent-test"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -255,13 +279,14 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {
     expect(stepsForPage(ROUTES.RAG, () => true).map((step) => step.id)).toEqual([
       "knowledge-new",
       "knowledge-tabs",
+      "knowledge-groups",
       "knowledge-integrations",
       "knowledge-add-integration",
       "knowledge-local-services",
@@ -304,6 +329,15 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
       ORG_STEPS,
     );
+  });
+
+  it("skips the Voice stop for somebody who may not change organization settings", () => {
+    // The card is hidden from them, and an ungated step would wait on it.
+    expect(
+      stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
+        (step) => step.id,
+      ),
+    ).toEqual(["org-profile", "org-members", "org-roles"]);
   });
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {
@@ -408,18 +442,18 @@ describe("the Routines page", () => {
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
     expect(refused).toEqual(["routines-list"]);
-    expect(allowed).toEqual(["routines-list", "routines-create"]);
+    expect(allowed).toEqual(["routines-list", "routines-create", "routines-ideas"]);
   });
 });
 
 describe("an artifact's page", () => {
   it("collapses every artifact route onto one identity, apart from the list", () => {
-    expect(pageKey("/artifacts/some-id")).toBe(ARTIFACT_DETAIL);
+    expect(pageKey("/apps/some-id")).toBe(ARTIFACT_DETAIL);
     expect(pageKey(ROUTES.ARTIFACTS)).toBe(ROUTES.ARTIFACTS);
   });
 
   it("walks the strip, then consent, requests, review, actions and the owner, all but the strip optional", () => {
-    const steps = stepsForPage("/artifacts/some-id", () => true);
+    const steps = stepsForPage("/apps/some-id", () => true);
 
     expect(steps.map((step) => step.id)).toEqual([
       "artifact-strip",
@@ -433,14 +467,11 @@ describe("an artifact's page", () => {
     expect(steps.filter((step) => step.optional !== true).map((step) => step.id)).toEqual([
       "artifact-strip",
     ]);
-    expect(pageHasSteps("/artifacts/some-id")).toBe(true);
+    expect(pageHasSteps("/apps/some-id")).toBe(true);
   });
 
   it("shows a plain reader the strip stop, and stays out of the first-run tour", () => {
-    const viewer = stepsForPage(
-      "/artifacts/some-id",
-      (permission) => permission === Perm.artifactsView,
-    );
+    const viewer = stepsForPage("/apps/some-id", (permission) => permission === Perm.artifactsView);
 
     expect(viewer.map((step) => step.id)).toEqual([
       "artifact-strip",
@@ -468,4 +499,22 @@ describe("every step's copy", () => {
     expect(steps[id]?.title).toEqual(expect.any(String));
     expect(steps[id]?.body).toEqual(expect.any(String));
   });
+});
+
+describe("voice call stops (#54)", () => {
+  it("spotlights the composer's call button, optionally, because readiness loads late", () => {
+    const step = TOUR_STEPS.find((s) => s.id === "chat-voice-call");
+    expect(step).toMatchObject({ page: ROUTES.CHAT, target: "chat-voice-call", optional: true });
+    expect(step?.permission).toBeUndefined();
+  });
+
+  it.each([["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"]])(
+    "%s spotlights %s, gated like its control",
+    (id, target, permission, activate) => {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step).toMatchObject({ target });
+      expect(step?.permission).toBe(permission);
+      expect(step?.activate).toBe(activate);
+    },
+  );
 });

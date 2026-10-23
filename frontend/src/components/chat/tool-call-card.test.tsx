@@ -79,17 +79,11 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
-  it("says how much of the arguments has arrived while the model is still writing them", () => {
-    // A report handed to `write_file` streams for minutes; the size is what moves.
-    card({ name: "write_file", status: "pending", result: undefined, argsChars: 43_008 });
+  it("shows a call whose arguments are still streaming as running, with no byte count", () => {
+    // "185 B so far" beside the step said nothing a reader could use.
+    card({ name: "write_file", status: "pending", result: undefined });
 
-    expect(screen.getByText("42.0 KB so far")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
-  });
-
-  it("says nothing about size once the call is running", () => {
-    card({ name: "write_file", status: "running", result: undefined, argsChars: 43_008 });
-
     expect(screen.queryByText(/so far/)).toBeNull();
   });
 
@@ -122,6 +116,20 @@ describe("a tool call in the transcript", () => {
 
     expect(screen.getByText("waiting for approval")).toBeInTheDocument();
     expect(screen.queryByText("Running")).toBeNull();
+  });
+
+  it("lets a question waiting on its person say so once, not as an approval", () => {
+    // Its own label is "Waiting for your answer"; the amber approval note beside it
+    // named a decision nobody was being asked to make.
+    card({
+      name: "ask_user_question",
+      args: { questions: [{ header: "Plans", question: "Which plans?" }] },
+      status: "awaiting_answer",
+      result: undefined,
+    });
+
+    expect(screen.getByText("Waiting for your answer")).toBeInTheDocument();
+    expect(screen.queryByText("waiting for approval")).toBeNull();
   });
 
   it("says a replayed call that never finished in the past tense, without a spinner", () => {
@@ -414,9 +422,9 @@ describe("a tool call in the transcript", () => {
     );
   });
 
-  it("opens a published page on sight, linked to the version this run wrote", () => {
-    // The version and not the artifact: after the agent republishes, this
-    // conversation still opens what was published in it.
+  it("keeps a published page to one line, its card being under the answer", async () => {
+    // The card sits under the reply, so the step does not open over the work -
+    // which is what lets a turn that published an app fold away like any other.
     card({
       name: "publish_artifact",
       result: JSON.stringify({
@@ -428,10 +436,13 @@ describe("a tool call in the transcript", () => {
         unchanged: false,
       }),
     });
+    expect(screen.queryByRole("link", { name: /Weekly report/ })).toBeNull();
 
+    // Opened by hand, it still links the version this run wrote.
+    await userEvent.click(screen.getByRole("button", { name: /Published app/ }));
     expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
       "href",
-      "/artifacts/a1?version=v3",
+      "/apps/a1?version=v3",
     );
   });
 
@@ -616,5 +627,66 @@ describe("a tool call in the transcript", () => {
     await open();
 
     expect(screen.queryByText("undefined")).toBeNull();
+  });
+});
+
+describe("one agent asking another", () => {
+  const asking = (overrides: Partial<ToolCall> = {}) =>
+    render(
+      <ToolCallCard
+        mcpServers={[]}
+        agents={[
+          { id: "a-fin", slug: "finance-analyst", name: "Finance Analyst", has_avatar: false },
+        ]}
+        toolCall={{
+          id: "t1",
+          name: "task",
+          args: { subagent_type: "finance-analyst", description: "Where does MRR stand?" },
+          status: "completed",
+          result: "MRR is €153k.",
+          ...overrides,
+        }}
+      />,
+    );
+
+  it("names the agent that was asked, by the name it goes by", () => {
+    asking();
+
+    expect(screen.getByRole("button", { name: /Asked Finance Analyst/ })).toBeInTheDocument();
+  });
+
+  it("says it is still asking while the delegate works", () => {
+    asking({ status: "running", result: undefined });
+
+    expect(screen.getByText("Asking Finance Analyst")).toBeInTheDocument();
+  });
+
+  it("says the person stopped it rather than asking on under a stopped turn", () => {
+    asking({ status: "unfinished", result: undefined });
+
+    expect(screen.getByText("Stopped asking Finance Analyst")).toBeInTheDocument();
+    expect(screen.queryByText("Asking Finance Analyst")).toBeNull();
+  });
+
+  it("opens onto the brief and the answer, folding a long brief", async () => {
+    asking();
+
+    await userEvent.click(screen.getByRole("button", { name: /Asked Finance Analyst/ }));
+
+    expect(screen.getByText("Where does MRR stand?")).toBeInTheDocument();
+    expect(screen.getByText("MRR is €153k.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
+
+  it("names a delegate the reader cannot see from its handle, without a brief it never got", async () => {
+    asking({ args: { subagent_type: "quarterly-report-researcher" }, result: "" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Asked Quarterly report researcher/ }),
+    );
+
+    expect(screen.queryByText("Brief")).toBeNull();
+    expect(screen.queryByText("Answer")).toBeNull();
   });
 });

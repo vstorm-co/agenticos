@@ -12,8 +12,6 @@ turns every file that column names into an apparent orphan, and the count stays
 plausible while being wrong.
 """
 
-from __future__ import annotations
-
 import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -32,6 +30,7 @@ from app.commands.data_protection import (
     _capability_destinations,
     _collect,
     _collections,
+    _conversation_of,
     _credentials,
     _external_connections,
     _local_services,
@@ -49,7 +48,7 @@ from app.db.base import Base
 
 pytestmark = pytest.mark.anyio
 
-MEDIA_COLUMN_NAMES = {"storage_path", "avatar_url", "logo_path", "favicon_path"}
+MEDIA_COLUMN_NAMES = {"storage_path", "avatar_url", "logo_path", "favicon_path", "thumbnail_path"}
 
 
 def _result(rows: list[tuple]) -> MagicMock:
@@ -353,6 +352,29 @@ class TestUnreferencedMedia:
         assert "medical-results" not in str(section.rows)
         assert "(2 under" in section.title
 
+    async def test_a_live_conversation_s_media_is_its_own_and_a_gone_one_s_is_orphaned(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Offloaded history and a visual's pictures have no row: the conversation's
+        prefix is their lifetime."""
+        org, live, gone = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        (tmp_path / "media" / str(org) / str(live) / "visuals" / "v").mkdir(parents=True)
+        (tmp_path / "media" / str(org) / str(live) / "visuals" / "v" / "logo.png").write_text("x")
+        (tmp_path / "media" / str(org) / str(gone)).mkdir(parents=True)
+        (tmp_path / "media" / str(org) / str(gone) / "offloaded.bin").write_text("x")
+        monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+        db = _db(*([[]] * len(MEDIA_PATH_COLUMNS)), [(live,)])
+
+        section = await _unreferenced_media(db)
+
+        assert section.rows == [[f"media/{org}/{gone}", 1]]
+
+    @pytest.mark.parametrize(
+        "path", ["user/a.pdf", "media/org/not-a-conversation/x.bin", "media/org/x.bin"]
+    )
+    def test_a_path_outside_a_conversation_s_media_belongs_to_none(self, path: str) -> None:
+        assert _conversation_of(path) is None
+
     def test_every_media_path_column_the_models_declare_is_in_the_list(self) -> None:
         listed = {(column.parent.class_.__name__, column.key) for column in MEDIA_PATH_COLUMNS}
         declared = {
@@ -367,6 +389,16 @@ class TestUnreferencedMedia:
 
 class TestTheReportItself:
     """What the command prints, and what it refuses to print."""
+
+    def test_the_rendering_browser_is_named_by_its_host_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            settings, "VISUAL_RENDER_CDP_URL", "http://render.internal:9222/devtools?token=s3cret"
+        )
+        cells = _cells(_settings_section())
+        assert "render.internal" in cells
+        assert not any("s3cret" in cell for cell in cells)
 
     def test_settings_never_print_a_credential(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", "pylf_v1_eu_secret")
@@ -392,8 +424,29 @@ class TestTheReportItself:
 
         cells = _cells(_settings_section())
 
-        assert cells.count("unset") == 3
+        assert cells.count("unset") == 4
         assert "none" in cells
+
+    @pytest.mark.parametrize(
+        ("hosts", "shown"),
+        [
+            (["postgres-mcp"], "postgres-mcp"),
+            (["postgres-mcp", "10.0.0.5"], "postgres-mcp, 10.0.0.5"),
+            ([], "none"),
+        ],
+    )
+    def test_the_mcp_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, hosts: list[str], shown: str
+    ) -> None:
+        """Each listed host is one this deployment may reach inside its own
+        network, so a reviewer should find it here, with the mem0 and browser
+        allowlists. Read by row: `none` in the cells could come from either of
+        those."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", hosts)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["MCP_ALLOWED_HOSTS"] == shown
 
     def test_the_settings_say_which_mail_path_is_live(
         self, monkeypatch: pytest.MonkeyPatch

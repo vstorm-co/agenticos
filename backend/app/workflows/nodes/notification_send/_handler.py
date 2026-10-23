@@ -19,8 +19,6 @@ idempotency key, and the notification center's `(recipient, event_type,
 occurrence_id)` uniqueness turns a second write into a no-op.
 """
 
-from __future__ import annotations
-
 import hashlib
 from typing import Literal
 from uuid import UUID

@@ -5,8 +5,6 @@ is the wiring: which path, which caller the service is handed, and that a refusa
 reaches the browser as a refusal.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch

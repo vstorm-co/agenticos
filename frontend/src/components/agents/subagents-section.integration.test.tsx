@@ -18,11 +18,13 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const DELEGATION: CapabilityCatalogEntry = {
+  recommended: null,
   id: "subagents",
   name: "Delegation",
   category: "orchestration",
   description: "Hand part of a task to another agent.",
   side_effecting: false,
+  voice: "live",
   scopes: ["agents:delegate"],
   tools: [],
   contracts: [],
@@ -64,6 +66,7 @@ function serve(permissions: Permission[]) {
       };
     }
     if (path === "/agents") return { items: [RESEARCHER], total: 1 };
+    if (path === "/external-agents") return { items: [] };
     if (path.endsWith("/versions")) return { items: [], total: 0 };
     throw new Error(`unexpected GET ${path}`);
   });
@@ -85,6 +88,8 @@ function mount() {
       subagents={[]}
       onChange={vi.fn()}
       onSubagentsChange={vi.fn()}
+      externalAgents={[]}
+      onExternalAgentsChange={vi.fn()}
     />,
     { wrapper },
   );

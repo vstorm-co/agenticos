@@ -1,18 +1,18 @@
-# Artifacts
+# Apps { #artifacts }
 
-An **artifact** is a page an agent published: a report, a small dashboard, a
+An **app** is a page an agent published: a report, a small dashboard, a
 one-page summary somebody opens in a browser. It has a link that stays the same
 when the agent publishes it again, so "every Monday, publish the week's numbers
 to this page" is one link people bookmark rather than a new one each week.
 
-An artifact is not a file. A chart, a generated PDF and a workspace file already
-have a home in the chat and in the [workspace](sandbox.md). An artifact is the
+An app is not a file. A chart, a generated PDF and a workspace file already
+have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
 ## Publishing one
 
-Turn on the **Artifacts** capability for the agent. It adds five tools:
+Turn on the **Apps** capability for the agent. It adds five tools:
 `publish_artifact`, which the model calls when the result is something a person
 should open rather than read once in the chat; `read_artifact`, which reads a
 published page back; `list_artifacts`, which names the pages a run may open; and
@@ -21,7 +21,7 @@ published page back; `list_artifacts`, which names the pages a run may open; and
 The page comes from one of three places:
 
 - **A file in the agent's workspace**, ending in `.html` or `.md`. This is the
-  usual case for an agent with the [Files & shell](reference/capabilities.md#files-shell)
+  usual case for an agent with the [Sandbox](reference/capabilities.md#files-shell)
   capability: it writes `report.html`, runs whatever builds it, then publishes
   the file. The bytes are read through the run's own workspace backend, so it
   works on every sandbox backend.
@@ -632,8 +632,8 @@ audited as `artifact.action_started` with the page, the version, the workflow an
 
 ## One name, one link
 
-The identity of an artifact is its **name within the agent** - `weekly-report`,
-`churn-dashboard`. Publishing under the same name updates the same artifact,
+The identity of an app is its **name within the agent** - `weekly-report`,
+`churn-dashboard`. Publishing under the same name updates the same app,
 from any surface: the chat, the API, a [trigger](triggers.md) or a workflow. A
 new name makes a new page. The name is lower-case letters, digits and hyphens,
 up to 64 characters.
@@ -645,14 +645,14 @@ republish the page production readers have bookmarked. The environment is read
 from the run itself, never from the model, and the list and the page name it.
 
 The name is shared by everybody who runs the agent, but the page is not. A run
-republishes an existing artifact only when the person it acts for owns it or
+republishes an existing app only when the person it acts for owns it or
 holds `artifacts:edit` on it - from the role or from an `edit` grant, the same
 rule as managing it in the console. Anybody else's run is told the name is taken
 and publishes under another one, so a colleague asking the same shared agent for
 a `weekly-report` cannot replace the page behind your link.
 
 Every publication is a new **version**. Nothing is overwritten, so the version
-list on the artifact's page is the page's history. Two things keep that history
+list on the app's page is the page's history. Two things keep that history
 bounded:
 
 - Publishing exactly the bytes the current version holds adds no version. The
@@ -706,12 +706,18 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/agenticos-3.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData`, `AO.records`, and `AO.run` and `AO.onRun` for [actions](#actions) |
 | `lib/agenticos-2.css`, `lib/agenticos-2.js` | The previous version of the kit, kept for the pages published against it |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, as `window.L` - draws on the deployment's [map tiles](#visuals), when it has any |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins dropped in order, a line joining them, pause and replay, and cards for the stops - on map tiles, or as an outline of the stops without them |
 
-Every name carries its version and is cached for a year. An upgrade adds a new
-file beside the old one, so a page published against a version keeps getting it,
-and a shipped file is never edited. Nothing is fetched from outside the
-deployment, so an air-gapped one works the same way. The files are listed in
-`backend/app/core/catalog/artifact_lib/`.
+Every name carries its version and is cached for a year. The files answer
+`Access-Control-Allow-Origin: *`, because a module script is fetched in CORS mode
+and a page in an opaque origin sends `Origin: null` - without it three.js would not
+import. An upgrade adds a new
+file beside the old one, so a page published against a version keeps getting it.
+Nothing is fetched from outside the deployment, so an air-gapped one works the
+same way. The files are listed in `backend/app/core/catalog/artifact_lib/`.
 
 Version 3 keeps every class and call of version 2. It also forgives markup a
 model writes loosely: a title, subtitle and meta line placed straight in the
@@ -726,7 +732,7 @@ the mandatory skeleton, every class of the kit, three templates (a dashboard, a
 report and a live table drawn with `AO.records`), the house style, icons instead
 of emoji, and how to change a page with `read_artifact`. A new organization gets
 it with the other bundled skills, an existing one through `seed-skills`, and the
-Artifacts capability's **Page style** tab in the Builder offers it. Edit the
+Apps capability's **Page style** tab in the Builder offers it. Edit the
 skill to describe your own brand, and the agent follows it.
 
 ### The page contract and the publish warnings
@@ -734,7 +740,7 @@ skill to describe your own brand, and the agent follows it.
 The agent cannot see the page it publishes, so the platform tells it what a page
 must look like and what looks wrong in the one it sent.
 
-The Artifacts capability gives every agent that has it a short **page contract**
+The Apps capability gives every agent that has it a short **page contract**
 in its instructions, whether or not the skill is bound: the skeleton (doctype,
 viewport, `lang`, the kit's stylesheet and script in order, `main.ao-page` and
 the header), a closed list of the kit's most-used classes, Lucide icons rather
@@ -789,9 +795,92 @@ off in the capability's settings for a model that cannot read images; the
 report still comes back. `agenticos cmd doctor` says whether the renderer
 answers.
 
+## Visuals
+
+A [visual](reference/capabilities.md#visuals) is an app that has not been saved:
+a drawing an agent writes into the conversation with `draw`, shown under its
+message while it is written. It is the same kind of document - an `html` visual is
+a page, and an `svg` or `mermaid` one becomes a page that holds it - and it is
+drawn with the same isolation.
+
+**The frame.** `/api/v1/artifact-content/visual-frame` is one fixed page on the
+content origin, served with the very policy every app's page gets. It holds no
+drawing: the console posts the drawing into it as it streams, so nothing has to
+be stored before it can be shown, and the isolation comes from the response
+header rather than a `srcdoc` meta tag. While the call streams, the frame morphs
+the markup in place with scripts and `on*` handlers removed; when it is complete,
+it writes the whole document so its scripts run, exactly as the saved page will.
+The frame reports its size, its errors and a heartbeat; a drawing that stops
+beating is taken down rather than left to hold the tab.
+
+**In the chat.** A drawing sits in the conversation itself, with no card around
+it, from the left edge of the message's text: an SVG is fitted by its `viewBox`
+and shrunk past 560 pixels, a page is laid out at the column's width and shrunk
+past 900. A quiet line under it names it and says whether it is still being
+drawn; *Show code*, *Download* (`.svg`, `.html`, or the Mermaid source), *Copy
+as image* for an SVG, *Save to Apps* and *Full screen* appear on that line when
+the pointer is over the drawing, and always on a touch screen. While it streams,
+the drawing keeps the height its call declared, on a faint shade, so the
+conversation does not move under the reader. Full screen shows it at its own
+size; on a phone the preview opens full screen at a tap. Zoom sits in the
+drawing's bottom right corner while the pointer is on it: an SVG is drawn
+larger, a page is scaled, and the box scrolls once the drawing outgrows it. An
+error the drawing reports comes with *Fix it*, which asks the agent.
+
+**Follow-ups.** A control in a drawing can hand the person's choice back to the
+conversation - *Plan this stop*, *Use these numbers* - by calling
+`agenticos.followUp(text)`. The drawing only asks. The console shows the exact
+text under the drawing with *Send*, *Edit* and *Dismiss*, and it becomes the
+person's message only when they click *Send*, a click the drawing cannot make
+for them. A request arriving with no user interaction behind it - on load, on a
+timer - is dropped, as is one over 2,000 characters, and while one waits a
+second cannot replace it. Follow-ups are offered only in the chat:
+`agenticos.canFollowUp()` is false in a shared thread, the widget and an app,
+where `followUp` does nothing and returns `false`, so a saved drawing keeps
+working.
+
+**Maps.** With [`VISUAL_MAP_TILES`](configuration.md#published-artifacts) set, a
+drawing or an app can draw on real map tiles: the deployment fetches each tile
+from that server and serves it from its own tile path, `agenticos.map` says
+where, and the map kit draws an itinerary on it with the server's credit
+underneath. Without it, the same call draws an outline of the stops - pins and
+the line between them, no streets - and so does a map whose tiles do not load.
+A chat app's picture of a map is drawn finished, with every pin in place.
+
+**Choosing the form.** The `visual-design` skill tells the agent when a drawing
+is the right answer at all: text for a fact or advice, a Markdown table for
+exact values, `create_chart` for numbers to see - so "now chart it" turns a
+table into a native chart - and a drawing to explain how something moves, to
+make a tool for the moment, or to follow places on a map. Its templates are a
+diagram, an explainer with sliders, a 3D aircraft with pitch, roll and yaw, a
+calculator and an itinerary. An empty chat with an agent that draws opens on
+one starter for each. Switching Visuals on in the Builder binds Charts too.
+
+**Downloading one.** A file opened from disk has no frame around it, so the
+download carries what the frame enforced. An SVG keeps the drawing and loses
+what could run or reach out: scripts, handlers, embedded documents and any
+reference outside the file. A page opens with the frame's policy ahead of
+everything it wrote, and loads its libraries from this deployment's artifact
+origin.
+
+**Saving one as an app.** *Save to Apps* takes a title and a name, both filled
+in, and publishes the visual as a version of an app under the agent whose turn
+drew it, in the environment that turn ran in, owned by the person saving it and
+private to them until they share it.
+The server rebuilds the visual from the transcript - revisions applied - rather
+than taking bytes from the browser, so the app is exactly what the agent drew.
+Saving under a name the person already has adds a version to that app, which is
+how a revision of a saved drawing updates the page it was shared as. Saving takes
+`artifacts:edit`.
+
+**From a delegate.** A drawing stays in the run that made it, so an agent
+working as another agent's delegate does not draw: `draw` tells it so, and it
+describes the picture in its result for the agent it works for to draw in the
+conversation.
+
 ## Who can open it
 
-A new artifact is **private** to the person the publishing run acted for: the
+A new app is **private** to the person the publishing run acted for: the
 person in the chat, or the creator of a trigger. A private page is also visible
 to the Owner, Admin, Builder and Operator roles: their `artifacts:view` is at scope
 `ALL`, so they open every page in the organization whatever its visibility and
@@ -802,7 +891,7 @@ disclosure names them.
 Its link - the one the chat card and the agent's reply point at - opens the page
 itself (from the chat card, in a new tab), filling the window under one strip with its title, its version and
 **Share**. Nobody gets in through that link alone: it opens only for a signed-in
-member the rules below already let in. It names the organization the artifact is
+member the rules below already let in. It names the organization the app is
 in (`?org=`), so a member of several lands in the right one.
 
 Under **Share**, anybody who may manage it can share it three ways:
@@ -810,13 +899,13 @@ Under **Share**, anybody who may manage it can share it three ways:
 | Reach | How | Who |
 |---|---|---|
 | Specific people | A grant, at `read`, `edit`, or for a page, `edit_data` ("Can edit, including data") | Those members, in this organization |
-| The organization | Visibility set to the whole organization | Every member whose role reaches shared artifacts |
+| The organization | Visibility set to the whole organization | Every member whose role reaches shared apps |
 | Anyone with the link | **Create a public link** | Anybody holding the address, without an account |
 
 Sharing and visibility use the same panel and the same rules as agents and
-skills; see [Permissions](permissions.md). Managing an artifact - sharing it,
+skills; see [Permissions](permissions.md). Managing an app - sharing it,
 its public link and its settings, restoring a version, deleting it - needs
-`artifacts:edit` on that artifact, from the role or from an `edit` grant.
+`artifacts:edit` on that app, from the role or from an `edit` grant.
 Opening it needs `artifacts:view`.
 
 The agent cannot widen who reads a page. It publishes, and `share_artifact` only
@@ -849,7 +938,7 @@ its content address again, answers 404 right away: the address names the link's 
 and the route checks that key on every load. The address's own lifetime,
 `ARTIFACT_VIEW_TTL_SECONDS` (five minutes by default), is only the outer bound.
 
-A revoked member is in the same position as before: they lose the artifact on their
+A revoked member is in the same position as before: they lose the app on their
 next request, and a page they already had open stays for that same window at most.
 
 Under the link, **Share** holds its settings. They stay when the link is replaced,
@@ -975,7 +1064,7 @@ already serves as many data loads as it may, a binding that needs a read comes b
 
 ## How the page is isolated
 
-An artifact is HTML with script in it, written by a model that may have read
+An app is HTML with script in it, written by a model that may have read
 something hostile. It is served so that nothing it does can reach the console or
 the person looking at it:
 
@@ -990,7 +1079,12 @@ the person looking at it:
   somebody opens the content address on its own.
 - The same policy sets `default-src 'none'` and `connect-src 'none'`. The only
   remote source it names is the library set's own path on the content origin,
-  for scripts, styles and fonts. `frame-ancestors` names only the console - and,
+  for scripts, styles and fonts - and, on a deployment that sets
+  `VISUAL_MAP_TILES`, images from its own tile path,
+  `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. That route takes three numbers,
+  each checked against the zoom it can exist at, and fetches the tile itself, so
+  a page never learns the tile server's address or key and can send it nothing
+  it chose. `frame-ancestors` names only the console - and,
   for a page with a public link and embedding sites, the embed document and
   those sites. The frame in the console carries the same `sandbox` list as a
   second lock.
@@ -1002,7 +1096,9 @@ the person looking at it:
   new tab only when the person agrees; the embed document does the same in a bar
   under the page. The page could send that message itself, so it is a request and
   never a permission - the person reading the address is what stands between a
-  prompt-injected page and the address it would send its numbers to.
+  prompt-injected page and the address it would send its numbers to. A
+  [follow-up](#visuals) is the same kind of request: the console shows the text
+  and a person sends it.
 - Live data reaches a member's page in two ways, both decided per viewer on the
   server. On load, the content route writes each binding's records into the page's
   platform script for the member the signed address names; a refresh arrives by
@@ -1026,7 +1122,7 @@ the person looking at it:
   fresh address each time they draw the frame, and minting one through a public
   link is itself limited per link.
 
-The **Artifacts** list draws each card's current page as a live thumbnail
+The **Apps** list draws each card's current page as a live thumbnail
 through the same kind of frame, with script and nothing else: no dialogs, no
 popups, no forms. Script, so a dashboard whose charts a library draws is not an
 empty canvas on its card. The thumbnail is inert - no pointer events, out of the
@@ -1059,7 +1155,7 @@ were not there:
   address minted before the archive. A reader who opens its link is told it is
   not available. Someone who may edit it sees when it was archived, with
   **Restore** and **Delete**.
-- **Lists.** The Artifacts list and the dashboard widget leave it out. Choose
+- **Lists.** The Apps list and the dashboard widget leave it out. Choose
   **Archived included** on the list to see it, marked **Archived**. Only those who
   may edit it see it there.
 - **The public link and the embed.** Both open nothing.
@@ -1081,20 +1177,35 @@ right to edit that page, a grant included. `GET /api/v1/artifacts` lists
 archived pages, to those who may edit them, only with `include_archived=true`, and
 `archived_at` on each page says when it was archived.
 
+## Following a page
+
+**Follow** on a page's bar puts a notice in your inbox each time it gets a new
+version - an agent republished it with different content, or somebody restored
+an older version. A republish that changes nothing tells nobody, so a schedule
+that found nothing new stays quiet. The person whose run or restore made the
+version is not told about their own change.
+
+Following gives no access. Anybody who can open the page can follow it, and a
+follower who loses access stops receiving notices without unfollowing. The
+inbox checks access again when it is read, so a notice about a page that is no
+longer yours to open disappears with that access. The notice can also be sent
+by email; turn either channel off under **Settings → Notifications → App
+updated**.
+
 ## Retention and deletion
 
-Artifacts are a [retention class](governance.md#the-classes) of their own,
+Apps are a [retention class](governance.md#the-classes) of their own,
 measured from the **last publication** - a report republished every week is
-alive however old its first version is. Like every class, it keeps artifacts for
+alive however old its first version is. Like every class, it keeps apps for
 ever until an organization or the deployment sets a period.
 
-Deleting an artifact - by hand or by retention - removes every version, its
+Deleting an app - by hand or by retention - removes every version, its
 stored bytes, its grants and its public link. An archived page ages and is
 deleted like any other. Deleting the agent does not delete
-its artifacts: they stay readable and simply have no publisher. Deleting a named
+its apps: they stay readable and simply have no publisher. Deleting a named
 environment does the same to the pages published from it, so they never land on
 the default environment's page of the same name. Deleting the organization
-removes them. A deleted person's artifacts stay and lose their owner, the way
+removes them. A deleted person's apps stay and lose their owner, the way
 their agents and skills do.
 
 The bytes live in the deployment's [file storage](configuration.md#uploaded-files-at-rest),
@@ -1136,6 +1247,12 @@ under `artifacts/<organization>/<artifact>/`.
   read the markup and cannot tell how it looks. With one, the picture is a
   headless Chromium's: fonts and sizes can differ slightly from a reader's
   browser.
+- **A visual draws only in the web chat and a shared thread.** A chat app gets a
+  picture of it where `VISUAL_RENDER_CDP_URL` names a browser, and its title
+  otherwise; the widget and an embed on another site show its title.
+- **A shared thread shows its newest twelve visuals**, and no more than 16 MB of
+  them between them. Anybody holding the link can open it as often as they like,
+  so one view is bounded; a turn past either keeps its text and shows no drawing.
 
 ## Recap
 

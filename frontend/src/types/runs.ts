@@ -6,8 +6,21 @@ export type RunStatus =
   | "failed"
   | "cancelled"
   | "awaiting_approval"
+  /** Parked on an agent's question its person left unanswered (#2064). */
+  | "awaiting_answer"
   | "budget_exceeded"
-  | "guardrail_blocked";
+  | "guardrail_blocked"
+  /** Stopped for looping on its tool calls after it was warned (#2086). */
+  | "loop_stopped";
+
+/** One call as Activity shows it: every connection of it, summed (#54). */
+export interface VoiceChain {
+  /** 1, plus one per reconnect. */
+  connections: number;
+  seconds: number;
+  /** A decimal string, like `cost_usd`. */
+  cost_usd: string;
+}
 
 export interface AgentRun {
   id: string;
@@ -26,10 +39,16 @@ export interface AgentRun {
   provider: string | null;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache (#2170). */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache (#2170). */
+  cache_write_tokens?: number;
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
+  /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
+  tool_args_repaired?: number;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the
@@ -56,12 +75,22 @@ export interface AgentRun {
    * it is `false` on any surface that does not, never absent.
    */
   down_rated: boolean;
+  /** Started from the Builder's test panel (#2074); optional on surfaces that predate it. */
+  is_test?: boolean;
   /**
    * The thread the run ran inside, or null when it ran with no conversation -
    * an API call, a resumed run. `AgentRunRead` has carried it all along; the
    * run table reads it to offer the chat behind a run (#765).
    */
   conversation_id: string | null;
+  /** `voice` for a call, `text` for everything typed (#54). */
+  modality: "text" | "voice";
+  /**
+   * For a voice run on the run list: every connection of the call, summed - a
+   * reconnect's run continues the call and is not listed on its own. Null for
+   * text runs and on every other read.
+   */
+  voice_chain: VoiceChain | null;
   started_at: string | null;
   ended_at: string | null;
   /**
@@ -224,6 +253,10 @@ export interface ManifestRequest {
   finish_reason: string | null;
   /** The exception class, where the request raised - never its message. */
   failed: string | null;
+  /** `bust` when its cached prompt prefix collapsed early, `expired` when past retention (#2109). */
+  cache?: "bust" | "expired" | null;
+  /** Of the prefix earlier requests cached, the tokens it did not read back. */
+  cache_missed_tokens: number;
 }
 
 /**
@@ -247,8 +280,29 @@ export interface RunManifest {
   requests: ManifestRequest[];
   /** The last request's messages, dumped - what the model saw at the end. */
   messages: Record<string, unknown>[];
+  /** Each correction a run reviewer sent, and who sent it (#2106). */
+  reviews?: ManifestReview[];
+  /** Each `run_code` script code mode ran, and the calls it made (#2107). */
+  code_runs?: ManifestCodeRun[];
   /** Whether the record was trimmed to fit its size ceiling. */
   truncated: boolean;
+}
+
+/** One correction a run reviewer sent while the run went. */
+export interface ManifestReview {
+  reviewer: string;
+  /** The model request the review read up to. */
+  after_request: number;
+  steer: string;
+}
+
+/** One script code mode ran. */
+export interface ManifestCodeRun {
+  tool_call_id: string;
+  code: string;
+  calls: { tool: string; args: string; status: "returned" | "failed" }[];
+  /** Calls past the ones listed - a script that loops can make thousands. */
+  omitted_calls?: number;
 }
 
 export interface ToolApproval {
@@ -279,6 +333,11 @@ export interface ToolApproval {
    * describes, or a call whose description failed.
    */
   context?: Record<string, string> | null;
+  /**
+   * Which of a service's accounts the call acts as - a labelled connection, or one of
+   * several accounts on one service. Null where there is nothing to tell apart.
+   */
+  account?: string | null;
   /**
    * Who started the run this call belongs to.
    *
@@ -354,6 +413,14 @@ export interface CostByAgent {
   monthly_cap_usd: string | null;
 }
 
+/** One UTC day's spend - `GET /spend` sends only the days that had runs. */
+export interface CostByDay {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  cost_usd: string;
+  run_count: number;
+}
+
 /** One model provider's share of the bill. */
 export interface CostByProvider {
   /** Null for runs recorded before this was tracked - shown as such, never folded in. */
@@ -399,6 +466,29 @@ export interface CostSummary {
   by_provider: CostByProvider[];
   /** Which key it went through, which is how a leaked or misused one is found. */
   by_key: CostByKey[];
+  /** Spend per UTC day over the window - days with no runs are absent. */
+  by_day: CostByDay[];
+  /** Prompt-cache busts and expiries per agent and model, most busts first (#2109). */
+  cache_by_agent_model: CacheByAgentModel[];
+}
+
+/**
+ * One agent on one model, over the Spend tab's window: how often its cached
+ * prompt prefix collapsed. A *bust* moved while the provider should still have
+ * held it, and was billed at the full input rate; an *expiry* had outlived the
+ * provider's retention.
+ */
+export interface CacheByAgentModel {
+  agent_id: string;
+  agent_slug: string;
+  agent_name: string;
+  model_label: string | null;
+  busts: number;
+  expiries: number;
+  /** Tokens earlier requests had cached that these did not read back. */
+  missed_tokens: number;
+  /** Runs with at least one bust or expiry. */
+  run_count: number;
 }
 
 /**
@@ -420,6 +510,7 @@ export interface ParkedCall {
   capability_tool_id?: string | null;
   /** The arguments' ids as names, as `ToolApproval.context` carries them. */
   context?: Record<string, string> | null;
+  account?: string | null;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */
@@ -471,6 +562,8 @@ export interface ResumedRun {
    */
   settled?: SettledCall[];
   parked?: ParkedCall[];
+  /** The questions the run is now waiting on its person to answer, if it asked again. */
+  questions?: ParkedQuestion[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /**
@@ -482,4 +575,23 @@ export interface ResumedRun {
   cost_is_partial: boolean;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache. */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache. */
+  cache_write_tokens?: number;
+}
+
+/** One question as the server carries it, before the card's own shape (#2064). */
+export interface WireQuestion {
+  question: string;
+  header?: string | null;
+  options?: { label: string; description?: string | null }[];
+  multi_select?: boolean;
+  allow_custom: boolean;
+}
+
+/** An agent's question a run is waiting on its person to answer (#2064). */
+export interface ParkedQuestion {
+  tool_call_id: string;
+  questions: WireQuestion[];
 }

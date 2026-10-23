@@ -16,8 +16,10 @@ import pytest
 
 from app.services.embed_session import WIDGET_JS
 
-RENDERED = WIDGET_JS.replace("__PUBLIC_KEY__", "test-key").replace(
-    "__BASE_URL__", "https://api.example.test"
+RENDERED = (
+    WIDGET_JS.replace("__PUBLIC_KEY__", "test-key")
+    .replace("__BASE_URL__", "https://api.example.test")
+    .replace("__VOICE_VERSION__", "0123abcd")
 )
 
 
@@ -54,14 +56,47 @@ def test_it_speaks_the_documented_frames():
         assert f'"{frame}"' in RENDERED
 
 
-def test_it_ignores_the_frames_it_does_not_draw():
-    """A widget is a bubble in the corner of somebody else's page: an answer
-    arriving a word at a time is worth having there, a narration of tool calls is
-    not. The page draws those, and `docs/channels.md` says which client reads what -
-    so a widget that quietly started rendering them would make that page wrong.
-    """
-    for frame in ("thinking_delta", "tool_call", "tool_result"):
-        assert f'"{frame}"' not in RENDERED
+def test_it_draws_the_steps_and_the_sources_but_not_the_reasoning():
+    """A step reads as a chip - *Searching the knowledge base* - and the documents
+    an answer drew on as names under it (#2006). Both arrive only when the server
+    sends them: `tool_call` without its arguments unless the operator shows
+    results, `sources` only when they switched it on. The reasoning stays out:
+    `docs/channels.md` says which client reads what."""
+    for frame in ("tool_call", "tool_result", "sources"):
+        assert f'"{frame}"' in RENDERED
+    assert '"thinking_delta"' not in RENDERED
+
+
+@pytest.mark.security
+def test_an_answer_is_never_parsed_as_html():
+    """An answer is model output drawn on a customer's page; a string handed to
+    `innerHTML` there is script on their site. The one `innerHTML` is the send
+    button's icon, a literal in this file."""
+    assignments = re.findall(r"\.innerHTML\s*=\s*([^;]+);", RENDERED)
+    assert len(assignments) == 1
+    assert assignments[0].lstrip().startswith("'<svg")
+    assert "insertAdjacentHTML" not in RENDERED
+    assert "document.write" not in RENDERED
+
+
+@pytest.mark.security
+def test_a_link_in_an_answer_is_only_ever_http():
+    """`javascript:` in a Markdown link is the classic way out of a chat bubble."""
+    assert "if (!/^https?:\\/\\//i.test(href)) return document.createTextNode(label);" in RENDERED
+    assert 'a.rel = "noopener noreferrer nofollow";' in RENDERED
+
+
+def test_every_style_rule_is_its_own():
+    """The stylesheet lands on somebody else's page: a rule not scoped to the
+    widget's root would restyle their site."""
+    css = RENDERED.split("var CSS = [")[1].split("].join")[0]
+    selectors = re.findall(r"\"([^\"{}]+)\{", css)
+    assert selectors
+    for selector in selectors:
+        if selector.startswith("@") or selector in ("from", "to") or "%" in selector:
+            continue
+        for part in selector.split(","):
+            assert part.strip().startswith(".aos-"), part
 
 
 def test_a_refusal_is_not_retried():
@@ -88,15 +123,19 @@ def test_no_close_leaves_the_box_silently_dead():
     some third code would satisfy a copy check and not the visitor.
     """
     assert "The connection dropped." in RENDERED
-    assert 'else bubble("assistant", "The connection dropped.' in RENDERED
+    assert 'else botBubble("The connection dropped.' in RENDERED
 
 
 def test_a_half_written_answer_is_settled_when_the_socket_goes():
-    """`pending` is the bubble the deltas were landing in. Left as it was, a
-    sentence the agent was cut off mid-way through reads as the answer it gave."""
+    """`turn` is the answer the deltas were landing in. Left as it was - caret and
+    all - a sentence the agent was cut off mid-way through reads as one still
+    coming; an empty one is removed."""
     close = RENDERED.split("socket.onclose")[1]
-    assert "pending.remove()" in close
-    assert "pending = null" in close
+    assert close.index("endTurn();") < close.index("4003")
+    settle = RENDERED.split("function endTurn()")[1].split("function connect()")[0]
+    assert ".remove()" in settle
+    assert "draw(turn, false)" in settle
+    assert "turn = null" in settle
 
 
 def test_only_a_refusal_survives_a_reopen():
@@ -128,3 +167,130 @@ def test_it_is_valid_javascript():
         )
 
     assert result.returncode == 0, result.stderr
+
+
+def _voice() -> str:
+    """The voice section alone, so an assertion about it is not satisfied by the chat."""
+    return RENDERED.split("function mountVoice")[1].split("function mount()")[0]
+
+
+def test_a_recording_goes_to_the_embeds_own_dictation_route():
+    """Server dictation posts to the public route, which admits the widget by its
+    allow-list exactly as the socket does (#1797)."""
+    assert '"/api/v1/embed/" + KEY + "/dictation"' in RENDERED
+
+
+@pytest.mark.security
+def test_the_recording_request_carries_no_custom_header():
+    """A custom header is a CORS preflight, which the global policy refuses for
+    somebody else's site - so the token travels as a form field, never in the URL
+    where access logs keep it."""
+    voice = _voice()
+    assert "headers:" not in voice
+    assert 'body.append("token", token)' in voice
+    assert "?token=" not in voice
+
+
+def test_the_wav_path_resamples_before_it_encodes():
+    """The server accepts exactly 16 kHz mono 16-bit PCM, whatever rate the
+    microphone delivers, so the widget resamples and mixes down before it
+    writes the samples - and its header says exactly that."""
+    assert "var WAV_RATE = 16000;" in RENDERED
+    assert "createResampler(context.sampleRate)" in RENDERED
+    assert "toPcm16(resample(mixToMono(channels)))" in RENDERED
+    assert 'config.dictation_format === "wav"' in RENDERED
+    header = RENDERED[RENDERED.index("function wavHeader") : RENDERED.index("function wavRecorder")]
+    for field in (
+        "view.setUint32(16, 16, true);",  # a 16-byte `fmt ` body
+        "view.setUint16(20, 1, true);",  # integer PCM
+        "view.setUint16(22, 1, true);",  # one channel
+        "view.setUint32(24, WAV_RATE, true);",
+        "view.setUint32(28, WAV_RATE * 2, true);",
+        "view.setUint16(32, 2, true);",
+        "view.setUint16(34, 16, true);",
+    ):
+        assert field in header
+
+
+def test_the_text_is_put_in_the_box_and_never_sent():
+    """The visitor reads and edits a transcript before it becomes a message."""
+    assert "socket.send" not in _voice()
+    assert "input.value = value + text" in _voice()
+
+
+def test_every_refusal_the_route_names_has_a_sentence():
+    for reason in (
+        "requesting",
+        "too_short",
+        "mic_denied",
+        "mic_not_found",
+        "mic_busy",
+        "mic_insecure",
+        "unsupported_type",
+        "empty",
+        "too_large",
+        "provider_error",
+        "timeout",
+        "rate_limited",
+        "offline",
+        "unavailable",
+    ):
+        assert f"    {reason}: " in RENDERED
+
+
+def test_reduced_motion_holds_the_level_still():
+    assert "prefers-reduced-motion: reduce" in RENDERED
+
+
+def test_browser_mode_is_offered_only_where_the_browser_has_a_recogniser():
+    assert 'if (mode === "browser" && !Recognition) return;' in RENDERED
+
+
+def test_the_call_script_is_fetched_only_for_an_embed_with_calls_on():
+    """`voice.js` is its own script so the bubble every visitor downloads stays
+    small (#54, Q8): requested when the panel opens, and only when the public
+    config offers calls."""
+    loader = RENDERED.split("function loadVoice")[1].split("function mount()")[0]
+    assert '"/api/v1/embed/" + KEY + "/voice.js?v=0123abcd"' in loader
+    assert "if (voiceRequested) return;" in loader
+    assert "window.AgenticOSVoice[KEY]" in loader
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
+    assert "if (open && config.voice_conversation) loadVoice(callParts);" in opening
+
+
+def test_a_failed_call_script_can_be_fetched_again():
+    loader = RENDERED.split("function loadVoice")[1].split("function mount()")[0]
+    assert "script.onerror = function () { voiceRequested = false; };" in loader
+
+
+def test_closing_the_panel_ends_a_call():
+    """A call with its End button hidden would go on billing out of sight."""
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
+    assert "if (!open && voiceCall) voiceCall.end();" in opening
+    assert "voiceCall = mountCall(parts, config)" in RENDERED
+
+
+def test_closing_the_panel_abandons_a_dictation():
+    """A recording with its Stop and Cancel hidden would run on to the limit
+    unseen, then be transcribed and paid for (review of #2138)."""
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
+    assert "if (!open && dictation) dictation.abandon();" in opening
+    assert "var dictation = mountVoice(" in RENDERED
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    assert 'return { abandon: function () { if (phase !== "idle") abandon(); } };' in voice
+    assert "return { abandon: function () { if (listening) listening.abort(); } };" in voice
+
+
+def test_escape_cancels_a_dictation_without_closing_the_panel():
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    assert "event.preventDefault(); event.stopPropagation(); abandon();" in voice
+
+
+def test_the_last_seconds_are_announced_once_and_counted_where_nothing_reads_them():
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    ticker = voice.split("ticker = setInterval")[1].split("}, 1000);")[0]
+    assert "if (left <= NEAR_LIMIT_SECONDS && !warned)" in ticker
+    assert "warned = true;" in ticker
+    # The ticking count is the clock's, which is `aria-live="off"`.
+    assert 'status.setAttribute("aria-live", "off");' in voice
+    assert "status.textContent = left <= NEAR_LIMIT_SECONDS" in ticker

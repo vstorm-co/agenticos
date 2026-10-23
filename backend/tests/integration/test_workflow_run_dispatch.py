@@ -1,12 +1,10 @@
 """What a dispatch tick does to a run, against a real Postgres.
 
 Each test drives `claim` / `begin_attempt` / `call_handler` / `settle` the way
-`workflow_dispatch_node_flow` sequences them, one committed transaction per
+`workflow_tasks.dispatch_node` sequences them, one committed transaction per
 phase, with a node definition registered for the test so the handler can do
 what no shipped node does yet: spend money, raise, wait.
 """
-
-from __future__ import annotations
 
 import asyncio
 import uuid
@@ -15,7 +13,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel
@@ -49,11 +47,13 @@ from app.services.approvals import ApprovalService
 from app.services.workflow_execution import WorkflowExecutionService, budget, context, dispatcher
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
-from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
+from app.worker.jobs import DispatchWorkflowNode
+from app.worker.tasks import workflow_tasks
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from tests.integration.workflow_run_support import queued_dispatches
 
 pytestmark = pytest.mark.anyio
 
@@ -222,7 +222,7 @@ async def _seed(
 
 
 async def _tick(seeded: Seeded, node_run_id: uuid.UUID) -> dispatcher.BegunAttempt | None:
-    """One `workflow_dispatch_node_flow` tick for `node_run_id`, phase by phase."""
+    """One `workflow_tasks.dispatch_node` tick for `node_run_id`, phase by phase."""
     factory = seeded.factory
     async with factory() as db:
         claim = await dispatcher.claim(db, node_run_id=node_run_id)
@@ -240,6 +240,14 @@ async def _tick(seeded: Seeded, node_run_id: uuid.UUID) -> dispatcher.BegunAttem
         await dispatcher.settle(db, begun=begun, outcome=outcome)
         await db.commit()
     return begun
+
+
+async def _dispatch(seeded: Seeded) -> str:
+    """The job `workflow-dispatch-node`, run in-process for the seeded entry node."""
+    outcome = await workflow_tasks.dispatch_node(
+        DispatchWorkflowNode(workflow_run_id=seeded.run.id, node_run_id=seeded.entry.id)
+    )
+    return outcome.status
 
 
 async def _run_row(seeded: Seeded) -> WorkflowRun:
@@ -350,7 +358,11 @@ async def _expire_claims(seeded: Seeded) -> None:
         await db.execute(
             sql_update(DispatchOutbox)
             .where(DispatchOutbox.workflow_run_id == seeded.run.id)
-            .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+            .values(
+                lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+                # Its job came due long enough ago for the sweep to look at it.
+                submitted_at=datetime.now(UTC) - timedelta(hours=1),
+            )
         )
         await db.commit()
 
@@ -374,7 +386,7 @@ class TestDeterministicDispatchFailures:
         assert [node.status for node in await _node_runs(seeded)] == [NodeRunStatus.FAILED.value]
         await _expire_claims(seeded)
         async with seeded.factory() as db:
-            assert await WorkflowReconcilerService(db).stale_claims() == []
+            assert await WorkflowReconcilerService(db).stale_claims() == 0
 
     async def test_a_definition_registered_without_a_handler_fails_the_run(
         self, engine: AsyncEngine, node_kind
@@ -606,14 +618,12 @@ class TestPrincipalRecheckedAtEveryDispatch:
 
 
 class TestLeaseKeptAliveThroughTheFlow:
-    """`workflow_dispatch_node_flow` itself, run in-process: the handler runs
-    between the flow's own transactions while the reconciler sweeps."""
+    """`workflow_tasks.dispatch_node` itself, run in-process: the handler runs
+    between the job's own transactions while the reconciler sweeps."""
 
     @pytest.fixture(autouse=True)
     def _short_lease(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKFLOW_DISPATCH_LEASE_SECONDS", 0.6)
-        with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-            yield
 
     async def test_a_handler_that_outlives_the_lease_settles_completed_exactly_once(
         self, engine: AsyncEngine, node_kind
@@ -632,7 +642,7 @@ class TestLeaseKeptAliveThroughTheFlow:
                     sweeps.append(
                         (
                             await service.resolve_orphaned_attempts(),
-                            len(await service.stale_claims()),
+                            await service.stale_claims(),
                         )
                     )
                     await db.commit()
@@ -641,7 +651,7 @@ class TestLeaseKeptAliveThroughTheFlow:
         seeded = await _seed(engine, _chain(node_kind(handler), 1))
         seeded_holder.append(seeded)
 
-        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+        status = await _dispatch(seeded)
 
         assert status == "settled"
         assert sweeps == [(0, 0)] * 8
@@ -684,7 +694,7 @@ class TestLeaseKeptAliveThroughTheFlow:
                 await asyncio.sleep(0.05)
 
         sweeper = asyncio.ensure_future(sweep())
-        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+        status = await _dispatch(seeded)
         sweeping.set()
         await sweeper
 
@@ -717,48 +727,67 @@ class TestLeaseKeptAliveThroughTheFlow:
         seeded = await _seed(engine, _chain(node_kind(handler), 1))
         seeded_holder.append(seeded)
 
-        await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+        await _dispatch(seeded)
 
         assert observed == [True]
         # And what it returned anyway was not accepted.
         assert [node.status for node in await _node_runs(seeded)] == [NodeRunStatus.RUNNING.value]
 
 
-async def test_the_settling_flow_submits_the_next_node_itself_after_its_commit(
-    engine: AsyncEngine, node_kind
-):
-    """The flow submits the node its settle made ready only once that settle
-    has committed: the submitted flow claims the row by id from a session of
-    its own, so a row still uncommitted at submission is one it cannot find.
-    The row is stamped submitted, so the poll does not submit it again."""
+async def test_the_settle_commits_the_next_nodes_job_with_its_row(engine: AsyncEngine, node_kind):
+    """What a settle makes ready is queued in the settle's own transaction: once
+    it commits the job and the row are both there, and a worker claiming the job
+    by its payload finds the row."""
     seeded = await _seed(engine, _chain(node_kind(_echo), 2))
-    seen_at_submission: list[tuple[str, str | None]] = []
 
-    async def submit(*, parameters: dict[str, str], **_kwargs: object) -> None:
-        async with seeded.factory() as reader:
-            row = (
-                await reader.execute(
-                    select(DispatchOutbox).where(
-                        DispatchOutbox.node_run_id == uuid.UUID(parameters["node_run_id"])
-                    )
-                )
-            ).scalar_one_or_none()
-        seen_at_submission.append(
-            (parameters["node_run_id"], row.status if row is not None else None)
-        )
+    assert await _dispatch(seeded) == "settled"
 
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock(side_effect=submit)):
-        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
-
-    assert status == "settled"
     second = (await _node_runs(seeded))[1]
-    assert seen_at_submission == [(str(second.id), DispatchOutboxStatus.PENDING.value)]
+    queued = await queued_dispatches(seeded.factory, workflow_run_id=seeded.run.id)
+    assert [job.payload["node_run_id"] for job in queued] == [str(second.id)]
+    assert queued[0].organization_id == seeded.org.id
     pending = [
         row
         for row in await _outbox_rows(seeded)
         if row.status == DispatchOutboxStatus.PENDING.value
     ]
-    assert len(pending) == 1 and pending[0].submitted_at is not None
+    assert [row.node_run_id for row in pending] == [second.id]
+    assert pending[0].submitted_at is not None
+
+
+async def test_a_settle_that_rolls_back_queues_no_job(engine: AsyncEngine, node_kind):
+    """The row and the job are one write: a settle that fails leaves neither."""
+    seeded = await _seed(engine, _chain(node_kind(_echo), 2))
+
+    async with seeded.factory() as db:
+        claim = await dispatcher.claim(db, node_run_id=seeded.entry.id)
+        await db.commit()
+    assert claim is not None and claim.claimed_by is not None
+    async with seeded.factory() as db:
+        begun = await dispatcher.begin_attempt(
+            db,
+            workflow_run_id=seeded.run.id,
+            node_run_id=seeded.entry.id,
+            token=claim.claimed_by,
+        )
+        await db.commit()
+    assert begun is not None
+    outcome = await dispatcher.call_handler(begun)
+    async with seeded.factory() as db:
+        await dispatcher.settle(db, begun=begun, outcome=outcome)
+        await db.rollback()
+
+    assert await queued_dispatches(seeded.factory, workflow_run_id=seeded.run.id) == []
+    assert len(await _node_runs(seeded)) == 1
+
+
+async def test_a_duplicate_job_for_a_finished_node_ends_nothing_to_claim(
+    engine: AsyncEngine, node_kind
+):
+    seeded = await _seed(engine, _chain(node_kind(_echo), 1))
+    assert await _dispatch(seeded) == "settled"
+
+    assert await _dispatch(seeded) == "nothing_to_claim"
 
 
 async def _agent_run_awaiting_approval(seeded: Seeded, *, raised_at: datetime) -> AgentRun:
@@ -1092,7 +1121,7 @@ class TestStrayOutboxRows:
         assert statuses[stray.id] == DispatchOutboxStatus.DONE.value
         await _expire_claims(seeded)
         async with seeded.factory() as db:
-            assert await WorkflowReconcilerService(db).stale_claims() == []
+            assert await WorkflowReconcilerService(db).stale_claims() == 0
 
 
 class TestAttemptsBehindAClosedRow:

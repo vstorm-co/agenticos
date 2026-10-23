@@ -9,12 +9,10 @@ across the claim and the send would keep `FOR UPDATE SKIP LOCKED`'s lock alive
 during network I/O for no reason, and worse: a process death mid-send would
 roll the claim back with it, undoing the very thing that bounds the retry.
 
-`notification_delivery_sweep_flow` (`app/worker/tasks/notification_tasks.py`)
-is the `@flow` entry point; this module holds the logic it calls, tested
-directly against a real database rather than through Prefect's own machinery.
+`deliver_due_notifications` (`app/worker/tasks/notification_tasks.py`) is the
+`deliver-notifications` job; this module holds the logic it calls, tested
+directly against a real database.
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging

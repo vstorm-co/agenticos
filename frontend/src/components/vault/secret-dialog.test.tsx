@@ -165,7 +165,7 @@ describe("AddSecretDialog with the kind fixed", () => {
       screen.getByLabelText(/Service Account Json/, { selector: "input" }),
       "sa-json",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store key" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -191,7 +191,7 @@ describe("AddSecretDialog", () => {
     return onSubmit;
   }
 
-  const store = () => screen.getByRole("button", { name: "Store secret" });
+  const store = () => screen.getByRole("button", { name: "Store key" });
 
   it("generates the value fields from the kind's published schema", () => {
     open();
@@ -243,6 +243,8 @@ describe("AddSecretDialog", () => {
     await screen.findByDisplayValue("OpenAI");
     await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Zendesk");
+    // The note is folded under More options; nothing else a key needs is.
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.type(screen.getByLabelText(/Note/), "Ticketing");
     await userEvent.type(screen.getByLabelText(/Api Key/, { selector: "input" }), "sk-x");
     await userEvent.click(store());
@@ -458,7 +460,7 @@ describe("AddSecretDialog · choosing what a key is for", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Web search/ }));
     await userEvent.type(screen.getByLabelText("Name"), "Tavily prod");
     await userEvent.type(screen.getByLabelText(/API key/i, { selector: "input" }), "tvly-abc");
-    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store key" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ purpose: "tavily" }));
   });
@@ -517,7 +519,7 @@ describe("AddSecretDialog · choosing what a key is for", () => {
       screen.getByLabelText(/Client secret/, { selector: "input" }),
       "ghs-live-4242",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store key" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({

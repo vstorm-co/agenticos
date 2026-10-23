@@ -17,12 +17,11 @@ is refused somewhere; isolating a single permission is what makes "this route is
 gated on *this* permission, and nothing else" an assertion rather than a hope.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
@@ -32,15 +31,18 @@ import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute, RouteContext, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 
+from app.agents.ask_user import QuestionItem
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
-from app.schemas.agent import ParkedCall
+from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
+from app.services.ml import MLService
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -138,6 +140,7 @@ _SERVICE_DEPS = (
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
     deps.get_secret_service,
+    deps.get_openai_codex_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -145,6 +148,7 @@ _SERVICE_DEPS = (
     deps.get_stats_service,
     deps.get_ml_service,
     deps.get_workflow_registry_service,
+    deps.get_voice_usage_service,
 )
 
 Provider = Callable[[], object]
@@ -241,8 +245,18 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
+    Call(
+        "POST",
+        "/api-keys",
+        Perm.API_KEYS_CREATE,
+        body={"name": "ci", "scopes": ["agents:view"]},
+    ),
+    Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
     Call(
         "POST",
         "/agents/templates/install",
@@ -348,6 +362,15 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
+    # The organization's call minutes by agent, for the dashboard figure and the
+    # Voice card: what the organization spent time on, read like its runs.
+    Call(
+        "GET",
+        "/voice/usage",
+        Perm.RUNS_VIEW,
+        query="?start=2020-01-01T00:00:00Z&end=2020-01-02T00:00:00Z",
+    ),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",
@@ -423,6 +446,7 @@ CALLS: tuple[Call, ...] = (
         body={"is_enabled": False},
     ),
     Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
+    Call("GET", "/mcp-connections/{connection_id}/calls", Perm.MCP_MANAGE),
     Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),
     # Knowledge bases: the collection routes carry the role gate; every
     # per-resource route hands the decision to the service, which resolves the
@@ -461,6 +485,15 @@ CALLS: tuple[Call, ...] = (
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
         },
     ),
+    Call(
+        "POST",
+        "/secrets/openai-codex",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "ChatGPT",
+            "callback_url": "http://localhost:1455/auth/callback?code=c&state=s",
+        },
+    ),
     # Where sandboxes run, split across two gates. The reads carry
     # `connections:view` - a session list, an activity log and a host's ceilings
     # are what an operator watches when an agent keeps hitting a memory limit, and
@@ -492,6 +525,9 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/ml/audio/transcriptions", Perm.ML_INVOKE, upload=True),
     Call("POST", "/ml/privacy/pii", Perm.ML_INVOKE, body={"text": "hello"}),
     Call("GET", "/ml/calls", Perm.ML_INVOKE),
+    # The transcription summary names agents and bots, so it reads like `/spend`:
+    # `ml:invoke` alone (every Member) is not enough (#1797).
+    Call("GET", "/ml/calls/summary", Perm.RUNS_VIEW),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
     Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
@@ -729,6 +765,16 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 # brought with it authenticates differently and is not this file's business.
 _PLATFORM_PREFIXES = (
     "/agents",
+    # Organization API keys. Issuing gates on `api_keys:create`; listing and
+    # revoking act on the caller's own keys unless they hold `api_keys:manage`,
+    # which the service decides per row.
+    "/api-keys",
+    # The organization's AI Architect (#2063): reading it is every member's,
+    # changing it is `org:settings`.
+    "/assistant",
+    # Consenting to and disconnecting MCP clients (#2059): every route acts on the
+    # caller's own consent or grants, which the service decides per row.
+    "/mcp-oauth",
     "/runs",
     "/approvals",
     "/spend",
@@ -800,6 +846,9 @@ _PLATFORM_PREFIXES = (
     # rather than by a person in a browser, which is precisely why the sweep has
     # to see them: nobody would notice an ungated one from the console.
     "/ml",
+    # Call minutes (#54). The call socket itself is `/ws/voice`, outside this
+    # prefix, and an agent's readiness lives under `/agents`.
+    "/voice",
 )
 
 
@@ -873,6 +922,11 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
     deps.get_sharing_service,
+    # Listing and revoking API keys act on the caller's own unless they hold
+    # `api_keys:manage`; the service decides per key, and answers a key that is
+    # somebody else's as missing.
+    deps.get_api_key_service,
+    deps.get_oauth_server_service,
     deps.get_agent_registry_service,
     # Every exposure route acts on one agent, and the service resolves access to
     # it before touching a binding - so where an agent is available is decided
@@ -890,6 +944,9 @@ RESOURCE_AWARE_SERVICES = (
     # A secret is a shared resource: who may edit or delete one is its grants'
     # answer, resolved inside the service exactly as it is for an agent.
     deps.get_secret_service,
+    # A ChatGPT sign-in is a secret written another way: putting a new one in
+    # place of an old one is the secret service's rotation, grants and all.
+    deps.get_openai_codex_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.
@@ -1042,6 +1099,8 @@ class _SomeoneElsesResource:
     id: UUID = field(default_factory=uuid4)
     owner_user_id: UUID = field(default_factory=uuid4)
     visibility: str = Visibility.PRIVATE.value
+    # What an MCP server's loader checks first: an organization's, not a member's own.
+    scope: str = "org"
 
 
 class _NoRows:
@@ -1165,6 +1224,7 @@ class TestReadingWhatARunIsParkedOn:
                 "tool_args": {"to": "ada@example.com"},
                 "capability_tool_id": None,
                 "context": None,
+                "account": None,
             },
             {
                 "id": str(shared_id),
@@ -1174,6 +1234,7 @@ class TestReadingWhatARunIsParkedOn:
                 "tool_args": {"table_id": "6f1c"},
                 "capability_tool_id": "update_record",
                 "context": {"table": "Support"},
+                "account": None,
             },
         ]
 
@@ -1210,6 +1271,7 @@ class TestTheQueueNamesWhatItAsks:
             tool_args={"table_id": "6f1c"},
             capability_tool_id="update_record",
             context={"table": "Support"},
+            account=None,
             subagent_name=None,
             subagent_agent_id=None,
             status="pending",
@@ -1284,10 +1346,13 @@ class TestResumeAnswersWithWhatTheContinuationDid:
     ) -> None:
         run = MagicMock(
             id=uuid4(),
+            conversation_id=uuid4(),
             status="awaiting_approval",
             cost_usd=Decimal("0.02"),
             input_tokens=13,
             output_tokens=7,
+            cache_read_tokens=9,
+            cache_write_tokens=2,
         )
 
         class _Resuming:
@@ -1314,6 +1379,9 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             async def parked_calls(self, *args: Any, **kwargs: Any) -> list[Any]:
                 return []
 
+            async def parked_questions(self, *args: Any, **kwargs: Any) -> list[Any]:
+                return []
+
         overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/resume"))
@@ -1330,6 +1398,12 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         # caller drew that one before the run parked - so it arrives separately and
         # updates it, rather than putting the same command in the turn twice.
         assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
+        assert response.json()["conversation_id"] == str(run.conversation_id)
+        # The cache split, so the resumed turn's cost can be read like any other (#2170).
+        assert (response.json()["cache_read_tokens"], response.json()["cache_write_tokens"]) == (
+            9,
+            2,
+        )
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1366,6 +1440,7 @@ class TestStatsScopeIsDecidedInTheService:
                 ),
             ),
             ("window_totals", (0, Decimal(0))),
+            ("runs_by_bin", []),
             (
                 "window_breakdown",
                 WindowBreakdown(
@@ -1462,6 +1537,78 @@ class TestStatsScopeIsDecidedInTheService:
         assert response.status_code == 200
 
 
+class TestTheMLCallLogsAttribution:
+    """`GET /ml/calls` is `ml:invoke`, and the agent, bot and surface on it are
+    `runs:view` - the summary's gate, since filtering by agent is its breakdown
+    asked for one row at a time (#1797). A route gate cannot say "this half of
+    the answer needs more", so the service and the serializer do."""
+
+    _AGENT = uuid4()
+
+    @pytest.fixture
+    def logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        row = MLServiceCall(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            service="speech_to_text",
+            status="succeeded",
+            input_bytes=10,
+            units=3,
+            unit="seconds",
+            duration_ms=900,
+            provider="openai",
+            model="whisper-1",
+            surface="chat",
+            agent_id=self._AGENT,
+            audio_ms=2500,
+            created_at=datetime.now(UTC),
+        )
+        repo = "app.services.ml.facade.ml_service_call_repo"
+        monkeypatch.setattr(f"{repo}.list_for", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(f"{repo}.count_for", AsyncMock(return_value=1))
+        monkeypatch.setattr(f"{repo}.get", AsyncMock(return_value=row))
+
+    @staticmethod
+    def _service() -> dict[Callable[..., object], Provider]:
+        return {deps.get_ml_service: lambda: MLService(MagicMock())}
+
+    @pytest.mark.parametrize(
+        "query", ["agent_id=" + str(_SOME_ID), "channel_bot_id=" + str(_SOME_ID), "surface=chat"]
+    )
+    async def test_an_attribution_filter_without_runs_view_is_refused(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory, query: str
+    ) -> None:
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url("/ml/calls", f"?{query}"))
+
+        assert response.status_code == 403
+
+    async def test_ml_invoke_alone_reads_the_log_without_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(only(Perm.ML_INVOKE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        for read in (item, one.json()):
+            assert (read["agent_id"], read["channel_bot_id"], read["surface"]) == (None, None, None)
+            assert (read["provider"], read["audio_ms"]) == ("openai", 2500)
+
+    async def test_runs_view_reads_and_filters_by_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(all_but(Perm.CONNECTIONS_MANAGE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls", f"?agent_id={self._AGENT}"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        assert (item["agent_id"], item["surface"]) == (str(self._AGENT), "chat")
+        assert one.json()["agent_id"] == str(self._AGENT)
+
+
 # -- the inverse guard, for routes that are deliberately open -----------------
 
 # What `/public` serves to somebody with no account. The first route is an
@@ -1474,9 +1621,12 @@ class TestStatsScopeIsDecidedInTheService:
 # somebody wrote down that it is open, and where its refusals are tested.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        ("GET", f"{settings.API_V1_STR}/public/apps/{{public_key}}"),
+        # The same, at the path it had before apps were called that (#2071).
         ("GET", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}"),
         # The same link behind a password (#1972): the password in the body, the
         # link's own bucket bounding a guessing loop.
+        ("POST", f"{settings.API_V1_STR}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
         # A workflow's form (`trigger.form`). The link is the page's only
         # credential, minted at publish with 192 bits and replaced on request;
@@ -1484,6 +1634,9 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # each submission is a run as the member who published the form.
         ("GET", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
         ("POST", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
+        # The public API's own OpenAPI document (#1796): the contract an
+        # integrator writes a client against, before they hold a key.
+        ("GET", f"{settings.API_V1_STR}/public/openapi.json"),
     }
 )
 
@@ -1573,6 +1726,9 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # session, and they report nothing but whether this process can reach
         # Postgres and Redis.
         ("GET", f"{V1}/health"),
+        # The public API's OpenAPI document (#1796). It describes the routes a
+        # key may call - the documented contract - and nothing about any tenant.
+        ("GET", f"{V1}/public/openapi.json"),
         ("GET", f"{V1}/health/live"),
         ("GET", f"{V1}/health/ready"),
         ("GET", f"{V1}/ready"),
@@ -1628,6 +1784,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # and rotated by asking again. It answers the title and a signed content
         # address, never who published it, and a bucket per key bounds a
         # hammered link. Refusals: `tests/api/test_artifact_routes.py`.
+        ("GET", f"{V1}/public/apps/{{public_key}}"),
+        # Its deprecated alias from before apps were called that (#2071).
         ("GET", f"{V1}/public/artifacts/{{public_key}}"),
         # The bytes of one artifact version. Deliberately cookieless - the page is
         # agent-authored script and may be served from another origin entirely -
@@ -1638,6 +1796,7 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/artifact-content/{{token}}"),
         # The same link with its password (#1972). Refusals: a wrong password is a
         # 403 that names nothing, and the link's bucket counts every attempt.
+        ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
         # A workflow's form. The link is the page's only credential, 192 bits,
         # replaced on request; reading and submitting are counted per form before
@@ -1645,10 +1804,20 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # Refusals: `tests/integration/test_workflow_exposures.py::TestForms`.
         ("GET", f"{V1}/public/workflow-forms/{{token}}"),
         ("POST", f"{V1}/public/workflow-forms/{{token}}"),
-        # The library set a published page may load (#1971): three static files
-        # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
-        # opaque origin fetches with no credentials by construction.
-        ("GET", f"{V1}/artifact-content/lib/{{name}}"),
+        # The library set a published page may load (#1971): static files this
+        # repository ships, named in `ARTIFACT_LIBRARY` - a path, since three.js
+        # keeps its package layout (#2171) - which a page in an opaque origin
+        # fetches with no credentials by construction.
+        ("GET", f"{V1}/artifact-content/lib/{{name:path}}"),
+        # The renderer a visual is drawn in (#2171): one fixed page holding no
+        # drawing - the console posts it in - under the app sandbox policy, framed
+        # only by the console.
+        ("GET", f"{V1}/artifact-content/visual-frame"),
+        # Map tiles for a visual or an app (#2302): every page loads them, saved
+        # or shared, from an opaque origin with no credentials. Three numbers
+        # checked against the zoom, fetched from the operator's tile server, and
+        # counted per address - nothing of a tenant's is reachable here.
+        ("GET", f"{V1}/artifact-content/tiles/{{z}}/{{x}}/{{y}}"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.
@@ -1684,6 +1853,22 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.
         ("POST", f"{V1}/mattermost/{{bot_id}}/webhook"),
+        # A button pressed in a chat and Slack's `/agent` (#2064, #2067, #2068):
+        # Slack signs both like its events; Mattermost signs nothing, so each
+        # button carries this deployment's own signature over its value, and the
+        # presser is resolved through their linked account before anything acts.
+        ("POST", f"{V1}/slack/{{bot_id}}/interactions"),
+        ("POST", f"{V1}/slack/{{bot_id}}/commands"),
+        ("POST", f"{V1}/mattermost/{{bot_id}}/actions"),
+        # Mattermost's `/agent` and the "what was wrong?" dialog (#2084): the
+        # command carries the slash command's token, the dialog this
+        # deployment's signature over its state - neither has a session.
+        ("POST", f"{V1}/mattermost/{{bot_id}}/commands"),
+        ("POST", f"{V1}/mattermost/{{bot_id}}/dialogs"),
+        # An A2A agent card (#2092): read before a caller authenticates, because
+        # it is what says how to. Only an agent its organization chose to serve
+        # has one; every other id is a 404.
+        ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A
@@ -1733,6 +1918,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # write any.
         ("GET", f"{V1}/embed/{{public_key}}/hosted"),
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
+        # A widget's agent picture, on the same terms as a page's logo (#2006).
+        ("GET", f"{V1}/embed/{{public_key}}/avatar"),
         # The one open route on this surface that *writes*, and the only one whose
         # exemption is about more than a read. It exists because a page whose
         # operator ticked "a visitor may attach a file" has to accept bytes from
@@ -1742,6 +1929,25 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # to whoever published the page, because `chat_files.user_id` is NOT NULL
         # and a stranger has nobody to be.
         ("POST", f"{V1}/embed/{{public_key}}/files"),
+        # Dictation on a hosted page or a widget set to `server` (#1797). Admitted
+        # as the surface it arrives on - a widget by its allow-list and token, a
+        # page by its continuity key - and refused unless that embed's own setting
+        # is `server`. Nothing is stored; each attempt is a paid call to the
+        # organization's provider, bounded per address, per link and, for a `jwt`
+        # widget, per visitor.
+        ("POST", f"{V1}/embed/{{public_key}}/dictation"),
+        # A visitor's voice call (#54). Admitted as the embed's own socket - a
+        # widget by its allow-list and token, a page by this deployment's origin
+        # and its continuity key - and only while that embed's voice switch is
+        # on. Each call is a paid realtime session: starts are bounded per address
+        # and per link, each call by the organization's call cap, monthly minutes
+        # and the agent's budget, and tools needing approval are left out.
+        ("WEBSOCKET", f"{V1}/embed/{{public_key}}/voice/ws"),
+        # The widget's call UI, fetched by `widget.js` when a visitor opens the
+        # panel of a widget whose calls are on. A script like `widget.js`: no
+        # secret, decides nothing, 404 unless that widget is active with its
+        # voice switch on; the socket above is where a call is admitted.
+        ("GET", f"{V1}/embed/{{public_key}}/voice.js"),
     }
 )
 
@@ -1881,3 +2087,73 @@ class TestEveryPublicRouteIsDeliberate:
             if _depends_on_a_caller(route) or _required_permissions(route)
         )
         assert not gated, f"/public routes demanding an authenticated caller: {gated}"
+
+
+class TestAQuestionTheRunParkedOn:
+    """Answering an agent's question after the page that showed it is gone (#2064).
+
+    No permission gate: the run asked one person, and the service decides that
+    the caller is them. Every role reaches the routes; whose answer counts is the
+    service's to say, and is tested there.
+    """
+
+    def _run(self) -> MagicMock:
+        return MagicMock(
+            id=uuid4(),
+            conversation_id=None,
+            status="completed",
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            input_tokens=3,
+            output_tokens=2,
+        )
+
+    async def test_the_person_reads_what_they_were_asked(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        question = ParkedQuestion(
+            tool_call_id="ask-1",
+            questions=[QuestionItem(question="How formal?", header="Tone")],
+        )
+        service = MagicMock(
+            get_run=AsyncMock(return_value=run),
+            parked_questions=AsyncMock(return_value=[question]),
+        )
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.get(_url(f"/runs/{run.id}/questions"))
+
+        assert response.status_code == 200
+        assert response.json()[0]["tool_call_id"] == "ask-1"
+        assert response.json()[0]["questions"][0]["header"] == "Tone"
+
+    async def test_an_answer_continues_the_run_and_says_what_it_did(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        service = MagicMock(
+            answer=AsyncMock(
+                return_value=RunSegment(
+                    output="Done, casually.", run=run, tool_calls=[], settled={}
+                )
+            ),
+            parked_calls=AsyncMock(return_value=[]),
+            parked_questions=AsyncMock(return_value=[]),
+        )
+        body = {"responses": {"ask-1": [{"selected": ["Casual"]}]}}
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.post(_url(f"/runs/{run.id}/answers"), json=body)
+
+        assert response.status_code == 200
+        assert response.json()["output"] == "Done, casually."
+        assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_an_answer_with_nothing_in_it_is_refused_before_the_service(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        service = MagicMock(answer=AsyncMock())
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.post(_url(f"/runs/{uuid4()}/answers"), json={"responses": {}})
+
+        assert response.status_code == 422
+        service.answer.assert_not_called()

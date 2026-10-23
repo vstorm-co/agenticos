@@ -57,8 +57,11 @@ the paste that caused it.
 ## Four things that must stay true
 
 1. **No API response returns a plaintext.** There is no endpoint for it.
-   `OrganizationSecretService.resolve_for_bindings` is the *only* reader that yields
-   plaintext, and the runner is its only caller. Do not add a second.
+   Plaintext leaves the vault only through the few `OrganizationSecretService`
+   readers its module docstring lists - `resolve_for_bindings` for the runner,
+   and narrow ones that hand one value straight to a provider (`listing_key`,
+   `transcription_key`, `oauth_app`). None returns it to a caller who could keep
+   it. Do not add another without that shape.
 2. **No log line or audit entry contains one.** Every secret-bearing field is a
    `SecretStr`, which is what makes the carrying dataclasses mask themselves in a
    repr — the usual way a key escapes.

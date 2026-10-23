@@ -6,8 +6,6 @@ option and the whole distribution; one below the floor leaves by `unsure`.
 See `app.workflows.nodes._decide`.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

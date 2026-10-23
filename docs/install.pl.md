@@ -1,5 +1,5 @@
 ---
-source_sha: "c27849d0d0ef"
+source_sha: "67b5c3162745"
 ---
 
 # Instalacja { #install }
@@ -62,8 +62,8 @@ curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-co
 docker compose up -d
 ```
 
-To ściąga obrazy i uruchamia **Postgresa (z pgvector), Redisa, serwer i runner
-Prefect, API oraz konsolę**, wykonuje migracje i odpowiada pod
+To ściąga obrazy i uruchamia **Postgresa (z pgvector), Redisa, API, workera w
+tle oraz konsolę**, wykonuje migracje i odpowiada pod
 <http://localhost:3000>. Pierwsze pobranie to około 2 GB.
 
 ```mermaid
@@ -72,9 +72,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector")]
     A --> RD[("redis")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
     M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
@@ -137,9 +135,7 @@ flowchart LR
     A --> PG[("postgres<br/>pgvector, :5432")]
     A --> RD[("redis<br/>:6379")]
     A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
-    A --> PF["prefect server<br/>:4200"]
-    PF --> WK["prefect runner"]
-    WK --> PG
+    WK["worker<br/><i>claims jobs</i>"] --> PG
 ```
 
 Migracje działają jako usługa `migrate` przy każdym starcie stacka i nic nie robią,
@@ -178,32 +174,31 @@ potrzebuje klucza, klucz potrzebuje organizacji — a to przechodzi ten łańcuc
 | Właściciela | `admin@example.com` / `admin123` albo `--email` / `--password` |
 | Wpis w vault | Twój klucz providera, zapieczętowany dla tej organizacji |
 | Profil modelu | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` albo `openai/gpt-4.1`, zależnie od tego, którego providera dotyczy klucz |
-| Plik kontekstowy | `AGENTS.md`, wyjaśniający, czym jest ta platforma |
-| Agenta | `@getting-started`, opublikowanego, jeśli jest klucz |
+| Dwóch agentów | **Architekta** w rogu każdej strony i **Claude Code like**, obu opublikowanych, jeśli jest klucz |
 
 Teraz otwórz <http://localhost:3000>, zaloguj się jako `admin@example.com` /
-`admin123` i przejdź do **Agents → Getting Started → Test**.
+`admin123` i zapytaj któregoś z nich o coś: **Claude Code like** w **Chat** albo
+**Architekta** z rogu dowolnej strony.
 
-Masz działającego agenta. I to nie zaślepkę: potrafi przeszukać internet i
-pobrać stronę, uruchomić Pythona, narysować wykres, trzymać pliki i powłokę,
-rozpisać plan pracy, zapamiętać coś ponad jedną rozmowę, przeszukać to, co
-padło wcześniej, przeczytać dostarczone skille i `AGENTS.md`, a niezależne
-kawałki roboty oddać sub-agentom, których wymyśla w locie. Wszystko na tym
-jednym kluczu, który przed chwilą wkleiłeś — sandbox działa w magazynie samego
-runu, a wyszukiwarka domyślnie chodzi po DuckDuckGo, więc nie ma drugiego
-poświadczenia ani usługi do postawienia.
+Claude Code like to agent ogólnego przeznaczenia: czyta, zanim zacznie działać,
+planuje pracę w kilku krokach, edytuje pliki i uruchamia polecenia w swoim
+sandboksie, szuka w internecie, deleguje pracę swoim specjalistom i sprawdza, co
+zrobił. Architekt zna tę platformę: znajduje agentów, runy i bazy wiedzy, wyjaśnia,
+dlaczego run się nie udał i ile kosztował, i przygotowuje agenta albo bazę wiedzy do
+twojego zatwierdzenia.
 
-Otwórz go w Builderze, żeby zobaczyć jak: każda z tych rzeczy to zdolność,
+Otwórz któregoś w Builderze, żeby zobaczyć jak: każda z tych rzeczy to capability,
 którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz zmienić.
 
 !!! tip "Nie masz jeszcze klucza providera?"
 
-    Pomiń `BOOTSTRAP_API_KEY`. Wszystko i tak zostanie utworzone, a demonstracyjny
-    agent zostaje zapisany jako **draft**, a nie opublikowany — agent bez modelu
-    nie potrafi odpowiedzieć, a opublikowanie takiego, który zawiedzie na pierwszej
+    Pomiń `BOOTSTRAP_API_KEY`. Wszystko i tak zostanie utworzone, a obaj agenci
+    zostaną zapisani jako **drafty**, a nie opublikowani — agent bez modelu nie
+    potrafi odpowiedzieć, a opublikowanie takiego, który zawiedzie na pierwszej
     wiadomości, jest gorsze niż nieopublikowanie go.
 
-    Dodaj klucz w **Settings → AI providers**, a potem opublikuj.
+    Dodaj klucz w **Settings → AI providers**, a potem opublikuj Claude Code like.
+    Architekt opublikuje się sam na pierwszym modelu organizacji.
 
 !!! note "`make seed` to coś innego"
 
@@ -246,7 +241,7 @@ tego zmieniać kod: `git clone`, `make dev`, `make dev-frontend`,
 | Co widzisz | Dlaczego |
 |---|---|
 | Ingestia rzuca 500 z `extension "vector" is not available` | Zwykły Postgres zamiast `pgvector/pgvector:pg16`. Zobacz niżej |
-| `uv run` raportuje Pythona 3.13 albo 3.14 | `backend/.venv` rozwiązał się poza przypięcie. Usuń go i uruchom ponownie `uv sync` |
+| `uv run` raportuje Pythona innego niż 3.15 | `backend/.venv` rozwiązał się poza przypięcie. Usuń go i uruchom ponownie `uv sync` |
 | Frontend się ładuje, ale każde żądanie zawodzi | API wciąż się uruchamia - czeka na usługę `migrate` - albo przeglądarce podano zły host: `PUBLIC_API_URL` i `PUBLIC_WS_URL` muszą być osiągalne stamtąd, gdzie jest przeglądarka. `docker compose logs migrate app` |
 | `docker compose up` zawodzi z `unauthorized` na `ghcr.io/vstorm-co/...` | Pakiet jest prywatny albo stare `docker login` do GHCR staje na drodze. Obrazy ściągają się anonimowo; zrób `docker logout ghcr.io` i spróbuj ponownie, a jeśli nadal odmawia, problemem jest widoczność pakietu, a nie twoja maszyna |
 | Usługa `app` jest `Up` i `unhealthy`, a każde żądanie wisi | Zaklinowana pętla zdarzeń. Worker sam się kładzie po 15 s i coś go zastępuje, we wszystkich trzech stackach — więc jeśli minutę później nadal wisi, `EVENT_LOOP_WEDGED_AFTER` jest gdzieś ustawione na `0`, czego potrzebuje debugger i nic poza nim. `docker inspect` pokazuje `137` z `OOMKilled=false`, a linia logu nad nim mówi, co to było |
@@ -292,7 +287,7 @@ A oto gdzie wszystko jest:
 | API | <http://localhost:8000> |
 | Dokumentacja OpenAPI | <http://localhost:8000/docs> |
 | Panel administracyjny w stylu Django | <http://localhost:8000/admin> |
-| UI Prefect | <http://localhost:4200> |
+| Background jobs | <http://localhost:3000/admin/background-jobs> - jako właściciel wdrożenia |
 | Postgres | `localhost:5432` (`postgres` / `postgres`) - publikowany wyłącznie przez plik override klona |
 | Redis | `localhost:6379` - tak samo |
 
@@ -331,7 +326,7 @@ brakowało:
 Oba są per checkout i nie są dzielone między żadne dwa worktree, więc są wymagane
 na każdym klonie, a nie raz na laptopa.
 
-!!! note "Python jest przypięty do 3.12"
+!!! note "Python jest przypięty do 3.15"
 
     `backend/.python-version` go przypina, zgodnie z `requires-python`,
     `backend/Dockerfile` i każdym jobem CI. Jeśli `uv run python -V` raportuje

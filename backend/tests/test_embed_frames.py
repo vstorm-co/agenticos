@@ -17,8 +17,6 @@ this surface is the operator's placement note and the supplied block above what
 the visitor typed.
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
@@ -38,6 +36,7 @@ from app.services.embed_session import (
     EmbedSession,
     _attached_ids,
     _no_answer,
+    source_names,
     visible_frames,
 )
 from app.services.file_upload import FileUploadService
@@ -56,7 +55,7 @@ def _embed(*, kind: str = "page", **config: Any) -> MagicMock:
         owner_user_id=uuid.uuid4(),
         name="Support",
         kind=kind,
-        config={"kind": "page", **config} if kind == "page" else {"kind": kind},
+        config={"kind": kind, **config},
     )
 
 
@@ -88,7 +87,7 @@ async def _stream(session: EmbedSession, *events: Any) -> None:
         for event in events:
             yield event
 
-    await RunFrames(emit=session._emit).request(_events())
+    await RunFrames(emit=session._emit).request(_events(), set())
 
 
 async def _tools(session: EmbedSession, *events: Any) -> None:
@@ -223,6 +222,62 @@ class TestWhatTheAgentIsDoing:
 
         assert "tool_result" not in shown
         assert "tool_call" not in shown
+
+
+def _searched() -> FunctionToolResultEvent:
+    return FunctionToolResultEvent(
+        ToolReturnPart(
+            tool_name="search_documents",
+            content=(
+                "Search results (cite inline using [1], [2], etc.):\n\n"
+                "[1] Source: refunds.pdf, page 2, chunk 3 [policies] (score: 0.912)\n"
+                "Refunds are accepted within 30 days.\n\n"
+                "[2] Source: Pricing 2026.docx (score: 0.800)\nPlans start at ten euros.\n\n"
+                "[3] Source: refunds.pdf, page 4 (score: 0.700)\nExcept sale items."
+            ),
+            tool_call_id="c1",
+        )
+    )
+
+
+class TestTheDocumentsAnAnswerDrewOn:
+    """A widget may name its sources - and only name them (#2006)."""
+
+    async def test_a_widget_that_shows_sources_is_sent_their_names_once_each(self) -> None:
+        session = _session(_embed(kind="widget", show_sources=True))
+
+        await _tools(session, _called(), _searched())
+
+        assert ("sources", {"names": ["refunds.pdf", "Pricing 2026.docx"]}) in _sent(session)
+
+    @pytest.mark.security
+    async def test_the_passages_themselves_never_leave(self) -> None:
+        """The names are a smaller claim than the text: a widget naming its sources
+        has not been allowed to quote them, and the result frame stays withheld."""
+        session = _session(_embed(kind="widget", show_sources=True))
+
+        await _tools(session, _called(), _searched())
+
+        assert "tool_result" not in _kinds(session)
+        assert "30 days" not in str(_sent(session))
+
+    async def test_sources_are_off_by_default_and_elsewhere(self) -> None:
+        for embed in (_embed(kind="widget"), _embed(), _embed(kind="socket")):
+            session = _session(embed)
+
+            await _tools(session, _called(), _searched())
+
+            assert "sources" not in _kinds(session)
+
+    async def test_a_result_that_names_no_document_sends_nothing(self) -> None:
+        session = _session(_embed(kind="widget", show_sources=True))
+
+        await _tools(session, _called(), _returned())
+
+        assert "sources" not in _kinds(session)
+
+    def test_only_a_string_is_read(self) -> None:
+        assert source_names({"content": "[1] Source: a.pdf (score: 1)"}) == []
 
 
 class TestTheAssembledPromptIsNeverEchoed:

@@ -8,8 +8,6 @@ GitHub signs, for one of the events this node names and - when it names any -
 one of its actions, starts one run as the member who published it.
 """
 
-from __future__ import annotations
-
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator

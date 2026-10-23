@@ -7,8 +7,6 @@ names, and present a record and a schema back by labels, so both surfaces read
 and write the same way.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
 from typing import Any
 

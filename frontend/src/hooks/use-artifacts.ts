@@ -32,6 +32,10 @@ export interface ArtifactQuery {
   includeArchived?: boolean;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
+  /** Only the pages made in this project's chats; null for every project. */
+  projectId?: string | null;
 }
 
 /**
@@ -47,9 +51,19 @@ export function useArtifacts({
   includeArchived = false,
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
+  projectId = null,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.artifacts.list({ search, agentId, includeArchived, skip, limit }),
+    queryKey: qk.artifacts.list({
+      search,
+      agentId,
+      includeArchived,
+      skip,
+      limit,
+      groupId: groupId ?? "",
+      ...(projectId ? { projectId } : {}),
+    }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
@@ -57,7 +71,9 @@ export function useArtifacts({
       if (includeArchived) params.set("include_archived", "true");
       params.set("skip", String(skip));
       params.set("limit", String(limit));
-      return apiClient.get<ArtifactList>(`/artifacts?${params}`);
+      if (groupId) params.set("group_id", groupId);
+      if (projectId) params.set("project_id", projectId);
+      return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,
   });
@@ -90,7 +106,7 @@ export function useArtifactListActions() {
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
   const archive = useMutation({
-    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/artifacts/${id}/archive`),
+    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/apps/${id}/archive`),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("archived"));
@@ -98,7 +114,7 @@ export function useArtifactListActions() {
     onError: fail,
   });
   const unarchive = useMutation({
-    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/artifacts/${id}/unarchive`),
+    mutationFn: (id: string) => apiClient.post<ArtifactDetail>(`/apps/${id}/unarchive`),
     onSuccess: (artifact) => {
       settle(artifact);
       toast.success(t("unarchived"));
@@ -106,7 +122,7 @@ export function useArtifactListActions() {
     onError: fail,
   });
   const remove = useMutation({
-    mutationFn: (id: string) => apiClient.delete<void>(`/artifacts/${id}`),
+    mutationFn: (id: string) => apiClient.delete<void>(`/apps/${id}`),
     onSuccess: async (_, id) => {
       queryClient.removeQueries({ queryKey: qk.artifacts.detail(id) });
       await queryClient.invalidateQueries({ queryKey: qk.artifacts.all() });
@@ -127,7 +143,7 @@ export function useArtifactListActions() {
 export function useArtifactAgents(enabled: boolean): ArtifactAgent[] {
   const { data } = useQuery({
     queryKey: qk.artifacts.agents(),
-    queryFn: () => apiClient.get<{ items: ArtifactAgent[] }>("/artifacts/agents"),
+    queryFn: () => apiClient.get<{ items: ArtifactAgent[] }>("/apps/agents"),
     enabled,
   });
   return data?.items ?? [];
@@ -150,12 +166,12 @@ export function useArtifact(artifactId: string) {
 
   const detail = useQuery({
     queryKey: qk.artifacts.detail(artifactId),
-    queryFn: () => apiClient.get<ArtifactDetail>(`/artifacts/${artifactId}`),
+    queryFn: () => apiClient.get<ArtifactDetail>(`/apps/${artifactId}`),
     retry: false,
   });
   const versions = useQuery({
     queryKey: qk.artifacts.versions(artifactId),
-    queryFn: () => apiClient.get<ArtifactVersionList>(`/artifacts/${artifactId}/versions`),
+    queryFn: () => apiClient.get<ArtifactVersionList>(`/apps/${artifactId}/versions`),
     enabled: detail.data !== undefined && detail.data.archived_at === null,
   });
 
@@ -173,7 +189,7 @@ export function useArtifact(artifactId: string) {
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
   const enablePublicLink = useMutation({
-    mutationFn: () => apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
+    mutationFn: () => apiClient.put<ArtifactDetail>(`/apps/${artifactId}/public-link`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkReady"));
@@ -181,7 +197,7 @@ export function useArtifact(artifactId: string) {
     onError: fail,
   });
   const disablePublicLink = useMutation({
-    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/public-link`),
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/public-link`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkOff"));
@@ -192,7 +208,7 @@ export function useArtifact(artifactId: string) {
   // they name rather than toasting a sentence.
   const updatePublicLink = useMutation({
     mutationFn: (changes: ArtifactPublicLinkUpdate) =>
-      apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/public-link`, changes),
+      apiClient.patch<ArtifactDetail>(`/apps/${artifactId}/public-link`, changes),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: false });
       toast.success(t("publicLinkSaved"));
@@ -200,7 +216,7 @@ export function useArtifact(artifactId: string) {
   });
   const restoreVersion = useMutation({
     mutationFn: (versionId: string) =>
-      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/versions/${versionId}/restore`),
+      apiClient.post<ArtifactDetail>(`/apps/${artifactId}/versions/${versionId}/restore`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("versionRestored", { version: artifact.current_version?.number ?? 0 }));
@@ -210,7 +226,7 @@ export function useArtifact(artifactId: string) {
   // Both reload the page: an archived one serves nothing, and a restored one is
   // drawn again from a fresh address.
   const archive = useMutation({
-    mutationFn: () => apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/archive`),
+    mutationFn: () => apiClient.post<ArtifactDetail>(`/apps/${artifactId}/archive`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("archived"));
@@ -218,15 +234,26 @@ export function useArtifact(artifactId: string) {
     onError: fail,
   });
   const unarchive = useMutation({
-    mutationFn: () => apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/unarchive`),
+    mutationFn: () => apiClient.post<ArtifactDetail>(`/apps/${artifactId}/unarchive`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("unarchived"));
     },
     onError: fail,
   });
+  const follow = useMutation({
+    mutationFn: (on: boolean) =>
+      on
+        ? apiClient.put<ArtifactDetail>(`/apps/${artifactId}/follow`)
+        : apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/follow`),
+    onSuccess: (artifact) => {
+      queryClient.setQueryData(qk.artifacts.detail(artifactId), artifact);
+      toast.success(t(artifact.following ? "followed" : "unfollowed"));
+    },
+    onError: fail,
+  });
   const remove = useMutation({
-    mutationFn: () => apiClient.delete<void>(`/artifacts/${artifactId}`),
+    mutationFn: () => apiClient.delete<void>(`/apps/${artifactId}`),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: qk.artifacts.detail(artifactId) });
       await queryClient.invalidateQueries({ queryKey: qk.artifacts.all() });
@@ -240,7 +267,7 @@ export function useArtifact(artifactId: string) {
   // moves to the new latest, the disclosure with it) and the dialog closes.
   const confirmData = useMutation({
     mutationFn: ({ versionId, fingerprint }: { versionId: string; fingerprint: string }) =>
-      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/versions/${versionId}/consent`, {
+      apiClient.post<ArtifactDetail>(`/apps/${artifactId}/versions/${versionId}/consent`, {
         fingerprint,
       }),
     onSuccess: (artifact) => {
@@ -255,7 +282,7 @@ export function useArtifact(artifactId: string) {
     },
   });
   const withdrawConsent = useMutation({
-    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/consent`),
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/consent`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("consent.withdrawn"));
@@ -268,7 +295,7 @@ export function useArtifact(artifactId: string) {
   // is read again and the dialog closes.
   const confirmPublicData = useMutation({
     mutationFn: (body: { fingerprint: string; audience_digest: string }) =>
-      apiClient.post<ArtifactDetail>(`/artifacts/${artifactId}/public-data`, {
+      apiClient.post<ArtifactDetail>(`/apps/${artifactId}/public-data`, {
         ...body,
         confirmed: true,
       }),
@@ -283,7 +310,7 @@ export function useArtifact(artifactId: string) {
     },
   });
   const withdrawPublicData = useMutation({
-    mutationFn: () => apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/public-data`),
+    mutationFn: () => apiClient.delete<ArtifactDetail>(`/apps/${artifactId}/public-data`),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: false });
       toast.success(t("publicData.withdrawn"));
@@ -292,7 +319,7 @@ export function useArtifact(artifactId: string) {
   });
   const setAutoConsent = useMutation({
     mutationFn: (changes: { enabled: boolean; confirmed?: string }) =>
-      apiClient.patch<ArtifactDetail>(`/artifacts/${artifactId}/auto-consent`, changes),
+      apiClient.patch<ArtifactDetail>(`/apps/${artifactId}/auto-consent`, changes),
     onSuccess: (artifact) => settle(artifact, { reloadPage: false }),
     onError: fail,
   });
@@ -300,7 +327,7 @@ export function useArtifact(artifactId: string) {
   // Reloads the page: whose data it shows is what a new owner changes.
   const changeOwner = useMutation({
     mutationFn: (userId: string) =>
-      apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/owner`, { user_id: userId }),
+      apiClient.put<ArtifactDetail>(`/apps/${artifactId}/owner`, { user_id: userId }),
     onSuccess: (artifact) => {
       settle(artifact, { reloadPage: true });
       toast.success(t("changeOwner.changed"));
@@ -320,6 +347,7 @@ export function useArtifact(artifactId: string) {
     restoreVersion,
     archive,
     unarchive,
+    follow,
     remove,
     confirmData,
     withdrawConsent,
@@ -339,9 +367,7 @@ export function useArtifactDisclosure(artifactId: string, versionId: string, ena
   return useQuery({
     queryKey: qk.artifacts.disclosure(artifactId, versionId),
     queryFn: () =>
-      apiClient.get<ArtifactDisclosure>(
-        `/artifacts/${artifactId}/versions/${versionId}/disclosure`,
-      ),
+      apiClient.get<ArtifactDisclosure>(`/apps/${artifactId}/versions/${versionId}/disclosure`),
     enabled,
     staleTime: 0,
     gcTime: 0,
@@ -356,8 +382,7 @@ export function useArtifactDisclosure(artifactId: string, versionId: string, ena
 export function usePublicDataDisclosure(artifactId: string, enabled: boolean) {
   return useQuery({
     queryKey: qk.artifacts.publicDataDisclosure(artifactId),
-    queryFn: () =>
-      apiClient.get<ArtifactPublicDataDisclosure>(`/artifacts/${artifactId}/public-data`),
+    queryFn: () => apiClient.get<ArtifactPublicDataDisclosure>(`/apps/${artifactId}/public-data`),
     enabled,
     staleTime: 0,
     gcTime: 0,
@@ -389,7 +414,7 @@ export function useArtifactView(
       if (versionId) params.push(`version_id=${encodeURIComponent(versionId)}`);
       if (withData) params.push("data=true");
       const query = params.length > 0 ? `?${params.join("&")}` : "";
-      return apiClient.get<ArtifactView>(`/artifacts/${artifactId}/view${query}`);
+      return apiClient.get<ArtifactView>(`/apps/${artifactId}/view${query}`);
     },
     enabled,
     staleTime: 0,
@@ -463,7 +488,7 @@ function useDataRead(
   return useQuery({
     queryKey,
     queryFn: async () => {
-      const path = `/artifacts/${artifactId}/versions/${versionId}/data`;
+      const path = `/apps/${artifactId}/versions/${versionId}/data`;
       const data = rows
         ? await apiClient.get<ArtifactData>(path)
         : await apiClient.get<ArtifactData>(path, { params: { rows: "false" } });

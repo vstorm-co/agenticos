@@ -309,7 +309,7 @@ describe("a page asking the console to run an action", () => {
       const { frame } = page();
       await open(frame, { version_id: "v-evil", workflow_id: "w2", versionId: "v-evil" });
       await act(async () => fireEvent.click(runButton()));
-      expect(post).toHaveBeenCalledWith("/artifacts/a1/versions/v1/actions/w1/runs", {
+      expect(post).toHaveBeenCalledWith("/apps/a1/versions/v1/actions/w1/runs", {
         input: { to: "a@b.c" },
       });
     });
@@ -573,7 +573,7 @@ describe("a page asking the console to run an action", () => {
       await advance(499);
       expect(read).not.toHaveBeenCalled();
       await advance(1);
-      expect(read).toHaveBeenCalledWith("/artifacts/a1/actions/runs/run1");
+      expect(read).toHaveBeenCalledWith("/apps/a1/actions/runs/run1");
       expect(progress(sent)).toHaveLength(2);
       // The delay grows: 500, then 750. An unchanged read is not posted again.
       await advance(749);

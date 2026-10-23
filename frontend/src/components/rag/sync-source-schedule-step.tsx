@@ -55,9 +55,7 @@ export function ScheduleStep({
           integration under a base. */}
       {collections.length > 1 && (
         <div className="space-y-1.5">
-          <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-            {t("targetCollection")}
-          </Label>
+          <Label>{t("targetCollection")}</Label>
           <Select
             value={form.collection_name ?? ""}
             onValueChange={(val) => setForm((f) => ({ ...f, collection_name: val }))}
@@ -82,12 +80,7 @@ export function ScheduleStep({
           would have to be maintained before the first document could be filed
           under anything (#1777). */}
       <div className="space-y-1.5">
-        <Label
-          htmlFor="organizational-unit"
-          className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-        >
-          {t("organizationalUnit")}
-        </Label>
+        <Label htmlFor="organizational-unit">{t("organizationalUnit")}</Label>
         <Input
           id="organizational-unit"
           maxLength={255}
@@ -100,9 +93,7 @@ export function ScheduleStep({
       </div>
 
       <div className="space-y-2">
-        <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          {t("syncMode")}
-        </Label>
+        <Label>{t("syncMode")}</Label>
         <div className="grid gap-2 sm:grid-cols-3">
           {SYNC_MODES.map((mode) => {
             const active = (form.sync_mode ?? "full") === mode.value;
@@ -127,9 +118,7 @@ export function ScheduleStep({
       </div>
 
       <div className="space-y-2">
-        <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          {t("schedule")}
-        </Label>
+        <Label>{t("schedule")}</Label>
         <div className="flex flex-wrap gap-2">
           {SCHEDULE_PRESETS.map((p) => {
             const active = (form.schedule_minutes ?? 0) === p.value;
@@ -141,7 +130,7 @@ export function ScheduleStep({
                   setForm((f) => ({ ...f, schedule_minutes: p.value === 0 ? null : p.value }))
                 }
                 className={cn(
-                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
+                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                   active
                     ? "bg-foreground text-background border-foreground"
                     : "text-foreground/65 hover:text-foreground hover:border-foreground/40",

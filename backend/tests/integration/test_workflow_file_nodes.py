@@ -6,8 +6,6 @@ lookup, stores what it makes as a file of the run, and fails with a typed code
 - never a parser's exception - on a file it cannot read.
 """
 
-from __future__ import annotations
-
 import io
 import itertools
 import json

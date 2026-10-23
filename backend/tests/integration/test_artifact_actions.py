@@ -6,8 +6,6 @@ copies is checked again against the agent as it is now. The refusals assert the 
 sentence - the model reads them - and the version rows show what was stored.
 """
 
-from __future__ import annotations
-
 import json
 import uuid
 from collections.abc import Iterator

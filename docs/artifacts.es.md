@@ -1,24 +1,24 @@
 ---
-source_sha: "c75f98a351f1"
+source_sha: "34a30eb8b360"
 ---
 
-# Artefactos { #artifacts }
+# Aplicaciones { #artifacts }
 
-Un **artefacto** es una página que un agent ha publicado: un informe, un pequeño
+Una **aplicación** es una página que un agent ha publicado: un informe, un pequeño
 dashboard, un resumen de una página que alguien abre en el navegador. Tiene un
 enlace que no cambia cuando el agent vuelve a publicarla, así que «cada lunes,
 publica las cifras de la semana en esta página» es un solo enlace que la gente
 guarda en favoritos, en lugar de uno nuevo cada semana.
 
-Un artefacto no es un archivo. Un gráfico, un PDF generado y un archivo del
-workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Un
-artefacto es lo que se *sirve*: tiene un propietario, una visibilidad y grants
+Una aplicación no es un archivo. Un gráfico, un PDF generado y un archivo del
+workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
+aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
 
-## Publicar uno { #publishing-one }
+## Publicar una { #publishing-one }
 
-Activa la capability **Artifacts** para el agent. Añade cinco herramientas:
+Activa la capability **Apps** para el agent. Añade cinco herramientas:
 `publish_artifact`, que el modelo llama cuando el resultado es algo que una
 persona debería abrir en lugar de leerlo una vez en el chat; `read_artifact`,
 que vuelve a leer una página publicada; `list_artifacts`, que nombra las páginas
@@ -28,7 +28,7 @@ falla en ella.
 La página sale de uno de tres sitios:
 
 - **Un archivo del workspace del agent**, terminado en `.html` o `.md`. Es el
-  caso habitual para un agent con la capability [Archivos y shell](reference/capabilities.md#files-shell):
+  caso habitual para un agent con la capability [Sandbox](reference/capabilities.md#files-shell):
   escribe `report.html`, ejecuta lo que haga falta para construirlo y después
   publica el archivo. Los bytes se leen a través del propio backend de workspace
   del run, así que funciona con todos los backends de sandbox.
@@ -645,8 +645,8 @@ entrada, que es de la persona y está en el propio run. Consulta [gobernanza](go
 
 ## Un nombre, un enlace { #one-name-one-link }
 
-La identidad de un artefacto es su **nombre dentro del agent**: `weekly-report`,
-`churn-dashboard`. Publicar con el mismo nombre actualiza el mismo artefacto,
+La identidad de una aplicación es su **nombre dentro del agent**: `weekly-report`,
+`churn-dashboard`. Publicar con el mismo nombre actualiza la misma aplicación,
 desde cualquier superficie: el chat, la API, un [trigger](triggers.md) o un
 workflow. Un nombre nuevo crea una página nueva. El nombre admite letras
 minúsculas, dígitos y guiones, hasta 64 caracteres.
@@ -659,15 +659,15 @@ tienen en favoritos. El entorno se lee del propio run, nunca del modelo, y la
 lista y la página lo nombran.
 
 El nombre lo comparten todos los que ejecutan el agent, pero la página no. Un run
-vuelve a publicar un artefacto existente solo cuando la persona por la que actúa
-es su propietaria o tiene `artifacts:edit` sobre él, por el rol o por un grant
-`edit`: la misma regla que para gestionarlo en la consola. Al run de cualquier
+vuelve a publicar una aplicación existente solo cuando la persona por la que actúa
+es su propietaria o tiene `artifacts:edit` sobre ella, por el rol o por un grant
+`edit`: la misma regla que para gestionarla en la consola. Al run de cualquier
 otra persona se le dice que el nombre está ocupado y publica con otro, así que un
 compañero que pida al mismo agent compartido un `weekly-report` no puede
 sustituir la página que hay detrás de tu enlace.
 
 Cada publicación es una **versión** nueva. No se sobrescribe nada, así que la
-lista de versiones en la página del artefacto es su historial. Dos cosas mantienen
+lista de versiones en la página de la aplicación es su historial. Dos cosas mantienen
 ese historial acotado:
 
 - Publicar exactamente los bytes que ya contiene la versión actual no añade
@@ -727,12 +727,20 @@ contenido a otro origen:
 | `lib/agenticos-3.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
 | `lib/agenticos-2.css`, `lib/agenticos-2.js` | La versión anterior del kit, conservada para las páginas publicadas con ella |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
+| `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, como `window.L` - dibuja sobre las [teselas de mapa](#visuals) del despliegue, cuando las tiene |
+| `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: chinchetas numeradas que caen en orden, una línea entre ellas, pausa y repetición, y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
 sigue recibiendo esa, y un archivo ya distribuido nunca se modifica. No se
 descarga nada de fuera del despliegue, así que uno sin acceso a internet funciona
 igual. Los archivos están en `backend/app/core/catalog/artifact_lib/`.
+
+Los archivos responden `Access-Control-Allow-Origin: *`, porque un script de módulo se
+descarga en modo CORS y una página en un origen opaco envía `Origin: null` - sin ello
+three.js no se importaría.
 
 La versión 3 conserva todas las clases y llamadas de la versión 2, y perdona el
 marcado que un modelo escribe con descuido: un título, un subtítulo y una línea
@@ -751,7 +759,7 @@ dashboard, un informe y una tabla en vivo dibujada con `AO.records`), el estilo
 de la casa, iconos en lugar de emoji y cómo cambiar una página con
 `read_artifact`. Una organización nueva lo recibe con los demás skills incluidos,
 una existente con `seed-skills`, y la pestaña **Page style** de la capability
-Artifacts en el Builder lo ofrece. Edita el skill para describir tu propia marca,
+Apps en el Builder lo ofrece. Edita el skill para describir tu propia marca,
 y el agent la sigue.
 
 ### El contrato de página y los avisos de publicación { #the-page-contract-and-the-publish-warnings }
@@ -759,7 +767,7 @@ y el agent la sigue.
 El agent no puede ver la página que publica, así que la plataforma le dice cómo
 debe ser una página y qué parece estar mal en la que envió.
 
-La capability Artifacts da a cada agent que la tiene un breve **contrato de
+La capability Apps da a cada agent que la tiene un breve **contrato de
 página** en sus instrucciones, esté vinculado el skill o no: el esqueleto
 (doctype, viewport, `lang`, la hoja de estilos y el script del kit en orden,
 `main.ao-page` y la cabecera), una lista cerrada de las clases más usadas del
@@ -820,7 +828,92 @@ informe, sin la imagen, y dice que el despliegue no tiene renderizador. Desactiv
 puede leer imágenes; el informe sigue llegando. `agenticos cmd doctor` dice si el
 renderizador responde.
 
-## Quién puede abrirlo { #who-can-open-it }
+## Visuals { #visuals }
+
+Un [visual](reference/capabilities.md#visuals) es una aplicación que aún no se ha
+guardado: un dibujo que un agente escribe en la conversación con `draw`, mostrado bajo
+su mensaje mientras se escribe. Es el mismo tipo de documento - un visual `html` es una
+página, y uno `svg` o `mermaid` se convierte en una página que lo contiene - y se dibuja
+con el mismo aislamiento.
+
+**El marco.** `/api/v1/artifact-content/visual-frame` es una página fija en el origen
+de contenido, servida con la misma política que recibe la página de cada aplicación. No
+contiene ningún dibujo: la consola se lo envía mientras llega, así que nada tiene que
+guardarse antes de mostrarse, y el aislamiento viene de la cabecera de la respuesta y no
+de una etiqueta meta en `srcdoc`. Mientras llega, el marco transforma el marcado en su
+sitio, sin scripts ni atributos `on*`; al completarse escribe el documento entero para
+que sus scripts se ejecuten, exactamente como en la página guardada. El marco informa de
+su tamaño, sus errores y un latido; un dibujo que deja de latir se cierra en lugar de
+bloquear la pestaña.
+
+**En el chat.** Un dibujo está en la propia conversación, sin tarjeta alrededor,
+desde el borde izquierdo del texto del mensaje: un SVG se ajusta por su `viewBox` y
+se reduce por encima de 560 píxeles, una página se compone al ancho de la columna y
+se reduce por encima de 900. Una línea discreta debajo lo nombra y dice si todavía
+se está dibujando; *Mostrar código*, *Descargar* (`.svg`, `.html` o la fuente
+Mermaid), *Copiar como imagen* para un SVG, *Guardar en Apps* y *Pantalla
+completa* aparecen en esa línea cuando el puntero está sobre el dibujo, y siempre
+en una pantalla táctil. Mientras se transmite, el dibujo conserva la altura que
+declaró su llamada, sobre un tono suave, para que la conversación no se mueva bajo
+el lector. La pantalla completa lo muestra a su propio tamaño; en un teléfono, un
+toque abre la vista previa a pantalla completa. El zoom está en la esquina
+inferior derecha del dibujo mientras el puntero está encima: un SVG se dibuja más
+grande, una página se escala, y el marco se desplaza cuando el dibujo lo supera.
+Un error que el dibujo informa llega con *Arreglarlo*, que se lo pide al agent.
+
+**Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
+la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -
+llamando a `agenticos.followUp(text)`. El dibujo solo lo pide. La consola muestra
+el texto exacto bajo el dibujo con *Enviar*, *Editar* y *Descartar*, y se convierte
+en el mensaje de la persona solo cuando hace clic en *Enviar*, un clic que el
+dibujo no puede hacer por ella. Una petición sin interacción del usuario detrás -
+al cargar, con un temporizador - se descarta, igual que una de más de 2.000
+caracteres, y mientras una espera, otra no puede sustituirla. Los seguimientos solo
+se ofrecen en el chat: `agenticos.canFollowUp()` es falso en un hilo compartido, en
+el widget y en una app, donde `followUp` no hace nada y devuelve `false`, así que un
+dibujo guardado sigue funcionando.
+
+**Mapas.** Con [`VISUAL_MAP_TILES`](configuration.md#published-artifacts)
+definido, un dibujo o una app pueden dibujar sobre teselas de mapa reales: el
+despliegue trae cada tesela de ese servidor y la sirve desde su propia ruta de
+teselas, `agenticos.map` dice dónde, y el kit de mapas dibuja sobre ella un
+itinerario con el crédito del servidor debajo. Sin él, la misma llamada dibuja un
+contorno de las paradas - chinchetas y la línea entre ellas, sin calles - y lo mismo
+hace un mapa cuyas teselas no cargan. La imagen de un mapa en una app de chat se
+dibuja terminada, con todas las chinchetas en su sitio.
+
+**Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
+siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
+para valores exactos, `create_chart` para cifras que ver - así «ahora en gráfico»
+convierte una tabla en un gráfico nativo - y un dibujo para explicar cómo se mueve
+algo, hacer una herramienta para el momento o seguir lugares en un mapa. Sus
+plantillas son un diagrama, una explicación con controles deslizantes, un avión 3D
+con cabeceo, alabeo y guiñada, una calculadora y un itinerario. Un chat vacío con
+un agent que dibuja se abre con un iniciador para cada uno. Activar Visuals en el
+Builder vincula también Charts.
+
+**Descargarlo.** Un archivo abierto desde el disco no tiene marco alrededor, así que
+la descarga lleva lo que imponía el marco. Un SVG conserva el dibujo y pierde lo que
+podría ejecutarse o salir fuera: scripts, manejadores, documentos incrustados y
+cualquier referencia fuera del archivo. Una página se abre con la política del marco
+por delante de todo lo que escribió, y carga sus bibliotecas desde el origen de
+artefactos de este despliegue.
+
+**Guardarlo como aplicación.** *Guardar en Aplicaciones* toma un título y un nombre,
+ambos rellenados, y publica el visual como versión de una aplicación bajo el agente
+cuyo turno lo dibujó, en el entorno en el que corrió ese turno, propiedad de quien lo guarda y privada hasta que la comparta. El
+servidor reconstruye el visual a partir de la transcripción - con las revisiones
+aplicadas - en lugar de tomar bytes del navegador, así que la aplicación es exactamente
+lo que dibujó el agente. Guardarlo con un nombre que la persona ya tiene añade una
+versión a esa aplicación - así una revisión de un dibujo guardado actualiza la página con
+la que se compartió. Guardar requiere `artifacts:edit`.
+
+**Desde un delegado.** Un dibujo se queda en el run que lo hizo, así que un agente
+que trabaja como delegado de otro agente no dibuja: `draw` se lo dice, y describe la
+imagen en su resultado para que el agente para el que trabaja la dibuje en la
+conversación.
+
+## Quién puede abrirla { #who-can-open-it }
 
 Un artefacto nuevo es **privado** para la persona en nombre de la cual actuó el
 run que lo publicó: la persona del chat, o el creador de un trigger. Una página
@@ -838,7 +931,7 @@ iniciada al que las reglas de abajo ya dejan entrar.
 Nombra la organización en la que está el artefacto (`?org=`), así que un miembro
 de varias llega a la correcta.
 
-En **Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras:
+En **Share**, cualquiera que pueda gestionarla puede compartirla de tres maneras:
 
 | Alcance | Cómo | Quién |
 |---|---|---|
@@ -847,10 +940,10 @@ En **Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras
 | Cualquiera con el enlace | **Create a public link** | Cualquiera que tenga la dirección, sin cuenta |
 
 Compartir y la visibilidad usan el mismo panel y las mismas reglas que los agents
-y los skills; consulta [Permisos](permissions.md). Gestionar un artefacto
-(compartirlo, su enlace público y sus ajustes, restaurar una versión, borrarlo)
-requiere `artifacts:edit` sobre ese artefacto, desde el rol o desde un grant
-`edit`. Abrirlo requiere `artifacts:view`.
+y los skills; consulta [Permisos](permissions.md). Gestionar una aplicación
+(compartirla, su enlace público y sus ajustes, restaurar una versión, borrarla)
+requiere `artifacts:edit` sobre esa aplicación, desde el rol o desde un grant
+`edit`. Abrirla requiere `artifacts:view`.
 
 El agent no puede ampliar quién lee una página. Publica, y `share_artifact` solo presenta una
 solicitud; una persona decide quién la ve. Por eso la capability no pide aprobación por defecto:
@@ -883,7 +976,7 @@ de inmediato: la dirección nombra la clave del enlace, y la ruta comprueba esa 
 cada carga. La vida de la propia dirección, `ARTIFACT_VIEW_TTL_SECONDS` (cinco minutos
 por defecto), es solo el límite exterior.
 
-Un miembro revocado está en la misma situación que antes: pierde el artefacto en su
+Un miembro revocado está en la misma situación que antes: pierde la aplicación en su
 siguiente petición, y una página que ya tenía abierta se mantiene como mucho
 durante esa misma ventana.
 
@@ -1019,9 +1112,9 @@ visitante.
 
 ## Cómo se aísla la página { #how-the-page-is-isolated }
 
-Un artefacto es HTML con script dentro, escrito por un modelo que puede haber
+Una aplicación es HTML con script dentro, escrita por un modelo que puede haber
 leído algo hostil. Se sirve de forma que nada de lo que haga pueda alcanzar la
-consola ni a la persona que lo mira:
+consola ni a la persona que la mira:
 
 - Los bytes salen de una ruta aparte, `/api/v1/artifact-content/<token>`, que
   no lee ninguna cookie ni ninguna sesión. El token está firmado, nombra una sola
@@ -1035,7 +1128,7 @@ consola ni a la persona que lo mira:
   sola.
 - La misma política fija `default-src 'none'` y `connect-src 'none'`. El único
   origen remoto que nombra es la ruta propia del conjunto de bibliotecas en el
-  origen del contenido, para scripts, estilos y fuentes. `frame-ancestors` nombra
+  origen del contenido, para scripts, estilos y fuentes. En un despliegue que define `VISUAL_MAP_TILES`, se suman las imágenes de su propia ruta de teselas, `/api/v1/artifact-content/tiles/{z}/{x}/{y}`. Esa ruta toma tres números, cada uno comprobado contra el zoom en el que puede existir, y trae la tesela ella misma, así que una página nunca conoce la dirección ni la clave del servidor de teselas y no puede enviarle nada que haya elegido. `frame-ancestors` nombra
   solo la consola — y, para una página con enlace público y sitios que la
   incrustan, el documento de incrustación y esos sitios. El frame de la consola
   lleva la misma lista `sandbox` como segundo cerrojo.
@@ -1049,7 +1142,7 @@ consola ni a la persona que lo mira:
   página. La página podría enviar ese mensaje por sí misma, así que es una
   petición y nunca un permiso: la persona que lee la dirección es lo que se
   interpone entre una página manipulada por prompt injection y la dirección a la
-  que enviaría sus cifras.
+  que enviaría sus cifras. Un [mensaje de seguimiento](#visuals) es el mismo tipo de petición: la consola muestra el texto y lo envía una persona.
 - Los datos en vivo llegan a la página de un miembro de dos maneras, ambas decididas por lector
   en el servidor. Al cargar, la ruta de contenido escribe los registros de cada binding en el
   script de plataforma de la página para el miembro que nombra la dirección firmada; un refresco
@@ -1073,7 +1166,7 @@ consola ni a la persona que lo mira:
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
   de un enlace público ya está limitado por enlace.
 
-La lista **Artifacts** dibuja la página actual de cada tarjeta como una
+La lista **Apps** dibuja la página actual de cada tarjeta como una
 miniatura en vivo, por el mismo tipo de frame, con script y nada más: sin
 diálogos, sin ventanas emergentes, sin formularios. Con script, para que un
 dashboard cuyos gráficos dibuja una librería no sea un lienzo vacío en su
@@ -1106,7 +1199,7 @@ no existiera:
   dirección firmada emitida antes de archivarla. A un lector que abre su enlace
   se le dice que no está disponible. Quien puede editarla ve cuándo se archivó,
   con **Restore** y **Delete**.
-- **Las listas.** La lista Artifacts y el widget del dashboard la omiten. Elige
+- **Las listas.** La lista Apps y el widget del dashboard la omiten. Elige
   **Archived included** en la lista para verla, marcada como **Archived**. Solo la ven
   quienes pueden editarla.
 - **El enlace público y el embed.** Ninguno de los dos abre nada.
@@ -1130,21 +1223,37 @@ derecho a editar esa página, grant incluido. `GET /api/v1/artifacts` enumera la
 páginas archivadas, a quienes pueden editarlas, solo con `include_archived=true`, y
 `archived_at` en cada página dice cuándo se archivó.
 
+## Seguir una página { #following-a-page }
+
+**Seguir**, en la barra de una página, deja un aviso en tu bandeja cada vez que
+la página recibe una versión nueva: un agente la volvió a publicar con otro
+contenido, o alguien restauró una versión anterior. Una republicación que no
+cambia nada no avisa a nadie, así que una programación que no encontró nada
+nuevo no hace ruido. La persona cuyo run o restauración creó la versión no recibe
+aviso de su propio cambio.
+
+Seguir no da acceso. Cualquiera que pueda abrir la página puede seguirla, y quien
+pierde el acceso deja de recibir avisos sin tener que dejar de seguirla. La
+bandeja vuelve a comprobar el acceso al leerse, de modo que un aviso sobre una
+página que ya no puedes abrir desaparece con ese acceso. El aviso también puede
+llegar por correo; cada canal se desactiva en **Settings → Notifications →
+App updated**.
+
 ## Retención y borrado { #retention-and-deletion }
 
-Los artefactos son una [clase de retención](governance.md#the-classes) propia,
+Las aplicaciones son una [clase de retención](governance.md#the-classes) propia,
 medida desde la **última publicación**: un informe que se vuelve a publicar cada
 semana está vivo por antigua que sea su primera versión. Como toda clase, conserva
-los artefactos para siempre hasta que una organización o el despliegue fijen un
+las aplicaciones para siempre hasta que una organización o el despliegue fijen un
 periodo.
 
-Borrar un artefacto, a mano o por retención, elimina todas sus versiones, sus
+Borrar una aplicación, a mano o por retención, elimina todas sus versiones, sus
 bytes almacenados, sus grants y su enlace público. Una página archivada envejece
 y se borra como cualquier otra. Borrar el agent no borra sus
-artefactos: siguen legibles y simplemente no tienen quien los publique. Borrar un
+aplicaciones: siguen legibles y simplemente no tienen quien las publique. Borrar un
 entorno con nombre hace lo mismo con las páginas publicadas desde él, así que
 nunca caen sobre la página del entorno por defecto con el mismo nombre. Borrar la
-organización los elimina. Los artefactos de una persona borrada se quedan y
+organización las elimina. Las aplicaciones de una persona borrada se quedan y
 pierden su propietario, igual que sus agents y skills.
 
 Los bytes viven en el [almacenamiento de archivos](configuration.md#uploaded-files-at-rest)
@@ -1188,6 +1297,14 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   el marcado y no pueden saber qué aspecto tiene. Con uno, la imagen es la de un
   Chromium headless: las fuentes y los tamaños pueden diferir un poco del
   navegador de un lector.
+- **Un visual solo se dibuja en el chat web y en un hilo compartido.** Una app de
+  chat recibe una imagen de él donde `VISUAL_RENDER_CDP_URL` nombra un navegador, y
+  su título en otro caso; el widget y una incrustación en otro sitio muestran su
+  título.
+- **Un hilo compartido muestra sus doce visuals más recientes**, y no más de 16 MB
+  entre todos. Cualquiera con el enlace puede abrirlo tantas veces como quiera, así
+  que una vista está acotada; un turno más allá de cualquiera de los dos límites
+  conserva su texto y no muestra el dibujo.
 
 ## Resumen { #recap }
 

@@ -16,6 +16,12 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  usePathname: () => "/runs",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -34,10 +40,12 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "schedule",
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    overlap: "skip",
     event_source: null,
     event_config: {},
     prompt: "Summarise the day",
@@ -83,6 +91,10 @@ describe("ScheduledTab", () => {
     render(<ScheduledTab />, { wrapper });
 
     expect(await screen.findByText("Nothing runs on its own yet")).toBeVisible();
+    // No button off to the agents list - the header's New schedule and the ideas
+    // under this line are the way in - and no card to frame the absence.
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
   it("says a failed request out loud instead of as an empty list", async () => {
@@ -117,7 +129,7 @@ describe("ScheduledTab", () => {
 
     expect(await screen.findByText("Routine 0")).toBeVisible();
     expect(screen.queryByText("Routine 57")).toBeNull();
-    expect(screen.getByText(/58 routines/)).toBeVisible();
+    expect(screen.getByText("58 routines · page 1 of 2")).toBeVisible();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Next page" }));
 

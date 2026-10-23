@@ -44,13 +44,17 @@ vi.mock("@/stores", () => ({
   useOrgStore: (selector: (state: { activeOrgId: string | null }) => unknown) => selector(org),
 }));
 
-function renderBar(agentId: string | null = "agent-1", filters = DEFAULT_RUN_FILTERS) {
+function renderBar(
+  agentId: string | null = "agent-1",
+  filters = DEFAULT_RUN_FILTERS,
+  onChange = vi.fn(),
+) {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <RunFilterBar
         filters={filters}
         period={PERIOD}
-        onChange={vi.fn()}
+        onChange={onChange}
         agentId={agentId}
         onAgentChange={vi.fn()}
       />
@@ -67,6 +71,7 @@ describe("the filter bar's gates", () => {
     for (const name of [
       "Filter by status",
       "Filter by surface",
+      "Filter by kind",
       "Filter by rating",
       "Filter by agent",
       "Filter by person",
@@ -145,5 +150,41 @@ describe("the model facet", () => {
 
     expect(await screen.findByRole("option", { name: "claude-sonnet-5" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Any model" })).toBeInTheDocument();
+  });
+});
+
+describe("the kind filter", () => {
+  it("narrows to voice calls", async () => {
+    perm.agentsView = true;
+    org.activeOrgId = "org-1";
+    const onChange = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RunFilterBar
+          filters={DEFAULT_RUN_FILTERS}
+          period={PERIOD}
+          onChange={onChange}
+          agentId={null}
+          onAgentChange={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by kind" }));
+    expect(screen.getByRole("option", { name: "Any kind" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Text" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: "Voice calls" }));
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUN_FILTERS, modality: "voice" });
+  });
+});
+
+describe("test runs (#2074)", () => {
+  it("hides or keeps only the Builder's test runs", async () => {
+    const onChange = vi.fn();
+    renderBar("agent-1", DEFAULT_RUN_FILTERS, onChange);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Only test runs" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ test: "only" }));
   });
 });

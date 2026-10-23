@@ -6,8 +6,6 @@ open of a share link answered 500. The failed validation also printed the
 response, share token and all, into the server log.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -46,12 +44,13 @@ def _conversation() -> MagicMock:
     conv = MagicMock()
     conv.id = uuid4()
     conv.title = "Weekly report"
+    conv.project_id = None
     conv.messages = [message]
     return conv
 
 
 @pytest.fixture
-async def shares() -> AsyncGenerator[None, None]:
+async def shares() -> AsyncGenerator[None]:
     app.dependency_overrides[get_db_session] = lambda: AsyncMock()
     app.dependency_overrides[get_conversation_share_service] = lambda: ConversationShareService(
         AsyncMock()

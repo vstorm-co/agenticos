@@ -18,31 +18,44 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from app.agents.capabilities import all_capabilities
+from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
+    ApiRunSvc,
     Auth,
+    ConversationSvc,
     DBSession,
+    KnowledgeReachSvc,
+    MentionSvc,
+    MLSvc,
+    PrefersAsync,
     limit_agent_run,
+    limit_dictation,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
-from app.core.exceptions import NotFoundError
+from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentA2ARequest,
     AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
     AgentDetail,
     AgentDraftUpdate,
+    AgentKnowledgeReach,
     AgentList,
     AgentMetadataRequest,
     AgentPublish,
@@ -61,15 +74,38 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PlatformMcpTool,
+    PlatformMcpToolList,
+    PromptVariableCatalog,
+    PromptVariableRead,
+    RunRequestRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_catalog, mcp_listing
+from app.schemas.mention import MentionableList
+from app.schemas.ml import DictationRead, DictationStatusRead
+from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
+from app.services.platform_mcp import platform_tool_catalog
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/prompt-variables",
+    response_model=PromptVariableCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_prompt_variables() -> Any:
+    """The system variables any agent's instructions may use, in the order to offer them."""
+    return PromptVariableCatalog(
+        items=[
+            PromptVariableRead(name=item.name, description=item.description, example=item.example)
+            for item in SYSTEM_VARIABLES
+        ]
+    )
 
 
 @router.get(
@@ -80,6 +116,7 @@ router = APIRouter()
 async def list_capability_catalog() -> Any:
     """Every capability an agent can be given, with the schema its form is built from."""
     contracts = await tool_contracts()
+    starter = agent_templates.starter_capabilities()
     items = [
         CapabilityCatalogEntry(
             id=definition.id,
@@ -88,7 +125,9 @@ async def list_capability_catalog() -> Any:
             description=definition.description,
             side_effecting=definition.side_effecting,
             tools=list(definition.tools),
+            tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
+            voice=definition.voice,
             contracts=[
                 CapabilityToolContract(
                     tool_id=tool_id,
@@ -99,6 +138,7 @@ async def list_capability_catalog() -> Any:
             ],
             config_schema=definition.config_json_schema(),
             requires_secret=definition.secret,
+            recommended=starter.get(definition.id),
         )
         # `selectable` only. A capability a spec may not bind is a switch the
         # Toolbox cannot honestly offer: `channel_tools` is chosen per bound bot
@@ -154,25 +194,31 @@ async def list_mcp_catalog(db: DBSession) -> Any:
     auth flow works and the description is honest. `registry_total` says how many
     the mirror holds beside them, so a count line can say what searching reaches.
     """
-    items = [
-        McpCatalogEntry(
-            key=entry.key,
-            name=entry.name,
-            description=entry.description,
-            category=entry.category,
-            auth=entry.auth.value,
-            url=entry.url or None,
-            docs_url=entry.docs_url or None,
-            token_hint=entry.token_hint or None,
-            icon=entry.icon or None,
-        )
-        for entry in mcp_catalog.CATALOG
-    ]
+    items = [McpCatalogEntry(**vars(server)) for server in await mcp_listing.curated(db)]
     return McpCatalog(
         items=items,
         total=len(items),
         registry_total=await mcp_listing.mirror_size(db),
     )
+
+
+@router.get(
+    "/platform-mcp-tools",
+    response_model=PlatformMcpToolList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_platform_mcp_tools() -> Any:
+    """The tools of this deployment's own MCP server, for a binding to choose from.
+
+    Every caller sees the same list: a tool runs with the permissions of whoever
+    the agent runs for, so what may actually be done is decided per call, not
+    by who reads this list.
+    """
+    items = [
+        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        for tool in platform_tool_catalog()
+    ]
+    return PlatformMcpToolList(items=items, total=len(items))
 
 
 @router.get(
@@ -184,6 +230,9 @@ async def list_mcp_servers(
     db: DBSession,
     q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
+    auth: Literal["", "none", "token", "oauth"] = Query(
+        "", description="What the server asks for, or blank for any"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -196,11 +245,14 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
-    A registry row carries `reviewed: false`, the only thing separating it from a
-    curated one: nobody here checked it, the description is the publisher's, and
-    there is no token hint because the registry has no such field.
+    A registry row carries `reviewed: false`: nobody here wrote it, the description
+    is the publisher's, and there is no token hint because the registry has no such
+    field. `verified` and `check` say what the last catalog check found, for either
+    kind; a registry listing it found dead or duplicated is not on the list.
     """
-    found = await mcp_listing.page(db, query=q, category=category, skip=skip, limit=limit)
+    found = await mcp_listing.page(
+        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+    )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
         total=found.total,
@@ -258,6 +310,8 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         visibility=data.visibility,
         categories=data.categories,
         tags=data.tags,
+        group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 
@@ -278,6 +332,35 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
     return await service.promote_specialist(
         ctx, data.specialist, fallback_model_profile_id=data.fallback_model_profile_id
     )
+
+
+@router.get("/{agent_id}/knowledge-reach", response_model=AgentKnowledgeReach)
+async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: Auth) -> Any:
+    """Which groups the agent's knowledge bases, skills and context come from (#2072).
+
+    Each source says whether the agent reaches people it is not shared with - who
+    are answered from it all the same. Sources the caller may not see are left out.
+    """
+    return await service.for_agent(ctx, agent_id)
+
+
+@router.get("/{agent_id}/mentionables", response_model=MentionableList)
+async def list_mentionables(
+    agent_id: UUID,
+    service: MentionSvc,
+    ctx: Auth,
+    draft: Annotated[
+        bool, Query(description="Read the Builder's draft, as its test panel runs it")
+    ] = False,
+) -> Any:
+    """What the person may point this agent at with `@` in the composer (#2189).
+
+    Its MCP servers, the capabilities that give it tools, the agents it delegates
+    to, and its knowledge bases, skills and context files - nothing the agent
+    could not already reach, and nothing the caller could not use.
+    """
+    items = await service.available(ctx, agent_id, draft=draft)
+    return MentionableList(items=items, total=len(items))
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)
@@ -473,6 +556,25 @@ async def set_agent_avatar_color(
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
 
 
+@router.put(
+    "/{agent_id}/a2a",
+    response_model=AgentRead,
+)
+async def set_agent_a2a(
+    agent_id: UUID,
+    data: AgentA2ARequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Serve this agent over A2A, or stop (#2092).
+
+    Per-resource: the service's grant-aware `AGENTS_PUBLISH` check decides. Served,
+    its card is at `/a2a/{agent_id}/.well-known/agent-card.json` and its tasks at
+    `POST /a2a/{agent_id}`.
+    """
+    return await service.set_a2a(ctx, agent_id, enabled=data.enabled)
+
+
 @router.patch(
     "/{agent_id}/metadata",
     response_model=AgentRead,
@@ -532,14 +634,125 @@ async def unarchive_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) 
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
 )
-async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
+async def delete_agent(
+    agent_id: UUID,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+    draft_only: bool = Query(
+        False,
+        description=(
+            "Delete only a never-published draft the caller created; refused "
+            "otherwise, checked on the locked row so a publish in between is seen."
+        ),
+    ),
+) -> None:
     """Permanently remove an agent, its versions and its shares."""
-    await service.delete(ctx, agent_id)
+    await service.delete(ctx, agent_id, draft_only=draft_only)
+
+
+@router.get("/{agent_id}/dictation", response_model=DictationStatusRead)
+async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc, ctx: Auth) -> Any:
+    """Whether the composer can dictate to this agent, and on which provider (#1797).
+
+    The same access as dictating: anyone who may run the agent, a grant included,
+    and a 404 for an agent the caller may not run. Read before the microphone is
+    offered, so nobody records only to be refused, and for the format to record
+    in - WAV, unless the deployment accepts compressed audio and the provider
+    takes WebM. The composer always has the browser's own recognition; `engine`
+    says whether the agent's Dictation switch sends it to a provider instead.
+    `server_available` is the provider half alone, for the embed form.
+
+    An agent with nothing published answers `browser`, never with a refusal.
+    """
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    status = await ml.dictation_status(ctx, agent=agent)
+    return DictationStatusRead(
+        engine=status.engine,
+        requested=status.requested,
+        server_available=status.server_available,
+        unavailable=status.unavailable,
+        max_seconds=status.max_seconds,
+        provider=status.provider,
+        format=status.format,
+    )
+
+
+@router.post(
+    "/{agent_id}/dictation",
+    response_model=DictationRead,
+    # A rate limit, not a permission gate: access is per agent and decided by the
+    # registry below, which reads the caller's grants on it.
+    dependencies=[Depends(limit_dictation)],
+)
+async def dictate_into_composer(
+    agent_id: UUID,
+    registry: AgentRegistrySvc,
+    ml: MLSvc,
+    ctx: Auth,
+    file: UploadFile = File(
+        ...,
+        description=(
+            "The recording: WAV holding 16 kHz mono 16-bit PCM, or - where the deployment "
+            "accepts compressed audio - WebM, Ogg or MP4 as the browser's MediaRecorder made it"
+        ),
+    ),
+    duration: float | None = Form(
+        default=None,
+        ge=0,
+        description=(
+            "How many seconds the browser recorded. Client-reported: used for the usage "
+            "record only where the provider states no length, and clamped to the "
+            "organization's longest dictation"
+        ),
+    ),
+) -> Any:
+    """Turn a composer recording into text on the organization's own engine (#1797).
+
+    Anyone who may run this agent may dictate to it, a Viewer with a `use` grant
+    included - so this is a per-resource check, not a role gate - and an agent the
+    caller may not run answers 404, as everywhere else. The engine is the
+    organization's; the provider, model and language are the agent's published
+    speech-to-text override where it has one and the organization's otherwise.
+    The caller names none.
+
+    The audio is not stored; the text comes back for the person to edit before
+    sending. Refusals carry `details.reason`: 400 `empty`, `unsupported_type` or
+    `too_large`; 503 `not_configured`, `provider_error` or `timeout`; 429 past
+    `RATE_LIMIT_DICTATION_PER_MINUTE`.
+    """
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    text = await ml.dictate(
+        ctx,
+        agent=agent,
+        # One byte past the ceiling, so an oversized body is never copied whole
+        # and the service can still name the limit it is over.
+        content=await file.read(transcription.MAX_BYTES + 1),
+        mime_type=file.content_type or "application/octet-stream",
+        reported_seconds=duration,
+    )
+    return DictationRead(text=text)
 
 
 @router.post(
     "/{agent_id}/run",
     response_model=AgentRunResult,
+    # Answered in the error envelope with `details.run_id` (#2121); the public
+    # document draws them as it draws every other refusal.
+    openapi_extra={
+        "x-error-responses": {
+            "500": "The run started and failed. `details.run_id` names it, and `message` says why.",
+            "502": "The model provider refused or failed the run's request. "
+            "`details.run_id` names the run, which is recorded as failed.",
+            "409": "With `Idempotency-Key`: the key was already used for a different request.",
+        }
+    },
+    responses={
+        202: {
+            "model": RunRequestRead,
+            "description": "Sent with `Prefer: respond-async`: the run is queued. Poll "
+            "`Location` (`GET /api/v1/run-requests/{id}`) for its outcome.",
+        }
+    },
     # Not a permission gate - see the boundary about `require(...)` on
     # per-resource routes. A rate limit is about the caller, not about the row,
     # and this is the one route on this surface a stranger with a token reaches.
@@ -549,8 +762,20 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    conversations: ConversationSvc,
+    api_runs: ApiRunSvc,
     db: DBSession,
     ctx: Auth,
+    respond_async: PrefersAsync,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            max_length=255,
+            description="With `Prefer: respond-async`: a retry under the same key answers "
+            "the same run request instead of starting another run.",
+        ),
+    ] = None,
 ) -> Any:
     """Run a published agent and return its answer.
 
@@ -566,7 +791,34 @@ async def run_agent(
     other. The surface whose whole purpose is "run it from your own backend" was
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
+
+    **Sent with `Prefer: respond-async` it answers `202` at once** (#2219): the run
+    is queued for a worker and the answer is a run request to poll, so a run of
+    minutes does not hold a connection - or a proxy's read timeout - open. Only
+    then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
+    rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async:
+        queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=queued.model_dump(mode="json"),
+            headers={
+                "Location": f"{settings.API_V1_STR}/run-requests/{queued.id}",
+                "Preference-Applied": "respond-async",
+            },
+        )
+    if idempotency_key is not None:
+        raise BadRequestError(
+            message="Idempotency-Key is honoured only with Prefer: respond-async",
+            details={"header": "Idempotency-Key"},
+        )
+    # The caller's own conversation, checked - an unknown id was a foreign-key
+    # 500, and somebody else's would have handed this run its workspace and its
+    # plan (#1796) - or a new one, so the next call can continue it (#2122).
+    conversation_id, history = await conversations.for_api_run(
+        ctx, data.conversation_id, prompt=data.prompt
+    )
     attachments = await load_attached_files(
         db,
         [str(file_id) for file_id in data.file_ids],
@@ -581,13 +833,16 @@ async def run_agent(
         agent_id,
         data.prompt,
         surface=RunSurface.API,
-        conversation_id=data.conversation_id,
+        conversation_id=conversation_id,
+        message_history=history,
         environment_id=data.environment_id,
         attachments=attachments,
         structured=structured,
+        reports_failure=True,
     )
     return AgentRunResult(
         run_id=run.id,
+        conversation_id=conversation_id,
         output=output,
         structured=structured[0] if structured else None,
         status=run.status,
@@ -595,5 +850,7 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
         parked=await service.parked_calls(ctx, run),
     )

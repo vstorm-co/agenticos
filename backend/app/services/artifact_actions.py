@@ -9,8 +9,6 @@ by a model, so it is kept as plain text of bounded length and never trusted for 
 that decides what runs.
 """
 
-from __future__ import annotations
-
 import unicodedata
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field

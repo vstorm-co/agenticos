@@ -47,6 +47,27 @@ export function LatencyWidget({ title, hint, period, seeAll, options }: Dashboar
                   }
                 />
               </div>
+              {/* The same two numbers on one scale - zero to the slowest 5% -
+                  so the gap between the median and the tail is seen before it
+                  is read; the sentence below gives it as a ratio. */}
+              {p50 !== null && p95 !== null && p95 > 0 ? (
+                <div aria-hidden className="my-auto space-y-1.5">
+                  <div className="bg-muted relative h-2.5 overflow-hidden rounded-full">
+                    <span
+                      className="absolute inset-y-0 left-0 opacity-35"
+                      style={{ width: "100%", background: "var(--series-1)" }}
+                    />
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-full"
+                      style={{ width: `${(p50 / p95) * 100}%`, background: "var(--series-1)" }}
+                    />
+                  </div>
+                  <p className="text-muted-foreground flex justify-between text-[11px] tabular-nums">
+                    <span>0</span>
+                    <span>{formatMs(p95)}</span>
+                  </p>
+                </div>
+              ) : null}
               {/* The two numbers against each other, which is the question a
                   pair of percentiles is asking: a tail three times the median
                   is a different deployment from one a hair above it, and two

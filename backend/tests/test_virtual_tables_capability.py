@@ -3,8 +3,6 @@
 The tools against a real service are `tests/integration/test_virtual_tables_capability.py`.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import MagicMock
 

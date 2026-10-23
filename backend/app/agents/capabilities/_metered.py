@@ -20,9 +20,7 @@ of every request the wrapped model sends, streamed or not. Compaction books its
 own way and does not pass through this wrapper.
 """
 
-from __future__ import annotations
-
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -66,7 +64,7 @@ class MeteredModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream the wrapped request if the run can afford it, then book its usage.
 
         Booked once the consumer has finished with the stream, from the usage it

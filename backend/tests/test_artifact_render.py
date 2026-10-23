@@ -7,8 +7,6 @@ posted is the caller's; the service tests prove it was read as the run's person.
 No test here needs Chromium - `tests/...` never installs the `browser` extra.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import json

@@ -13,8 +13,6 @@ that turn on the read the dashboard uses. A mocked session can only show that a
 repository was called.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

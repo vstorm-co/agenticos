@@ -174,8 +174,9 @@ There is no `(marketing)` route group.
 - **A brand mark is one row in a generator's table, and there is no second
   source.** `src/lib/brand-glyphs.generated.ts` holds every service, connector
   and model-provider mark the console draws, as raw SVG path data, written by
-  `bun run gen:brand-icons` from Simple Icons, Font Awesome and
-  `@lobehub/icons-static-svg`. Adding a mark means adding a row to `BRANDS` or
+  `bun run gen:brand-icons` - a service or connector in its own colours from SVG
+  Logos or theSVG, a model provider (and a mark whose colours fail the dark
+  theme) in one colour from Simple Icons or `@lobehub/icons-static-svg`. Adding a mark means adding a row to `BRANDS` or
   `PROVIDERS` in `scripts/gen-brand-icons.ts` and re-running — never an import
   from an icon package, and never a hand-authored `d`, which is how a mark
   quietly stops being the brand's. `BrandIcon` draws one, `brandMark(name)` binds
@@ -333,12 +334,15 @@ failures. While writing, run only what covers the change:
 bunx vitest run src/components/chat/usage-meter.test.tsx
 ```
 
-Once, before the push — from the repository root, because CI's `test-frontend` job
-runs all four and `make lint-frontend` is the first three of them:
+The rest is CI's `test-frontend` job, which runs these on every push - read its run
+for your commit rather than running them on a laptop, where the whole suite under
+coverage loads the machine for minutes:
 
 ```bash
 make lint-frontend && make test-frontend-cov && make build-frontend
 ```
+
+`make lint-frontend` alone is cheap enough to run before a push.
 
 **`test:coverage`, not `test:run`.** The job CI runs measures coverage and fails under
 100% lines/statements/functions or 97.5% branches on `src/{app/api,lib,stores,hooks}`

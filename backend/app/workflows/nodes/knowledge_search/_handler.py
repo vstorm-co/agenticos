@@ -13,8 +13,6 @@ the two, and refuses the whole search rather than quietly searching fewer
 collections than the graph names.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 from uuid import UUID

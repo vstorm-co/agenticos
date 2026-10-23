@@ -12,8 +12,6 @@ roles that read every table (Owner, Admin, Builder, Operator) are someone else, 
 whom the page's data reaches is the consent's to decide.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -35,6 +33,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories import artifact_repo, resource_grant_repo
@@ -368,6 +367,33 @@ class TestConfirming:
         ]
         assert details["automatic"] is False
         assert "for_owner" not in details
+
+    async def test_followers_hear_of_a_version_when_they_can_be_served_it(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Not when it is published pending - they would open the one before - but on consent."""
+        world = await _world(db)
+        await world.publish("<p>v1</p>", fields=None)
+        await world.share_with_everyone()
+        follower = await world.member(role="viewer")
+        assert world.page_id is not None and follower.user_id is not None
+        await artifact_repo.follow(db, artifact_id=world.page_id, user_id=follower.user_id)
+
+        async def notices() -> list[str]:
+            rows = await db.execute(
+                select(Notification.occurrence_id).where(
+                    Notification.recipient_user_id == follower.user_id,
+                    Notification.event_type
+                    == NotificationEventType.ARTIFACT_VERSION_PUBLISHED.value,
+                )
+            )
+            return sorted(rows.scalars())
+
+        await world.publish("<p>v2</p>")  # binds a query: waits for the owner
+        assert await notices() == []
+
+        await world.confirm(world.olga, 2)
+        assert await notices() == [f"{world.page_id}:2"]
 
     @pytest.mark.security
     async def test_an_admin_confirms_for_the_owner(

@@ -43,7 +43,7 @@ at all.
 
 ## Budgets
 
-!!! abstract "Two levels, and they are not variations on one number"
+!!! abstract "Three levels, and they are not variations on one number"
 
     An agent's cap measured against the organization's total is exhausted by its
     neighbours' runs; the organization's measured against one agent is no ceiling
@@ -52,6 +52,7 @@ at all.
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
+| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
 A **new organization starts with the organization ceiling already set** — the
@@ -85,6 +86,19 @@ listing - the *published* version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+### A department's cap
+
+A [department](departments.md#a-departments-budget) can carry its own monthly
+cap. It sits between the other two: a run is checked against the agent's cap,
+then each capped department of the person who started it, then the
+organization's. Each department meters its own members' month, so a person in
+Finance and Sales is stopped by whichever of the two runs out first, and the
+refusal names it - *Sales department monthly budget exhausted*.
+
+The department's lead and the administrators hear when it passes 80% of its
+month, once, and again when its cap stops a run. A run nobody started - a
+schedule, a channel visitor - belongs to no department and is not counted.
 
 ### Enforcement is before the request
 
@@ -140,7 +154,7 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
-[Context management](reference/capabilities.md#context-management) is the other
+[Long conversations](reference/capabilities.md#context-management) is the other
 one. Its summarizing strategy writes the summary through an agent it builds
 itself, so that request passes no budget guard; the capability books what it cost
 against the same meter. Being *outside* the guard has one consequence worth
@@ -181,7 +195,7 @@ message somebody can act on. A workspace refuses a write. A **context window** i
 refused by the provider, mid-answer, and the run simply fails.
 
 Every agent therefore carries a gauge — not only one with
-[context management](reference/capabilities.md#context-management) bound, because
+[Long conversations](reference/capabilities.md#context-management) bound, because
 the warning matters most to the agent that will *not* compact. It reports how
 many tokens the last request of a turn carried, *after* any compaction: the
 reading falls when compaction works, because it measures what went out rather
@@ -433,6 +447,26 @@ to the bill, because each child's cost is added by its own row and removed by it
 parent's. A key works the same way, and matters more: a key is what somebody
 rotates when a bill looks wrong.
 
+### A voice call's budget
+
+A [voice call](voice.md) is a run, and its spend counts against the agent's and
+the organization's budgets like any other. Three things differ, because a call
+cannot be checked before each request the way a text run is:
+
+- **Before it starts**, the call's longest possible length times the model's
+  worst-case price per minute is checked against the budget left. A call that
+  could not be afforded is refused rather than started and cut short.
+- **While it runs**, each response is booked on the run as it finishes, and the
+  month's spend is re-read every 15 seconds, so other runs spending meanwhile
+  are seen. A budget that runs out mid-call gets one spoken sentence and ends
+  the call, recorded `budget_exceeded`.
+- **Its length is the agent's.** A call runs at most the agent's longest call,
+  10 minutes by default and 50 at most; there is no separate allowance of call
+  minutes, so the budgets are the one limit on what calls spend.
+
+A call whose process died is closed by the voice sweep at the cost its last
+heartbeat recorded, unlike a text run, whose spend dies with its process.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -590,6 +624,11 @@ It reads the same `group_by=user` rows the dashboard's adoption table does — t
 runs only, busiest first — so a delegate's cost lands once, inside the run that
 started it. And it covers the window the rest of the tab shows, rather than a rolling
 default of its own.
+
+**When it was spent** is a bar per UTC day over the same window, from `by_day` -
+each run's own spend, so the days sum to the bill the breakdowns split. A day with no
+runs is drawn at zero rather than skipped. Every breakdown carries each row's share of
+its own total, and an agent with a monthly cap shows the month so far against it.
 
 Naming the organization's people is the same call the dashboard card makes, so it
 takes the same gate: `runs:view`, held by builder and operator as well as the two
@@ -834,21 +873,96 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+The loop guard stops most loops sooner, and says why. Every agent has it, on by
+default. When a run calls one tool with the same arguments four times in a row,
+or goes round a cycle of two or three calls three times, the model is told it is
+looping and to change approach. If the calls after that warning loop again, the
+run ends as `loop_stopped`, with a reason naming the tools - never their
+arguments. Calls with different arguments are never a loop, and only the run's
+own calls count. The Builder sets both thresholds, or switches the guard off,
+beside `max_steps` (`loop_guard` in the spec).
+
+### Run reviewers { #run-reviewers }
+
+A long run drifts: instructions fade, claims pile up without a source, the agent
+wanders off the request. An agent can carry up to five reviewers (`reviewers` in
+the spec, *Run reviewers* in the Builder beside the limits), each a second,
+usually cheaper model with one concern. Every `every` model requests a reviewer
+reads the most recent `window` tokens of the run and either lets it be or sends
+one short correction, which the run's model receives on its next request with the
+reviewer's name on it. The run view lists each correction and who sent it.
+
+A reviewer's calls are checked against the agent's and the organization's budget
+before they are made and booked on the run, priced as the reviewer's model. One
+refused for budget is skipped, and a reviewer that fails is logged; neither fails
+the run. An agent without a reviewer makes no extra model calls.
+
+### Code mode { #code-mode }
+
+An agent that works through records - update ten rows, then summarise them - pays
+a model turn per dependent call, and every turn re-sends the whole context. With
+*Code mode* on (`code_mode` in the spec, beside the limits in the Builder) the
+agent's tools are folded into one `run_code` tool: the model writes a short Python
+script that runs in the Monty sandbox and calls the tools in loops and in
+parallel, up to `max_tool_calls` per script.
+
+At most four of a script's calls run at once, and the rest wait, so a script
+fanning out over hundreds of sandboxed calls cannot open them all together.
+
+Each call from a script goes through the same guardrails, budget and permission
+checks as a direct call. A tool that needs approval is never folded in: it stays
+an ordinary call, and the run stops for the person as it always does. The run view
+lists each script and every call it made.
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is
 recorded at zero with a warning and the total is flagged as a **floor** rather
 than guessed at. The UI shows that as a `+` next to the figure.
 
+**Cache reads and writes are kept apart.** A run's input tokens include the ones
+the provider served from its prompt cache and the ones it wrote to it, and the
+three are priced apart - on Claude Sonnet 5.5 a cache read costs 5% of the input
+rate and a write 125%. Each run and each answer stores `cache_read_tokens` and
+`cache_write_tokens` beside the total, the cost is priced from that split, and the
+run view and the cost under each answer show it - which is what reconciles a run
+with the provider's console.
+
+**A run's cost includes its delegations.** The run somebody started carries the
+whole ledger, delegates included; a delegation's own row divides the same money by
+agent, and the run view says its delegations are already inside the figure above
+them. Adding the two counts the delegations twice.
+
+**A prompt cache that stops hitting is flagged.** Caching pays only while the
+start of each request stays identical; a reordered tool list or a timestamp in
+the instructions makes the provider charge full price for tokens it had cached.
+Every agent reads the provider's own cache figures on each response, and a
+request whose cached prefix collapsed is marked in the run's request waterfall -
+*cache bust* while the provider should still have held it, *cache expired* once
+its retention passed - with how many cached tokens it did not read back, and logged with
+the agent and model. The first request of a turn is compared with what the
+previous turn cached, when the same API worker serves both.
+
+The counts are kept on each run, so **Runs → Spend** adds up where the cache did
+not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+expiries and the cached tokens they did not read back over the window - a
+measure of the miss, not of what was billed again, since a compaction can also
+shrink the prompt the cache held. The card is not shown while every cache held.
+
 ## Approvals
 
-A tool that acts on the outside world parks the run and waits for a person.
+A tool the agent's author gated parks the run and waits for a person. Nothing
+is gated until somebody asks: a gate nobody chose parks runs in channels and
+routines where nobody is there to answer it.
 
 Resolution is most-specific-first:
 
 1. the tool's own override, if it has one
 2. the capability's `approval` mode (`required` | `never` | `default`)
-3. what `side_effecting` decides, for `default`
+3. no approval, when both say `default`
+
+`side_effecting` no longer decides anything here. The Builder shows it beside the
+choice, so the tools that act on the world are the ones an author sees first.
 
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
@@ -1009,9 +1123,31 @@ Four things make it a session setting rather than a hole in the model:
 **Ask about everything tightens the session's policy.** Selecting this stricter
 mode needs no special permission. It includes MCP calls handled by the runner, even though those
 tools are not declared by capabilities. Connection and binding allowlists control
-which MCP tools are exposed; they do not themselves request approval. The default
-**Follow the agent** mode applies the agent's capability policy and does not add
-an approval gate to those MCP tools.
+which MCP tools are exposed; what holds them for a person is the binding's own
+`approval` policy - `writes` or `all` - which the default **Follow the agent**
+mode applies like a capability's (see
+[which calls wait for a person](mcp.md#which-calls-wait-for-a-person)).
+
+### An approval inside a voice call
+
+A [voice call](voice.md#approvals-in-a-call) cannot pause and wait for the
+queue, so its approvals are decided in the call, by the person on it:
+
+- The request is written to the queue at once, and the call shows the tool,
+  the exact arguments it will run with, and what the caller was heard to say.
+  Approving runs those arguments, once.
+- It is decided **only through the call**, and only by a caller holding
+  `approvals:decide`. `POST /approvals/{id}` refuses a request that belongs to a
+  live call, and the stale-approval sweep below skips voice runs.
+- **60 seconds** without a decision expires it, with no decider - the same null
+  the sweep writes. A call that ends for any reason expires whatever it was
+  still waiting on.
+- A member without `approvals:decide` is told plainly, and the tool is refused.
+  A visitor on a widget or a hosted page never sees a tool that needs an
+  approval: it is left out of their call.
+
+`approval_mode` follows the agent's spec, as in text chat, and every decision
+reaches the audit trail like any other.
 
 ### A decision nobody makes
 
@@ -1129,15 +1265,15 @@ is kept even when the delegate's *place* could not be - the library's message hi
 is best-effort telemetry, and a delegation re-run from the start has still spent what
 it spent.
 
-!!! warning "MCP approval depends on the execution mode"
+!!! warning "MCP approval is set on the binding"
 
-    A capability's approval setting does not cover MCP tools. In web chat,
-    **Ask about everything** (`ask_all`) also gates MCP calls handled by the
-    runner; the default **Follow the agent** mode does not. Restrict tools on
-    the connection and its agent binding, and test the intended execution mode.
-    Do not assume a chat session's stricter setting applies to a schedule or
-    another entry point. Tools executed inside a model provider do not pass
-    through the local approval gate.
+    A capability's approval setting does not cover MCP tools; the binding's
+    `approval` policy does, on every surface the agent runs on. `writes` holds
+    the tools the server does not mark read-only - the server's own claim, so
+    choose `all` for one you do not control. In web chat, **Ask about
+    everything** (`ask_all`) also gates the rest; do not assume a chat session's
+    stricter setting applies to a schedule or another entry point. Tools
+    executed inside a model provider do not pass through the local approval gate.
 
 ### A workflow step that asks a person { #workflow-step-approvals }
 
@@ -1537,8 +1673,8 @@ where the per-tenant periods are set.
 |---|---|---|
 | Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
-| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
-| Artifacts | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
+| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use |
+| Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
 | Audit | Entries on this organization's trail | When the entry was recorded |

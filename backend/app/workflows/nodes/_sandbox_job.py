@@ -24,8 +24,6 @@ the script and writes its answer, the interpreter that starts it, and the
 prefix of the step's own failure codes.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import logging

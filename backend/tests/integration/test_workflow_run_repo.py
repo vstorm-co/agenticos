@@ -9,8 +9,6 @@ row through silently, which is exactly the bug the index exists to make
 structurally impossible.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -36,6 +34,7 @@ from app.db.models.workflow_run import (
     WorkflowRunMode,
     WorkflowRunStatus,
 )
+from app.repositories import background_task_kind as kind_repo
 from app.repositories import workflow_run as workflow_run_repo
 
 pytestmark = pytest.mark.anyio
@@ -449,17 +448,18 @@ class TestDispatchOutboxClaim:
             available_at=datetime.now(UTC) + timedelta(hours=1),
         )
         await db.commit()  # fresh `func.now()` for the scan below
+        # A lease on: the due row's job came due then and the row is still pending.
         rows = await workflow_run_repo.take_due_for_submission(
-            db, resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+            db, resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
         )
         ids = {row.id for row in rows}
         assert due.id in ids
         assert all(row.node_run_id != future_node_run.id for row in rows)
         assert all(row.submitted_at is not None for row in rows)
 
-    async def test_a_row_submitted_within_the_interval_is_not_taken_again(self, db: AsyncSession):
-        """One submission per row per interval: a backed-up worker pool must
-        not get a fresh flow run for the same row on every poll tick."""
+    async def test_a_row_is_taken_once_per_interval_after_its_job_was_due(self, db: AsyncSession):
+        """One job per row per interval: a backed-up worker pool must not get a
+        fresh job for the same row on every poll tick."""
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
@@ -468,24 +468,24 @@ class TestDispatchOutboxClaim:
             db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
         )
         await db.commit()
-        resubmit_before = datetime.now(UTC) - timedelta(minutes=2)
+        within_lease = datetime.now(UTC) - timedelta(minutes=2)
 
-        first = await workflow_run_repo.take_due_for_submission(db, resubmit_before=resubmit_before)
+        # Its own job came due just now and is still inside its lease.
+        first = await workflow_run_repo.take_due_for_submission(db, resubmit_before=within_lease)
         await db.commit()
+        # A lease later with the row still pending, the backstop takes it ...
         second = await workflow_run_repo.take_due_for_submission(
-            db, resubmit_before=resubmit_before
-        )
-        await db.commit()
-        # Once the interval has passed with the row still unclaimed, it is due again.
-        third = await workflow_run_repo.take_due_for_submission(
             db, resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
         )
+        await db.commit()
+        # ... and stamps it, so the next tick leaves it alone.
+        third = await workflow_run_repo.take_due_for_submission(db, resubmit_before=within_lease)
 
-        assert [taken.id for taken in first] == [row.id]
-        assert second == []
-        assert [taken.id for taken in third] == [row.id]
+        assert first == []
+        assert [taken.id for taken in second] == [row.id]
+        assert third == []
 
-    async def test_a_row_its_creator_submits_itself_is_left_to_that_submission(
+    async def test_a_row_whose_job_came_due_within_the_lease_is_left_to_that_job(
         self, db: AsyncSession
     ):
         org = await _org(db)
@@ -497,7 +497,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            submitted=True,
         )
         await db.commit()
 
@@ -506,6 +505,39 @@ class TestDispatchOutboxClaim:
         )
 
         assert taken == []
+
+    async def test_a_paused_organizations_rows_do_not_take_the_batch_from_the_others(
+        self, db: AsyncSession
+    ):
+        """Nothing claims a paused kind's jobs, so its overdue rows would be taken, and
+        taken again, while another organization's lost dispatch never got a turn."""
+        rows: dict[str, uuid.UUID] = {}
+        orgs = {"paused": await _org(db), "other": await _org(db)}
+        for name, org in orgs.items():
+            workflow = await _workflow(db, org)
+            run = await _run(db, org, workflow)
+            node_run = await _node_run(db, run)
+            await workflow_run_repo.create_outbox(
+                db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
+            )
+            rows[name] = node_run.id
+        await kind_repo.pause(db, "workflow-dispatch-node", orgs["paused"].id, reason="test")
+        await db.commit()
+
+        taken = await workflow_run_repo.take_due_for_submission(
+            db, resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
+        )
+
+        assert {row.node_run_id for row in taken} == {rows["other"]}
+
+        await kind_repo.pause(db, "workflow-dispatch-node", None, reason="test")
+        await db.commit()
+        assert (
+            await workflow_run_repo.take_due_for_submission(
+                db, resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
+            )
+            == []
+        )
 
 
 class TestEvents:
@@ -899,7 +931,7 @@ class TestStaleClaims:
         )
         await db.commit()
         found = await workflow_run_repo.take_stale_claims_for_resubmission(
-            db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+            db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
         )
         assert outbox.id in {row.id for row in found}
         await db.commit()

@@ -5,8 +5,6 @@ takes. On Telegram a bot is told only the administrators. See
 `app.workflows.nodes._channels`.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.channels.base import ChannelAdapter

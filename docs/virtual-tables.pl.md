@@ -1,5 +1,5 @@
 ---
-source_sha: "98c1d7098b28"
+source_sha: "863f2bbf1772"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -504,8 +504,8 @@ otwiera jego historię.
 Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -
 publikacja albo wznowienie - bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
 rekord zatwierdzony przed tą chwilą go nie uruchomi, a nic dodanego, gdy był wyłączony,
-nie zostanie odtworzone. Heartbeat workera odczytuje zdarzenie outbox każdego nowego
-rekordu w ciągu około dziesięciu sekund. Decyduje raz na wyzwalacz i zapisuje decyzję;
+nie zostanie odtworzone. Job `workflow-table-triggers`, uruchamiany co dziesięć sekund, odczytuje zdarzenie
+outbox każdego nowego rekordu, więc wyzwalacz startuje w ciągu około dziesięciu sekund. Decyduje raz na wyzwalacz i zapisuje decyzję;
 drugi przebieg albo drugi worker znajduje tę decyzję i niczego nie uruchamia.
 
 **Historia** wymienia każdą decyzję, od najnowszej, bez wartości rekordu:

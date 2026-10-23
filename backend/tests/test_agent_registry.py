@@ -15,7 +15,7 @@ the run history keeps saying what was actually live at the time.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -30,6 +30,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
+    VoiceSpec,
 )
 from app.core.config import settings
 from app.core.exceptions import (
@@ -46,6 +47,25 @@ from app.schemas.deployment_settings import DeploymentLimits
 from app.services.agent_registry import AgentRegistryService, slugify
 
 REGISTRY_PATH = "app.services.agent_registry"
+
+
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent here is shared with a group; `test_group_leads_and_shares` covers that."""
+
+    async def nobody(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.agent_registry.groups_sharing", nobody)
+
+
+@pytest.fixture(autouse=True)
+def _no_agent_is_the_assistant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`TestTheAssistantIsSettings` makes one; the mocked database answers anything."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_assistant_repo.for_agent",
+        AsyncMock(return_value=None),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -1474,6 +1494,72 @@ class TestValidateSpec:
         assert any(problem.startswith("Collection not found:") for problem in problems)
 
     @pytest.mark.anyio
+    async def test_a_draft_reviewer_saves_but_is_refused_at_publish(self):
+        """A row added in the Builder starts without a model or a focus; the draft
+        keeps it, and publishing says what is missing (#2106)."""
+        spec = _spec(model_profile_id=uuid.uuid4(), reviewers=[{"name": "sources"}])
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == [
+            "Reviewer 'sources': pick the model it reviews with",
+            "Reviewer 'sources': say what it looks for",
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_reviewer_on_a_profile_from_nowhere_is_refused_at_publish(self):
+        """A reviewer's model is a reference to a profile, like the agent's own (#2106)."""
+        spec = _spec(
+            model_profile_id=uuid.uuid4(),
+            reviewers=[
+                {"name": "sources", "model_profile_id": str(uuid.uuid4()), "instructions": "x"}
+            ],
+        )
+        found = AsyncMock(side_effect=[MagicMock(), None])
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
+
+    @pytest.mark.anyio
+    async def test_a_browser_step_model_from_nowhere_is_refused_at_publish(self, monkeypatch):
+        """The step model is a reference to a profile, like the agent's own - one
+        deleted since, or another organization's, would fail every browse."""
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {
+                        "cdp_url": "http://browser:9222",
+                        "step_model_profile_id": str(uuid.uuid4()),
+                    },
+                }
+            ],
+            model_profile_id=uuid.uuid4(),
+        )
+        found = AsyncMock(side_effect=[MagicMock(), None])
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
+
+    @pytest.mark.anyio
     async def test_a_refused_capability_config_names_the_input_as_well_as_the_capability(self):
         """This is the path a Builder submission takes, and it discarded the field.
 
@@ -1536,6 +1622,36 @@ class TestValidateSpec:
         assert [problem["field"] for problem in refused.value.details["fields"]] == [
             "specialists.researcher.capabilities.knowledge.config.default_top_k"
         ]
+
+    @pytest.mark.anyio
+    async def test_a_specialists_unknown_variable_is_refused_on_its_form(self):
+        """Codex on #2062: a typo in a specialist's instructions reached the model."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "subagents",
+                    "config": {
+                        "inline": [
+                            {
+                                "name": "researcher",
+                                "description": "Looks things up in the handbook.",
+                                "instructions": "Answer {{custmer_name}} for {{user_name}}.",
+                            }
+                        ]
+                    },
+                }
+            ],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert {
+            "field": "specialists.researcher.instructions",
+            "message": ANY,
+        } in refused.value.details["fields"]
+        assert any("custmer_name" in problem for problem in refused.value.details["problems"])
 
     @pytest.mark.anyio
     async def test_a_spec_whose_problems_name_no_field_carries_no_fields_key(self):
@@ -1728,7 +1844,7 @@ class TestValidateSpec:
         model would be handed two servers under one prefix, which Pydantic AI
         refuses as duplicate tool names - aborting every turn of the agent."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion"
 
         with (
@@ -1761,7 +1877,7 @@ class TestValidateSpec:
         """The ordinary shape: the organization's handbook for everybody, and
         each person's own Linear."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion-handbook"
 
         with (
@@ -1819,6 +1935,231 @@ class TestValidateSpec:
                     mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())],
                 ),
             )
+
+
+class TestSpeechToTextRefusedAtPublish:
+    """The agent's speech-to-text override, checked where the Builder can show it.
+
+    The spec model accepts a half-made block so autosave never 422s between two
+    clicks; publish is where it has to be whole. Each spec here names no model
+    profile too, so the problems asserted are that line plus this block's own.
+    """
+
+    _NO_MODEL = "No model selected - pick one before publishing"
+
+    _KEY = str(uuid.uuid4())
+
+    async def _problems(self, *, key_problem: str | None = None, **block: str | None) -> list[str]:
+        spec = _spec(speech_to_text=block, model_profile_id=None)
+        with (
+            patch(
+                f"{REGISTRY_PATH}.SpeechToTextSettingsService.key_problem",
+                new=AsyncMock(return_value=key_problem),
+            ) as checked,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        self.checked = checked
+        return [
+            problem for problem in refused.value.details["problems"] if problem != self._NO_MODEL
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_provider_without_a_model_is_refused(self):
+        assert await self._problems(provider="openai") == [
+            "Speech to text needs a provider and a model together - choose both, or "
+            "inherit the organization's"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_model_without_a_provider_is_refused(self):
+        problems = await self._problems(model="whisper-1")
+
+        assert len(problems) == 1
+        assert "together" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_pair_the_catalog_does_not_offer_is_refused(self):
+        assert await self._problems(provider="openai", model="whisper-9") == [
+            "Speech to text: 'whisper-9' is not a transcription model this deployment "
+            "offers for openai"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_language_transcription_does_not_accept_is_refused(self):
+        assert await self._problems(language="xx") == [
+            "Speech to text: 'xx' is not a language transcription accepts"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_catalog_pair_its_key_and_a_known_language_publish(self):
+        assert (
+            await self._problems(
+                provider="openai", model="whisper-1", language="pl", secret_id=self._KEY
+            )
+            == []
+        )
+        # Checked as every key a spec names is: the publisher has to be able to
+        # view it, so the publisher's context goes with it.
+        assert str(self.checked.await_args.args[0]) == self._KEY
+        assert self.checked.await_args.kwargs["provider"] == "openai"
+        assert self.checked.await_args.kwargs["ctx"] is not None
+
+    @pytest.mark.anyio
+    async def test_a_pair_without_a_key_is_refused(self):
+        assert await self._problems(provider="openai", model="whisper-1") == [
+            "Speech to text: choose a key for openai to transcribe with"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_key_the_vault_check_refuses_is_refused(self):
+        """Another organization's, one the publisher cannot view, another kind or
+        another provider's: the check's own sentence, under this block's name."""
+        assert await self._problems(
+            key_problem="That key is not in this organization's vault",
+            provider="openai",
+            model="whisper-1",
+            secret_id=self._KEY,
+        ) == ["Speech to text: That key is not in this organization's vault"]
+
+    @pytest.mark.anyio
+    async def test_a_key_without_a_pair_is_refused(self):
+        problems = await self._problems(secret_id=self._KEY, language="pl")
+
+        assert len(problems) == 1
+        assert "a key goes with a provider and a model" in problems[0]
+        self.checked.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_language_alone_publishes(self):
+        """The organization's provider, this agent's language - the Polish agent
+        in an English organization the issue describes."""
+        assert await self._problems(language="pl") == []
+
+
+class TestVoiceProblems:
+    """The agent's Voice conversations section, refused at publish (#54)."""
+
+    @pytest.mark.anyio
+    async def test_a_provider_without_realtime_models_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="anthropic", model="claude", secret_id=uuid4())
+        )
+        assert problems == ["Voice: anthropic cannot hold voice conversations on this deployment"]
+
+    @pytest.fixture
+    def service(self) -> AgentRegistryService:
+        return AgentRegistryService(_db())
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return _ctx()
+
+    @pytest.fixture
+    def keys_pass(self, monkeypatch):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+
+    @pytest.mark.anyio
+    async def test_a_model_outside_the_realtime_catalog_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-4o", secret_id=uuid4(), voice="marin")
+        )
+        assert problems == [
+            "Voice: 'gpt-4o' is not a realtime model this deployment offers for openai"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.usefixtures("keys_pass")
+    async def test_a_voice_the_model_does_not_have_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-realtime", secret_id=uuid4(), voice="Puck")
+        )
+        assert problems == ["Voice: gpt-realtime has no voice called 'Puck'"]
+
+    @pytest.mark.anyio
+    async def test_a_pair_without_a_key_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-realtime")
+        )
+        assert problems == ["Voice: choose a key for openai to hold calls with"]
+
+    @pytest.mark.anyio
+    @pytest.mark.usefixtures("keys_pass")
+    async def test_azure_needs_a_deployment_and_a_base_model(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="azure", base_model="gpt-realtime", secret_id=uuid4())
+        )
+        assert "Voice: name the Azure deployment that runs gpt-realtime" in problems
+
+    @pytest.mark.anyio
+    async def test_a_key_of_the_wrong_kind_is_refused_by_the_shared_check(
+        self, service, ctx, monkeypatch
+    ):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem",
+            AsyncMock(
+                return_value="'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
+            ),
+        )
+        problems = await service._voice_problems(
+            ctx,
+            VoiceSpec(
+                provider="azure", deployment="rt-prod", base_model="gpt-realtime", secret_id=uuid4()
+            ),
+        )
+        assert problems == [
+            "Voice: 'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
+        ]
+
+
+class TestVoiceProblemsAtTheEdges:
+    """The rest of the Voice section's publish refusals (#54)."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("block", "expected"),
+        [
+            ({}, ["Voice: choose a provider and a model, or remove the voice section"]),
+            (
+                {"provider": "anthropic"},
+                ["Voice: anthropic cannot hold voice conversations on this deployment"],
+            ),
+            ({"provider": "openai"}, ["Voice: choose a model for openai"]),
+        ],
+    )
+    async def test_a_half_chosen_or_unknown_provider_is_refused(self, block, expected):
+        assert (
+            await AgentRegistryService(_db())._voice_problems(_ctx(), VoiceSpec(**block))
+            == expected
+        )
+
+    @pytest.mark.anyio
+    async def test_a_language_calls_do_not_accept_is_refused(self, monkeypatch):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+        problems = await AgentRegistryService(_db())._voice_problems(
+            _ctx(),
+            VoiceSpec(provider="openai", model="gpt-realtime", secret_id=uuid4(), language="xx"),
+        )
+        assert problems == ["Voice: 'xx' is not a language code calls accept"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("seconds", [None, 60, 3000])
+    async def test_any_longest_call_the_field_allows_passes(self, monkeypatch, seconds):
+        """The organization sets no limit of its own: the spec field's bounds are all."""
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+        problems = await AgentRegistryService(_db())._voice_problems(
+            _ctx(),
+            VoiceSpec(
+                provider="openai", model="gpt-realtime", secret_id=uuid4(), max_call_seconds=seconds
+            ),
+        )
+        assert problems == []
 
 
 class TestSkillValidation:
@@ -2182,7 +2523,7 @@ class TestPublish:
         # Two writes to the agent row, and only one of them names a version: the
         # status is publish's, the pointer is the default environment's.
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": version.id},
         ]
 
@@ -2211,7 +2552,9 @@ class TestPublish:
                 f"{REGISTRY_PATH}.agent_repo.create_version",
                 new=AsyncMock(return_value=version),
             ) as create_version,
-            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
             patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
         ):
@@ -2222,6 +2565,14 @@ class TestPublish:
             await AgentRegistryService(_db()).publish(ctx, agent.id)
 
         assert create_version.call_args.kwargs["spec"]["spec_version"] == SPEC_VERSION
+        # And the draft with it, or the console reads the agent it just
+        # published as "draft differs from v3".
+        drafts = [
+            call.kwargs["update_data"]["draft_spec"]
+            for call in update.await_args_list
+            if "draft_spec" in call.kwargs["update_data"]
+        ]
+        assert drafts == [create_version.call_args.kwargs["spec"]]
 
     @pytest.mark.anyio
     async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):
@@ -2267,7 +2618,7 @@ class TestPublish:
 
         assert environments.update.await_args.kwargs["update_data"] == {"version_id": version.id}
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": version.id},
         ]
 
@@ -2307,7 +2658,7 @@ class TestPublish:
 
         environments.update.assert_not_awaited()
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": pinned_at},
         ]
 
@@ -2587,6 +2938,15 @@ class TestListVersions:
 
 
 class TestGetRunnableSpec:
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these agents is the organization's assistant (#2063)."""
+        with patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     @pytest.mark.anyio
     async def test_the_published_spec_runs_and_not_the_draft(self):
         """Running the draft would mean running something nobody approved."""
@@ -3178,6 +3538,8 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
         from app.repositories import sandbox_connection_repo
 
         monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        # And no sandbox service of this deployment's own to set up instead.
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
         spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
 
         with pytest.raises(BadRequestError) as refused:
@@ -3187,6 +3549,30 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             "registered no sandbox connection" in problem
             for problem in refused.value.details["problems"]
         )
+
+    @pytest.mark.anyio
+    async def test_the_deployments_own_sandbox_is_set_up_by_the_first_publish(self):
+        """Nobody had opened the Sandboxes page yet: publish sets the local one up
+        rather than refusing an agent the deployment can run."""
+        local = MagicMock(secret_id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"backend": "service"}}],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.ensure_local_connection",
+                new=AsyncMock(return_value=local),
+            ) as ensured,
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        ensured.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_connection_from_another_organization_is_refused(self, monkeypatch):
@@ -3303,66 +3689,11 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
 
-class TestBrowserUseRefusedAtPublish:
-    """A remote `cdp_url` this deployment must not connect to.
+class TestBrowserRefusedAtPublish:
+    """The endpoint the web browser drives, vetted by the operator's allowlist.
 
-    The SSRF check resolves DNS, which blocks, so it runs at publish off the event
-    loop rather than at build on it (agenticos#33). Every binding passes through
-    `_binding_problems`, so a specialist's endpoint is checked the same way.
-    """
-
-    @pytest.mark.anyio
-    async def test_a_loopback_cdp_url_is_refused(self):
-        """A debugger on the host, a metadata service - refused before it runs."""
-        spec = _spec(
-            capabilities=[
-                {
-                    "id": "browser_use",
-                    "config": {"mode": "remote", "cdp_url": "http://127.0.0.1:9222"},
-                }
-            ],
-            model_profile_id=uuid.uuid4(),
-        )
-
-        with (
-            patch(
-                f"{REGISTRY_PATH}.credential_repo.get_profile",
-                new=AsyncMock(return_value=MagicMock()),
-            ),
-            pytest.raises(BadRequestError) as refused,
-        ):
-            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
-
-        assert any(
-            "remote endpoint cannot be reached" in problem
-            for problem in refused.value.details["problems"]
-        )
-
-    @pytest.mark.anyio
-    async def test_a_public_cdp_url_publishes(self):
-        """A reachable public browser service is fine - nothing to refuse."""
-        profile = MagicMock(id=uuid.uuid4())
-        spec = _spec(
-            capabilities=[
-                {
-                    "id": "browser_use",
-                    "config": {"mode": "remote", "cdp_url": "http://8.8.8.8:9222"},
-                }
-            ],
-            model_profile_id=profile.id,
-        )
-
-        with patch(
-            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
-        ):
-            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
-
-
-class TestBrowserChoiceRefusedAtPublish:
-    """The endpoint `browser_choice` drives, vetted by the operator's allowlist.
-
-    Not the SSRF guard `browser_use` uses: `cdp_url` is tenant-controlled - it
-    lives in a spec anyone with `edit` writes - and the guard admits only public
+    Not the SSRF guard: `cdp_url` is tenant-controlled - it lives in a spec anyone
+    with `edit` writes - and the guard admits only public
     addresses, which refuses the isolated browser service on the deployment's own
     network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
     is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
@@ -3378,7 +3709,7 @@ class TestBrowserChoiceRefusedAtPublish:
     @staticmethod
     async def _problems(config: dict) -> list[str]:
         spec = _spec(
-            capabilities=[{"id": "browser_choice", "config": config}],
+            capabilities=[{"id": "browser_use", "config": config}],
             model_profile_id=uuid.uuid4(),
         )
         with (
@@ -3404,11 +3735,47 @@ class TestBrowserChoiceRefusedAtPublish:
     @pytest.mark.anyio
     async def test_a_vetted_host_on_the_deployments_own_network_publishes(self):
         # The topology the reference page describes, and the one the SSRF guard
-        # refused. What is left is the vault key this spec does not bind.
-        problems = await self._problems({"cdp_url": "http://browser:9222"})
-        assert not any(
-            "cdp_url" in problem or "endpoint cannot be used" in problem for problem in problems
+        # refused. Nothing else in this binding needs refusing, so it publishes.
+        spec = _spec(
+            capabilities=[{"id": "browser_use", "config": {"cdp_url": "http://browser:9222"}}],
+            model_profile_id=uuid.uuid4(),
         )
+        await _publishes(spec)
+
+    @pytest.mark.anyio
+    async def test_a_proxy_with_no_address_is_refused_in_words(self):
+        problems = await self._problems({"cdp_url": "http://browser:9222", "connection": "proxy"})
+        assert "Say which proxy the browser goes through" in problems
+
+    @pytest.mark.anyio
+    async def test_a_proxy_inside_the_network_is_refused(self):
+        problems = await self._problems(
+            {
+                "cdp_url": "http://browser:9222",
+                "connection": "proxy",
+                "proxy_url": "http://10.0.0.5:3128",
+            }
+        )
+        assert any(
+            problem.startswith("The browser's proxy address cannot be used") for problem in problems
+        )
+
+    @pytest.mark.anyio
+    async def test_a_hosted_browser_needs_a_key_but_no_cdp_url(self):
+        problems = await self._problems(
+            {"connection": "hosted", "hosted_url": "wss://93.184.216.34"}
+        )
+        assert not any("cdp_url" in problem for problem in problems)
+        assert any("needs a api_key secret" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_public_proxy_with_no_password_publishes(self):
+        config = {
+            "cdp_url": "http://browser:9222",
+            "connection": "proxy",
+            "proxy_url": "http://93.184.216.34:8080",
+        }
+        await _publishes(_bound("browser_use", config))
 
 
 def _bound(capability_id: str, config: dict, **approval: object):
@@ -3734,6 +4101,9 @@ class TestAgentTemplates:
         assert result.skills_installed == ["Clinical procedure lookup"]
         # The skills it expects are installed before the agent that binds them.
         skills.return_value.install_gallery.assert_awaited_once()
+        # Visible to the organization: installed private, every template agent
+        # had to be found and re-shared by hand before a colleague could see it.
+        assert create.await_args.kwargs["visibility"] is Visibility.ORG
 
     @pytest.mark.anyio
     async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):
@@ -3918,12 +4288,23 @@ class TestTheShippedTemplatesOnDisk:
                     name=template.name,
                     description=template.description,
                     instructions=template.instructions,
-                    capabilities=list(template.capabilities),
+                    capabilities=agent_templates.for_this_deployment(template.capabilities),
                     model_profile_id=uuid.uuid4(),
                 )
-                with patch(
-                    f"{REGISTRY_PATH}.credential_repo.get_profile",
-                    new=AsyncMock(return_value=MagicMock()),
+                with (
+                    patch(
+                        f"{REGISTRY_PATH}.credential_repo.get_profile",
+                        new=AsyncMock(return_value=MagicMock()),
+                    ),
+                    # A deployment running both services a template can ask for:
+                    # its sandbox and its browser.
+                    patch(
+                        f"{REGISTRY_PATH}.SandboxConnectionService.ensure_local_connection",
+                        new=AsyncMock(return_value=MagicMock(secret_id=uuid.uuid4())),
+                    ),
+                    patch.object(settings, "SANDBOXD_TOKEN", "token"),
+                    patch.object(settings, "BROWSER_SIGN_IN_CDP_URL", "http://browser:9222"),
+                    patch.object(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"]),
                 ):
                     await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
@@ -3937,7 +4318,25 @@ class TestTheShippedTemplatesOnDisk:
         template = agent_templates.get("general/claude-code-like")
         assert template is not None
         bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
-        assert {"sandbox", "planning", "subagents", "web_research", "web_fetch"} <= set(bound)
+        assert {
+            "sandbox",
+            "planning",
+            "subagents",
+            "web_research",
+            "web_fetch",
+            "browser_use",
+        } <= set(bound)
+        # Its own container, and nothing it would carry without anything to read:
+        # no knowledge or context bound, no past-conversation search, no tool search,
+        # and no second interpreter beside the shell.
+        assert bound["sandbox"]["backend"] == "service"
+        assert not {
+            "code_execution",
+            "knowledge",
+            "context",
+            "conversation_search",
+            "tool_search",
+        } & set(bound)
         delegation = bound["subagents"]
         assert delegation["share_with_delegates"] == ["sandbox"]
         assert {specialist["name"] for specialist in delegation["inline"]} == {
@@ -3958,7 +4357,7 @@ class TestOneToolPrefixPerBinding:
 
     @staticmethod
     def _connection(name: str) -> MagicMock:
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = name
         return connection
 
@@ -4038,6 +4437,90 @@ class TestOneToolPrefixPerBinding:
 def _named_connection(name: str) -> MagicMock:
     """A connection row with a real name: `MagicMock(name=...)` names the mock,
     not the row, and the prefix check reads the row's."""
-    connection = MagicMock()
+    connection = MagicMock(visibility="org")
     connection.name = name
     return connection
+
+
+class TestTheAssistantIsSettings:
+    """Codex on #2062: a Builder's `agents:edit` must not reach the corner assistant."""
+
+    @staticmethod
+    def _service(monkeypatch: pytest.MonkeyPatch, agent: MagicMock) -> AgentRegistryService:
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            AsyncMock(return_value=MagicMock()),
+        )
+        return AgentRegistryService(_db())
+
+    @pytest.mark.anyio
+    async def test_a_builder_may_run_it_but_not_change_it(self, monkeypatch: pytest.MonkeyPatch):
+        agent = MagicMock(id=uuid.uuid4(), workflow_id=None)
+        service = self._service(monkeypatch, agent)
+        builder = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="builder")
+
+        assert await service.get(builder, agent.id, perm=Perm.AGENTS_RUN) is agent
+        with pytest.raises(AuthorizationError):
+            await service.get(builder, agent.id, perm=Perm.AGENTS_EDIT)
+        with pytest.raises(AuthorizationError):
+            await service.get(builder, agent.id, perm=Perm.AGENTS_PUBLISH)
+
+    @pytest.mark.anyio
+    async def test_an_owner_changes_it_but_cannot_archive_it(self, monkeypatch: pytest.MonkeyPatch):
+        agent = MagicMock(id=uuid.uuid4(), workflow_id=None)
+        service = self._service(monkeypatch, agent)
+        owner = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+
+        assert await service.get(owner, agent.id, perm=Perm.AGENTS_EDIT) is agent
+        with pytest.raises(BadRequestError, match="Switch the AI Architect off"):
+            await service.archive(owner, agent.id)
+
+
+class TestUndoingADraft:
+    """Codex on #2062: the MCP undo deleted an agent published since it looked."""
+
+    @pytest.mark.anyio
+    async def test_draft_only_refuses_what_the_locked_row_shows_published(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        agent.current_version_id = uuid.uuid4()
+        db = _db()
+        db.refresh = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        delete = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
+
+        with pytest.raises(BadRequestError, match="never-published draft"):
+            await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+
+        db.refresh.assert_awaited_once_with(agent, with_for_update=True)
+        delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_draft_only_deletes_a_never_published_draft_of_ones_own(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        agent.owner_user_id = ctx.subject_id
+        agent.current_version_id = None
+        db = _db()
+        db.refresh = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.agent_trigger.AgentTriggerService.deregister_agent_webhooks", AsyncMock()
+        )
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resource_grant_repo.delete_for_resource", AsyncMock())
+        monkeypatch.setattr(f"{REGISTRY_PATH}.record_audit", AsyncMock())
+        delete = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
+
+        await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+
+        delete.assert_awaited_once_with(db, agent)

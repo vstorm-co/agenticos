@@ -1,5 +1,5 @@
 ---
-source_sha: "9149747314ef"
+source_sha: "c927ecc9f2cd"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ które w ogóle nie dociera do runnera.
 
 ## Budżety { #budgets }
 
-!!! abstract "Dwa poziomy, i nie są to warianty jednej liczby"
+!!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
 
     Limit agenta mierzony względem sumy całej organizacji wyczerpują runy jego
     sąsiadów; limit organizacji mierzony względem jednego agenta nie jest żadnym
@@ -58,6 +58,7 @@ które w ogóle nie dociera do runnera.
 | Poziom | Ustawiany w | Mierzy | Podnosi |
 |---|---|---|---|
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
+| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
@@ -92,6 +93,20 @@ na liście agentów — liczba z *opublikowanej* wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+### Limit działu { #a-departments-cap }
+
+[Dział](departments.md#a-departments-budget) może mieć własny miesięczny limit.
+Stoi między pozostałymi dwoma: run jest sprawdzany względem limitu agenta,
+potem każdego działu z limitem, w którym jest osoba, która go uruchomiła, a na
+końcu względem limitu organizacji. Każdy dział liczy miesiąc własnych członków,
+więc osobę z Finansów i Sprzedaży zatrzyma ten z dwóch, który wyczerpie się
+pierwszy, a odmowa go nazwie - *Sales department monthly budget exhausted*.
+
+Lider działu i administratorzy dostają jedno powiadomienie, gdy dział przekroczy
+80% miesiąca, i kolejne, gdy limit zatrzyma run. Run, którego nikt nie
+uruchomił - harmonogram, gość na kanale - nie należy do żadnego działu i nie
+jest liczony.
 
 ### Egzekwowanie odbywa się przed żądaniem { #enforcement-is-before-the-request }
 
@@ -151,8 +166,8 @@ zobaczy. Dlatego licznik należy do przygotowanego runa, a nie do powierzchni.
 Otwarcie go nie jest krokiem, o którym nowa powierzchnia musi wiedzieć, bo nie
 ma sposobu, żeby wykonać przygotowanego agenta bez niego.
 
-[Zarządzanie kontekstem](reference/capabilities.md#context-management) to ta
-druga taka rzecz. Jego strategia podsumowująca zapisuje podsumowanie przez
+Capability [Długie rozmowy](reference/capabilities.md#context-management) to ta
+druga taka rzecz. Jej strategia podsumowująca zapisuje podsumowanie przez
 agenta, którego buduje sama, więc to żądanie nie przechodzi przez żadną bramkę
 budżetu; capability księguje to, co kosztowało, na tym samym liczniku. Bycie
 *poza* bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
@@ -196,8 +211,8 @@ komunikatem, z którym da się coś zrobić. Workspace odmawia zapisu. **Okno
 kontekstu** zostaje odrzucone przez providera, w środku odpowiedzi, a run po
 prostu się wywraca.
 
-Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpięte
-[zarządzanie kontekstem](reference/capabilities.md#context-management), bo
+Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpiętą
+capability [Długie rozmowy](reference/capabilities.md#context-management), bo
 ostrzeżenie liczy się najbardziej dla agenta, który *nie* będzie kompaktował.
 Raportuje on, ile tokenów niosło ostatnie żądanie tury, *po* ewentualnym
 kompaktowaniu: odczyt spada, gdy kompaktowanie działa, bo mierzy to, co wyszło, a
@@ -467,6 +482,28 @@ wierszu dalej daje rachunek, bo koszt każdego dziecka jest dodawany przez jego
 własny wiersz i usuwany przez wiersz jego rodzica. Klucz działa tak samo i znaczy
 więcej: to klucz ktoś rotuje, gdy rachunek wygląda źle.
 
+### Budżet rozmowy głosowej { #a-voice-calls-budget }
+
+[Rozmowa głosowa](voice.md) jest runem, a jej wydatki liczą się do budżetów
+agenta i organizacji jak każde inne. Różnią się trzy rzeczy, bo rozmowy nie da
+się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
+
+- **Zanim się zacznie**, najdłuższy możliwy czas rozmowy pomnożony przez
+  najgorszą cenę modelu za minutę jest porównywany z pozostałym budżetem.
+  Rozmowa, na którą nie byłoby stać, jest odrzucana, zamiast zacząć się i zostać
+  ucięta.
+- **W trakcie**, każda odpowiedź jest księgowana na runie, gdy się skończy, a
+  wydatki miesiąca są odczytywane na nowo co 15 sekund, więc widać runy, które w
+  tym czasie wydają. Budżet, który wyczerpie się w trakcie rozmowy, dostaje jedno
+  wypowiedziane zdanie i kończy rozmowę, zapisaną jako `budget_exceeded`.
+- **Jej długość należy do agenta.** Rozmowa trwa najwyżej tyle, ile najdłuższa
+  rozmowa agenta, domyślnie 10 minut i najwyżej 50; nie ma osobnej puli minut
+  rozmów, więc budżety są jedynym limitem tego, co rozmowy wydają.
+
+Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
+zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
+wydatki umierają razem z jego procesem.
+
 ### Co pokazuje historia runów { #what-run-history-shows }
 
 **`GET /runs` wypisuje wyłącznie runy najwyższego poziomu, a jego `total` liczy
@@ -633,6 +670,12 @@ Czyta te same wiersze `group_by=user` co tabela adopcji na dashboardzie —
 wyłącznie runy najwyższego poziomu, od najbardziej zajętych — więc koszt delegata
 ląduje raz, wewnątrz runa, który go uruchomił. I obejmuje to okno, które pokazuje
 reszta zakładki, a nie własną kroczącą wartość domyślną.
+
+**Kiedy wydano** to słupek na każdy dzień UTC w tym samym oknie, z `by_day` —
+własny koszt każdego runa, więc dni sumują się do tego samego rachunku, który dzielą
+zestawienia. Dzień bez runów jest rysowany jako zero, a nie pomijany. Każde zestawienie
+pokazuje udział wiersza w swojej sumie, a agent z miesięcznym limitem pokazuje miesiąc
+na tle tego limitu.
 
 Nazywanie ludzi z organizacji to ta sama decyzja, którą podejmuje karta na
 dashboardzie, więc obejmuje ją ta sama bramka: `runs:view`, które mają builder i
@@ -899,21 +942,101 @@ i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
 
+Strażnik pętli zatrzymuje większość pętli wcześniej i mówi dlaczego. Ma go każdy
+agent, domyślnie włączony. Gdy run wywoła jedno narzędzie z tymi samymi
+argumentami cztery razy z rzędu albo trzy razy obejdzie cykl dwóch lub trzech
+wywołań, model dostaje informację, że się zapętlił i ma zmienić podejście. Jeśli
+wywołania po tym ostrzeżeniu znowu się zapętlą, run kończy się jako
+`loop_stopped`, z powodem wymieniającym narzędzia - nigdy ich argumenty.
+Wywołania z różnymi argumentami nigdy nie są pętlą i liczą się tylko wywołania
+tego runa. Builder ustawia oba progi albo wyłącza strażnika obok `max_steps`
+(`loop_guard` w specu).
+
+### Recenzenci runu { #run-reviewers }
+
+Długi run dryfuje: instrukcje bledną, twierdzenia bez źródła się mnożą, agent
+odchodzi od prośby. Agent może mieć do pięciu recenzentów (`reviewers` w specu,
+*Recenzenci runu* w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
+jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
+tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
+którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
+wymienia każdą poprawkę i to, kto ją wysłał.
+
+Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
+zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
+odrzucone z powodu budżetu jest pomijane, a recenzent, który zawiedzie, jest
+logowany; żadne z nich nie przerywa runu. Agent bez recenzenta nie wykonuje
+dodatkowych wywołań modelu.
+
+### Tryb kodu { #code-mode }
+
+Agent, który przechodzi przez rekordy - zaktualizuj dziesięć wierszy, potem je
+podsumuj - płaci turą modelu za każde zależne wywołanie, a każda tura wysyła
+ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
+limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
+model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
+narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
+
+Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
+rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
+
+Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
+zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
+zatrzymuje się dla człowieka jak zawsze. Widok runu wymienia każdy skrypt i każde
+wywołanie, które wykonał.
+
 ### Raportowanie { #reporting }
 
 Run, którego nie dało się wycenić — model, którego `genai-prices` nie zna — jest
 zapisywany na zero z ostrzeżeniem, a suma jest oznaczana jako **dolna granica**,
 zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
 
+**Odczyty i zapisy cache są liczone osobno.** Tokeny wejściowe runa obejmują te,
+które dostawca podał z cache promptu, i te, które do niego zapisał, a wszystkie
+trzy są wyceniane osobno - na Claude Sonnet 5.5 odczyt z cache kosztuje 5% stawki
+wejściowej, a zapis 125%. Każdy run i każda odpowiedź zapisują
+`cache_read_tokens` i `cache_write_tokens` obok sumy, koszt jest liczony z tego
+podziału, a widok runa i koszt pod każdą odpowiedzią go pokazują - i to pozwala
+uzgodnić run z konsolą dostawcy.
+
+**Koszt runa obejmuje jego delegacje.** Run, który ktoś uruchomił, niesie cały
+ledger, łącznie z delegatami; własny wiersz delegacji dzieli te same pieniądze
+według agenta, a widok runa mówi, że jego delegacje są już w liczbie nad nimi.
+Dodanie obu liczy delegacje dwa razy.
+
+**Cache promptu, który przestaje trafiać, jest oznaczany.** Cache'owanie opłaca
+się tylko, dopóki początek każdego żądania jest identyczny; zmieniona kolejność
+narzędzi albo znacznik czasu w instrukcjach sprawia, że dostawca liczy pełną
+stawkę za tokeny, które miał w cache. Każdy agent odczytuje z każdej odpowiedzi
+liczby cache podane przez dostawcę, a żądanie, którego prefiks z cache się
+załamał, jest oznaczane w wykresie żądań runu - *cache zerwany*, gdy dostawca
+powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
+tokenów z cache, których nie odczytało, i logowane z agentem i modelem.
+Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
+obie obsługuje ten sam worker API.
+
+Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
+nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
+wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybranym
+oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
+w cache może też skrócić kompakcja.
+Karty nie ma, dopóki każdy cache trzymał.
+
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które działa na świat zewnętrzny, parkuje run i czeka na człowieka.
+Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
+Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
+wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, jeśli je ma
 2. tryb `approval` capability (`required` | `never` | `default`)
-3. to, co rozstrzyga `side_effecting`, dla `default`
+3. brak zatwierdzania, gdy oba mówią `default`
+
+`side_effecting` niczego już tu nie rozstrzyga. Builder pokazuje go obok wyboru,
+więc narzędzia działające na świat autor widzi jako pierwsze.
 
 Builder podaje wynik słowami, zamiast opisywać regułę, bo reguła, którą czytelnik
 musi wykonać w głowie, to ustawienie, którego nikt nie odważy się dotknąć.
@@ -1086,9 +1209,33 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
 **Ask about everything zaostrza politykę sesji.** Wybranie tego surowszego trybu
 nie wymaga specjalnego uprawnienia. Obejmuje on wywołania MCP obsługiwane przez runner, choć
 narzędzia te nie są deklarowane przez capabilities. Listy dozwolonych narzędzi
-na połączeniu i powiązaniu z agentem określają, co jest dostępne; same nie
-wymuszają zatwierdzenia. Domyślny tryb **Follow the agent** stosuje politykę
-capabilities agenta i nie dodaje bramki zatwierdzeń do tych narzędzi MCP.
+na połączeniu i powiązaniu z agentem określają, co jest dostępne; na człowieka
+każe im czekać własna polityka `approval` powiązania - `writes` albo `all` - którą
+domyślny tryb **Follow the agent** stosuje tak jak politykę capability (zobacz
+[które wywołania czekają na człowieka](mcp.md#which-calls-wait-for-a-person)).
+
+### Zatwierdzenie w trakcie rozmowy głosowej { #an-approval-inside-a-voice-call }
+
+[Rozmowa głosowa](voice.md#approvals-in-a-call) nie może się wstrzymać i czekać
+na kolejkę, więc jej zatwierdzenia rozstrzyga się w rozmowie, a decyduje osoba,
+która w niej jest:
+
+- Prośba trafia do kolejki od razu, a rozmowa pokazuje narzędzie, dokładne
+  argumenty, z którymi się wykona, i to, co według transkrypcji powiedział
+  rozmówca. Zatwierdzenie wykonuje te argumenty, raz.
+- Rozstrzyga się ją **wyłącznie przez rozmowę** i tylko wtedy, gdy rozmówca ma
+  `approvals:decide`. `POST /approvals/{id}` odrzuca prośbę, która należy do
+  trwającej rozmowy, a opisane niżej przemiatanie nieaktualnych zatwierdzeń
+  pomija runy głosowe.
+- **60 sekund** bez decyzji powoduje jej wygaśnięcie, bez decydenta - ten sam
+  null, który zapisuje przemiatanie. Rozmowa, która kończy się z dowolnego
+  powodu, powoduje wygaśnięcie wszystkiego, na co jeszcze czekała.
+- Członek bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
+  Odwiedzający w widgecie albo na hostowanej stronie nigdy nie widzi narzędzia,
+  które wymaga zatwierdzenia: jest ono pomijane w jego rozmowie.
+
+`approval_mode` wynika ze speca agenta, tak jak w czacie tekstowym, a każda
+decyzja trafia do śladu audytowego jak każda inna.
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
@@ -1218,15 +1365,16 @@ agenta. Wydatki są zachowywane nawet wtedy, gdy *miejsca* delegata zachować si
 nie dało — historia wiadomości z biblioteki jest telemetrią w miarę możliwości, a
 delegacja uruchomiona od nowa i tak wydała to, co wydała.
 
-!!! warning "Zatwierdzanie MCP zależy od trybu wykonania"
+!!! warning "Zatwierdzanie MCP ustawia się na powiązaniu"
 
-    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP. W czacie
-    internetowym **Ask about everything** (`ask_all`) obejmuje też wywołania MCP
-    obsługiwane przez runner; domyślny **Follow the agent** tego nie robi.
-    Ogranicz narzędzia na połączeniu i jego powiązaniu z agentem oraz przetestuj
-    docelowy tryb wykonania. Nie zakładaj, że surowsze ustawienie sesji czatu
-    obowiązuje też w harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane
-    po stronie dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
+    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP; obejmuje je
+    polityka `approval` powiązania, na każdej powierzchni, na której działa agent.
+    `writes` zatrzymuje narzędzia, których serwer nie oznacza jako tylko do odczytu
+    - to deklaracja samego serwera, więc dla serwera spoza Twojej kontroli wybierz
+    `all`. W czacie internetowym **Ask about everything** (`ask_all`) obejmuje też
+    resztę; nie zakładaj, że surowsze ustawienie sesji czatu obowiązuje w
+    harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane po stronie
+    dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
 
 ### Krok workflow, który pyta osobę { #workflow-step-approvals }
 
@@ -1645,8 +1793,8 @@ gdzie ustawia się okresy per tenant.
 |---|---|---|
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
-| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
-| Artefakty | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
+| Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
 | Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |

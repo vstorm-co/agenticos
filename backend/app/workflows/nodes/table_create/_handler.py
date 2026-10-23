@@ -12,8 +12,6 @@ workflow that runs more than once and makes a table each time binds a name that
 differs per run.
 """
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field

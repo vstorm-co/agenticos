@@ -1,7 +1,5 @@
 """Workflow exposure schemas - a workflow's webhooks, schedules and forms (#1792)."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID

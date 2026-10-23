@@ -4,8 +4,6 @@ The pair of `text.extract`: text that has to travel as a file, to an upload or
 an agent attachment, or that is too long to hand on inline.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.workflows import files

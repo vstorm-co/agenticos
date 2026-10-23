@@ -14,8 +14,6 @@ step with the addresses already sent named, since a retry sends to all of them
 again: mail has no idempotency key, so the step is at least once.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.db.session import get_worker_db_context

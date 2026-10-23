@@ -7,8 +7,6 @@ confirm for page queries other than the ones shown is a conflict, and the page's
 audience never opens a version that waits for consent.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
@@ -143,6 +141,7 @@ def _stubs(
     """The repository edge for one page, recording what the service wrote."""
     audit = AsyncMock()
     settled = AsyncMock()
+    told = AsyncMock()
     written: dict[str, Any] = {}
 
     async def update_version(_db: object, *, version: ArtifactVersion, update_data: dict) -> Any:
@@ -180,6 +179,7 @@ def _stubs(
             "artifact_repo.update_version": update_version,
             "artifact_repo.update": update,
             "artifact_repo.environment_names": AsyncMock(return_value={}),
+            "artifact_repo.is_following": AsyncMock(return_value=False),
             "member_repo.get_active": AsyncMock(
                 return_value=MagicMock(id=membership) if membership else None
             ),
@@ -200,10 +200,11 @@ def _stubs(
             "resolve_access": access,
             "record_audit": audit,
             "settle_version_request": settled,
+            "_notify_followers": told,
         }.items():
             stack.enter_context(patch(f"{PATH}.{target}", new=value))
         stack.enter_context(patch(f"{PATH}.VirtualTableService.table_source", new=table_source))
-        yield {"audit": audit, "written": written, "settled": settled}
+        yield {"audit": audit, "written": written, "settled": settled, "told": told}
 
 
 def _service() -> ArtifactService:
@@ -230,6 +231,8 @@ class TestConfirmingData:
         # The owner's own confirmation answers the version's pending request, if it has one.
         settled = seen["settled"].await_args
         assert (settled.args[2], settled.kwargs["by_user_id"]) == (latest, owner.user_id)
+        # Followers were not told when it was published pending: they are, now it is served.
+        assert seen["told"].await_args.args[2] is latest
 
     @pytest.mark.security
     async def test_an_admin_confirms_for_the_owner_and_the_entry_says_so(self) -> None:

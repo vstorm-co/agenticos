@@ -21,8 +21,6 @@ The requester is told nothing by the platform when a request is decided: the pag
 or not, is the answer. Nobody is notified of a decision in this piece.
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from uuid import UUID
 

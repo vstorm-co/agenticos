@@ -1,7 +1,8 @@
-# Publish the two images the compose files pull.
+# Publish the three images the compose files pull.
 #
-#   ghcr.io/vstorm-co/agenticos-backend    the API, the Prefect runner, the migrations
+#   ghcr.io/vstorm-co/agenticos-backend    the API, the background worker, the migrations
 #   ghcr.io/vstorm-co/agenticos-frontend   the console
+#   ghcr.io/vstorm-co/agenticos-browser    the browser `browser_use` drives (`browser` profile)
 #
 # A `v*` tag publishes `<version>` and `latest`; a push to `main` publishes
 # `edge`; both publish `sha-<short>`, which is what `scripts/deploy.sh` pins a
@@ -134,7 +135,7 @@ jobs:
             esac
           fi
           build=false
-          for image in backend frontend; do
+          for image in backend frontend browser; do
             if ! docker buildx imagetools inspect "$IMAGE_PREFIX-$image:sha-$short" >/dev/null 2>&1; then
               build=true
             fi
@@ -163,7 +164,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [backend, frontend]
+        image: [backend, frontend, browser]
         arch: [amd64, arm64]
         include:
           - arch: amd64
@@ -178,6 +179,11 @@ jobs:
           - image: frontend
             context: ./frontend
             file: frontend/Dockerfile
+          # The browser `browser_use` drives (#2130): a full Chromium with a window,
+          # for compose's `browser` profile.
+          - image: browser
+            context: ./docker/browser
+            file: docker/browser/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -195,7 +201,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Labels only. The tags are `resolve`'s, applied once in `publish` where the
-      # four digests are joined; here each build pushes by digest and nothing else.
+      # digests are joined; here each build pushes by digest and nothing else.
       - name: Read the image's labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -212,7 +218,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          # One cache scope per image and architecture, or the four builds evict
+          # One cache scope per image and architecture, or the builds evict
           # each other's layers from the one 10 GB store.
           cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
@@ -249,7 +255,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [backend, frontend]
+        image: [backend, frontend, browser]
+        # The package page on GHCR reads its description from the manifest
+        # list, not from the per-architecture images' labels, so without this
+        # it says "No description provided".
+        include:
+          - image: backend
+            description: "AgenticOS API, background worker and migrations. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: frontend
+            description: "AgenticOS console, the web app members use. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: browser
+            description: "The Chromium that AgenticOS agents drive with browser_use (compose's browser profile). AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/"
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         if: needs.build.result == 'success'
@@ -268,7 +284,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The sources are the four digests when this run built them, and the
+      # The sources are the digests when this run built them, and the
       # commit's existing `sha-` manifest list when it did not. `edge` is decided
       # here, against `main` as it is *now*: runs are one per commit and do not
       # queue, so a run for an older commit that finishes last must not move
@@ -281,6 +297,7 @@ jobs:
           TAGS: ${{ needs.resolve.outputs.tags }}
           EDGE: ${{ needs.resolve.outputs.edge }}
           BUILT: ${{ needs.build.result == 'success' }}
+          DESCRIPTION: ${{ matrix.description }}
         run: |
           set -euo pipefail
           tags=()
@@ -299,7 +316,9 @@ jobs:
           else
             refs+=("$IMAGE:sha-$SHORT")
           fi
-          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools create "${tags[@]}" \
+            --annotation "index:org.opencontainers.image.description=$DESCRIPTION" \
+            "${refs[@]}"
 
       - name: Show what was published
         env:
@@ -317,7 +336,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [backend, frontend]
+        image: [backend, frontend, browser]
     steps:
       - name: Sign in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -348,8 +367,8 @@ jobs:
   # arm64 deployment assessed against that document is assessed against packages
   # it does not have and missing the ones it does: the frontend image alone
   # installs a different `@img/sharp-libvips-linux-*` per architecture. So the
-  # matrix carries both, `--platform` picks one, and four documents are
-  # published rather than two.
+  # matrix carries both, `--platform` picks one, and a document per image and
+  # architecture is published rather than one per image.
   #
   # Attached to the GitHub release on a `v*` tag, and kept as a run artifact on
   # every other event - `edge` has an inventory too, it just has nowhere
@@ -369,12 +388,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [backend, frontend]
+        image: [backend, frontend, browser]
         arch: [amd64, arm64]
     env:
       # `api` rather than `backend` in the file name, because that is what a
       # release asset is read as - the API image and the console.
-      NAME: sbom-${{ matrix.image == 'backend' && 'api' || 'frontend' }}-${{ matrix.arch }}.cdx.json
+      NAME: sbom-${{ matrix.image == 'backend' && 'api' || matrix.image }}-${{ matrix.arch }}.cdx.json
     steps:
       - name: Sign in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0

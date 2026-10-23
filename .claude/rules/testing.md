@@ -29,7 +29,10 @@ after an edit it answers the same question ten to fifty times slower.
 | `frontend/` | `bunx vitest run src/components/chat/usage-meter.test.tsx` | 2s |
 | `frontend/` | `bunx vitest run src/components/chat` | a directory |
 
-Then, once, before the push:
+**The whole suites run in CI, not on a laptop.** They take tens of minutes and load
+the machine somebody is working on, so locally stop at the batches above plus
+`make lint` (or the half for the side you touched). Push, and read the run for that
+commit's SHA - this is what it runs:
 
 ```bash
 make lint               # ruff, ruff format, ty, vulture, deptry, eslint, prettier, tsc,
@@ -37,11 +40,14 @@ make lint               # ruff, ruff format, ty, vulture, deptry, eslint, pretti
 make test               # backend + the 100% gate; runs across workers (-n auto,
                         # capped at 4), pytest-cov combines their data
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
-make test-integration   # only if the change is near the database; also parallel
+make test-integration   # the tests needing a real database; also parallel
 make check              # every CI job except e2e - lint, test, db-check,
                         # test-frontend-cov, build-frontend, docs-build, audit.
-                        # About five minutes.
 ```
+
+`gh run list --branch <branch>` finds the run, `gh run view <id> --log-failed` the
+error in a red job. A gate that has not run yet is reported as not run, never as
+passing.
 
 `make check` is CI, not an approximation of it: `.github/workflows/ci.yml` calls
 those targets rather than repeating their commands, and `tests/test_ci_parity.py`
@@ -50,8 +56,8 @@ CI does not. It has drifted four times, all four found by #143.
 
 Three things `check` leaves out, on purpose: `e2e` (needs a seeded backend), the
 image build and scan (`images.yml`, on a push to `main` or a `v*` tag), and `make test-migrations` - CI cycles the chain
-against a throwaway database, and `alembic downgrade base` on a laptop points at
-the one with your own work in it. `check` also says at the end when
+against its service database, and locally the target uses a database of its own on
+the throwaway Postgres, never your dev one. `check` also says at the end when
 `tests/integration/` skipped itself for want of a database, because CI's `test`
 job always has one.
 
@@ -131,11 +137,9 @@ imported — a test database, and one per pytest process. Leave both halves: the
 suite once emptied a developer's database through a populated `.env`, and a constant
 name meant two runs on one machine dropping each other's tables mid-test (#189).
 
-It seeds Prefect in the same block and for the same reason, because Prefect reads
-`backend/.env` itself: `PREFECT_API_URL` **empty**, so a `@flow` call starts a
-temporary server instead of reaching for the one `make dev` names (#536), and
-`PREFECT_HOME` at a directory of the tests' own, so that server's SQLite database is
-not a developer's `~/.prefect`. `docs/testing.md` has the whole of it.
+The worker's tests need nothing seeded: they run against the real
+`background_jobs` table and real child processes. `docs/testing.md#the-workers-tests`
+has the whole of it.
 
 `tests/integration/conftest.py` creates that database at the start of the session and
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and

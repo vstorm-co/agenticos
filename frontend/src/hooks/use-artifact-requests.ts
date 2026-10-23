@@ -29,7 +29,7 @@ export function useArtifactRequests(artifactId: string, includeDecided: boolean,
   const query = useQuery({
     queryKey: qk.artifacts.requests(artifactId, includeDecided),
     queryFn: () =>
-      apiClient.get<ArtifactShareRequestList>(`/artifacts/${artifactId}/share-requests`, {
+      apiClient.get<ArtifactShareRequestList>(`/apps/${artifactId}/share-requests`, {
         params: includeDecided ? { include_decided: "true" } : undefined,
       }),
     enabled,
@@ -73,7 +73,7 @@ export function useArtifactRequestActions(artifactId: string) {
   const approve = useMutation({
     mutationFn: (requestId: string) =>
       apiClient.post<ArtifactShareRequest>(
-        `/artifacts/${artifactId}/share-requests/${requestId}/approve`,
+        `/apps/${artifactId}/share-requests/${requestId}/approve`,
       ),
     onSuccess: async () => {
       await settle();
@@ -84,7 +84,7 @@ export function useArtifactRequestActions(artifactId: string) {
   const decline = useMutation({
     mutationFn: (requestId: string) =>
       apiClient.post<ArtifactShareRequest>(
-        `/artifacts/${artifactId}/share-requests/${requestId}/decline`,
+        `/apps/${artifactId}/share-requests/${requestId}/decline`,
       ),
     onSuccess: async () => {
       await settle();
@@ -101,7 +101,7 @@ export function useRequestAccess(artifactId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (note: string | null) =>
-      apiClient.post<ArtifactAccessRequested>(`/artifacts/${artifactId}/access-requests`, {
+      apiClient.post<ArtifactAccessRequested>(`/apps/${artifactId}/access-requests`, {
         note,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.artifacts.detail(artifactId) }),
@@ -118,7 +118,7 @@ export function useVersionReview(artifactId: string, versionId: string, enabled:
   return useQuery({
     queryKey: qk.artifacts.review(artifactId, versionId),
     queryFn: () =>
-      apiClient.get<ArtifactVersionReview>(`/artifacts/${artifactId}/versions/${versionId}/review`),
+      apiClient.get<ArtifactVersionReview>(`/apps/${artifactId}/versions/${versionId}/review`),
     enabled,
     staleTime: 0,
     gcTime: 0,

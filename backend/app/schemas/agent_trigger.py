@@ -1,7 +1,5 @@
 """Schemas for agent triggers - a schedule or an event that fires an agent."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -48,6 +46,9 @@ def _cron_has_next(expression: str) -> bool:
         return False
     return True
 
+
+TriggerOverlapName = Literal["skip", "queue", "allow"]
+"""`app.db.models.agent_trigger.TriggerOverlap`, as the API spells it."""
 
 # GitHub's `issues` webhook actions, so a typo like `opnened` is a 422 rather
 # than a filter stored to match nothing. From GitHub's webhook-events reference.
@@ -143,6 +144,15 @@ class TriggerCreate(BaseSchema):
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
+    runs_as_creator: bool = Field(
+        default=False,
+        description=(
+            "Fire as the person who made the trigger: their memory and their own "
+            "MCP connections, as in their own chat. Only that person may turn it "
+            "on, for themselves; an event trigger reads memory but never writes it, "
+            "and conversation search stays closed either way (#2027)"
+        ),
+    )
 
     # Schedule fields.
     schedule_kind: Literal["interval", "cron"] = "interval"
@@ -150,6 +160,14 @@ class TriggerCreate(BaseSchema):
         default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
     )
     cron_expression: str | None = Field(default=None, max_length=255)
+    overlap: TriggerOverlapName | None = Field(
+        default=None,
+        description=(
+            "What a due schedule does while its previous fire is still running: "
+            "`skip` lets the occurrence pass, `queue` fires once the run ends, "
+            "`allow` fires on top of it. Schedules only; `skip` when omitted"
+        ),
+    )
 
     # Event fields.
     event_source: Literal["github", "gmail", "webhook"] | None = None
@@ -246,13 +264,15 @@ class TriggerCreate(BaseSchema):
             raise ValueError("target is not valid for a schedule")
 
     def _reject_schedule_fields(self) -> None:
+        if self.overlap is not None:
+            raise ValueError("overlap is not valid for an event trigger")
         if self.interval_seconds is not None:
             raise ValueError("interval_seconds is not valid for an event trigger")
         if self.cron_expression is not None:
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "is_active")
+_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator", "overlap")
 
 
 class TriggerUpdate(BaseSchema):
@@ -288,8 +308,18 @@ class TriggerUpdate(BaseSchema):
         default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
     )
     cron_expression: str | None = Field(default=None, max_length=255)
+    overlap: TriggerOverlapName | None = Field(
+        default=None, description="A schedule's overlap policy; see `TriggerCreate.overlap`"
+    )
     is_active: bool | None = None
     environment_id: UUID | None = None
+    runs_as_creator: bool | None = Field(
+        default=None,
+        description=(
+            "Turn acting as the creator on or off. Only the creator may turn it on; "
+            "anyone else's change to the prompt, environment or filter turns it off"
+        ),
+    )
     # An event trigger's filter. Re-validated against its source's typed model in
     # the service (which owns `event_source`), so an unknown key is refused there
     # rather than stored to match nothing; a schedule has no filter and one sent
@@ -339,10 +369,12 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None
+    runs_as_creator: bool = False
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
     cron_expression: str | None = None
+    overlap: TriggerOverlapName = "skip"
     event_source: Literal["github", "gmail", "webhook"] | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str

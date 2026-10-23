@@ -36,8 +36,6 @@ Cost is reported to the workflow run as it lands on the agent run - for a
 resumed run, only what the continuation added.
 """
 
-from __future__ import annotations
-
 import logging
 from decimal import Decimal
 from typing import Any

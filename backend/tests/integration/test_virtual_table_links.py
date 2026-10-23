@@ -1,7 +1,5 @@
 """Link, lookup and rollup columns against a real database: what a record reads through its links."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest

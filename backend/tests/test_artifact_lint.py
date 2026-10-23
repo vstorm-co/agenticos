@@ -6,8 +6,6 @@ library, `AO.onData` on a kit that has none. A warning is only worth its tokens
 when it fires on those and stays quiet on a page built as the guide says.
 """
 
-from __future__ import annotations
-
 import time
 from pathlib import Path
 
@@ -105,6 +103,27 @@ def test_the_doctype_is_case_insensitive_and_needs_a_word_boundary() -> None:
     assert not any("doctype" in problem for problem in upper)
     glued = lint_page(_page("", head="<!doctype htmlx><head></head>"))
     assert any("doctype" in problem for problem in glued)
+
+
+@pytest.mark.parametrize(
+    ("head", "counts"),
+    [
+        ("<!DOCTYPE\thtml><head></head>", True),
+        ("<!doctypehtml><head></head>", False),
+        ("<!doctype", False),
+        ("<!doctype html", True),
+        ("<!doctype  ", False),
+        ("<!doctype html_>", False),
+    ],
+    ids=["tab-gap", "no-gap", "truncated", "ends-at-html", "no-html", "underscore"],
+)
+def test_the_doctype_keyword_boundaries(head: str, counts: bool) -> None:
+    problems = lint_page(_page("", head=head))
+    assert any("doctype" in problem for problem in problems) is not counts
+
+
+def test_a_page_of_only_a_byte_order_mark_has_no_doctype() -> None:
+    assert any("doctype" in problem for problem in lint_page(b"\xef\xbb\xbf"))
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,5 @@
 """Workflow files and whether a run may read one (#1791)."""
 
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy import func, select

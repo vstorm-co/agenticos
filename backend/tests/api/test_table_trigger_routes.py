@@ -4,8 +4,6 @@
 this is the wire contract - status codes and what each handler hands the service.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime

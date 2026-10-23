@@ -17,8 +17,8 @@ so no database connection is ever held across a handler's own external call:
 4. `settle` - a third transaction: persists the attempt's terminal result,
    transitions the `NodeRun`, books the cost the handler reported, appends a
    `WorkflowEvent`, and - on `Completed` - advances the graph by creating the
-   next `NodeRun`(s) and `DispatchOutbox` row(s), all in one commit; the flow
-   submits those rows once it has. `DispatchOutbox` is a
+   next `NodeRun`(s) and `DispatchOutbox` row(s) with a job for each
+   (`dispatch_queue.queue_dispatch`), all in one commit. `DispatchOutbox` is a
    transactional outbox for exactly this reason: "the result is durable" and
    "the next step is scheduled" can never disagree.
 
@@ -39,8 +39,6 @@ into the loop's output and advances the loop itself. Everything is decided under
 the run's lock in the settle's own transaction, so a restart resumes at the
 iteration that was next and never repeats one that ended.
 """
-
-from __future__ import annotations
 
 import asyncio
 import json
@@ -79,7 +77,14 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
-from app.services.workflow_execution import budget, context, delivery, events, failure
+from app.services.workflow_execution import (
+    budget,
+    context,
+    delivery,
+    dispatch_queue,
+    events,
+    failure,
+)
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
     NodeDefinitionMissingError,
@@ -216,7 +221,7 @@ async def claim(
     Returns `None` when there was nothing claimable - the row was already
     claimed by a live lease, already `done`/`cancelled`, or not yet
     `available_at`. None of those is an error: the caller (`workflow_tasks.
-    workflow_dispatch_node_flow`) simply stops. The lease defaults to
+    dispatch_node`) simply stops. The lease defaults to
     `WORKFLOW_DISPATCH_LEASE_SECONDS`, read at call time.
     """
     token = uuid4()
@@ -659,7 +664,7 @@ async def begin_attempt(
     `token` is the fencing token `claim` minted for this worker. It is
     re-checked against the outbox row's *current* `claimed_by` before
     anything else runs: `claimed_by` is minted fresh per claim rather than
-    reused (a Prefect flow-run id, say) precisely so a worker whose lease
+    reused (a job id, say) precisely so a worker whose lease
     expired between `claim` and here - and who is not actually dead, only
     slow - can never believe it still owns this dispatch once somebody else
     has reclaimed it. Everything below this point assumes "this worker
@@ -896,7 +901,7 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
     """Phase 3's non-transactional half: run the handler under `dispatching_as`.
 
     Not called from inside either of `begin_attempt`/`settle`'s sessions -
-    `app.worker.tasks.workflow_tasks.workflow_dispatch_node_flow` calls this
+    `app.worker.tasks.workflow_tasks.dispatch_node` calls this
     between them, so a slow or hung handler never holds a pooled connection.
     """
     scope = context.dispatching_as(begun.dispatch_context)
@@ -1198,8 +1203,7 @@ async def resolve_orphaned_attempt(
         retry = _retry_policy(graph, node_run)
         failures = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
         if failures >= _attempt_ceiling(retry):
-            # What this makes ready is submitted by the dispatch poll: this
-            # path runs from a reclaim or the reconcile sweep, not a settle.
+            # What this makes ready has its job queued in this transaction.
             await _fail_for_good(
                 db,
                 run=run,
@@ -1216,10 +1220,9 @@ async def resolve_orphaned_attempt(
                 now=now,
             )
             return
-        await workflow_run_repo.create_outbox(
+        await dispatch_queue.queue_dispatch(
             db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
+            run=run,
             node_run_id=node_run.id,
             available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
         )
@@ -1268,8 +1271,8 @@ async def settle(
     way, and a cost that only lands on success is a budget with a hole in it.
 
     Returns the `(workflow_run_id, node_run_id)` of every node this settle
-    made ready. Their outbox rows are already written and stamped submitted;
-    the caller submits them once this transaction has committed.
+    made ready. Their outbox rows and jobs are already written in this
+    transaction, so a worker claims them once it commits.
     """
     run = await workflow_run_repo.get_run_by_id_for_update(db, begun.workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, begun.node_run_id)
@@ -1529,20 +1532,18 @@ async def _settle_waiting(
         # called run may have ended before this step parked, when its wake found
         # nothing waiting - so the step is woken now instead of never.
         if WorkflowRunStatus(called.status).is_terminal:
-            await workflow_run_repo.create_outbox(
+            await dispatch_queue.queue_dispatch(
                 db,
-                organization_id=run.organization_id,
-                workflow_run_id=run.id,
+                run=run,
                 node_run_id=node_run.id,
             )
         return
     if result.reason == WaitingReason.TIMER.value:
         # The step's own clock: its dispatch row comes due when the wait does, so
         # a worker restart loses nothing, and the run goes on running meanwhile.
-        await workflow_run_repo.create_outbox(
+        await dispatch_queue.queue_dispatch(
             db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
+            run=run,
             node_run_id=node_run.id,
             available_at=result.resume_at or now,
         )
@@ -1561,10 +1562,9 @@ async def _settle_waiting(
         # attempt number. A wait does not count against the retry ceiling, so
         # only the run's deadline, budget or a cancel bounds how often a
         # handler asks for one.
-        await workflow_run_repo.create_outbox(
+        await dispatch_queue.queue_dispatch(
             db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
+            run=run,
             node_run_id=node_run.id,
             available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
         )
@@ -1651,10 +1651,9 @@ async def _settle_failed(
                 "paused_reason": WaitingReason.RETRY_BACKOFF.value,
             },
         )
-        await workflow_run_repo.create_outbox(
+        await dispatch_queue.queue_dispatch(
             db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
+            run=run,
             node_run_id=node_run.id,
             available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
         )
@@ -1778,7 +1777,7 @@ async def _advance(
     never by following its `body` edge. Called under the run's lock, so two
     settles of one run never decide the same target at once.
 
-    Returns what it queued, for the caller to submit after commit.
+    Returns the `(run, node run)` pairs it queued a job for.
     """
     graph = graph or await resolve_graph(db, run)
     node_scope = node_scope_map(graph)
@@ -1806,16 +1805,12 @@ async def _advance(
                 continue
             decided.remember(target_id, node_run)
             if runs:
-                # Stamped submitted: the settling flow submits it straight after
-                # this transaction commits, so the next node starts as soon as
-                # its predecessor settles instead of waiting out the poll - and
-                # the poll does not submit it a second time.
-                await workflow_run_repo.create_outbox(
+                # Its job commits with this transaction, so the next node starts
+                # as soon as its predecessor settles.
+                await dispatch_queue.queue_dispatch(
                     db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
+                    run=run,
                     node_run_id=node_run.id,
-                    submitted=True,
                 )
                 ready_pairs.append((run.id, node_run.id))
             else:

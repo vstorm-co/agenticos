@@ -5,8 +5,6 @@ proves the listing's rows and `tests/test_artifact_render.py` what the renderer
 does with what is decided here.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

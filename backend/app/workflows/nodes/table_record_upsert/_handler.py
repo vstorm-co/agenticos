@@ -7,8 +7,6 @@ other write lands in between. A retry after the write committed replays it,
 whether the first attempt created the record or updated it.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field

@@ -6,8 +6,6 @@ of it: a forged or dead token is turned away before a handle is ever minted, wit
 one refusal that names nothing, because the endpoint it guards is public.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock

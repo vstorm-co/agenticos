@@ -6,8 +6,6 @@ so a boundary is exactly where the test puts it, and each class is checked from 
 sides: the row that must go, and the one that must stay.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock

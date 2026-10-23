@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { Command } from "cmdk";
-import { ChevronDown, Users } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { GroupIcon } from "@/components/groups/group-icon";
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -109,7 +110,10 @@ export function SubjectPicker({
                     onSelect={() => pick(encodeSubject({ kind: "group", id: group.id }))}
                     className={ROW}
                   >
-                    <Users className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+                    <GroupIcon
+                      icon={group.icon}
+                      className="size-5 shrink-0 rounded-full [&_svg]:size-3"
+                    />
                     <span className="truncate">{group.name}</span>
                   </Command.Item>
                 ))}

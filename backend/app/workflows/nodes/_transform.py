@@ -7,8 +7,6 @@ that lacks it is treated the same way by every step, as `MISSING` rather than as
 `null`, so a missing key and a key holding `null` stay two different things.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field

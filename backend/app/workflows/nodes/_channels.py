@@ -13,8 +13,6 @@ run, read afresh - a member who loses it stops the step with
 `CHANNEL_NOT_USABLE`, as does a bot that was deleted or switched off.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal

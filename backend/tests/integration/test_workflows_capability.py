@@ -1,7 +1,5 @@
 """The workflows capability against a real database: what an agent may start, and how."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -37,12 +35,6 @@ FIELDS = [
     {"name": "email", "type": "text", "required": True, "description": "Who to follow up"},
     {"name": "tier", "type": "choice", "required": False, "options": ["gold", "silver"]},
 ]
-
-
-@pytest.fixture(autouse=True)
-def _no_prefect_submission():
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
-        yield
 
 
 def _graph(definition_id: str, config: dict[str, Any]) -> WorkflowGraph:

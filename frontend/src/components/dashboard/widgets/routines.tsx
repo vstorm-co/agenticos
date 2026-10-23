@@ -200,7 +200,8 @@ function outcome(trigger: Trigger, run: AgentRun | undefined, t: Translate): [st
   if (
     run.status === "failed" ||
     run.status === "budget_exceeded" ||
-    run.status === "guardrail_blocked"
+    run.status === "guardrail_blocked" ||
+    run.status === "loop_stopped"
   )
     return [t(`status.${run.status}`), "err"];
   if (run.down_rated) return [t("ratedDown"), "warn"];

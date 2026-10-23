@@ -23,8 +23,6 @@ Confirming is the owner's, or an Owner's or Admin's, as themselves
 may. No agent tool reaches either.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import time

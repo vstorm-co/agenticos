@@ -29,8 +29,6 @@ delegation in progress and `None` everywhere else - the same shape, and the same
 reasoning, as `ask_user` and `request_approval`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -119,6 +117,14 @@ class SubagentStarted(_SubagentFrame):
             "moment both it and the enclosing one exist."
         ),
     )
+    harness: Literal["claude_code", "codex"] | None = Field(
+        default=None,
+        description=(
+            "Set when the worker is a coding harness the `coding_agent` capability "
+            "started rather than an agent, so a surface draws its mark; `None` for "
+            "every delegation."
+        ),
+    )
     specialist: SpecialistDefinition | None = Field(
         default=None,
         description=(
@@ -155,6 +161,14 @@ class SubagentToolCall(_SubagentFrame):
     kind: Literal["subagent_tool_call"] = "subagent_tool_call"
     tool_name: str
     tool_call_id: str
+    title: str | None = Field(
+        default=None,
+        description=(
+            "What the step is about, where the worker says - the file a coding "
+            "agent reads, the command it runs. Absent for a delegate's own tools, "
+            "whose name is the whole of what the panel shows."
+        ),
+    )
 
 
 class SubagentToolResult(_SubagentFrame):

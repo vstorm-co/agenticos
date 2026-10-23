@@ -18,8 +18,6 @@ A crash after the call and before the step settles calls the tool again on the
 retry: MCP has no idempotency key to send, so the step is at least once.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import json

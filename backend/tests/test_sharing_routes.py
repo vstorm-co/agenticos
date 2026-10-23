@@ -7,8 +7,6 @@ five, that they are wired to the right resource type, and that a row from
 another organization is refused before the sharing service is ever reached.
 """
 
-from __future__ import annotations
-
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +17,8 @@ from app.api.routes.v1._sharing_loaders import (
     load_artifact,
     load_collection,
     load_context,
+    load_mcp_connection,
+    load_project,
     load_secret,
     load_skill,
     load_table,
@@ -29,6 +29,8 @@ from app.api.routes.v1.sharing import (
     artifact_sharing_router,
     collection_sharing_router,
     context_sharing_router,
+    mcp_connection_sharing_router,
+    project_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
     table_sharing_router,
@@ -47,6 +49,8 @@ ROUTERS = (
     ("tables", table_sharing_router),
     ("workflows", workflow_sharing_router),
     ("artifacts", artifact_sharing_router),
+    ("mcp-connections", mcp_connection_sharing_router),
+    ("projects", project_sharing_router),
 )
 
 LOADERS = (
@@ -57,6 +61,8 @@ LOADERS = (
     ("secret", load_secret, "Secret not found", "secret_id"),
     ("table", load_table, "Table not found", "table_id"),
     ("workflow", load_workflow, "Workflow not found", "workflow_id"),
+    ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),
+    ("project", load_project, "Project not found", "project_id"),
 )
 
 
@@ -121,7 +127,8 @@ class TestResourceLoaders:
         self, kind, loader, message, detail_key
     ):
         organization_id = uuid.uuid4()
-        row = MagicMock(organization_id=organization_id, archived_at=None)
+        # `scope` is read by the MCP server's loader alone; an organization's.
+        row = MagicMock(organization_id=organization_id, archived_at=None, scope="org")
         db = MagicMock(get=AsyncMock(return_value=row))
 
         assert await loader(db, uuid.uuid4(), MagicMock(organization_id=organization_id)) is row
@@ -139,6 +146,16 @@ class TestResourceLoaders:
             assert await load_artifact(db, resource_id, ctx) is row
 
         load.assert_awaited_once_with(ctx, resource_id)
+
+    @pytest.mark.anyio
+    async def test_a_member_s_own_mcp_connection_is_nobody_else_s_to_share(self):
+        """A personal row carries no organization to match; refused as missing."""
+        organization_id = uuid.uuid4()
+        row = MagicMock(organization_id=organization_id, scope="user")
+        db = MagicMock(get=AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await load_mcp_connection(db, uuid.uuid4(), MagicMock(organization_id=organization_id))
 
 
 class TestHandlerBehaviour:

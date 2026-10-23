@@ -83,39 +83,47 @@ function valueOf(label: string) {
 }
 
 describe("UsageMeter, closed", () => {
-  it("is one icon, and nothing at all before anything was measured", () => {
-    // "0 tokens" under a conversation that has not run anything is a claim.
-    const { container: empty } = render(<UsageMeter usage={null} />);
-    expect(empty).toBeEmptyDOMElement();
+  it("is one icon, there before anything was measured, saying what it will show", async () => {
+    // "0 tokens" under a conversation that has not run anything is a claim, so
+    // the popover says what comes rather than showing a zero.
+    const { unmount } = render(<UsageMeter usage={null} />);
+    await userEvent.click(trigger());
+    expect(
+      screen.getByText("Context, cost and budgets show up here after the agent's first reply."),
+    ).toBeInTheDocument();
+    unmount();
 
     render(<UsageMeter usage={null} total={total()} />);
     expect(trigger()).toHaveTextContent("");
   });
 
-  it("fills its disc with the context window, past half on the long arc", () => {
+  it("closes its ring as the context window fills, and says the share beside it", () => {
     // The ceiling a turn hits without warning, so the one the icon itself draws.
+    const length = 2 * Math.PI * 6;
     const { unmount } = render(
       <UsageMeter usage={usage({ context: { used_tokens: 50_000 } })} contextWindow={200_000} />,
     );
-    expect(screen.getByTestId("context-fill").getAttribute("d")).toBe(
-      "M8 8 L8 1.5 A6.5 6.5 0 0 1 14.500 8.000 Z",
+    expect(screen.getByTestId("context-fill").getAttribute("stroke-dasharray")).toBe(
+      `${(length / 4).toFixed(3)} ${length.toFixed(3)}`,
     );
+    expect(trigger()).toHaveTextContent("25%");
     unmount();
 
     render(
       <UsageMeter usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={200_000} />,
     );
-    expect(screen.getByTestId("context-fill").getAttribute("d")).toBe(
-      "M8 8 L8 1.5 A6.5 6.5 0 1 1 1.500 8.000 Z",
-    );
+    expect(trigger()).toHaveTextContent("75%");
   });
 
-  it("draws a full disc, not a wrapped one, past the window", () => {
+  it("closes the ring, not wraps it, past the window", () => {
+    const length = 2 * Math.PI * 6;
     render(
       <UsageMeter usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={128_000} />,
     );
 
-    expect(screen.getByTestId("context-fill").tagName.toLowerCase()).toBe("circle");
+    expect(screen.getByTestId("context-fill").getAttribute("stroke-dasharray")).toBe(
+      `${length.toFixed(3)} ${length.toFixed(3)}`,
+    );
   });
 
   it("stays grey while every reading is calm", () => {
@@ -135,7 +143,7 @@ describe("UsageMeter, closed", () => {
     // The readings are a click away; the warning is not allowed to be.
     render(<UsageMeter usage={usage({ agent_budget_percent: 86 })} total={total()} />);
 
-    expect(trigger().className).toContain("text-amber-600");
+    expect(trigger().className).toContain("text-warning");
     expect(trigger()).toHaveAccessibleName("Usage of this conversation - near a limit");
   });
 
@@ -145,6 +153,31 @@ describe("UsageMeter, closed", () => {
     expect(trigger().className).toContain("text-destructive");
   });
 
+  it("keeps the context's own colour, and marks another reading near its limit with a dot", () => {
+    // A budget at 86% painted "0.91%" amber, which read as the context filling up.
+    render(
+      <UsageMeter
+        usage={usage({ context: { used_tokens: 1_000 }, agent_budget_percent: 86 })}
+        contextWindow={200_000}
+      />,
+    );
+
+    expect(trigger().className).toContain("text-muted-foreground");
+    expect(screen.getByTestId("other-limit").className).toContain("bg-warning");
+    expect(trigger()).toHaveAccessibleName("Usage of this conversation - near a limit");
+  });
+
+  it("reddens the dot when another reading is at its edge", () => {
+    render(
+      <UsageMeter
+        usage={usage({ context: { used_tokens: 1_000 }, sandbox: stored(93) })}
+        contextWindow={200_000}
+      />,
+    );
+
+    expect(screen.getByTestId("other-limit").className).toContain("bg-destructive");
+  });
+
   it("warns on the context window earlier than on a budget", () => {
     // A budget refuses with a message somebody can act on; the provider refuses
     // an overfull window mid-answer.
@@ -152,7 +185,7 @@ describe("UsageMeter, closed", () => {
       <UsageMeter usage={usage({ context: { used_tokens: 152_000 } })} contextWindow={200_000} />,
     );
 
-    expect(trigger().className).toContain("text-amber-600");
+    expect(trigger().className).toContain("text-warning");
   });
 });
 
@@ -198,7 +231,7 @@ describe("UsageMeter, open", () => {
     });
 
     expect(valueOf("Context")).toHaveTextContent("75%");
-    expect(valueOf("Context")?.className).toContain("text-amber-600");
+    expect(valueOf("Context")?.className).toContain("text-warning");
     expect(
       screen.getByText("150,000 of 200,000 tokens in the model's context window"),
     ).toBeVisible();
@@ -244,7 +277,7 @@ describe("UsageMeter, open", () => {
     });
 
     expect(valueOf("This agent's budget")).toHaveTextContent("40% of the month");
-    expect(valueOf("This agent's budget")?.className).not.toContain("text-amber-600");
+    expect(valueOf("This agent's budget")?.className).not.toContain("text-warning");
     expect(valueOf("Organization budget")).toHaveTextContent("92% of the month");
     expect(valueOf("Organization budget")?.className).toContain("text-destructive");
   });
@@ -291,18 +324,18 @@ describe("UsageMeter, open", () => {
     expect(screen.queryByText("Workspace")).toBeNull();
     expect(
       screen.getByText(
-        "512 B of 2 KiB — the memory ceiling of this conversation's own container, " +
+        "512 B of 2 KiB - the memory ceiling of this conversation's own container, " +
           "not a quota shared with anything else",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("progressbar").firstElementChild?.className).toContain("bg-amber-500");
+    expect(screen.getByRole("progressbar").firstElementChild?.className).toContain("bg-warning");
   });
 
   it("reports a workspace nobody could measure as in use rather than as empty", async () => {
     await openMeter({ usage: usage({ sandbox: container(null, null, null) }) });
 
     expect(valueOf("Sandbox memory")).toHaveTextContent("in use");
-    expect(screen.getByText("in use — this host did not report a number")).toBeVisible();
+    expect(screen.getByText("in use - this host did not report a number")).toBeVisible();
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 

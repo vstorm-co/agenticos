@@ -29,7 +29,7 @@ on:
     branches: [main, master]
   pull_request:
 
-# One run per branch. `CLAUDE.md` asks for a commit and a push per finished piece,
+# One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute
 # matrix and left the previous one running to completion, answering a question
 # about a commit nobody was waiting on. 75 of the 369 runs in the first six days of
@@ -73,7 +73,10 @@ permissions:
 # cold cache is a red build for a reason unrelated to the diff. Measured on run
 # 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
 # docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s (and the image build,
-# since moved to `images.yml`, 2m30s).
+# since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
+# the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
+# `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
+# every step green. It has 45.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -176,7 +179,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -230,7 +233,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -283,7 +286,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -296,8 +299,7 @@ jobs:
         # goes to base and back rather than only forwards.
         #
         # `make check` does not run this, and that omission is deliberate rather
-        # than drift: `downgrade base` here empties a throwaway `test_db`, while
-        # on a laptop it points at whatever `backend/.env` says.
+        # than drift: it is slow and rarely needed, so `check` leaves it to a hand run.
         run: make test-migrations
 
       - name: Verify the models and the migrations still agree
@@ -487,7 +489,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install backend dependencies
         run: uv sync --directory backend --dev
@@ -498,11 +500,11 @@ jobs:
       - name: Seed an organization, a model and a published agent
         # Idempotent, and the fixture the whole suite asserts against: an owner
         # to sign in as, an organization to be scoped to, and the published
-        # agent @getting-started.
+        # agent @claude-code-like.
         #
         # `BOOTSTRAP_API_KEY` is what makes that last part true, and this step ran
         # without it - so bootstrap stopped at "No openai key given", created no
-        # `openai default` model profile, and left @getting-started a *draft*.
+        # `openai default` model profile, and left the starter agent a *draft*.
         # Thirty-seven specs assert against that profile or against a published
         # agent, so the job could not pass however good the specs were.
         #
@@ -662,7 +664,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
@@ -727,7 +729,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.15
 
       # The runtime too, not just mkdocs: the reference pages are generated from
       # the application's own docstrings, so a build without it would either fail

@@ -20,8 +20,6 @@ failed with a coarse reason - in a savepoint of its own. The unique
 `(trigger, event)` key is what makes a second consumer's pass admit nothing.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -424,8 +422,8 @@ class TableTriggerConsumer:
         costs only itself, and a crash leaves the event for the next pass, where
         the triggers already decided are found by their admission row.
 
-        Returns `(run_id, entry_node_run_id)` for every run admitted, for the
-        caller to submit once this transaction commits.
+        Returns `(run_id, entry_node_run_id)` for every run admitted; each first
+        dispatch job is queued in this transaction.
         """
         admitted: list[tuple[UUID, UUID]] = []
         now = datetime.now(UTC)
@@ -631,7 +629,7 @@ class TableTriggerConsumer:
                     run_input=payload,
                     causation=causation,
                 )
-        except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError):
+        except WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError:
             await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
             return None
         except WorkflowBudgetReachedError:

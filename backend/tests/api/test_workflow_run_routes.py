@@ -6,8 +6,6 @@ codes, the error envelope, and which routes carry a `require(...)` gate
 versus delegate to the service (the `permissions-rbac` skill).
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -134,7 +132,9 @@ def _url(tail: str = "") -> str:
 
 @pytest.fixture(autouse=True)
 def _no_dispatch_trigger():
-    with patch.object(WorkflowExecutionService, "_trigger_dispatch", MagicMock()):
+    with patch(
+        "app.services.workflow_execution.facade.dispatch_queue.queue_dispatch", new=AsyncMock()
+    ):
         yield
 
 

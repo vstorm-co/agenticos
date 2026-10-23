@@ -7,8 +7,6 @@ the record's current one, read under the record's lock - and a retry after that
 write committed replays it rather than being refused as a different request.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from uuid import UUID
 

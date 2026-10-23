@@ -5,8 +5,6 @@ What the service decides is proved against a real database in
 handlers - the gate, the status codes and the query they hand on.
 """
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

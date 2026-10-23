@@ -17,9 +17,8 @@ be answered by a database, and is asserted in
 `tests/integration/test_platform_flows.py`.
 """
 
-from __future__ import annotations
-
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -56,7 +55,9 @@ class _RecordingSession:
     async def flush(self) -> None:
         self.flushes += 1
 
-    async def refresh(self, instance: McpConnection) -> None:
+    async def refresh(
+        self, instance: McpConnection, attribute_names: list[str] | None = None
+    ) -> None:
         self.refreshed.append(instance)
 
     async def commit(self) -> None:
@@ -332,6 +333,61 @@ class TestListOauthConnections:
         session = _RecordingSession(_Result(rows=rows))
 
         assert await mcp_connection_repo.list_oauth_connections(session) == rows
+
+
+class TestOrgServersToCheck:
+    async def test_only_enabled_organization_servers_are_dialled(self):
+        """A member's own connection is theirs to test, a disabled server is one
+        nobody wants reached, and a portal grant has no server to dial (#2100)."""
+        session = _RecordingSession(_Result(rows=[]))
+
+        await mcp_connection_repo.list_org_servers_to_check(session)
+
+        sql = _sql(session)
+        assert "mcp_connections.scope = %(scope_1)s" in sql
+        assert "mcp_connections.is_enabled IS true" in sql
+        assert set(_filters(session).values()) >= {"org", "mcp"}
+
+
+class TestOutages:
+    """One outage is one row write and one notification, however many checks find it."""
+
+    async def test_an_outage_is_opened_only_where_none_is_open(self):
+        connection = _connection()
+        session = _RecordingSession(_Result(scalar=connection.id))
+        at = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+
+        opened = await mcp_connection_repo.open_outage(session, connection=connection, at=at)
+
+        assert opened is True
+        sql = _sql(session)
+        assert sql.startswith("UPDATE mcp_connections SET unreachable_since=")
+        assert "mcp_connections.unreachable_since IS NULL" in sql
+        assert session.refreshed == [connection]
+
+    async def test_a_check_that_found_one_already_open_did_not_open_it(self):
+        session = _RecordingSession(_Result(scalar=None))
+
+        assert not await mcp_connection_repo.open_outage(
+            session, connection=_connection(), at=datetime.now(UTC)
+        )
+
+    async def test_closing_reads_the_start_back_from_the_row_it_locked(self):
+        """The caller's copy may be stale - another check may have closed it."""
+        began = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+        connection = _connection()
+        session = _RecordingSession(_Result(scalar=began))
+
+        assert await mcp_connection_repo.close_outage(session, connection=connection) == began
+        sql = _sql(session)
+        assert "FOR UPDATE" in sql
+        assert "unreachable_since IS NOT NULL" in sql
+        assert "RETURNING previous.unreachable_since" in sql
+
+    async def test_closing_none_open_says_so(self):
+        session = _RecordingSession(_Result(scalar=None))
+
+        assert await mcp_connection_repo.close_outage(session, connection=_connection()) is None
 
 
 class TestGetByOauthState:

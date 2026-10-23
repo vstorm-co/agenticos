@@ -13,8 +13,6 @@ got no answer is `Uncertain` unless an idempotency header lets the far side
 recognise the retry.
 """
 
-from __future__ import annotations
-
 from typing import Literal
 
 import httpx2
@@ -143,7 +141,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 await response.aclose()
     except UrlRefusedError as exc:
         return failed("URL_REFUSED", str(exc))
-    except (httpx2.ConnectError, httpx2.ConnectTimeout):
+    except httpx2.ConnectError, httpx2.ConnectTimeout:
         return failed("HTTP_UNREACHABLE", "The server could not be reached", retryable=True)
     except httpx2.HTTPError:
         if safe_to_retry:

@@ -2,11 +2,9 @@
 
 The adapter's own failures are `test_gmail_polling.py`. What is here is the part
 that decides whether work is lost: which grants a tick claims, what one poll's
-events fire, and - the one that matters most - that the cursor advances *after*
-the fires are dispatched and not before.
+events fire, and - the one that matters most - that the cursor advances only
+together with the fires it read, in the same transaction.
 """
-
-from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
@@ -91,16 +89,23 @@ def _workflows(recorder: _Recorder, *, admitted: bool = True) -> MagicMock:
     return workflows
 
 
+def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
+    """Record each fire the trigger service queues, as the poll asks for it."""
+
+    async def queue_fire(trigger_id, *, organization_id, event_context=None, claimed_at=None):
+        recorder.steps.append(f"fire:{trigger_id}")
+        if dispatch is not None:
+            await dispatch()
+
+    triggers.queue_fire = queue_fire
+
+
 async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=True):
     """The flow, with its three services and its dispatcher swapped out."""
     from app.worker.tasks import trigger_tasks
 
     connections, triggers = _service(recorder, read=read, decisions=decisions)
-
-    async def dispatcher(trigger_id, *, event_context=None, claimed_at=None):
-        recorder.steps.append(f"fire:{trigger_id}")
-        if dispatch is not None:
-            await dispatch()
+    _queueing(triggers, recorder, dispatch)
 
     session = MagicMock()
 
@@ -116,7 +121,6 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=
 
     with (
         patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
-        patch.object(trigger_tasks, "dispatch_trigger_fire", dispatcher),
         patch.object(trigger_tasks, "_ensure_trigger_dedupe", already_configured),
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
@@ -125,17 +129,17 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=
             return_value=_workflows(recorder, admitted=admitted),
         ),
     ):
-        await trigger_tasks.poll_portal_grants_flow()
+        await trigger_tasks.poll_portal_grants()
 
 
 class TestTheOrderOfWork:
-    async def test_the_cursor_advances_after_the_fires_are_dispatched(self):
-        """The one ordering that cannot be got wrong.
+    async def test_the_cursor_advances_after_the_fires_are_queued(self):
+        """Fires and cursor are one transaction, and the cursor is written last.
 
-        Cursor first, then dispatch, and a crash between them leaves a mailbox
-        whose cursor says every message was handled while nothing handled any of
-        them - silently, for ever. This way a crash re-reads them and the
-        delivery-id claim dedups: at-least-once with the duplicate suppressed.
+        A cursor committed without its fires would leave a mailbox that says every
+        message was handled while nothing handled any of them - silently, for ever.
+        Together, a crash re-reads them and the delivery-id claim dedups:
+        at-least-once with the duplicate suppressed.
         """
         recorder = _Recorder()
         decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="An email arrived.")
@@ -168,31 +172,45 @@ class TestTheOrderOfWork:
 
         assert "workflows:1" in recorder.steps and "cursor:602" not in recorder.steps
 
-    async def test_a_failed_dispatch_does_not_cost_the_rest_of_the_batch(self):
-        """One transient Prefect error must not lose the other messages' fires -
-        the same isolation the scheduled heartbeat's loop has."""
+    async def test_a_refused_workflow_admission_logs_that_the_cursor_was_retained(self, caplog):
+        """The operator's one trace that a mailbox is being re-read on purpose, and an
+        admitted poll - which advances the cursor - says nothing."""
         recorder = _Recorder()
-        first = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="a")
-        second = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="b")
-        calls = {"n": 0}
 
-        async def flaky():
-            calls["n"] += 1
-            if calls["n"] == 1:
-                raise RuntimeError("prefect said no")
+        with caplog.at_level("WARNING", logger="app.worker.tasks.trigger_tasks"):
+            await _run(
+                recorder,
+                read=PolledEvents(events=(_event(),), cursor={"history_id": "603"}),
+                decisions=[],
+                admitted=False,
+            )
+            assert [r.message for r in caplog.records] == ["portal_poll_cursor_retained"]
+            caplog.clear()
+            await _run(
+                _Recorder(),
+                read=PolledEvents(events=(_event(),), cursor={"history_id": "604"}),
+                decisions=[],
+            )
+
+        assert caplog.records == []
+
+    async def test_a_fire_that_cannot_be_queued_keeps_the_cursor_where_it_was(self):
+        """A queueing that raised fails the grant: the cursor is not stored, so the
+        window is re-read next tick rather than marked handled - unlike a webhook,
+        no provider resends a polled message."""
+        recorder = _Recorder()
+        decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="a")
+
+        async def refused():
+            raise RuntimeError("the database went away")
 
         await _run(
             recorder,
             read=PolledEvents(events=(_event(),), cursor={"history_id": "601"}),
-            decisions=[first, second],
-            dispatch=flaky,
+            decisions=[decision],
+            dispatch=refused,
         )
 
-        assert f"fire:{second.trigger_id}" in recorder.steps
-        # The cursor is retained: unlike a webhook there is no provider to resend
-        # a polled message, so committing over a failed submit would drop it for
-        # ever. The retained claims suppress the fire that did enqueue while a
-        # later poll re-reads the window.
         assert "cursor:601" not in recorder.steps
 
     async def test_a_grant_that_cannot_be_read_advances_no_cursor(self):
@@ -260,7 +278,6 @@ class TestOneMailboxIsOneTenant:
 
         with (
             patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
-            patch.object(trigger_tasks, "dispatch_trigger_fire", AsyncMock()),
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
             patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
             patch(
@@ -268,7 +285,7 @@ class TestOneMailboxIsOneTenant:
                 return_value=_workflows(recorder),
             ),
         ):
-            await trigger_tasks.poll_portal_grants_flow()
+            await trigger_tasks.poll_portal_grants()
         return recorder, one, two
 
     async def test_a_mailbox_that_raises_does_not_stop_the_others(self):
@@ -279,9 +296,9 @@ class TestOneMailboxIsOneTenant:
         # And the one that raised advanced no cursor: its window is unread.
         assert f"cursor:{one.id}" not in recorder.steps
 
-    async def test_the_tick_finishes_rather_than_failing_the_flow(self):
-        # A raising flow is a Prefect failure and a paged alert; a logged grant is
-        # the thing to fix. The distinction is the point of the guard.
+    async def test_the_tick_finishes_rather_than_failing_the_job(self):
+        # A raising sweep is a failed job and an alert; a logged grant is the
+        # thing to fix. The distinction is the point of the guard.
         recorder, _, two = await self._run_two(RuntimeError("nobody saw this coming"))
 
         assert recorder.steps[-1] == f"cursor:{two.id}"
@@ -308,7 +325,7 @@ class TestWhichGrantsAreRead:
             patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         ):
-            await trigger_tasks.poll_portal_grants_flow()
+            await trigger_tasks.poll_portal_grants()
 
         [call] = connections.claim_grants_to_poll.await_args_list
         assert call.kwargs["portal_keys"] == ["google"]

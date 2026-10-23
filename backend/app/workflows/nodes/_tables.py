@@ -18,8 +18,6 @@ only what a workflow step needs around it:
   author's to route - to a fresh read, say - not the retry policy's.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID

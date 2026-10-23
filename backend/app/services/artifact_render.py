@@ -30,8 +30,6 @@ one person's records in one picture never share a cookie jar, a cache or a tab
 with the next render.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import importlib.util
@@ -47,7 +45,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from app.agents.capabilities.browser_choice._endpoint import version_url, websocket_url
+from app.agents.capabilities.browser_use._endpoint import version_url, websocket_url
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.schemas.artifact import BindingData
@@ -589,7 +587,7 @@ class _Render:
                     await self.connection.send(
                         "Target.disposeBrowserContext", {"browserContextId": self.context_id}
                     )
-        except (CdpError, TimeoutError):
+        except CdpError, TimeoutError:
             logger.warning("artifact_render_context_not_disposed", exc_info=True)
         finally:
             await self.connection.close()

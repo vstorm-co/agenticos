@@ -9,8 +9,6 @@ it received as the run's input, already in this node's output shape, so the
 handler only checks it and hands it on (`run_input_as`).
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID

@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7bf33f4020"
+source_sha: "d1faa4de619f"
 title: "Rechnungsdaten in eine Tabelle extrahieren"
 description: "Hängen Sie drei synthetische PDF-Rechnungen an, lassen Sie einen Agent sie in einer Sandbox lesen und eine CSV mit festen Spalten schreiben, und prüfen Sie, dass die Rechnung mit einem fehlenden Feld markiert statt ausgefüllt wird."
 ---
@@ -104,7 +104,7 @@ Jede Gesamtsumme ist Zwischensumme plus 21 % Steuer, sodass sich eine falsche Su
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Files & shell**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`.
+2. Aktivieren Sie in der **Toolbox** **Sandbox**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`.
 3. Legen Sie Budget und Schrittlimit fest. Drei kurze PDFs lesen und eine CSV schreiben sind eine Handvoll Tool-Aufrufe.
 4. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 

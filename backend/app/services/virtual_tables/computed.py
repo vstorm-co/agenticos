@@ -11,8 +11,6 @@ reader cannot see leaves its links unnamed and every column read through them
 empty, rather than showing a private table's values to someone outside it.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any

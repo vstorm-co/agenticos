@@ -5,8 +5,6 @@ The network is replaced by a recording transport behind the real
 rules all run as they would in production; storage is a temporary directory.
 """
 
-from __future__ import annotations
-
 import socket
 import uuid
 from collections.abc import Callable, Iterator
@@ -561,12 +559,11 @@ class TestAFileBoundInAGraph:
             db.add(workflow)
             await db.commit()
         ctx = SeededRun(run=earlier.run, graph=graph, principal=user, org=org, factory=factory).ctx
-        with patch("app.worker.tasks.workflow_tasks.run_deployment"):
-            async with factory() as db:
-                started = await WorkflowExecutionService(db).start(
-                    ctx, workflow.id, mode=WorkflowRunMode.TEST
-                )
-                await db.commit()
+        async with factory() as db:
+            started = await WorkflowExecutionService(db).start(
+                ctx, workflow.id, mode=WorkflowRunMode.TEST
+            )
+            await db.commit()
         async with factory() as db:
             run = await db.get(WorkflowRun, started.id)
             refs = (

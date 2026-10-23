@@ -2,10 +2,9 @@
 
 The repository and `resolve_access`/`visible_resource_ids` are mocked at the
 database edge, matching `test_workflow_registry_service.py`'s bargain for the
-sibling service. `_trigger_dispatch` (the low-latency direct trigger) is
-patched to a no-op: its own mechanics belong to `workflow_tasks.py` and the
-dispatcher's own tests, and constructing a real Prefect flow call here would
-test infrastructure this module does not own.
+sibling service. `dispatch_queue.queue_dispatch` (the entry node's outbox row
+and job) is patched to a no-op: its own mechanics belong to
+`test_workflow_dispatch_queue.py` and the integration suite.
 """
 
 import uuid
@@ -126,7 +125,7 @@ def _run_row(**overrides: object) -> MagicMock:
 
 @pytest.fixture
 def _no_dispatch_trigger():
-    with patch.object(WorkflowExecutionService, "_trigger_dispatch", MagicMock()):
+    with patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()):
         yield
 
 
@@ -253,7 +252,7 @@ class TestStart:
                 f"{FACADE_PATH}.workflow_run_repo.create_node_run",
                 new=AsyncMock(return_value=entry_node_run),
             ),
-            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()) as queued,
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
             ),
@@ -262,6 +261,8 @@ class TestStart:
             result = await service.start(_ctx(), workflow.id)
 
         assert result.id == created.id
+        # The entry node's dispatch is queued in the admitting transaction.
+        queued.assert_awaited_once_with(db, run=created, node_run_id=entry_node_run.id)
         assert create_run.await_args.kwargs["workflow_version_id"] == version.id
         assert create_run.await_args.kwargs["budget_limit"] == version.budget_limit
 
@@ -289,7 +290,7 @@ class TestStart:
                 f"{FACADE_PATH}.workflow_run_repo.create_node_run",
                 new=AsyncMock(return_value=entry_node_run),
             ),
-            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
             ),
@@ -406,7 +407,7 @@ class TestStart:
                 f"{FACADE_PATH}.workflow_run_repo.create_node_run",
                 new=AsyncMock(return_value=entry_node_run),
             ),
-            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
             ),
@@ -758,7 +759,7 @@ class TestThePublicOrigin:
                 f"{FACADE_PATH}.workflow_run_repo.create_node_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
-            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
             ),
@@ -872,7 +873,7 @@ class TestTheAppDoor:
                 f"{FACADE_PATH}.workflow_run_repo.create_node_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
-            patch(f"{FACADE_PATH}.workflow_run_repo.create_outbox", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
             ),
@@ -926,25 +927,6 @@ class TestTheAppDoor:
         stored = await self._start("trigger.manual")
 
         assert stored["public_origin"] is False
-
-
-class TestTriggerDispatch:
-    async def test_delegates_to_the_worker_tasks_direct_trigger(self):
-        """`_trigger_dispatch` is a thin wrapper - the actual submit-to-the-
-
-        deployment mechanics belong to `workflow_tasks.trigger_dispatch`
-        (its own tests), shared with `dispatcher._advance`'s own use of it.
-        """
-        db = MagicMock()
-        service = WorkflowExecutionService(db)
-        workflow_run_id, node_run_id = uuid.uuid4(), uuid.uuid4()
-
-        with patch("app.worker.tasks.workflow_tasks.trigger_dispatch") as trigger:
-            service._trigger_dispatch(workflow_run_id=workflow_run_id, node_run_id=node_run_id)
-
-        trigger.assert_called_once_with(
-            db, workflow_run_id=workflow_run_id, node_run_id=node_run_id
-        )
 
 
 class TestNodeRunRead:

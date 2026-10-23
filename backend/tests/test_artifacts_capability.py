@@ -6,8 +6,6 @@ owner - comes off `ctx.deps`, and the assertions below are on what reaches
 last attempt); a run with nothing to publish under is told so as a result.
 """
 
-from __future__ import annotations
-
 import json
 import re
 import uuid
@@ -168,9 +166,7 @@ class TestPublishing:
         parsed = parse_published_artifact(result)
         assert parsed is not None
         assert parsed.artifact_id == published.artifact_id
-        assert parsed.url.endswith(
-            f"/artifacts/{published.artifact_id}?org={published.organization_id}"
-        )
+        assert parsed.url.endswith(f"/apps/{published.artifact_id}?org={published.organization_id}")
 
     @pytest.mark.security
     async def test_a_name_somebody_else_s_page_holds_is_a_refusal_not_a_retry(self) -> None:
@@ -438,7 +434,7 @@ class TestSteering:
             ({}, "exactly one of"),
             ({"path": "a.html", "content": "<p>x</p>"}, "exactly one of"),
             ({"path": "report.pdf"}, "Cannot tell the format"),
-            ({"content": "<p>x</p>", "name": "Bad Name"}, "not a valid artifact name"),
+            ({"content": "<p>x</p>", "name": "Bad Name"}, "not a valid app name"),
             ({"content": ""}, "The page is empty"),
             ({"content": "   "}, "The page is empty"),
         ],
@@ -722,10 +718,10 @@ class TestEditing:
 
     @pytest.mark.security
     async def test_a_page_the_run_may_not_open_is_a_refusal_not_a_retry(self) -> None:
-        missing = NotFoundError(message="There is no artifact named 'r' that this run may open.")
+        missing = NotFoundError(message="There is no app named 'r' that this run may open.")
         with patch(READ_SOURCE, new=AsyncMock(side_effect=missing)):
             result = await _tool()(_ctx(_deps()), name="r", edits=[ArtifactEdit(old="a", new="b")])
-        assert result.startswith("There is no artifact named 'r'")
+        assert result.startswith("There is no app named 'r'")
         assert "`content` or `path`" in result
 
     async def test_a_page_that_moved_on_meanwhile_is_steered_to_read_again(self) -> None:
@@ -790,10 +786,10 @@ class TestReadingBack:
 
     @pytest.mark.security
     async def test_a_page_the_run_may_not_open_is_answered_like_a_missing_one(self) -> None:
-        missing = NotFoundError(message="There is no artifact named 'r' that this run may open.")
+        missing = NotFoundError(message="There is no app named 'r' that this run may open.")
         with patch(READ_SOURCE, new=AsyncMock(side_effect=missing)):
             result = await _reader()(_ctx(_deps()), name="r")
-        assert result == "There is no artifact named 'r' that this run may open."
+        assert result == "There is no app named 'r' that this run may open."
 
     @pytest.mark.security
     @pytest.mark.parametrize(

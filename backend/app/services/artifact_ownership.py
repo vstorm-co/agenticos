@@ -17,8 +17,6 @@ The generic sharing layer reaches this module through :class:`ArtifactSharingGua
 registered for the `artifact` resource type when the module is imported.
 """
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from uuid import UUID
 

@@ -13,8 +13,6 @@ app-scoped one, and never crosses to a third tenant - and that the embedding
 resolver unseals only the caller organization's key.
 """
 
-from __future__ import annotations
-
 import uuid
 
 import pytest
@@ -141,3 +139,42 @@ class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
         assert resolved_b is not None
         assert resolved_b.api_key == ""
         assert resolved_b.key_source is EmbeddingKeySource.NONE_CHOSEN
+
+
+class TestTheDocumentListingStaysInsideTheOrganization:
+    @pytest.mark.security
+    async def test_a_shared_name_lists_only_this_organizations_documents(self, db) -> None:
+        """Codex on #2062: the legacy listing filtered on the collection's name alone."""
+        from app.db.models.rag_document import RAGDocument
+        from app.repositories import rag_document_repo
+
+        mine, _ = await _org(db, name="Acme")
+        theirs, _ = await _org(db, name="Globex")
+        for organization_id, filename in (
+            (mine.id, "ours.pdf"),
+            (theirs.id, "theirs.pdf"),
+            (None, "everyones.pdf"),
+        ):
+            db.add(
+                RAGDocument(
+                    organization_id=organization_id,
+                    collection_name="handbook",
+                    filename=filename,
+                    filesize=1,
+                    filetype="pdf",
+                    status="done",
+                )
+            )
+        await db.flush()
+
+        org_rows, org_total = await rag_document_repo.get_all(db, scopes=[("handbook", mine.id)])
+        app_rows, app_total = await rag_document_repo.get_all(db, scopes=[("handbook", None)])
+
+        assert [row.filename for row in org_rows] == ["ours.pdf"] and org_total == 1
+        assert sorted(row.filename for row in app_rows) == [
+            "everyones.pdf",
+            "ours.pdf",
+            "theirs.pdf",
+        ]
+        assert app_total == 3
+        assert await rag_document_repo.get_all(db, scopes=[]) == ([], 0)

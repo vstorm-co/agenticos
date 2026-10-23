@@ -6,11 +6,27 @@ import { Loader2, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandingImageField } from "@/components/admin/branding-image-field";
+import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
 import { DomainListField } from "@/components/admin/domain-list-field";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, FormField, Input, ListCard, Switch, Textarea } from "@/components/ui";
 import {
+  Button,
+  FormField,
+  Input,
+  ListCard,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
+import { useAdminOrganizations } from "@/hooks/use-admin-organizations";
+import {
+  DEFAULT_ORGANIZATION_ROLES,
   useDeploymentSettings,
+  type DefaultOrganizationRole,
   type DeploymentSettingsPatch,
 } from "@/hooks/use-deployment-settings";
 import { getErrorMessage } from "@/lib/api-error";
@@ -18,6 +34,9 @@ import { BUILT_IN_BRANDING, type NoticeLevel, type SignupMode } from "@/lib/bran
 
 const SIGNUP_MODES: readonly SignupMode[] = ["open", "invite_only", "closed"];
 const NOTICE_LEVELS: readonly NoticeLevel[] = ["info", "warning", "critical"];
+
+/** The Select's value for "no default organization" - Radix refuses an empty one. */
+const NO_DEFAULT = "none";
 
 /**
  * The deployment's own settings - what it is called, what it looks like, who may
@@ -52,6 +71,14 @@ export default function DeploymentSettingsPage() {
   // It is also why an upload - which answers with the whole row - immediately shows
   // its new mark without anything here re-seeding.
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
+  // Team organizations only: a personal one cannot be the default, and the
+  // backend refuses it.
+  const { organizations: teams } = useAdminOrganizations({
+    kind: "team",
+    limit: 100,
+    sortBy: "name",
+    sortDir: "asc",
+  });
 
   if (isLoading) return <LoadingState variant="stats" rows={4} />;
   if (error || !settings) {
@@ -80,6 +107,10 @@ export default function DeploymentSettingsPage() {
     max_organizations_per_user: settings.max_organizations_per_user,
     max_agents_per_organization: settings.max_agents_per_organization,
     notify_impersonated_users: settings.notify_impersonated_users,
+    personal_organizations: settings.personal_organizations,
+    default_organization_id: settings.default_organization_id,
+    default_organization_role: settings.default_organization_role,
+    dictation_compressed_audio: settings.dictation_compressed_audio,
     ...edits,
   };
 
@@ -224,19 +255,22 @@ export default function DeploymentSettingsPage() {
             htmlFor="signup-mode"
             description={t(`accessMode_${draft.signup_mode ?? "open"}`)}
           >
-            <select
-              id="signup-mode"
+            <Select
               value={draft.signup_mode ?? "open"}
-              onChange={(event) => set("signup_mode", event.target.value as SignupMode)}
+              onValueChange={(value) => set("signup_mode", value as SignupMode)}
               disabled={save.isPending}
-              className="border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 text-sm"
             >
-              {SIGNUP_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {t(`accessModeLabel_${mode}`)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="signup-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SIGNUP_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {t(`accessModeLabel_${mode}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FormField>
 
           <FormField
@@ -250,6 +284,78 @@ export default function DeploymentSettingsPage() {
               disabled={save.isPending}
             />
           </FormField>
+        </div>
+      </ListCard>
+
+      <ListCard title={t("newAccountsTitle")} counted={t("newAccountsHint")}>
+        <div className="space-y-5">
+          <div className="border-border flex items-start justify-between gap-4 rounded-xl border p-4">
+            <div className="min-w-0">
+              <p className="text-foreground text-sm font-medium">{t("personalOrganizations")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {t("personalOrganizationsHint")}
+              </p>
+            </div>
+            <Switch
+              checked={draft.personal_organizations ?? true}
+              onCheckedChange={(checked) => set("personal_organizations", checked)}
+              disabled={save.isPending}
+              aria-label={t("personalOrganizations")}
+            />
+          </div>
+
+          <FormField
+            label={t("defaultOrganization")}
+            htmlFor="default-organization"
+            description={t("defaultOrganizationHint")}
+          >
+            <Select
+              value={draft.default_organization_id ?? NO_DEFAULT}
+              onValueChange={(value) =>
+                set("default_organization_id", value === NO_DEFAULT ? null : value)
+              }
+              disabled={save.isPending}
+            >
+              <SelectTrigger id="default-organization">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_DEFAULT}>{t("defaultOrganizationNone")}</SelectItem>
+                {teams.map((org) => (
+                  <SelectItem key={org.id} value={org.id}>
+                    {org.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          {draft.default_organization_id && (
+            <FormField
+              label={t("defaultOrganizationRole")}
+              htmlFor="default-organization-role"
+              description={t("defaultOrganizationRoleHint")}
+            >
+              <Select
+                value={draft.default_organization_role ?? "member"}
+                onValueChange={(value) =>
+                  set("default_organization_role", value as DefaultOrganizationRole)
+                }
+                disabled={save.isPending}
+              >
+                <SelectTrigger id="default-organization-role" className="capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEFAULT_ORGANIZATION_ROLES.map((role) => (
+                    <SelectItem key={role} value={role} className="capitalize">
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
         </div>
       </ListCard>
 
@@ -300,6 +406,12 @@ export default function DeploymentSettingsPage() {
         </div>
       </ListCard>
 
+      <DictationAudioCard
+        checked={draft.dictation_compressed_audio ?? false}
+        disabled={save.isPending}
+        onChange={(accept) => set("dictation_compressed_audio", accept)}
+      />
+
       <ListCard title={t("noticesTitle")} counted={t("noticesHint")}>
         <div className="space-y-5">
           <FormField
@@ -311,19 +423,22 @@ export default function DeploymentSettingsPage() {
           </FormField>
 
           <FormField label={t("noticeLevel")} htmlFor="announcement-level">
-            <select
-              id="announcement-level"
+            <Select
               value={draft.announcement_level ?? "info"}
-              onChange={(event) => set("announcement_level", event.target.value as NoticeLevel)}
+              onValueChange={(value) => set("announcement_level", value as NoticeLevel)}
               disabled={save.isPending}
-              className="border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 text-sm"
             >
-              {NOTICE_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {t(`noticeLevelLabel_${level}`)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="announcement-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTICE_LEVELS.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {t(`noticeLevelLabel_${level}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FormField>
 
           <div className="border-border flex items-start justify-between gap-4 rounded-xl border p-4">

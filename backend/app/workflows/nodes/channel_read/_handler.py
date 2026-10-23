@@ -5,8 +5,6 @@ bot read a channel it is in. Telegram does not let a bot read history at all,
 so it has no such step. See `app.workflows.nodes._channels`.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field

@@ -7,8 +7,6 @@ the downgrade removes the rows it would otherwise fail on - this does, on a data
 its own for the reason `test_artifact_consent_migration` gives.
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -25,8 +23,8 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_artifact_owner_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0142_artifact_consent"
-_TARGET_REVISION = "0143_artifact_owner_changed"
+_BASE_REVISION = "0196_artifact_consent"
+_TARGET_REVISION = "0197_artifact_owner_changed"
 
 
 def _url(database: str) -> str:

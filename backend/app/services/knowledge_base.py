@@ -38,6 +38,8 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.rag import embedding_providers
+from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -144,18 +146,35 @@ class KnowledgeBaseService:
         self.db = db
 
     async def list_readable(
-        self, ctx: AuthContext, *, shared_with_me: bool = False
+        self, ctx: AuthContext, *, shared_with_me: bool = False, group_id: UUID | None = None
     ) -> KnowledgeBaseList:
         """The listing: the bases this caller may read, each with its contents.
 
         The two halves below answer separate questions - which rows are in reach,
         and what each one holds - and joining them is this method's whole job, so
         the route never has to know that a listing takes two queries.
+        `group_id` narrows to the bases shared with one group.
         """
         items = await self.list_accessible(ctx, shared_with_me=shared_with_me)
+        in_group = await shared_with_group(
+            self.db, ctx, resource_type=COLLECTION, group_id=group_id
+        )
+        if in_group is not None:
+            items = [kb for kb in items if kb.id in set(in_group)]
         counts = await self.counts_for(items)
+        used = await agents_using(
+            self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]
+        )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id for kb in items]
+        )
         return KnowledgeBaseList(
-            items=[_with_counts(kb, counts.get(kb.collection_name)) for kb in items],
+            items=[
+                _with_counts(kb, counts.get(kb.collection_name)).model_copy(
+                    update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
+                )
+                for kb in items
+            ],
             total=len(items),
         )
 
@@ -272,11 +291,11 @@ class KnowledgeBaseService:
         The table is dropped only when no base *other than this one* still references
         the name. The vector namespace is not tenant-unique, so a name a sibling - or
         another org - still holds backs a table their chunks live in too, and dropping
-        it would destroy theirs (#913). The drop is handed to the durable cleanup after
-        the commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not run
-        in the request: an in-request drop stranded a rolled-back delete on a dropped
-        table, lost it to a worker restart, and raced a concurrent claim (#1347, #1349,
-        #1355). The name is held against a claim while the reference check and the
+        it would destroy theirs (#913). The drop is a cleanup job queued in this
+        transaction (`queue_external_state_cleanup`), not run in the request, so it
+        happens only once the delete has committed: an in-request drop stranded a
+        rolled-back delete on a dropped table, lost it to a worker restart, and
+        raced a concurrent claim (#1347, #1349, #1355). The name is held against a claim while the reference check and the
         reservation are made, and reserved in `collection_teardowns` until the drop
         runs, so neither a create (`claim`) nor an upload (`dispatch_upload`) can slip
         onto the name and have this drop destroy its table (#1362, #1364).
@@ -298,14 +317,9 @@ class KnowledgeBaseService:
         ]
         if not others:
             await collection_teardown_repo.reserve(self.db, collection)
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup([], [collection]),
-                name="drop-rag-collection",
-            )
+            await queue_external_state_cleanup(self.db, [], [collection])
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -448,7 +462,7 @@ class KnowledgeBaseService:
                 await self._check_embedding_secret(
                     embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
                 )
-        return await knowledge_base_repo.create(
+        kb = await knowledge_base_repo.create(
             self.db,
             name=data.name,
             collection_name=collection_name,
@@ -456,6 +470,9 @@ class KnowledgeBaseService:
             description=data.description,
             owner_user_id=owner_user_id,
             organization_id=org_id,
+            # Who in the organization reaches it is a question only an org-scoped
+            # collection asks; a personal one is its owner's and an app one everyone's.
+            visibility=data.visibility.value if data.scope == KBScope.ORG.value else None,
             ingestion_config=config.model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
@@ -463,6 +480,15 @@ class KnowledgeBaseService:
             embedding_secret_id=embedding_secret_id,
             embedding_endpoint_id=embedding_endpoint_id,
         )
+        if (data.group_ids or data.user_ids) and data.scope == KBScope.ORG.value:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                kb,
+                resource_type=COLLECTION,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
+        return kb
 
     async def _shared_embedding(
         self, collection_name: str, data: KnowledgeBaseCreate
@@ -721,14 +747,12 @@ class KnowledgeBaseService:
         the row, then the table - dropped only when no other base still references
         the name, which is not tenant-unique (#913).
 
-        The stored files and the vector table are torn down by a durable cleanup
-        handed over after the commit (`spawn_after_commit` →
-        `dispatch_external_state_cleanup`). Deferring past the commit means a
-        rollback keeps them beside the rows it restores rather than stranding those
-        rows on a missing file or a dropped table (#1293, #1347); a Prefect
-        deployment run rather than an in-process task means a worker restart
-        mid-cleanup no longer orphans them - the run is recorded on the server and
-        retried (#1349). The flow re-reads the reference check on its own session
+        The stored files and the vector table are torn down by a cleanup job queued
+        in this transaction (`queue_external_state_cleanup`). A worker runs it only
+        once the delete has committed, so a rollback keeps them beside the rows it
+        restores rather than stranding those rows on a missing file or a dropped
+        table (#1293, #1347), and the job survives a worker restart mid-cleanup and
+        is retried (#1349). The job re-reads the reference check on its own session
         before dropping, because the name is not tenant-unique and a second org can
         reclaim it in the window between the commit and the drop (#913), and it
         builds its own vector engine - which is why this no longer takes a store.
@@ -771,14 +795,9 @@ class KnowledgeBaseService:
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
-            from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            spawn_after_commit(
-                self.db,
-                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
-                name="delete-kb-cleanup",
-            )
+            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

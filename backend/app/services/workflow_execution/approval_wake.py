@@ -15,8 +15,6 @@ from the data alone, on its own schedule - the backstop the design calls for
 rather than a second guarantee this module has to make itself.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 
@@ -33,6 +31,7 @@ from app.db.models.workflow_run import (
 from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.workflow_execution import dispatch_queue
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +90,7 @@ async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: U
             return
         try:
             async with db.begin_nested():
-                await workflow_run_repo.create_outbox(
-                    db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
-                    node_run_id=node_run.id,
-                )
+                await dispatch_queue.queue_dispatch(db, run=run, node_run_id=node_run.id)
         except IntegrityError:
             # Already dispatched - `workflow-reconcile`'s own backstop insert
             # raced this one, or two decisions somehow reached here for the

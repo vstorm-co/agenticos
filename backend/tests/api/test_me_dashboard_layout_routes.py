@@ -9,8 +9,6 @@ isolation through a real database is tests/integration/test_dashboard_layout.py
 and tests/integration/test_dashboard_preset.py.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime

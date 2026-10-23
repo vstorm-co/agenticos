@@ -8,8 +8,6 @@ What is pinned here is the wiring - which service call each verb makes, that bot
 are idempotent, and that a caller who cannot see the thread cannot star it.
 """
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
@@ -67,7 +65,7 @@ class _Organization:
 
 
 @pytest.fixture
-async def service() -> AsyncGenerator[AsyncMock, None]:
+async def service() -> AsyncGenerator[AsyncMock]:
     caller = _User()
     app.dependency_overrides[get_current_user] = lambda: caller
     organization = _Organization()

@@ -20,8 +20,6 @@ Four callers, four entry points:
   allowed to be framed only by the origins the artifact names.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import json
@@ -186,6 +184,9 @@ from app.services.artifact_requests import (
     widens,
 )
 from app.services.file_storage import get_file_storage
+from app.services.notifications import NotificationService
+from app.services.project import ProjectService
+from app.services.resource_usage import groups_sharing, shared_with_group
 from app.services.sharing import ShareChange
 from app.services.virtual_tables import ReadDeadline, TableSource, VirtualTableService
 from app.services.virtual_tables.exceptions import DeadlineReached, InvalidQueryError
@@ -255,12 +256,19 @@ makes the format honest: an agent that wants script writes an HTML artifact, and
 Markdown one renders as the document it reads as.
 """
 
-PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
+FOLLOW_UP_MAX_CHARS = 2000
+"""The longest follow-up a page may ask to send - a few selected values and a line
+about them, not a document. The console holds the same limit."""
+
+_PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
   "use strict";
-  function send(href) {
-    try { parent.postMessage({ type: "agenticos:open-link", href: String(href) }, "*"); }
+  var MAP = __MAP__;
+  var host = { followUp: false };
+  function post(message) {
+    try { parent.postMessage(message, "*"); }
     catch (error) { /* no parent to ask - the page was opened on its own */ }
   }
+  function send(href) { post({ type: "agenticos:open-link", href: String(href) }); }
   function external(raw) {
     try {
       var url = new URL(raw, location.href);
@@ -281,21 +289,72 @@ PLATFORM_SCRIPT = """<script data-agenticos="platform">(function () {
     if (href !== null) send(href);
     return null;
   };
+  function followUp(text) {
+    var message = String(text == null ? "" : text).trim();
+    if (!host.followUp || message === "" || message.length > __FOLLOW_UP_MAX__) return false;
+    post({ type: "agenticos:follow-up", text: message });
+    return true;
+  }
+  window.agenticos = Object.freeze({
+    map: MAP,
+    followUp: followUp,
+    canFollowUp: function () { return host.followUp; }
+  });
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (event.source !== parent || !data || data.type !== "agenticos:host") return;
+    host.followUp = data.followUp === true;
+    document.documentElement.toggleAttribute("data-agenticos-follow-up", host.followUp);
+    window.dispatchEvent(new Event("agenticos:host"));
+  });
+  post({ type: "agenticos:hello" });
 })();</script>"""
-"""What every served page gets before its own markup: a link click becomes a request.
 
-The page has no `allow-popups`, so a link to another site cannot open, and a
-navigation inside the frame is refused by the console's `frame-src`. This turns the
-click into a message to the frame's parent, which shows the address and opens it
-only when a person agrees (#1969). The page could send the same message itself -
-its script runs - so the message is a request and never a permission: the person
-reading the address is what stands between a prompt-injected page and an address
-that carries what it shows. `*` as the target because an opaque origin cannot name
-its parent's; the message carries nothing but the address.
 
-Injected when served rather than when stored, so the stored bytes stay what the
-agent wrote - what `read_artifact` returns and what the digest is taken over.
-"""
+def base_platform_script() -> str:
+    """What every served page gets before its own markup: links, follow-ups and the map.
+
+    **A link click becomes a request.** The page has no `allow-popups`, so a link
+    to another site cannot open, and a navigation inside the frame is refused by
+    the console's `frame-src`. This turns the click into a message to the
+    frame's parent, which shows the address and opens it only when a person
+    agrees (#1969). The page could send the same message itself - its script
+    runs - so the message is a request and never a permission: the person
+    reading the address is what stands between a prompt-injected page and an
+    address that carries what it shows. `*` as the target because an opaque
+    origin cannot name its parent's; the message carries nothing but the address.
+
+    **`agenticos.followUp(text)` asks to continue the conversation (#2302)** - a
+    "plan this stop" button in a drawing. Only a parent that answered the page's
+    `agenticos:hello` with `followUp: true` takes one - the chat; anywhere else
+    the call does nothing and returns `false`, so a visual saved as an app keeps
+    working. Like a link, it is a request: the console shows the text and sends
+    it only when the person clicks Send there, so a page cannot speak for them.
+
+    **`agenticos.map`** is the deployment's map tiles (`VISUAL_MAP_TILES`), served
+    through its own tile path, or `null`, so a map knows whether it has a
+    background to load.
+
+    Injected when served rather than when stored, so the stored bytes stay what
+    the agent wrote - what `read_artifact` returns and what the digest is taken over.
+    """
+    tiles = settings.map_tiles()
+    config = (
+        {
+            # This deployment's own tile path, never the server's address: that
+            # may carry the operator's key, and this script is in a public page.
+            "url": f"{tile_source()}{{z}}/{{x}}/{{y}}",
+            "attribution": tiles.attribution,
+            "attributionUrl": tiles.attribution_url,
+            "maxZoom": tiles.max_zoom,
+        }
+        if tiles is not None
+        else None
+    )
+    return _PLATFORM_SCRIPT.replace("__MAP__", json.dumps(config).replace("</", "<\\/")).replace(
+        "__FOLLOW_UP_MAX__", str(FOLLOW_UP_MAX_CHARS)
+    )
+
 
 _DATA_BRIDGE = (
     (Path(__file__).resolve().parent.parent / "core" / "catalog" / "artifact_data_bridge.js")
@@ -337,13 +396,16 @@ _EDITOR_ONLY = {"reason", "changed"}
 
 def platform_script(
     *,
-    nonce: str,
-    live: bool,
-    names: Sequence[str],
+    nonce: str | None = None,
+    live: bool = False,
+    names: Sequence[str] = (),
     initial: Mapping[str, BindingData] | None = None,
     actions: bool = False,
 ) -> str:
     """What a served page gets before its own markup: the link bridge, then the data bridge.
+
+    Without a `nonce` - a page with no bindings, such as a visual's frame - only
+    :func:`base_platform_script`: links, follow-ups and the map.
 
     The data bridge defines `window.agenticos` (`data`, `onData`) and learns the
     binding names, the nonce and whether to ask for data. Normally the records
@@ -358,6 +420,8 @@ def platform_script(
     Everywhere else - public pages, embeds, previews, thumbnails - `run` rejects at once
     and posts nothing.
     """
+    if nonce is None:
+        return base_platform_script()
     page_config: dict[str, object] = {
         "n": nonce,
         "live": live,
@@ -371,7 +435,7 @@ def platform_script(
         ]
     config = _script_json(page_config)
     return (
-        f'{PLATFORM_SCRIPT}<script data-agenticos="data">({_DATA_BRIDGE})'
+        f'{base_platform_script()}<script data-agenticos="data">({_DATA_BRIDGE})'
         f"(window, document, {config});</script>"
     )
 
@@ -414,6 +478,19 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "agenticos-2.js": "text/javascript; charset=utf-8",
     "agenticos-3.css": "text/css; charset=utf-8",
     "agenticos-3.js": "text/javascript; charset=utf-8",
+    "mermaid-12.1.0.min.js": "text/javascript; charset=utf-8",
+    "idiomorph-0.8.0.min.js": "text/javascript; charset=utf-8",
+    # three.js is an ES module that imports its core by a relative path, so the
+    # set keeps the package's own layout under a versioned directory, and a page
+    # maps `three` to it with an import map.
+    "three-0.186.0/three.module.js": "text/javascript; charset=utf-8",
+    "three-0.186.0/three.core.js": "text/javascript; charset=utf-8",
+    "three-0.186.0/addons/controls/OrbitControls.js": "text/javascript; charset=utf-8",
+    # Leaflet and the map kit draw an itinerary on the deployment's tile server
+    # (`VISUAL_MAP_TILES`), or as an outline of its stops where there is none.
+    "leaflet-1.9.4/leaflet.js": "text/javascript; charset=utf-8",
+    "leaflet-1.9.4/leaflet.css": "text/css; charset=utf-8",
+    "agenticos-map-1.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 
@@ -422,6 +499,13 @@ Served from `lib/` beside the page's own address, so a page names them relativel
 deployment moves its content to another origin. Every name carries its version:
 a page published against one keeps getting exactly that one. See
 `app/core/catalog/artifact_lib/README.md`.
+"""
+
+FRAME_ONLY_LIBRARY = frozenset({"idiomorph-0.8.0.min.js"})
+"""Files of the set the visual frame loads for itself, not offered to a page.
+
+The frame morphs a drawing's markup in place while it streams; a page has no use
+for that, so the tool text does not name it.
 """
 
 _library_bytes: dict[str, bytes] = {}
@@ -446,6 +530,11 @@ def content_address(rest: str) -> str:
     return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/{rest}"
 
 
+def tile_source() -> str:
+    """Where a page loads map tiles: this deployment's tile path, as a source expression."""
+    return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/tiles/"
+
+
 def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
     """The policy every content response carries.
 
@@ -459,6 +548,7 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
     if embed_origins:
         frame_ancestors = [*frame_ancestors, _content_origin(), *embed_origins]
     library = _library_source()
+    tiles = settings.map_tiles()
     return "; ".join(
         [
             # No `allow-same-origin`: the page gets an opaque origin, so it can read
@@ -467,7 +557,7 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             # `allow-popups` either: `connect-src` does not govern navigation, so a
             # popup is a channel to an address the page chooses - one click on a
             # prompt-injected report would carry its numbers out in a URL. A link
-            # asks its parent instead (`PLATFORM_SCRIPT`), and a person decides.
+            # asks its parent instead (`platform_script`), and a person decides.
             "sandbox allow-scripts allow-modals",
             # Self-contained by construction. `connect-src 'none'` and no remote
             # sources mean a page cannot load code from, or send what it shows to,
@@ -477,7 +567,9 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             "default-src 'none'",
             f"script-src 'unsafe-inline' 'unsafe-eval' data: blob: {library}",
             f"style-src 'unsafe-inline' data: {library}",
-            "img-src data: blob:",
+            # A map's tiles, through this deployment's own tile path, which takes
+            # three numbers and nothing else - see `app/services/tile_proxy.py`.
+            "img-src data: blob:" + (f" {tile_source()}" if tiles is not None else ""),
             f"font-src data: {library}",
             "media-src data: blob:",
             "worker-src blob:",
@@ -538,22 +630,56 @@ def normalise_embed_origins(origins: Sequence[str]) -> list[str]:
     return kept
 
 
+def apply_replacements(source: str, replacements: Sequence[tuple[str, str]]) -> str:
+    """The text with each `(old, new)` replacement applied in order.
+
+    Each `old` must occur exactly once in the text as the replacements before it
+    left it: not at all means the edit was made against a memory of the text
+    rather than the text, and more than once means it does not say which place
+    it means. Shared by an app's edits and a visual's revisions.
+
+    Raises:
+        ValueError: The first replacement that does not name exactly one place, in
+            words the model can act on.
+    """
+    text = source
+    for number, (old, new) in enumerate(replacements, start=1):
+        found = text.count(old)
+        if found == 0:
+            raise ValueError(
+                f"Edit {number}: its `old` text is not in the page. Copy it exactly, "
+                "whitespace included."
+            )
+        if found > 1:
+            raise ValueError(
+                f"Edit {number}: its `old` text appears {found} times. Include more of the "
+                "surrounding text so it names one place."
+            )
+        text = text.replace(old, new, 1)
+    return text
+
+
+def valid_name(name: str) -> bool:
+    """Whether a name is one an app may have - :data:`NAME_PATTERN`."""
+    return re.fullmatch(NAME_PATTERN, name) is not None
+
+
 def publish_problem(*, name: str, media_type: ArtifactMediaType, data: bytes) -> str | None:
     """Why this publication would be refused, in words the model can act on.
 
     `None` when it is acceptable. Checked by the tool before anything is written,
     so a mistake costs a retry rather than a half-made artifact.
     """
-    if not re.fullmatch(NAME_PATTERN, name):
+    if not valid_name(name):
         return (
-            f"`name` {name!r} is not a valid artifact name. Use 1-64 lower-case letters, "
+            f"`name` {name!r} is not a valid app name. Use 1-64 lower-case letters, "
             "digits and hyphens, starting with a letter or digit - for example "
-            "`weekly-report`. Reuse the same name to update an artifact you published before."
+            "`weekly-report`. Reuse the same name to update an app you published before."
         )
     if len(data) > settings.ARTIFACT_MAX_BYTES:
         return (
             f"The page is {len(data):,} bytes, over the {settings.ARTIFACT_MAX_BYTES:,}-byte "
-            "limit for one artifact. Trim it - smaller images, less repeated data, a "
+            "limit for one app. Trim it - smaller images, less repeated data, a "
             "library from the served set instead of an inlined copy - rather than "
             "splitting it."
         )
@@ -839,7 +965,7 @@ async def publish_with(
     if not created and not await _may(db, artifact, owner_user_id, Perm.ARTIFACTS_EDIT):
         raise AuthorizationError(
             message=(
-                f"An artifact named {name!r} already exists for this agent, and it is not "
+                f"An app named {name!r} already exists for this agent, and it is not "
                 "one this run may change. Publish under a different name."
             ),
             details={"name": name},
@@ -850,7 +976,7 @@ async def publish_with(
     if expected_version is not None and (latest is None or latest.number != expected_version):
         raise ConcurrentChangeError(
             message=(
-                f"The artifact {name!r} changed after it was read. Read it again with "
+                f"The app {name!r} changed after it was read. Read it again with "
                 "`read_artifact` and make the edits against what it holds now."
             ),
             details={"name": name, "version": latest.number if latest is not None else None},
@@ -950,6 +1076,7 @@ async def publish_with(
         consent=await consent_for(
             db, artifact, fingerprint=digest, person=person, impersonated=impersonated
         ),
+        actor_user_id=owner_user_id,
     )
     await record_audit(
         db,
@@ -1047,7 +1174,7 @@ def _archived_page(name: str) -> str:
     not its to change, before the archive is looked at.
     """
     return (
-        f"The artifact {name!r} is archived, so it cannot be published again. Tell the "
+        f"The app {name!r} is archived, so it cannot be published again. Tell the "
         "person: someone who may edit it can restore it from its page in the console. "
         "Or publish under a different name."
     )
@@ -1070,9 +1197,11 @@ async def _append_version(
     bindings: list[dict[str, Any]],
     actions: list[dict[str, Any]],
     consent: VersionConsent,
+    actor_user_id: UUID | None,
     restored_from: int | None = None,
 ) -> ArtifactVersion:
-    """Add the next version, mark the publication, and prune past the kept window.
+    """Add the next version, mark the publication, prune past the kept window, and
+    tell the page's followers.
 
     `consent` is who published it and the consent it starts with
     (:func:`~app.services.artifact_consent.consent_for`). `restored_from` is the
@@ -1097,6 +1226,10 @@ async def _append_version(
     )
     await on_new_version(db, artifact, version)
     await _prune(db, artifact)
+    # A version waiting for the owner's consent is not what a follower is served, so
+    # they hear of it when the owner consents (`ArtifactService.confirm_data`).
+    if version.consent_state in SERVED_STATES:
+        await _notify_followers(db, artifact, version, actor_user_id=actor_user_id)
     return version
 
 
@@ -1198,20 +1331,20 @@ async def _open_current(
         or not await _may(db, artifact, reader_user_id, Perm.ARTIFACTS_VIEW)
     ):
         raise NotFoundError(
-            message=f"There is no artifact named {name!r} that this run may open.",
+            message=f"There is no app named {name!r} that this run may open.",
             details={"name": name},
         )
     version = (await _served_to(db, artifact, reader_user_id, room=room)).version
     if version is None:
         raise NotFoundError(
             message=(
-                f"The artifact {name!r} isn't available to the person this run is for yet: "
+                f"The app {name!r} isn't available to the person this run is for yet: "
                 "its owner hasn't confirmed the data it shares."
             ),
             details={"name": name},
         )
     data = await _load_version(
-        version, missing=f"The artifact {name!r} has lost its content; publish it again."
+        version, missing=f"The app {name!r} has lost its content; publish it again."
     )
     return artifact, version, data
 
@@ -1237,6 +1370,34 @@ async def _served_to(
         db, reader, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
     )
     return await served(db, reader, artifact, can_edit=can_edit)
+
+
+async def _notify_followers(
+    db: AsyncSession, artifact: Artifact, version: ArtifactVersion, *, actor_user_id: UUID | None
+) -> None:
+    """Tell everybody following the page that it has a new version (#1977).
+
+    Not the person whose run or restore made it - they know. And only followers
+    who can still open the page: following grants nothing, so one who lost
+    access is skipped here and again when the inbox is read. An `unchanged`
+    republish never reaches this, so a schedule that found nothing new is quiet.
+    """
+    followers = [
+        user_id
+        for user_id in await artifact_repo.follower_ids(db, artifact.id)
+        if user_id != actor_user_id
+    ]
+    readers = [
+        user_id for user_id in followers if await _may(db, artifact, user_id, Perm.ARTIFACTS_VIEW)
+    ]
+    await NotificationService(db).artifact_version_published(
+        recipients=readers,
+        organization_id=artifact.organization_id,
+        artifact_id=artifact.id,
+        title=artifact.title,
+        version_number=version.number,
+        actor_user_id=actor_user_id,
+    )
 
 
 async def read_source(
@@ -1688,7 +1849,7 @@ async def request_share_with(
         or not await _may(db, artifact, run_person, Perm.ARTIFACTS_VIEW)
     ):
         raise NotFoundError(
-            message=f"There is no artifact named {name!r} that this run may open.",
+            message=f"There is no app named {name!r} that this run may open.",
             details={"name": name},
         )
     if not await _may(db, artifact, run_person, Perm.ARTIFACTS_EDIT):
@@ -1918,7 +2079,7 @@ def console_url_for(artifact_id: UUID, organization_id: UUID) -> str:
     page is not available. `?org=` is the parameter the console adopts for that,
     the same one alert links carry.
     """
-    return f"/artifacts/{artifact_id}?org={organization_id}"
+    return f"/apps/{artifact_id}?org={organization_id}"
 
 
 def _view(
@@ -2088,6 +2249,15 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
 """.encode()
 
 
+def _refuse_key(ctx: AuthContext) -> None:
+    """Following a page is a person's preference; a key changes none of them."""
+    if ctx.api_key_id is not None:
+        raise AuthorizationError(
+            message="Following an app is a person's choice, made in the console, not by an API key",
+            details={"subject": "api_key"},
+        )
+
+
 class ArtifactService:
     """Open, share and manage the artifacts an organization's agents published."""
 
@@ -2123,9 +2293,7 @@ class ArtifactService:
             or (artifact.archived_at is not None and not archived)
             or not await resolve_access(self.db, ctx, artifact, perm, resource_type=ARTIFACT)
         ):
-            raise NotFoundError(
-                message="Artifact not found", details={"artifact_id": str(artifact_id)}
-            )
+            raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
         return artifact
 
     async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
@@ -2143,9 +2311,7 @@ class ArtifactService:
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
         )
         if archived_hidden(artifact, can_edit=can_edit):
-            raise NotFoundError(
-                message="Artifact not found", details={"artifact_id": str(artifact_id)}
-            )
+            raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
         return await self._detail(ctx, artifact, can_edit=can_edit)
 
     async def load(self, ctx: AuthContext, artifact_id: UUID) -> Artifact:
@@ -2169,7 +2335,7 @@ class ArtifactService:
             )
             if not archived_hidden(artifact, can_edit=can_edit):
                 return artifact
-        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
+        raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
 
     async def _offer_access_request(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Answer a member who cannot open a page that they may ask for access, in place of
@@ -2201,6 +2367,33 @@ class ArtifactService:
             details={"artifact_id": artifact.id, "requested": asked is not None}
         )
 
+    async def follow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Be told in the inbox when this page gets a new version (#1977).
+
+        Anybody who may open the page may follow it; following twice is
+        following once. A person's own choice, made in the console: an
+        organization key is refused, since a read-only one would otherwise
+        change its issuer's notifications.
+
+        Raises:
+            AuthorizationError: The caller is an organization key.
+        """
+        _refuse_key(ctx)
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.follow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
+    async def unfollow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Stop being told about new versions. Not following already is not an error.
+
+        Raises:
+            AuthorizationError: The caller is an organization key - see `follow`.
+        """
+        _refuse_key(ctx)
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
     async def _detail(
         self, ctx: AuthContext, artifact: Artifact, *, can_edit: bool
     ) -> ArtifactDetail:
@@ -2220,6 +2413,10 @@ class ArtifactService:
         return ArtifactDetail(
             **self._read(artifact, current, names).model_dump(),
             can_edit=can_edit,
+            following=ctx.user_id is not None
+            and await artifact_repo.is_following(
+                self.db, artifact_id=artifact.id, user_id=ctx.user_id
+            ),
             public_link=ArtifactPublicLinkRead(
                 expires_at=artifact.public_expires_at,
                 pinned_version_id=pinned.id if pinned is not None else None,
@@ -2324,6 +2521,8 @@ class ArtifactService:
         include_archived: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
+        group_id: UUID | None = None,
+        project_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> ArtifactList:
@@ -2332,7 +2531,17 @@ class ArtifactService:
         Archived ones only with `include_archived`, and then only those the caller may
         edit - the rule :meth:`read` applies. Each is read at the version the caller is
         served; one with none available to them yet has no `current_version`.
+
+        `group_id` narrows to the pages shared with one group, and each page
+        names the groups it is shared with, as every other resource's card does.
+        `project_id` narrows to the pages made in one project's chats; a project
+        the caller cannot see answers 404, as opening it does.
+
+        Raises:
+            NotFoundError: If `project_id` names a project the caller cannot see.
         """
+        if project_id is not None:
+            await ProjectService(self.db).get(ctx, project_id)
         see_all, grant_ids = await self._visibility(ctx)
         edit_ids = (
             await visible_resource_ids(
@@ -2360,15 +2569,28 @@ class ArtifactService:
             edit_ids=edit_ids,
             search=search,
             agent_id=agent_id,
+            only_ids=await shared_with_group(
+                self.db, ctx, resource_type=ARTIFACT, group_id=group_id
+            ),
+            project_id=project_id,
             skip=skip,
             limit=limit,
         )
         current = await served_many(self.db, ctx, items)
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=ARTIFACT, resource_ids=[item.id for item in items]
+        )
         names = await artifact_repo.environment_names(
             self.db, sorted({item.environment_id for item in items if item.environment_id})
         )
         return ArtifactList(
-            items=[self._read(item, current.get(item.id), names) for item in items], total=total
+            items=[
+                self._read(item, current.get(item.id), names).model_copy(
+                    update={"shared_groups": groups[item.id]}
+                )
+                for item in items
+            ],
+            total=total,
         )
 
     async def publishing_agents(self, ctx: AuthContext) -> ArtifactAgentList:
@@ -2382,7 +2604,16 @@ class ArtifactService:
             shared_ids=grant_ids,
         )
         return ArtifactAgentList(
-            items=[ArtifactAgent(id=agent_id, name=name) for agent_id, name in agents]
+            items=[
+                ArtifactAgent(
+                    id=agent.id,
+                    name=agent.name,
+                    slug=agent.slug,
+                    has_avatar=agent.has_avatar,
+                    avatar_color=agent.avatar_color,
+                )
+                for agent in agents
+            ]
         )
 
     async def versions(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactVersionList:
@@ -2463,7 +2694,7 @@ class ArtifactService:
         source = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if locked is None or source is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
         latest = await artifact_repo.latest_version(self.db, locked.id)
@@ -2495,6 +2726,7 @@ class ArtifactService:
                 self.db, locked, fingerprint=fingerprint(bindings), person=ctx
             ),
             restored_from=source.number,
+            actor_user_id=ctx.subject_id,
         )
         await record_audit(
             self.db,
@@ -2689,9 +2921,7 @@ class ArtifactService:
             return None
         version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if version is None:
-            raise refused_field(
-                "pinned_version_id", "That version of the artifact is no longer kept."
-            )
+            raise refused_field("pinned_version_id", "That version of the app is no longer kept.")
         # The link is for the audience, which never sees a version waiting for consent.
         if version.consent_state not in SERVED_STATES:
             raise refused_field(
@@ -2780,7 +3010,7 @@ class ArtifactService:
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
         if artifact.archived_at is None:
             raise BadRequestError(
-                message=f"Artifact '{artifact.title}' is not archived",
+                message=f"App '{artifact.title}' is not archived",
                 details={"artifact_id": artifact.id},
             )
         artifact = await artifact_repo.update(
@@ -2989,6 +3219,7 @@ class ArtifactService:
             status=ShareRequestStatus.APPROVED,
             by_user_id=ctx.user_id,
         )
+        await _notify_followers(self.db, artifact, version, actor_user_id=ctx.subject_id)
         details: dict[str, object] = {
             "version": version.number,
             "fingerprint": version.query_fingerprint,
@@ -3147,7 +3378,7 @@ class ArtifactService:
         version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if version is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": artifact.id, "version_id": version_id},
             )
         return version
@@ -3210,7 +3441,7 @@ class ArtifactService:
             asked = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
             if asked is None or not visible_versions(view, [asked]):
                 raise NotFoundError(
-                    message="This version of the artifact is no longer kept",
+                    message="This version of the app is no longer kept",
                     details={"artifact_id": str(artifact_id), "version_id": version_id},
                 )
             # An older version's bindings say what it read once; only the version a
@@ -3283,7 +3514,7 @@ class ArtifactService:
         view = await self._served(ctx, artifact)
         if view.version is None or view.version.id != version_id:
             raise NotFoundError(
-                message="This version of the artifact is not the one being served",
+                message="This version of the app is not the one being served",
                 details={"artifact_id": str(artifact_id), "version_id": str(version_id)},
             )
         return await artifact_actions.start_action(
@@ -3365,7 +3596,7 @@ class ArtifactService:
         version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if version is None or not visible_versions(view, [version]):
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": str(artifact_id), "version_id": str(version_id)},
             )
         current = view.version is not None and view.version.id == version.id
@@ -3611,7 +3842,7 @@ class ArtifactService:
         if artifact is not None:
             version = await public_version(self.db, artifact)
         if artifact is None or version is None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         return artifact, version
 
     async def public_view(
@@ -3720,12 +3951,12 @@ class ArtifactService:
             else None
         )
         if payload is None or found is None or found[1].archived_at is not None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         version, artifact = found
         member = payload.get("aud") == "member"
         if not member and not self._names_current_key(payload, artifact):
-            raise NotFoundError(message="Artifact not found")
-        data = await _load_version(version, missing="Artifact not found")
+            raise NotFoundError(message="App not found")
+        data = await _load_version(version, missing="App not found")
         embeddable = (
             not member and artifact.public_key is not None and artifact.public_password_hash is None
         )

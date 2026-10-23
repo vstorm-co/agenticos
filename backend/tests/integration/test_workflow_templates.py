@@ -1,7 +1,5 @@
 """Template fields: text with values from earlier steps, checked at publish and rendered at dispatch."""
 
-from __future__ import annotations
-
 import uuid
 from typing import Any
 

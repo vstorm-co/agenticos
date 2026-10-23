@@ -1,7 +1,5 @@
 """Record operations against a real database: typing, revisions, history, events, listing."""
 
-from __future__ import annotations
-
 import uuid
 
 import pytest
