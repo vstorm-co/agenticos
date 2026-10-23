@@ -95,6 +95,10 @@ class Computer(Protocol):
         """
         ...
 
+    async def close(self) -> None:
+        """Release what the desktop holds open, once the run is done with it."""
+        ...
+
 
 ComputerFactory = Callable[[Workspace], Awaitable[Computer]]
 """Opens the run's desktop; handed the run's workspace, which only the sandbox uses."""
@@ -193,7 +197,8 @@ def check_daemon_url(url: str) -> None:
     operator has since taken off `COMPUTER_DAEMON_ALLOWED_HOSTS` is not sent the
     token by an agent published while it was on. Exact, case-folded host matching;
     an empty list refuses every daemon. The URL is a base the daemon's paths are
-    appended to, so a query or a fragment, which would swallow them, is refused.
+    appended to, so a query or a fragment, which would swallow them, is refused;
+    so are credentials, which would be stored and exported in the spec.
 
     Raises:
         UrlRefusedError: The URL is missing, malformed, or names a host that is
@@ -206,6 +211,10 @@ def check_daemon_url(url: str) -> None:
     parsed = urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise UrlRefusedError("A daemon_url must be an http or https URL with a host")
+    if parsed.username or parsed.password:
+        raise UrlRefusedError(
+            "Keep the credentials out of the daemon_url; the daemon's token comes from the vault"
+        )
     if "?" in url or "#" in url:
         raise UrlRefusedError(
             "A daemon_url is the daemon's address alone, with no query or fragment"
@@ -228,6 +237,7 @@ class DaemonComputer:
     def __init__(
         self, base_url: str, token: str, *, client: httpx.AsyncClient | None = None
     ) -> None:
+        self._owned = client is None
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
         self._base = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {token}"}
@@ -269,6 +279,11 @@ class DaemonComputer:
         """Send one action; the daemon answers once it has been carried out."""
         await self._request("POST", "/actions", json={"actions": [action.model_dump()]})
 
+    async def close(self) -> None:
+        """Close the client this desktop made; one it was handed is its caller's."""
+        if self._owned:
+            await self._client.aclose()
+
 
 def _error_text(response: httpx.Response) -> str:
     """The daemon's own one-line reason, or the status when it gave none."""
@@ -288,14 +303,24 @@ def _desktop_start(width: int, height: int) -> str:
     A restarted container keeps its `/tmp` too, and Xvfb refuses a display whose
     lock survived the last one. Both are started with `setsid nohup`, so they
     outlive the command that started them.
+
+    Each half is checked on its own, so a display that survived its desktop gets
+    the desktop back rather than screenshots of an empty screen. The desktop is
+    its session: `xfce4-session` restarts the window manager and the desktop
+    when one crashes, so a session still running is left to do that.
     """
+    display = f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1"
     return (
-        f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1 && exit 0\n"
+        f"{display} && pgrep -x xfce4-session >/dev/null && exit 0\n"
         f"for tool in Xvfb xdpyinfo startxfce4 xdotool scrot; do command -v $tool >/dev/null || exit {NO_DESKTOP}; done\n"
+        f"if ! {display}; then\n"
         f"rm -f /tmp/.X{DISPLAY[1:]}-lock /tmp/.X11-unix/X{DISPLAY[1:]}\n"
         f"setsid nohup Xvfb {DISPLAY} -ac -screen 0 {width}x{height}x24 -nolisten tcp >/dev/null 2>&1 &\n"
-        f"for _ in $(seq 100); do xdpyinfo -display {DISPLAY} >/dev/null 2>&1 && break; sleep 0.1; done\n"
+        f"for _ in $(seq 100); do {display} && break; sleep 0.1; done\n"
+        "fi\n"
+        "if ! pgrep -x xfce4-session >/dev/null; then\n"
         f"DISPLAY={DISPLAY} setsid nohup dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &\n"
+        "fi\n"
         "for _ in $(seq 600); do pgrep -x xfwm4 >/dev/null && pgrep -x xfdesktop >/dev/null && exit 0; sleep 0.1; done\n"
         "exit 1\n"
     )
@@ -306,7 +331,9 @@ class SandboxComputer:
 
     A click is one command round trip, which is what E2B's own desktop SDK does
     too. The screenshot is written under `/tmp` rather than the working directory,
-    so it never shows up among the files the agent and the person see.
+    so it never shows up among the files the agent and the person see, and removed
+    once read, so a later shell in the same sandbox - the agent's, a delegate's,
+    the next run's - finds no picture of the screen there.
     """
 
     label = "Linux"
@@ -336,8 +363,21 @@ class SandboxComputer:
         except (WorkspaceError, OSError) as exc:
             logger.warning("sandbox screenshot unreadable: %s", type(exc).__name__)
             raise ComputerError("The sandbox did not return the screenshot it took.") from exc
+        finally:
+            await self._discard()
         width, height = png_size(image)
         return Capture(image=image, width=width, height=height)
+
+    async def _discard(self) -> None:
+        try:
+            await self._workspace.remove(self._shot)
+        except (WorkspaceError, OSError) as exc:
+            # Failing the screenshot over a copy left behind would only make the
+            # model take another, and leave that one behind too.
+            logger.warning("sandbox screenshot not removed: %s", type(exc).__name__)
+
+    async def close(self) -> None:
+        """Nothing is held open: each screenshot is removed once read."""
 
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""

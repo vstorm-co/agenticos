@@ -1,5 +1,5 @@
 ---
-source_sha: "d0c7eb58c28e"
+source_sha: "7bbcbbd9841f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -862,7 +862,9 @@ osobnym runie, który najpierw mierzy ekran i działa tylko wtedy, gdy ma on wci
 ten sam kształt co na zrzucie, na podstawie którego wybrano paczkę. Zmieniona
 rozdzielczość albo proporcje nie robią nic i pokazują modelowi nowy ekran.
 `max_actions` dotyczy całego runa, niezależnie od tego, ile razy czeka on na
-akceptację.
+akceptację. Akceptacja obejmuje akcje, a nie piksele pod nimi: okno może się
+zmienić między zrzutem a kliknięciem, choć ekran zachowa rozmiar, więc odrzuć
+partię wymierzoną w okno, któremu nie ufasz, że pozostanie bez zmian.
 
 | `desktop` | Pulpit | Wymaga |
 |---|---|---|
@@ -894,13 +896,13 @@ token. Jest sprawdzana przy publikacji i ponownie za każdym razem, gdy run
 otwiera daemona, więc zdjęcie z niej hosta zatrzymuje agentów już opublikowanych.
 Każda organizacja może wskazać dozwolony host, więc to token, a nie lista,
 trzyma jedną organizację z dala od pulpitu innej: daj każdemu pulpitowi własny
-token. `daemon_url` to wyłącznie adres daemona, a adres z zapytaniem (query) albo
-fragmentem jest odrzucany.
+token. `daemon_url` to wyłącznie adres daemona, a adres z zapytaniem (query),
+fragmentem albo danymi logowania jest odrzucany.
 
 | Ustawienie | Domyślnie | Zakres |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query ani fragmentu |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query, fragmentu ani danych logowania |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
 | `max_actions` | 200 | 1–2000 na run |
@@ -918,7 +920,8 @@ kroku ma zostać zachowany jako dowód, agent wywołuje `computer_save_screensho
 Zapisuje on ekran w pełnej rozdzielczości dla organizacji i pokazuje go w czacie
 z linkiem do pliku w pełnym rozmiarze. Gdy agent ma workspace, zapisuje też plik
 w `output/`, więc odpowiedź na kanale go zawiera, a kolejny krok może dołączyć go
-do raportu. Niczego na pulpicie nie zmienia i nie czeka na akceptację, chyba że
+do raportu. Bez workspace'u odpowiedź na kanale nie zawiera pliku, tak jak przy
+generowaniu obrazów. Niczego na pulpicie nie zmienia i nie czeka na akceptację, chyba że
 właściciel o nią poprosi.
 
 !!! warning "Tekst na ekranie jest niezaufany"

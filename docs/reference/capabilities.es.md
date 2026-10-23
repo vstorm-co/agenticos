@@ -1,5 +1,5 @@
 ---
-source_sha: "d0c7eb58c28e"
+source_sha: "7bbcbbd9841f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -875,7 +875,10 @@ rechaza antes de que se ejecute nada. Un lote aprobado se ejecuta en un run
 propio, que primero mide la pantalla y solo actúa si sigue teniendo la forma que
 tenía en la captura sobre la que se eligió el lote. Una resolución o una
 proporción distintas no hacen nada y muestran al modelo la pantalla nueva.
-`max_actions` es del run, por muchas veces que espere aprobación.
+`max_actions` es del run, por muchas veces que espere aprobación. La aprobación
+cubre las acciones, no los píxeles bajo ellas: una ventana puede cambiar entre
+la captura y el clic mientras la pantalla conserva su tamaño, así que deniega
+un lote dirigido a una ventana en la que no confíes que siga igual.
 
 | `desktop` | El escritorio | Necesita |
 |---|---|---|
@@ -908,13 +911,13 @@ publicar y de nuevo cada vez que un run abre el daemon, así que quitar un host 
 ella detiene a los agents ya publicados. Cualquier organización puede nombrar un
 host permitido, así que es el token, y no la lista, lo que mantiene a una
 organización fuera del escritorio de otra: da a cada escritorio su propio token.
-`daemon_url` es solo la dirección del daemon, y se rechaza una con query o
-fragmento.
+`daemon_url` es solo la dirección del daemon, y se rechaza una con query,
+fragmento o credenciales.
 
 | Ajuste | Por defecto | Rango |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido, sin query ni fragmento |
+| `daemon_url` | vacío, rechazado al publicar con `daemon` | un host permitido, sin query, fragmento ni credenciales |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, no más que `max_actions` |
 | `max_actions` | 200 | 1–2000 por run |
@@ -931,7 +934,9 @@ de un paso debe quedar como prueba, el agent llama a `computer_save_screenshot`.
 Guarda la pantalla a resolución completa para la organización y la muestra en el
 chat, enlazada al archivo a tamaño completo. Si el agent tiene un workspace,
 también escribe el archivo en `output/`, de modo que la respuesta en un canal lo
-lleva y un paso posterior puede incluirlo en un informe. No cambia nada en el
+lleva y un paso posterior puede incluirlo en un informe. Sin workspace, la
+respuesta en un canal no lleva ningún archivo, igual que con la generación de
+imágenes. No cambia nada en el
 escritorio, y la aprobación no la retiene salvo que el propietario lo pida.
 
 !!! warning "El texto de la pantalla no es de fiar"

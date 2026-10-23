@@ -33,11 +33,13 @@ Two things are versioned separately from this file and worth knowing about:
   `COMPUTER_DAEMON_ALLOWED_HOSTS` allows, reached with the daemon's token
   from the organization's vault. The allowlist is checked at publish and
   again whenever a run opens the daemon. Publish refuses a sandbox desktop on
-  an agent or an inline specialist without a sandbox connection. An approved
+  an agent, an inline specialist or a pinned delegate without a sandbox
+  connection to run it in. An approved
   batch runs only on a screen still the shape it was approved against, and
   `max_actions` counts across approvals. The model's screenshots are not
   kept: a parked run, its manifest and a compacted conversation hold a
-  sentence in their place. The chat draws the desktop live in a window under
+  sentence in their place, and the file each is taken through is removed from
+  the sandbox or the daemon's host once read. The chat draws the desktop live in a window under
   the message, and `computer_save_screenshot` keeps a full-resolution
   screenshot in the chat and the workspace, for a user who wants to see the
   screen or a test that needs evidence (#2094).

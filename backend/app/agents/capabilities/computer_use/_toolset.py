@@ -172,8 +172,15 @@ class _Session:
         return self.computer
 
     async def emit(self, event: BrowserEvent) -> None:
-        if self.sink is not None:
-            await self.sink(event)
+        if self.sink is not None and not await self.sink(event):
+            # The reader left and the run goes on: no more frames drawn for nobody.
+            self.sink = None
+
+    async def close_desktop(self) -> None:
+        """Let go of the desktop, if one was opened. Safe to call twice."""
+        computer, self.computer = self.computer, None
+        if computer is not None:
+            await computer.close()
 
     async def close_view(self) -> None:
         """End the live window, if one opened. Safe to call twice."""
@@ -212,6 +219,7 @@ class ComputerToolset(FunctionToolset[Any]):
         self._entered -= 1
         if self._entered == 0:
             await self.session.close_view()
+            await self.session.close_desktop()
         return None
 
 
@@ -284,15 +292,16 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
                     max_steps=policy.max_actions,
                 )
             )
-        await session.emit(
-            BrowserEvent(
-                kind="browser_frame",
-                call_id=call_id,
-                step=session.step,
-                title=computer.label,
-                image=f"data:image/jpeg;base64,{base64.b64encode(image).decode()}",
+        if session.sink is not None:
+            await session.emit(
+                BrowserEvent(
+                    kind="browser_frame",
+                    call_id=call_id,
+                    step=session.step,
+                    title=computer.label,
+                    image=f"data:image/jpeg;base64,{base64.b64encode(image).decode()}",
+                )
             )
-        )
         return image, screen, call_id
 
     def answer(ctx: RunContext[Any], text: str, image: bytes, screen: Screen) -> ToolReturn:

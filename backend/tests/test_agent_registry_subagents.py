@@ -501,6 +501,35 @@ class TestInlineSpecialists:
 
         await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
+    @pytest.mark.parametrize(
+        ("share", "refused"), [(["computer_use"], True), (["computer_use", "sandbox"], False)]
+    )
+    async def test_a_pinned_delegate_lent_a_desktop_is_lent_its_sandbox_too(
+        self, monkeypatch, share: list[str], refused: bool
+    ):
+        """Its version passed at its own publish; what the parent lends it is checked here."""
+        monkeypatch.setattr(agent_registry, "_sandbox_problems", AsyncMock(return_value=[]))
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(delegate.id, spec=_spec(name="Tester"))
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+        sandbox = {"id": "sandbox", "config": {"backend": "service", "connection_id": str(uuid4())}}
+        spec = _delegating(
+            {"share_with_delegates": share},
+            subagents=[_pin(delegate.id, version.id)],
+            capabilities=[sandbox, {"id": "computer_use"}],
+        )
+        service = AgentRegistryService(_db())
+
+        if not refused:
+            await service.validate_spec(ctx, spec)
+            return
+        assert await _problems(ctx, spec) == [
+            "Delegate 'Tester' would be lent computer use's desktop in the sandbox but no "
+            "sandbox to run it in. Share 'sandbox' with delegates too, or stop sharing "
+            "'computer_use'."
+        ]
+
     async def test_a_delegation_config_that_does_not_parse_is_reported_once(self):
         """The binding check has already said so; a second guess adds nothing."""
         spec = _delegating({"max_depth": 99})

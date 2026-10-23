@@ -70,6 +70,18 @@ def png_size(data: bytes) -> tuple[int, int]:
     return width, height
 
 
+def capture_png(argv: list[str]) -> bytes:
+    """Run a command that writes a screenshot to the path it is given, and read it back.
+
+    Into a directory only this process can read, removed with the picture, so no
+    screen is left on the host's disk for another user to find.
+    """
+    with tempfile.TemporaryDirectory(prefix="computerd-") as directory:
+        shot = Path(directory) / "screen.png"
+        subprocess.run([*argv, str(shot)], check=True, timeout=30)
+        return shot.read_bytes()
+
+
 def _int(action: dict[str, Any], key: str, *, low: int = 0, high: int = 100_000, default: int | None = None) -> int:
     value = action.get(key, default)
     if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
@@ -151,7 +163,6 @@ class X11Driver(Driver):
         for tool in ("scrot", "xdotool"):
             if shutil.which(tool) is None:
                 sys.exit(f"computerd: {tool} is not installed")
-        self._shot = Path(tempfile.gettempdir()) / f"computerd-{os.getpid()}.png"
 
     def _xdotool(self, *args: str) -> None:
         result = subprocess.run(["xdotool", *args], capture_output=True, text=True, timeout=60, check=False)
@@ -159,8 +170,7 @@ class X11Driver(Driver):
             raise Refused(f"xdotool failed: {result.stderr.strip()[:200]}")
 
     def screenshot(self) -> tuple[bytes, int, int]:
-        subprocess.run(["scrot", "--overwrite", "--pointer", str(self._shot)], check=True, timeout=30)
-        data = self._shot.read_bytes()
+        data = capture_png(["scrot", "--overwrite", "--pointer"])
         width, height = png_size(data)
         return data, width, height
 
@@ -210,7 +220,6 @@ class MacDriver(Driver):
         import Quartz  # ty: ignore[unresolved-import] - macOS only, from the script's own metadata
 
         self.q = Quartz
-        self._shot = Path(tempfile.gettempdir()) / f"computerd-{os.getpid()}.png"
         self._flags = {
             "cmd": Quartz.kCGEventFlagMaskCommand, "command": Quartz.kCGEventFlagMaskCommand,
             "super": Quartz.kCGEventFlagMaskCommand, "meta": Quartz.kCGEventFlagMaskCommand,
@@ -230,9 +239,9 @@ class MacDriver(Driver):
         return int(rect.size.width), int(rect.size.height)
 
     def screenshot(self) -> tuple[bytes, int, int]:
-        subprocess.run(["screencapture", "-x", "-m", "-C", "-t", "png", str(self._shot)], check=True, timeout=30)
+        data = capture_png(["screencapture", "-x", "-m", "-C", "-t", "png"])
         width, height = self._bounds()
-        return self._shot.read_bytes(), width, height
+        return data, width, height
 
     def _post(self, event: Any) -> None:
         self.q.CGEventPost(self.q.kCGHIDEventTap, event)

@@ -313,6 +313,18 @@ def _computer_use_sandbox_problems(spec: AgentSpec) -> list[str]:
     return []
 
 
+def _inheriting(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSpec:
+    """A delegate's spec with the bindings its parent shares and it does not bind.
+
+    What the runtime runs it on (`agent_runner._with_shared`), so a dependency
+    between capabilities is checked against what the delegate will hold, not
+    only against what its own spec says.
+    """
+    own = {binding.id for binding in spec.capabilities}
+    inherited = [binding for binding in shared if binding.id not in own]
+    return spec.model_copy(update={"capabilities": [*spec.capabilities, *inherited]})
+
+
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
 """What `get` may be asked for on the assistant by anyone who reaches it."""
 
@@ -2029,6 +2041,18 @@ class AgentRegistryService:
 
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)
+        # A pinned version passed this check at its own publish, on its own
+        # bindings; what it is lent here can still leave it a desktop and no
+        # sandbox, and the fix is in this agent's share list.
+        problems.add(
+            [
+                f"Delegate '{delegate.spec.name}' would be lent computer use's desktop in "
+                "the sandbox but no sandbox to run it in. Share 'sandbox' with delegates "
+                "too, or stop sharing 'computer_use'."
+                for delegate in pins.delegates
+                if _computer_use_sandbox_problems(_inheriting(delegate.spec, shared))
+            ]
+        )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -2110,13 +2134,7 @@ class AgentRegistryService:
         # variable is refused here too rather than sent to the model as braces.
         as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
         problems.merge(_variable_problems(as_agent))
-        own = {binding.id for binding in as_agent.capabilities}
-        inherited = [binding for binding in shared if binding.id not in own]
-        problems.add(
-            _computer_use_sandbox_problems(
-                as_agent.model_copy(update={"capabilities": [*as_agent.capabilities, *inherited]})
-            )
-        )
+        problems.add(_computer_use_sandbox_problems(_inheriting(as_agent, shared)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

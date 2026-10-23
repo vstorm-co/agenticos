@@ -101,8 +101,15 @@ action carries at most 2000 characters.
 - A live window for a run resumed after approval. The continuation runs over
   HTTP, not the conversation's socket, so it has no `browser_events` sink and
   the chat records it as a line, as it does a resumed `browser_use` run.
-- Per-organization daemons in the vault, as `sandbox_connections` does for the
-  sandbox. For now the daemon token belongs to the deployment.
+- A per-organization host allowlist. The hosts are the deployment's
+  (`COMPUTER_DAEMON_ALLOWED_HOSTS`); the token that opens one is the
+  organization's.
+- A saved screenshot in a channel reply when the run has no workspace. Channels
+  post the files a turn wrote, so a daemon desktop with no Sandbox capability
+  reaches Slack as a sentence, as image generation without one does.
+- An approval bound to the pixels. A resumed batch is refused on a screen of
+  another shape, but a desktop is never the same twice - a clock, a cursor, a
+  notification - so the same shape with different contents still runs.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can

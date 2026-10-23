@@ -1,5 +1,5 @@
 ---
-source_sha: "d0c7eb58c28e"
+source_sha: "7bbcbbd9841f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -915,6 +915,10 @@ vermisst und nur handelt, wenn er noch dieselbe Form hat wie auf dem Screenshot,
 auf dem der Stapel gewählt wurde. Eine geänderte Auflösung oder ein geändertes
 Seitenverhältnis bewirkt nichts und zeigt dem Modell den neuen Bildschirm.
 `max_actions` gilt für den ganzen Run, wie oft er auch auf eine Freigabe wartet.
+Die Freigabe gilt den Aktionen, nicht den Pixeln darunter: Ein Fenster kann sich
+zwischen Screenshot und Klick ändern, während der Bildschirm seine Größe behält.
+Lehnen Sie daher einen Stapel ab, der auf ein Fenster zielt, dem Sie nicht
+zutrauen, unverändert zu bleiben.
 
 | `desktop` | Der Desktop | Braucht |
 |---|---|---|
@@ -949,13 +953,13 @@ jedes Mal, wenn ein Run den Daemon öffnet, sodass ein von ihr gestrichener Host
 auch bereits veröffentlichte Agents stoppt. Jede Organisation kann einen
 erlaubten Host nennen, also hält das Token, nicht die Liste, eine Organisation
 vom Desktop einer anderen fern: Geben Sie jedem Desktop ein eigenes Token.
-`daemon_url` ist allein die Adresse des Daemons, und eine mit Query oder
-Fragment wird verweigert.
+`daemon_url` ist allein die Adresse des Daemons, und eine mit Query, Fragment
+oder Zugangsdaten wird verweigert.
 
 | Einstellung | Standard | Bereich |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query oder Fragment |
+| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query, Fragment oder Zugangsdaten |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
 | `max_actions` | 200 | 1–2000 pro Run |
@@ -975,7 +979,8 @@ soll das Ergebnis eines Schritts als Nachweis bleiben, ruft der Agent
 für die Organisation und zeigt ihn im Chat, verlinkt auf die Datei in voller
 Größe. Hat der Agent einen Workspace, schreibt es die Datei auch nach `output/`,
 sodass eine Antwort im Kanal sie mitbringt und ein späterer Schritt sie in einen
-Bericht aufnehmen kann. Es ändert nichts auf dem Desktop, und die Freigabe hält
+Bericht aufnehmen kann. Ohne Workspace bringt eine Antwort im Kanal keine Datei
+mit, wie bei der Bilderzeugung. Es ändert nichts auf dem Desktop, und die Freigabe hält
 es nur an, wenn der Besitzer das verlangt.
 
 !!! warning "Text auf dem Bildschirm ist nicht vertrauenswürdig"

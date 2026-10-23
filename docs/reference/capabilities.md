@@ -816,7 +816,9 @@ approved batch runs in a run of its own, which measures the screen first and
 acts only if it is still the shape it was on the screenshot the batch was chosen
 on. A changed resolution or aspect ratio does nothing and shows the model the
 new screen. `max_actions` is the run's, however many times it waits for
-approval.
+approval. Approval holds the actions, not the pixels under them: a window can
+change between the screenshot and the click while the screen keeps its size, so
+deny a batch aimed at a window you do not trust to stay put.
 
 | `desktop` | The desktop | Needs |
 |---|---|---|
@@ -848,13 +850,13 @@ run may send that token. It is checked at publish and again each time a run
 opens the daemon, so taking a host off it stops agents already published. Every
 organization can name an allowed host, so the token, not the list, keeps one
 organization off another's desktop: give each desktop its own token.
-`daemon_url` is the daemon's address alone, and one with a query or a fragment
-is refused.
+`daemon_url` is the daemon's address alone, and one with a query, a fragment or
+credentials is refused.
 
 | Config | Default | Range |
 |---|---|---|
 | `desktop` | `sandbox` | `sandbox`, `daemon` |
-| `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query or fragment |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query, fragment or credentials |
 | `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
 | `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
 | `max_actions` | 200 | 1–2000 per run |
@@ -871,7 +873,8 @@ should be kept as evidence, the agent calls `computer_save_screenshot`. It
 stores the screen at full resolution for the organization and shows it in the
 chat, linked to the full-size file. When the agent has a workspace, it also
 writes the file to `output/`, so a channel reply carries it and a later step can
-put it in a report. It changes nothing on the desktop, and approval does not
+put it in a report. Without one, a channel reply carries no file, as with image
+generation. It changes nothing on the desktop, and approval does not
 hold it unless the owner asks.
 
 !!! warning "Screen text is untrusted"

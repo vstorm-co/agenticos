@@ -117,6 +117,7 @@ class _Desktop:
         self.blind = blind
         self.performed: list[Any] = []
         self.captures = 0
+        self.closed = 0
 
     async def capture(self) -> Capture:
         self.captures += 1
@@ -129,14 +130,19 @@ class _Desktop:
             raise ComputerError("no such window")
         self.performed.append(action)
 
+    async def close(self) -> None:
+        self.closed += 1
+
 
 class _Frames:
-    def __init__(self) -> None:
+    def __init__(self, *, gone: bool = False) -> None:
         self.events: list[BrowserEvent] = []
+        self.gone = gone
+        """The reader closed the tab: every event is sent and none arrives."""
 
     async def __call__(self, event: BrowserEvent) -> bool:
         self.events.append(event)
-        return True
+        return not self.gone
 
     def kinds(self) -> list[str]:
         return [event.kind for event in self.events]
@@ -385,6 +391,16 @@ class TestTheDaemon:
     def test_a_default_client_is_made_when_none_is_given(self):
         assert DaemonComputer("http://desk", "tok")._client is not None
 
+    async def test_a_client_it_made_is_closed_and_one_it_was_handed_is_not(self):
+        made = DaemonComputer("http://desk", "tok")
+        handed = _daemon(lambda request: httpx.Response(200))
+
+        await made.close()
+        await handed.close()
+
+        assert made._client.is_closed
+        assert not handed._client.is_closed
+
 
 class _Box:
     """A sandbox's shell: what it was asked to run, and what each command answers.
@@ -403,6 +419,8 @@ class _Box:
         self.attached = attached
         self.backend = self
         self.unreadable = False
+        self.undeletable = False
+        self.removed: list[str] = []
 
     async def run(
         self,
@@ -422,6 +440,11 @@ class _Box:
             raise WorkspaceError(f"shell filesystem read failed for {path!r}")
         return _png(1024, 768)
 
+    async def remove(self, path: str) -> None:
+        if self.undeletable:
+            raise WorkspaceError(f"shell filesystem remove failed for {path!r}")
+        self.removed.append(path)
+
 
 def _on(box: _Box) -> SandboxComputer:
     return SandboxComputer(box)  # ty: ignore[invalid-argument-type] - the members it uses
@@ -437,6 +460,30 @@ class TestTheSandboxDesktop:
         assert argv[:3] == ["scrot", "--overwrite", "--pointer"]
         assert argv[3].startswith("/tmp/agenticos-screen-")  # noqa: S108 - a path in the sandbox
         assert (shell, env) == (False, {"DISPLAY": ":0"})
+        assert box.removed == [argv[3]]
+
+    @pytest.mark.security
+    async def test_a_screenshot_is_not_left_in_the_sandbox_even_unread(self):
+        """A later shell there - a delegate's, the next run's - finds no picture of the screen."""
+        box = _Box()
+        box.unreadable = True
+        with pytest.raises(ComputerError):
+            await _on(box).capture()
+        assert box.removed == [box.ran[0][0][3]]
+
+    async def test_a_screenshot_that_cannot_be_removed_is_still_shown(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        box = _Box()
+        box.undeletable = True
+        capture = await _on(box).capture()
+        assert (capture.width, capture.height) == (1024, 768)
+        assert "sandbox screenshot not removed: WorkspaceError" in caplog.text
+
+    async def test_the_sandbox_desktop_holds_nothing_to_close(self):
+        box = _Box()
+        await _on(box).close()
+        assert box.ran == []
 
     async def test_two_desktops_on_one_sandbox_do_not_share_a_screenshot(self):
         box = _Box()
@@ -482,8 +529,14 @@ class TestOpeningTheSandboxDesktop:
 
         [(script, shell, _)] = box.ran
         assert shell
-        assert script.startswith("xdpyinfo -display :0 >/dev/null 2>&1 && exit 0\n")
+        # Left alone only when both the display and the session that keeps the
+        # desktop running are up; each is started on its own when it is not.
+        assert script.startswith(
+            "xdpyinfo -display :0 >/dev/null 2>&1 && pgrep -x xfce4-session >/dev/null && exit 0\n"
+        )
+        assert "if ! xdpyinfo -display :0 >/dev/null 2>&1; then\n" in script
         assert "Xvfb :0 -ac -screen 0 1024x768x24" in script
+        assert "if ! pgrep -x xfce4-session >/dev/null; then\n" in script
         assert "startxfce4" in script
 
     @pytest.mark.parametrize("workspace", [_Box(attached=False), document_workspace()])
@@ -557,6 +610,27 @@ class TestTheTools:
 
         await toolset.session.close_view()
         assert frames.kinds().count("browser_finished") == 1
+
+    async def test_the_desktop_is_let_go_once_when_the_run_leaves(self):
+        desktop = _Desktop()
+        toolset = _toolset(desktop)
+        tools = {name: tool.function for name, tool in toolset.tools.items()}
+        async with toolset:
+            await tools["computer_screenshot"](_ctx())
+            assert desktop.closed == 0
+        assert desktop.closed == 1
+
+        await toolset.session.close_desktop()
+        assert desktop.closed == 1
+
+    async def test_a_reader_who_left_is_sent_no_more_frames(self):
+        """The run goes on; screenshots are no longer encoded for a socket nobody reads."""
+        frames = _Frames(gone=True)
+        tools = _tools(_Desktop())
+        await tools["computer_screenshot"](_ctx(frames))
+        await tools["computer_act"](_ctx(frames), [Click(x=10, y=10)])
+
+        assert frames.kinds() == ["browser_opened"]
 
     async def test_a_call_without_an_id_still_gets_one_window(self):
         frames = _Frames()
@@ -1114,6 +1188,8 @@ class TestTheDaemonAllowlist:
             ("http://desk.internal:8765?x=1", "no query or fragment"),
             ("http://desk.internal:8765/#top", "no query or fragment"),
             ("http://desk.internal:8765?", "no query or fragment"),
+            ("http://user:secret@desk.internal:8765", "credentials out of the daemon_url"),
+            ("http://token@desk.internal:8765", "credentials out of the daemon_url"),
             (
                 "http://attacker.example:8765",
                 "does not allow computer use against 'attacker.example'",
