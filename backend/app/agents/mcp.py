@@ -540,7 +540,7 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
-PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language", "set_my_profile"})
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
 """The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
 
 Named again rather than imported: the platform's server imports the application,

@@ -1,5 +1,5 @@
 ---
-source_sha: "3f600cff5db6"
+source_sha: "b3b414cc1b2d"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1044,10 +1044,12 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   narzędzie, które coś zmienia (`create_agent_draft`, `publish_agent`,
   `create_routine`, `run_agent`, `invite_member` i pozostałe), do zgody osoby;
   `all` wstrzymuje też odczyt. `none` nie jest oferowane: te narzędzia działają z
-  uprawnieniami człowieka. Zapisy, które nigdy nie czekają, to `set_my_language`
-  i `set_my_profile`: każdy zmienia własną preferencję albo opis pytającego, na
-  jego słowo, a karta zatwierdzenia dla „przełącz na angielski” byłaby całą
-  rozmową.
+  uprawnieniami człowieka. Jedyny zapis, który nigdy nie czeka, to
+  `set_my_language`: zmienia język konsoli pytającego, na jego słowo, a karta
+  zatwierdzenia dla „przełącz na angielski” byłaby całą rozmową.
+  `set_my_profile` czeka jak pozostałe, bo to, co zapisuje, słyszy każdy agent,
+  którego ta osoba uruchamia, a strona przeczytana przez agenta nie może tego
+  zapisać niezauważenie.
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3f600cff5db6"
+source_sha: "b3b414cc1b2d"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1072,10 +1072,12 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   cada herramienta que cambia algo (`create_agent_draft`, `publish_agent`,
   `create_routine`, `run_agent`, `invite_member` y las demás) hasta que la persona
   la apruebe; `all` retiene también la lectura. `none` no se ofrece: estas
-  herramientas actúan con la autoridad de una persona. Las escrituras que nunca
-  esperan son `set_my_language` y `set_my_profile`: cada una cambia la preferencia
-  o la descripción propia de quien pregunta, por su palabra, y una tarjeta de
-  aprobación para «cambia a inglés» sería toda la conversación.
+  herramientas actúan con la autoridad de una persona. La única escritura que nunca
+  espera es `set_my_language`: cambia el idioma de la consola de quien pregunta,
+  por su palabra, y una tarjeta de aprobación para «cambia a inglés» sería toda la
+  conversación. `set_my_profile` espera como las demás, porque lo que guarda se le
+  dice a cada agente que la persona ejecuta, y una página que un agente leyó no
+  debe poder escribirlo sin que se vea.
 - **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
   cada herramienta y marcan las que cambian algo.
 

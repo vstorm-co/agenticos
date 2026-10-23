@@ -22,13 +22,14 @@ from app.services.platform_mcp._api import PlatformApi
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
-UNGATED = frozenset({"set_my_language", "set_my_profile"})
+UNGATED = frozenset({"set_my_language"})
 """Writes no binding holds for a person's approval, whatever its policy.
 
-Changing the console's language, or the role and work agents are told, changes
-the person asking's own account on their own word, and Settings undoes it - an
-approval card for "switch to English", or for what they just said they do, would
-be the whole conversation. `app.agents.mcp` names the same set as
+Changing the console's language changes the person asking's own account on their
+own word, and Settings undoes it - an approval card for "switch to English" would
+be the whole conversation. `set_my_profile` is not here: what it saves is told to
+every agent the person runs, in every organization, so a page an agent read must
+not be able to write it unseen. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
 """
 

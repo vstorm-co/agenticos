@@ -544,18 +544,22 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
-    def test_only_the_askers_own_language_and_profile_are_ungated(self) -> None:
-        """Switching the console's language, or saving the role and work agents are
-        told, changes the asker's own account on their word (#2301); every other
-        write - publishing and creating a skill above all - is held."""
+    def test_only_the_askers_own_language_is_ungated(self) -> None:
+        """Switching the console's language changes the asker's own account on
+        their word (#2301); every other write - publishing and creating a skill
+        above all - is held."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {
-            "set_my_language",
-            "set_my_profile",
-        }
+        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
         assert tools["set_my_language"].writes
+
+    def test_saving_the_profile_every_agent_is_told_waits_for_approval(self) -> None:
+        """Codex on #2324: what it saves is appended to every agent's instructions,
+        so a page that injected the call would otherwise persist into later runs."""
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
         assert tools["set_my_profile"].writes
+        assert not tools["set_my_profile"].ungated
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 

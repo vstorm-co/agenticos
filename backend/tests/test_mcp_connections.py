@@ -531,9 +531,7 @@ class TestApprovalMarks:
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
-        assert _make_toolset(platform).ungated == frozenset(
-            {"agenticos_set_my_language", "agenticos_set_my_profile"}
-        )
+        assert _make_toolset(platform).ungated == frozenset({"agenticos_set_my_language"})
 
 
 class TestToolOrigins:

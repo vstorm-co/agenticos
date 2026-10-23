@@ -1005,9 +1005,11 @@ named after this deployment; switching it on binds it as
   changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
   `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
   reading too. `none` is not offered: these tools act with a person's authority.
-  The writes that never wait are `set_my_language` and `set_my_profile`: each
-  changes the asker's own preference or description, on their word, and an
-  approval card for "switch to English" would be the whole conversation.
+  The one write that never waits is `set_my_language`: it changes the asker's
+  own console language, on their word, and an approval card for "switch to
+  English" would be the whole conversation. `set_my_profile` waits like the
+  rest, because what it saves is told to every agent the person runs, and a page
+  an agent read must not be able to write it unseen.
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 

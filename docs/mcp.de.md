@@ -1,5 +1,5 @@
 ---
-source_sha: "3f600cff5db6"
+source_sha: "b3b414cc1b2d"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1091,10 +1091,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   das etwas ändert (`create_agent_draft`, `publish_agent`, `create_routine`,
   `run_agent`, `invite_member` und die übrigen), zur Freigabe zurück; `all` auch
   das Lesen. `none` wird nicht angeboten: Diese Werkzeuge handeln mit der Befugnis
-  eines Menschen. Die Schreibzugriffe, die nie warten, sind `set_my_language` und
-  `set_my_profile`: Jeder ändert die eigene Vorliebe oder Beschreibung des
-  Fragenden, auf dessen Wort, und eine Freigabekarte für „auf Englisch umstellen“
-  wäre die ganze Unterhaltung.
+  eines Menschen. Der einzige Schreibzugriff, der nie wartet, ist
+  `set_my_language`: Er ändert die Konsolensprache des Fragenden, auf dessen
+  Wort, und eine Freigabekarte für „auf Englisch umstellen“ wäre die ganze
+  Unterhaltung. `set_my_profile` wartet wie die übrigen, denn was es speichert,
+  wird jedem Agenten mitgeteilt, den die Person ausführt, und eine Seite, die ein
+  Agent gelesen hat, darf es nicht unbemerkt schreiben.
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   jedes Werkzeug auflisten und die ändernden markieren.
 
