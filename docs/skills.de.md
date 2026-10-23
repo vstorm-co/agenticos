@@ -1,5 +1,5 @@
 ---
-source_sha: "b07994466fc2"
+source_sha: "bf793e1a79b2"
 ---
 
 # Skills { #skills }
@@ -205,6 +205,14 @@ Der [Authoring-Assistent](authoring.md#skills) schlägt Skill-Änderungen auf
 dieselbe Weise vor, mit seiner Begründung und den Runs, auf die sie sich stützt.
 Seine Änderung hält fest, für welche Version des Skills sie geschrieben wurde,
 und Apply lehnt sie ab, sobald jemand den Skill seitdem geändert hat.
+
+Jede Änderung sagt neben **Apply**, welche veröffentlichten Agent-Versionen den
+Skill lesen und welche Eval-Suites sie bewachen, und **Check with evals** kommt
+zuerst. Das Anwenden benachrichtigt die Besitzer dieser Agents. Eine
+Entscheidung nennt die Version der Änderung, die Sie gelesen haben: Eine
+seitdem umgeschriebene Änderung - durch eine spätere Runde oder eine neue
+Anfrage - wird mit „The proposal changed since you opened it“ abgelehnt, und von
+zwei gleichzeitig getroffenen Entscheidungen zählt nur eine.
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

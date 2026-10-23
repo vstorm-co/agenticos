@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "ae9efeb8cd5d"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -414,10 +414,10 @@ Dowolne połączenie:
   w tym samym eval runie.
 - **Po promocji** - wersja wypromowana na środowisko suity (domyślne, gdy
   suita żadnego nie wskazuje), porównana z wersją, którą zastąpiła.
-- **Po zmianie zależności** - edycja skilla, z którego korzysta sprawdzana
-  wersja, albo dodanie, ponowne przetworzenie lub usunięcie dokumentu w bazie
-  wiedzy, którą przeszukuje. Specjaliści zdefiniowani w wersji liczą się jako
-  ta wersja. Seria zmian to jeden run, należny
+- **Po zmianie zależności** - edycja skilla albo pliku kontekstowego, z którego
+  korzysta sprawdzana wersja, albo dodanie, ponowne przetworzenie lub usunięcie
+  dokumentu w bazie wiedzy, którą przeszukuje. Specjaliści zdefiniowani w
+  wersji liczą się jako ta wersja. Seria zmian to jeden run, należny
   `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` po pierwszej. Profilu modelu nie da
   się zmienić w miejscu - wskazanie agentowi innego to publikacja - a zmianę
   modelu po stronie providera wyłapuje harmonogram.
@@ -508,7 +508,7 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Jak często pracujący run daje znać, że żyje |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Jak długo run może czekać na workera, zanim sweep zakończy go błędem |
-| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Jak długo suita czeka po zmianie skilla albo bazy wiedzy, żeby seria zmian była jednym runem |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Jak długo suita czeka po zmianie skilla, pliku kontekstowego albo bazy wiedzy, żeby seria zmian była jednym runem |
 
 ## Dostęp { #access }
 

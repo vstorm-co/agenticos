@@ -1,5 +1,5 @@
 ---
-source_sha: "2f8125b4e417"
+source_sha: "ff9474c2e3e1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -210,11 +210,19 @@ mit Begründung und Belegen und mit den Agents, an die die Datei gebunden ist - 
 sie sehen dürfen. Pro Datei wartet jeweils eine Änderung.
 
 Sie anzuwenden wirkt sofort, wie bei einem Skill: Jeder an die Datei gebundene
-Agent liest den neuen Inhalt bei seinem nächsten Run. Deshalb lässt sie sich
-vorher mit Evals prüfen, an einem Agent, der die Datei nutzt, wobei sich nur der
-Inhalt der Datei unterscheidet. Auf eine Datei, die nach dem Vorschlag bearbeitet
-wurde, lässt sich die Änderung nicht anwenden: Vergleichen Sie beide und
-bearbeiten Sie die Datei von Hand, oder fragen Sie den Assistenten erneut.
+Agent liest den neuen Inhalt bei seinem nächsten Run. Deshalb ist die erste
+Aktion **Mit Evals prüfen**, an einem Agent, der die Datei nutzt, wobei sich nur
+der Inhalt der Datei unterscheidet, und **Anwenden** sagt, bevor Sie es drücken,
+für welche Agents und bewachten Umgebungen die Änderung wirksam wird. Das
+Anwenden stellt die Suites dieser Agents in die Warteschlange und benachrichtigt
+ihre Besitzer. Auf eine Datei, die nach dem Vorschlag bearbeitet wurde, lässt
+sich die Änderung nicht anwenden: Vergleichen Sie beide und bearbeiten Sie die
+Datei von Hand, oder fragen Sie den Assistenten erneut.
+
+Der Assistent schlägt nie den Inhalt so vor, wie er schon dasteht, und eine neue
+Anfrage schreibt die bereits wartende Änderung um. Anwenden und Verwerfen nennen
+die Version der Änderung, die Sie gelesen haben, und werden abgelehnt, sobald sie
+sich seitdem geändert hat - bei einer Skill-Änderung wie bei einer Datei.
 
 ## Einen neuen Agent beschreiben { #describing-a-new-agent }
 

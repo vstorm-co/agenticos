@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "ae9efeb8cd5d"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -435,14 +435,15 @@ Jede Kombination aus:
 - **Bei Promotion** - eine Version, die auf die Umgebung der Suite promotet
   wird (die Standardumgebung, wenn sie keine nennt), gemessen an der Version,
   die sie ersetzt.
-- **Wenn sich eine Abhängigkeit ändert** - ein Skill, den die geprüfte Version
-  bindet, wird bearbeitet, oder ein Dokument in einer Wissensbasis, die sie
-  durchsucht, wird hinzugefügt, neu eingelesen oder gelöscht. Spezialisten, die
-  die Version definiert, zählen als die Version. Eine Reihe von Änderungen ist
-  ein Lauf, fällig `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` nach der ersten. Ein
-  Modellprofil lässt sich nicht an Ort und Stelle ändern - einen Agent auf ein
-  anderes zu richten ist eine Veröffentlichung -, und ein Provider, der das
-  Modell dahinter austauscht, ist das, was der Zeitplan bemerkt.
+- **Wenn sich eine Abhängigkeit ändert** - ein Skill oder eine Context-Datei,
+  die die geprüfte Version bindet, wird bearbeitet, oder ein Dokument in einer
+  Wissensbasis, die sie durchsucht, wird hinzugefügt, neu eingelesen oder
+  gelöscht. Spezialisten, die die Version definiert, zählen als die Version.
+  Eine Reihe von Änderungen ist ein Lauf, fällig
+  `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` nach der ersten. Ein Modellprofil
+  lässt sich nicht an Ort und Stelle ändern - einen Agent auf ein anderes zu
+  richten ist eine Veröffentlichung -, und ein Provider, der das Modell dahinter
+  austauscht, ist das, was der Zeitplan bemerkt.
 - **Jetzt ausführen** - von Hand, als die Person, die es drückt.
 
 Eine Suite, die darauf wartet, eine Version zu prüfen, nimmt den nächsten
@@ -531,7 +532,7 @@ eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
 | `EVAL_HEARTBEAT_SECONDS` | `60` | Wie oft ein arbeitender Run meldet, dass er lebt |
 | `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Wie lange ein Run auf einen Worker warten darf, bevor der Sweep ihn beendet |
-| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Wie lange eine Suite nach einer Änderung an einem Skill oder einer Wissensbasis wartet, damit eine Reihe von Änderungen ein Lauf ist |
+| `EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS` | `600` | Wie lange eine Suite nach einer Änderung an einem Skill, einer Context-Datei oder einer Wissensbasis wartet, damit eine Reihe von Änderungen ein Lauf ist |
 
 ## Zugriff { #access }
 
