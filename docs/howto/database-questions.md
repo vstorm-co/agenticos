@@ -121,14 +121,17 @@ private/internal address '::1'. SSRF protection does not allow requests to
 internal networks.
 ```
 
-An MCP connection's URL is refused unconditionally for any loopback, private,
-link-local or shared-CGNAT address - there is no local-development exception,
-because the same check also guards a `cdp_url` and every OAuth discovery hop.
+An MCP connection's URL is refused for any loopback, private, link-local or
+shared-CGNAT address, unless the operator lists its host in
+[`MCP_ALLOWED_HOSTS`](../configuration.md#project-settings).
 See [a URL this deployment must not reach is refused](../mcp.md#a-connection).
 A Postgres MCP server reachable only on `localhost` or a private network
 address - the ordinary place to first run one - cannot be connected from this
-deployment's own machine. Reaching it needs a routable address: a small host
-with a public or VPN-reachable IP, or a tunnel, in front of the server.
+deployment's own machine.
+
+To connect it, run it under its own host name on the deployment's network
+and list that name, never `localhost`. Or put a routable address in front of
+it: a small host with a public or VPN-reachable IP, or a tunnel.
 
 The SQL above was run and checked directly against Postgres; the role refusal
 and the view totals quoted are real. What was not verified is an agent
@@ -149,7 +152,8 @@ reachable to connect.
 
 - **The connection is refused with an SSRF message.** The server's address is
   loopback, private or otherwise internal to this deployment's own network -
-  see above. Put a routable address in front of it.
+  see above. Put a routable address in front of it, or list its host in
+  `MCP_ALLOWED_HOSTS`.
 - **The agent reads the base table instead of the views.** `shop_readonly` was
   granted on `public` as well as `reporting`, or the base table's schema was
   never revoked from it. Re-run the `REVOKE` above.

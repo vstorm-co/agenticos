@@ -427,6 +427,27 @@ class TestTheReportItself:
         assert cells.count("unset") == 4
         assert "none" in cells
 
+    @pytest.mark.parametrize(
+        ("hosts", "shown"),
+        [
+            (["postgres-mcp"], "postgres-mcp"),
+            (["postgres-mcp", "10.0.0.5"], "postgres-mcp, 10.0.0.5"),
+            ([], "none"),
+        ],
+    )
+    def test_the_mcp_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, hosts: list[str], shown: str
+    ) -> None:
+        """Each listed host is one this deployment may reach inside its own
+        network, so a reviewer should find it here, with the mem0 and browser
+        allowlists. Read by row: `none` in the cells could come from either of
+        those."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", hosts)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["MCP_ALLOWED_HOSTS"] == shown
+
     def test_the_settings_say_which_mail_path_is_live(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

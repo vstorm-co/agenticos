@@ -1,6 +1,8 @@
 """Application configuration using Pydantic BaseSettings."""
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
+import ipaddress
+import socket
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -9,6 +11,7 @@ from pydantic import Field, computed_field, field_validator, model_validator, Va
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
+from app.core.sanitize import METADATA_ADDRESSES, METADATA_HOSTS
 
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
@@ -874,6 +877,53 @@ class Settings(BaseSettings):
     # checked. Used by every browse that has no proxy of the organization's own
     # and is not on a hosted browser; empty sends the browser straight out.
     BROWSER_EGRESS_PROXY: str = ""
+
+    # Hosts an MCP connection's own URL may name although they resolve inside the
+    # deployment's network, such as a compose service. A listed host skips the
+    # address check in `app.agents.mcp.validate_mcp_url`, and only when a
+    # connection's URL is saved. Matched exactly, case-folded. Empty refuses all.
+    MCP_ALLOWED_HOSTS: list[str] = []
+
+    @field_validator("MCP_ALLOWED_HOSTS")
+    @classmethod
+    def validate_mcp_allowed_hosts(cls, v: list[str]) -> list[str]:
+        """Refuse an entry that can only be a cloud metadata service or this host.
+
+        A listed host skips the SSRF check, and `169.254.169.254` or
+        `metadata.google.internal` is never an MCP server, only the instance's
+        credentials - the same refusals `app.schemas.urls` makes for a service
+        an organization runs. Loopback is refused too: it is the API's own host,
+        where every port the deployment binds would open to every account. A
+        trailing dot is folded here because the URL may keep one and still
+        reach the same address, and an IPv4 address is read the way the
+        resolver reads it, so `2852039166` is `169.254.169.254`.
+        """
+        for entry in v:
+            host = entry.strip().removeprefix("[").removesuffix("]").lower().rstrip(".")
+            if host in METADATA_HOSTS or host == "localhost" or host.endswith(".localhost"):
+                refused = True
+            else:
+                try:
+                    address = ipaddress.ip_address(host)
+                except ValueError:
+                    try:
+                        address = ipaddress.IPv4Address(socket.inet_aton(host))
+                    except OSError:
+                        address = None
+                if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+                    address = address.ipv4_mapped
+                refused = address is not None and (
+                    address.is_link_local
+                    or address.is_loopback
+                    or address.is_unspecified
+                    or address in METADATA_ADDRESSES
+                )
+            if refused:
+                raise ValueError(
+                    f"MCP_ALLOWED_HOSTS lists {entry!r}, a cloud metadata, link-local or "
+                    "loopback address. A listed host skips the SSRF check, so remove it."
+                )
+        return v
 
     @field_validator("CORS_ORIGINS")
     @classmethod
