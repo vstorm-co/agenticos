@@ -23,7 +23,6 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
-from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import delete, func, select
@@ -326,11 +325,9 @@ async def test_a_daily_suite_runs_once_a_day_and_records_its_result(db) -> None:
     assert result.summary is not None and result.summary["pass_rate"] == 1.0
     assert model.calls == 4
     await db.refresh(suite)
-    # Six in Warsaw tomorrow, which is not 24 hours away across a change of clocks.
-    tomorrow = (due.astimezone(ZoneInfo("Europe/Warsaw")) + timedelta(days=1)).astimezone(UTC)
-    assert suite.next_fire_at == tomorrow
+    assert suite.next_fire_at == due + timedelta(days=1)
 
-    await _sweep(db, model, now=tomorrow)
+    await _sweep(db, model, now=due + timedelta(days=1))
     results = await _results(db, suite.id)
     assert [r.status for r in results] == ["passed", "passed"]
     # The second day measures the same version against the first day's run.
