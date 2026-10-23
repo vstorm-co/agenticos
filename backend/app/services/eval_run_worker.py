@@ -359,9 +359,11 @@ class EvalRunWorker:
             calls: list[RecordedToolCall] = []
             asked = _Asked(revision.id, revision.input, list(revision.history or []))
 
+            answering: set[UUID] = set()
+
             async def linked(agent_run: AgentRun) -> None:
-                attempt.agent_run_id = agent_run.id
-                await db.flush()
+                if await eval_run_repo.link_run(db, case=attempt, agent_run_id=agent_run.id):
+                    answering.add(agent_run.id)
 
             try:
                 output, agent_run = await AgentRunnerService(db).execute(
@@ -387,8 +389,8 @@ class EvalRunWorker:
                 )
             except Exception as exc:
                 logger.exception("Eval case %s failed to run", attempt_id)
-                if attempt.agent_run_id is not None:
-                    await self._erased_meanwhile(db, asked, {attempt.agent_run_id})
+                if answering:
+                    await self._erased_meanwhile(db, asked, answering)
                 await self._fail(db, attempt, run_failure_summary(exc))
                 return False
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:

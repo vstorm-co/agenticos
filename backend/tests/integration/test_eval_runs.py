@@ -49,8 +49,9 @@ from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurp
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
-from app.repositories import eval_run_repo, personal_data_repo
+from app.repositories import eval_run_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
@@ -179,7 +180,7 @@ class Model:
     `answer(prompt, call)` decides the text; `status(call)` the run's ending;
     `before(call)` runs first, as a person acting mid-run would;
     `fails_once_started(call)` raises after the run's row exists, as a provider's
-    failure does.
+    failure does; `manifest` records what the model was handed, as a real run does.
     """
 
     def __init__(
@@ -192,6 +193,7 @@ class Model:
         tools: Any = lambda call: [],
         raises: Any = lambda call: None,
         fails_once_started: Any = lambda call: None,
+        manifest: bool = False,
     ) -> None:
         self.db = db
         self.answer = answer
@@ -200,6 +202,7 @@ class Model:
         self.tools = tools
         self.raises = raises
         self.fails_once_started = fails_once_started
+        self.manifest = manifest
         self.calls: list[dict[str, Any]] = []
 
     async def execute(self, runner: AgentRunnerService, ctx: AuthContext, agent_id, prompt, **kw):
@@ -233,6 +236,15 @@ class Model:
         )
         self.db.add(run)
         await self.db.flush()
+        if self.manifest:
+            self.db.add(
+                RunManifest(
+                    run_id=run.id,
+                    organization_id=ctx.organization_id,
+                    payload={"instructions": "Answer briefly.", "messages": [{"content": prompt}]},
+                )
+            )
+            await self.db.flush()
         if kw.get("started") is not None:
             await kw["started"](run)
         late = self.fails_once_started(call)
@@ -2459,6 +2471,7 @@ async def test_an_answer_graded_while_its_case_was_anonymised_is_not_kept(db) ->
 async def _attempt_after_an_erasure(db, model: Model, dataset, started, ctx) -> EvalRunCase:
     await _run_to_end(db, model, started.id, ctx)
     [attempt] = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    await db.refresh(attempt)
     assert attempt.status == "failed"
     assert (attempt.answer, attempt.calls) == (None, [])
     assert attempt.agent_run_id is not None
@@ -2488,24 +2501,45 @@ async def test_a_case_anonymised_while_it_was_answered_keeps_nothing_however_it_
 
     model = Model(
         db,
+        manifest=True,
         before=erase if failure == "a provider error" else None,
         fails_once_started=(lambda call: RuntimeError("503"))
         if failure == "a provider error"
         else lambda call: None,
     )
-    forget = AsyncMock(wraps=personal_data_repo.forget_runs)
-    with (
-        patch.object(
-            ScoringService,
-            "score_case",
-            new=grade if failure == "a provider error" else graded_during_an_erasure,
-        ),
-        patch.object(personal_data_repo, "forget_runs", new=forget),
+    with patch.object(
+        ScoringService,
+        "score_case",
+        new=grade if failure == "a provider error" else graded_during_an_erasure,
     ):
         attempt = await _attempt_after_an_erasure(db, model, dataset, started, ctx)
 
-    assert forget.await_args is not None
-    assert attempt.agent_run_id in forget.await_args.args[1]
+    manifest = (
+        await db.execute(select(RunManifest).where(RunManifest.run_id == attempt.agent_run_id))
+    ).scalar_one()
+    await db.refresh(manifest)
+    assert (manifest.payload, manifest.truncated) == ({"instructions": "Answer briefly."}, True)
+
+
+async def test_an_answer_to_a_history_an_erasure_scrubbed_meanwhile_is_not_kept(db) -> None:
+    """Erasing somebody whose turn a case held leaves its question and no mark - only a
+    history unlike the one the agent was asked."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    async def scrub(call: int) -> None:
+        case = (
+            await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+        ).scalar_one()
+        case.history = [{"role": "user", "content": "[Removed]"}]
+        case.history_author_ids = [None]
+        await db.flush()
+
+    attempt = await _attempt_after_an_erasure(db, Model(db, before=scrub), dataset, started, ctx)
+
+    assert attempt.case_score_id is None
 
 
 async def test_a_proposed_skill_body_reaches_every_candidate_answer(db) -> None:

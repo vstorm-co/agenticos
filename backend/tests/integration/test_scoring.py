@@ -1215,16 +1215,20 @@ class TestGradingAgain:
 
         await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
 
-        kept = (
-            await db.execute(select(RunManifest).where(RunManifest.run_id.in_(replaced)))
-        ).scalars()
+        kept = list(
+            (
+                await db.execute(select(RunManifest).where(RunManifest.run_id.in_(replaced)))
+            ).scalars()
+        )
+        assert kept
         for manifest in kept:
             await db.refresh(manifest)
             assert "messages" not in manifest.payload
             assert manifest.truncated is True
 
-    async def test_a_grade_finished_after_its_case_was_anonymised_is_not_kept(
-        self, db, monkeypatch
+    @pytest.mark.parametrize("erasure", ["anonymised", "lost a turn"])
+    async def test_a_grade_finished_after_an_erasure_reached_its_case_is_not_kept(
+        self, db, monkeypatch, erasure: str
     ) -> None:
         tenant, dataset, score, scoring = await self._failed_once(db, monkeypatch)
         before = list(score.results)
@@ -1238,6 +1242,12 @@ class TestGradingAgain:
                 update(DatasetCase)
                 .where(DatasetCase.id == revision.id)
                 .values(input="[Removed]", anonymised_at=datetime.now(UTC))
+                if erasure == "anonymised"
+                else update(DatasetCase)
+                .where(DatasetCase.id == revision.id)
+                .values(
+                    history=[{"role": "user", "content": "[Removed]"}], history_author_ids=[None]
+                )
             )
             return evaluation
 
