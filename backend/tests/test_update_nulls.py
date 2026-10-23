@@ -81,6 +81,7 @@ from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
+from app.schemas.push import ApnsKeyUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -102,6 +103,7 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 # to silence the gate.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    ApnsKeyUpdate: DeploymentSettings,
     ArtifactPublicLinkUpdate: Artifact,
     # The organization's assistant row; the agent itself is edited in the Builder.
     AssistantUpdate: OrganizationAssistant,
