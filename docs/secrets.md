@@ -91,6 +91,7 @@ decides which fields exist.
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
+| `microsoft_oauth_app` | The same three fields, for an app registration people sign in through |
 | `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
@@ -120,6 +121,13 @@ it `Sites.Selected` on the one site the source reads — see [SharePoint and One
 setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
 the last four characters of the client id, which is public, rather than of the
 secret.
+
+`microsoft_oauth_app` has the same fields and is spent differently: the Outlook
+trigger's connect flow signs a person in through it, with the delegated
+`Mail.Read` of whoever consents - their own mailbox and the shared ones they can
+already open - where an `entra_app` acts with the application permissions granted
+for the whole tenant. Like `github_oauth_app` it must be org-visible, and there
+must be exactly one. See [Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `openai_codex` is the one kind nobody types. It is stored by [signing in with
 ChatGPT](models.md#running-on-a-chatgpt-subscription), and it changes while it is

@@ -137,12 +137,28 @@
     "event_source": "gmail"
   },
   {
+    "key": "outlook_draft_reply",
+    "label": "Draft a reply to the email",
+    "description": "When an email arrives, summarise what the sender needs and draft a reply to review.",
+    "prompt": "An email just arrived - its subject, sender and body are in this message. Summarise in one line what the sender needs, then draft a reply I can review and send. Match the sender's tone, answer every question they asked, and keep it brief.",
+    "trigger_type": "event",
+    "event_source": "outlook"
+  },
+  {
     "key": "email_action_items",
     "label": "Turn the email into action items",
     "description": "When an email arrives, extract the action items, owners and deadlines.",
     "prompt": "An email just arrived - its details are in this message. Extract every action item it contains, who owns each one, and any deadline mentioned or implied. List them ready to paste into our tracker, and say plainly if the email contains no actionable work.",
     "trigger_type": "event",
     "event_source": "gmail"
+  },
+  {
+    "key": "outlook_action_items",
+    "label": "Turn the email into action items",
+    "description": "When an email arrives, extract the action items, owners and deadlines.",
+    "prompt": "An email just arrived - its details are in this message. Extract every action item it contains, who owns each one, and any deadline mentioned or implied. List them ready to paste into our tracker, and say plainly if the email contains no actionable work.",
+    "trigger_type": "event",
+    "event_source": "outlook"
   },
   {
     "key": "webhook_act_on_delivery",

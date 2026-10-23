@@ -171,6 +171,8 @@ describe("PortalTriggerDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
     await user.type(within(dialog).getByLabelText("Subject contains"), "invoice");
     await user.type(within(dialog).getByLabelText("Sender contains"), "billing@acme.com");
+    // A sender filter is a trust decision, and the form says what makes it hold.
+    expect(within(dialog).getByText(/sender's domain signed/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -184,6 +186,56 @@ describe("PortalTriggerDialog", () => {
       portal_key: "google",
       preset_key: "any_message",
       event_config: { subject_contains: "invoice", sender_contains: "billing@acme.com" },
+    });
+  });
+
+  it("asks a OneDrive/SharePoint trigger where to look, blank meaning the own drive", async () => {
+    const user = userEvent.setup();
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "polling",
+      webhook_url: null,
+      reveal_secret: null,
+    });
+    const files: PortalCatalogEntry = {
+      ...GMAIL,
+      key: "microsoft_files",
+      name: "OneDrive & SharePoint",
+      icon: "sharepoint",
+      event_source: "microsoft_files",
+      oauth_app_kind: "microsoft_oauth_app",
+      presets: [{ key: "new_files", label: "New files", description: "…", target_required: false }],
+    };
+    render(<PortalTriggerDialog portal={files} connectionId={null} open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /New files/ }));
+    // Where, not a filter: the generic "blank fires on everything" would mislead.
+    expect(within(dialog).getByText(/Leave blank for your own OneDrive/)).toBeInTheDocument();
+    await user.type(
+      within(dialog).getByLabelText("SharePoint site"),
+      "https://contoso.sharepoint.com/sites/Finance",
+    );
+    await user.type(within(dialog).getByLabelText("Folder"), "Invoices");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "File it");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const [, payload] = vi.mocked(apiClient.post).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(payload).toMatchObject({
+      portal_key: "microsoft_files",
+      event_config: {
+        site_url: "https://contoso.sharepoint.com/sites/Finance",
+        folder_path: "Invoices",
+      },
     });
   });
 

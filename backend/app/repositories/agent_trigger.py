@@ -211,6 +211,7 @@ async def create(
     runs_as_creator: bool = False,
     overlap: str = TriggerOverlap.SKIP.value,
     teams_conversation_id: UUID | None = None,
+    time_zone: str | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -234,6 +235,7 @@ async def create(
         runs_as_creator=runs_as_creator,
         overlap=overlap,
         teams_conversation_id=teams_conversation_id,
+        time_zone=time_zone,
     )
     db.add(trigger)
     await db.flush()

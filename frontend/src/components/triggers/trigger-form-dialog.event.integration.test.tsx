@@ -41,6 +41,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: null,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: "github",
     event_config: {},
@@ -180,6 +181,46 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       event_secret: "a-strong-shared-secret",
       event_config: undefined,
     });
+  });
+
+  it("creates a HubSpot trigger from the secret HubSpot issued, with nothing to generate", async () => {
+    // HubSpot signs with the app's own client secret, so a generated one would
+    // be a secret no delivery is ever signed with.
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "hubspot" }));
+    const dialog = await openEvent();
+
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
+    expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
+    expect(dialog.getByText(/Issued by the provider/)).toBeInTheDocument();
+    expect(dialog.getByLabelText("Signing secret")).toHaveAttribute(
+      "placeholder",
+      "Paste the secret the provider shows",
+    );
+    await user.type(dialog.getByLabelText("Signing secret"), "hubspot-app-client-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Qualify the deal");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({
+        event_source: "hubspot",
+        event_secret: "hubspot-app-client-secret",
+      }),
+    );
+  });
+
+  it("offers Zendesk with its own instructions", async () => {
+    const user = userEvent.setup();
+    const dialog = await openEvent();
+
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A Zendesk webhook" }));
+
+    expect(dialog.getByText(/Create a Zendesk webhook pointing at this URL/)).toBeInTheDocument();
   });
 
   it("does not offer Gmail at all, because this form is the signed-POST one", async () => {

@@ -19,6 +19,70 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Outlook mail can start an agent** (#1984). A Microsoft 365 mailbox connects
+  as a trigger the way Gmail does - an app registration stored in Vault as a
+  Microsoft OAuth app, a consent screen, nothing to paste - and is read once a
+  minute. A trigger watches a folder (the inbox, a folder a mail rule files into,
+  or a shared mailbox) and narrows by sender, subject, attachments, importance or
+  category; the run gets the message as text with its attachments listed. A
+  message read twice fires once, and Outlook variants of the email templates come
+  with it.
+- **More of GitHub can start an agent.** Beside a new issue, a GitHub trigger now
+  fires on a pull request opened, ready or awaiting review, a comment that
+  mentions a phrase such as `@agent`, a failed workflow run, a published release
+  or a push, each a preset on both GitHub portals and narrowed by branch where it
+  applies. Issues, pull requests and comments fire only for the repository's own
+  members by default (`authors: anyone` lets everybody through), and never for a
+  bot or the account the trigger was connected with.
+- **HubSpot and Zendesk webhooks fire agents.** Two new signed sources, each
+  verified by its provider's own scheme against the secret the provider issues:
+  HubSpot's v3 signature (and its v1 one for CRM subscriptions), narrowed by
+  event type and property, and Zendesk's, narrowed by event type.
+- **Files and calendars start agents.** Four new portals, each its own consent
+  on the organization's existing Google or Microsoft app: Google Drive and
+  OneDrive & SharePoint fire on new or changed files (a file being edited at most
+  once in half an hour, the account's own edits never), and Google Calendar and
+  Outlook Calendar fire a set time before a meeting with somebody else on it -
+  15 minutes by default, 5 to 120, optionally only with outsiders - so an agent
+  can prepare a brief.
+- **A schedule has a time zone.** A schedule set to a time of day is read in an
+  IANA zone and keeps its hour through daylight saving; a new one takes the
+  maker's account zone. The form picks it beside the time, the cadence line and
+  the dashboard's next fire name it, and the assistant's routine tools take it.
+  A schedule saved before is still read in UTC.
+- **A generic webhook may sign the time.** With `X-Signature-Timestamp` the
+  signature covers `{timestamp}.{body}` and a delivery more than five minutes
+  off is refused, so a captured one cannot be replayed.
+
+### Fixed
+
+- **A Gmail trigger no longer fires on the account's own mail.** Sent mail,
+  drafts, spam and the bin were read as arrivals, so an agent replying by email
+  set its own trigger off. They fire only a trigger whose label names them.
+- **A sender filter fires only on mail the sender signed.** `sender_contains`
+  read a `From` anybody can type. Gmail and Outlook triggers that filter on the
+  sender now fire only when DMARC passed or the sender's domain signed it with
+  DKIM, read from the provider's own `Authentication-Results`; Outlook counts
+  mail inside the tenant as signed. `authenticated_only` turns it on or off per
+  trigger.
+- **What an event carries is fenced off from the prompt.** An issue, an email or
+  a webhook body reaches the run inside a block marked as data, not appended to
+  the instructions where a sentence in it could read as an order.
+- **One trigger fires at most 60 times a minute.** A verified delivery past that
+  is a `429` with `Retry-After`, so a leaked secret or a relay in a loop cannot
+  spend the budget.
+
+- **A mailbox whose consent was withdrawn stops its triggers** (#1984). Gmail
+  and Outlook triggers were left on and retried every minute in silence; they
+  are now turned off with the reason in the audit log, and the card asks for a
+  reconnect. A refresh token the provider refuses as `invalid_grant` - or, from
+  Microsoft, `interaction_required` or `consent_required`, which a new MFA or
+  Conditional Access policy brings - is no longer spent again.
+- **Editing a mail trigger's subject or sender keeps the rest of its filter.**
+  Saving the two fields replaced the whole filter, dropping a Gmail label.
+
 ## [1.16.0] - 2026-10-23
 
 ### Added

@@ -19,12 +19,15 @@ nobody looked at it for eight days.
 """
 
 import logging
+from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 import httpx
 
-from app.services.portals.base import PolledEvent, PolledEvents, PortalAdapter
+from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.mail_auth import authenticated
 
 logger = logging.getLogger(__name__)
 
@@ -106,22 +109,41 @@ def _body_text(part: dict[str, Any], depth: int = 0) -> str:
 class GooglePortalAdapter(PortalAdapter):
     portal_key = "google"
 
-    async def poll(self, *, access_token: str, cursor: dict[str, Any] | None) -> PolledEvents:
+    async def poll(
+        self,
+        *,
+        access_token: str,
+        cursor: dict[str, Any] | None,
+        places: Mapping[str, datetime] = NOWHERE,
+    ) -> PolledEvents:
         """New messages since the stored `historyId`, and the id to resume from.
 
         With no cursor this establishes the position and returns nothing: firing an
         agent once per message already sitting in a mailbox, the moment somebody
-        connects it, is not what connecting means.
+        connects it, is not what connecting means. `places` is ignored: the history
+        covers the whole mailbox, and a trigger narrows by label instead.
+
+        The cursor also names the account it was read from, the address Gmail's
+        profile gives, so a consent that switches account can tell this position
+        is not the new account's.
         """
         async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
             latest = cursor.get("history_id") if cursor else None
             if not isinstance(latest, str) or not latest:
+                profile = await self._get(client, access_token, "/users/me/profile", params=None)
                 return PolledEvents(
-                    events=(), cursor={"history_id": await self._now(client, access_token)}
+                    events=(),
+                    cursor=_with_account(
+                        {"history_id": str(profile.get("historyId") or "")},
+                        profile.get("emailAddress"),
+                    ),
                 )
+            account = cursor.get("account") if cursor else None
             added, resume = await self._added_since(client, access_token, latest)
             if not added:
-                return PolledEvents(events=(), cursor={"history_id": resume})
+                return PolledEvents(
+                    events=(), cursor=_with_account({"history_id": resume}, account)
+                )
             events = [
                 event
                 for message_id in added[-_MAX_MESSAGES_PER_POLL:]
@@ -132,7 +154,9 @@ class GooglePortalAdapter(PortalAdapter):
                     "gmail_poll_truncated",
                     extra={"found": len(added), "read": _MAX_MESSAGES_PER_POLL},
                 )
-            return PolledEvents(events=tuple(events), cursor={"history_id": resume})
+            return PolledEvents(
+                events=tuple(events), cursor=_with_account({"history_id": resume}, account)
+            )
 
     async def _now(self, client: httpx.AsyncClient, access_token: str) -> str:
         """The mailbox's current `historyId` - where a first poll starts from."""
@@ -205,13 +229,22 @@ class GooglePortalAdapter(PortalAdapter):
                 return None
             raise
         text = _body_text(body.get("payload") or {})
+        sender = _header(body, "From")
+        headers = [
+            (str(entry.get("name") or ""), str(entry.get("value") or ""))
+            for entry in _nested(body, "payload").get("headers") or []
+            if isinstance(entry, dict)
+        ]
         return PolledEvent(
             # Gmail's own id for the message: stable across polls, so the
             # idempotency claim recognises a message a retried tick reads twice.
             delivery_id=f"gmail:{message_id}",
             payload={
                 "subject": _header(body, "Subject"),
-                "from": _header(body, "From"),
+                "from": sender,
+                # Whether the sender's domain vouched for the `From`, so a filter
+                # on the sender cannot be satisfied by an address anybody can type.
+                "authenticated": authenticated(headers, sender),
                 "to": _header(body, "To"),
                 "labels": [str(one) for one in body.get("labelIds") or []],
                 "text": text[:_MAX_BODY_CHARS],
@@ -259,3 +292,12 @@ class GooglePortalAdapter(PortalAdapter):
                 details={"portal_key": self.portal_key},
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
+
+
+def _with_account(cursor: dict[str, Any], account: Any) -> dict[str, Any]:
+    """`cursor`, naming the account it was read from when that is known."""
+    return (
+        {**cursor, "account": account.casefold()}
+        if isinstance(account, str) and account
+        else cursor
+    )

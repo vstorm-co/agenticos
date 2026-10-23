@@ -1,5 +1,5 @@
 ---
-source_sha: "2048c082178a"
+source_sha: "c0fac70b37b3"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -100,6 +100,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
+| `microsoft_oauth_app` | Los mismos tres campos, para un registro de aplicación con el que inician sesión las personas |
 | `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
@@ -132,6 +133,14 @@ un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio 
 lee la fuente — consulta [Configurar SharePoint y
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
 son los cuatro últimos caracteres del client id, que es público, y no del secreto.
+
+`microsoft_oauth_app` tiene los mismos campos y se gasta de otra manera: el flujo
+de conexión del trigger de Outlook inicia sesión de una persona a través de él, con
+el `Mail.Read` delegado de quien consiente - su propio buzón y los compartidos que
+ya puede abrir -, mientras que un `entra_app` actúa con los permisos de aplicación
+concedidos para todo el inquilino. Como `github_oauth_app`, debe ser visible para
+la organización y debe haber exactamente uno. Consulta
+[Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `openai_codex` es el único kind que nadie teclea. Se guarda [iniciando sesión con
 ChatGPT](models.md#running-on-a-chatgpt-subscription), y cambia mientras se usa:

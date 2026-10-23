@@ -62,6 +62,12 @@ from app.db.base import Base, TimestampMixin
 # worst case a fat-fingered value reaches.
 MIN_INTERVAL_SECONDS = 60
 
+# The event sources read from a connected account rather than posted to: no
+# inbound door, so no per-trigger secret (`ck_trigger_shape`).
+_POLLED = (
+    "'gmail', 'google_calendar', 'google_drive', 'microsoft_files', 'outlook', 'outlook_calendar'"
+)
+
 
 class TriggerType(enum.StrEnum):
     """The two ways a trigger becomes due.
@@ -81,10 +87,9 @@ class ScheduleKind(enum.StrEnum):
     """How a *schedule* trigger decides it is due.
 
     `INTERVAL` is "every N seconds since the last fire". `CRON` is a crontab
-    expression evaluated in UTC - "daily at 09:00" is `0 9 * * *` - which the
-    service computes the next fire for with croniter. UTC keeps a schedule
-    surviving a restart without a stored timezone to reason about; a caller who
-    means a local hour converts it when building the expression.
+    expression evaluated in the trigger's `time_zone` - "daily at 09:00" is
+    `0 9 * * *` at nine where the person is - which the service computes the next
+    fire for with croniter. A trigger with no zone is read in UTC.
 
     Only meaningful when `trigger_type = schedule`; an event trigger leaves it at
     its default and the shape CHECK ignores it.
@@ -132,11 +137,32 @@ class EventSource(enum.StrEnum):
     promise nothing here could keep: `app/services/email/` is send-only. `GMAIL`
     is delivered by *polling* a connected mailbox, so it has no inbound door and
     no per-trigger secret at all (#1068).
+
+    `OUTLOOK` is the same delivery for a Microsoft 365 mailbox: polled through
+    the organization's Microsoft grant, one folder at a time (#1984).
+
+    `HUBSPOT` and `ZENDESK` are signed webhooks like `GITHUB`, each verified by
+    its provider's own scheme against a secret the provider issues - HubSpot's
+    app client secret, Zendesk's per-webhook signing secret - pasted into the
+    trigger rather than minted by it.
+
+    The four file and calendar sources are polled like the mailboxes, each
+    through its own portal and grant so a consent asks only for what that one
+    reads: `GOOGLE_DRIVE` and `MICROSOFT_FILES` (OneDrive and SharePoint) fire
+    on new or changed files, `GOOGLE_CALENDAR` and `OUTLOOK_CALENDAR` a set time
+    before a meeting.
     """
 
     GITHUB = "github"
     GMAIL = "gmail"
+    GOOGLE_CALENDAR = "google_calendar"
+    GOOGLE_DRIVE = "google_drive"
+    HUBSPOT = "hubspot"
+    MICROSOFT_FILES = "microsoft_files"
+    OUTLOOK = "outlook"
+    OUTLOOK_CALENDAR = "outlook_calendar"
     WEBHOOK = "webhook"
+    ZENDESK = "zendesk"
 
 
 class AgentTrigger(Base, TimestampMixin):
@@ -210,6 +236,10 @@ class AgentTrigger(Base, TimestampMixin):
     )
     interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cron_expression: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The IANA zone a cron expression is read in - `0 9 * * *` at nine o'clock
+    # where the person is, through daylight saving. Null is UTC, which is what
+    # every schedule made before zones meant; an interval ignores it.
+    time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     overlap: Mapped[str] = mapped_column(
         String(8), nullable=False, default=TriggerOverlap.SKIP.value, server_default="skip"
     )
@@ -321,7 +351,9 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint("overlap IN ('skip', 'queue', 'allow')", name="ck_trigger_overlap"),
         CheckConstraint(
-            "event_source IS NULL OR event_source IN ('github', 'gmail', 'webhook')",
+            "event_source IS NULL OR event_source IN "
+            "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "
+            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can
@@ -332,12 +364,12 @@ class AgentTrigger(Base, TimestampMixin):
         # and how is it authenticated" always has one answer.
         #
         # The secret is conditional because a polled source has nothing to
-        # authenticate: `gmail` is read from a connected mailbox, so a secret on
-        # such a row is a credential nobody can spend and a URL nobody should be
-        # given. Stated here rather than trusted to the service, because it was
-        # the service that got it wrong - every event trigger minted a secret and
-        # was born `manual`, so creating a Gmail trigger handed out a webhook URL
-        # for a door that refuses it (#1068).
+        # authenticate: `gmail`, `outlook` and the file and calendar sources are read
+        # from a connected account, so a secret on such a row is a credential nobody
+        # can spend and a URL nobody should be given. Stated here rather than trusted to the service, because
+        # it was the service that got it wrong - every event trigger minted a
+        # secret and was born `manual`, so creating a Gmail trigger handed out a
+        # webhook URL for a door that refuses it (#1068).
         CheckConstraint(
             "(trigger_type = 'schedule' AND next_fire_at IS NOT NULL "
             "AND event_source IS NULL "
@@ -346,9 +378,9 @@ class AgentTrigger(Base, TimestampMixin):
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
             "OR (trigger_type = 'event' AND event_source IS NOT NULL "
-            "AND ((event_source IN ('gmail') AND event_secret_encrypted IS NULL "
+            f"AND ((event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
             "AND secret_key_version IS NULL) "
-            "OR (event_source NOT IN ('gmail') AND event_secret_encrypted IS NOT NULL "
+            f"OR (event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
             "AND secret_key_version IS NOT NULL)) "
             "AND next_fire_at IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL)",

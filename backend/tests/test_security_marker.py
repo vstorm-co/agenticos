@@ -42,6 +42,9 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
     "tests/test_generated_media.py::TestTheRetentionSweep::test_no_batch_starts_once_the_time_budget_is_spent": "the sweep's time budget, not a spending budget, no refusal",
+    "tests/test_mcp_connections.py::TestStartingOutlooksConsent::test_the_consent_url_is_the_tenants_and_asks_for_mail_only": "'tenant' is the Azure tenant whose endpoints Outlook's consent uses, not tenancy",
+    "tests/test_mcp_connections.py::TestStartingOutlooksConsent::test_the_staged_grant_carries_the_tenants_token_endpoint": "'tenant' is the Azure tenant whose token endpoint is staged, not tenancy",
+    "tests/test_microsoft_oauth.py::test_the_endpoints_are_the_tenants": "'tenant' is the Azure tenant in Microsoft's endpoint URLs, not tenancy",
     "tests/test_teams_channel.py::TestRegisteringABot::test_a_teams_bot_carries_its_app_and_tenant_and_is_a_webhook_bot": (
         "'tenant' is the Azure tenant id a Teams bot is registered with, not tenancy"
     ),

@@ -2,7 +2,7 @@
   {
     "key": "github",
     "name": "GitHub",
-    "description": "Run an agent when something happens in a repository - a new issue, a closed one.",
+    "description": "Run an agent when something happens in a repository - an issue, a pull request, a comment that mentions it, a failed workflow, a release or a push.",
     "category": "development",
     "event_source": "github",
     "delivery": "auto_webhook",
@@ -48,6 +48,72 @@
           ]
         },
         "target_required": true
+      },
+      {
+        "key": "pr_ready",
+        "label": "Pull request ready for review",
+        "description": "Fires when a pull request is opened (not as a draft), marked ready for review, or a review is requested.",
+        "event_config": {
+          "event": "pull_request",
+          "actions": [
+            "opened",
+            "ready_for_review",
+            "review_requested"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "comment_mention",
+        "label": "Comment mentioning the agent",
+        "description": "Fires when a comment on an issue or pull request contains the phrase you set, such as @agent.",
+        "event_config": {
+          "event": "issue_comment",
+          "actions": [
+            "created"
+          ],
+          "mention": "@agent"
+        },
+        "target_required": true
+      },
+      {
+        "key": "ci_failed",
+        "label": "Workflow run failed",
+        "description": "Fires when a GitHub Actions workflow run finishes with a failure.",
+        "event_config": {
+          "event": "workflow_run",
+          "actions": [
+            "completed"
+          ],
+          "conclusions": [
+            "failure"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "release_published",
+        "label": "Release published",
+        "description": "Fires when a release is published.",
+        "event_config": {
+          "event": "release",
+          "actions": [
+            "published"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "push",
+        "label": "Push to a branch",
+        "description": "Fires when commits are pushed to the branches you set - main by default.",
+        "event_config": {
+          "event": "push",
+          "branches": [
+            "main"
+          ]
+        },
+        "target_required": true
       }
     ],
     "oauth_app_kind": "github_oauth_app"
@@ -55,7 +121,7 @@
   {
     "key": "github_app",
     "name": "GitHub (App)",
-    "description": "The same repository events, through a GitHub App installed on the repositories you choose - scoped permissions, an hour-long token, and no per-repository hook.",
+    "description": "Run an agent when something happens in a repository - an issue, a pull request, a comment that mentions it, a failed workflow, a release or a push.",
     "category": "development",
     "event_source": "github",
     "delivery": "app_webhook",
@@ -94,6 +160,72 @@
         "event_config": {
           "actions": [
             "reopened"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "pr_ready",
+        "label": "Pull request ready for review",
+        "description": "Fires when a pull request is opened (not as a draft), marked ready for review, or a review is requested.",
+        "event_config": {
+          "event": "pull_request",
+          "actions": [
+            "opened",
+            "ready_for_review",
+            "review_requested"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "comment_mention",
+        "label": "Comment mentioning the agent",
+        "description": "Fires when a comment on an issue or pull request contains the phrase you set, such as @agent.",
+        "event_config": {
+          "event": "issue_comment",
+          "actions": [
+            "created"
+          ],
+          "mention": "@agent"
+        },
+        "target_required": true
+      },
+      {
+        "key": "ci_failed",
+        "label": "Workflow run failed",
+        "description": "Fires when a GitHub Actions workflow run finishes with a failure.",
+        "event_config": {
+          "event": "workflow_run",
+          "actions": [
+            "completed"
+          ],
+          "conclusions": [
+            "failure"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "release_published",
+        "label": "Release published",
+        "description": "Fires when a release is published.",
+        "event_config": {
+          "event": "release",
+          "actions": [
+            "published"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "push",
+        "label": "Push to a branch",
+        "description": "Fires when commits are pushed to the branches you set - main by default.",
+        "event_config": {
+          "event": "push",
+          "branches": [
+            "main"
           ]
         },
         "target_required": true
@@ -140,5 +272,194 @@
       }
     ],
     "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "microsoft",
+    "name": "Outlook",
+    "description": "Run an agent when a message arrives in a Microsoft 365 mailbox - your inbox, a folder your rules file into, or a shared mailbox.",
+    "category": "productivity",
+    "event_source": "outlook",
+    "delivery": "polling",
+    "icon": "microsoft",
+    "read_scopes": [
+      "https://graph.microsoft.com/Mail.Read",
+      "https://graph.microsoft.com/Mail.Read.Shared",
+      "offline_access"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "any_message",
+        "label": "Any new message",
+        "description": "Fires on every message that lands in the inbox. Narrow it with a sender or a subject below.",
+        "event_config": {}
+      },
+      {
+        "key": "with_attachments",
+        "label": "With attachments",
+        "description": "Fires only on a message that carries a file - an invoice, a contract, a report to read.",
+        "event_config": {
+          "has_attachments": true
+        }
+      },
+      {
+        "key": "high_importance",
+        "label": "High importance",
+        "description": "Fires only on what the sender marked high importance - the narrowest of the three.",
+        "event_config": {
+          "importance": "high"
+        }
+      }
+    ],
+    "oauth_app_kind": "microsoft_oauth_app"
+  },
+  {
+    "key": "google_drive",
+    "name": "Google Drive",
+    "description": "Run an agent when a file is added to or changed in Google Drive - anywhere, or in one folder.",
+    "category": "productivity",
+    "event_source": "google_drive",
+    "delivery": "polling",
+    "icon": "gdrive",
+    "read_scopes": [
+      "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "new_files",
+        "label": "New files",
+        "description": "Fires when a file is added - an upload, a scan, a document somebody shared. Narrow it to a folder or a name below.",
+        "event_config": {
+          "change": "created"
+        }
+      },
+      {
+        "key": "any_change",
+        "label": "New or changed files",
+        "description": "Fires on a new file and on an edit to one; a file kept being edited fires at most once in half an hour.",
+        "event_config": {}
+      }
+    ],
+    "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "microsoft_files",
+    "name": "OneDrive & SharePoint",
+    "description": "Run an agent when a file is added to or changed in your OneDrive or a SharePoint site's library.",
+    "category": "productivity",
+    "event_source": "microsoft_files",
+    "delivery": "polling",
+    "icon": "sharepoint",
+    "read_scopes": [
+      "https://graph.microsoft.com/Files.Read.All",
+      "https://graph.microsoft.com/Sites.Read.All",
+      "offline_access"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "new_files",
+        "label": "New files",
+        "description": "Fires when a file is added - an upload, a scan, a document somebody shared. Narrow it to a folder or a name below.",
+        "event_config": {
+          "change": "created"
+        }
+      },
+      {
+        "key": "any_change",
+        "label": "New or changed files",
+        "description": "Fires on a new file and on an edit to one; a file kept being edited fires at most once in half an hour.",
+        "event_config": {}
+      }
+    ],
+    "oauth_app_kind": "microsoft_oauth_app"
+  },
+  {
+    "key": "google_calendar",
+    "name": "Google Calendar",
+    "description": "Run an agent a set time before a meeting - to prepare a brief on who is coming and what was said last time.",
+    "category": "productivity",
+    "event_source": "google_calendar",
+    "delivery": "polling",
+    "icon": "googlecalendar",
+    "read_scopes": [
+      "https://www.googleapis.com/auth/calendar.events.readonly"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "before_meetings",
+        "label": "Before each meeting",
+        "description": "Fires 15 minutes before a meeting with somebody else on it - time for an agent to prepare a brief.",
+        "event_config": {}
+      },
+      {
+        "key": "before_external",
+        "label": "Before meetings with outsiders",
+        "description": "Fires 15 minutes before a meeting with somebody from outside your organization - a client, a candidate, a partner.",
+        "event_config": {
+          "external_only": true
+        }
+      },
+      {
+        "key": "hour_before",
+        "label": "An hour before",
+        "description": "Fires an hour ahead, for a brief that needs research rather than a glance.",
+        "event_config": {
+          "minutes_before": 60
+        }
+      }
+    ],
+    "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "outlook_calendar",
+    "name": "Outlook Calendar",
+    "description": "Run an agent a set time before a meeting in your Microsoft 365 calendar - to prepare a brief on who is coming and why.",
+    "category": "productivity",
+    "event_source": "outlook_calendar",
+    "delivery": "polling",
+    "icon": "microsoft",
+    "read_scopes": [
+      "https://graph.microsoft.com/Calendars.Read",
+      "offline_access"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [
+      {
+        "key": "before_meetings",
+        "label": "Before each meeting",
+        "description": "Fires 15 minutes before a meeting with somebody else on it - time for an agent to prepare a brief.",
+        "event_config": {}
+      },
+      {
+        "key": "before_external",
+        "label": "Before meetings with outsiders",
+        "description": "Fires 15 minutes before a meeting with somebody from outside your organization - a client, a candidate, a partner.",
+        "event_config": {
+          "external_only": true
+        }
+      },
+      {
+        "key": "hour_before",
+        "label": "An hour before",
+        "description": "Fires an hour ahead, for a brief that needs research rather than a glance.",
+        "event_config": {
+          "minutes_before": 60
+        }
+      }
+    ],
+    "oauth_app_kind": "microsoft_oauth_app"
   }
 ]

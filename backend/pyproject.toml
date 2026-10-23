@@ -88,7 +88,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.57.0",
+    "pydantic-ai-harness>=0.59.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -784,7 +784,15 @@ include = [
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/_api.py",
+    "app/services/portals/_calendar.py",
+    "app/services/portals/_files.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/google_calendar.py",
+    "app/services/portals/google_drive.py",
+    "app/services/portals/mail_auth.py",
+    "app/services/portals/microsoft_files.py",
+    "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
@@ -1309,7 +1317,15 @@ include = [
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/_api.py",
+    "app/services/portals/_calendar.py",
+    "app/services/portals/_files.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/google_calendar.py",
+    "app/services/portals/google_drive.py",
+    "app/services/portals/mail_auth.py",
+    "app/services/portals/microsoft_files.py",
+    "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is

@@ -88,7 +88,12 @@ def _body(*, repo: str = "acme/widgets", action: str = "opened") -> bytes:
             "installation": {"id": int(INSTALLATION)},
             "repository": {"full_name": repo},
             "action": action,
-            "issue": {"number": 7, "title": "It broke", "body": "here is how"},
+            "issue": {
+                "number": 7,
+                "title": "It broke",
+                "body": "here is how",
+                "author_association": "MEMBER",
+            },
         }
     ).encode()
 
@@ -180,6 +185,27 @@ def _wired(*, grants=(), triggers=(), secret=None, claims=True):
         )
     )
     return stack
+
+
+class TestATriggerPastItsAllowance:
+    async def test_it_is_left_out_while_the_others_fire(self) -> None:
+        """One App delivery can fire several triggers; the one that has fired too
+        often this minute is skipped, not the delivery for everybody."""
+        from app.services.rate_limit import Decision
+
+        body = _body()
+        busy, calm = _trigger(), _trigger()
+
+        async def allowance(trigger_id: uuid.UUID) -> Decision:
+            return Decision(allowed=trigger_id != busy.id, retry_after_seconds=30)
+
+        with (
+            _wired(grants=[_grant()], triggers=[busy, calm]),
+            patch(f"{SERVICE}.rate_limit.trigger_delivery_allowed", new=allowance),
+        ):
+            decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
+
+        assert [decision.trigger_id for decision in decisions] == [calm.id]
 
 
 class TestWhoseDeliveryItIs:

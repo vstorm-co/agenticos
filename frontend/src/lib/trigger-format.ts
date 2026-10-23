@@ -15,6 +15,17 @@ export type IntervalUnit = "minutes" | "hours" | "days";
  */
 export type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
 
+/**
+ * The zone a new schedule is read in: the account's, else this browser's.
+ *
+ * The server falls back to the account's zone too, but the form shows the zone
+ * before anything is saved, and an account with none yet is still somewhere -
+ * `AccountTimeZone` records this same browser zone on it at the next load.
+ */
+export function defaultTimeZone(accountZone: string | null | undefined): string {
+  return accountZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 /** The weekdays, in cron's numbering (0 = Sunday), Monday-first for display. */
 export const WEEKDAYS: readonly { value: number; key: string }[] = [
   { value: 1, key: "weekdayMon" },
@@ -115,8 +126,8 @@ export type TriggerSummary =
   | { kind: "cronDaily"; time: string }
   | { kind: "cronWeekly"; time: string; weekdays: number[] }
   | { kind: "cronMonthly"; time: string; day: number }
-  | { kind: "preset"; portalKey: string; target: string }
-  | { kind: "event"; source: EventSource };
+  | { kind: "preset"; portalKey: string; target: string; githubEvent: string }
+  | { kind: "event"; source: EventSource; githubEvent: string };
 
 /**
  * The largest whole unit an interval divides into, so 3600s reads "every hour"
@@ -141,10 +152,16 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
  * or none. Shared by both trigger builders - the raw source-and-secret form and
  * the friendly portal dialog - so a source is described in one place: GitHub
  * fires on its default action and the API source on any signed delivery, so
- * neither offers a filter; Gmail narrows by subject and sender.
+ * neither offers a filter; a mailbox - Gmail or Outlook - narrows by subject and
+ * sender.
  */
 export const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
   gmail: ["subject_contains", "sender_contains"],
+  outlook: ["subject_contains", "sender_contains"],
+  google_drive: ["folder_id", "name_contains"],
+  microsoft_files: ["site_url", "folder_path"],
+  google_calendar: ["subject_contains", "attendee_contains"],
+  outlook_calendar: ["subject_contains", "attendee_contains"],
 };
 
 /**
@@ -175,7 +192,14 @@ export type FiringShape = Pick<
   Trigger,
   "trigger_type" | "schedule_kind" | "cron_expression" | "interval_seconds"
 > &
-  Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source">>;
+  Partial<Pick<Trigger, "time_zone">> &
+  Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source" | "event_config">>;
+
+/** The GitHub webhook a trigger fires on - `issues` when its filter names none. */
+function githubEvent(trigger: FiringShape): string {
+  const event = trigger.event_config?.event;
+  return typeof event === "string" ? event : "issues";
+}
 
 /** What makes this trigger fire, reduced for display. */
 export function triggerSummary(trigger: FiringShape): TriggerSummary {
@@ -186,9 +210,18 @@ export function triggerSummary(trigger: FiringShape): TriggerSummary {
     // chosen - falls back to the generic per-source label rather than half a
     // sentence.
     if (trigger.portal_key && trigger.provider_target) {
-      return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
+      return {
+        kind: "preset",
+        portalKey: trigger.portal_key,
+        target: trigger.provider_target,
+        githubEvent: githubEvent(trigger),
+      };
     }
-    return { kind: "event", source: trigger.event_source ?? "github" };
+    return {
+      kind: "event",
+      source: trigger.event_source ?? "github",
+      githubEvent: githubEvent(trigger),
+    };
   }
   if (trigger.schedule_kind === "cron") {
     const expression = trigger.cron_expression ?? "";
@@ -211,12 +244,15 @@ export function triggerSummary(trigger: FiringShape): TriggerSummary {
 }
 
 /** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
-function presetEventKey(portalKey: string): string {
+function presetEventKey(portalKey: string, event: string): string {
   switch (portalKey) {
     case "github":
-      return "event.presetGithub";
+    case "github_app":
+      return githubPresetKey(event);
     case "google":
       return "event.presetGmail";
+    case "microsoft":
+      return "event.presetOutlook";
     default:
       return "event.presetGeneric";
   }
@@ -224,7 +260,7 @@ function presetEventKey(portalKey: string): string {
 
 /**
  * What makes a trigger fire, in one line - "Every 15 minutes", "Daily at 09:00
- * UTC", "On new GitHub issues".
+ * (Europe/Warsaw)", "On new GitHub issues".
  *
  * A function over the reduced summary rather than markup, because two surfaces
  * need the same sentence in different shapes: `TriggerSummary` renders it, and a
@@ -237,46 +273,99 @@ function presetEventKey(portalKey: string): string {
  * translator of its own, and answering with a key would not work for the
  * branches that interpolate.
  */
+/** A GitHub preset's phrase, one fixed key per webhook so the catalog check sees each. */
+function githubPresetKey(event: string): string {
+  switch (event) {
+    case "pull_request":
+      return "event.presetGithubPullRequest";
+    case "issue_comment":
+      return "event.presetGithubComment";
+    case "workflow_run":
+      return "event.presetGithubWorkflow";
+    case "release":
+      return "event.presetGithubRelease";
+    case "push":
+      return "event.presetGithubPush";
+    default:
+      return "event.presetGithub";
+  }
+}
+
+/** A bare GitHub trigger's line, one fixed key per webhook. */
+function githubEventKey(event: string): string {
+  switch (event) {
+    case "pull_request":
+      return "event.githubPullRequest";
+    case "issue_comment":
+      return "event.githubComment";
+    case "workflow_run":
+      return "event.githubWorkflow";
+    case "release":
+      return "event.githubRelease";
+    case "push":
+      return "event.githubPush";
+    default:
+      return "event.github";
+  }
+}
+
 export function cadenceText(trigger: FiringShape, t: Translate): string {
   const summary = triggerSummary(trigger);
+  // A row with no zone is read in UTC, which is what the server does with it.
+  const zone = trigger.time_zone ?? "UTC";
   switch (summary.kind) {
     case "interval":
       if (summary.unit === "days") return t("cadence.everyDays", { count: summary.count });
       if (summary.unit === "hours") return t("cadence.everyHours", { count: summary.count });
       return t("cadence.everyMinutes", { count: summary.count });
     case "cron":
-      return t("cadence.cron", { expression: summary.expression });
+      return t("cadence.cron", { expression: summary.expression, zone });
     case "cronDaily":
-      return t("cadence.cronDaily", { time: summary.time });
+      return t("cadence.cronDaily", { time: summary.time, zone });
     case "cronWeekly":
       // Monday to Friday is said as such rather than as five day names.
       if ([...summary.weekdays].sort().join(",") === "1,2,3,4,5") {
-        return t("cadence.cronWeekdays", { time: summary.time });
+        return t("cadence.cronWeekdays", { time: summary.time, zone });
       }
       // Monday-first, the order the picker shows, not cron's Sunday-zero order.
       return t("cadence.cronWeekly", {
         time: summary.time,
+        zone,
         days: WEEKDAYS.filter((day) => summary.weekdays.includes(day.value))
           .map((day) => t(day.key))
           .join(", "),
       });
     case "cronMonthly":
-      return t("cadence.cronMonthly", { day: summary.day, time: summary.time });
+      return t("cadence.cronMonthly", { day: summary.day, time: summary.time, zone });
     case "preset":
       // One static ICU key, "{event} in {target}", with the event phrase chosen
       // per portal by a fixed key so the catalog check can see it.
       return t("event.presetSummary", {
-        event: t(presetEventKey(summary.portalKey)),
+        event: t(presetEventKey(summary.portalKey, summary.githubEvent)),
         target: summary.target,
       });
     case "event":
       switch (summary.source) {
         case "github":
-          return t("event.github");
+          return t(githubEventKey(summary.githubEvent));
         case "gmail":
           return t("event.gmail");
+        case "outlook":
+          return t("event.outlook");
         case "webhook":
           return t("event.webhook");
+        case "hubspot":
+          return t("event.hubspot");
+        case "zendesk":
+          return t("event.zendesk");
+        case "google_drive":
+          return t("event.google_drive");
+        case "microsoft_files":
+          return t("event.microsoft_files");
+        case "google_calendar":
+          return t("event.google_calendar");
+        case "outlook_calendar":
+          return t("event.outlook_calendar");
       }
   }
 }
