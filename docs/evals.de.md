@@ -1,5 +1,5 @@
 ---
-source_sha: "4b81c9932efa"
+source_sha: "34a358928d88"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -26,8 +26,11 @@ Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
 Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mit
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle kaputt gemacht hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Draft; der
-Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run. Das
-Diagramm öffnet mit den letzten 12 Runs; zieh die Griffe des Bereichs darunter
+Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
+
+Die Achse benennt jeden Punkt danach, was lief und wann - mit der Uhrzeit für
+einen Run von heute, mit dem Datum für frühere. Ab mehr als 12 Runs erscheint
+unter dem Diagramm ein Bereich, der mit den letzten 12 öffnet; zieh seine Griffe
 oder verschieb sie mit den Pfeiltasten, um mehr oder weniger zu sehen.
 
 Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
@@ -415,10 +418,11 @@ verglichen.
 Eine **Suite** ist ein Eval-Run, an dessen Start niemand denken muss. Sie nennt
 den Agent, das Dataset, die Umgebung, deren Version sie prüft, und eine
 Schwelle, die jedes Ergebnis erfüllen muss, und läuft dann selbstständig. Die
-Karte **Suites** steht oben im Evals-Tab eines Agents: das Dataset jeder Suite,
-wann sie läuft und wie sie zuletzt abschnitt. Geöffnet listet eine Suite jedes
-Ergebnis, warum es nicht bestand, die gebrochenen Fälle und einen Link zum
-Eval-Run dahinter; die Seite dieses Runs nennt die Suite, die ihn gestartet hat.
+Karte **Suites** steht im Evals-Tab eines Agents unter den Runs: das Dataset
+jeder Suite, wann sie läuft, ihre Schwelle und wie sie zuletzt abschnitt.
+Geöffnet listet eine Suite jedes Ergebnis, warum es nicht bestand, die
+gebrochenen Fälle und einen Link zum Eval-Run dahinter; die Seite dieses Runs
+nennt die Suite, die ihn gestartet hat.
 
 ### Wann eine Suite läuft { #when-a-suite-runs }
 
