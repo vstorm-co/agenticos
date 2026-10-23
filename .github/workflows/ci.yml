@@ -76,7 +76,9 @@ permissions:
 # since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
 # the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
 # `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
-# every step green. It has 45. `test-frontend` grew the same way: with a
+# every step green. A milestone branch then ran it in 35 to 37 minutes, and a
+# loaded runner cancelled one at 49 with 45 to spend. It has 60. `test-frontend`
+# grew the same way: with a
 # thousand more tests its `next build` finished past 20 minutes on a pull request
 # in October 2026, every test file green. It has 30.
 #
@@ -235,7 +237,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs

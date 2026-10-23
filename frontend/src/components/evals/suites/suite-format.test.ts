@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import { evalSuite, suiteResult, suiteSummary } from "@/test-utils/eval-suites";
 import {
   reasonText,
+  resultReasons,
   scheduleChoice,
   scheduleCron,
   scheduleText,
   skipText,
+  thresholdText,
   whenLabels,
 } from "./suite-format";
 
@@ -69,6 +71,35 @@ describe("whenLabels", () => {
   });
 });
 
+describe("thresholdText", () => {
+  const threshold = {
+    min_pass_rate: 0.7,
+    max_confirmed_regressions: 2,
+    max_cost_per_pass_rise: null,
+    max_p95_rise: null,
+  };
+
+  it("reads the minimum pass rate in the reader's locale, then the regressions allowed", () => {
+    expect(thresholdText(threshold, t, "en")).toBe(
+      "threshold.minPassRate(70%) · threshold.regressions(2)",
+    );
+  });
+
+  it("names only the regressions when there is no minimum pass rate", () => {
+    expect(thresholdText({ ...threshold, min_pass_rate: null }, t, "en")).toBe(
+      "threshold.regressions(2)",
+    );
+  });
+
+  it("names the cost and latency rises a result may not exceed, when they are set", () => {
+    expect(
+      thresholdText({ ...threshold, max_cost_per_pass_rise: 0.2, max_p95_rise: 0.3 }, t, "en"),
+    ).toBe(
+      "threshold.minPassRate(70%) · threshold.regressions(2) · threshold.costRise(20%) · threshold.p95Rise(30%)",
+    );
+  });
+});
+
 describe("reasonText", () => {
   it("words each way a result falls short, numbers as shares", () => {
     const say = (code: Parameters<typeof reasonText>[0]["code"], value = 0.5, limit = 0.8) =>
@@ -110,5 +141,40 @@ describe("skipText", () => {
     ).toBe("The worker said why.");
     expect(skipText(suiteResult({ status: "error", reason: "odd", summary: null }), t)).toBe("odd");
     expect(skipText(suiteResult({ status: "error", reason: null, summary: null }), t)).toBeNull();
+  });
+});
+
+describe("resultReasons", () => {
+  const shortfall = {
+    code: "pass_rate_below" as const,
+    value: 0.5,
+    limit: 0.8,
+    detail: null,
+  };
+
+  it("gives a verdict the threshold's reasons", () => {
+    const failed = suiteResult({
+      status: "failed",
+      summary: suiteSummary({ reasons: [shortfall] }),
+    });
+    expect(resultReasons(failed, t, "en")).toEqual(["reason.passRateBelow(50%,80%)"]);
+  });
+
+  it("gives an inconclusive result with no threshold to fall short of its own reason", () => {
+    const cancelled = suiteResult({ status: "inconclusive", reason: "cancelled", summary: null });
+    expect(resultReasons(cancelled, t, "en")).toEqual(["skip.cancelled"]);
+    expect(
+      resultReasons(suiteResult({ status: "inconclusive", reason: null, summary: null }), t, "en"),
+    ).toEqual([]);
+  });
+
+  it("words a result that did not run, and says nothing of a pass or a failure without reasons", () => {
+    expect(resultReasons(suiteResult({ status: "skipped", reason: "budget" }), t, "en")).toEqual([
+      "skip.budget",
+    ]);
+    expect(resultReasons(suiteResult({ status: "passed" }), t, "en")).toEqual([]);
+    expect(
+      resultReasons(suiteResult({ status: "failed", reason: "cancelled", summary: null }), t, "en"),
+    ).toEqual([]);
   });
 });

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+
+import { formatUsd } from "@/components/dashboard/format";
 import { MessageSquare, ThumbsDown } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -272,7 +274,7 @@ export function RunTable({
       // A call is one row (#54): its reconnects' runs are summed into it.
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
-          ${Number(run.voice_chain?.cost_usd ?? run.cost_usd).toFixed(4)}
+          {formatUsd(run.voice_chain?.cost_usd ?? run.cost_usd, locale, 4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
               {" +"}
@@ -302,7 +304,7 @@ export function RunTable({
           </span>
         ) : (
           <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
-            {formatRunDuration(run.started_at, run.ended_at)}
+            {formatRunDuration(run.started_at, run.ended_at, locale)}
           </span>
         ),
     },

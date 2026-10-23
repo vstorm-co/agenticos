@@ -228,11 +228,13 @@ RUN_AGENT = Task(
     priority=Priority.INTERACTIVE,
 )
 # One attempt, for `RUN_AGENT`'s reason: the cases a dead worker answered were
-# paid for. The run is failed by `REAP_ABANDONED_EVALS` once its heartbeat stops,
-# which frees the organization's eval slots it held. A pool of its own, because a
-# run holds its slot for as long as it lasts - waiting on the organization's eval
-# slots included - and in a shared pool enough of them would leave a person's API
-# run and every trigger fire with no slot at all.
+# paid for. A job that ends for good - withdrawn, timed out, its worker dead -
+# closes its run through the kind's settler, which frees the organization's eval
+# slots it held; `REAP_ABANDONED_EVALS` is the ceiling when that settler cannot
+# run. A pool of its own, because a run holds its slot for as long as it lasts -
+# waiting on the organization's eval slots included - and in a shared pool enough
+# of them would leave a person's API run and every trigger fire with no slot at
+# all.
 RUN_EVAL = Task(
     kind="run-eval",
     payload_type=RunEval,
@@ -241,8 +243,9 @@ RUN_EVAL = Task(
     timeout=timedelta(hours=12),
     priority=Priority.BULK,
 )
-# One attempt: each improver call is billed, and a request its worker died under
-# is marked failed by the request's own staleness check when it is next read.
+# One attempt: each improver call is billed. A job that ends for good fails its
+# request through the kind's settler, and the request's own staleness check, when
+# it is next read, is the ceiling when that settler cannot run.
 RUN_AUTHORING = Task(
     kind="run-authoring",
     payload_type=RunAuthoring,

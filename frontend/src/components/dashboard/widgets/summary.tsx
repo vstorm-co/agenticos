@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, AnimatedTally, DeltaChip, Figure } from "@/components/ui";
 
@@ -30,6 +30,7 @@ import { UsageBody } from "./usage-body";
  */
 export function SummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.summary");
+  const locale = useLocale();
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -78,7 +79,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
                 value={
                   <AnimatedAmount
                     value={usage.cost?.period_usd}
-                    label={t("spendLabel", { amount: formatUsd(usage.cost?.period_usd) })}
+                    label={t("spendLabel", { amount: formatUsd(usage.cost?.period_usd, locale) })}
                   />
                 }
                 delta={
