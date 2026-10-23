@@ -30,6 +30,7 @@ pytestmark = pytest.mark.anyio
 _AGENT = uuid.uuid4()
 _BUILT = AgentTestSetBootstrap(
     dataset_id=uuid.uuid4(),
+    visibility="private",
     version=1,
     created=True,
     counts=AgentTestSetCounts(
