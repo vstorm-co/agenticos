@@ -13,7 +13,7 @@ Every existing proposal starts at revision 1. The downgrade drops the columns
 and the notifications of the new kind, then restores the old constraints.
 
 Revision ID: 0183_proposal_revision
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-23
 """
 
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0183_proposal_revision"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
