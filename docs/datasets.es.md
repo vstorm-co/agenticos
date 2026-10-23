@@ -1,5 +1,5 @@
 ---
-source_sha: "de28848bae0c"
+source_sha: "f71faf183be5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -556,7 +556,7 @@ permisos para datasets:
 |---|---|---|
 | `datasets:view` | Leer los casos y versiones de un dataset y exportarlos | `read` |
 | `datasets:edit` | Crear datasets, cambiar casos, importar, eliminar, compartir | `edit` |
-| `datasets:run` | Ejecutar evals sobre un dataset, con `runs:view` | - (ver abajo) |
+| `datasets:run` | Ejecutar evals sobre un dataset, con `runs:view` | `use` (ya no se ofrece, ver abajo) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -573,9 +573,10 @@ compartir un dataset ofrece solo ver y editar; `use` volverá con los roles
 personalizados.
 
 Un grant `use` creado antes se mantiene y no hace nada, y su fila lo indica y
-permite eliminarlo. La página de un dataset dice qué le falta a quien la lee
-para ejecutarlo - leer runs, el dataset o ambos - junto a un Run evals
-desactivado. Consulta [Eval runs](evals.md#access).
+permite eliminarlo. Quien puede ejecutar un dataset pero no leer runs ve Run
+evals desactivado en su página, con el aviso de que hace falta leer runs; a quien
+no puede ejecutarlo en absoluto no se le ofrece. Consulta
+[Eval runs](evals.md#access).
 
 Un miembro sin acceso a un dataset recibe "no encontrado" en cada ruta, sea lo
 que sea lo que su rol permita en otros sitios: si un dataset privado existe es

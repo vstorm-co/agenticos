@@ -520,7 +520,7 @@ that later. The catalog has three permissions for datasets:
 |---|---|---|
 | `datasets:view` | Read a dataset's cases and versions, and export them | `read` |
 | `datasets:edit` | Create datasets, change cases, import, delete, share | `edit` |
-| `datasets:run` | Run evals over a dataset, with `runs:view` | - (see below) |
+| `datasets:run` | Run evals over a dataset, with `runs:view` | `use` (no longer offered, see below) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -536,9 +536,9 @@ on a dataset would let nobody start an eval they could not start without it, so
 sharing offers a dataset only view and edit; it comes back with custom roles.
 
 A `use` grant made before stays and does nothing, and its row says so and can be
-removed. A dataset's page says what its reader lacks to run it - reading runs,
-the dataset, or both - beside a disabled Run evals. See
-[Eval runs](evals.md#access).
+removed. A reader who may run a dataset but not read runs sees Run evals
+disabled on its page, saying that reading runs is needed; one who may not run it
+at all is not offered it. See [Eval runs](evals.md#access).
 
 A member without access to a dataset gets "not found" for it on every route,
 whatever their role allows elsewhere - whether a private dataset exists is

@@ -1,5 +1,5 @@
 ---
-source_sha: "de28848bae0c"
+source_sha: "f71faf183be5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -583,7 +583,7 @@ Berechtigungen für Datasets:
 |---|---|---|
 | `datasets:view` | Fälle und Versionen eines Datasets lesen und exportieren | `read` |
 | `datasets:edit` | Datasets anlegen, Fälle ändern, importieren, löschen, freigeben | `edit` |
-| `datasets:run` | Evals über ein Dataset ausführen, mit `runs:view` | - (siehe unten) |
+| `datasets:run` | Evals über ein Dataset ausführen, mit `runs:view` | `use` (nicht mehr angeboten, siehe unten) |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -600,9 +600,10 @@ ihn nicht starten könnte, deshalb bietet die Freigabe für ein Dataset nur Lese
 und Bearbeiten an; `use` kommt mit benutzerdefinierten Rollen zurück.
 
 Ein früher erteilter `use`-Grant bleibt bestehen und bewirkt nichts; seine Zeile
-sagt das, und er lässt sich entfernen. Die Seite eines Datasets sagt, was ihrem
-Leser zum Ausführen fehlt - Runs lesen, das Dataset lesen oder beides - neben
-einem deaktivierten Run evals. Siehe [Eval-Runs](evals.md#access).
+sagt das, und er lässt sich entfernen. Wer ein Dataset ausführen darf, aber
+keine Runs lesen, sieht auf seiner Seite Run evals deaktiviert, mit dem Hinweis,
+dass Runs lesen nötig ist; wer es gar nicht ausführen darf, bekommt es nicht
+angeboten. Siehe [Eval-Runs](evals.md#access).
 
 Ein Mitglied ohne Zugriff auf ein Dataset erhält auf jeder Route „nicht
 gefunden“, gleich was seine Rolle anderswo erlaubt - ob ein privates Dataset
