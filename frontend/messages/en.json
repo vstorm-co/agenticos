@@ -9227,6 +9227,15 @@
       "resumedToast": "Suite resumed",
       "pausedToast": "Suite paused",
       "runningToast": "Suite started",
+      "pinMoved": "The guard now checks the dataset as it is",
+      "pin": {
+        "badge": "Pinned to v{version}",
+        "current": "Guards on dataset v{pinned}, as it is now.",
+        "behind": "Pinned to dataset v{pinned}. The dataset is now at v{latest}.",
+        "scoringChanged": "Its grading has changed since.",
+        "move": "Move the pin to v{latest}",
+        "needsOverride": "Moving the pin needs permission to override promotions."
+      },
       "removed": "Suite removed",
       "viewResults": "Results of {name}",
       "holds": "{dataset} · {environment, select, none {current published version} other {{environment}}}",

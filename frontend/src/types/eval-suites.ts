@@ -122,11 +122,21 @@ export interface EvalSuite {
   schedule: EvalSuiteSchedule | null;
   next_fire_at: string | null;
   max_run_usd: string | null;
+  /** What a guard checks; null on a suite that guards nothing and reads the latest. */
+  pin: EvalSuitePin | null;
   last_result: EvalSuiteResult | null;
   /** The result running now, or waiting to start. */
   open_result: EvalSuiteResult | null;
   created_at: string;
   updated_at: string | null;
+}
+
+/** The dataset version a guard reads, beside the one its dataset is at now. */
+export interface EvalSuitePin {
+  dataset_version: number;
+  latest_dataset_version: number;
+  /** Whether the dataset is graded now as the guard grades it. */
+  scoring_current: boolean;
 }
 
 export interface EvalSuiteList {

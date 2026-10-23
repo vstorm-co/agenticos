@@ -87,6 +87,14 @@ export function useEvalSuites(agentId: string) {
     },
     onError: failed,
   });
+  const movePin = useMutation({
+    mutationFn: (suiteId: string) => apiClient.post<EvalSuite>(`${base}/${suiteId}/pin`, {}),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("pinMoved"));
+    },
+    onError: failed,
+  });
   const estimate = useMutation({
     mutationFn: (request: EvalSuiteEstimateRequest) =>
       apiClient.post<EvalSuiteEstimate>(`${base}/estimate`, request),
@@ -102,6 +110,7 @@ export function useEvalSuites(agentId: string) {
     setActive,
     runNow,
     remove,
+    movePin,
     estimate,
   };
 }

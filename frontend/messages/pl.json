@@ -8471,6 +8471,15 @@
       "resumedToast": "Suita wznowiona",
       "pausedToast": "Suita wstrzymana",
       "runningToast": "Suita uruchomiona",
+      "pinMoved": "Strażnik sprawdza teraz dataset w obecnej postaci",
+      "pin": {
+        "badge": "Przypięta do v{version}",
+        "current": "Strzeże na datasecie v{pinned}, takim jak teraz.",
+        "behind": "Przypięta do datasetu v{pinned}. Dataset jest teraz w v{latest}.",
+        "scoringChanged": "Od tego czasu zmieniło się jego ocenianie.",
+        "move": "Przesuń przypięcie na v{latest}",
+        "needsOverride": "Przesunięcie przypięcia wymaga uprawnienia do pomijania bramki promocji."
+      },
       "removed": "Suita usunięta",
       "viewResults": "Wyniki suity {name}",
       "holds": "{dataset} · {environment, select, none {bieżąca opublikowana wersja} other {{environment}}}",

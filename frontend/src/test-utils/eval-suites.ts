@@ -86,6 +86,7 @@ export function evalSuite(overrides: Partial<EvalSuite> = {}): EvalSuite {
     schedule: { cron: "0 6 * * *", timezone: "Europe/Warsaw" },
     next_fire_at: "2026-10-20T04:00:00Z",
     max_run_usd: null,
+    pin: null,
     last_result: suiteResult(),
     open_result: null,
     created_at: "2026-10-18T10:00:00Z",

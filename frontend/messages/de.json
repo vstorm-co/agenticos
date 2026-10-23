@@ -9110,6 +9110,15 @@
       "resumedToast": "Suite fortgesetzt",
       "pausedToast": "Suite pausiert",
       "runningToast": "Suite gestartet",
+      "pinMoved": "Der Wächter prüft das Dataset jetzt so, wie es ist",
+      "pin": {
+        "badge": "Festgelegt auf v{version}",
+        "current": "Wacht auf Dataset v{pinned}, wie es jetzt ist.",
+        "behind": "Festgelegt auf Dataset v{pinned}. Das Dataset ist jetzt bei v{latest}.",
+        "scoringChanged": "Seine Bewertung hat sich seitdem geändert.",
+        "move": "Festlegung auf v{latest} verschieben",
+        "needsOverride": "Zum Verschieben braucht es die Berechtigung, Promotionen zu übergehen."
+      },
       "removed": "Suite entfernt",
       "viewResults": "Ergebnisse von {name}",
       "holds": "{dataset} · {environment, select, none {aktuell veröffentlichte Version} other {{environment}}}",

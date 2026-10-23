@@ -25,6 +25,7 @@ import type { EvalSuite, EvalSuiteResult } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
 import { percent } from "../format";
 import { RESULT_TONE, reasonText, skipText } from "./suite-format";
+import { SuitePin } from "./suite-pin";
 
 /** What one page of results holds. */
 const PAGE = 20;
@@ -52,6 +53,7 @@ export function SuiteResultsSheet({
           <SheetTitle className="text-sm">{suite.name}</SheetTitle>
           <SheetClose onClick={() => onOpenChange(false)} />
         </SheetHeader>
+        {open && <SuitePin suite={suite} />}
         {open && <SuiteResults suite={suite} />}
       </SheetContent>
     </Sheet>

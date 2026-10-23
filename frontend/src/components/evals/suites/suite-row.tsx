@@ -10,6 +10,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { EvalSuite } from "@/types/eval-suites";
 import { percent } from "../format";
 import { SuiteFormDialog } from "./suite-form-dialog";
+import { SuitePinBadge } from "./suite-pin";
 import { RESULT_TONE, whenLabels } from "./suite-format";
 import { SuiteResultsSheet } from "./suite-results-sheet";
 
@@ -58,6 +59,7 @@ export function SuiteRow({ suite, canManage }: { suite: EvalSuite; canManage: bo
       </button>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         {running && <Badge variant="secondary">{t("status.running")}</Badge>}
+        <SuitePinBadge suite={suite} />
         {last && (
           <Badge variant={RESULT_TONE[last.status]}>
             {last.summary?.pass_rate != null && last.status !== "skipped"

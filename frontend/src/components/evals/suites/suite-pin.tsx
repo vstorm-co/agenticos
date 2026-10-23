@@ -1,0 +1,65 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
+import { Badge, Button } from "@/components/ui";
+import { useEvalSuites } from "@/hooks/use-eval-suites";
+import { usePermissions } from "@/hooks/use-permissions";
+import type { EvalSuite, EvalSuitePin } from "@/types/eval-suites";
+import { Perm } from "@/types/permissions";
+
+/** Whether the dataset moved on since the guard was pinned to it. */
+function behind(pin: EvalSuitePin): boolean {
+  return pin.dataset_version !== pin.latest_dataset_version || !pin.scoring_current;
+}
+
+/** A guard's pin, short, for its row: amber once the dataset has moved on. */
+export function SuitePinBadge({ suite }: { suite: EvalSuite }) {
+  const t = useTranslations("evals.suites.pin");
+  if (suite.pin === null) return null;
+  return (
+    <Badge variant={behind(suite.pin) ? "warning" : "outline"}>
+      {t("badge", { version: suite.pin.dataset_version })}
+    </Badge>
+  );
+}
+
+/**
+ * What a guard checks, against what its dataset holds now.
+ *
+ * Editing the dataset does not move a guard, so a guard can fall behind it; only
+ * somebody who may override promotions moves it on, and everybody else is told
+ * why they cannot.
+ */
+export function SuitePin({ suite }: { suite: EvalSuite }) {
+  const t = useTranslations("evals.suites.pin");
+  const { can } = usePermissions();
+  const { movePin } = useEvalSuites(suite.agent_id);
+  const pin = suite.pin;
+  if (pin === null) return null;
+  const allowed = can(Perm.promotionsOverride);
+  const latest = pin.latest_dataset_version;
+  return (
+    <div className="space-y-1.5 border-b px-5 py-3 text-xs">
+      <p>
+        {behind(pin)
+          ? t("behind", { pinned: pin.dataset_version, latest })
+          : t("current", { pinned: pin.dataset_version })}
+      </p>
+      {!pin.scoring_current && <p className="text-muted-foreground">{t("scoringChanged")}</p>}
+      {behind(pin) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!allowed || movePin.isPending}
+            onClick={() => movePin.mutate(suite.id)}
+          >
+            {t("move", { latest })}
+          </Button>
+          {!allowed && <span className="text-muted-foreground">{t("needsOverride")}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
