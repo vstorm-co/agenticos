@@ -2,7 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, X } from "lucide-react";
+import {
+  Bot,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  Library,
+  MessageSquare,
+  MessagesSquare,
+  Plug,
+  Rocket,
+  UserPlus,
+  UserRound,
+  UsersRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button, Card, CardContent } from "@/components/ui";
@@ -26,8 +41,22 @@ import { Perm } from "@/types/permissions";
 /** The agents every organization opens with, which are not one a person built. */
 const SEEDED = new Set(["agenticos", "architect"]);
 
+/** Each step's mark, so the list reads by shape as well as by word. */
+const ICONS = {
+  profile: UserRound,
+  chat: MessageSquare,
+  connection: Plug,
+  routine: CalendarClock,
+  agent: Bot,
+  publish: Rocket,
+  knowledge: Library,
+  departments: UsersRound,
+  teammate: UserPlus,
+  channel: MessagesSquare,
+} satisfies Record<string, LucideIcon>;
+
 interface Step {
-  id: string;
+  id: keyof typeof ICONS;
   done: boolean;
   /** Where the step is done; a step with none is a question to the Architect. */
   href?: string;
@@ -105,7 +134,7 @@ function BuilderChecklist({ orgId, className }: { orgId: string; className?: str
     { id: "knowledge", done: kbs.length > 0, href: ROUTES.RAG },
     { id: "departments", done: groups.length > 0, href: ROUTES.GROUPS },
     { id: "teammate", done: members.length > 1, href: ROUTES.ORG_MEMBERS(orgId) },
-    ...(channels ? [{ id: "channel", done: bots.length > 0, href: ROUTES.CHANNELS }] : []),
+    ...(channels ? [{ id: "channel" as const, done: bots.length > 0, href: ROUTES.CHANNELS }] : []),
   ];
   return <Checklist orgId={orgId} more={organization} className={className} />;
 }
@@ -120,7 +149,6 @@ function Checklist({
   className?: string;
 }) {
   const t = useTranslations("dashboard.startChecklist");
-  const ask = useArchitectAskStore((state) => state.ask);
   const [dismissed, setDismissed] = useState(() => readDismissed(orgId));
   const personal = usePersonalSteps();
   const steps = [...personal.steps, ...more];
@@ -137,26 +165,40 @@ function Checklist({
       // Nowhere to keep it; it stays closed for this visit.
     }
   };
-  const go = (step: Step, className: string, children: React.ReactNode) =>
-    step.href ? (
-      <Link href={step.href} className={className}>
-        {children}
-      </Link>
-    ) : (
-      <button type="button" onClick={() => ask(t("agentAsk"))} className={className}>
-        {children}
-      </button>
-    );
+  const done = steps.length - left;
+  // Headed only when there are two: a member's card is their own steps alone.
+  const groups =
+    more.length > 0
+      ? [
+          { key: "you", steps: personal.steps },
+          { key: "organization", steps: more },
+        ]
+      : [{ key: null, steps: personal.steps }];
 
   return (
-    <Card className={cn("mt-6", className)}>
-      <CardContent className="space-y-3.5 p-5">
+    <Card className={cn("@container mt-6 flex flex-col", className)}>
+      <CardContent className="flex flex-1 flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 space-y-2">
             <h2 className="text-sm font-semibold">{t("title")}</h2>
-            <p className="text-muted-foreground text-xs">
-              {t("progress", { done: steps.length - left, total: steps.length })}
-            </p>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="bg-muted h-1.5 w-28 overflow-hidden rounded-full"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={steps.length}
+                aria-valuenow={done}
+                aria-label={t("title")}
+              >
+                <div
+                  className="bg-success h-full rounded-full transition-[width]"
+                  style={{ width: `${(done / steps.length) * 100}%` }}
+                />
+              </div>
+              <span className="text-muted-foreground text-xs">
+                {t("progress", { done, total: steps.length })}
+              </span>
+            </div>
           </div>
           <Button
             variant="ghost"
@@ -168,67 +210,92 @@ function Checklist({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div
-          className="bg-muted h-1 overflow-hidden rounded-full"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={steps.length}
-          aria-valuenow={steps.length - left}
-          aria-label={t("title")}
-        >
-          <div
-            className="bg-success h-full rounded-full transition-[width]"
-            style={{ width: `${((steps.length - left) / steps.length) * 100}%` }}
-          />
+        <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-2">
+          {groups.map((group) => (
+            <section key={group.key ?? "steps"} className="space-y-1">
+              {group.key && (
+                <h3 className="text-muted-foreground px-2.5 text-[11px] font-medium tracking-wide uppercase">
+                  {t(`groups.${group.key}`)}
+                </h3>
+              )}
+              <ol className="space-y-0.5">
+                {group.steps.map((step) => (
+                  <li key={step.id}>
+                    <StepRow step={step} next={step === next} />
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
         </div>
-        {/* The one thing to do next, said once and plainly; the rest is a
-            compact record rather than ten boxes with lines through them. */}
-        {next &&
-          go(
-            next,
-            "group bg-muted/60 hover:bg-accent flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-            <>
-              <span className="min-w-0">
-                <span aria-hidden className="text-muted-foreground block text-xs">
-                  {t("next")}
-                </span>
-                <span className="font-medium">{t(`steps.${next.id}`)}</span>
-                <span className="text-muted-foreground block text-xs">{t(`hints.${next.id}`)}</span>
-              </span>
-              <ArrowRight
-                className="text-muted-foreground group-hover:text-foreground h-4 w-4 shrink-0 transition-colors"
-                aria-hidden
-              />
-            </>,
-          )}
-        <ol className="flex flex-wrap gap-x-4 gap-y-1.5">
-          {steps
-            .filter((step) => step !== next)
-            .map((step) => (
-              <li key={step.id}>
-                {go(
-                  step,
-                  cn(
-                    "hover:text-foreground flex items-center gap-1.5 text-xs transition-colors",
-                    step.done ? "text-muted-foreground" : "text-foreground",
-                  ),
-                  <>
-                    <span
-                      className={cn(
-                        "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border",
-                        step.done && "bg-success border-success text-white",
-                      )}
-                    >
-                      {step.done && <Check className="h-2.5 w-2.5" aria-hidden />}
-                      {step.done && <span className="sr-only">{t("doneLabel")}</span>}
-                    </span>
-                    {t(`steps.${step.id}`)}
-                  </>,
-                )}
-              </li>
-            ))}
-        </ol>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * One step: its mark, ticked when done; what it is for while it is not; the next
+ * one raised and labelled. A step with no page is a question to the Architect.
+ */
+function StepRow({ step, next }: { step: Step; next: boolean }) {
+  const t = useTranslations("dashboard.startChecklist");
+  const ask = useArchitectAskStore((state) => state.ask);
+  const Icon = ICONS[step.id];
+  // A done step is one quiet line; what is left gets its mark and what it is for.
+  const className = cn(
+    "group flex w-full items-center gap-3 rounded-lg px-2.5 text-left transition-colors",
+    step.done ? "py-1" : "py-2",
+    next ? "bg-muted/70 hover:bg-muted" : "hover:bg-muted/50",
+  );
+  const body = (
+    <>
+      {step.done ? (
+        <span className="flex w-8 shrink-0 justify-center">
+          <span className="bg-success flex h-4 w-4 items-center justify-center rounded-full text-white">
+            <Check className="h-2.5 w-2.5" aria-hidden />
+            <span className="sr-only">{t("doneLabel")}</span>
+          </span>
+        </span>
+      ) : (
+        <span className="bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block truncate text-sm",
+            step.done ? "text-muted-foreground" : "text-foreground font-medium",
+          )}
+        >
+          {t(`steps.${step.id}`)}
+        </span>
+        {!step.done && (
+          <span className="text-muted-foreground block truncate text-xs">
+            {t(`hints.${step.id}`)}
+          </span>
+        )}
+      </span>
+      {next && (
+        <span className="bg-foreground text-background shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">
+          {t("next")}
+        </span>
+      )}
+      {!step.done && (
+        <ChevronRight
+          className="text-muted-foreground group-hover:text-foreground h-4 w-4 shrink-0 transition-colors"
+          aria-hidden
+        />
+      )}
+    </>
+  );
+  return step.href ? (
+    <Link href={step.href} className={className}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={() => ask(t("agentAsk"))} className={className}>
+      {body}
+    </button>
   );
 }

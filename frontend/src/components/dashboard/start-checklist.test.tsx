@@ -95,10 +95,13 @@ describe("the dashboard's start checklist", () => {
 
     expect(screen.getByText("6 of 10 done")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Publish it/ })).toHaveAttribute("href", "/agents");
-    expect(screen.getByRole("link", { name: "Invite a teammate" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Invite a teammate/ })).toHaveAttribute(
       "href",
       "/orgs/o1/members",
     );
+    // The builder's card names whose steps are whose; the first left is marked next.
+    expect(screen.getByRole("heading", { name: "Your organization" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Publish it.*Next/ })).toBeInTheDocument();
   });
 
   it("asks the Architect for the agent a person did not build, not the ones every org has", async () => {

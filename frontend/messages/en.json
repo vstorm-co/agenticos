@@ -2802,7 +2802,7 @@
     "startChecklist": {
       "title": "Get started",
       "progress": "{done} of {total} done",
-      "next": "Next step",
+      "next": "Next",
       "doneLabel": "Done",
       "dismiss": "Hide the checklist",
       "steps": {
@@ -2829,6 +2829,10 @@
         "departments": "Groups decide who sees which agent.",
         "teammate": "Agents are worth more shared.",
         "channel": "Slack, Teams, Telegram or Mattermost."
+      },
+      "groups": {
+        "you": "You",
+        "organization": "Your organization"
       }
     },
     "views": {

@@ -2802,7 +2802,7 @@
     "startChecklist": {
       "title": "Pierwsze kroki",
       "progress": "{done} z {total} gotowe",
-      "next": "Następny krok",
+      "next": "Następny",
       "doneLabel": "Zrobione",
       "dismiss": "Ukryj listę",
       "steps": {
@@ -2829,6 +2829,10 @@
         "departments": "Grupy decydują, kto widzi którego agenta.",
         "teammate": "Z agentów lepiej korzystać razem.",
         "channel": "Slack, Teams, Telegram albo Mattermost."
+      },
+      "groups": {
+        "you": "Ty",
+        "organization": "Twoja organizacja"
       }
     },
     "views": {
