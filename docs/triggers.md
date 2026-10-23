@@ -252,10 +252,15 @@ What differs from Gmail:
 - **The run reads text.** The body arrives as plain text - Exchange converts an
   HTML message - with the attachments' names, types and sizes listed. The
   attachments themselves are not downloaded.
-- **A folder that cannot be read stops its triggers.** A renamed folder or a
-  shared mailbox that is no longer shared turns off the triggers watching it, with
-  `mailbox_folder_unreadable` in the audit log, while the rest of the mailbox is
-  read as usual. A withdrawn consent stops them all, as for Gmail.
+- **A folder that cannot be read stops its triggers.** A folder deleted and made
+  again under the same path is looked up again and read on. One that is gone for
+  good, or a shared mailbox that is no longer shared, turns off the triggers
+  watching it, with `mailbox_folder_unreadable` in the audit log, while the rest of
+  the mailbox is read as usual. A withdrawn consent stops them all, as for Gmail.
+- **A lost sync state starts over from the last read.** Graph keeps a folder's
+  change tracking for no fixed time and answers a dropped one with
+  `syncStateNotFound`; the folder is then read again from just before its last
+  read, so nothing fires twice and nothing is missed.
 
 Delivery ids are Outlook's immutable message ids, so a message read twice - a
 retried tick, a slow poll overlapping the next - fires each trigger once.

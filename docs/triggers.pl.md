@@ -1,5 +1,5 @@
 ---
-source_sha: "0d1ebe4909f2"
+source_sha: "af1d4e5a6145"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -274,11 +274,16 @@ Czym różni się od Gmaila:
 - **Run czyta tekst.** Treść przychodzi jako zwykły tekst - Exchange sam
   konwertuje wiadomość HTML - z wypisanymi nazwami, typami i rozmiarami
   załączników. Same załączniki nie są pobierane.
-- **Folder, którego nie da się przeczytać, zatrzymuje swoje triggery.** Folder o
-  zmienionej nazwie albo skrzynka współdzielona, która przestała być udostępniana,
-  wyłącza obserwujące ją triggery, z `mailbox_folder_unreadable` w dzienniku
-  audytu, a reszta skrzynki jest czytana jak zwykle. Wycofana zgoda zatrzymuje je
-  wszystkie, tak jak przy Gmailu.
+- **Folder, którego nie da się przeczytać, zatrzymuje swoje triggery.** Folder
+  usunięty i utworzony ponownie pod tą samą ścieżką jest wyszukiwany jeszcze raz i
+  czytany dalej. Folder, którego już nie ma, albo skrzynka współdzielona, która
+  przestała być udostępniana, wyłącza obserwujące go triggery, z
+  `mailbox_folder_unreadable` w dzienniku audytu, a reszta skrzynki jest czytana jak
+  zwykle. Wycofana zgoda zatrzymuje je wszystkie, tak jak przy Gmailu.
+- **Utracony stan synchronizacji zaczyna od ostatniego odczytu.** Graph trzyma
+  śledzenie zmian folderu bez stałego terminu i na porzucone odpowiada
+  `syncStateNotFound`; folder jest wtedy czytany ponownie od chwili tuż przed
+  ostatnim odczytem, więc nic nie odpala się dwa razy i nic nie przepada.
 
 Identyfikatory dostarczeń to niezmienne identyfikatory wiadomości Outlooka, więc
 wiadomość przeczytana dwa razy - ponowiony tick, wolne odpytanie nachodzące na

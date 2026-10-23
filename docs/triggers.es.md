@@ -1,5 +1,5 @@
 ---
-source_sha: "0d1ebe4909f2"
+source_sha: "af1d4e5a6145"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -277,11 +277,17 @@ En qué se diferencia de Gmail:
 - **El run lee texto.** El cuerpo llega como texto plano - Exchange convierte él
   mismo un mensaje HTML - con los nombres, tipos y tamaños de los adjuntos. Los
   adjuntos en sí no se descargan.
-- **Una carpeta que no se puede leer detiene sus triggers.** Una carpeta
-  renombrada o un buzón compartido que dejó de estarlo apaga los triggers que la
-  vigilan, con `mailbox_folder_unreadable` en el registro de auditoría, mientras el
-  resto del buzón se lee como siempre. Un consentimiento retirado los detiene
+- **Una carpeta que no se puede leer detiene sus triggers.** Una carpeta borrada y
+  creada de nuevo en la misma ruta se vuelve a buscar y se sigue leyendo. Una que
+  ya no existe, o un buzón compartido que dejó de estarlo, apaga los triggers que
+  la vigilan, con `mailbox_folder_unreadable` en el registro de auditoría, mientras
+  el resto del buzón se lee como siempre. Un consentimiento retirado los detiene
   todos, como con Gmail.
+- **Un estado de sincronización perdido empieza de nuevo desde la última
+  lectura.** Graph conserva el seguimiento de cambios de una carpeta sin un plazo
+  fijo y responde a uno descartado con `syncStateNotFound`; la carpeta se vuelve a
+  leer desde justo antes de su última lectura, así que nada se dispara dos veces y
+  nada se pierde.
 
 Los ids de entrega son los ids de mensaje inmutables de Outlook, así que un
 mensaje leído dos veces - un tick repetido, un sondeo lento que se solapa con el

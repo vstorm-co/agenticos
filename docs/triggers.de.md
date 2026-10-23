@@ -1,5 +1,5 @@
 ---
-source_sha: "0d1ebe4909f2"
+source_sha: "af1d4e5a6145"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -291,11 +291,16 @@ Was anders ist als bei Gmail:
   HTML-Nachricht selbst um - mit den Namen, Typen und Größen der Anhänge. Die
   Anhänge selbst werden nicht heruntergeladen.
 - **Ein Ordner, der nicht gelesen werden kann, stoppt seine Trigger.** Ein
-  umbenannter Ordner oder ein freigegebenes Postfach, das nicht mehr freigegeben
-  ist, schaltet die Trigger aus, die ihn beobachten, mit
-  `mailbox_folder_unreadable` im Audit-Log, während der Rest des Postfachs wie
-  gewohnt gelesen wird. Eine zurückgezogene Zustimmung stoppt sie alle, wie bei
-  Gmail.
+  Ordner, der gelöscht und unter demselben Pfad neu angelegt wurde, wird erneut
+  gesucht und weitergelesen. Ein endgültig verschwundener Ordner oder ein
+  freigegebenes Postfach, das nicht mehr freigegeben ist, schaltet die Trigger aus,
+  die ihn beobachten, mit `mailbox_folder_unreadable` im Audit-Log, während der
+  Rest des Postfachs wie gewohnt gelesen wird. Eine zurückgezogene Zustimmung
+  stoppt sie alle, wie bei Gmail.
+- **Ein verlorener Synchronisationsstand beginnt beim letzten Lesen neu.** Graph
+  hält die Änderungsverfolgung eines Ordners ohne feste Frist und beantwortet eine
+  verworfene mit `syncStateNotFound`; der Ordner wird dann ab kurz vor dem letzten
+  Lesen erneut gelesen, sodass nichts doppelt auslöst und nichts verloren geht.
 
 Zustellungs-IDs sind Outlooks unveränderliche Nachrichten-IDs, eine zweimal
 gelesene Nachricht - ein wiederholter Tick, eine langsame Abfrage, die sich mit

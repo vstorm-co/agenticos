@@ -6,7 +6,8 @@ ways that shape loses or duplicates work, beyond the ones Gmail's tests cover:
 * a **change** to old mail - marked read, flagged - mistaken for an arrival;
 * a **folder** that cannot be read stopping the folders that can;
 * a **first read** of a place walking the whole folder instead of what is news;
-* a **delta link** Graph has expired treated as an error.
+* a **delta link** Graph has expired treated as an error;
+* a **watched folder** deleted or renamed stopping every folder on the account.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -321,6 +322,44 @@ class TestAPlaceAlreadyRead:
             in parse_qs(urlsplit(restarted[0]).query)["$filter"][0]
         )
 
+    @pytest.mark.parametrize(
+        "error",
+        [
+            {"code": "invalidRequest", "innerError": {"code": "syncStateNotFound"}},
+            {"code": "SyncStateInvalid"},
+        ],
+        ids=["nested", "top-level"],
+    )
+    async def test_a_lost_sync_state_restarts_whatever_status_carries_it(self, monkeypatch, error):
+        """Microsoft documents an expired Outlook delta token as "a 40X-series error
+        with error codes such as syncStateNotFound" - a 410 only sometimes. The
+        code, at whichever level Graph puts it, is what restarts the place."""
+        graph = _Graph()
+        graph.deltas["INBOX"] = [[_item("m1", _NOW)]]
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def lost(request: httpx.Request) -> httpx.Response:
+            if "%24deltatoken=INBOX-old" in str(request.url) or "$deltatoken=INBOX-old" in str(
+                request.url
+            ):
+                return httpx.Response(400, json={"error": error})
+            return original(request)
+
+        graph.handler = lost  # type: ignore[method-assign]
+        state = {
+            "folder_id": "INBOX",
+            "link": f"{_API}/me/mailFolders/INBOX/messages/delta?$deltatoken=INBOX-old",
+            "read_at": (_NOW - timedelta(minutes=30)).isoformat(),
+        }
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=_cursor({INBOX: state}), places={INBOX: _CONNECTED}
+        )
+
+        assert [event.delivery_id for event in read.events] == ["outlook:m1"]
+        assert read.unreadable == frozenset()
+
     async def test_a_stored_link_to_another_host_is_never_followed(self, monkeypatch):
         """The link carries the bearer token's destination: only Graph is asked."""
         graph = _Graph()
@@ -397,6 +436,97 @@ class TestFoldersAndMailboxes:
         assert read.unreadable == frozenset({shared, missing})
         assert [event.delivery_id for event in read.events] == ["outlook:m1"]
         assert set(read.cursor["places"]) == {INBOX}
+
+    async def test_a_folder_made_again_is_found_by_its_path_and_read(self, monkeypatch):
+        """The kept folder id no longer opens - the folder was deleted and made
+        again under the same name. One lookup by path, and the place reads on."""
+        graph = _Graph()
+        graph.top_level["invoices"] = "NEW"
+        graph.deltas["NEW"] = [[_item("m1", _NOW)]]
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def gone(request: httpx.Request) -> httpx.Response:
+            if "/mailFolders/OLD/" in str(request.url):
+                return httpx.Response(404, json={"error": {"code": "ErrorItemNotFound"}})
+            return original(request)
+
+        graph.handler = gone  # type: ignore[method-assign]
+        invoices = outlook_place(mailbox=None, folder="Invoices")
+        state = {
+            "folder_id": "OLD",
+            "link": f"{_API}/me/mailFolders/OLD/messages/delta?$deltatoken=OLD-1",
+            "read_at": (_NOW - timedelta(minutes=10)).isoformat(),
+        }
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=_cursor({invoices: state}), places={invoices: _CONNECTED}
+        )
+
+        assert [event.delivery_id for event in read.events] == ["outlook:m1"]
+        assert read.cursor["places"][invoices]["folder_id"] == "NEW"
+
+    async def test_a_folder_deleted_for_good_stops_only_its_own_place(self, monkeypatch):
+        """Before, the delta's 404 failed the whole poll on every tick, so one
+        deleted folder silenced every trigger on the account."""
+        graph = _Graph()
+        graph.deltas["INBOX"] = [[_item("m1", _NOW)]]
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def gone(request: httpx.Request) -> httpx.Response:
+            if "/mailFolders/OLD/" in str(request.url):
+                return httpx.Response(404, json={"error": {"code": "ErrorItemNotFound"}})
+            return original(request)
+
+        graph.handler = gone  # type: ignore[method-assign]
+        invoices = outlook_place(mailbox=None, folder="Invoices")
+        state = {"folder_id": "OLD", "link": None, "read_at": _NOW.isoformat()}
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t",
+            cursor=_cursor({invoices: state}),
+            places={invoices: _CONNECTED, INBOX: _CONNECTED},
+        )
+
+        assert read.unreadable == frozenset({invoices})
+        assert [event.delivery_id for event in read.events] == ["outlook:m1"]
+
+    async def test_a_folder_found_but_not_readable_is_unreadable_at_once(self, monkeypatch):
+        """Found just now, so there is nothing to look up again: a shared mailbox
+        whose folder list is visible but whose messages are not."""
+        graph = _Graph()
+        original = graph.handler
+        deltas: list[str] = []
+
+        def refused(request: httpx.Request) -> httpx.Response:
+            if "/messages/delta" in str(request.url):
+                deltas.append(str(request.url))
+                return httpx.Response(403, json={"error": {"message": "no code here"}})
+            return original(request)
+
+        graph.handler = refused  # type: ignore[method-assign]
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=_cursor(), places={INBOX: _CONNECTED}
+        )
+
+        assert read.unreadable == frozenset({INBOX})
+        assert len(deltas) == 1
+
+    async def test_every_well_known_name_is_addressed_directly(self, monkeypatch):
+        """Graph's table of well-known names, which work in any mailbox language -
+        `msgfolderroot` is not a display name anybody could look up."""
+        graph = _Graph()
+        graph.folders["me|msgfolderroot"] = "ROOT"
+        root = outlook_place(mailbox=None, folder="msgfolderroot")
+
+        await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=_cursor(), places={root: _CONNECTED}
+        )
+
+        assert any("/mailFolders/msgfolderroot" in url for url in graph.asked)
+        assert not any("%24filter=displayName" in url for url in graph.asked)
 
     async def test_a_shared_mailbox_is_read_through_its_own_path(self, monkeypatch):
         graph = _Graph()
@@ -533,7 +663,7 @@ class TestOddAnswers:
         assert read.events[0].payload["from"] == ""
 
     async def test_a_delta_that_fails_for_another_reason_raises(self, monkeypatch):
-        """Only 410 means "start over"; anything else leaves the cursor alone."""
+        """A lost sync state means "start over"; an outage leaves the cursor alone."""
         graph = _Graph()
         original = graph.handler
 

@@ -46,19 +46,34 @@ _MAX_PAGES = 10
 # news. Covers the skew between this clock and Exchange's; well inside the
 # delivery-id claim's own window, so what it lets through twice fires once.
 _SKEW = timedelta(minutes=5)
-# Every folder Graph addresses by name. Anything else is a path of display names.
+# Every folder Graph addresses by name, whatever the mailbox's language - the
+# `mailFolder` resource's table of well-known names. Anything else is a path of
+# display names.
 _WELL_KNOWN_FOLDERS = frozenset(
     {
         "archive",
         "clutter",
+        "conflicts",
+        "conversationhistory",
         "deleteditems",
         "drafts",
         "inbox",
         "junkemail",
+        "localfailures",
+        "msgfolderroot",
         "outbox",
+        "recoverableitemsdeletions",
+        "scheduled",
+        "searchfolders",
         "sentitems",
+        "serverfailures",
+        "syncissues",
     }
 )
+# What Graph answers for a delta link whose sync state it dropped. Outlook keeps
+# its delta tokens in a cache of no fixed lifetime, and the answer is a 40X
+# carrying one of these codes - sometimes a 410, not always.
+_SYNC_LOST = frozenset({"syncstatenotfound", "syncstateinvalid", "resyncrequired"})
 # Immutable ids, so a message keeps its id - and its delivery id - when it moves.
 _PREFER_IDS = 'IdType="ImmutableId"'
 _MESSAGE_FIELDS = (
@@ -208,15 +223,30 @@ class OutlookPortalAdapter(PortalAdapter):
         # Graph's own address is ever asked.
         link = stored if isinstance(stored, str) and stored.startswith(_API_BASE + "/") else None
         ids: list[tuple[datetime, str]] = []
+        found_again = state is None or state.get("folder_id") != folder_id
         for _ in range(_MAX_PAGES):
             if link is None:
                 link = _first_delta(mailbox, folder_id, floor)
             try:
                 body = await self._get(client, access_token, link, params=None)
             except PortalUnreachable as exc:
-                if (exc.details or {}).get("status") != 410:
+                details = exc.details or {}
+                if details.get("status") == 410 or _SYNC_LOST.intersection(
+                    details.get("codes", ())
+                ):
+                    logger.info("outlook_delta_expired", extra={"place": key})
+                    link = None
+                    continue
+                if details.get("status") not in {403, 404}:
                     raise
-                logger.info("outlook_delta_expired", extra={"place": key})
+                if found_again:
+                    raise _PlaceUnreadable from exc
+                # The folder id this place kept no longer opens: the folder was
+                # deleted and made again, or renamed. Its path is looked up once
+                # more before the place counts as unreadable.
+                logger.info("outlook_folder_moved", extra={"place": key})
+                folder_id = await self._folder_id(client, access_token, mailbox, folder)
+                found_again = True
                 link = None
                 continue
             for item in body.get("value") or []:
@@ -375,14 +405,18 @@ class OutlookPortalAdapter(PortalAdapter):
         """One authenticated GET against Microsoft Graph.
 
         Raises:
-            PortalUnreachable: Anything non-2xx, carrying the status so a caller
-                can tell an expired delta (410) and a folder it may not read
-                (403, 404) from a refused grant (401) - and nothing of Graph's own
-                error text, which can echo the request.
+            PortalUnreachable: Anything non-2xx, carrying the status and Graph's
+                error codes so a caller can tell an expired delta (410, or a
+                `syncStateNotFound`) and a folder it may not read (403, 404) from a
+                refused grant (401) - and nothing of Graph's own error text, which
+                can echo the request. The code is machine-readable and documented
+                as the one part of an error to depend on.
         """
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
+            # Listed as required on the delta request, harmless on the rest.
+            "Content-Type": "application/json",
             "Prefer": prefer,
         }
         try:
@@ -393,10 +427,14 @@ class OutlookPortalAdapter(PortalAdapter):
                 details={"portal_key": self.portal_key, "error": exc.__class__.__name__},
             ) from exc
         if response.status_code >= 400:
-            raise PortalUnreachable(
-                message="Microsoft Graph refused the request",
-                details={"portal_key": self.portal_key, "status": response.status_code},
-            )
+            details: dict[str, Any] = {
+                "portal_key": self.portal_key,
+                "status": response.status_code,
+            }
+            codes = _error_codes(response)
+            if codes:
+                details["codes"] = codes
+            raise PortalUnreachable(message="Microsoft Graph refused the request", details=details)
         try:
             parsed = response.json()
         except ValueError as exc:
@@ -405,6 +443,27 @@ class OutlookPortalAdapter(PortalAdapter):
                 details={"portal_key": self.portal_key},
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
+
+
+def _error_codes(response: httpx.Response) -> list[str]:
+    """Graph's error codes, case-folded, outermost first - `error.code` and each nested one.
+
+    Only the codes: the `message` beside them can echo the request and is no part
+    of the contract. All of them, because which level carries the specific one
+    (`syncStateNotFound` under a generic `invalidRequest`, or on its own) is not
+    fixed.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return []
+    error = body.get("error") if isinstance(body, dict) else None
+    codes: list[str] = []
+    while isinstance(error, dict):
+        if isinstance(error.get("code"), str):
+            codes.append(error["code"].casefold())
+        error = error.get("innerError") or error.get("innererror")
+    return codes
 
 
 def _parse(value: Any) -> datetime | None:
