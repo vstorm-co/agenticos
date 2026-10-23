@@ -103,6 +103,10 @@ def upgrade() -> None:
             "estimate_usd >= 0 AND budget_usd >= 0 AND spent_usd >= 0",
             name=op.f("improvement_runs_ck_improvement_run_money_check"),
         ),
+        sa.CheckConstraint(
+            "(suite_id IS NULL) = (suite_hash IS NULL)",
+            name=op.f("improvement_runs_ck_improvement_run_suite_pin_check"),
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],

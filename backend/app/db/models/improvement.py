@@ -229,6 +229,9 @@ class ImprovementRun(Base):
             "estimate_usd >= 0 AND budget_usd >= 0 AND spent_usd >= 0",
             name="ck_improvement_run_money",
         ),
+        CheckConstraint(
+            "(suite_id IS NULL) = (suite_hash IS NULL)", name="ck_improvement_run_suite_pin"
+        ),
         # One session moving per agent, held where two concurrent starts cannot
         # both slip past it.
         Index(

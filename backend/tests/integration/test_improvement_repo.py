@@ -166,8 +166,20 @@ class TestChecks:
             {"max_iterations": 11},
             {"spent_usd": Decimal("-0.01")},
             {"budget_usd": Decimal("-1")},
+            {"suite_id": uuid.uuid4()},
+            {"suite_hash": "h" * 64},
         ],
-        ids=["status", "stage", "stop-reason", "past-limit", "limit", "spent", "budget"],
+        ids=[
+            "status",
+            "stage",
+            "stop-reason",
+            "past-limit",
+            "limit",
+            "spent",
+            "budget",
+            "suite-without-its-bar",
+            "bar-without-a-suite",
+        ],
     )
     async def test_a_value_nobody_defined_is_refused(
         self, db: AsyncSession, values: dict[str, Any]
@@ -287,7 +299,9 @@ class TestPins:
         org, user, agent, dataset = await _world(db)
         run = await _session(db, org, agent, user, dataset)
         suite_id = uuid.uuid4()
-        await improvement_repo.update_run(db, run=run, values={"suite_id": suite_id})
+        await improvement_repo.update_run(
+            db, run=run, values={"suite_id": suite_id, "suite_hash": "h" * 64}
+        )
 
         await db.delete(dataset)
         await db.flush()
