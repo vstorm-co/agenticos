@@ -390,6 +390,26 @@ describe("EvalRunView", () => {
     expect(screen.getByText(/The judge graded on gpt-4.1, the model that answered/)).toBeVisible();
   });
 
+  it("names a check's sides by what it adds, and says a check sends nothing to review", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        proposal_check: { kind: "agent", base_version: 2, on_draft: false, suggestions: 1 },
+        arms: [
+          arm({ source: "explicit", version_number: null }),
+          arm({ id: "arm-0", role: "baseline", version_number: 2 }),
+        ],
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getAllByText(/v2 \+ 1 suggestion/).length).toBeGreaterThan(1);
+    expect(
+      screen.getByText(
+        "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
+      ),
+    ).toBeVisible();
+  });
+
   it("says when it could not send its answers to review, beside the way to send them", () => {
     review.canEdit = true;
     state.run = {

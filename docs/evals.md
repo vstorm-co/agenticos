@@ -40,10 +40,14 @@ agent was last measured on - or the only one there is - is already chosen; the
 environment, recordings and reruns are under **Advanced**. The cost is worked
 out as the fields settle and says what grades the answers and what the agent's
 and the organization's budgets keep after it; the run starts only from the
-button that names the amount. **Draft differs from vN** on the agent's page
-carries a **Test draft** button that opens the same dialog, and the publish
-dialog says what the draft's last run found - or that it was not tested since
-it last changed - without holding the publish back.
+button that names the amount. **Draft differs from vN** on the agent's page -
+vN is the latest published version, and when production's guards hold it on an
+older one a second badge says which, such as "production on v1 (waiting for
+evals)" - carries a **Test draft** button that opens the same dialog. The publish
+dialog says what the draft's last run found - a
+[check of the assistant's suggestions](authoring.md#check-with-evals) counts once
+they are accepted - or that it was not tested since it last changed, or that the
+test it had is out of date, without holding the publish back.
 
 A run's page opens on its verdict in a few sentences - the cases the candidate
 breaks or fixes every time it is asked, one quoted with how many tries repeated
@@ -70,8 +74,12 @@ it; the verdict stays over every case.
 Once its reruns are in, a run sends to the dataset's
 [review queue](datasets.md#review) what it can stand behind - each regression
 it confirmed and each answer its judge failed to grade, one per case and agent -
-and says how many (`routed_to_review`). A judge that was skipped sends nothing: its
-answers wait on the run's page for **Grade again**. When sending is refused, the
+and says how many (`routed_to_review`). A
+[check of the assistant's proposal](authoring.md#check-with-evals) sends nothing
+by itself, since nothing was accepted.
+
+A judge that was skipped sends nothing: its answers wait on the run's page for
+**Grade again**. When sending is refused, the
 run still completes and its page says why (`routing_error`). **Send failed to review** sends the rest of one
 side's failed answers, for whoever may edit the dataset, and a case whose grade
 a person overturned is marked as corrected.
@@ -275,8 +283,11 @@ GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents
 ```
 
 `?draft=current` keeps the runs that tested the draft as it stands now - the
-same spec, whatever order its keys were stored in - which is what the publish
-dialog reads.
+same spec, whatever order its keys were stored in, a check of suggestions since
+accepted among them - which is what the publish dialog reads. `?draft=earlier`
+keeps the runs that tested another draft since the latest version was published -
+a check only once one of its suggestions was accepted: the test the draft has
+moved away from. A check measured against the draft itself counts in neither.
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
