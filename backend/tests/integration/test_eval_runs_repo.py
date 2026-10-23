@@ -522,7 +522,8 @@ async def test_a_queued_run_is_given_up_once_no_job_is_left_to_run_it(db) -> Non
     job.finished_at = datetime.now(UTC)
     await db.flush()
     assert await sweep() == 0
-    job.settled_at = datetime.now(UTC)
+    # A job that ended well is never settled, and holds nothing back.
+    job.status = "succeeded"
     await db.flush()
     assert await sweep() == 1
     await db.refresh(run)

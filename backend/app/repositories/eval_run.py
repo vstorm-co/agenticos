@@ -635,6 +635,7 @@ async def fail_abandoned(
         or_(
             BackgroundJob.status.in_(("queued", "running")),
             and_(
+                BackgroundJob.status.in_(("dead", "cancelled")),
                 BackgroundJob.settled_at.is_(None),
                 BackgroundJob.finished_at > now - _SETTLED_WITHIN,
             ),
