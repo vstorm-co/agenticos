@@ -991,6 +991,11 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    # Improvement sessions: the Improve pipeline run in the background up to a
+    # checked proposal.
+    "app/db/models/improvement.py",
+    "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",
@@ -1561,6 +1566,11 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    # Improvement sessions: the Improve pipeline run in the background up to a
+    # checked proposal.
+    "app/db/models/improvement.py",
+    "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",

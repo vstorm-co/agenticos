@@ -41,6 +41,14 @@ const DASHES = [undefined, "6 4", "2 3", "10 3 2 3", "1 5"];
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
+/** When a run started, as short as an axis has room for: the time today, the date before. */
+function tickWhen(createdAt: string, locale: string, today: string): string {
+  const at = new Date(createdAt);
+  return at.toDateString() === today
+    ? at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+    : at.toLocaleDateString(locale, { month: "short", day: "numeric" });
+}
+
 /**
  * Finished runs as lines, one per group - a dataset on an agent's page, an
  * agent on a dataset's - each run one step along, oldest first. A point is the
@@ -58,6 +66,7 @@ export function passRateLines(
   const finished = runs
     .filter((run) => run.status === "completed")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const today = new Date().toDateString();
   let index = 0;
   for (const run of finished) {
     const arm =
@@ -79,8 +88,10 @@ export function passRateLines(
     line.points.push({
       index: index++,
       rate: arm.summary.pass_rate,
-      tick: draft ? t("trend.draftTick") : sideName(arm, t),
-      when: formatDateTime(run.created_at, locale),
+      tick: t("trend.tick", {
+        side: sideName(arm, t),
+        when: tickWhen(run.created_at, locale, today),
+      }),
       draft,
       color: (verdict && VERDICT_COLOR[verdict]) ?? NEUTRAL,
       href: `${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`,
@@ -97,9 +108,9 @@ export function passRateLines(
 }
 
 /**
- * The pass-rate trend: a key to its lines and colours, the newest runs over a
- * range a person drags to see more or fewer, and - with one run - what makes it
- * a trend.
+ * The pass-rate trend: a key to its lines and colours, every run - or, past
+ * `RECENT_RUNS`, the newest over a range a person drags to see more or fewer -
+ * and, with one run, what makes it a trend.
  */
 export function PassRateChart({
   lines,
@@ -111,6 +122,7 @@ export function PassRateChart({
   const t = useTranslations("evals");
   const points = lines.reduce((sum, line) => sum + line.points.length, 0);
   if (points === 0) return null;
+  const ranged = points > RECENT_RUNS;
   return (
     <div className="space-y-2" data-tour="evals-trend">
       <ul className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
@@ -154,10 +166,14 @@ export function PassRateChart({
         aria-label={t("trend.label")}
         className={cn(CHART_MIN_HEIGHT, compact ? "h-56" : "h-64")}
       >
-        <PassRateLinesImpl lines={lines} recent={RECENT_RUNS} rangeLabel={t("trend.range")} />
+        <PassRateLinesImpl
+          lines={lines}
+          recent={ranged ? RECENT_RUNS : null}
+          rangeLabel={t("trend.range")}
+        />
       </div>
       <p className="text-muted-foreground text-xs">
-        {points === 1 ? t("trend.single") : t("trend.legend")}
+        {points === 1 ? t("trend.single") : ranged ? t("trend.legend") : t("trend.legendAll")}
       </p>
     </div>
   );

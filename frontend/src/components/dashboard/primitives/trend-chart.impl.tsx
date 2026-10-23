@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useLocale } from "next-intl";
 import {
   Area,
   AreaChart,
@@ -12,6 +13,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+import { formatUsd } from "../format";
 
 import { AREA_FILL_OPACITY, LINE_WIDTH } from "@/lib/dashboard/system";
 
@@ -35,6 +38,7 @@ export function TrendChartImpl({
   variant?: "area" | "bars";
   money?: boolean;
 }) {
+  const locale = useLocale();
   // One axis configuration, two marks. Recharts wants a different chart element
   // for each, and duplicating the axes to switch between them is how the two
   // drift into disagreeing about their own scale.
@@ -76,7 +80,7 @@ export function TrendChartImpl({
           tickCount={4}
           // Counts are whole; dollars are not, and a run costs cents.
           allowDecimals={money}
-          tickFormatter={money ? (value: number) => `$${value.toFixed(2)}` : undefined}
+          tickFormatter={money ? (value: number) => formatUsd(value, locale) : undefined}
           tick={{
             fontFamily: "var(--font-mono)",
             fill: "oklch(from var(--color-foreground) l c h / 0.45)",
@@ -91,7 +95,7 @@ export function TrendChartImpl({
             fontSize: "12px",
           }}
           labelStyle={{ color: "var(--color-muted-foreground)" }}
-          formatter={money ? (value) => `$${Number(value).toFixed(4)}` : undefined}
+          formatter={money ? (value) => formatUsd(Number(value), locale, 4) : undefined}
         />
         <defs>
           <linearGradient id={washId} x1="0" y1="0" x2="0" y2="1">
