@@ -1,5 +1,5 @@
 ---
-source_sha: "ebf0345cff8e"
+source_sha: "01842b2510fe"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -241,6 +241,34 @@ Wenn ein Satz aussagt, was die Plattform ablehnt, übersetzen Sie die Ablehnung
 wörtlich. Weichen Sie "is refused" nicht zu "funktioniert möglicherweise nicht"
 auf, und machen Sie aus einer Aussage darüber, was nicht passieren kann, keinen
 Rat darüber, was Sie nicht tun sollten.
+
+## Die Wörter der Eval-Ansichten { #the-words-the-eval-screens-use }
+
+Der Tab Evals eines Agents, ein Dataset und das Urteil eines Eval-Runs nennen
+jeden dieser Begriffe auf eine Weise, und ein Satz, der einen Tab nennt, nennt ihn
+so, wie der Tab heißt. Die Kataloge der Konsole halten sie fest, und
+`frontend/messages/eval-terms.test.ts` lehnt in den Eval-Namespaces die gemischten
+Formen ab, die sie ersetzt haben. Eine Seite, die eine dieser Ansichten zitiert,
+verwendet dasselbe Wort.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+
+Ein Entwurf ist weiterhin nie die veröffentlichte Version: Das Paar published /
+draft unter [Terminologie, die exakt sein muss](#terminology-that-has-to-be-exact)
+behält seine Unterscheidung, welches Wort der Entwurf auch trägt. Die Konsole hat
+keinen spanischen Katalog, die spanische Spalte ist also das Vokabular der
+spanischen Seiten.
 
 ## Die vier Dateien, die GitHub rendert, nicht diese Site { #the-four-files-github-renders-not-this-site }
 

@@ -23,6 +23,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import delete, func, select
@@ -68,6 +69,7 @@ from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.run_reaper import RunReaperService
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
@@ -314,20 +316,22 @@ async def test_a_daily_suite_runs_once_a_day_and_records_its_result(db) -> None:
     suite = await db.get(EvalSuite, created.id)
     assert suite is not None and suite.next_fire_at is not None
     due = suite.next_fire_at
+    # 06:00 in Warsaw the next day, which is 23 or 25 hours on across a change of clocks.
+    tomorrow = (due.astimezone(ZoneInfo("Europe/Warsaw")) + timedelta(days=1)).astimezone(UTC)
     model = Model(db)
 
     await _sweep(db, model, now=due)
     await _sweep(db, model, now=due + timedelta(minutes=1))
-    await _sweep(db, model, now=due + timedelta(hours=23))
+    await _sweep(db, model, now=tomorrow - timedelta(hours=1))
 
     [result] = await _results(db, suite.id)
     assert (result.trigger, result.status, result.version_number) == ("schedule", "passed", 1)
     assert result.summary is not None and result.summary["pass_rate"] == 1.0
     assert model.calls == 4
     await db.refresh(suite)
-    assert suite.next_fire_at == due + timedelta(days=1)
+    assert suite.next_fire_at == tomorrow
 
-    await _sweep(db, model, now=due + timedelta(days=1))
+    await _sweep(db, model, now=tomorrow)
     results = await _results(db, suite.id)
     assert [r.status for r in results] == ["passed", "passed"]
     # The second day measures the same version against the first day's run.
@@ -921,7 +925,7 @@ async def test_a_suite_already_running_is_not_run_again_by_hand(db) -> None:
     assert refused.value.details == {"suite_id": suite.id, "reason": "running"}
 
 
-async def test_an_eval_run_that_did_not_complete_ends_the_result_in_error(db) -> None:
+async def test_a_cancelled_eval_run_leaves_the_result_inconclusive_and_the_suite_free(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx)
@@ -929,12 +933,39 @@ async def test_an_eval_run_that_did_not_complete_ends_the_result_in_error(db) ->
     suite = await service.create(ctx, agent.id, _suite_data(dataset))
     started = await service.run_now(ctx, agent.id, suite.id)
     assert started.eval_run_id is not None
-    await service.evals.cancel(ctx, started.eval_run_id)
+    # Its job withdrawn from the queue before a worker took it.
+    await RunReaperService(db).settle_lost_eval(
+        started.eval_run_id, organization_id=ctx.organization_id, why="cancelled"
+    )
 
     await service.settle_finished(now=datetime.now(UTC))
 
     [result] = await _results(db, suite.id)
-    assert (result.status, result.reason) == ("error", "cancelled")
+    assert (result.status, result.reason) == ("inconclusive", "cancelled")
+    assert result.summary is not None
+    assert result.summary["message"] == "Its eval run was cancelled."
+    again = await service.run_now(ctx, agent.id, suite.id)
+    assert again.eval_run_id not in (None, started.eval_run_id)
+
+
+async def test_an_eval_run_that_failed_ends_the_result_in_error(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    started = await service.run_now(ctx, agent.id, suite.id)
+    assert started.eval_run_id is not None
+    await RunReaperService(db).settle_lost_eval(
+        started.eval_run_id, organization_id=ctx.organization_id, why="worker killed"
+    )
+
+    await service.settle_finished(now=datetime.now(UTC))
+
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("error", "failed")
+    assert result.summary is not None
+    assert result.summary["message"] == "This eval's job ended before the run did. Run it again."
 
 
 async def test_the_estimate_prices_a_run_a_paired_run_and_a_month(db) -> None:

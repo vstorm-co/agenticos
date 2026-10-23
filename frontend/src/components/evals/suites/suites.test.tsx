@@ -284,6 +284,7 @@ describe("SuiteResultsSheet", () => {
       suiteResult({ id: "r3", status: "error", reason: null, summary: null, settled_at: null }),
       suiteResult({ id: "r4", status: "running", summary: null, version_number: null }),
       suiteResult({ id: "r5", status: "inconclusive", summary: null }),
+      suiteResult({ id: "r6", status: "inconclusive", reason: "cancelled", summary: null }),
     ]);
 
     const sheet = screen.getByRole("dialog");
@@ -301,6 +302,7 @@ describe("SuiteResultsSheet", () => {
     expect(
       within(sheet).getByText("Only the judge could grade these cases, and AI assistance is off."),
     ).toBeInTheDocument();
+    expect(within(sheet).getByText("Its eval run was stopped.")).toBeInTheDocument();
     expect(within(sheet).getByRole("link", { name: "Turn on AI assistance" })).toHaveAttribute(
       "href",
       "/orgs/org-1/members",
