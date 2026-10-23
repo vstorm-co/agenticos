@@ -1,5 +1,5 @@
 ---
-source_sha: "0af4a81ea9bf"
+source_sha: "85e967e18444"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -259,6 +259,8 @@ mismos patrones de `frontend/messages/eval-terms.json`.
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
 
 Un borrador sigue sin ser nunca la versión publicada: el par published / draft de
 [Terminología que tiene que ser exacta](#terminology-that-has-to-be-exact)

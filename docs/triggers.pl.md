@@ -146,7 +146,7 @@ runner zostanie w ogóle osiągnięty; sekret jest zapieczętowany w
     własnej transakcji żądania, a agent działa w workerze, więc provider dostaje
     swoją odpowiedź po jednym insercie, zamiast czekać na model.
     Nie czytaj `202` jako „agent odpowiedział” - od tego jest przeczytanie runa w
-    Aktywności (Activity).
+    **Aktywności** (Activity).
 
 Zweryfikowane dostarczenie, przy którym nie ma nic do zrobienia - nieaktywny
 trigger albo payload, którego filtr nie dopasowuje - odpowiada `202` dokładnie

@@ -245,7 +245,7 @@ Rozmowa trzyma swój socket do pięćdziesięciu minut, więc commituje tam, gdz
   zostanie wywołany. Wiersze zatwierdzeń, heartbeat i sprzątanie rozmów
   głosowych potrzebują tych wierszy czytelnych z innych sesji; odmowa przed tym
   punktem wycofuje wszystko, więc odrzucona rozmowa nie zostawia niczego
-  w Aktywności (Activity).
+  w **Aktywności** (Activity).
 - Każda zapisana tura, każdy 15-sekundowy heartbeat i każdy zapis zatwierdzenia
   otwiera własną sesję `get_db_context()` i tam commituje, nigdy na wspólnej
   sesji runu — tura jest trwała w chwili, gdy zostanie wypowiedziana, a awaria

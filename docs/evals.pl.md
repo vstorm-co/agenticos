@@ -33,9 +33,10 @@ otwarty na ostatnich 12; przeciągnij jego uchwyty albo przesuń je strzałkami,
 żeby zobaczyć więcej lub mniej.
 
 Pod wykresem są jego runy, pogrupowane po datasecie, każdy z tym, co testowano
-względem czego, z werdyktem (Breaks 2, Worse overall · 4 broke, First result,
-Pending) i odsetkiem zaliczeń każdego modelu, a po najechaniu kursorem - z
-odsetkiem pierwszych odpowiedzi.
+względem czego, z werdyktem - **Psuje: 2** (Breaks 2), **Gorszy ogólnie ·
+zepsute: 4** (Worse overall · 4 broke), **Pierwszy wynik** (First result) albo
+**W toku** (Pending) - i odsetkiem zaliczeń każdego modelu, a po najechaniu
+kursorem - z odsetkiem pierwszych odpowiedzi.
 
 **Uruchom ewaluację** (Run evals) otwiera dialog startu od razu na oczywistej
 odpowiedzi: wersja robocza względem bieżącej opublikowanej wersji, gdy się od

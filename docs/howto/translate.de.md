@@ -1,5 +1,5 @@
 ---
-source_sha: "0af4a81ea9bf"
+source_sha: "85e967e18444"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -265,6 +265,8 @@ und deutschen Seiten dazu in `make lint` daran fest, mit denselben Mustern aus
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
 
 Ein Entwurf ist weiterhin nie die veröffentlichte Version: Das Paar published /
 draft unter [Terminologie, die exakt sein muss](#terminology-that-has-to-be-exact)

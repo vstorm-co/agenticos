@@ -532,7 +532,7 @@ agent*, wraz z pracą delegatów:
 | Pytanie | Odpowiedź |
 |---|---|
 | `GET /runs` | Runy, które ktoś uruchomił. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na stronie Aktywność (Activity), bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na stronie **Aktywność** (Activity), bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
 | `GET /runs?parent_run_id=<id>` | Co ten run zdelegował — zapytanie, dla którego istnieje `agent_runs_parent_run_id_idx`. Ma pierwszeństwo przed `include_delegations` |
 | `GET /runs/<id>` | Jeden run, zdelegowany albo nie. Tu ląduje link z transkryptu |
 | `GET /runs/<id>/transcript` | Tury tego runa, po kolei — to, co widok szczegółów runa rysuje jako kroki. Autoryzowane, nie posiadane (niżej) |

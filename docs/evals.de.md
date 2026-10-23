@@ -534,7 +534,7 @@ erst fortsetzen, wenn jemand wieder eine Umgebung für sie wählt.
 
 Der Eigentümer wird benachrichtigt, wenn ein Ergebnis nicht besteht, ohne
 Ergebnis bleibt oder nicht läuft - einmal pro Serie solcher Ergebnisse auf einer
-Version, mit den gebrochenen oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
+Version, mit den verschlechterten oder unbewerteten Fällen -, im Benachrichtigungscenter und per E-Mail, wenn er sie
 eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 
 ## Einstellungen { #settings }

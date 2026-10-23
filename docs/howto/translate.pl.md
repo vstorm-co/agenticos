@@ -1,5 +1,5 @@
 ---
-source_sha: "0af4a81ea9bf"
+source_sha: "85e967e18444"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -259,6 +259,8 @@ o nich w `make lint`, z tych samych wzorców w `frontend/messages/eval-terms.jso
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
 
 Wersja robocza nadal nigdy nie jest wersją opublikowaną: para published / draft z
 sekcji [Terminologia, która musi być dokładna](#terminology-that-has-to-be-exact)

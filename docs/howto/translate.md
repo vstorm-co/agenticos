@@ -248,6 +248,8 @@ German pages about them to it in `make lint`, from the same patterns in
 | the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
 | breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
 | AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
 
 A draft is still never the published version: the published / draft pair under
 [Terminology that has to be exact](#terminology-that-has-to-be-exact) keeps its

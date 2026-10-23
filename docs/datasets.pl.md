@@ -352,7 +352,7 @@ utworzeniem (`GET /datasets/{id}/judge-template`). Utworzenie go wymaga
 `agents:edit` oraz `datasets:edit`.
 
 Sędzia jest widoczny tak szeroko jak dataset, bo jego prompt zawiera nazwę i
-opis datasetu, a gdy jego twórca nie może go opublikować, zostaje szkicem dla
+opis datasetu, a gdy jego twórca nie może go opublikować, pozostaje wersją roboczą dla
 kogoś, kto może (`agents:publish`).
 
 Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
