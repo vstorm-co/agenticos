@@ -295,6 +295,9 @@ export function ArtifactViewer({
           consent={artifact.consent}
           isOwner={userId !== null && userId === artifact.owner_user_id}
           showNotice={current}
+          reviewPending={
+            versionRequest !== null && versionRequest.version_number === artifact.consent.version
+          }
           withdrawing={withdrawing}
           onWithdrawingChange={setWithdrawing}
           onConfirm={(fingerprint) =>

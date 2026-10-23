@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.audit import set_impersonator
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -732,8 +733,12 @@ class TestThePublicOrigin:
     dispatch, its retries and the runs it causes all read.
     """
 
+    @classmethod
+    async def _stored(cls, start) -> bool:
+        return (await cls._stored_row(start))["public_origin"]
+
     @staticmethod
-    async def _stored(start) -> bool:
+    async def _stored_row(start) -> dict[str, object]:
         created = _run_row()
         with (
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=_workflow())),
@@ -760,7 +765,7 @@ class TestThePublicOrigin:
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
         ):
             await start(WorkflowExecutionService(MagicMock()))
-        return create_run.await_args.kwargs["public_origin"]
+        return create_run.await_args.kwargs
 
     @pytest.mark.security
     async def test_a_door_run_is_stored_public(self):
@@ -802,6 +807,44 @@ class TestThePublicOrigin:
         stored = await self._stored(lambda service: service.start(_ctx(), uuid.uuid4()))
 
         assert stored is False
+
+    @pytest.mark.security
+    async def test_a_run_started_while_impersonating_is_stored_so(self):
+        """A worker runs its nodes long after the request is gone: the row says it."""
+        set_impersonator(uuid.uuid4())
+        try:
+            stored = await self._stored_row(lambda service: service.start(_ctx(), uuid.uuid4()))
+        finally:
+            set_impersonator(None)
+
+        assert stored["impersonated"] is True
+
+    async def test_an_ordinary_run_is_stored_not_impersonated(self):
+        stored = await self._stored_row(lambda service: service.start(_ctx(), uuid.uuid4()))
+
+        assert stored["impersonated"] is False
+
+    @pytest.mark.security
+    async def test_a_run_caused_by_an_impersonated_run_is_stored_impersonated(self):
+        root = uuid.uuid4()
+        stored = await self._stored_row(
+            lambda service: service.admit_pinned(
+                _ctx(),
+                _workflow(),
+                _version(),
+                triggered_by=WorkflowRunTrigger.WORKFLOW_CALL,
+                run_input={},
+                causation=Causation(
+                    root_run_id=root,
+                    causation_run_id=root,
+                    visited_trigger_ids=[],
+                    depth=1,
+                    impersonated=True,
+                ),
+            )
+        )
+
+        assert stored["impersonated"] is True
 
 
 class TestTheAppDoor:

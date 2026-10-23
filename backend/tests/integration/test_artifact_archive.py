@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,14 +28,14 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Scope
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
-from app.repositories import artifact_repo
+from app.repositories import artifact_repo, resource_grant_repo
 from app.schemas.artifact import ArtifactPublicLinkUpdate, ArtifactUpdate
 from app.services import artifact as artifacts
 from app.services.access import ARTIFACT
@@ -223,6 +224,32 @@ class TestArchiving:
             subject_user_id=reader.id,
         )
 
+    async def test_the_sharing_routes_load_a_page_by_the_one_rule_the_service_reads_it_by(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """A live page is loaded for whoever asks - sharing decides who may manage it -, an
+        archived one only for its editors, and no page of another organization at all."""
+        organization, _owner, _agent, published, ctx = await _org_wide_page(db)
+        service = ArtifactService(db)
+        stranger = await _member(db, organization, role="viewer")
+        stranger_ctx = ctx_for(stranger, organization, role="viewer")
+        elsewhere, outsider, _ = await _tenant(db)
+        outsider_ctx = ctx_for(outsider, elsewhere, role="member")
+
+        assert (await service.load(stranger_ctx, published.artifact_id)).id == published.artifact_id
+        with pytest.raises(NotFoundError):
+            await service.load(outsider_ctx, published.artifact_id)
+        with pytest.raises(NotFoundError):
+            await service.load(ctx, uuid.uuid4())
+
+        await service.archive(ctx, published.artifact_id)
+
+        assert (await service.load(ctx, published.artifact_id)).id == published.artifact_id
+        with pytest.raises(NotFoundError):
+            await service.load(stranger_ctx, published.artifact_id)
+        with pytest.raises(NotFoundError):
+            await service.read(stranger_ctx, published.artifact_id)
+
     async def test_a_page_whose_key_survived_is_still_refused_by_the_public_link(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
@@ -249,6 +276,118 @@ class TestArchiving:
         assert [item.id for item in listed.items] == [published.artifact_id]
         assert listed.items[0].archived_at is not None
         assert (await service.publishing_agents(ctx)).items == []
+
+    @pytest.mark.security
+    async def test_an_archived_page_is_listed_only_to_those_who_may_edit_it(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """`GET /artifacts/{id}` answers 404 to anyone else, so the list must not name it."""
+        organization, _owner, agent, published, ctx = await _org_wide_page(db)
+        service = ArtifactService(db)
+        reader = await _member(db, organization, role="viewer")
+        reader_ctx = ctx_for(reader, organization, role="viewer")
+        admin_ctx = ctx_for(await _member(db, organization, role="admin"), organization, "admin")
+        colleague = await _member(db, organization, role="viewer")
+        colleague_ctx = ctx_for(colleague, organization, role="viewer")
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=organization.id,
+            subject_user_id=colleague.id,
+            resource_type=ARTIFACT.key,
+            resource_id=published.artifact_id,
+            level=GrantLevel.EDIT,
+        )
+        await service.archive(ctx, published.artifact_id)
+
+        async def seen(who: AuthContext) -> list[uuid.UUID]:
+            listed = await service.list_readable(who, include_archived=True)
+            assert listed.total == len(listed.items)
+            return [item.id for item in listed.items]
+
+        assert await seen(reader_ctx) == []
+        assert await seen(ctx) == [published.artifact_id]
+        assert await seen(admin_ctx) == [published.artifact_id]
+        assert await seen(colleague_ctx) == [published.artifact_id]
+        with pytest.raises(NotFoundError):
+            await service.read(reader_ctx, published.artifact_id)
+
+    @pytest.mark.security
+    async def test_what_an_editor_scope_reaches_of_the_archived_pages(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """The SQL form of the scope rule `resolve_access` applies, per scope, plus a grant."""
+        organization, owner, agent = await _tenant(db)
+        other = await _user(db)
+
+        async def archived(name: str, who: User, visibility: Visibility) -> uuid.UUID:
+            row = Artifact(
+                organization_id=organization.id,
+                agent_id=agent.id,
+                owner_user_id=who.id,
+                name=name,
+                title=name,
+                visibility=visibility.value,
+                archived_at=datetime.now(UTC),
+            )
+            db.add(row)
+            await db.flush()
+            return row.id
+
+        mine = await archived("mine", owner, Visibility.PRIVATE)
+        team = await archived("team", other, Visibility.TEAM)
+        wide = await archived("wide", other, Visibility.ORG)
+        hidden = await archived("hidden", other, Visibility.PRIVATE)
+
+        async def listed(scope: Scope, grants: list[uuid.UUID] | None = None) -> set[uuid.UUID]:
+            found, _ = await artifact_repo.list_visible(
+                db,
+                organization_id=organization.id,
+                user_id=owner.id,
+                see_all=True,
+                shared_ids=[],
+                include_archived=True,
+                edit_scope=scope,
+                edit_ids=grants,
+            )
+            return {item.id for item in found}
+
+        assert await listed(Scope.NONE) == set()
+        assert await listed(Scope.OWN) == {mine}
+        assert await listed(Scope.SHARED) == {mine, wide}
+        assert await listed(Scope.TEAM) == {mine, team, wide}
+        assert await listed(Scope.ALL) == {mine, team, wide, hidden}
+        assert await listed(Scope.NONE, [hidden]) == {hidden}
+        assert await listed(Scope.OWN, [hidden]) == {mine, hidden}
+
+    async def test_the_archived_pages_a_reader_may_not_edit_do_not_hide_the_live_ones(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent, published, ctx = await _org_wide_page(db)
+        service = ArtifactService(db)
+        live = await artifacts.publish_with(
+            db,
+            organization_id=organization.id,
+            agent_id=agent.id,
+            owner_user_id=owner.id,
+            run_id=None,
+            name="other-report",
+            title="Other",
+            media_type=ArtifactMediaType.HTML,
+            data=b"<h1>live</h1>",
+        )
+        live_row = await db.get(Artifact, live.artifact_id)
+        assert live_row is not None
+        live_row.visibility = Visibility.ORG.value
+        await db.flush()
+        await service.archive(ctx, published.artifact_id)
+        reader = await _member(db, organization, role="viewer")
+
+        listed = await service.list_readable(
+            ctx_for(reader, organization, role="viewer"), include_archived=True
+        )
+
+        assert [item.id for item in listed.items] == [live.artifact_id]
+        assert listed.total == 1
 
     async def test_archiving_twice_changes_nothing(
         self, db: AsyncSession, storage: LocalFileStorage

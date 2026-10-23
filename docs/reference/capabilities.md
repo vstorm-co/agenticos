@@ -1010,7 +1010,8 @@ alone. Nothing is listed where no identified person is listening.
 most 2400 tall, in a browser the operator runs
 ([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), with its data
 read as the person listening. In a group chat it opens only an
-organization-wide page, and draws it without data. It returns a text report
+organization-wide page, and draws it without data; so it does for a run nobody
+answers for, such as one a webhook or a form started. It returns a text report
 (data per binding, uncaught errors, console errors, policy refusals, refused
 requests, dialogs, the publish warnings) and the picture as an image part. Every
 request of the render is answered by the API or refused. Without a renderer or

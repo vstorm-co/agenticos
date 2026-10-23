@@ -314,8 +314,8 @@ class OrganizationService:
         ):
             raise AuthorizationError(
                 message=(
-                    "Changing whether pages may show data publicly needs you signed in as "
-                    "yourself, not on somebody's behalf."
+                    "Changing whether pages may show data publicly is not allowed while "
+                    "impersonating another account."
                 )
             )
 

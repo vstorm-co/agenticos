@@ -16,6 +16,8 @@ interface ConsentControlsProps {
   isOwner: boolean;
   /** Whether the strip line is drawn: only over the latest version. */
   showNotice: boolean;
+  /** A version request for this version waits for review, which is where it is confirmed. */
+  reviewPending: boolean;
   /** Withdraw's question, open - from the strip here or from the page's menu. */
   withdrawing: boolean;
   onWithdrawingChange: (open: boolean) => void;
@@ -36,6 +38,7 @@ export function ConsentControls({
   consent,
   isOwner,
   showNotice,
+  reviewPending,
   withdrawing,
   onWithdrawingChange,
   onConfirm,
@@ -51,6 +54,7 @@ export function ConsentControls({
         <ConsentNotice
           consent={consent}
           isOwner={isOwner}
+          reviewPending={reviewPending}
           onConfirm={() => setConfirming(true)}
           onWithdraw={() => onWithdrawingChange(true)}
         />

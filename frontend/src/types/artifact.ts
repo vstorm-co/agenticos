@@ -114,7 +114,7 @@ export interface ArtifactDetail extends Artifact {
   can_edit: boolean;
   /** Whether the caller may hand the page to another member: its owner, or an Owner or Admin. */
   may_change_owner: boolean;
-  /** Whether the caller may give someone the "data included" level: its owner, or an Owner or Admin. */
+  /** Whether the caller may give someone the "including data" level: its owner, or an Owner or Admin. */
   may_grant_edit_data: boolean;
   bindings: ArtifactBindingInfo[];
   public_link: ArtifactPublicLink;

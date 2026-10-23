@@ -21,8 +21,10 @@ import pytest
 from app.agents.audience import (
     RunAudience,
     acting_for_no_person,
+    acting_impersonated,
     derive_audience,
     for_no_person,
+    run_impersonated,
     run_person_for,
 )
 from app.db.models.agent_run import RunSurface
@@ -221,6 +223,14 @@ class TestTheRunPerson:
             )
             is None
         )
+
+    def test_the_impersonation_flag_is_scoped_to_its_block(self):
+        assert run_impersonated() is False
+        with acting_impersonated(True):
+            assert run_impersonated() is True
+        with pytest.raises(RuntimeError), acting_impersonated(True):
+            raise RuntimeError("the run failed")
+        assert run_impersonated() is False
 
     def test_the_no_person_flag_is_scoped_to_its_block(self):
         """Read by a record write to mark what a run with no person wrote, so it

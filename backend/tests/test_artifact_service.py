@@ -10,6 +10,7 @@ document - HTML as written, Markdown rendered with its raw HTML escaped.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import uuid
 from collections.abc import Iterator
@@ -22,7 +23,7 @@ import jwt
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from app.core.exceptions import NotFoundError, RateLimitError
+from app.core.exceptions import DatabaseError, NotFoundError, RateLimitError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
@@ -33,7 +34,7 @@ from app.services import rate_limit
 from app.services.artifact import ArtifactService
 from app.services.artifact_bindings import Reason, Unavailable, page_data
 from app.services.artifact_consent import Served
-from app.services.virtual_tables.exceptions import DeadlineReached
+from app.services.virtual_tables.exceptions import DeadlineReached, InvalidQueryError
 
 pytestmark = pytest.mark.anyio
 
@@ -183,6 +184,39 @@ class TestPublishWrapper:
             )
         assert result is expected
         assert publish_with.await_args.args == (session,)
+
+    async def test_a_run_asks_for_a_share_on_a_session_of_its_own(self) -> None:
+        session = MagicMock()
+        opened = MagicMock()
+        opened.__aenter__ = AsyncMock(return_value=session)
+        opened.__aexit__ = AsyncMock(return_value=None)
+        expected = MagicMock()
+        organization_id, agent_id, run_person = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        with (
+            patch(f"{PATH}.get_db_context", return_value=opened),
+            patch(f"{PATH}.request_share_with", new=AsyncMock(return_value=expected)) as inner,
+        ):
+            result = await artifacts.request_share(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                run_person=run_person,
+                run_id=None,
+                name="r",
+                visibility=Visibility.ORG,
+                people=["Ada"],
+            )
+        assert result is expected
+        assert inner.await_args.args == (session,)
+        assert inner.await_args.kwargs == {
+            "organization_id": organization_id,
+            "agent_id": agent_id,
+            "run_person": run_person,
+            "run_id": None,
+            "name": "r",
+            "visibility": Visibility.ORG,
+            "people": ["Ada"],
+            "room": False,
+        }
 
     async def test_bytes_over_the_limit_never_reach_storage(self) -> None:
         with (
@@ -1176,6 +1210,159 @@ class TestData:
         assert len(outcomes) == 1
         assert claims.store == {}
 
+    async def test_a_read_of_the_reasons_alone_does_not_collide_with_the_page_s_own_load(
+        self, claims: _Claims
+    ) -> None:
+        """An editor's strip asks why a source is empty while - or just after - their page
+        is served with its data: the two hold different claims, so neither refuses the other."""
+        viewer = _ctx()
+        reading = anyio.Event()
+        release = anyio.Event()
+
+        async def get(db: Any, artifact_id: uuid.UUID, *, organization_id: uuid.UUID) -> None:
+            reading.set()
+            await release.wait()
+
+        async def full() -> None:
+            with pytest.raises(NotFoundError):
+                await _service().data(viewer, uuid.uuid4(), uuid.uuid4())
+
+        with patch(f"{PATH}.artifact_repo.get", new=AsyncMock(side_effect=get)):
+            async with anyio.create_task_group() as group:
+                group.start_soon(full)
+                await reading.wait()
+                # Not a RateLimitError: it got as far as looking for the page.
+                with pytest.raises(NotFoundError):
+                    reasons = _service().data(viewer, uuid.uuid4(), uuid.uuid4(), rows=False)
+                    release.set()
+                    await reasons
+        assert claims.store == {}
+
+    @pytest.mark.parametrize("locked", [False, True])
+    async def test_a_read_of_the_reasons_alone_reads_no_records_and_passes_the_load_gate(
+        self, locked: bool
+    ) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        reading: dict[str, Any] = {}
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{PATH}.served",
+                new=AsyncMock(
+                    return_value=artifacts.Served(version=version, data=True, latest=True)
+                ),
+            ),
+            patch(f"{PATH}.rate_limit.one_in_flight") as claim,
+            patch(f"{PATH}._load_gate") as gate,
+            patch(
+                f"{PATH}.ArtifactService._read_page", new=AsyncMock(return_value=reading)
+            ) as read,
+        ):
+            claim.return_value.__aenter__ = AsyncMock(return_value=None)
+            claim.return_value.__aexit__ = AsyncMock(return_value=False)
+            gate.return_value.locked.return_value = locked
+            gate.return_value.__aenter__ = AsyncMock(return_value=None)
+            gate.return_value.__aexit__ = AsyncMock(return_value=False)
+            if locked:
+                # A process as busy as it may be refuses it, as it refuses a full load.
+                with pytest.raises(RateLimitError):
+                    await _service().data(ctx, artifact.id, version.id, rows=False)
+                read.assert_not_awaited()
+                return
+            result = await _service().data(ctx, artifact.id, version.id, rows=False)
+        assert result.bindings == reading
+        assert read.await_args.kwargs["rows"] is False
+        assert claim.call_args.args[0] == "artifact_data_reasons"
+
+    async def test_the_reasons_alone_run_the_query_for_no_records(self) -> None:
+        service = _service()
+        binding = ArtifactBinding.model_validate(_binding())
+        table = MagicMock(columns=[])
+        ok = artifacts.BindingRows(fields=binding.fields, rows=MagicMock(records=[]))
+        with (
+            patch.object(service, "_binding_source", AsyncMock(return_value=table)),
+            patch.object(service, "_read_rows", AsyncMock(return_value=ok)) as rows,
+        ):
+            readable = await service._read_reasons(_ctx(), binding, MagicMock())
+        assert readable is ok
+        assert rows.await_args.kwargs["max_records"] == 0
+        gone = Unavailable("creator_lost_access")
+        with patch.object(service, "_binding_source", AsyncMock(return_value=gone)):
+            assert await service._read_reasons(_ctx(), binding, MagicMock()) is gone
+
+    async def test_a_filter_the_converted_column_no_longer_answers_is_a_reason_here_too(
+        self,
+    ) -> None:
+        """What the page's own load says is what the editor's strip says."""
+        binding = ArtifactBinding.model_validate(_binding())
+        service = _service()
+        with (
+            patch(f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock(return_value="0")),
+            patch.object(
+                artifacts.VirtualTableService,
+                "read_bound",
+                AsyncMock(side_effect=InvalidQueryError("filters.0", "Not a number")),
+            ) as read,
+            patch.object(
+                service,
+                "_binding_source",
+                AsyncMock(return_value=MagicMock(columns=[], name="Deals")),
+            ),
+        ):
+            found = await service._read_reasons(_ctx(), binding, MagicMock(remaining_ms=lambda: 5))
+        assert isinstance(found, Unavailable)
+        assert found.reason == "source_changed"
+        assert read.await_args.kwargs["max_records"] == 0
+
+    @pytest.mark.security
+    async def test_a_database_error_in_the_reasons_alone_is_that_source_failed(self) -> None:
+        """As in the page's own load: one source, never a 500 - and never its parameters."""
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        broken = DBAPIError("SELECT 1", {"needle": "x"}, MagicMock(sqlstate="40001"))
+        with (
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+            patch(f"{PATH}.ArtifactService._read_reasons", new=AsyncMock(side_effect=broken)),
+        ):
+            bindings = await _service()._read_page(
+                artifact,
+                version,
+                artifacts.Served(version=version, data=True, latest=True),
+                can_edit=True,
+                current=True,
+                rows=False,
+            )
+        assert bindings["deals"].reason == "failed"
+
+    async def test_a_page_read_for_its_reasons_reads_no_binding_s_rows(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        with (
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+            patch(f"{PATH}.ArtifactService._read_binding", new=AsyncMock()) as rows,
+            patch(
+                f"{PATH}.ArtifactService._read_reasons",
+                new=AsyncMock(return_value=Unavailable("creator_lost_access")),
+            ) as reasons,
+        ):
+            bindings = await _service()._read_page(
+                artifact,
+                version,
+                artifacts.Served(version=version, data=True, latest=True),
+                can_edit=True,
+                current=True,
+                rows=False,
+            )
+        rows.assert_not_awaited()
+        reasons.assert_awaited_once()
+        assert bindings["deals"].reason == "creator_lost_access"
+
     @pytest.mark.security
     async def test_the_process_gate_refuses_at_once_when_full(self, monkeypatch) -> None:
         monkeypatch.setattr(artifacts.settings, "ARTIFACT_DATA_MAX_CONCURRENT_LOADS", 2)
@@ -1321,7 +1508,7 @@ class TestData:
                 f"{PATH}.virtual_table_repo.statement_timeout",
                 new=AsyncMock(side_effect=broken),
             ),
-            pytest.raises(DBAPIError),
+            pytest.raises(DatabaseError),
         ):
             await service.data(ctx, artifact.id, version.id)
 
@@ -1605,8 +1792,50 @@ class TestReadPageFailures:
         assert bindings["deals"].reason == "failed"
 
     async def test_a_failed_read_is_raised_otherwise(self) -> None:
-        with pytest.raises(DBAPIError):
+        with pytest.raises(DatabaseError):
             await self._read(isolate=False)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("isolate", [True, False])
+    async def test_a_failed_read_never_logs_the_query_s_filter_values(
+        self, isolate: bool, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A database error carries its bound parameters - the page query's filter values -
+        and the handler for an unhandled one logs it whole: the route raises a domain error
+        that holds none of them instead."""
+        secret = "ann@example.com-4242"
+        broken = DBAPIError("SELECT 1", {"needle": secret}, MagicMock(sqlstate="40001"))
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        version = _version(artifact, bindings=[_binding()])
+        error: DatabaseError | None = None
+        with (
+            caplog.at_level(logging.DEBUG),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=ctx)),
+            patch(f"{PATH}.ArtifactService._read_binding", new=AsyncMock(side_effect=broken)),
+        ):
+            try:
+                await _service()._read_page(
+                    artifact,
+                    version,
+                    artifacts.Served(version=version, data=True, latest=True),
+                    can_edit=True,
+                    current=True,
+                    isolate_failures=isolate,
+                )
+            except DatabaseError as raised:
+                error = raised
+        assert (error is None) is isolate
+        if error is not None:
+            assert secret not in f"{error.message} {error.details}"
+            assert error.__cause__ is None
+            assert error.__suppress_context__
+        logged = " ".join(
+            f"{record.getMessage()} {record.__dict__} {record.exc_text}"
+            for record in caplog.records
+        )
+        assert secret not in logged
+        assert [r.sqlstate for r in caplog.records if hasattr(r, "sqlstate")] == ["40001"]
 
 
 class TestWhoIsToldWhyABindingIsEmpty:
@@ -1627,3 +1856,16 @@ class TestWhoIsToldWhyABindingIsEmpty:
         editor = page_data(reads, max_bytes=1000, can_edit=True)["deals"]
         assert reader.reason == (reason if reader_told else None)
         assert editor.reason == reason
+
+
+class TestThePagesOwner:
+    async def test_a_page_nobody_owns_has_no_owner_to_read_its_data_as(self) -> None:
+        artifact = MagicMock(spec=Artifact, owner_user_id=None, organization_id=uuid.uuid4())
+        person = AuthContext(
+            user_id=uuid.uuid4(), organization_id=artifact.organization_id, role="member"
+        )
+
+        with patch(f"{PATH}.member_context", new=AsyncMock()) as lookup:
+            assert await artifacts._owner(MagicMock(), artifact, person) is None
+
+        lookup.assert_not_awaited()

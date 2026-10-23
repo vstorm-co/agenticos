@@ -243,6 +243,12 @@ class WorkflowRun(Base, TimestampMixin):
     public_origin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # An administrator started this run's chain while impersonating its principal,
+    # so nothing in it may do what impersonation refuses. Stored on the row because
+    # the request that knew is gone by the time a worker runs a node.
+    impersonated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     # Pinned once, at admission, by whichever adapter created the run - never
     # re-resolved from a request afterward. SET NULL rather than a hard block
     # on user deletion, matching `agent_runs.user_id`: the run itself is not

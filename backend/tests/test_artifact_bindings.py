@@ -9,10 +9,23 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext
 from app.schemas.artifact import ArtifactBinding, BindingReach
-from app.schemas.virtual_table import ColumnDef, OptionDef, RecordFilter, RecordSort
-from app.services.artifact_bindings import describe, disclose
+from app.schemas.virtual_table import ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort
+from app.services.artifact_bindings import (
+    Unavailable,
+    bound_fields,
+    describe,
+    disclose,
+    page_source,
+    shape_for,
+)
 from app.services.virtual_tables import TableSource
 
 
@@ -199,3 +212,114 @@ def test_a_link_labelled_by_nothing_says_record_ids_and_a_formula_without_inputs
     assert said.sort == "Pay band (formula), ascending"
     parts = describe(_binding(source, ids, RecordSort(by="created_at")), {source.id: source})
     assert (parts.sort.record_time, parts.linked) == ("created_at", [])
+
+
+def _record(values: dict[str, object]) -> RecordRead:
+    return RecordRead(
+        id=uuid.uuid4(),
+        table_id=uuid.uuid4(),
+        schema_version=1,
+        values=values,
+        revision=1,
+        created_at=datetime.now(UTC),
+    )
+
+
+def test_a_field_whose_column_is_archived_or_gone_reads_nothing():
+    kept = ColumnDef(id=uuid.uuid4(), label="Name", type="text")
+    archived = ColumnDef(id=uuid.uuid4(), label="Old", type="text", archived=True)
+    gone = uuid.uuid4()
+    record = _record({str(kept.id): "Ada", str(archived.id): "kept in storage"})
+
+    shaped = shape_for([kept, archived], {"name": kept.id, "old": archived.id, "gone": gone})(
+        record
+    )
+
+    assert shaped == {"id": str(record.id), "name": "Ada", "old": None, "gone": None}
+
+
+def test_a_bound_field_says_when_its_column_is_archived_or_missing():
+    kept = ColumnDef(id=uuid.uuid4(), label="Name", type="text")
+    archived = ColumnDef(id=uuid.uuid4(), label="Old", type="text", archived=True)
+
+    described = bound_fields(
+        [kept, archived], {"name": kept.id, "old": archived.id, "gone": uuid.uuid4()}
+    )
+
+    assert {field: (item.label, item.type, item.state) for field, item in described.items()} == {
+        "name": ("Name", "text", "ok"),
+        "old": ("Old", "text", "archived"),
+        "gone": ("gone", "text", "missing"),
+    }
+
+
+@pytest.mark.anyio
+class TestThePageSource:
+    """The binding's table as its owner reads it now, or the one reason it reads nothing."""
+
+    OWNER = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+
+    def _bound(self) -> tuple[ArtifactBinding, dict[uuid.UUID, TableSource]]:
+        source, ids = _people()
+        return _binding(source, ids, RecordSort(by="created_at")), {source.id: source}
+
+    async def _read(
+        self, binding: ArtifactBinding, sources: dict[uuid.UUID, TableSource]
+    ) -> TableSource | Unavailable:
+        async def table_source(_person: AuthContext, table_id: uuid.UUID, **_kw: object):
+            if table_id not in sources:
+                raise NotFoundError(message="Table not found")
+            return sources[table_id]
+
+        service = MagicMock()
+        service.table_source = AsyncMock(side_effect=table_source)
+        return await page_source(service, self.OWNER, binding, deadline=MagicMock())
+
+    async def test_a_table_as_it_was_resolved_is_served(self):
+        binding, sources = self._bound()
+        name = next(
+            column for column in sources[binding.table_id].columns if column.label == "Name"
+        )
+        binding.reach.named_by[binding.table_id] = name.id
+
+        assert await self._read(binding, sources) == sources[binding.table_id]
+
+    async def test_a_table_the_owner_cannot_read_serves_nothing(self):
+        binding, _sources = self._bound()
+
+        assert await self._read(binding, {}) == Unavailable("creator_lost_access")
+
+    async def test_an_archived_table_names_itself(self):
+        binding, sources = self._bound()
+        sources[binding.table_id] = replace(sources[binding.table_id], archived=True)
+
+        assert await self._read(binding, sources) == Unavailable("source_changed", "People")
+
+    async def test_a_reached_column_that_is_gone_names_the_table(self):
+        binding, sources = self._bound()
+        binding.reach.tables[binding.table_id][uuid.uuid4()] = 0
+
+        assert await self._read(binding, sources) == Unavailable("source_changed", "People")
+
+    @pytest.mark.parametrize("change", ["archived", "revision"])
+    async def test_a_reached_column_archived_or_revised_names_the_column(self, change):
+        binding, sources = self._bound()
+        source = sources[binding.table_id]
+        columns = [
+            column.model_copy(
+                update={"archived": True} if change == "archived" else {"revision": 7}
+            )
+            if column.label == "Salary"
+            else column
+            for column in source.columns
+        ]
+        sources[binding.table_id] = replace(source, columns=columns)
+
+        assert await self._read(binding, sources) == Unavailable("source_changed", "Salary")
+
+    @pytest.mark.parametrize("stored", [uuid.uuid4(), None])
+    async def test_a_table_naming_its_records_by_another_column_names_the_table(self, stored):
+        binding, sources = self._bound()
+        binding.reach.named_by[binding.table_id] = stored
+
+        assert await self._read(binding, sources) == Unavailable("source_changed", "People")

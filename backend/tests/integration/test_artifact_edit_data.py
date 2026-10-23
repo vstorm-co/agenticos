@@ -123,7 +123,7 @@ class TestGrantingTheLevel:
         ]
         assert details["subject_user_id"] == str(bea.user_id)
         assert details["wording"] == EDIT_DATA_PERSON_WORDING
-        assert details["wording_text"].startswith(f"{beas_email} can change what data")
+        assert details["wording_text"].startswith(f"{beas_email} can change the data everyone sees")
         assert "API runs" in details["wording_text"]
 
     async def test_a_group_gets_its_own_wording(
@@ -148,9 +148,11 @@ class TestGrantingTheLevel:
             if entry[0] == "artifact.edit_data_granted"
         ]
         assert details["subject_group_id"] == str(group.id)
-        assert details["wording_text"].startswith("Everyone in Sales, now and later,")
+        assert details["wording_text"].startswith("Anyone in Sales, now or later,")
 
-    @pytest.mark.parametrize("confirmed", [None, "edit_data.v0", EDIT_DATA_GROUP_WORDING])
+    @pytest.mark.parametrize(
+        "confirmed", [None, "edit_data.v0", "edit_data.person.v1", EDIT_DATA_GROUP_WORDING]
+    )
     async def test_without_the_text_for_this_subject_nothing_is_given(
         self, db: AsyncSession, storage: LocalFileStorage, confirmed: str | None
     ) -> None:

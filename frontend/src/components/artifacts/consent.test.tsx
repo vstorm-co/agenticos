@@ -44,7 +44,9 @@ function consent(overrides: Partial<ArtifactConsent> = {}): ArtifactConsent {
 
 function notice(value: ArtifactConsent, isOwner = false) {
   const handlers = { onConfirm: vi.fn(), onWithdraw: vi.fn() };
-  const { container } = render(<ConsentNotice consent={value} isOwner={isOwner} {...handlers} />);
+  const { container } = render(
+    <ConsentNotice consent={value} isOwner={isOwner} reviewPending={false} {...handlers} />,
+  );
   return { ...handlers, container };
 }
 
@@ -53,7 +55,7 @@ describe("ConsentNotice", () => {
     const { onConfirm } = notice(consent({ may_confirm: true }), true);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Nobody has confirmed sharing the data v3 reads yet. The audience still sees v2 until you confirm.",
+      "v3's data isn't confirmed yet. Others still see v2 until you confirm.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Confirm data" }));
     expect(onConfirm).toHaveBeenCalledOnce();
@@ -63,7 +65,7 @@ describe("ConsentNotice", () => {
     const { onWithdraw } = notice(consent({ may_withdraw: true }));
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "The audience still sees v2 until Olga Owner confirms.",
+      "Others still see v2 until Olga Owner confirms.",
     );
     expect(screen.queryByRole("button", { name: "Confirm data" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Stop sharing data" }));
@@ -80,15 +82,40 @@ describe("ConsentNotice", () => {
     notice(consent({ audience_version: null, owner_name: null }));
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Only its owner, its editors and the roles that open every page can open it until its owner confirms its data.",
+      "Only the owner, editors and roles that see every page can open it until its owner confirms its data.",
     );
   });
 
   it("says a withdrawal is what the data waits on", () => {
     notice(consent({ state: "withdrawn", may_confirm: true }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Sharing this page's data was withdrawn.");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Data sharing was stopped. Others see v2 without its data until Olga Owner confirms it again.",
+    );
     expect(screen.getByRole("button", { name: "Confirm data" })).toBeVisible();
+  });
+
+  it("says a withdrawn page nobody has seen is open to few, and speaks to the owner", () => {
+    notice(consent({ state: "withdrawn", audience_version: null }), true);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Only the owner, editors and roles that see every page can open it until you confirm its data again.",
+    );
+  });
+
+  it("offers no Confirm while the review of the version waits, but keeps Withdraw", () => {
+    const handlers = { onConfirm: vi.fn(), onWithdraw: vi.fn() };
+    render(
+      <ConsentNotice
+        consent={consent({ may_confirm: true, may_withdraw: true })}
+        isOwner
+        reviewPending
+        {...handlers}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Confirm data" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Stop sharing data" })).toBeVisible();
   });
 
   it("tells whoever may confirm what an automatic consent added", () => {
@@ -103,7 +130,7 @@ describe("ConsentNotice", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "v3 was consented automatically and reads more: +Deals, +Salary",
+      "v3 was shared automatically and shows more data: +Deals, +Salary",
     );
   });
 
@@ -120,7 +147,7 @@ describe("ConsentNotice", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "v3 was consented automatically via Bea Builder's grant and reads more: +Deals",
+      "v3, published by Bea Builder, was shared automatically and shows more data: +Deals",
     );
   });
 
@@ -291,7 +318,7 @@ describe("ConfirmDataDialog", () => {
     expect(disclosureMock).toHaveBeenCalledWith("a1", "v3", true);
     for (const words of [
       "Confirm the data v3 shares",
-      "deals reads Deals",
+      "deals - from Deals",
       'Only records where Stage is "Won"; Region is one of "EU", "US"; Closed is empty; Owner is not empty.',
       "Order: Amount, descending. At most 50 records.",
       "stage: Stage (Single select)",
@@ -302,15 +329,15 @@ describe("ConfirmDataDialog", () => {
       "region: Region: lookup of Customers -> Region",
       "total: Total: rollup sum of Customers -> Spend",
       "n: Count: rollup count of Customers",
-      "Also reads, through links: Customers, Staff",
-      "Every record - no filter.",
+      "Also uses linked tables: Customers, Staff",
+      "All records.",
       "Order: when last changed, ascending. At most 1 record.",
       "name: Name (Text)",
-      "Tables read: Customers, Deals, Staff",
-      "Everyone with one of these roles, which open every page: Owner, Admin, Builder, Operator",
+      "Tables: Customers, Deals, Staff",
+      "Roles that see every page: Owner, Admin, Builder, Operator",
       "Everyone in the organization",
       "Shared with: ann@example.com",
-      "Shared with these groups, including whoever joins them: Sales",
+      "Groups, including future members: Sales",
     ]) {
       expect(body).toHaveTextContent(words);
     }
@@ -463,12 +490,10 @@ describe("AutoConsentSetting", () => {
   it("turns on for the owner only after the popup saying what it does", async () => {
     const { onChange } = setting(consent({ may_enable_auto_consent: true }));
 
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Don't ask for consent on republish" }),
-    );
+    await userEvent.click(screen.getByRole("switch", { name: "Share new versions automatically" }));
     const popup = screen.getByRole("dialog");
     expect(popup).toHaveTextContent(
-      "Any change your runs make to this page's data, new columns and tables included, reaches everyone who can open it without asking you - API runs too.",
+      "Any data change your runs make to this page, including new tables and columns, reaches everyone who can open it without asking you. This includes API runs.",
     );
     expect(popup).not.toHaveTextContent(/scheduled/i);
     expect(onChange).not.toHaveBeenCalled();

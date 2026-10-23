@@ -182,14 +182,14 @@ describe("the live data control on a public link", () => {
     expect(screen.getByTestId("public-data-control")).toHaveTextContent(
       "Live data on this public link",
     );
-    expect(screen.getByText(/An Owner or Admin has to turn it on/)).toBeVisible();
+    expect(screen.getByText(/An Owner or Admin can turn it on/)).toBeVisible();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("offers Confirm to whoever may confirm for a page that is not", async () => {
     control(artifact());
 
-    expect(screen.getByText(/Confirm to show the table records/)).toBeVisible();
+    expect(screen.getByText(/Confirm to show it to anyone with the link/)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Confirm data" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm data for the public link");
   });
@@ -218,10 +218,10 @@ describe("the live data control on a public link", () => {
       screen.getByText(/Shown on the public link: version 3, confirmed by Olga Owner/),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Confirm again" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop showing data" }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("keep showing the page, without its data");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+    expect(dialog).toHaveTextContent("show the page without its data");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop showing data" }));
 
     expect(onWithdraw).toHaveBeenCalledOnce();
     onWithdraw.mock.calls[0]?.[0]();
@@ -239,12 +239,12 @@ describe("the live data control on a public link", () => {
   });
 
   it.each([
-    ["switch_off", "an Owner or Admin switched live data on public pages off", false],
+    ["switch_off", "live data on public pages is off for the organization", false],
     ["no_served_version", "the public link serves no version of this page now", false],
-    ["queries_changed", "the page's queries changed", true],
-    ["owner_gone", "the page's owner is no longer an active member", false],
+    ["queries_changed", "the page's data changed", true],
+    ["owner_gone", "the page's owner is no longer a member", false],
     ["owner_membership_changed", "the page's owner changed since the data was confirmed", false],
-    ["member_consent_missing", "consent for members to read this version's data is missing", false],
+    ["member_consent_missing", "this version's data isn't confirmed for members yet", false],
     ["link_expired", "the public link has expired", false],
   ] as const)("says why a confirmed link shows no data: %s", async (reason, words, again) => {
     control(
@@ -260,7 +260,7 @@ describe("the live data control on a public link", () => {
 
     expect(screen.getByTestId("public-data-control")).toHaveTextContent(words);
     expect(screen.queryByRole("button", { name: "Confirm again" }) !== null).toBe(again);
-    expect(screen.getByRole("button", { name: "Withdraw" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop showing data" })).toBeVisible();
   });
 
   it("keeps the control and Withdraw while data is consented though the latest version has no bindings", () => {
@@ -275,7 +275,7 @@ describe("the live data control on a public link", () => {
       }),
     );
 
-    expect(screen.getByRole("button", { name: "Withdraw" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop showing data" })).toBeVisible();
   });
 
   it("draws no control for a page with no bindings and nothing consented", () => {
@@ -296,7 +296,7 @@ describe("the live data control on a public link", () => {
       }),
     );
 
-    expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop showing data" })).toBeNull();
   });
 
   it("offers no Confirm again to somebody who may not confirm", () => {
@@ -312,7 +312,7 @@ describe("the live data control on a public link", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Confirm again" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Withdraw" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop showing data" })).toBeVisible();
   });
 });
 
@@ -337,9 +337,9 @@ describe("the dialog that confirms the data for the public link", () => {
 
     expect(disclosureMock).toHaveBeenCalledWith("a1", true);
     for (const words of [
-      "deals reads Deals",
-      "Tables read: Deals",
-      "Anyone with the public link - no account, no sign-in.",
+      "deals - from Deals",
+      "Tables: Deals",
+      "Anyone with the public link, without signing in.",
       "They have to enter the link's password.",
       "The link stops working after Dec 24, 2026.",
       "https://a.example, https://b.example",
@@ -436,7 +436,7 @@ describe("the dialog that confirms the data for the public link", () => {
     const { dialog } = await open();
 
     expect(within(dialog).getByRole("button", { name: "Confirm data" })).toBeDisabled();
-    expect(dialog).not.toHaveTextContent("Tables read");
+    expect(dialog).not.toHaveTextContent("Tables:");
   });
 
   it("shows a loading state, then an error when the disclosure cannot be read", async () => {
@@ -469,7 +469,7 @@ describe("the strip line for an editor", () => {
     const { onConfirm } = strip(moved());
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "This page's queries changed, so its public link shows no data until it is confirmed again.",
+      "The data this page shows changed, so its public link shows none until it's confirmed again.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Confirm data" }));
     await userEvent.click(

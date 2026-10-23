@@ -5,15 +5,16 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, false, func, or_, select
+from sqlalchemy import ColumnElement, and_, delete, false, func, or_, select, true
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.artifact import SERVED_STATES, Artifact, ArtifactVersion, ConsentState
@@ -103,6 +104,27 @@ async def get_by_public_key(db: AsyncSession, public_key: str) -> Artifact | Non
     return result.scalar_one_or_none()
 
 
+def _editable(*, user_id: UUID, scope: Scope, grant_ids: list[UUID]) -> ColumnElement[bool]:
+    """The rows `artifacts:edit` reaches for one member: their role's scope, or a grant.
+
+    The SQL form of `access._scope_allows` plus an edit grant, for a listing that
+    has to page over rows only an editor may see.
+    """
+    owner = Artifact.owner_user_id == user_id
+    reach: list[ColumnElement[bool]] = [Artifact.id.in_(grant_ids)] if grant_ids else []
+    if scope is Scope.ALL:
+        return true()
+    if scope is Scope.TEAM:
+        reach.append(
+            or_(owner, Artifact.visibility.in_([Visibility.TEAM.value, Visibility.ORG.value]))
+        )
+    elif scope is Scope.SHARED:
+        reach.append(or_(owner, Artifact.visibility == Visibility.ORG.value))
+    elif scope is Scope.OWN:
+        reach.append(owner)
+    return or_(*reach) if reach else false()
+
+
 def _visible(
     *,
     organization_id: UUID,
@@ -111,14 +133,18 @@ def _visible(
     shared_ids: list[UUID],
     shared_with_me: bool,
     include_archived: bool = False,
+    archived_reach: ColumnElement[bool] = false(),
 ) -> list[Any]:
     """Which rows one member may see - the predicate the list and its filters share.
 
-    Archived pages only when asked for: none of them serves anything.
+    Archived pages only when asked for, and then only those `archived_reach` admits:
+    none of them serves anything, and one exists only for the members who can edit it.
     """
     where: list[Any] = [Artifact.organization_id == organization_id]
     if not include_archived:
         where.append(Artifact.archived_at.is_(None))
+    else:
+        where.append(or_(Artifact.archived_at.is_(None), archived_reach))
     if shared_with_me:
         where.append(
             and_(
@@ -149,6 +175,8 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    edit_scope: Scope = Scope.NONE,
+    edit_ids: list[UUID] | None = None,
     search: str | None = None,
     agent_id: UUID | None = None,
     skip: int = 0,
@@ -161,6 +189,9 @@ async def list_visible(
         shared_ids: Artifact ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
         include_archived: List archived pages too; they are left out otherwise.
+        edit_scope: The scope of the caller's `artifacts:edit`, and `edit_ids` the pages
+            an edit grant gives them: of the archived pages only those they may edit are
+            listed.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
     """
     where = _visible(
@@ -170,6 +201,7 @@ async def list_visible(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        archived_reach=_editable(user_id=user_id, scope=edit_scope, grant_ids=edit_ids or []),
     )
     if search:
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
@@ -546,13 +578,13 @@ async def versions_beyond(
     artifact_id: UUID,
     *,
     keep: int,
-    pinned: int | None = None,
-    served: int | None = None,
+    kept: Collection[int] = (),
 ) -> list[ArtifactVersion]:
     """Every version older than the newest `keep` - what pruning removes.
 
-    `pinned` is a version number the public link shows, and `served` the one the
-    page's audience is served; neither is among them however old it is.
+    `kept` are version numbers that stay however old they are: the one the public
+    link shows, the one the page's audience is served and the one a republish's
+    consent is compared against.
     """
     result = await db.execute(
         select(ArtifactVersion)
@@ -560,7 +592,7 @@ async def versions_beyond(
         .order_by(ArtifactVersion.number.desc())
         .offset(keep)
     )
-    return [version for version in result.scalars().all() if version.number not in (pinned, served)]
+    return [version for version in result.scalars().all() if version.number not in kept]
 
 
 async def get_version_by_number(

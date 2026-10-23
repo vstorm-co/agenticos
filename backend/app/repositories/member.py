@@ -106,6 +106,28 @@ class MemberIdentity(NamedTuple):
     avatar_url: str | None
 
 
+async def get_active_ids(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, UUID]:
+    """Map user id -> the id of their active membership, for those who have one.
+
+    The batch form of `get_active`, for a listing that must tell whose membership is
+    still the one a stored id names.
+    """
+    if not user_ids:
+        return {}
+    result = await db.execute(
+        select(OrganizationMember.user_id, OrganizationMember.id)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+            User.is_active.is_(True),
+        )
+    )
+    return dict(result.all())
+
+
 async def get_identities_for_users(
     db: AsyncSession,
     *,

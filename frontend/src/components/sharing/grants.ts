@@ -21,7 +21,7 @@ const EDIT_DATA_OPTION: LevelOption = { value: "edit_data", words: "levelEditDat
 /**
  * The levels one resource type offers.
  *
- * Only a page has "Can edit, data included", and it is offered to a caller the
+ * Only a page has "Can edit, including data", and it is offered to a caller the
  * server said may give it (`mayGrantEditData`) - or kept in the list for a row that
  * holds it already, so the row can be read and moved down by any editor.
  */
@@ -34,14 +34,14 @@ export function levelOptions(
 }
 
 /**
- * The ids of the texts a person confirms to give "data included". The server
+ * The ids of the texts a person confirms to give "including data". The server
  * accepts only these, and records the English text in the audit entry, so a change
  * to what `editDataConfirmPerson` or `editDataConfirmGroup` says goes with a new id
  * on both sides.
  */
 export const EDIT_DATA_WORDING = {
-  user: "edit_data.person.v1",
-  group: "edit_data.group.v1",
+  user: "edit_data.person.v2",
+  group: "edit_data.group.v2",
 } as const;
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */

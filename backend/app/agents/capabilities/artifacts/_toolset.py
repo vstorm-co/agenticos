@@ -528,6 +528,7 @@ def build_artifacts_toolset(
                 expected_version=expected_version,
                 bindings=bindings,
                 run_person=deps.run_person,
+                impersonated=deps.impersonated,
                 table_grants=table_grants,
                 actions=actions,
                 workflow_ids=workflow_ids,
@@ -748,7 +749,7 @@ def build_artifacts_toolset(
         Use after publishing or changing an HTML page, before telling the person it is
         done, and whenever they say it looks wrong. The page is drawn 1280 pixels wide,
         with the live data the person this run is for would be served (in a group
-        chat, without data), and checked as `publish_artifact` checks it. Fix what the
+        chat, or for a run nobody answers for, without data), and checked as `publish_artifact` checks it. Fix what the
         report names, publish again and preview once more. Not for reading the page's
         source - that is `read_artifact`.
 
@@ -785,6 +786,7 @@ def build_artifacts_toolset(
                 run_id=deps.run_id,
                 name=name,
                 room=not audience.private,
+                has_person=deps.run_person is not None,
             )
         except NotFoundError as missing:
             return missing.message

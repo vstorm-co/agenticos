@@ -53,7 +53,11 @@ LATEST_KIT = max(KIT_CLASSES)
 LUCIDE_FILE = "lucide-1.46.0.min.js"
 """The icon library a page loads for `data-lucide`, as the library set names it."""
 
-_DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<!--.*?-->)*<!doctype\s+html\b", re.I | re.S)
+# One whitespace byte or one comment per step, and a comment body cannot contain `-->`, so
+# no input can be split two ways and the match stays linear (`\s+` or `.*?` inside `*` is not).
+_DOCTYPE = re.compile(
+    rb"\A(?:\xef\xbb\xbf)?(?:\s|<!--(?:(?!-->).)*-->)*<!doctype\s+html\b", re.I | re.S
+)
 _KIT_CSS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.css(?:[?#]|$)")
 _KIT_JS = re.compile(r"(?:^|/)lib/agenticos-(\d+)\.js(?:[?#]|$)")
 _LUCIDE = re.compile(r"(?:^|/)lib/lucide-[\d.]+(?:\.min)?\.js(?:[?#]|$)")

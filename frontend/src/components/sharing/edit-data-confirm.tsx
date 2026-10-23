@@ -15,7 +15,7 @@ interface EditDataConfirmProps {
 }
 
 /**
- * What "Can edit, data included" lets someone do, said before it is given.
+ * What "Can edit, including data" lets someone do, said before it is given.
  *
  * The text is what the server records as agreed to - its id travels with the
  * share (`shareInput`) - so it names the person, or for a group everyone in it, now

@@ -13,7 +13,7 @@ import {
   type AskingGate,
   type PausedRun,
 } from "@/hooks/use-artifact-actions";
-import { useArtifactData, useArtifactView } from "@/hooks/use-artifacts";
+import { useArtifactData, useArtifactReasons, useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
 import type { ArtifactActionView, ArtifactData, BindingData } from "@/types/artifact";
 
@@ -328,8 +328,9 @@ interface ArtifactFrameProps {
    */
   onBridge?: (bridge: DataBridge) => void;
   /**
-   * Read the data once after a page served with it, for the reasons a source is
-   * empty: an editor's strip says why, and only the data route tells them.
+   * Ask, once the page has loaded, why a source is empty, for a page served with its
+   * data: an editor's strip says why, and only the data route tells them. The records
+   * are not read again - the page has them.
    */
   fetchReasons?: boolean;
 }
@@ -369,19 +370,28 @@ export function ArtifactFrame({
   const view = useArtifactView(artifactId, versionId, true, versionId === null);
   const live = view.data?.live === true;
   // A page served with its data already has it: the first load reads nothing here,
-  // but for an editor's strip. `refresh` still reads it - `refetch` runs a disabled
-  // query - and posts it.
+  // but for an editor's strip, which asks why once the page has loaded. `refresh`
+  // still reads it - `refetch` runs a disabled query - and posts it.
   const injected = view.data?.injected === true;
-  const data = useArtifactData(
+  const nonce = view.data?.nonce ?? "";
+  const data = useArtifactData(artifactId, view.data?.version.id, live && !injected);
+  // After the load, never beside it: the page's own load holds the member's one read in
+  // flight until its document is served, and a second would be refused or refuse it.
+  const [loadedNonce, setLoadedNonce] = useState<string | null>(null);
+  const reasons = useArtifactReasons(
     artifactId,
     view.data?.version.id,
-    live && (!injected || fetchReasons),
+    nonce,
+    live && injected && fetchReasons && loadedNonce === nonce,
   );
   // A read cached from before this load was minted - a refresh, then a confirm or a
   // withdrawal that minted again - describes a page nobody sees any more. An injected
   // load already carries its own data, so such a read is neither posted nor shown.
   const fresh =
     !injected || Math.max(data.dataUpdatedAt, data.errorUpdatedAt) >= view.dataUpdatedAt;
+  // What the strip is told: the page's own read once it has made one, and until then,
+  // for an injected page, why its sources are empty.
+  const told = fresh ? data : reasons;
   // A read of a version no longer current, while the frame follows the current
   // one, is never posted: `useArtifactData` has the frame minted onto the newer
   // version, and its page is answered with that version's data.
@@ -393,18 +403,13 @@ export function ArtifactFrame({
       : moving
         ? undefined
         : data.data?.bindings;
-  const { subscribes, onLoad } = useDataBridge(
-    frame,
-    view.data?.nonce ?? "",
-    payload,
-    data.dataUpdatedAt,
-  );
+  const { subscribes, onLoad } = useDataBridge(frame, nonce, payload, data.dataUpdatedAt);
 
   const actions = view.data?.actions ?? NO_ACTIONS;
   const run = useArtifactActions({
     artifactId,
     frame,
-    nonce: view.data?.nonce ?? "",
+    nonce,
     versionId: view.data?.version.id ?? "",
     enabled: view.data?.actions_enabled === true,
     actions,
@@ -414,15 +419,11 @@ export function ArtifactFrame({
   const loaded = useCallback(() => {
     onLoad();
     onRunLoad();
-  }, [onLoad, onRunLoad]);
+    setLoadedNonce(nonce);
+  }, [onLoad, onRunLoad, nonce]);
 
-  const { refetch: refetchData, isFetching: fetchingData } = data;
+  const { refetch: refetchData } = data;
   const { refetch: refetchView } = view;
-  // The editor's one read after an injected load: one that settled before the load was
-  // minted is read again, so the strip shows why for the page they are looking at.
-  useEffect(() => {
-    if (injected && fetchReasons && !fresh && !fetchingData) void refetchData();
-  }, [injected, fetchReasons, fresh, fetchingData, refetchData]);
   const refresh = useCallback(async () => {
     // A page that does not listen is loaded again, and the new load carries the
     // data itself: reading it here as well would be a second read for nothing.
@@ -433,16 +434,17 @@ export function ArtifactFrame({
   const bindingCount = view.data?.bindings ?? 0;
   const status = useMemo<BridgeStatus>(
     () => ({
-      data: fresh ? data.data : undefined,
-      error: fresh ? data.error : null,
-      fetching: data.isFetching,
+      data: told.data,
+      error: told.error,
+      // The refresh in flight is the page's own read even while the strip still shows why.
+      fetching: data.isFetching || told.isFetching,
       subscribes,
       served: injected ? { bindings: bindingCount, awaitingConsent } : null,
     }),
     [
-      fresh,
-      data.data,
-      data.error,
+      told.data,
+      told.error,
+      told.isFetching,
       data.isFetching,
       subscribes,
       injected,

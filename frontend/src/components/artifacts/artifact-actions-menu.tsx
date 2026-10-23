@@ -16,7 +16,7 @@ import { ROUTES } from "@/lib/constants";
 import type { ArtifactActionView } from "@/types/artifact";
 
 /**
- * "This app can run: X, Y" in the viewer's strip: the workflows the page may ask
+ * "This page can run: X, Y" in the viewer's strip: the workflows the page may ask
  * to start for this person, each a link to that workflow's runs. Nothing without
  * actions - a page that cannot run anything has nothing to announce.
  *

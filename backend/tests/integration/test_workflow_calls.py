@@ -219,6 +219,24 @@ class TestCallingAWorkflow:
 
         assert (await _called_run(seeded, step)).run.public_origin is True
 
+    @pytest.mark.security
+    async def test_a_called_child_of_an_impersonated_run_is_impersonated_too(
+        self, engine: AsyncEngine
+    ):
+        """The chain a run starts keeps what the request that started it knew."""
+        _ctx, callee, member = await _published_callee(engine, _callee())
+        graph, step = _caller(callee.id)
+        seeded = await seed_run(engine, graph, member=member)
+        async with seeded.factory() as db:
+            await workflow_run_repo.update_run(
+                db, run=seeded.run, update_data={"impersonated": True}
+            )
+            await db.commit()
+
+        await drive(seeded)
+
+        assert (await _called_run(seeded, step)).run.impersonated is True
+
     async def test_a_called_child_of_a_member_run_is_not_public(self, engine: AsyncEngine):
         _ctx, callee, member = await _published_callee(engine, _callee())
         graph, step = _caller(callee.id)
@@ -227,6 +245,7 @@ class TestCallingAWorkflow:
         await drive(seeded)
 
         assert (await _called_run(seeded, step)).run.public_origin is False
+        assert (await _called_run(seeded, step)).run.impersonated is False
 
     async def test_a_call_that_does_not_wait_goes_on_at_once(self, engine: AsyncEngine):
         _ctx, callee, member = await _published_callee(engine, _callee())

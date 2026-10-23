@@ -98,7 +98,7 @@ describe("the tables catalog page", () => {
     expect(window.location.search).toBe("?show=all");
 
     await user.click(screen.getByRole("combobox", { name: "Which tables" }));
-    await user.click(screen.getByRole("option", { name: "Live tables" }));
+    await user.click(screen.getByRole("option", { name: "Active tables" }));
     expect(window.location.search).toBe("");
   });
 

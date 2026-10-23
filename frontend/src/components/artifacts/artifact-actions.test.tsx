@@ -21,9 +21,20 @@ import type { ArtifactActionRun, ArtifactActionView, ArtifactVersion } from "@/t
 
 const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
+const IDLE_READ = {
+  data: undefined,
+  error: null,
+  isError: false,
+  isFetching: false,
+  dataUpdatedAt: 0,
+  errorUpdatedAt: 0,
+  refetch: vi.fn(),
+};
+const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
+  useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
 }));
 const toastError = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
@@ -312,8 +323,23 @@ describe("a page asking the console to run an action", () => {
       // The label is page copy: text, in a quote, never markup and never the title.
       expect(screen.getByText("Send it <b>now</b>").tagName).toBe("Q");
       expect(
-        screen.getByText(/The page “Q3 page” asks to run this workflow as you/),
+        screen.getByText(/The page “\u2068Q3 page\u2069” asks to run this workflow as you/),
       ).toBeInTheDocument();
+    });
+
+    it("writes out the characters that reorder text in the page's title and the workflow's name", () => {
+      useArtifactViewMock.mockReturnValue(viewOf({ actions: [{ ...SEND, name: "Pay\u202Eout" }] }));
+      const title = "Q3\u202Eetadpu";
+      render(wrapped(<ArtifactFrame artifactId="a1" versionId={null} title={title} />));
+      const frame = screen.getByTitle(title) as HTMLIFrameElement;
+      fireEvent.load(frame);
+      ask(frame, REQUEST);
+      // Neither draws as a control: both are written out, and the title sits in its own isolate.
+      expect(screen.getByRole("heading", { name: "Pay\\u{202E}out" })).toBeInTheDocument();
+      expect(
+        screen.getByText(/The page “\u2068Q3\\u\{202E\}etadpu\u2069” asks to run this workflow/),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain("\u202E");
     });
 
     it("shows every value in full, as text", () => {
@@ -497,12 +523,13 @@ describe("a page asking the console to run an action", () => {
       expect(screen.getByText("https://docs.example.com/q3")).toBeInTheDocument();
     });
 
-    it("ends the dialog when the frame loads again", () => {
+    it("ends the dialog when the frame loads again, telling the new document nothing", () => {
       const { frame, rejected } = page();
       ask(frame, REQUEST);
       fireEvent.load(frame);
       expect(dialog()).toBeNull();
-      expect(rejected()).toEqual([expect.objectContaining({ reason: "page_changed" })]);
+      // Its first request is `r1` as well: a rejection posted now could answer that one.
+      expect(rejected()).toEqual([]);
     });
 
     it("ends the dialog when another version is served", () => {

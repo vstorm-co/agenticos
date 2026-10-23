@@ -393,7 +393,7 @@ at scope `ALL` - may confirm for the owner, audited as such. A grant to edit
 the page is not enough. Any editor may withdraw it, since withdrawing only narrows; it also lowers
 every `edit_data` grant on the page to `edit`.
 
-**`edit_data` is a grant level, not a role.** "Can edit, data included" sits above `edit`
+**`edit_data` is a grant level, not a role.** "Can edit, including data" sits above `edit`
 and is accepted for pages only (a database constraint refuses it elsewhere). It is a
 standing consent to that person's, or that group's, republishes. Only the owner, or an
 Owner or Admin, as themselves, grants or raises it, after confirming what it allows.

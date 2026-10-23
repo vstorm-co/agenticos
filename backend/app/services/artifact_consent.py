@@ -52,40 +52,53 @@ PAGE_ROLES: tuple[str, ...] = tuple(
 """The roles that open every page, whatever its visibility and grants - part of any
 page's audience, and named in every disclosure."""
 
-AUTO_CONSENT_WORDING = "auto_consent.v1"
+AUTO_CONSENT_WORDING = "auto_consent.v2"
 """The id of the text a person confirms to turn auto-consent on, a key of
 :data:`AUTO_CONSENT_TEXTS`. The console shows the text and sends this id back."""
 
 AUTO_CONSENT_TEXTS: dict[str, str] = {
-    AUTO_CONSENT_WORDING: (
+    "auto_consent.v1": (
         "Any change your runs make to this page's data, new columns and tables included, "
         "reaches everyone who can open it without asking you - API runs too."
+    ),
+    AUTO_CONSENT_WORDING: (
+        "Any data change your runs make to this page, including new tables and columns, "
+        "reaches everyone who can open it without asking you. This includes API runs."
     ),
 }
 """Every wording ever offered, by id, in English: the single source of what a confirmed id
 meant. The audit entry records the text itself, so what was agreed to stays readable after
-the wording changes; the console's English string must equal it."""
+the wording changes; the console's English string must equal it. Only the current id is
+accepted; older ids stay so audit rows that name them still resolve."""
 
 
-EDIT_DATA_PERSON_WORDING = "edit_data.person.v1"
-EDIT_DATA_GROUP_WORDING = "edit_data.group.v1"
+EDIT_DATA_PERSON_WORDING = "edit_data.person.v2"
+EDIT_DATA_GROUP_WORDING = "edit_data.group.v2"
 """The ids of the texts an owner confirms to give one person, or one group, the
 `edit_data` level; keys of :data:`EDIT_DATA_TEXTS`."""
 
 EDIT_DATA_TEXTS: dict[str, str] = {
-    EDIT_DATA_PERSON_WORDING: (
+    "edit_data.person.v1": (
         "{name} can change what data this page shows to everyone who can open it, including "
         "new tables and columns, without asking you; that includes their API runs."
     ),
-    EDIT_DATA_GROUP_WORDING: (
+    "edit_data.group.v1": (
         "Everyone in {name}, now and later, can change what data this page shows to everyone "
         "who can open it, including new tables and columns, without asking you; that "
         "includes their API runs."
     ),
+    EDIT_DATA_PERSON_WORDING: (
+        "{name} can change the data everyone sees on this page, including new tables and "
+        "columns, without asking you. This also covers their API runs."
+    ),
+    EDIT_DATA_GROUP_WORDING: (
+        "Anyone in {name}, now or later, can change the data everyone sees on this page, "
+        "including new tables and columns, without asking you. This also covers their API runs."
+    ),
 }
 """Every wording ever offered for `edit_data`, by id, in English, with `{name}` for the person
 or group. The audit entry records the text with the name filled in; the console's English
-strings must read the same."""
+strings must read the same. Older ids stay so audit rows that name them still resolve."""
 
 
 @dataclass(frozen=True)
@@ -269,13 +282,22 @@ async def consent_for(
     *,
     fingerprint: str | None,
     person: AuthContext | None,
+    impersonated: bool = False,
 ) -> VersionConsent:
     """The consent a version publishing these page queries starts with.
 
     `person` is the member behind the run - never the identity a widget run stands
     in for its visitor - or the person restoring a version; `None` for a run with
     nobody behind it.
+
+    `impersonated` says the run was started while an administrator impersonated
+    `person`: carried on the run, since the request that knew is gone by the time a
+    spawned task, a worker or a resumed approval publishes. A request under
+    impersonation is refused whichever way it says. Impersonation never consents on
+    the person's behalf, so only a republish of queries they already confirmed
+    stands.
     """
+    impersonated = impersonated or current_impersonator() is not None
     publisher = (
         await member_repo.get_active(
             db, organization_id=artifact.organization_id, user_id=person.user_id
@@ -310,7 +332,7 @@ async def consent_for(
         person is not None
         and person.user_id == artifact.owner_user_id
         and artifact.auto_consent
-        and current_impersonator() is None
+        and not impersonated
     )
     if (prior is not None and prior.query_fingerprint == fingerprint) or owners_own:
         return made(ConsentState.CONSENTED, automatic=True)
@@ -318,7 +340,7 @@ async def consent_for(
         person is not None
         and person.user_id is not None
         and person.user_id != artifact.owner_user_id
-        and current_impersonator() is None
+        and not impersonated
         and await resource_grant_repo.get_level(
             db,
             organization_id=artifact.organization_id,

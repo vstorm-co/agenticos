@@ -11,7 +11,7 @@ import type { ArtifactConsent } from "@/types/artifact";
  * server accepts only the one it knows and records it in the audit entry, so a
  * change to `autoConsentConfirm`'s meaning goes with a new value on both sides.
  */
-export const AUTO_CONSENT_WORDING = "auto_consent.v1";
+export const AUTO_CONSENT_WORDING = "auto_consent.v2";
 
 interface AutoConsentSettingProps {
   consent: ArtifactConsent;
@@ -24,7 +24,7 @@ interface AutoConsentSettingProps {
 }
 
 /**
- * "Don't ask for consent on republish", in the Share dialog of a page that reads
+ * "Share new versions automatically", in the Share dialog of a page that reads
  * data. Only the page's owner turns it on - through a popup saying what it does -
  * and the owner or an Owner or Admin turns it off, at once. Rendered only for a
  * caller who may change it one way or the other; the switch is held in the

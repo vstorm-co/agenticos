@@ -66,7 +66,7 @@ if TYPE_CHECKING:
     from app.services.artifact import ArtifactService
 
 _OWNER_GONE = "The page's owner is no longer an active member, so its data can't be shared."
-_AS_THEMSELVES = "This needs you signed in as yourself, not on somebody's behalf."
+_AS_THEMSELVES = "This is not allowed while impersonating another account."
 
 
 class PublicDataVoid(StrEnum):
@@ -337,7 +337,7 @@ class ArtifactPublicDataService:
     ) -> str | None:
         """Why the page's data cannot be confirmed for its link now, or `None`."""
         if not org.public_live_data:
-            return "This organization does not let a page's data reach anyone with its link."
+            return "Live data on public pages is off for this organization."
         if artifact.public_key is None:
             return "The page has no public link; turn it on before confirming its data."
         if version is None or not version.bindings:
@@ -345,10 +345,7 @@ class ArtifactPublicDataService:
         if membership is None:
             return _OWNER_GONE
         if not consent_holds(version, artifact, membership):
-            return (
-                "The owner hasn't confirmed this version's data for the people who open the "
-                "page; do that first."
-            )
+            return "Confirm this version's data for members first."
         return None
 
     async def disclosure(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactPublicDataDisclosure:
@@ -423,7 +420,7 @@ class ArtifactPublicDataService:
         assert version is not None and membership is not None  # `_refusal` held them
         if version.query_fingerprint != data.fingerprint:
             raise ConcurrentChangeError(
-                message="The page changed after you looked at it. Review what it shares now.",
+                message="The page changed since you opened this. Review it again.",
                 details={"artifact_id": artifact.id, "version_id": version.id},
             )
         if data.audience_digest != audience_digest(artifact):

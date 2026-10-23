@@ -78,7 +78,7 @@ describe("the public live data switch", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent(
-      "Pages whose owners consent will show table records to anyone with their link, and on every site that embeds them",
+      "Anyone with a page's public link, and every site that embeds it, will see its table data without signing in",
     );
     expect(apiClient.patch).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Allow" }));
@@ -86,9 +86,7 @@ describe("the public live data switch", () => {
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { public_live_data: true }),
     );
-    expect(toast.success).toHaveBeenCalledWith(
-      "Pages may now show live data on their public links",
-    );
+    expect(toast.success).toHaveBeenCalledWith("Public pages may now show live data");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 

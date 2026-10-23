@@ -108,6 +108,7 @@ class _World:
         run_id: uuid.UUID | None = None,
         retry: int = 0,
         run_person: uuid.UUID | object | None = _UNSET,
+        impersonated: bool = False,
     ):
         acting = str(self.owner.id) if user_id is None else user_id
         person = uuid.UUID(acting) if run_person is _UNSET else run_person
@@ -118,6 +119,7 @@ class _World:
                 user_id=acting,
                 run_id=run_id,
                 run_person=person,
+                impersonated=impersonated,
             ),
             model=TestModel(),
             usage=RunUsage(),
@@ -243,6 +245,29 @@ async def test_a_wait_reads_the_run_again_until_it_ends(world: _World, monkeypat
     assert answer["status"] == "succeeded"
     assert answer["output"] == {"sent": True}
     assert "note" not in answer
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("impersonated", [True, False])
+async def test_a_run_started_under_impersonation_starts_its_workflow_that_way(
+    world: _World, impersonated: bool
+):
+    """No request is left to ask when a resumed run or a spawned task calls the tool."""
+    import json
+
+    follow_up = await world.workflow("Follow up", _graph("trigger.manual", {}))
+    tools = _tools(follow_up)
+
+    started = json.loads(
+        await tools["run_workflow"](
+            world.run_ctx(impersonated=impersonated), follow_up.id, wait=False
+        )
+    )
+
+    async with world.factory() as db:
+        run = await db.get(WorkflowRun, uuid.UUID(started["run_id"]))
+    assert run is not None
+    assert run.impersonated is impersonated
 
 
 async def test_a_run_is_read_back_with_its_error(world: _World):

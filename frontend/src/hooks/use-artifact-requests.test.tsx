@@ -81,6 +81,7 @@ describe("useArtifactRequests", () => {
       params: { include_decided: "true" },
     });
     expect(result.current.requests.map((item) => item.id)).toEqual(["r1", "r2", "r0"]);
+    expect(result.current.total).toBe(3);
 
     renderHook(() => useArtifactRequests("a1", false, true), { wrapper });
     await waitFor(() =>

@@ -306,6 +306,7 @@ async def _previewed(
             run_id=None,
             name=name,
             room=room,
+            has_person=True,
         )
 
 

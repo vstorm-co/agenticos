@@ -77,6 +77,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.audience import (
     RunAudience,
     acting_for_no_person,
+    acting_impersonated,
     derive_audience,
     run_person_for,
 )
@@ -154,6 +155,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.core.audit import current_impersonator
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -602,6 +604,17 @@ class AdmittedAs(BaseModel):
             "person too, until it is run again. A legacy workflow run is caught by "
             "the dispatch it wakes inside, and a widget or embed run has no person "
             "under its fallback rule either way."
+        ),
+    )
+    impersonated: bool = Field(
+        default=False,
+        description=(
+            "Whether an administrator was impersonating the run's person when it "
+            "started. Unrecoverable from the row, and the request that knew is gone "
+            "on a resume, so it is stored with the terms: a tool that must not act "
+            "under impersonation (automatic consent to a page's data) would "
+            "otherwise act after the approval. Defaults false, which is what a "
+            "run parked before this existed was."
         ),
     )
 
@@ -1254,6 +1267,7 @@ class PreparedRun:
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
+            acting_impersonated(self.built.deps.impersonated),
         ):
             return await self.built.agent.run(
                 user_prompt,
@@ -1302,6 +1316,7 @@ class PreparedRun:
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
             acting_for_no_person(self.built.deps.run_person is None),
+            acting_impersonated(self.built.deps.impersonated),
         ):
             async with self.built.agent.iter(
                 user_prompt,
@@ -2264,6 +2279,7 @@ class AgentRunnerService:
         request_connection: ConnectionCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
+        impersonated: bool = False,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2615,6 +2631,17 @@ class AgentRunnerService:
         public_origin = public_origin or (
             surface is RunSurface.WORKFLOW and (dispatching is None or dispatching.public_origin)
         )
+        # Whether an administrator started this run as its person: stated by a
+        # resume from the stored terms, otherwise read from the request that is
+        # starting it or the workflow dispatch it runs inside - the only places
+        # that still know. Carried on the deps and the admitted terms, because
+        # the ambient request state is gone in a spawned task, a worker and a
+        # run resumed after an approval.
+        impersonated = (
+            impersonated
+            or current_impersonator() is not None
+            or (dispatching is not None and dispatching.impersonated)
+        )
         # The run's own person. On a resume that is `owner_user_id` alone, never
         # the approver's `ctx.user_id`: a run whose member was deleted lost its
         # owner to `SET NULL`, and the approver releasing it must not fill the gap.
@@ -2636,6 +2663,7 @@ class AgentRunnerService:
             user_name=user_name,
             audience=audience,
             run_person=run_person,
+            impersonated=impersonated,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2696,6 +2724,7 @@ class AgentRunnerService:
                 audience_room_key=audience.room_key,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
                 public_origin=public_origin,
+                impersonated=impersonated,
             ),
         )
 
@@ -4067,6 +4096,7 @@ class AgentRunnerService:
                 "public_origin" not in state.admitted_as.model_fields_set
                 and RunSurface(run.surface) is RunSurface.SCHEDULE
             ),
+            impersonated=state.admitted_as.impersonated,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

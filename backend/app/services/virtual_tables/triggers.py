@@ -606,6 +606,8 @@ class TableTriggerConsumer:
             # run nobody answers for, such as a widget visitor's, causing run or not.
             public_origin=(causing is not None and causes_public(causing))
             or event.payload.get("public_origin") is True,
+            impersonated=(causing is not None and causing.impersonated)
+            or event.payload.get("impersonated") is True,
         )
         try:
             # A savepoint of its own, so a refused admission leaves the

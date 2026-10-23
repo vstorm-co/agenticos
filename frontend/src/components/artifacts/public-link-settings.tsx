@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CopyButton } from "@/components/chat/copy-button";
 import {
   Button,
+  ConfirmDialog,
   FormField,
   Input,
   Select,
@@ -60,8 +61,21 @@ export function pinnable(version: ArtifactVersion): boolean {
   return version.consent_state !== "pending" && version.consent_state !== "declined";
 }
 
+/** A site as the server compares it: no case, no trailing slash. */
+function siteKey(origin: string): string {
+  return origin.toLowerCase().replace(/\/+$/, "");
+}
+
+/** Whether `next` holds a site the saved list does not - one more place to frame the page. */
+export function addsOrigin(saved: string[], next: string[]): boolean {
+  const known = new Set(saved.map(siteKey));
+  return next.some((origin) => !known.has(siteKey(origin)));
+}
+
 interface PublicLinkSettingsProps {
   link: ArtifactPublicLink;
+  /** The page's data is confirmed for the public link: a new site then clears that. */
+  publicDataConfirmed: boolean;
   /** The kept versions, newest first - what the link may be pinned to. */
   versions: ArtifactVersion[];
   saving: boolean;
@@ -75,7 +89,13 @@ interface PublicLinkSettingsProps {
  * A refusal names its field, so it is shown under that field rather than as a
  * toast somebody has to match to a box.
  */
-export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLinkSettingsProps) {
+export function PublicLinkSettings({
+  link,
+  publicDataConfirmed,
+  versions,
+  saving,
+  onSave,
+}: PublicLinkSettingsProps) {
   const t = useTranslations("artifacts");
   const tErrors = useTranslations("errors");
   const [expiry, setExpiry] = useState(localDate(link.expires_at));
@@ -83,6 +103,9 @@ export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLin
   const [password, setPassword] = useState("");
   const [origins, setOrigins] = useState(link.embed_origins.join("\n"));
   const [problems, setProblems] = useState<Record<string, string>>({});
+  // The save that waits for the answer to "stop showing the data?".
+  const [asking, setAsking] = useState<ArtifactPublicLinkUpdate | null>(null);
+  const [removingPassword, setRemovingPassword] = useState(false);
 
   const save = async (changes: ArtifactPublicLinkUpdate) => {
     setProblems({});
@@ -146,16 +169,47 @@ export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLin
       <Button
         size="sm"
         disabled={saving}
-        onClick={() =>
-          void save({
+        onClick={() => {
+          const changes = {
             expires_at: endOfDay(expiry),
             pinned_version_id: pinned === LATEST ? null : pinned,
             embed_origins: originLines(origins),
-          })
-        }
+          };
+          if (publicDataConfirmed && addsOrigin(link.embed_origins, changes.embed_origins)) {
+            setAsking(changes);
+          } else {
+            void save(changes);
+          }
+        }}
       >
         {t("saveLinkSettings")}
       </Button>
+      <ConfirmDialog
+        open={removingPassword}
+        onOpenChange={setRemovingPassword}
+        title={t("removePasswordTitle")}
+        description={t("removePasswordWhy")}
+        confirmLabel={t("removePasswordConfirm")}
+        destructive
+        loading={saving}
+        onConfirm={async () => {
+          await save({ password: null });
+          setRemovingPassword(false);
+        }}
+      />
+      <ConfirmDialog
+        open={asking !== null}
+        onOpenChange={(open) => !open && setAsking(null)}
+        title={t("addSiteTitle")}
+        description={t("addSiteWhy")}
+        confirmLabel={t("addSiteConfirm")}
+        destructive
+        loading={saving}
+        onConfirm={async () => {
+          if (asking !== null) await save(asking);
+          setAsking(null);
+        }}
+      />
 
       <div className="space-y-2">
         <FormField
@@ -189,7 +243,9 @@ export function PublicLinkSettings({ link, versions, saving, onSave }: PublicLin
               size="sm"
               variant="outline"
               disabled={saving}
-              onClick={() => void save({ password: null })}
+              onClick={() =>
+                publicDataConfirmed ? setRemovingPassword(true) : void save({ password: null })
+              }
             >
               {t("removePassword")}
             </Button>

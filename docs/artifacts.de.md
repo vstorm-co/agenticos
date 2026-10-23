@@ -1,5 +1,5 @@
 ---
-source_sha: "6dcc56fd4cc5"
+source_sha: "c75f98a351f1"
 ---
 
 # Artefakte { #artifacts }
@@ -185,8 +185,8 @@ Die Zielgruppe bekommt nie eine Version ausgeliefert, deren Teilen niemand
 zugestimmt hat. Gilt die Einwilligung für die Daten nicht mehr - ein Editor hat sie
 zurückgezogen oder der Besitzer hat gewechselt -, bekommt die Zielgruppe weiterhin
 diese **ganze Seite**, und jedes Binding kommt als `unavailable` mit dem Grund
-`awaiting_consent` an; die Seite sagt „This page's data appears once its owner
-confirms sharing it.“ Ist keine Version überhaupt eingewilligt oder datenfrei,
+`awaiting_consent` an; die Seite sagt „The data appears once the page's owner
+confirms it.“ Ist keine Version überhaupt eingewilligt oder datenfrei,
 sieht die Zielgruppe „This page isn't available yet“ und sonst nichts.
 
 Ein Binding ist außerdem `unavailable`, wenn sich das, was es liest, seit der
@@ -217,10 +217,9 @@ Seitenabfragen in Worten - Tabelle, Filter, Reihenfolge, Limit und Felder jeder
 Abfrage, jede verknüpfte Tabelle, die sie erreicht, und wer sie lesen wird - und
 bestätigt.
 
-Die Prüfung nennt, wer die Seite liest, jetzt und später: die Rollen, die jede
-Seite öffnen (Owner, Admin, Builder und Operator), die Sichtbarkeit der Seite, die
-Personen, mit denen sie geteilt ist, und die Gruppen, einschließlich derer, die
-ihnen beitreten. Der Besitzer kann nur bestätigen, was er selbst liest.
+Die Prüfung nennt, wer die Seite sehen wird: die Rollen, die jede Seite sehen
+(Owner, Admin, Builder und Operator), die Sichtbarkeit der Seite, die Personen, mit
+denen sie geteilt ist, und die Gruppen, einschließlich künftiger Mitglieder. Der Besitzer kann nur bestätigen, was er selbst liest.
 
 Die Daten einer Version befinden sich in einem dieser Zustände:
 
@@ -287,31 +286,37 @@ erreicht, nicht lesen kann.
 
 #### Automatische Einwilligung { #auto-consent }
 
-Der Besitzer kann für eine Seite **Don't ask for consent on republish**
+Der Besitzer kann für eine Seite **Share new versions automatically**
 einschalten. Standardmäßig ist es aus, und nur der Besitzer schaltet es als er
-selbst ein, nie ein Agent. Es fragt zuerst: „Any change your runs make to this
-page's data, new columns and tables included, reaches everyone who can open it
-without asking you - API runs too.“ Der Audit-Eintrag hält den bestätigten Text
+selbst ein, nie ein Agent. Es fragt zuerst: „Any data change your runs make to this
+page, including new tables and columns, reaches everyone who can open it
+without asking you. This includes API runs.“ Der Audit-Eintrag hält den bestätigten Text
 fest.
 
 Es deckt nur die eigenen erneuten Veröffentlichungen des Besitzers ab. Die erneute
 Veröffentlichung eines Editors wartet weiterhin. Automatische Einwilligungen
 werden als automatisch vermerkt, und erreicht eine mehr als die Version, die vor
-ihr ausgeliefert wurde, führt die Leiste des Besitzers sie auf: „v4 was consented
-automatically and reads more: +Deals, +Salary“. Der Besitzer oder ein Owner oder
+ihr ausgeliefert wurde, führt die Leiste des Besitzers sie auf: „v4 was shared
+automatically and shows more data: +Deals, +Salary“. Der Besitzer oder ein Owner oder
 Admin schaltet es aus, und auch das Zurückziehen oder das Übergeben der Seite an
 jemand anderen schaltet es aus.
 
+Es deckt nie einen Run ab, der begann, als ein Administrator den Besitzer
+imitierte, so spät er auch veröffentlicht: Ein Hintergrund-Run, ein Workflow-Schritt
+oder ein nach einer Genehmigung fortgesetzter Run trägt das mit sich, und dasselbe
+gilt für den Grant eines Daten-Editors (unten). Das erneute Veröffentlichen von
+Abfragen, die der Besitzer schon bestätigt hat, ist weiterhin eingewilligt.
+
 #### Daten-Editoren { #data-editors }
 
-Der Freigabe-Dialog hat eine Grant-Stufe über `edit`: **Can edit, data included**
+Der Freigabe-Dialog hat eine Grant-Stufe über `edit`: **Can edit, including data**
 (`edit_data`), nur für Seiten. Sie ist eine dauerhafte Einwilligung in die
 erneuten Veröffentlichungen dieser Person, eine Änderung der Abfrage
 eingeschlossen. Nur der Besitzer oder ein Owner oder Admin erteilt sie, als er
-selbst, nach einem Popup: „Alex can change what data this page shows to everyone
-who can open it, including new tables and columns, without asking you; that
-includes their API runs.“ Bei einer Gruppe sagt das Popup „Everyone in Sales, now
-and later“. Der Grant wird mit dem bestätigten Text auditiert.
+selbst, nach einem Popup: „Alex can change the data everyone sees on this page,
+including new tables and columns, without asking you. This also covers their API
+runs.“ Bei einer Gruppe sagt das Popup „Anyone in Sales, now or later, can
+change ...“. Der Grant wird mit dem bestätigten Text auditiert.
 
 Eine erneute Veröffentlichung durch jemanden mit `edit_data` wird automatisch
 eingewilligt und als über seinen Grant erfolgt vermerkt. Er muss weiterhin jede
@@ -364,17 +369,21 @@ Ablehnung. Die Plattform stellt eine Anfrage. Es gibt drei Arten:
 
 Ein Mitglied kann pro Seite je eine ausstehende `audience`- und eine ausstehende
 `access`-Anfrage haben, und eine Seite hat eine ausstehende `version`-Anfrage; eine
-neuere ersetzt die ältere. `audience`- und `access`-Anfragen sind standardmäßig auf
+neuere ersetzt die ältere. Anfragen sind standardmäßig auf
 zehn pro Stunde je Person und Organisation begrenzt
-([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md));
-`version`-Anfragen werden nicht gezählt. Der Besitzer der Seite entscheidet. Hat sie
+([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)). Eine
+`version`-Anfrage zählt auch gegen das Kontingent des Veröffentlichenden: Danach
+ersetzt eine erneute Veröffentlichung die ausstehende Anfrage weiterhin, der Besitzer
+wird aber nicht erneut benachrichtigt.
+
+Der Besitzer der Seite entscheidet. Hat sie
 keinen Besitzer mehr, können die Owner und Admins ablehnen; um zu genehmigen,
 übergeben sie die Seite zuerst an ein Mitglied (**Change owner**), das die Daten
 bestätigt. Eine Anfrage wird ohne Entscheidung hinfällig, wenn sich die Abfragen
 der Seite ändern, der Besitzer wechselt oder die Seite archiviert wird.
 
 Der Besitzer wird in der Konsole und per E-Mail benachrichtigt, wie unter
-**Settings → Notifications** eingestellt („Page sharing requests“). Die
+**Settings → Notifications** eingestellt („Page requests“). Die
 Benachrichtigung nennt die Seite und den Anfragenden, nie ihre Daten.
 
 Beantwortet werden sie in einem Abschnitt **Requests** des Share-Dialogs, und eine
@@ -385,6 +394,16 @@ die Grants an, um die sie gebeten hat, jeweils nur dort, wo es noch erweitert.
 bekommt, keine Einwilligung, die gilt, wird das Genehmigen mit „Confirm the page's
 data before sharing it“ abgelehnt, und der Besitzer bestätigt zuerst die Daten und
 genehmigt dann. Ablehnen teilt nichts.
+
+Eine `audience`- oder `access`-Anfrage, die unter einer Mitgliedschaft
+gestellt wurde, die inzwischen beendet ist (das Mitglied wurde entfernt und erneut
+eingeladen), lässt sich nicht genehmigen; lehnen Sie sie ab.
+
+Die Liste der Anfragen (`GET /api/v1/artifacts/{id}/share-requests`) enthält immer alle
+ausstehenden Anfragen. Mit `include_decided=true` fügt sie die entschiedenen und
+hinfälligen hinzu, die aufbewahrt werden, neueste zuerst und seitenweise mit `skip`
+und `limit` (standardmäßig 50, höchstens 100); `total` zählt alle, und der
+Freigabe-Dialog sagt, wenn er nur die neuesten entschiedenen zeigt.
 
 Der Anfragende erfährt die Entscheidung nicht: Dass die Seite sich öffnet oder
 nicht, ist die Antwort. Eine Seite, die keine Daten liest, nimmt eine einfache
@@ -401,14 +420,14 @@ bekommt das übliche „nicht gefunden“.
 #### Eine geänderte Version prüfen { #reviewing-a-changed-version }
 
 Eine `version`-Anfrage öffnet dem Besitzer die Seite auf der ausstehenden Version,
-mit ihren echten Daten. Die Leiste sagt, wer geändert hat, was die Version liest,
+mit ihren echten Daten. Die Leiste sagt, wer die Daten geändert hat, die die Version zeigt,
 mit **Review data change**. Das Panel vergleicht die Seitenabfragen der Version mit
 der, die die Zielgruppe jetzt sieht, Binding für Binding und in Worten: Felder,
 Filter, Reihenfolge, Limit und verknüpfte Tabellen, hinzugefügt, entfernt oder
-geändert, jeweils markiert als **Reads more**, **Reads less** oder ohne Änderung,
+geändert, jeweils markiert als **Shows more**, **Shows less** oder ohne Änderung,
 neue Bindings mit ihrer vollständigen Offenlegung und unveränderte eingeklappt.
 
-Ein Schalter, **Audience sees now**, zeigt die Seite so, wie die Zielgruppe sie hat.
+Ein Schalter, **What others see**, zeigt die Seite so, wie die Zielgruppe sie hat.
 Das Panel nennt, wer die Version veröffentlicht hat und wann, und verlinkt auf die
 Unterhaltung, wenn der Besitzer sie öffnen darf. **Approve** bestätigt die Version.
 **Decline** hält die Zielgruppe auf der früheren Version und markiert die Version
@@ -507,7 +526,8 @@ lahmlegen kann:
 | Eine Abfrage | höchstens 2 s |
 | Eine Seite | Frist von 5 s |
 | Datenladevorgänge | 30 pro Minute je Betrachter, einer gleichzeitig je Betrachter und eine Obergrenze pro Prozess |
-| Freigabeanfragen | 10 pro Stunde je Person und Organisation (audience und access) |
+| Lesevorgänge nur der Gründe (`rows=false`, Leiste des Editors) | Dieselben Grenzen, getrennt von den Datenladevorgängen gezählt |
+| Freigabeanfragen | 10 pro Stunde je Person und Organisation (audience, access und version) |
 
 Ein gekürztes Binding meldet `truncated: true`, mit `limit` auf `records` oder
 `bytes` und `count` als Zahl der ausgelieferten Datensätze. `bytes` deckt auch ein
@@ -597,7 +617,7 @@ Wenn die Konsole eine Seite öffnet, listet sie die Aktionen, die die **ausgelie
 Version** deklariert und die dieser Betrachter jetzt ausführen darf: jede mit dem echten
 Namen des Workflows, dem Label der Seite und den Feldern, die sein Trigger verlangt. Eine,
 die der Betrachter nicht ausführen darf, bleibt weg. Die Leiste des Betrachters zeigt
-**This app can run: ...** und nennt die Workflows, jeweils ein Link auf die Runs dieses
+**This page can run: ...** und nennt die Workflows, jeweils ein Link auf die Runs dieses
 Workflows. Ohne welche wird nichts gezeigt.
 
 Eine Seite bekommt keine Aktionen, und ihr `run`-Aufruf wird sofort abgewiesen, wenn sie
@@ -865,10 +885,16 @@ hoch; eine längere Seite sagt, wie hoch sie ist. Eine Seite, die nach 15 Sekund
 noch läuft, wird als solche gemeldet, ohne Bild.
 
 Die Daten werden als die Person gelesen, für die der Run handelt, genau so, wie
-die Konsole sie für sie lesen würde. In einem Gruppenchat lässt sich nur eine
-Seite der ganzen Organisation in der Vorschau zeigen, dieselben Seiten, die die
-Liste dort zeigt, und sie wird ohne Daten gezeichnet. Eine Oberfläche, an der
-niemand angemeldet ist, zeigt keine Vorschau. Nichts, was die Seite anfragt,
+die Konsole sie für sie lesen würde, und zählen gegen deren Kontingent für
+Datenabrufe. In einem Gruppenchat lässt sich nur eine Seite der ganzen Organisation
+in der Vorschau zeigen, dieselben Seiten, die die Liste dort zeigt, und sie wird
+ohne Daten gezeichnet. Ebenso eine Seite, die ein Run in der Vorschau zeigt, für den
+niemand einsteht: einer, den ein Außenstehender über einen Webhook, ein Formular,
+eine Kanalnachricht, eine E-Mail oder ein Repository-Ereignis gestartet hat, gleich
+als wer er ausgeführt wird. Eine Oberfläche, an der niemand angemeldet ist, zeigt
+keine Vorschau.
+
+Nichts, was die Seite anfragt,
 erreicht das Netzwerk: Die API beantwortet jede Anfrage mit der Seite, dem
 [Bibliothekssatz](#the-library-set) oder einer Ablehnung.
 
@@ -905,7 +931,7 @@ kann jeder, der es verwalten darf, es auf drei Wegen teilen:
 
 | Reichweite | Wie | Wer |
 |---|---|---|
-| Bestimmte Personen | Ein Grant, mit `read`, `edit` oder, für eine Seite, `edit_data` („Can edit, data included“) | Diese Mitglieder, in dieser Organisation |
+| Bestimmte Personen | Ein Grant, mit `read`, `edit` oder, für eine Seite, `edit_data` („Can edit, including data“) | Diese Mitglieder, in dieser Organisation |
 | Die Organisation | Sichtbarkeit auf die ganze Organisation gesetzt | Jedes Mitglied, dessen Rolle geteilte Artefakte erreicht |
 | Jeder mit dem Link | **Create a public link** | Jeder, der die Adresse hat, ohne Konto |
 
@@ -1192,7 +1218,7 @@ gäbe es sie nicht:
   darf, sieht, wann sie archiviert wurde, mit **Restore** und **Delete**.
 - **Listen.** Die Liste Artifacts und das Dashboard-Widget lassen sie weg. Wählen
   Sie in der Liste **Archived included**, um sie zu sehen, markiert als
-  **Archived**.
+  **Archived**. Dort sehen sie nur diejenigen, die sie bearbeiten dürfen.
 - **Der öffentliche Link und die Einbettung.** Beide öffnen nichts.
 - **Der Agent.** `publish_artifact` lehnt den Namen mit einer Meldung ab, die das
   Archiv nennt, sodass ein Run keine zweite Seite unter ihm anlegen kann.
@@ -1211,9 +1237,9 @@ Einbettungs-Websites des Links bleiben dafür erhalten.
 erneutes Archivieren ändert nichts. `POST /api/v1/artifacts/{id}/unarchive` stellt
 sie wieder her und antwortet bei einer nicht archivierten Seite mit `400`. Beide
 verlangen das Recht, diese Seite zu bearbeiten, ein Grant eingeschlossen.
-`GET /api/v1/artifacts` listet archivierte Seiten nur mit
-`include_archived=true`, und `archived_at` an jeder Seite sagt, wann sie
-archiviert wurde.
+`GET /api/v1/artifacts` listet archivierte Seiten, für die, die sie bearbeiten
+dürfen, nur mit `include_archived=true`, und `archived_at` an jeder Seite sagt,
+wann sie archiviert wurde.
 
 ## Aufbewahrung und Löschung { #retention-and-deletion }
 

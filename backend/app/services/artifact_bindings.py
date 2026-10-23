@@ -611,12 +611,8 @@ async def _owner_problem(
     )
 
 
-def _column_for(
-    ref: str | UUID, live: Sequence[ColumnDef]
-) -> UUID | Literal["unknown", "ambiguous"]:
+def _column_for(ref: str, live: Sequence[ColumnDef]) -> UUID | Literal["unknown", "ambiguous"]:
     ids = {column.id for column in live}
-    if isinstance(ref, UUID):
-        return ref if ref in ids else "unknown"
     as_id = _as_uuid(ref)
     if as_id is not None and as_id in ids:
         return as_id

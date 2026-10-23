@@ -1161,8 +1161,8 @@ confirmed.
 | `artifact.published` | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares |
 | `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
 | `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
-| `artifact.auto_consent_changed` | The owner turned "Don't ask for consent on republish" on or off, with the text they confirmed |
-| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, data included", with the text they confirmed |
+| `artifact.auto_consent_changed` | The owner turned "Share new versions automatically" on or off, with the text they confirmed |
+| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, including data", with the text they confirmed |
 | `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
 | `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
 | `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |

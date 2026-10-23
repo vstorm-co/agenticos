@@ -871,6 +871,7 @@ async def begin_attempt(
         # The stored flag covers the whole chain; the trigger covers a door run
         # admitted by code older than the column.
         public_origin=run.public_origin or run.triggered_by in PUBLIC_TRIGGERS,
+        impersonated=run.impersonated,
     )
     return BegunAttempt(
         workflow_run_id=run.id,

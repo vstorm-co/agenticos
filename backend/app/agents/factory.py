@@ -188,6 +188,7 @@ def build_agent(
     user_name: str | None = None,
     audience: RunAudience | None = None,
     run_person: UUID | None = None,
+    impersonated: bool = False,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -212,6 +213,8 @@ def build_agent(
             does - derived by the runner, which alone knows the request. Handed
             to `AgentDeps` unchanged and never dropped, unlike `audience`: a
             tool that needs a person refuses on `None`.
+        impersonated: The run was started while an administrator impersonated its
+            person. Handed to `AgentDeps` unchanged.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
         gate_every_tool: Ask about every tool the agent can reach, not only the
@@ -346,6 +349,7 @@ def build_agent(
         user_name=user_name,
         audience=bound_audience,
         run_person=run_person,
+        impersonated=impersonated,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),

@@ -213,6 +213,17 @@ class TestPublishing:
             await _tool()(_ctx(_deps()), name="r", title=f"  {'t' * 300} ", content="<p>x</p>")
         assert publish.await_args.kwargs["title"] == "t" * 200
 
+    @pytest.mark.security
+    @pytest.mark.parametrize("impersonated", [True, False])
+    async def test_whether_the_run_started_impersonating_comes_from_the_run(
+        self, impersonated: bool
+    ) -> None:
+        """A publish from a spawned task or a worker has no request to ask: the run says."""
+        deps = _deps(run_person=uuid.uuid4(), impersonated=impersonated)
+        with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
+            await _tool()(_ctx(deps), name="r", content="<p>x</p>")
+        assert publish.await_args.kwargs["impersonated"] is impersonated
+
     async def test_bindings_are_resolved_and_echoed(self) -> None:
         """The run's person and the spec's grants come from the run, never from the model."""
         table_id, person = uuid.uuid4(), uuid.uuid4()
@@ -1044,6 +1055,7 @@ class TestPreviewing:
         kwargs = source.await_args.kwargs
         assert kwargs["reader_user_id"] == deps.audience.user_id
         assert kwargs["room"] is False
+        assert kwargs["has_person"] is False  # `_deps` has nobody behind the run
         (request,) = render.await_args.args
         assert (request.document, request.nonce, request.injected_lines) == (
             b"<served>",
@@ -1051,6 +1063,16 @@ class TestPreviewing:
             12,
         )
         assert request.bindings == {"tickets": _binding_data()}
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(("run_person", "has_person"), [(None, False), (uuid.uuid4(), True)])
+    async def test_the_page_s_data_is_read_only_for_a_run_with_a_person_behind_it(
+        self, run_person: uuid.UUID | None, has_person: bool
+    ) -> None:
+        """A public-origin run executes as a principal, and has `run_person` None: the reader
+        is that principal, but nobody it answers for may be handed the page owner's rows."""
+        _, source, _ = await _previewed(_preview(), _drawn(), deps=_deps(run_person=run_person))
+        assert source.await_args.kwargs["has_person"] is has_person
 
     async def test_everything_the_page_did_wrong_is_a_section_of_the_report(self) -> None:
         drawn = _drawn(
@@ -1290,6 +1312,7 @@ class TestSharing:
             result = await _sharer()(_ctx(deps), "x", "org")
         assert result == refusal.message
 
+    @pytest.mark.security
     def test_there_is_no_public_value_and_it_is_never_gated_for_approval(self) -> None:
         tool = build_artifacts_toolset(table_grants={}).tools["share_artifact"]
         visibility = tool.function_schema.json_schema["properties"]["visibility"]

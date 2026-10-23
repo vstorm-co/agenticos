@@ -22,7 +22,7 @@ import { SubjectPicker } from "./subject-picker";
 
 interface AddShareProps {
   resourceType: SharingResourceType;
-  /** Whether the caller may give "data included" - the server's answer, never worked out here. */
+  /** Whether the caller may give "including data" - the server's answer, never worked out here. */
   mayGrantEditData: boolean;
   /** Members who do not reach the resource yet - the owner and the shared already left out. */
   members: OrganizationMember[];

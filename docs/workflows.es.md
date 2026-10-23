@@ -1,5 +1,5 @@
 ---
-source_sha: "9c480bdaf58a"
+source_sha: "46287bc10a94"
 ---
 
 # Workflows { #workflows }
@@ -810,7 +810,7 @@ solo cuando confirma. Es suyo: su acceso, su budget y su página de runs, compro
 auditado como uno iniciado desde **Start a run**, y sujeto a la misma cuota de admisión. Un run
 sin ningún miembro detrás, o desde una sesión suplantada, no inicia ninguno.
 
-La página de runs dice que un run así lo inició **An app**, y **Started by** filtra por él; por la
+La página de runs dice que un run así lo inició **A page**, y **Started by** filtra por él; por la
 API su `triggered_by` es `app`. El run también registra la página y la versión que miraba el
 miembro, y un reintento las conserva. La página lee de vuelta solo el estado del run, su respuesta
 y la primera línea de un error.

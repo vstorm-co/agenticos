@@ -24,6 +24,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import RateLimitError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
@@ -34,6 +35,7 @@ from app.schemas.artifact import (
     ArtifactActionRun,
     ArtifactActionRunStarted,
     ArtifactBinding,
+    ArtifactData,
     ArtifactVersionRead,
     BindingReach,
 )
@@ -1309,6 +1311,9 @@ class TestShareRequestRoutes:
             200,
         ]
         assert [call.kwargs["pending_only"] for call in listed.await_args_list] == [False, True]
+        assert [(call.kwargs["skip"], call.kwargs["limit"]) for call in listed.await_args_list] == [
+            (0, 50)
+        ] * 2
         assert everything.json()["items"][0]["can_decide"] is True
         assert reviewed.json()["version"]["number"] == 2
 
@@ -1323,7 +1328,7 @@ class TestShareRequestRoutes:
         service.share = AsyncMock(return_value=body)
         service.share_with_group = AsyncMock(return_value=body)
         app.dependency_overrides[deps.get_sharing_service] = lambda: service
-        with patch("sqlalchemy.ext.asyncio.AsyncSession.get", new=AsyncMock(return_value=row)):
+        with patch.object(ArtifactService, "load", new=AsyncMock(return_value=row)):
             async with client() as http:
                 visibility = await http.patch(
                     _url(f"/{row.id}/sharing/visibility"), json={"visibility": "org"}
@@ -1341,6 +1346,53 @@ class TestShareRequestRoutes:
             assert response.json()["status"] == "requested"
             assert response.json()["waiting_for"] == "Olga"
             assert response.json()["request_id"] == str(body.request_id)
+
+
+class TestReadingDataForItsReasonsAlone:
+    @pytest.mark.parametrize(
+        ("rows", "surface"), [(True, "artifact_data"), (False, "artifact_data_reasons")]
+    )
+    async def test_each_kind_of_read_counts_against_an_allowance_of_its_own(
+        self, rows: bool, surface: str
+    ) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+        with patch(
+            "app.api.deps.rate_limit.consume_with_local_floor",
+            new=AsyncMock(return_value=MagicMock(allowed=True)),
+        ) as consume:
+            await deps.limit_artifact_data(ctx, rows=rows)
+        assert consume.await_args.kwargs["surface"] == surface
+
+    async def test_the_reasons_alone_are_refused_past_their_allowance(self) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.MEMBER
+        )
+        over = MagicMock(allowed=False, retry_after_seconds=3)
+        with (
+            patch(
+                "app.api.deps.rate_limit.consume_with_local_floor",
+                new=AsyncMock(return_value=over),
+            ),
+            pytest.raises(RateLimitError),
+        ):
+            await deps.limit_artifact_data(ctx, rows=False)
+
+    @pytest.mark.parametrize(("params", "rows"), [({}, True), ({"rows": "false"}, False)])
+    async def test_the_route_asks_the_service_for_the_records_unless_told_not_to(
+        self, client: OpenClient, params: dict[str, str], rows: bool
+    ) -> None:
+        row = _artifact()
+        version_id = uuid.uuid4()
+        data = ArtifactData(bindings={}, current=True, read_at=datetime.now(UTC))
+        with patch.object(ArtifactService, "data", new=AsyncMock(return_value=data)) as read:
+            async with client() as http:
+                response = await http.get(
+                    _url(f"/{row.id}/versions/{version_id}/data"), params=params
+                )
+        assert response.status_code == 200
+        assert read.await_args.kwargs == {"rows": rows}
 
 
 class TestGrantingEditData:
@@ -1362,14 +1414,14 @@ class TestGrantingEditData:
         service.share = AsyncMock(return_value=granted)
         service.share_with_group = AsyncMock(return_value=granted)
         app.dependency_overrides[deps.get_sharing_service] = lambda: service
-        with patch("sqlalchemy.ext.asyncio.AsyncSession.get", new=AsyncMock(return_value=row)):
+        with patch.object(ArtifactService, "load", new=AsyncMock(return_value=row)):
             async with client() as http:
                 one = await http.put(
                     _url(f"/{row.id}/sharing/grants"),
                     json={
                         "subject_user_id": str(person),
                         "level": "edit_data",
-                        "confirmed": "edit_data.person.v1",
+                        "confirmed": "edit_data.person.v2",
                     },
                 )
                 many = await http.put(
@@ -1377,7 +1429,7 @@ class TestGrantingEditData:
                     json={
                         "subject_group_id": str(group),
                         "level": "edit_data",
-                        "confirmed": "edit_data.group.v1",
+                        "confirmed": "edit_data.group.v2",
                     },
                 )
                 unknown = await http.put(
@@ -1387,8 +1439,8 @@ class TestGrantingEditData:
 
         assert (one.status_code, many.status_code, unknown.status_code) == (200, 200, 422)
         assert one.json()["level"] == "edit_data"
-        assert service.share.await_args.kwargs["confirmed"] == "edit_data.person.v1"
-        assert service.share_with_group.await_args.kwargs["confirmed"] == "edit_data.group.v1"
+        assert service.share.await_args.kwargs["confirmed"] == "edit_data.person.v2"
+        assert service.share_with_group.await_args.kwargs["confirmed"] == "edit_data.group.v2"
 
 
 class TestPublicData:

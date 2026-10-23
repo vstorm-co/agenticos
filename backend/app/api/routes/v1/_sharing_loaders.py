@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
@@ -25,7 +25,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
-from app.services.access import ARTIFACT, resolve_access
+from app.services.artifact import ArtifactService
 
 
 async def load_agent(db: AsyncSession, agent_id: UUID, ctx: AuthContext) -> Agent:
@@ -80,19 +80,4 @@ async def load_workflow(db: AsyncSession, workflow_id: UUID, ctx: AuthContext) -
 
 
 async def load_artifact(db: AsyncSession, artifact_id: UUID, ctx: AuthContext) -> Artifact:
-    artifact = await db.get(Artifact, artifact_id)
-    # An archived page is read only by a caller who may edit it - the one who can
-    # restore it, as `ArtifactService.read` answers - so its grants are managed by
-    # them alone, and to anybody else it is as missing here as everywhere else.
-    if (
-        artifact is None
-        or artifact.organization_id != ctx.organization_id
-        or (
-            artifact.archived_at is not None
-            and not await resolve_access(
-                db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
-            )
-        )
-    ):
-        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
-    return artifact
+    return await ArtifactService(db).load(ctx, artifact_id)

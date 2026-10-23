@@ -1,5 +1,5 @@
 ---
-source_sha: "9475cb419897"
+source_sha: "9149747314ef"
 ---
 
 # Governance { #governance }
@@ -1251,8 +1251,8 @@ próśb i słowa, które osoba potwierdziła.
 | `artifact.published` | Opublikowano wersję, z jej numerem, odciskiem jej zapytań strony i `actions`, czyli id workflowów, które deklaruje |
 | `artifact.data_consented` | Właściciel potwierdził dane wersji albo wyrażono na nie zgodę automatycznie (`automatic`). Nazywa wersję i odcisk, `for_owner`, gdy potwierdził za niego Owner lub Admin, oraz `via_grant`, gdy dał ją grant `edit_data` |
 | `artifact.data_withdrawn` | Edytor zatrzymał udostępnianie danych przez stronę; nazywa wersję, którą serwowano odbiorcom, i czy auto-zgoda była włączona, oraz ile grantów `edit_data` obniżono do `edit` |
-| `artifact.auto_consent_changed` | Właściciel włączył albo wyłączył „Don't ask for consent on republish", z tekstem, który potwierdził |
-| `artifact.edit_data_granted` | Właściciel, albo Owner lub Admin, nadał osobie albo grupie „Can edit, data included", z tekstem, który potwierdził |
+| `artifact.auto_consent_changed` | Właściciel włączył albo wyłączył „Share new versions automatically", z tekstem, który potwierdził |
+| `artifact.edit_data_granted` | Właściciel, albo Owner lub Admin, nadał osobie albo grupie „Can edit, including data", z tekstem, który potwierdził |
 | `artifact.owner_changed` | Strona zmieniła właściciela: dawny i nowy właściciel, kto to zrobił i jakie granty `edit_data` odrzucono |
 | `artifact.share_requested` | Złożono prośbę — typu `audience`, `access` albo `version` — przez osobę albo przez run jej agenta |
 | `artifact.share_request_approved` i `artifact.share_request_declined` | Prośbę rozstrzygnięto i kto to zrobił |

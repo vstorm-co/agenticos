@@ -1,5 +1,5 @@
 ---
-source_sha: "9475cb419897"
+source_sha: "9149747314ef"
 ---
 
 # Governance { #governance }
@@ -1336,8 +1336,8 @@ bestätigt hat.
 | `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
 | `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
 | `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
-| `artifact.auto_consent_changed` | Der Besitzer „Don't ask for consent on republish“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
-| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, data included“ gegeben hat, mit dem Text, den er bestätigt hat |
+| `artifact.auto_consent_changed` | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
+| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat |
 | `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
 | `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
 | `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |

@@ -39,7 +39,14 @@ export function useArtifactRequests(artifactId: string, includeDecided: boolean,
   const ordered = [...items].sort(
     (a, b) => Number(b.status === "pending") - Number(a.status === "pending"),
   );
-  return { requests: ordered, isLoading: query.isLoading, error: query.error };
+  return {
+    requests: ordered,
+    // Of every request the caller may see: the server sends a page of them, the
+    // pending ones first.
+    total: query.data?.total ?? 0,
+    isLoading: query.isLoading,
+    error: query.error,
+  };
 }
 
 /**

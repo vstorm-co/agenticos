@@ -1,5 +1,5 @@
 ---
-source_sha: "d5e3a28da8db"
+source_sha: "32c334c2b172"
 ---
 
 # Uprawnienia { #permissions }
@@ -413,7 +413,7 @@ narzędzie agenta) i zapisana z członkostwem właściciela. Owner albo Admin �
 audytu jako takie. Grant na edycję strony nie wystarcza. Każdy edytor może zgodę wycofać,
 bo wycofanie tylko zawęża; obniża też każdy grant `edit_data` na stronie do `edit`.
 
-**`edit_data` to poziom grantu, nie rola.** „Może edytować, łącznie z danymi" stoi nad
+**`edit_data` to poziom grantu, nie rola.** „Może edytować, w tym dane" stoi nad
 `edit` i jest przyjmowane tylko dla stron (ograniczenie bazy odrzuca je gdzie indziej).
 To stała zgoda na republikacje tej osoby albo tej grupy. Tylko właściciel albo Owner
 lub Admin, jako oni sami, nadaje je lub podnosi, po potwierdzeniu, na co pozwala.

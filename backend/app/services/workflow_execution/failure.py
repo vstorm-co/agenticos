@@ -133,6 +133,7 @@ async def start_error_workflow(
                     visited_trigger_ids=list(run.visited_trigger_ids),
                     depth=run.depth + 1,
                     public_origin=causes_public(run),
+                    impersonated=run.impersonated,
                 ),
                 submitted=False,
             )

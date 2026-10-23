@@ -19,7 +19,7 @@ interface SharingPanelProps {
    */
   canManage: boolean;
   /**
-   * Whether the caller may give "data included", a page's level above edit: the
+   * Whether the caller may give "including data", a page's level above edit: the
    * server's answer for the page, so it is offered only to its owner or an Owner or Admin.
    */
   mayGrantEditData?: boolean;

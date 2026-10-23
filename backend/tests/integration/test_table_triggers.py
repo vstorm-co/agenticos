@@ -28,11 +28,12 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.agents.audience import acting_for_no_person
+from app.agents.audience import acting_for_no_person, acting_impersonated
 from app.agents.capabilities.virtual_tables import VirtualTables
 from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.deps import AgentDeps
 from app.api import deps
+from app.core.audit import set_impersonator
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
@@ -686,6 +687,42 @@ class TestThePublicOrigin:
         run = await world.run(run_id)
         assert (run.root_run_id, run.causation_run_id) == (run.id, None)
         assert run.public_origin is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("by", ["run", "request"])
+    async def test_a_write_made_under_impersonation_starts_an_impersonated_run(
+        self, world: _World, by: str
+    ):
+        """The write may be an impersonated agent run's, or an administrator's own request:
+        the worker that runs the trigger's workflow has neither to ask."""
+        await world.trigger()
+
+        if by == "run":
+            with acting_impersonated(True):
+                await world.add({"Email": "a@example.com"})
+        else:
+            set_impersonator(uuid.uuid4())
+            try:
+                await world.add({"Email": "a@example.com"})
+            finally:
+                set_impersonator(None)
+
+        async with world.factory() as db:
+            (payload,) = (await db.execute(select(VirtualTableOutbox.payload))).scalars()
+        assert payload["impersonated"] is True
+        ((run_id, _entry),) = await world.consume()
+        assert (await world.run(run_id)).impersonated is True
+
+    async def test_an_ordinary_write_starts_a_run_that_is_not_impersonated(self, world: _World):
+        await world.trigger()
+
+        await world.add({"Email": "a@example.com"})
+
+        async with world.factory() as db:
+            (payload,) = (await db.execute(select(VirtualTableOutbox.payload))).scalars()
+        assert "impersonated" not in payload
+        ((run_id, _entry),) = await world.consume()
+        assert (await world.run(run_id)).impersonated is False
 
     async def test_a_table_write_by_a_member_run_starts_a_run_that_is_not_public(
         self, world: _World

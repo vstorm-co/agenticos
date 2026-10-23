@@ -11,10 +11,12 @@ page's lock, requests voided by what changes under them, and who is told.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,9 +41,16 @@ from app.db.models.artifact_share_request import (
 )
 from app.db.models.group import Group
 from app.db.models.notification import Notification
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.user import User
-from app.repositories import artifact_repo, artifact_share_request_repo, resource_grant_repo
+from app.repositories import (
+    artifact_repo,
+    artifact_share_request_repo,
+    member_repo,
+    resource_grant_repo,
+    user_repo,
+)
 from app.schemas.artifact import ArtifactOwnerUpdate
 from app.schemas.artifact_share_request import ArtifactAccessRequestCreate, ArtifactAccessRequested
 from app.services.access import ARTIFACT
@@ -81,12 +90,13 @@ async def _all(
     world: _World, *, kind: ShareRequestKind | None = None
 ) -> list[ArtifactShareRequest]:
     assert world.page_id is not None
-    return await artifact_share_request_repo.list_for_artifact(
+    found, _total = await artifact_share_request_repo.list_for_artifact(
         world.db,
         world.page_id,
         pending_only=False,
         kinds=None if kind is None else [kind],
     )
+    return found
 
 
 async def _pending(world: _World, kind: ShareRequestKind) -> list[ArtifactShareRequest]:
@@ -270,6 +280,35 @@ class TestAnEditorsRepublishAsksTheOwner:
                     kind="version",
                     requester_user_id=world.olga.user_id,
                 )
+
+    @pytest.mark.security
+    async def test_republishes_past_the_hourly_allowance_still_replace_the_request_but_tell_nobody(
+        self, db: AsyncSession, storage: LocalFileStorage, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An editor, or their agent in a loop, would otherwise notify the owner of every
+        republish: the version request counts against the same allowance as any other."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR", 2)
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        page = await _page(world)
+
+        async def told() -> int:
+            rows = await db.execute(
+                select(func.count(Notification.id)).where(
+                    Notification.event_type == "artifact_share_requested",
+                    Notification.render_context["artifact_id"].astext == str(page.id),
+                )
+            )
+            return rows.scalar_one()
+
+        for number, fields in enumerate([WIDER, FEWER, {"buyer": "Customer"}, WIDER], start=2):
+            await world.publish(f"<p>v{number}</p>", fields=fields, by=bea)
+
+        assert await told() == 2
+        [pending] = await _pending(world, ShareRequestKind.VERSION)
+        assert pending.version_id == (await world.version(5)).id
+        replaced = [r for r in await _all(world, kind=ShareRequestKind.VERSION) if r is not pending]
+        assert {r.void_reason for r in replaced} == {"replaced"} and len(replaced) == 3
 
 
 class TestReviewingAVersionChange:
@@ -526,6 +565,106 @@ class TestAnEditorWidensABoundPage:
         assert page.visibility == "private"
 
 
+class TestARequestMadeUnderAnEndedMembership:
+    @pytest.mark.security
+    async def test_a_request_from_a_member_who_was_removed_and_invited_again_is_not_approved(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """What they asked for under the first membership is not theirs to stand on under
+        the second: the owner is refused, and may decline it to clear it."""
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        carl = await world.member()
+        asked = await SharingService(db).share(
+            bea,
+            await _page(world),
+            resource_type=ARTIFACT,
+            subject_user_id=carl.user_id,
+            level=GrantLevel.READ,
+        )
+        assert isinstance(asked, Deferred)
+        old = await member_repo.get_active(db, organization_id=world.org.id, user_id=bea.user_id)
+        assert old is not None
+        await member_repo.delete(db, old)
+        db.add(OrganizationMember(organization_id=world.org.id, user_id=bea.user_id, role="member"))
+        await db.flush()
+
+        with pytest.raises(ConcurrentChangeError):
+            await _requests(world).approve(world.olga, world.page_id, asked.request_id)
+
+        assert not await resource_grant_repo.get_level(
+            db,
+            organization_id=world.org.id,
+            subject_user_id=carl.user_id,
+            resource_type=ARTIFACT.key,
+            resource_id=world.page_id,
+        )
+        declined = await _requests(world).decline(world.olga, world.page_id, asked.request_id)
+        assert declined.status == ShareRequestStatus.DECLINED
+
+    async def test_the_list_does_not_offer_approving_what_an_ended_membership_asked(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        carl = await world.member()
+        asked = await SharingService(db).share(
+            bea,
+            await _page(world),
+            resource_type=ARTIFACT,
+            subject_user_id=carl.user_id,
+            level=GrantLevel.READ,
+        )
+        assert isinstance(asked, Deferred)
+        before = await _requests(world).list_requests(world.olga, world.page_id)
+        old = await member_repo.get_active(db, organization_id=world.org.id, user_id=bea.user_id)
+        assert old is not None
+        await member_repo.delete(db, old)
+        db.add(OrganizationMember(organization_id=world.org.id, user_id=bea.user_id, role="member"))
+        await db.flush()
+
+        after = await _requests(world).list_requests(world.olga, world.page_id)
+
+        assert [item.can_decide for item in before.items] == [True]
+        assert [(item.id, item.can_decide) for item in after.items] == [(asked.request_id, False)]
+
+    async def test_a_version_request_is_approved_though_its_publisher_has_left(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Approving one is the owner confirming the queries, whoever published them."""
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        await world.publish("<p>v2</p>", fields=WIDER, by=bea)
+        [request] = await _pending(world, ShareRequestKind.VERSION)
+        old = await member_repo.get_active(db, organization_id=world.org.id, user_id=bea.user_id)
+        assert old is not None
+        await member_repo.delete(db, old)
+
+        decided = await _requests(world).approve(world.olga, world.page_id, request.id)
+
+        assert decided.status == ShareRequestStatus.APPROVED
+        assert (await world.version(2)).consent_state == "consented"
+
+    async def test_a_request_from_a_member_whose_membership_stands_is_approved(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        carl = await world.member()
+        asked = await SharingService(db).share(
+            bea,
+            await _page(world),
+            resource_type=ARTIFACT,
+            subject_user_id=carl.user_id,
+            level=GrantLevel.READ,
+        )
+        assert isinstance(asked, Deferred)
+
+        decided = await _requests(world).approve(world.olga, world.page_id, asked.request_id)
+
+        assert decided.status == ShareRequestStatus.APPROVED
+
+
 class TestApprovingAnAudienceRequest:
     async def _asked(
         self, world: _World, bea: AuthContext, who: AuthContext
@@ -775,6 +914,178 @@ class TestRequestsThatGoStale:
         await world.service.archive(world.olga, world.page_id)
 
         assert {(r.status, r.void_reason) for r in await _all(world)} == {("voided", "archived")}
+
+
+class TestTheRequestsAPageKeeps:
+    async def test_the_history_is_listed_a_page_at_a_time_with_the_pending_ones_first(
+        self, db: AsyncSession, storage: LocalFileStorage, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR", 50)
+        world = await _world(db)
+        await world.publish("<p>v1</p>")
+        carl = await world.member(role="viewer")
+        asked = [
+            await _requests(world).request_access(
+                carl, world.page_id, ArtifactAccessRequestCreate(note=f"ask {n}")
+            )
+            for n in range(5)
+        ]
+
+        first = await _requests(world).list_requests(
+            world.olga, world.page_id, pending_only=False, limit=2
+        )
+        rest = await _requests(world).list_requests(
+            world.olga, world.page_id, pending_only=False, skip=2, limit=10
+        )
+        pending_only = await _requests(world).list_requests(world.olga, world.page_id)
+
+        # The one waiting request, then the first two of the four decided: the rest on the next.
+        assert (first.total, len(first.items)) == (5, 3)
+        assert first.items[0].id == asked[-1].id and first.items[0].status == "pending"
+        assert (rest.total, len(rest.items)) == (5, 2)
+        assert all(item.status != "pending" for item in rest.items)
+        assert {item.id for item in first.items[1:]} | {item.id for item in rest.items} == {
+            item.id for item in asked[:-1]
+        }
+        assert (pending_only.total, len(pending_only.items)) == (1, 1)
+
+    @pytest.mark.security
+    async def test_every_pending_request_is_listed_however_many_there_are(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Only the decided history pages: a request waiting for a decision, the page's one
+        version request among them, never falls off the end of the list."""
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        await world.publish("<p>v2</p>", fields=WIDER, by=bea)
+        for _ in range(52):
+            viewer = await world.member(role="viewer")
+            await file_access_request(db, viewer, await _page(world), None)
+        # The version request is the oldest of the waiting ones.
+        [version_request] = await _pending(world, ShareRequestKind.VERSION)
+        version_request.created_at = datetime.now(UTC) - timedelta(days=2)
+        await db.flush()
+
+        listed = await _requests(world).list_requests(world.olga, world.page_id, limit=5)
+        later = await _requests(world).list_requests(
+            world.olga, world.page_id, pending_only=False, skip=5, limit=5
+        )
+
+        assert (len(listed.items), listed.total) == (53, 53)
+        assert version_request.id in {item.id for item in listed.items}
+        assert all(item.status == "pending" for item in listed.items)
+        assert [item for item in later.items if item.status == "pending"] == []
+
+    async def test_the_pending_request_is_listed_first_whatever_was_decided_after_it(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        await world.publish("<p>v1</p>")
+        carl, dana = await world.member(role="viewer"), await world.member(role="viewer")
+        waiting = await _requests(world).request_access(
+            carl, world.page_id, ArtifactAccessRequestCreate()
+        )
+        newer = await _requests(world).request_access(
+            dana, world.page_id, ArtifactAccessRequestCreate()
+        )
+        await _requests(world).decline(world.olga, world.page_id, newer.id)
+        # One transaction stamps both alike: say which came first.
+        for request in await _all(world):
+            request.created_at = datetime.now(UTC) - timedelta(
+                days=1 if request.id == waiting.id else 0
+            )
+        await db.flush()
+
+        listed = await _requests(world).list_requests(
+            world.olga, world.page_id, pending_only=False, limit=1
+        )
+
+        assert listed.items[0].id == waiting.id
+        assert (len(listed.items), listed.total) == (2, 2)
+
+    async def test_the_names_of_every_requester_are_read_in_one_query(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        await world.publish("<p>v1</p>")
+        for _ in range(4):
+            carl = await world.member(role="viewer")
+            await _requests(world).request_access(
+                carl, world.page_id, ArtifactAccessRequestCreate()
+            )
+
+        with (
+            patch(
+                "app.services.artifact_requests.user_repo.get_by_ids",
+                wraps=user_repo.get_by_ids,
+            ) as batched,
+            patch(
+                "app.services.artifact_requests.user_repo.get_by_id", wraps=user_repo.get_by_id
+            ) as singly,
+        ):
+            listed = await _requests(world).list_requests(world.olga, world.page_id)
+
+        assert len(listed.items) == 4
+        assert all(item.requester_name for item in listed.items)
+        assert batched.await_count == 1
+        singly.assert_not_awaited()
+
+
+class TestAPageArchivedWhileARequestWaitedForItsLock:
+    """`archive` voids what is pending and commits; a request that had read the page before
+    that and then blocked on the lock must not file a fresh one against an archived page."""
+
+    @staticmethod
+    def _archived_by_the_time_the_lock_is_held() -> Any:
+        """The lock, which re-reads the page, finds it archived by somebody else's commit."""
+        real = artifact_repo.lock
+
+        async def lock(db: AsyncSession, artifact_id: uuid.UUID) -> Artifact | None:
+            page = await real(db, artifact_id)
+            assert page is not None
+            page.archived_at = datetime.now(UTC)
+            await db.flush()
+            return page
+
+        return patch.object(artifact_repo, "lock", new=lock)
+
+    async def test_a_request_filed_meanwhile_is_refused(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        bea = await _bound_and_shared(world)
+        page = await _page(world)
+
+        with self._archived_by_the_time_the_lock_is_held(), pytest.raises(ConflictError):
+            await file_access_request(db, bea, page, None)
+
+        assert await _all(world, kind=ShareRequestKind.ACCESS) == []
+        assert await _told(db, page) == {}
+
+    async def test_a_widening_attempted_meanwhile_is_refused(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        await _bound_and_shared(world)
+        page = await _page(world)
+        ann = await world.member()
+
+        with self._archived_by_the_time_the_lock_is_held(), pytest.raises(ConflictError):
+            await SharingService(db).share(
+                world.olga,
+                page,
+                resource_type=ARTIFACT,
+                subject_user_id=ann.user_id,
+                level=GrantLevel.READ,
+            )
+
+        assert not await resource_grant_repo.get_level(
+            db,
+            organization_id=world.org.id,
+            subject_user_id=ann.user_id,
+            resource_type=ARTIFACT.key,
+            resource_id=world.page_id,
+        )
 
 
 class TestRequestingAccess:
@@ -1038,6 +1349,7 @@ class TestWideningNeverConsents:
         assert (await world.version(2)).consent_state == "declined"
         assert await world.served(reader) == (1, "ok")
 
+    @pytest.mark.security
     async def test_a_pending_version_request_survives_an_unrelated_approval(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:

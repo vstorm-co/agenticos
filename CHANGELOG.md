@@ -66,8 +66,8 @@ Two things are versioned separately from this file and worth knowing about:
   words, every linked table they reach and who will read them, and the page's audience
   keeps the last version that was consented to, or sees "This page isn't available yet",
   until then. Anyone who can edit the page can stop sharing its data; the owner can
-  turn on **Don't ask for consent on republish** for their own republishes, and give
-  a person or group **Can edit, data included**. A binding goes unavailable when the
+  turn on **Share new versions automatically** for their own republishes, and give
+  a person or group **Can edit, including data**. A binding goes unavailable when the
   owner leaves or loses access, or when a column it reads changes meaning: columns now
   carry a read-only `revision`. The owner hands a page to another member with **Change
   owner**, which asks the new owner to confirm its data again. Widening who opens a page

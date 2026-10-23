@@ -959,8 +959,12 @@ async def limit_table_write(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
-async def limit_artifact_data(ctx: Auth) -> None:
+async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:
     """Refuse a member loading live pages' data faster than the deployment allows.
+
+    A read that loads no records (`rows=false`, an editor's strip asking why a source
+    is empty) still runs each page query, so it has an allowance of its own, of the
+    same size, and does not use up the one for loads.
 
     Keyed on the member and the organization, as table writes are. Every load runs
     each of the page's bindings as a query, so like table writes it keeps a
@@ -973,7 +977,7 @@ async def limit_artifact_data(ctx: Auth) -> None:
                     dependencies=[Depends(limit_artifact_data)])
     """
     decision = await rate_limit.consume_with_local_floor(
-        surface="artifact_data",
+        surface="artifact_data" if rows else "artifact_data_reasons",
         caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
         limit=rate_limit.artifact_data_limit(),
     )

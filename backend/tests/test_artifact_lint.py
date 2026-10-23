@@ -8,6 +8,7 @@ when it fires on those and stays quiet on a page built as the guide says.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,49 @@ def test_a_page_with_no_doctype_or_viewport_is_told_both() -> None:
 def test_a_doctype_after_a_mark_whitespace_or_a_comment_still_counts(lead: bytes) -> None:
     problems = lint_page(lead + _page("<main class='ao-page'></main>"))
     assert not any("doctype" in problem for problem in problems)
+
+
+@pytest.mark.parametrize(
+    ("lead", "counts"),
+    [
+        (b"\xef\xbb\xbf \t\r\n<!-- a --> <!-- b --><!--c-->\n", True),
+        (b"<!-- a -- b - -> c -->", True),
+        (b"<!-- -- -->", True),
+        (b"<!-- never closed ", False),
+        (b"<!-- a --> text ", False),
+        (b"\xef\xbb\xbf\xef\xbb\xbf", False),
+    ],
+    ids=["mixed", "dashes-inside", "bare-dashes", "unclosed", "text-between", "double-bom"],
+)
+def test_the_doctype_lead_accepts_only_whitespace_and_whole_comments(
+    lead: bytes, counts: bool
+) -> None:
+    problems = lint_page(lead + _page("<main class='ao-page'></main>"))
+    assert any("doctype" in problem for problem in problems) is not counts
+
+
+def test_the_doctype_is_case_insensitive_and_needs_a_word_boundary() -> None:
+    upper = lint_page(_page("", head="<!DOCTYPE HTML><head></head>"))
+    assert not any("doctype" in problem for problem in upper)
+    glued = lint_page(_page("", head="<!doctype htmlx><head></head>"))
+    assert any("doctype" in problem for problem in glued)
+
+
+@pytest.mark.parametrize(
+    "lead",
+    [
+        b"\t" * 50_000,
+        b"<!--" + b"--><!--" * 50_000,
+        b"<!--" + b"-->" * 50_000,
+        b"<!--" * 50_000,
+    ],
+    ids=["tabs", "comment-run", "dangling-ends", "unclosed-starts"],
+)
+def test_a_hostile_lead_is_linted_in_linear_time(lead: bytes) -> None:
+    started = time.monotonic()
+    problems = lint_page(lead + b"x")
+    assert any("doctype" in problem for problem in problems)
+    assert time.monotonic() - started < 2
 
 
 def test_a_doctype_later_in_the_page_does_not_count() -> None:

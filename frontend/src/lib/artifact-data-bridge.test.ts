@@ -81,8 +81,11 @@ function start(
     clearTimeout: (id) => clearTimeout(id),
   };
   if (options.orphan) stub.parent = stub;
-  // A page whose platform script runs while it is still parsing, unless told otherwise.
-  const page = { readyState: options.readyState ?? "loading" } as Document;
+  // A page whose platform script runs while it is still parsing, unless told otherwise -
+  // or one that runs actions, which a page may start only once it has loaded.
+  const page = {
+    readyState: options.readyState ?? (config.actions ? "complete" : "loading"),
+  } as Document;
   bridge(stub, page, { n: "nonce-1", live: true, names: ["deals", "owners"], ...config });
   const load = () => {
     for (const listener of loads) listener();
@@ -395,6 +398,12 @@ describe("the artifact actions bridge", () => {
     }
     const orphan = start({ live: false, actions: true }, { orphan: true });
     await expect(orphan.agenticos.run("Send")).rejects.toThrow(/^unavailable$/);
+  });
+
+  it("rejects a request made before the document has loaded, and posts nothing", async () => {
+    const early = start({ live: false, actions: true }, { readyState: "interactive" });
+    await expect(early.agenticos.run("Send", { to: "a" })).rejects.toThrow(/^not_ready$/);
+    expect(early.parent.postMessage).not.toHaveBeenCalled();
   });
 
   it("rejects a call that is not an action name and an input object", async () => {

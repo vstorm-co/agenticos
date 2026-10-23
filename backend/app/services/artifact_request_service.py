@@ -75,6 +75,7 @@ from app.services.artifact_requests import (
     file_access_request,
     file_audience_request,
     name_of,
+    names_of,
     widens,
 )
 from app.services.sharing import Deferred, ShareChange, SharingService
@@ -112,6 +113,9 @@ class ArtifactRequestService:
         """
         if not await widens(self.db, artifact, change):
             return None
+        # Locked, which re-reads the page: one archived while this waited for the lock is
+        # archived here, as a request filed next would see it.
+        await artifact_repo.lock(self.db, artifact.id)
         if artifact.archived_at is not None:
             raise ConflictError(
                 message="This page is archived, so it cannot be shared.",
@@ -143,29 +147,52 @@ class ArtifactRequestService:
         return await name_of(self.db, artifact.owner_user_id)
 
     async def list_requests(
-        self, ctx: AuthContext, artifact_id: UUID, *, pending_only: bool = True
+        self,
+        ctx: AuthContext,
+        artifact_id: UUID,
+        *,
+        pending_only: bool = True,
+        skip: int = 0,
+        limit: int = 50,
     ) -> ArtifactShareRequestList:
         """The page's requests the caller may see: all of them for whoever decides them,
         an editor's own and the requests for access to a page that reads no data, anyone
-        else's own. Newest first.
+        else's own. Every pending one comes first, however many there are, then the
+        decided and void ones newest first, which are never pruned and so come a page of
+        `limit` from `skip` at a time. The pending ones are on the first page only
+        (`skip` 0); `total` counts them all.
 
         Raises:
             NotFoundError: The page is not the caller's to open.
         """
         artifact = await self._pages.get(ctx, artifact_id)
         can_edit = await self._can_edit(ctx, artifact)
-        found = await artifact_share_request_repo.list_for_artifact(
-            self.db, artifact.id, pending_only=pending_only
+        decides_all = may_confirm(ctx, artifact)
+        restricted, plain = not decides_all, can_edit and as_themselves(ctx)
+        waiting, total = await artifact_share_request_repo.list_for_artifact(
+            self.db,
+            artifact.id,
+            pending_only=True,
+            restricted=restricted,
+            only_requester_id=ctx.user_id,
+            plain_access_too=plain,
         )
-        shown = [
-            request
-            for request in found
-            if request.requester_user_id == ctx.user_id
-            or self._may_decide(ctx, artifact, request, can_edit=can_edit)
-        ]
-        return ArtifactShareRequestList(
-            items=await self._reads(ctx, artifact, shown), total=len(shown)
-        )
+        shown = waiting if skip == 0 else []
+        if not pending_only:
+            decided, decided_total = await artifact_share_request_repo.list_for_artifact(
+                self.db,
+                artifact.id,
+                pending_only=False,
+                decided_only=True,
+                restricted=restricted,
+                only_requester_id=ctx.user_id,
+                plain_access_too=plain,
+                skip=skip,
+                limit=limit,
+            )
+            shown = [*shown, *decided]
+            total += decided_total
+        return ArtifactShareRequestList(items=await self._reads(ctx, artifact, shown), total=total)
 
     async def request_access(
         self, ctx: AuthContext, artifact_id: UUID, data: ArtifactAccessRequestCreate
@@ -224,7 +251,12 @@ class ArtifactRequestService:
         Raises:
             NotFoundError: The page or the request is not the caller's to see.
             AuthorizationError: The caller may not decide this request.
-            ConcurrentChangeError: It was decided, voided or replaced in the meantime.
+            ConcurrentChangeError: It was decided, voided or replaced in the meantime, or
+                it is an `audience` or `access` request whose requester is not the member
+                who made it: they were removed and invited again since, and what they
+                asked before is not theirs to stand on under the new membership. A
+                `version` request is the owner's own confirmation of data, whoever
+                published it.
         """
         artifact, request = await self._pending(ctx, artifact_id, request_id)
         if request.kind == ShareRequestKind.VERSION.value:
@@ -241,6 +273,7 @@ class ArtifactRequestService:
             assert settled is not None  # confirming the version settled it
             request = settled
         else:
+            await self._requester_stands(artifact, request)
             await self._apply(ctx, artifact, request)
             request = await decide(
                 self.db,
@@ -363,6 +396,21 @@ class ArtifactRequestService:
             )
         return artifact, request
 
+    async def _requester_stands(self, artifact: Artifact, request: ArtifactShareRequest) -> None:
+        """Refuse a request made under a membership the requester no longer holds.
+
+        Re-inviting a member makes a new membership, and a request is the member's, not
+        the person's. Declining stays open, so the page's owner can clear such a request.
+        """
+        membership = await member_repo.get_active(
+            self.db, organization_id=artifact.organization_id, user_id=request.requester_user_id
+        )
+        if membership is None or membership.id != request.requester_membership_id:
+            raise ConcurrentChangeError(
+                message="This request was made under a membership that has ended.",
+                details={"request_id": request.id},
+            )
+
     async def _apply(
         self, ctx: AuthContext, artifact: Artifact, request: ArtifactShareRequest
     ) -> None:
@@ -444,10 +492,14 @@ class ArtifactRequestService:
         group_names = await group_repo.get_names(
             self.db, organization_id=artifact.organization_id, group_ids=sorted(group_ids)
         )
-        names = {
-            user_id: await name_of(self.db, user_id)
-            for user_id in dict.fromkeys(request.requester_user_id for request in requests)
-        }
+        names = await names_of(self.db, [request.requester_user_id for request in requests])
+        # A request made under a membership that has ended cannot be approved, so it is
+        # not offered: one lookup for every requester, `version` requests aside.
+        memberships = await member_repo.get_active_ids(
+            self.db,
+            organization_id=artifact.organization_id,
+            user_ids=sorted({r.requester_user_id for r in requests}),
+        )
         return [
             ArtifactShareRequestRead(
                 id=request.id,
@@ -471,6 +523,10 @@ class ArtifactRequestService:
                 decided_at=request.decided_at,
                 created_at=request.created_at,
                 can_decide=request.status == ShareRequestStatus.PENDING.value
+                and (
+                    request.kind == ShareRequestKind.VERSION.value
+                    or memberships.get(request.requester_user_id) == request.requester_membership_id
+                )
                 and self._may_decide(ctx, artifact, request, can_edit=can_edit),
             )
             for request in requests

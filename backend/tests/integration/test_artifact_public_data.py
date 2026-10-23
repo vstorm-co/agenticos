@@ -238,12 +238,12 @@ class TestConfirming:
 
         ready.world.org.public_live_data = False
         await db.flush()
-        with pytest.raises(BadRequestError, match="does not let"):
+        with pytest.raises(BadRequestError, match="Live data on public pages is off"):
             await ready.confirm(olga)
         ready.world.org.public_live_data = True
 
         await ready.world.service.withdraw_consent(olga, ready.page_id)
-        with pytest.raises(BadRequestError, match="hasn't confirmed"):
+        with pytest.raises(BadRequestError, match="Confirm this version"):
             await ready.confirm(olga)
         await ready.world.confirm(olga, 1)
 
@@ -352,7 +352,7 @@ class TestTheDisclosure:
         shown = await ready.public.disclosure(ready.world.olga, ready.page_id)
 
         assert (shown.switch_on, shown.confirmable) == (False, False)
-        assert shown.problem is not None and "does not let" in shown.problem
+        assert shown.problem is not None and "Live data on public pages is off" in shown.problem
 
     async def test_a_page_that_reads_no_data_has_no_parts(
         self, db: AsyncSession, storage: LocalFileStorage

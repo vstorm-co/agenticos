@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -913,6 +913,57 @@ class TestNamingTheStart:
         check = await world.one(BindingRequest(view=view.id, fields={"customer": "Customer"}))
 
         assert check.problem == f"Binding tickets: view {view.id} is on an archived table."
+
+
+class TestNamingByIdAsText:
+    """A model sends an id as text as often as a name: it reads the same."""
+
+    async def test_a_view_a_table_and_a_column_are_found_by_an_id_sent_as_text(self, db):
+        world = await _world(db)
+        view = await world.view()
+
+        by_view = await world.bound(
+            BindingRequest(view=str(view.id), fields={"customer": str(world.col("Customer"))})
+        )
+        by_table = await world.bound(
+            BindingRequest(table=str(world.table.id), fields={"customer": "Customer"})
+        )
+
+        assert by_view.table_id == by_table.table_id == world.table.id
+        assert by_view.fields == {"customer": world.col("Customer")}
+
+    async def test_a_table_without_read_is_not_searched_by_name(self, db):
+        world = await _world(db)
+        await world.view()
+        write_only = {world.table.id: frozenset({"write"})}
+
+        no_view = await world.one(
+            BindingRequest(view="Open", fields={"customer": "Customer"}), grants=write_only
+        )
+        no_table = await world.one(
+            BindingRequest(table="Orders", fields={"customer": "Customer"}), grants=write_only
+        )
+
+        assert no_view.problem == (
+            f"Binding tickets: no saved view named 'Open' that this agent may read.{HINT}"
+        )
+        assert no_table.problem == (
+            f"Binding tickets: no table named 'Orders' that this agent may read.{HINT}"
+        )
+
+    async def test_a_granted_table_that_no_longer_exists_is_skipped_by_name(self, db):
+        world = await _world(db)
+        await world.view()
+        grants = {uuid4(): READ, world.table.id: READ}
+
+        by_view = await world.bound(
+            BindingRequest(view="open", fields={"customer": "Customer"}), grants=grants
+        )
+        by_table = await world.bound(
+            BindingRequest(table="orders", fields={"customer": "Customer"}), grants=grants
+        )
+
+        assert by_view.table_id == by_table.table_id == world.table.id
 
 
 class TestLinkedTables:

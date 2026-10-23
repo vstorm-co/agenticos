@@ -20,7 +20,7 @@ import { levelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./gr
 interface GrantRowProps {
   grant: ResourceGrant;
   resourceType: SharingResourceType;
-  /** Whether the caller may give "data included" - the server's answer, never worked out here. */
+  /** Whether the caller may give "including data" - the server's answer, never worked out here. */
   mayGrantEditData: boolean;
   /** The member's full name, when they have one: the confirmation names them as the audit does. */
   fullName?: string | null;

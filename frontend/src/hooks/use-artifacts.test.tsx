@@ -299,9 +299,7 @@ describe("a page's consent", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/versions/v2/consent", {
       fingerprint: "f".repeat(64),
     });
-    expect(toastSuccess).toHaveBeenCalledWith(
-      "Data confirmed. Everyone who can open the page now reads it.",
-    );
+    expect(toastSuccess).toHaveBeenCalledWith("Data confirmed");
 
     // Another refusal is the dialog's to show: no toast, nothing read again.
     vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "not yours"));
@@ -332,9 +330,7 @@ describe("a page's consent", () => {
 
     await act(() => result.current.withdrawConsent.mutateAsync());
     expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1/consent");
-    expect(toastSuccess).toHaveBeenCalledWith(
-      "Sharing stopped. Everyone keeps the page, without its data.",
-    );
+    expect(toastSuccess).toHaveBeenCalledWith("Data sharing stopped");
 
     vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("no"));
     await act(async () => {
@@ -349,11 +345,11 @@ describe("a page's consent", () => {
     await waitFor(() => expect(result.current.artifact).not.toBeNull());
 
     await act(() =>
-      result.current.setAutoConsent.mutateAsync({ enabled: true, confirmed: "auto_consent.v1" }),
+      result.current.setAutoConsent.mutateAsync({ enabled: true, confirmed: "auto_consent.v2" }),
     );
     expect(apiClient.patch).toHaveBeenCalledWith("/artifacts/a1/auto-consent", {
       enabled: true,
-      confirmed: "auto_consent.v1",
+      confirmed: "auto_consent.v2",
     });
 
     vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("no"));
@@ -417,7 +413,7 @@ describe("a page's data on its public link", () => {
       audience_digest: "d".repeat(64),
       confirmed: true,
     });
-    expect(toastSuccess).toHaveBeenCalledWith("Live data is now shown on the public link");
+    expect(toastSuccess).toHaveBeenCalledWith("Live data shown on the public link");
 
     vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "not yours"));
     const reads = vi.mocked(apiClient.get).mock.calls.length;
@@ -447,7 +443,7 @@ describe("a page's data on its public link", () => {
 
     await act(() => result.current.withdrawPublicData.mutateAsync());
     expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1/public-data");
-    expect(toastSuccess).toHaveBeenCalledWith("The public link no longer shows live data");
+    expect(toastSuccess).toHaveBeenCalledWith("Live data hidden from the public link");
 
     vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("no"));
     await act(async () => {

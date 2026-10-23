@@ -274,6 +274,57 @@ class TestPublishingWithAnEnvironmentAndATitle:
         assert result.version_number == 4
 
 
+class TestLoadingForSharing:
+    """`ArtifactService.load`: the sharing routes' page, found by the rule `read` applies."""
+
+    @staticmethod
+    async def _load(
+        artifact: Artifact | None, *, may_edit: bool = False
+    ) -> tuple[Artifact, AsyncMock]:
+        ctx = _ctx()
+        access = AsyncMock(return_value=may_edit)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)) as get,
+            patch(f"{PATH}.resolve_access", new=access),
+        ):
+            loaded = await _service().load(ctx, uuid.uuid4())
+        assert get.await_args.kwargs["organization_id"] == ctx.organization_id
+        return loaded, access
+
+    async def test_a_live_page_is_loaded_without_asking_who_may_edit_it(self) -> None:
+        artifact = _artifact(_ctx())
+        loaded, access = await self._load(artifact)
+        assert loaded is artifact
+        access.assert_not_awaited()
+
+    @pytest.mark.parametrize("may_edit", [True, False])
+    async def test_an_archived_page_is_found_only_by_a_caller_who_may_edit_it(
+        self, may_edit: bool
+    ) -> None:
+        artifact = _artifact(_ctx())
+        artifact.archived_at = datetime.now(UTC)
+        if may_edit:
+            loaded, access = await self._load(artifact, may_edit=True)
+            assert loaded is artifact
+        else:
+            with pytest.raises(NotFoundError) as refused:
+                await self._load(artifact)
+            assert refused.value.details["artifact_id"]
+
+    async def test_a_page_of_another_organization_or_none_is_not_found(self) -> None:
+        with pytest.raises(NotFoundError):
+            await self._load(None)
+
+    def test_the_one_rule_hides_an_archived_page_from_whoever_may_not_edit_it(self) -> None:
+        live, archived = _artifact(_ctx()), _artifact(_ctx())
+        archived.archived_at = datetime.now(UTC)
+        assert [
+            artifacts.archived_hidden(live, can_edit=False),
+            artifacts.archived_hidden(archived, can_edit=False),
+            artifacts.archived_hidden(archived, can_edit=True),
+        ] == [False, True, False]
+
+
 class TestMay:
     async def test_the_owner_may(self) -> None:
         ctx = _ctx()
@@ -294,8 +345,8 @@ class TestMay:
     async def test_a_member_is_decided_by_resolve_access_with_the_permission_asked(self) -> None:
         with (
             patch(
-                f"{PATH}.member_repo.get_active",
-                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER)),
+                f"{PATH}.member_context",
+                new=AsyncMock(return_value=_ctx(OrgRoleName.MEMBER)),
             ),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)) as access,
         ):
@@ -303,6 +354,32 @@ class TestMay:
                 MagicMock(), _artifact(_ctx()), uuid.uuid4(), Perm.ARTIFACTS_VIEW
             )
         assert access.await_args.args[3] is Perm.ARTIFACTS_VIEW
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("app_admin", [True, False])
+    async def test_a_run_s_member_is_the_same_person_here_as_everywhere_else_in_the_service(
+        self, app_admin: bool
+    ) -> None:
+        """A deployment administrator who is only a Viewer here is served and may as ALL
+        everywhere else in the service (`member_context`); this answer must not differ."""
+        page = _artifact(_ctx())
+        with (
+            patch(
+                "app.services.access.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.VIEWER)),
+            ),
+            patch(
+                "app.services.access.user_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(is_app_admin=app_admin)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            assert (
+                await artifacts._may(MagicMock(), page, uuid.uuid4(), Perm.ARTIFACTS_EDIT)
+            ) is app_admin
 
 
 def _opened(db: MagicMock) -> MagicMock:
@@ -575,8 +652,9 @@ class TestAppendingAVersion:
         prune.assert_awaited_once()
         settled.assert_awaited_once()
 
-    async def test_pruning_keeps_the_pinned_version_and_the_one_the_audience_is_served(
-        self,
+    @pytest.mark.parametrize(("membership", "kept"), [(uuid.uuid4(), [2, 4, 1]), (None, [2, 4])])
+    async def test_pruning_keeps_the_pinned_version_the_one_the_audience_is_served_and_the_consented_one(
+        self, membership: uuid.UUID | None, kept: list[int]
     ) -> None:
         artifact = _artifact(_ctx(), public_version_number=2)
         with (
@@ -584,12 +662,19 @@ class TestAppendingAVersion:
                 f"{PATH}.artifact_repo.latest_served",
                 new=AsyncMock(return_value=_version(artifact, number=4)),
             ),
+            patch(f"{PATH}.owner_membership_id", new=AsyncMock(return_value=membership)),
+            patch(
+                f"{PATH}.artifact_repo.latest_consent",
+                new=AsyncMock(return_value=_version(artifact, number=1)),
+            ) as consented,
             patch(
                 f"{PATH}.artifact_repo.versions_beyond", new=AsyncMock(return_value=[])
             ) as beyond,
         ):
             await artifacts._prune(MagicMock(), artifact)
-        assert (beyond.await_args.kwargs["pinned"], beyond.await_args.kwargs["served"]) == (2, 4)
+        assert beyond.await_args.kwargs["kept"] == kept
+        # Asked as the consent check asks it: this owner's membership, after a withdrawal.
+        assert consented.await_count == (0 if membership is None else 1)
 
 
 class TestPublicLinkSettings:

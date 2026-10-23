@@ -348,14 +348,19 @@ async def list_artifact_share_requests(
     include_decided: bool = Query(
         False, description="Approved, declined and voided requests too; only pending ones otherwise"
     ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """The requests about a page that the caller may see, newest first.
+    """The requests about a page that the caller may see: the pending ones first, then
+    newest first, a page at a time (`total` counts them all).
 
     Whoever decides them - the owner, or an Owner or Admin - sees every one. An editor
     sees their own, and the requests for access to a page that reads no data; anyone
     else who may open the page sees their own.
     """
-    return await service.list_requests(ctx, artifact_id, pending_only=not include_decided)
+    return await service.list_requests(
+        ctx, artifact_id, pending_only=not include_decided, skip=skip, limit=limit
+    )
 
 
 @router.post(
@@ -442,7 +447,19 @@ async def view_artifact(
     dependencies=[Depends(limit_artifact_data)],
 )
 async def read_artifact_data(
-    artifact_id: UUID, version_id: UUID, service: ArtifactSvc, ctx: Auth, response: Response
+    artifact_id: UUID,
+    version_id: UUID,
+    service: ArtifactSvc,
+    ctx: Auth,
+    response: Response,
+    rows: bool = Query(
+        True,
+        description=(
+            "Read the records. Off, no record is loaded: each binding says only whether its "
+            "query could be run and, for an editor, why not. It counts against its own "
+            "per-minute allowance. For a strip beside a page that was served with its data"
+        ),
+    ),
 ) -> Any:
     """The records a live page's bindings read: each page query, read with the owner's access.
 
@@ -456,7 +473,7 @@ async def read_artifact_data(
     404 for a version the caller may not open. Never cached.
     """
     response.headers["Cache-Control"] = "private, no-store"
-    return await service.data(ctx, artifact_id, version_id)
+    return await service.data(ctx, artifact_id, version_id, rows=rows)
 
 
 @router.put("/{artifact_id}/public-link", response_model=ArtifactDetail)

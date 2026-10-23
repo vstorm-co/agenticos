@@ -156,8 +156,8 @@ on who they are.
 The audience is never served a version nobody agreed to share. When the data's
 consent no longer holds - an editor withdrew it, or the owner changed - the
 audience still gets that **whole page**, and every binding arrives `unavailable`
-with the reason `awaiting_consent`; the page says "This page's data appears once
-its owner confirms sharing it." When no version at all is consented or free of
+with the reason `awaiting_consent`; the page says "The data appears once
+the page's owner confirms it." When no version at all is consented or free of
 data, the audience sees "This page isn't available yet" and nothing else.
 
 A binding is also `unavailable` when what it reads changed since the page was
@@ -185,9 +185,9 @@ reads it, per version. That decision is **consent**: the owner reviews the page
 queries in words - each query's table, filters, order, limit and fields, every
 linked table it reaches, and who will read it - and confirms.
 
-The review names who reads the page, now and later: the roles that open every
-page (Owner, Admin, Builder and Operator), the page's visibility, the people it is
-shared with and the groups, including whoever joins them. The owner can only
+The review names who will see the page: the roles that see every page (Owner,
+Admin, Builder and Operator), the page's visibility, the people it is shared with
+and the groups, including future members. The owner can only
 confirm what they read themselves.
 
 A version's data is in one of these states:
@@ -245,27 +245,32 @@ the page's owner cannot read a table the query reaches.
 
 #### Auto-consent
 
-The owner can switch on **Don't ask for consent on republish** for a page. It is
+The owner can switch on **Share new versions automatically** for a page. It is
 off by default and only the owner, as themselves, turns it on, never an agent. It
-asks first: "Any change your runs make to this page's data, new columns and tables
-included, reaches everyone who can open it without asking you - API runs too."
+asks first: "Any data change your runs make to this page, including new tables and
+columns, reaches everyone who can open it without asking you. This includes API runs."
 The audit entry records the confirmed text.
 
 It covers only the owner's own republishes. An editor's republish still waits.
 Auto-consents are recorded as automatic, and when one reaches more than the version
-served before it, the owner's strip lists it: "v4 was consented automatically and
-reads more: +Deals, +Salary". The owner or an Owner or Admin turns it off, and
+served before it, the owner's strip lists it: "v4 was shared automatically and
+shows more data: +Deals, +Salary". The owner or an Owner or Admin turns it off, and
 withdrawing or handing the page to someone else turns it off too.
+
+It never covers a run that started while an administrator impersonated the owner,
+however late that run publishes: a background run, a workflow step or a run resumed
+after an approval carries it with it, and the same holds for an editor's data-editor
+grant (below). Republishing queries the owner already confirmed is still consented.
 
 #### Data editors
 
-The sharing dialog has a grant level above `edit`: **Can edit, data included**
+The sharing dialog has a grant level above `edit`: **Can edit, including data**
 (`edit_data`), for pages only. It is a standing consent to that person's
 republishes, a change of query included. Only the owner, or an Owner or Admin, as
-themselves, grants it, after a popup: "Alex can change what data this page shows
-to everyone who can open it, including new tables and columns, without asking
-you; that includes their API runs." For a group the popup says "Everyone in Sales,
-now and later". The grant is audited with the confirmed text.
+themselves, grants it, after a popup: "Alex can change the data everyone sees
+on this page, including new tables and columns, without asking you. This also
+covers their API runs." For a group the popup says "Anyone in Sales, now or later,
+can change ...". The grant is audited with the confirmed text.
 
 A republish by someone with `edit_data` is consented automatically, recorded as made
 through their grant. They still have to read every table the query reaches, and the
@@ -313,16 +318,18 @@ The platform files a request. There are three kinds:
 
 A member can have one pending `audience` and one pending `access` request per page,
 and a page has one pending `version` request; a newer one replaces the older.
-`audience` and `access` requests are limited to ten an hour per person per
-organization by default
-([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); `version`
-requests are not counted. The page's owner decides. When it has no owner left, the
+Requests are limited to ten an hour per person per organization by default
+([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)). A `version`
+request counts against the publisher's allowance too: past it, a republish still
+replaces the pending request, but the owner is not notified again.
+
+The page's owner decides. When it has no owner left, the
 Owners and Admins can decline; to approve, they first hand the page to a member
 (**Change owner**), who confirms the data. A request goes void without a decision when the page's queries change, the owner changes or the page is
 archived.
 
 The owner is notified in the console and by email, as set in **Settings →
-Notifications** ("Page sharing requests"). The notification names the page and the
+Notifications** ("Page requests"). The notification names the page and the
 requester, never its data.
 
 They are answered in a **Requests** section of the Share dialog, and a **Requests** button in
@@ -331,6 +338,16 @@ applies the visibility and grants it asked for, each only where it still widens.
 **It never consents to data**: when the version the audience is served has no consent
 that holds, approving is refused with "Confirm the page's data before sharing it", and
 the owner confirms the data first, then approves. Declining shares nothing.
+
+An `audience`
+or `access` request made under a membership that has since ended - the member was
+removed and invited again - cannot be approved; decline it.
+
+The list of requests (`GET /api/v1/artifacts/{id}/share-requests`) always holds every
+pending request. With `include_decided=true` it adds the decided and void ones, which
+are kept, newest first and a page at a time with `skip` and `limit` (50 by default, at
+most 100); `total` counts all of them, and the Share dialog says when it shows only the
+newest decided ones.
 
 The requester is not told when it is decided: the page opening, or not, is the
 answer. A page that reads no data takes a plain `access` request, which any
@@ -346,13 +363,13 @@ organization gets the ordinary not-found.
 #### Reviewing a changed version
 
 A `version` request opens the page for the owner on the pending version, with its real
-data. The strip says who changed what the version reads, with **Review data
+data. The strip says who changed the data the version shows, with **Review data
 change**. The panel compares the version's page queries with the one the audience
 sees now, binding by binding and in words: fields, filters, order, limit and linked
-tables added, removed or changed, each marked **Reads more**, **Reads less** or no
+tables added, removed or changed, each marked **Shows more**, **Shows less** or no
 change, new bindings with their full disclosure, and unchanged ones collapsed.
 
-A toggle, **Audience sees now**, shows the page as the audience has it. The panel names
+A toggle, **What others see**, shows the page as the audience has it. The panel names
 who published the version and when, and links to the conversation when the owner may
 open it. **Approve** confirms the version. **Decline** keeps the audience on the earlier
 version and marks the version `declined` in its history; a later republish asks again.
@@ -437,7 +454,8 @@ Every answer is bounded, so one page cannot take the deployment down:
 | One query | at most 2 s |
 | One page | 5 s deadline |
 | Data loads | 30 a minute per viewer, one in flight per viewer, and a cap per process |
-| Share requests | 10 an hour per person per organization (audience and access) |
+| Reasons-only reads (`rows=false`, an editor's strip) | The same limits, counted separately from data loads |
+| Share requests | 10 an hour per person per organization (audience, access and version) |
 
 A cut binding says `truncated: true`, with `limit` set to `records` or `bytes`
 and `count` as the number of records served. `bytes` also covers a read whose
@@ -509,7 +527,7 @@ time the page is opened and again when a run starts.
 When the console opens a page, it lists the actions the **served version** declares
 that this viewer may run now: each with the workflow's real name, the page's label and
 the fields its trigger asks for. One the viewer may not run is left out. The viewer's
-strip shows **This app can run: ...**, naming the workflows, each a link to that
+strip shows **This page can run: ...**, naming the workflows, each a link to that
 workflow's runs. Without any, nothing is shown.
 
 A page gets no actions, and its `run` call is rejected at once, when it is shown:
@@ -751,9 +769,14 @@ pixels tall; a longer page says how tall it is. A page still running after 15
 seconds is reported as such, without a picture.
 
 The data is read as the person the run is for, exactly as the console would
-read it for them. In a group chat only an organization-wide page can be
-previewed, the same pages the list shows there, and it is drawn without data. A
-surface with nobody signed in previews nothing. Nothing the page asks for reaches the
+read it for them, and counts against that person's data allowance. In a group chat
+only an organization-wide page can be previewed, the same pages the list shows
+there, and it is drawn without data. So is a page previewed by a run nobody answers
+for - one an outsider started through a webhook, a form, a channel message, an
+email or a repository event - whoever it executes as. A surface with nobody signed
+in previews nothing.
+
+Nothing the page asks for reaches the
 network: the API answers every request with the page, the
 [library set](#the-library-set) or a refusal.
 
@@ -786,7 +809,7 @@ Under **Share**, anybody who may manage it can share it three ways:
 
 | Reach | How | Who |
 |---|---|---|
-| Specific people | A grant, at `read`, `edit`, or for a page, `edit_data` ("Can edit, data included") | Those members, in this organization |
+| Specific people | A grant, at `read`, `edit`, or for a page, `edit_data` ("Can edit, including data") | Those members, in this organization |
 | The organization | Visibility set to the whole organization | Every member whose role reaches shared artifacts |
 | Anyone with the link | **Create a public link** | Anybody holding the address, without an account |
 
@@ -1037,7 +1060,8 @@ were not there:
   not available. Someone who may edit it sees when it was archived, with
   **Restore** and **Delete**.
 - **Lists.** The Artifacts list and the dashboard widget leave it out. Choose
-  **Archived included** on the list to see it, marked **Archived**.
+  **Archived included** on the list to see it, marked **Archived**. Only those who
+  may edit it see it there.
 - **The public link and the embed.** Both open nothing.
 - **The agent.** `publish_artifact` refuses the name with a message naming the
   archive, so a run cannot start a second page under it. `read_artifact`,
@@ -1054,8 +1078,8 @@ Over the API, `POST /api/v1/artifacts/{id}/archive` archives a page, and
 archiving it again changes nothing. `POST /api/v1/artifacts/{id}/unarchive`
 restores it, and answers `400` for a page that is not archived. Both ask for the
 right to edit that page, a grant included. `GET /api/v1/artifacts` lists
-archived pages only with `include_archived=true`, and `archived_at` on each page
-says when it was archived.
+archived pages, to those who may edit them, only with `include_archived=true`, and
+`archived_at` on each page says when it was archived.
 
 ## Retention and deletion
 

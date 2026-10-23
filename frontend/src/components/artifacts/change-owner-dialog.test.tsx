@@ -90,9 +90,9 @@ describe("the change owner dialog", () => {
     await pick("bea@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(
-      screen.getByText(/stops reaching the page's audience until bea@example.com confirms it/),
-    ).toBe(screen.getByText(/stops reaching the page's audience/));
+    expect(screen.getByText(/is hidden from others until bea@example.com confirms it/)).toBe(
+      screen.getByText(/is hidden from others/),
+    );
     expect(onChangeOwner).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Change owner" }));
@@ -110,7 +110,7 @@ describe("the change owner dialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      screen.getByText(/The previous owner and bea@example.com are notified/),
+      screen.getByText(/bea@example.com and the previous owner are notified/),
     ).toBeInTheDocument();
     useAuthStore.setState({ user: null });
   });

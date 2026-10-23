@@ -792,12 +792,14 @@ class NotificationService:
         told: list[tuple[UUID, str]] = [
             (
                 new_owner_id,
-                f"{by_name} made you the owner of {title}. Its data reaches no one else "
-                "until you confirm it.",
+                f"{by_name} made you the owner of {title}. Its data stays hidden from "
+                "others until you confirm it.",
             )
         ]
         if previous_owner_id is not None:
-            told.append((previous_owner_id, f"{by_name} handed {title} to {new_owner_name}."))
+            told.append(
+                (previous_owner_id, f"{by_name} made {new_owner_name} the owner of {title}.")
+            )
         for user_id, summary in told:
             if user_id == by_user_id:
                 continue
@@ -832,8 +834,8 @@ class NotificationService:
             "audience": f"{requester_name} asked to share {title} with more people.",
             "access": f"{requester_name} asked for access to {title}.",
             "version": (
-                f"{requester_name} changed what {title} reads. Everyone who opens it keeps "
-                "seeing the earlier version until it is confirmed."
+                f"{requester_name} changed the data {title} shows. Others see the earlier "
+                "version until you approve it."
             ),
         }[kind]
         render_context = {

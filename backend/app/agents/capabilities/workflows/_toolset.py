@@ -235,7 +235,11 @@ def build_workflows_toolset(
                     "That workflow is not published to start by hand, by the API or by a call."
                 )
             return await WorkflowExecutionService(db).start(
-                auth, workflow.id, triggered_by=WorkflowRunTrigger.AGENT, run_input=fields or {}
+                auth,
+                workflow.id,
+                triggered_by=WorkflowRunTrigger.AGENT,
+                run_input=fields or {},
+                impersonated=ctx.deps.impersonated,
             )
 
         run = await act(ctx, work)

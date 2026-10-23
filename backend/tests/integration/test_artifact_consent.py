@@ -128,11 +128,14 @@ class _World:
         fields: dict[str, str] | None = CUSTOMERS,
         by: AuthContext | None = None,
         stand_in: AuthContext | None = None,
+        impersonated: bool = False,
     ) -> artifacts.PublishedArtifact:
         """Olga's run publishes `body`, bound to the orders table unless `fields` is None.
 
         `by` is the member behind the run, Olga unless said otherwise; `stand_in` the
-        identity a publish is checked as, which is `by` unless said otherwise.
+        identity a publish is checked as, which is `by` unless said otherwise. With
+        `impersonated` the run started while an administrator impersonated `by` - and
+        nothing ambient says so, as in a spawned task or a worker.
         """
         person = by or self.olga
         published = await artifacts.publish_with(
@@ -147,6 +150,7 @@ class _World:
             data=body.encode(),
             bindings={} if fields is None else {"orders": self.query(fields)},
             run_person=person.user_id,
+            impersonated=impersonated,
             table_grants={self.table.id: READ},
         )
         self.page_id = published.artifact_id
@@ -309,6 +313,40 @@ class TestTheConsentAPublishStartsWith:
         assert theirs.consent.value == "pending"
         assert (await world.version(2)).published_by_user_id == editor.user_id
 
+    @pytest.mark.security
+    async def test_a_run_that_started_impersonating_the_owner_is_not_auto_consented(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """The run carries it: no request is left to ask once a worker publishes."""
+        world = await _world(db)
+        published = await world.publish("<p>v1</p>")
+        await world.service.set_auto_consent(
+            world.olga,
+            published.artifact_id,
+            ArtifactAutoConsentUpdate(enabled=True, confirmed=AUTO_CONSENT_WORDING),
+        )
+
+        wider = await world.publish("<p>v2</p>", fields=WIDER, impersonated=True)
+
+        assert wider.consent.value == "pending"
+        assert (await world.version(2)).consent_automatic is False
+
+    @pytest.mark.security
+    async def test_an_edit_data_holder_s_run_that_started_impersonating_waits(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        world = await _world(db)
+        await world.publish("<p>v1</p>")
+        holder = await world.member(page=GrantLevel.EDIT_DATA, reads_table=True)
+
+        by_grant = await world.publish("<p>v2</p>", fields=WIDER, by=holder, stand_in=world.olga)
+        impersonated = await world.publish(
+            "<p>v3</p>", fields=CUSTOMERS, by=holder, stand_in=world.olga, impersonated=True
+        )
+
+        assert by_grant.consent.value == "consented"
+        assert impersonated.consent.value == "pending"
+
 
 class TestConfirming:
     async def test_the_owner_s_confirm_shares_the_data_with_the_audience(
@@ -398,7 +436,7 @@ class TestConfirming:
         )
         admin = await world.member(role="admin")
 
-        with pytest.raises(AuthorizationError, match="can't read 1 of the tables"):
+        with pytest.raises(AuthorizationError, match="can't access 1 of the tables"):
             await world.confirm(admin, 1)
 
 
@@ -557,6 +595,26 @@ class TestPruning:
             .order_by(ArtifactVersion.number)
         )
         assert list(rows.scalars()) == [1, 3, 4]
+
+    async def test_the_consented_version_a_republish_is_compared_with_outlives_the_window(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """v1 confirmed, v2 unbound, v3 waiting, two versions kept: the audience is served v2,
+        yet v1 is what the same queries are checked against."""
+        world = await _world(db)
+        with (
+            patch.object(artifacts.settings, "ARTIFACT_MAX_VERSIONS", 2),
+            patch("app.services.artifact.spawn_after_commit"),
+        ):
+            await world.publish("<p>v1</p>")
+            await world.confirm(world.olga, 1)
+            await world.publish("<p>v2</p>", fields=None)
+            await world.publish("<p>v3</p>", fields=WIDER)
+
+            same = await world.publish("<p>v4</p>", fields=CUSTOMERS)
+
+        assert same.consent.value == "consented"
+        assert (await world.version(4)).consent_automatic is True
 
 
 class TestTheConstraint:

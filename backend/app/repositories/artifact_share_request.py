@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,18 +41,51 @@ async def list_for_artifact(
     artifact_id: UUID,
     *,
     pending_only: bool = True,
+    decided_only: bool = False,
     kinds: Sequence[ShareRequestKind] | None = None,
-) -> list[ArtifactShareRequest]:
-    """A page's requests, newest first; only the pending ones unless asked for all."""
-    query = select(ArtifactShareRequest).where(ArtifactShareRequest.artifact_id == artifact_id)
+    only_requester_id: UUID | None = None,
+    plain_access_too: bool = False,
+    restricted: bool = False,
+    skip: int = 0,
+    limit: int | None = None,
+) -> tuple[list[ArtifactShareRequest], int]:
+    """A page's requests, the pending ones first and then newest first, with the total.
+
+    Only the pending ones unless asked for all, or only the decided and void ones with
+    `decided_only`. A `restricted` listing keeps those made
+    by `only_requester_id` and, with `plain_access_too`, the requests for access to a
+    page that reads no data. The decided ones are never pruned, so a long-lived page
+    lists them a page at a time.
+    """
+    where = [ArtifactShareRequest.artifact_id == artifact_id]
     if pending_only:
-        query = query.where(ArtifactShareRequest.status == ShareRequestStatus.PENDING.value)
+        where.append(ArtifactShareRequest.status == ShareRequestStatus.PENDING.value)
+    if decided_only:
+        where.append(ArtifactShareRequest.status != ShareRequestStatus.PENDING.value)
     if kinds is not None:
-        query = query.where(ArtifactShareRequest.kind.in_([kind.value for kind in kinds]))
-    result = await db.execute(
-        query.order_by(ArtifactShareRequest.created_at.desc(), ArtifactShareRequest.id)
+        where.append(ArtifactShareRequest.kind.in_([kind.value for kind in kinds]))
+    if restricted:
+        own = ArtifactShareRequest.requester_user_id == only_requester_id
+        plain = and_(
+            ArtifactShareRequest.kind == ShareRequestKind.ACCESS.value,
+            ArtifactShareRequest.query_fingerprint.is_(None),
+        )
+        where.append(or_(own, plain) if plain_access_too else own)
+    query = (
+        select(ArtifactShareRequest)
+        .where(*where)
+        .order_by(
+            ArtifactShareRequest.status != ShareRequestStatus.PENDING.value,
+            ArtifactShareRequest.created_at.desc(),
+            ArtifactShareRequest.id,
+        )
+        .offset(skip)
     )
-    return list(result.scalars().all())
+    if limit is not None:
+        query = query.limit(limit)
+    result = await db.execute(query)
+    total = await db.scalar(select(func.count(ArtifactShareRequest.id)).where(*where))
+    return list(result.scalars().all()), total or 0
 
 
 async def pending(

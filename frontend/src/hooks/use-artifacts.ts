@@ -421,20 +421,59 @@ export function useArtifactData(
   versionId: string | undefined,
   enabled: boolean,
 ) {
+  return useDataRead(
+    qk.artifacts.data(artifactId, versionId ?? ""),
+    artifactId,
+    versionId,
+    enabled,
+    true,
+  );
+}
+
+/**
+ * Whether each source of a page served with its data could be read, and for an
+ * editor why not - without reading its records, which the page's own load did.
+ *
+ * Keyed by the nonce of the load it describes, so a page minted again is asked
+ * again, and a read that settled before it is never taken for its own.
+ */
+export function useArtifactReasons(
+  artifactId: string,
+  versionId: string | undefined,
+  nonce: string,
+  enabled: boolean,
+) {
+  return useDataRead(
+    qk.artifacts.reasons(artifactId, versionId ?? "", nonce),
+    artifactId,
+    versionId,
+    enabled,
+    false,
+  );
+}
+
+function useDataRead(
+  queryKey: readonly unknown[],
+  artifactId: string,
+  versionId: string | undefined,
+  enabled: boolean,
+  rows: boolean,
+) {
   const queryClient = useQueryClient();
   return useQuery({
-    queryKey: qk.artifacts.data(artifactId, versionId ?? ""),
+    queryKey,
     queryFn: async () => {
-      const data = await apiClient.get<ArtifactData>(
-        `/artifacts/${artifactId}/versions/${versionId}/data`,
-      );
+      const path = `/artifacts/${artifactId}/versions/${versionId}/data`;
+      const data = rows
+        ? await apiClient.get<ArtifactData>(path)
+        : await apiClient.get<ArtifactData>(path, { params: { rows: "false" } });
       if (!data.current) {
-        for (const queryKey of [
+        for (const key of [
           qk.artifacts.detail(artifactId),
           qk.artifacts.versions(artifactId),
           qk.artifacts.view(artifactId, null, true),
         ]) {
-          void queryClient.invalidateQueries({ queryKey, exact: true });
+          void queryClient.invalidateQueries({ queryKey: key, exact: true });
         }
       }
       return data;

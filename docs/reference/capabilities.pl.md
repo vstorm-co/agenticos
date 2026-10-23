@@ -1,5 +1,5 @@
 ---
-source_sha: "b32952995eb7"
+source_sha: "bffe0a4074b5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1058,7 +1058,8 @@ wymieniane.
 wysokości najwyżej 2400, w przeglądarce uruchomionej przez operatora
 ([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), z danymi
 czytanymi jako słuchająca osoba. W czacie grupowym otwiera tylko stronę całej
-organizacji i rysuje ją bez danych. Zwraca raport tekstowy (dane każdego bindingu,
+organizacji i rysuje ją bez danych; tak samo dla runu, za który nikt nie odpowiada,
+np. uruchomionego przez webhook albo formularz. Zwraca raport tekstowy (dane każdego bindingu,
 nieprzechwycone błędy, błędy konsoli, odmowy polityki, odrzucone żądania, okna
 dialogowe, ostrzeżenia przy publikacji) i obraz jako część obrazkową. Na każde
 żądanie renderu odpowiada API albo je odrzuca. Bez renderera albo dodatku

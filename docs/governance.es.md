@@ -1,5 +1,5 @@
 ---
-source_sha: "9475cb419897"
+source_sha: "9149747314ef"
 ---
 
 # Governance { #governance }
@@ -1226,8 +1226,8 @@ que una persona confirmó.
 | `artifact.published` | Se publicó una versión, con su número, la huella de sus page queries y `actions`, los ids de los workflows que declara |
 | `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
 | `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
-| `artifact.auto_consent_changed` | El propietario activó o desactivó «Don't ask for consent on republish», con el texto que confirmó |
-| `artifact.edit_data_granted` | El propietario, o un Owner o Admin, dio a una persona o a un grupo «Can edit, data included», con el texto que confirmó |
+| `artifact.auto_consent_changed` | El propietario activó o desactivó «Share new versions automatically», con el texto que confirmó |
+| `artifact.edit_data_granted` | El propietario, o un Owner o Admin, dio a una persona o a un grupo «Can edit, including data», con el texto que confirmó |
 | `artifact.owner_changed` | Una página cambió de manos: el propietario anterior y el nuevo, quién lo hizo y las concesiones `edit_data` que se descartaron |
 | `artifact.share_requested` | Se presentó una solicitud — de tipo `audience`, `access` o `version` — por una persona o por el run de su agent |
 | `artifact.share_request_approved` y `artifact.share_request_declined` | Se decidió una solicitud, y quién |

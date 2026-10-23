@@ -25,6 +25,14 @@ import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
  */
 export const RUN_ENABLE_DELAY_MS = 500;
 
+const FIRST_STRONG_ISOLATE = "\u2068";
+const POP_ISOLATE = "\u2069";
+
+/** A name inside a sentence of ours, written out as `showValue` does and set apart in its own direction. */
+function isolated(name: string): string {
+  return `${FIRST_STRONG_ISOLATE}${showValue(name)}${POP_ISOLATE}`;
+}
+
 interface ContentProps {
   pending: PendingAction;
   pageTitle: string;
@@ -60,8 +68,10 @@ function RunDialogContent({ pending, pageTitle, onCancel, onConfirm }: ContentPr
       }}
     >
       <DialogHeader>
-        <DialogTitle>{action.name}</DialogTitle>
-        <DialogDescription>{t("actions.why", { page: pageTitle })}</DialogDescription>
+        <DialogTitle>
+          <bdi>{showValue(action.name)}</bdi>
+        </DialogTitle>
+        <DialogDescription>{t("actions.why", { page: isolated(pageTitle) })}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
         <div>
@@ -124,6 +134,8 @@ interface ArtifactRunDialogProps {
  *
  * The title is the workflow's own name from the server; the page's word for it is
  * a quote and nothing more, and every value is text - a React child, never markup.
+ * The workflow's name and the page's title, which an agent may have written, are
+ * written out and isolated in their own direction like the values are.
  * Only a request that fits the workflow's fields gets here (the hook refuses the
  * rest), and values the eye cannot see are written out (`showValue`) and read in
  * their own direction, so a value cannot reorder what is next to it.

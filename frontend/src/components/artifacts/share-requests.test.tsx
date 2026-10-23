@@ -111,8 +111,8 @@ function page(overrides: Partial<ArtifactDetail> = {}): ArtifactDetail {
   } as ArtifactDetail;
 }
 
-function listed(items: ArtifactShareRequest[], isLoading = false) {
-  requestsMock.mockReturnValue({ requests: items, isLoading, error: null });
+function listed(items: ArtifactShareRequest[], isLoading = false, total = items.length) {
+  requestsMock.mockReturnValue({ requests: items, total, isLoading, error: null });
 }
 
 function renderRequests(artifact = page()) {
@@ -154,7 +154,21 @@ describe("ArtifactRequests", () => {
         "Visible to the whole organization; cy@example.com - can edit; Sales - can use",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Someone changed what v4 reads")).toBeInTheDocument();
+    expect(screen.getByText("Someone changed the data v4 shows")).toBeInTheDocument();
+  });
+
+  it("says when the list is the newest part of a longer history", () => {
+    listed([request({ id: "r1" }), request({ id: "r2", status: "declined" })], false, 121);
+    renderRequests();
+    expect(
+      screen.getByText("Every waiting request is shown, and the newest 1 of 120 decided ones."),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing of a history it shows whole", () => {
+    listed([request({ id: "r1" })]);
+    renderRequests();
+    expect(screen.queryByText(/Showing the newest/)).toBeNull();
   });
 
   it("words a private or read-only ask too", () => {
@@ -276,15 +290,15 @@ describe("ArtifactRequests", () => {
     for (const text of [
       "Approved",
       "Declined",
-      "Void - the page's data changed",
+      "Closed - the page's data changed",
       "Replaced by a newer request",
-      "Void - the owner changed",
-      "Void - the page was archived",
-      "Superseded by a newer version",
+      "Closed - the owner changed",
+      "Closed - the page was archived",
+      "Replaced by a newer version",
     ]) {
       expect(screen.getByText(text)).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Void")).toHaveLength(1);
+    expect(screen.getAllByText("Closed")).toHaveLength(1);
   });
 
   it("says there is nothing waiting to a decider, and draws nothing for a reader with none", () => {
@@ -379,7 +393,7 @@ function renderReview(props: Partial<React.ComponentProps<typeof DataChangeRevie
 }
 
 describe("DataChangeReview", () => {
-  it("marks each binding by what it does to what the audience reads", () => {
+  it("marks each source by what it does to what others see", () => {
     reviewing(
       review({
         widens: true,
@@ -505,16 +519,16 @@ describe("DataChangeReview", () => {
     expect(screen.getByRole("heading", { name: "Review the data change in v4" })).toBeVisible();
     // A new binding comes whole, as the Confirm data dialog words it.
     expect(screen.getByText("deals - new")).toBeVisible();
-    expect(screen.getByText("deals reads Deals")).toBeVisible();
+    expect(screen.getByText("deals - from Deals")).toBeVisible();
     expect(screen.getByText('Only records where Stage is "Won".')).toBeVisible();
     expect(screen.getByText("amount: Amount (Number)")).toBeVisible();
-    expect(screen.getByText("Also reads, through links: Accounts")).toBeVisible();
+    expect(screen.getByText("Also uses linked tables: Accounts")).toBeVisible();
     expect(screen.getByText("old - removed")).toBeVisible();
-    expect(screen.getByText("It no longer reads Leads.")).toBeVisible();
+    expect(screen.getByText("It no longer uses Leads.")).toBeVisible();
 
     const widening = screen.getByText("Table: A -> B").closest("li");
     expect(widening).toHaveClass("bg-warning/10");
-    expect(within(widening as HTMLElement).getByText("Reads more")).toBeVisible();
+    expect(within(widening as HTMLElement).getByText("Shows more")).toBeVisible();
     expect(screen.getByText("Field added: pay: Salary (Number)")).toBeVisible();
     expect(screen.getByText("Field removed: band: Level: formula over Level")).toBeVisible();
     expect(screen.getByText("Field changed: n: Name (Text) -> n: Email (Text)")).toBeVisible();
@@ -527,17 +541,17 @@ describe("DataChangeReview", () => {
       screen.getByText("Order: Amount, ascending -> when last changed, descending"),
     ).toBeVisible();
     expect(screen.getByText("Limit: 10 -> 500")).toBeVisible();
-    expect(screen.getByText("Now also reads, through links: Accounts")).toBeVisible();
-    expect(screen.getByText("No longer reads, through links: Leads")).toBeVisible();
-    expect(screen.getByText("Now also reads, in a condition or the order: Salary")).toBeVisible();
-    expect(screen.getByText("No longer reads: Notes")).toBeVisible();
+    expect(screen.getByText("Now also uses linked tables: Accounts")).toBeVisible();
+    expect(screen.getByText("No longer uses linked tables: Leads")).toBeVisible();
+    expect(screen.getByText("Now also uses, in a filter or sort: Salary")).toBeVisible();
+    expect(screen.getByText("No longer uses: Notes")).toBeVisible();
     // A narrowing is marked plainly, and a binding that reads the same is folded away.
     const narrowing = screen
       .getByText("Field removed: band: Level: formula over Level")
       .closest("li");
     expect(narrowing).not.toHaveClass("bg-warning/10");
-    expect(screen.getAllByText("Reads less").length).toBeGreaterThan(0);
-    expect(screen.getByText("2 unchanged bindings")).toBeVisible();
+    expect(screen.getAllByText("Shows less").length).toBeGreaterThan(0);
+    expect(screen.getByText("2 unchanged sources")).toBeVisible();
     expect(screen.getByText("summary, totals")).not.toBeVisible();
   });
 
@@ -550,8 +564,8 @@ describe("DataChangeReview", () => {
       "href",
       "/runs?run=run-9",
     );
-    expect(screen.getByText("Compared with v3, which the audience sees now.")).toBeVisible();
-    expect(screen.getByText("It reads the same data as the audience's version.")).toBeVisible();
+    expect(screen.getByText("Compared with v3, which others see now.")).toBeVisible();
+    expect(screen.getByText("It shows the same data as the version others see.")).toBeVisible();
   });
 
   it("has no conversation link when the run is gone, and no audience toggle when it sees nothing", () => {
@@ -565,15 +579,15 @@ describe("DataChangeReview", () => {
     renderReview();
 
     expect(screen.queryByRole("link", { name: "Open the conversation" })).toBeNull();
-    expect(screen.queryByRole("switch", { name: "Audience sees now" })).toBeNull();
-    expect(screen.getByText("The audience sees no version of this page yet.")).toBeVisible();
+    expect(screen.queryByRole("switch", { name: "What others see" })).toBeNull();
+    expect(screen.getByText("Nobody else sees a version of this page yet.")).toBeVisible();
   });
 
   it("switches the frame to what the audience sees now, and back", async () => {
     reviewing(review());
     const { onAudienceShown } = renderReview();
 
-    await userEvent.click(screen.getByRole("switch", { name: "Audience sees now" }));
+    await userEvent.click(screen.getByRole("switch", { name: "What others see" }));
     expect(onAudienceShown).toHaveBeenCalledWith(true, 3);
   });
 
@@ -644,7 +658,7 @@ describe("DataChangeReview", () => {
     reviewing(review());
     renderReview({ audienceAvailable: () => false });
 
-    expect(screen.getByRole("switch", { name: "Audience sees now" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "What others see" })).toBeDisabled();
     expect(screen.getByText(/no longer listed/)).toBeVisible();
   });
 

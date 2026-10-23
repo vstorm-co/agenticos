@@ -200,6 +200,8 @@ interface Fixture {
   agentId: string;
   profileId: string;
   colleagueId: string;
+  /** The owner's organization: a colleague with a personal org of their own needs it named. */
+  orgId: string;
   /** The page's name, which an editor's republish must repeat to update the same page. */
   pageName: string;
   /** The saved view the page's binding copies, and the colleague's grants to undo. */
@@ -358,6 +360,7 @@ test.describe("artifact live data", () => {
       agentId: "",
       profileId: ((await profile.json()) as { id: string }).id,
       colleagueId: String(colleague!.user_id),
+      orgId: orgs.items[0]!.id,
       pageName: `e2e-live-${stamp}`,
       viewId: String(view!.id),
       grantedTable: false,
@@ -484,9 +487,7 @@ test.describe("artifact live data", () => {
       /^Updated /,
     );
     // The owner reads the data at once; nobody else does until they confirm it.
-    await expect(
-      page.getByText("Nobody has confirmed sharing the data v2 reads yet."),
-    ).toBeVisible();
+    await expect(page.getByText("v2's data isn't confirmed yet.")).toBeVisible();
     await expect(
       page.getByRole("status").getByRole("button", { name: "Confirm data" }),
     ).toBeVisible();
@@ -601,10 +602,8 @@ test.describe("artifact live data", () => {
       submit: dialog.getByRole("button", { name: "Confirm data" }),
       path: `/api/artifacts/${fixture.artifactId}/versions/`,
     });
-    await expect(
-      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
-    ).toBeVisible();
-    await expect(page.getByText("Nobody has confirmed sharing the data")).toHaveCount(0);
+    await expect(page.getByText("Data confirmed", { exact: true })).toBeVisible();
+    await expect(page.getByText("v2's data isn't confirmed yet")).toHaveCount(0);
 
     const detail = await json<{ consent: { state: string; shared: boolean } }>(
       page.request,
@@ -655,9 +654,7 @@ test.describe("artifact live data", () => {
       path: `/api/artifacts/${fixture.artifactId}/consent`,
       method: "DELETE",
     });
-    await expect(
-      page.getByText("Sharing stopped. Everyone keeps the page, without its data."),
-    ).toBeVisible();
+    await expect(page.getByText("Data sharing stopped", { exact: true })).toBeVisible();
 
     const colleague = await (await asColleague(browser)).newPage();
     try {
@@ -668,7 +665,7 @@ test.describe("artifact live data", () => {
       await expect(frame.locator("#state")).toHaveText("unavailable");
       await expect(frame.locator("#rows")).toBeEmpty();
       await expect(
-        colleague.getByText("This page's data appears once its owner confirms sharing it."),
+        colleague.getByText("The data appears once the page's owner confirms it."),
       ).toBeVisible();
     } finally {
       await colleague.close();
@@ -682,9 +679,7 @@ test.describe("artifact live data", () => {
       submit: reconfirm.getByRole("button", { name: "Confirm data" }),
       path: `/api/artifacts/${fixture.artifactId}/versions/`,
     });
-    await expect(
-      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
-    ).toBeVisible();
+    await expect(page.getByText("Data confirmed", { exact: true })).toBeVisible();
 
     const again = await (await asColleague(browser)).newPage();
     try {
@@ -923,6 +918,7 @@ test.describe("artifact live data", () => {
 
     const editor = await asColleague(browser);
     const run = await editor.request.post(`/api/agents/${fixture.agentId}/run`, {
+      headers: { "X-Organization-Id": fixture.orgId },
       data: {
         prompt: publishPrompt({
           name: fixture.pageName,
@@ -954,17 +950,15 @@ test.describe("artifact live data", () => {
 
     await watch(page);
     await page.goto(`/artifacts/${fixture.artifactId}`);
-    await expect(page.getByText(/changed what v3 reads/)).toBeVisible();
+    await expect(page.getByText(/changed the data v3 shows/)).toBeVisible();
     await page.getByRole("button", { name: "Review data change" }).click();
     const review = page.getByRole("region", { name: "Review data change" });
     await expect(review).toContainText("Compared with v2");
     // The extra column is named, and marked as reading more.
     await expect(review).toContainText("Status");
-    await expect(review).toContainText("Reads more");
+    await expect(review).toContainText("Shows more");
     await review.getByRole("button", { name: "Approve" }).click();
-    await expect(
-      page.getByText("Data confirmed. Everyone who can open the page now reads it."),
-    ).toBeVisible();
+    await expect(page.getByText("Data confirmed", { exact: true })).toBeVisible();
 
     await expect
       .poll(

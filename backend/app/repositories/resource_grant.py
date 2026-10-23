@@ -1,8 +1,9 @@
 """ResourceGrant repository (PostgreSQL async)."""
 
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Delete, delete, func, or_, select, update
+from sqlalchemy import ColumnElement, CursorResult, Delete, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.artifact import Artifact
@@ -21,8 +22,6 @@ async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
     """
     result = await db.execute(statement)
     await db.flush()
-    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
-    # statement actually returns `CursorResult`, which does (see chat_file).
     return result.rowcount  # ty: ignore[unresolved-attribute]
 
 
@@ -316,15 +315,20 @@ async def lower_edit_data(
             )
         )
     )
-    result = await db.execute(
-        update(ResourceGrant)
-        .where(
-            ResourceGrant.organization_id == organization_id,
-            ResourceGrant.resource_type == "artifact",
-            ResourceGrant.level == GrantLevel.EDIT_DATA.value,
-            scope,
-        )
-        .values(level=GrantLevel.EDIT.value)
+    # `execute` is typed to return `Result`; a DML statement returns `CursorResult`,
+    # which has the `rowcount` read below.
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            update(ResourceGrant)
+            .where(
+                ResourceGrant.organization_id == organization_id,
+                ResourceGrant.resource_type == "artifact",
+                ResourceGrant.level == GrantLevel.EDIT_DATA.value,
+                scope,
+            )
+            .values(level=GrantLevel.EDIT.value)
+        ),
     )
     await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return result.rowcount

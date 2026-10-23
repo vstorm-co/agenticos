@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import NotFoundError, RateLimitError
+from app.core.exceptions import DatabaseError, NotFoundError, RateLimitError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.schemas.artifact import ArtifactData, BindingData
@@ -68,6 +68,8 @@ async def _preview(
     room: bool = False,
     person: AuthContext | None = None,
     data: ArtifactData | Exception | None = None,
+    has_person: bool = True,
+    limiter: AsyncMock | None = None,
 ) -> tuple[artifacts.ArtifactPreview, AsyncMock, AsyncMock]:
     artifact = _artifact()
     version = _version(artifact, bound=version_bound)
@@ -78,6 +80,10 @@ async def _preview(
         patch(f"{PATH}._open_current", new=AsyncMock(return_value=(artifact, version, PAGE))),
         patch(f"{PATH}.member_context", new=member),
         patch.object(artifacts.ArtifactService, "data", new=reads),
+        patch(
+            f"{PATH}.rate_limit.consume_with_local_floor",
+            new=limiter or AsyncMock(return_value=MagicMock(allowed=True)),
+        ),
     ):
         preview = await artifacts.preview_source(
             organization_id=artifact.organization_id,
@@ -86,6 +92,7 @@ async def _preview(
             run_id=None,
             name="weekly-report",
             room=room,
+            has_person=has_person,
         )
     return preview, member, reads
 
@@ -133,6 +140,37 @@ class TestWhoseDataItIs:
         member.assert_not_awaited()
         reads.assert_not_awaited()
 
+    async def test_a_run_nobody_answers_for_gets_no_data_even_for_a_member_reader(self) -> None:
+        """A run an outsider supplied the input of executes as a principal, not for a person:
+        the page's rows - read as its owner - must not reach what the outsider may read back."""
+        preview, member, reads = await _preview(has_person=False, person=_person(), data=_read(_OK))
+        assert preview.bindings == {}
+        assert preview.data_note is not None
+        assert "Nobody this run is for" in preview.data_note
+        assert preview.binding_names == ["tickets"]
+        member.assert_not_awaited()
+        reads.assert_not_awaited()
+
+    async def test_a_read_counts_against_the_members_data_allowance(self) -> None:
+        person = _person()
+        limiter = AsyncMock(return_value=MagicMock(allowed=True))
+        await _preview(person=person, data=_read(_OK), limiter=limiter)
+        assert limiter.await_args is not None
+        assert limiter.await_args.kwargs["surface"] == "artifact_data"
+        assert limiter.await_args.kwargs["caller"] == (
+            f"org:{person.organization_id}:user:{person.subject_id}"
+        )
+
+    async def test_a_member_over_the_allowance_is_drawn_without_data_and_nothing_is_read(
+        self,
+    ) -> None:
+        limiter = AsyncMock(return_value=MagicMock(allowed=False))
+        preview, _, reads = await _preview(person=_person(), data=_read(_OK), limiter=limiter)
+        assert preview.bindings == {}
+        assert preview.data_note is not None
+        assert "too many data loads" in preview.data_note
+        reads.assert_not_awaited()
+
     async def test_a_reader_who_is_no_longer_a_member_reads_nothing(self) -> None:
         preview, _, reads = await _preview(person=None)
         assert preview.bindings == {}
@@ -142,10 +180,14 @@ class TestWhoseDataItIs:
 
     @pytest.mark.parametrize(
         "refused",
-        [RateLimitError(message="Your previous data load is still running."), NotFoundError()],
+        [
+            RateLimitError(message="Your previous data load is still running."),
+            NotFoundError(),
+            DatabaseError(message="A binding's data could not be read"),
+        ],
     )
     async def test_a_refused_load_is_drawn_without_data_and_says_why(
-        self, refused: RateLimitError | NotFoundError
+        self, refused: RateLimitError | NotFoundError | DatabaseError
     ) -> None:
         preview, _, _ = await _preview(person=_person(), data=refused)
         assert preview.bindings == {}

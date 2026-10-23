@@ -35,7 +35,7 @@ from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRe
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
-from app.agents.audience import RunAudience, for_no_person
+from app.agents.audience import RunAudience, for_no_person, run_impersonated
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -60,6 +60,7 @@ from app.agents.spec import (
     PersonalMcpServerRef,
 )
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.core.audit import set_impersonator
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
@@ -1536,6 +1537,52 @@ class TestTheRunsBudgetReachesAmbientCalls:
         assert await can_afford_ambient_call() is True
 
 
+class TestTheRunsImpersonationReachesRecordWrites:
+    """The runner opens the run's impersonation flag around the agent, so a record a
+    tool writes - which starts a table trigger's run - knows how the run started."""
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("impersonated", [True, False])
+    async def test_execute_opens_the_flag(self, impersonated: bool):
+        prepared = _prepared()
+        prepared.built.deps.impersonated = impersonated
+        seen: list[bool] = []
+
+        async def run(*_args: Any, **_kwargs: Any) -> MagicMock:
+            seen.append(run_impersonated())
+            return MagicMock()
+
+        prepared.built.agent.run = run
+        await prepared.execute("hi", message_history=None, deferred_tool_results=None)
+
+        assert seen == [impersonated]
+        assert run_impersonated() is False
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("impersonated", [True, False])
+    async def test_iterate_opens_the_flag(self, impersonated: bool):
+        prepared = _prepared()
+        prepared.built.deps.impersonated = impersonated
+        seen: list[bool] = []
+
+        class _Iteration:
+            async def __aenter__(self) -> "_Iteration":
+                seen.append(run_impersonated())
+                return self
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+        prepared.built.agent.iter = MagicMock(return_value=_Iteration())
+        async with prepared.iterate("hi", message_history=None):
+            pass
+
+        assert seen == [impersonated]
+        assert run_impersonated() is False
+
+
 class TestRunAccounting:
     @pytest.mark.security
     @pytest.mark.anyio
@@ -2220,6 +2267,7 @@ class TestParking:
                 "audience_room_key": None,
                 "subject_is_publisher_fallback": False,
                 "public_origin": False,
+                "impersonated": False,
             },
         }
 
@@ -2789,6 +2837,22 @@ class TestResume:
 
         assert self.resumed_run.user_id is not None, "the run still records its principal"
         assert build.call_args.kwargs["run_person"] is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("stored", [True, False])
+    async def test_a_resumed_run_is_impersonated_as_it_was_admitted(self, stored: bool):
+        """No impersonating request is left when an approver resumes the run: the terms it
+        parked with decide, never the resumer's own session."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"approval_mode": "follow_agent", "impersonated": stored},
+            }
+        )
+
+        assert build.call_args.kwargs["impersonated"] is stored
 
     @pytest.mark.anyio
     async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
@@ -4674,7 +4738,9 @@ class TestThePersonBehindTheRun:
         return prepared, build.call_args.kwargs
 
     @staticmethod
-    def _dispatch(ctx: AuthContext, *, public_origin: bool) -> workflow_context.DispatchContext:
+    def _dispatch(
+        ctx: AuthContext, *, public_origin: bool, impersonated: bool = False
+    ) -> workflow_context.DispatchContext:
         return workflow_context.DispatchContext(
             organization_id=ctx.organization_id,
             workflow_run_id=uuid.uuid4(),
@@ -4684,6 +4750,7 @@ class TestThePersonBehindTheRun:
             auth=ctx,
             resumed_agent_run_id=None,
             public_origin=public_origin,
+            impersonated=impersonated,
         )
 
     @pytest.mark.anyio
@@ -4703,6 +4770,41 @@ class TestThePersonBehindTheRun:
 
         assert prepared.admitted_as.public_origin is True
         assert built_with["run_person"] is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_run_started_while_impersonating_carries_it_on_its_deps_and_terms(self):
+        """The request that knew is gone by the time a spawned task or a resume acts, so
+        the run holds the fact: on its deps, and in the terms a parked run is resumed from."""
+        set_impersonator(uuid.uuid4())
+        try:
+            prepared, built_with = await self._prepare(_ctx(), surface=RunSurface.WEB)
+        finally:
+            set_impersonator(None)
+
+        assert built_with["impersonated"] is True
+        assert prepared.admitted_as.impersonated is True
+
+    @pytest.mark.anyio
+    async def test_an_ordinary_run_is_not_impersonated(self):
+        prepared, built_with = await self._prepare(_ctx(), surface=RunSurface.WEB)
+
+        assert built_with["impersonated"] is False
+        assert prepared.admitted_as.impersonated is False
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_workflow_step_under_an_impersonated_dispatch_is_impersonated(self):
+        """A worker has no request to ask: the workflow run says it started that way."""
+        ctx = _ctx()
+
+        with workflow_context.dispatching_as(
+            self._dispatch(ctx, public_origin=False, impersonated=True)
+        ):
+            prepared, built_with = await self._prepare(ctx, surface=RunSurface.WORKFLOW)
+
+        assert built_with["impersonated"] is True
+        assert prepared.admitted_as.impersonated is True
 
     @pytest.mark.anyio
     async def test_execute_hands_the_public_origin_to_prepare(self):

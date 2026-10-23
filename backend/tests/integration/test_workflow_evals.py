@@ -16,6 +16,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -27,7 +28,13 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_eval import EvalCaseCreate, EvalExpectation
 from app.services.workflow_evals import WorkflowEvalService, judge
 from app.services.workflow_execution.exceptions import WorkflowBudgetReachedError
-from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.model import (
+    MAX_PINNED_BYTES,
+    Edge,
+    NodeInstance,
+    NodePosition,
+    WorkflowGraph,
+)
 from tests.integration.workflow_run_support import seed_member
 
 pytestmark = pytest.mark.anyio
@@ -212,6 +219,23 @@ class TestCases:
         other = AuthContext(user_id=stranger.id, organization_id=elsewhere.id, role="owner")
         with pytest.raises(NotFoundError):
             await WorkflowEvalService(db).list_cases(other, workflow.id, ASK)
+
+
+class TestTheCaseRequest:
+    def test_known_outputs_are_bounded_each_and_together(self):
+        with pytest.raises(ValidationError, match="Pinned data may take at most"):
+            EvalCaseCreate(
+                name="Big",
+                outputs={TRIGGER: {"text": "x" * MAX_PINNED_BYTES}},
+                expectation=EvalExpectation(value="billing"),
+            )
+        half = {"text": "x" * (MAX_PINNED_BYTES // 2)}
+        with pytest.raises(ValidationError, match="Known outputs may take at most"):
+            EvalCaseCreate(
+                name="Many",
+                outputs={uuid.uuid4(): half for _ in range(10)},
+                expectation=EvalExpectation(value="billing"),
+            )
 
 
 class TestTrying:

@@ -24,7 +24,7 @@ class GrantLevel(enum.StrEnum):
 
     Ordered `READ < USE < EDIT < EDIT_DATA`: *read* sees the configuration, *use*
     also runs or attaches it, *edit* also changes it. *edit_data* is for pages only
-    ("Can edit, data included"): an edit whose republishes the page's owner has
+    ("Can edit, including data"): an edit whose republishes the page's owner has
     consented to in advance, so changing what data the page reads reaches everyone who
     opens it. Being above *edit* it satisfies every check that asks for *edit*.
     """

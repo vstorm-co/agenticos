@@ -150,12 +150,15 @@ interface Options {
  *   document included - and it is not asked again: further requests are refused
  *   as `too_many_cancels` with no dialog. Only a new nonce or version resets it.
  * - A request before the frame's first load of this nonce is refused as
- *   `not_ready`; one that names no declared action as `unknown_action`; one
+ *   `not_ready` - and the page's own bridge refuses one made before its document
+ *   has loaded, a reload included; one that names no declared action as `unknown_action`; one
  *   that does not fit the action's fields as `invalid_input`, with the
  *   problems. None of these opens a dialog or spends a decline.
  *   The version a start names is `versionId`, from the view.
  * - The dialog and every run being followed end when the frame loads again or
- *   its nonce or served version changes: the page that asked is gone.
+ *   its nonce or served version changes: the page that asked is gone. A load of the
+ *   same nonce tells the new document nothing; a changed nonce is answered
+ *   `page_changed` under the old one, which no page of the new load reads.
  * - A started run is read with a growing delay until it finishes; each change
  *   is posted to the frame. A paused one is listed in `paused`, and is read
  *   only while the tab is visible and for ten minutes of that: after it the
@@ -227,7 +230,11 @@ export function useArtifactActions({
 
   const onLoad = useCallback(() => {
     session.current.loadedFor = current.current.nonce;
-    reset(pendingRef.current, current.current.nonce);
+    // The document that asked is gone, and this one is the same nonce: a rejection
+    // posted now would reach a page that asked nothing yet - its first request is `r1`
+    // too - so the dialog ends without a word. A page that asks before it has loaded is
+    // answered `not_ready` by its own bridge.
+    reset(null, current.current.nonce);
   }, [reset]);
 
   const follow = useCallback(

@@ -38,10 +38,21 @@ import type {
 
 const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
+const IDLE_READ = {
+  data: undefined,
+  error: null,
+  isError: false,
+  isFetching: false,
+  dataUpdatedAt: 0,
+  errorUpdatedAt: 0,
+  refetch: vi.fn(),
+};
+const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 const unlockMock = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
+  useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
   usePublicArtifactUnlock: () => unlockMock(),
 }));
 const toastError = vi.fn();
@@ -327,6 +338,14 @@ function paths() {
   return vi.mocked(apiClient.get).mock.calls.map(([path]) => path);
 }
 
+/** The options of every read of `path`, in order. */
+function readsOf(path: string) {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([read]) => read === path)
+    .map(([, options]) => options as { params?: Record<string, string> } | undefined);
+}
+
 function renderLive(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrap = (node: ReactElement) => (
@@ -352,7 +371,7 @@ async function dataArrived(times = 1) {
 
 type Bridge = {
   refresh: () => Promise<void>;
-  status: { subscribes: boolean; data?: ArtifactData; served: unknown };
+  status: { subscribes: boolean; fetching: boolean; data?: ArtifactData; served: unknown };
 };
 
 describe("the page's live data", () => {
@@ -362,6 +381,7 @@ describe("the page's live data", () => {
       await vi.importActual<typeof import("@/hooks/use-artifacts")>("@/hooks/use-artifacts");
     useArtifactViewMock.mockImplementation(actual.useArtifactView);
     useArtifactDataMock.mockImplementation(actual.useArtifactData);
+    useArtifactReasonsMock.mockImplementation(actual.useArtifactReasons);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -586,6 +606,31 @@ describe("the page's live data", () => {
     expect(paths().filter((path) => path.includes("/view"))).toHaveLength(1);
   });
 
+  it("tells the strip it is busy while a refresh of a page served with its data reads", async () => {
+    let release!: (data: ArtifactData) => void;
+    const pending = new Promise<ArtifactData>((resolve) => (release = resolve));
+    serve((path) => (path === DATA_PATH ? pending : liveView("n1", 3, true, true)));
+    const onBridge = vi.fn<(bridge: Bridge) => void>();
+    renderLive(
+      <ArtifactFrame artifactId="a1" versionId={null} title="Report" onBridge={onBridge} />,
+    );
+    const { frame } = await loadedFrame("https://c/n1");
+    postFromFrame(frame, ready("n1", true));
+    expect(onBridge.mock.lastCall![0].status.fetching).toBe(false);
+
+    let refreshing!: Promise<void>;
+    act(() => {
+      refreshing = onBridge.mock.lastCall![0].refresh();
+    });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.fetching).toBe(true));
+
+    await act(async () => {
+      release(answer({ sales: bound() }));
+      await refreshing;
+    });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.fetching).toBe(false));
+  });
+
   it("never posts or shows a read cached from before an injected load was minted", async () => {
     let mints = 0;
     serve((path) => {
@@ -615,14 +660,10 @@ describe("the page's live data", () => {
     expect(paths().filter((path) => path === DATA_PATH)).toHaveLength(1);
   });
 
-  it("reads again for an editor a read that settled before the load was minted", async () => {
+  it("asks an editor why a source is empty only once the page has loaded, without reading its records", async () => {
     let mints = 0;
-    let reads = 0;
     serve((path) => {
-      if (path === DATA_PATH) {
-        reads += 1;
-        return answer({ sales: bound({ count: reads }) });
-      }
+      if (path === DATA_PATH) return answer({ sales: bound({ count: 1 }) });
       mints += 1;
       return liveView(`n${mints}`, 3, true, true);
     });
@@ -636,14 +677,27 @@ describe("the page's live data", () => {
         fetchReasons
       />,
     );
+    // The address is in and the page is being served its data: nothing else reads yet.
+    await waitFor(() =>
+      expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://c/n1"),
+    );
+    await act(async () => {});
+    expect(readsOf(DATA_PATH)).toEqual([]);
+
     await loadedFrame("https://c/n1");
-    await dataArrived(1);
+    await waitFor(() => expect(readsOf(DATA_PATH)).toHaveLength(1));
+    expect(readsOf(DATA_PATH)[0]).toEqual({ params: { rows: "false" } });
+    await waitFor(() => expect(onBridge.mock.lastCall![0].status.data).toBeDefined());
 
+    // The page is minted again: it is asked again, under its own nonce.
     await act(() => client.invalidateQueries({ queryKey: qk.artifacts.all() }));
+    await waitFor(() =>
+      expect(screen.getByTitle("Report").getAttribute("src")).toBe("https://c/n2"),
+    );
     await loadedFrame("https://c/n2");
-
-    await dataArrived(2);
-    expect(onBridge.mock.lastCall![0].status.data?.bindings.sales?.count).toBe(2);
+    await waitFor(() => expect(readsOf(DATA_PATH).length).toBeGreaterThanOrEqual(2));
+    // Never a full read beside the injected load.
+    expect(readsOf(DATA_PATH).every((options) => options?.params?.rows === "false")).toBe(true);
   });
 
   it("tells the strip what the minted address says when nothing was read", async () => {
@@ -1195,10 +1249,12 @@ describe("the public link settings", () => {
   function renderSettings(
     overrides: Partial<ArtifactPublicLink> = {},
     onSave = vi.fn().mockResolvedValue(undefined),
+    publicDataConfirmed = false,
   ) {
     render(
       <PublicLinkSettings
         link={link(overrides)}
+        publicDataConfirmed={publicDataConfirmed}
         versions={[version(2), version(1)]}
         saving={false}
         onSave={onSave}
@@ -1225,6 +1281,64 @@ describe("the public link settings", () => {
       pinned_version_id: "v1",
       embed_origins: ["https://a.example.com", "https://b.example.com"],
     });
+  });
+
+  it("asks before a new site clears the confirmed public data, and saves on yes", async () => {
+    const onSave = renderSettings(
+      { embed_origins: ["https://a.example.com"] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    await userEvent.type(
+      screen.getByLabelText("Sites that may embed it"),
+      "{enter}https://b.example.com",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+
+    expect(screen.getByText("Add a site to the public link?")).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save and hide data" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embed_origins: ["https://a.example.com", "https://b.example.com"],
+      }),
+    );
+  });
+
+  it("saves nothing when the question is cancelled", async () => {
+    const onSave = renderSettings(
+      { embed_origins: [] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://b.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+  });
+
+  it("does not ask when sites are only removed or kept", async () => {
+    const onSave = renderSettings(
+      { embed_origins: ["https://a.example.com", "https://b.example.com"] },
+      vi.fn().mockResolvedValue(undefined),
+      true,
+    );
+    fireEvent.change(screen.getByLabelText("Sites that may embed it"), {
+      target: { value: "https://A.example.com/" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("adds a site without asking when no public data is confirmed", async () => {
+    const onSave = renderSettings({ embed_origins: [] });
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://b.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save link settings" }));
+    expect(screen.queryByText("Add a site to the public link?")).toBeNull();
+    expect(onSave).toHaveBeenCalledOnce();
   });
 
   it("clears what was set when the fields are emptied", async () => {
@@ -1286,6 +1400,25 @@ describe("the public link settings", () => {
     expect(screen.getByRole("button", { name: "Change password" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
     expect(onSave).toHaveBeenCalledWith({ password: null });
+  });
+
+  it("asks before removing a password while public data is confirmed, and removes on yes", async () => {
+    const onSave = renderSettings({ password_protected: true }, undefined, true);
+    await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
+
+    expect(screen.getByText("Remove the password?")).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Remove and hide data" }));
+    expect(onSave).toHaveBeenCalledWith({ password: null });
+  });
+
+  it("keeps the password when the question is cancelled", async () => {
+    const onSave = renderSettings({ password_protected: true }, undefined, true);
+    await userEvent.click(screen.getByRole("button", { name: "Remove password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByText("Remove the password?")).toBeNull();
   });
 });
 

@@ -19,6 +19,7 @@ from uuid import UUID
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import current_impersonator
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -93,6 +94,8 @@ class Causation:
     visited_trigger_ids: list[str]
     depth: int
     public_origin: bool = False
+    impersonated: bool = False
+    """The causing run started under impersonation - the chain it starts did too."""
 
 
 def causes_public(run: WorkflowRun) -> bool:
@@ -210,6 +213,7 @@ class WorkflowExecutionService:
         step: WorkflowStepTest | None = None,
         source_artifact_id: UUID | None = None,
         source_version_number: int | None = None,
+        impersonated: bool = False,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
@@ -217,6 +221,9 @@ class WorkflowExecutionService:
         `step` narrows a test run to one step of the draft: the snapshot keeps
         the step and what leads to it, with the known outputs pinned
         (`app.workflows.graph.step.step_subgraph`), so nothing after it runs.
+
+        `impersonated` says the caller's run started under impersonation, which the run
+        stores when the request that started it cannot say so itself (an agent run).
 
         `run_input` is what `core.input` hands the graph, frozen on the run
         row; it is refused before anything else is checked when it is over
@@ -304,6 +311,7 @@ class WorkflowExecutionService:
             reply_conversation_id=reply_conversation_id,
             source_artifact_id=source_artifact_id,
             source_version_number=source_version_number,
+            impersonated=impersonated,
         )
         self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return _read(run)
@@ -413,6 +421,7 @@ class WorkflowExecutionService:
         submitted: bool = True,
         parent_node_run_id: UUID | None = None,
         public_origin: bool = False,
+        impersonated: bool = False,
         source_artifact_id: UUID | None = None,
         source_version_number: int | None = None,
     ) -> tuple[WorkflowRun, UUID]:
@@ -467,6 +476,13 @@ class WorkflowExecutionService:
                 public_origin
                 or triggered_by in dispatcher.PUBLIC_TRIGGERS
                 or (causation is not None and causation.public_origin)
+            ),
+            # Asked here, on the request that admits the run: a worker and a spawned
+            # task no longer know. A chain keeps it, and so does a retry.
+            impersonated=(
+                impersonated
+                or current_impersonator() is not None
+                or (causation is not None and causation.impersonated)
             ),
             execution_principal_user_id=ctx.subject_id,
             budget_limit=budget_limit,
@@ -694,6 +710,7 @@ class WorkflowExecutionService:
             # its chain's: a member retrying a public child from the console
             # still runs it with no person.
             public_origin=original.public_origin,
+            impersonated=original.impersonated,
             source_artifact_id=original.source_artifact_id,
             source_version_number=original.source_version_number,
         )

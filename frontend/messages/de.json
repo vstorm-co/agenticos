@@ -3281,27 +3281,27 @@
       },
       "artifact-strip": {
         "title": "Diese Seite",
-        "body": "Die Leiste nennt die Seite, sagt, wer sie öffnen kann, und bietet Share an. Braucht an der Seite etwas eine Person - Daten, die zu bestätigen sind, eine Anfrage, ein Besitzerwechsel -, erscheint hier ein Hinweis oder eine Schaltfläche."
+        "body": "Der Name der Seite, wer sie öffnen kann, und Teilen. Braucht die Seite etwas von Ihnen, etwa Daten zum Bestätigen oder eine Anfrage zum Beantworten, erscheint es hier."
       },
       "artifact-consent": {
         "title": "Die Daten einer Seite bestätigen",
-        "body": "Liest eine Seite Live-Tabellendaten, entscheidet ihr Besitzer, wer sie sonst noch liest. Diese Warnung sagt, was die Zielgruppe in der Zwischenzeit sieht; mit Confirm data kann der Besitzer vor der Zustimmung genau sehen, was die Version teilt und wer sie lesen würde."
+        "body": "Zeigt eine Seite Live-Tabellendaten, entscheidet ihr Eigentümer, wer sie sonst noch sieht. Bis dahin sagt dieser Hinweis, was andere sehen. Daten bestätigen zeigt genau, was geteilt wird und mit wem, bevor Sie zustimmen."
       },
       "artifact-requests": {
         "title": "Anfragen",
-        "body": "Anfragen zu dieser Seite warten hier: jemand, der sie öffnen oder weiter teilen möchte, und eine Version, die ein anderer Editor veröffentlicht hat und die andere Daten liest. Eine Versionsanfrage öffnet eine Prüfung, die sie der Version gegenüberstellt, die die Zielgruppe jetzt sieht, Erweiterungen markiert."
+        "body": "Anfragen zu dieser Seite warten hier: jemand möchte sie öffnen oder weiter teilen, oder die Version eines Bearbeiters zeigt andere Daten. Die Prüfung vergleicht sie mit der Version, die andere jetzt sehen."
       },
       "artifact-review": {
         "title": "Eine Datenänderung prüfen",
-        "body": "Ein anderer Editor hat eine Version veröffentlicht, die andere Daten liest. Review data change öffnet ein Panel, das sie Binding für Binding mit der Version vergleicht, die die Zielgruppe jetzt sieht, und alles markiert, was sie mehr liest. Approve bestätigt sie; Decline hält die Zielgruppe auf der früheren Version."
+        "body": "Ein Bearbeiter hat eine Version veröffentlicht, die andere Daten zeigt. Datenänderung prüfen vergleicht sie mit der Version, die andere jetzt sehen, und markiert alles Neue. Genehmigen gibt sie frei; Ablehnen behält die frühere Version."
       },
       "artifact-actions": {
-        "title": "Apps, die Workflows starten",
-        "body": "Deklariert die Seite Workflows, die Sie starten dürfen, listet „Diese App kann ausführen“ sie hier auf, mit einem Link zu den Runs jedes Workflows. Die Seite kann nur bitten: Jeder Run wartet auf Ihre Bestätigung, läuft als Sie und zeigt, was er sendet."
+        "title": "Workflows, die diese Seite starten kann",
+        "body": "Kann die Seite Workflows starten, sind sie hier aufgelistet, mit einem Link zu ihren Runs. Die Seite kann nur bitten: Jeder Run wartet auf Ihre Bestätigung, läuft als Sie und zeigt, was er sendet."
       },
       "artifact-change-owner": {
         "title": "Besitzer wechseln",
-        "body": "Die Daten einer Seite werden mit dem Zugriff ihres Besitzers gelesen. Change owner in diesem Menü übergibt die Seite sofort an ein anderes Mitglied; ihre Daten warten dann darauf, dass der neue Besitzer sie bestätigt."
+        "body": "Die Daten einer Seite werden mit dem Zugriff ihres Eigentümers gelesen. Eigentümer ändern gibt die Seite sofort an ein anderes Mitglied, und ihre Daten bleiben verborgen, bis der neue Eigentümer sie bestätigt."
       },
       "tables-catalog": {
         "title": "Ihre Tabellen",
@@ -3361,11 +3361,11 @@
       },
       "org-public-live-data": {
         "title": "Live-Daten auf öffentlichen Seiten",
-        "body": "Ob Seiten Tabelleneinträge Personen ohne Konto zeigen dürfen - über einen öffentlichen Link oder eine Einbettung. Aus, bis Sie es einschalten; der Besitzer der Seite oder ein Owner bzw. Admin für ihn muss jede Seite weiterhin bestätigen. Seiten, die vor dem Ausschalten bestätigt wurden, zeigen ihre Daten sofort wieder."
+        "body": "Ob öffentliche Links und Einbettungen Tabellendaten Personen ohne Konto zeigen dürfen. Standardmäßig aus, und der Eigentümer jeder Seite muss seine Seite weiterhin bestätigen."
       },
       "artifact-public-data": {
-        "title": "Öffentliche Daten warten auf Sie",
-        "body": "Die Abfragen der Seite haben sich geändert, daher zeigt ihr öffentlicher Link keine Daten, bis sie erneut bestätigt werden. Daten bestätigen zeigt genau, was der Link teilen würde und mit wem."
+        "title": "Öffentliche Daten erneut bestätigen",
+        "body": "Die Daten, die die Seite zeigt, haben sich geändert, daher zeigt ihr öffentlicher Link keine, bis sie erneut bestätigt werden. Daten bestätigen zeigt, was der Link teilen würde und mit wem."
       }
     }
   },
@@ -4382,8 +4382,8 @@
       "yourConversationsKnowledgeBase": "Ihre Unterhaltungen, die Inhalte der Wissensdatenbank, API-Schlüssel und alle persönlichen Daten werden endgültig gelöscht. Aktive Abonnements werden gekündigt. Das lässt sich nicht rückgängig machen.",
       "avatarColour": "Ersatzfarbe",
       "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
-      "prefArtifactShareRequested": "Anfragen zum Teilen von Seiten",
-      "prefArtifactShareRequestedTrigger": "Jemand bittet darum, eine Ihrer Seiten zu teilen oder zu öffnen, oder ändert, was sie liest."
+      "prefArtifactShareRequested": "Anfragen zu Seiten",
+      "prefArtifactShareRequestedTrigger": "Jemand bittet darum, eine Ihrer Seiten zu öffnen oder zu teilen, oder ändert die Daten, die sie zeigt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -4544,8 +4544,8 @@
         "save": "Speichern",
         "deleteTitle": "Ansicht löschen",
         "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden.",
-        "makeShared": "Mit allen teilen, die die Tabelle lesen dürfen",
-        "makePrivate": "Privat machen: nur Sie sehen sie",
+        "makeShared": "Mit allen teilen, die die Tabelle öffnen können",
+        "makePrivate": "Privat machen, nur für Sie sichtbar",
         "nowShared": "Ansicht geteilt",
         "nowPrivate": "Ansicht ist jetzt privat"
       },
@@ -4606,7 +4606,7 @@
       "archive": {
         "action": "Tabelle archivieren",
         "title": "{name} archivieren?",
-        "description": "Ihre Datensätze bleiben lesbar, aber nichts kann sie mehr ändern: keine neuen oder bearbeiteten Datensätze und keine Spaltenänderungen – weder hier noch durch einen Agent, einen Workflow oder die API. Sie lässt sich auf dieser Seite wiederherstellen. Ein veröffentlichter Workflow, der die Tabelle noch verwendet, stoppt die Archivierung und wird hier aufgeführt.",
+        "description": "Ihre Datensätze bleiben lesbar, aber niemand kann sie oder ihre Spalten ändern - weder hier noch durch einen Agent, einen Workflow oder die API. Sie können sie auf dieser Seite wiederherstellen. Ein veröffentlichter Workflow, der sie noch verwendet, stoppt die Archivierung und wird hier aufgeführt.",
         "noticeTitle": "Archiviert am {when}",
         "noticeRestorable": "Ihre Datensätze lassen sich lesen, aber nicht ändern. Stellen Sie die Tabelle wieder her, um sie wieder ändern zu können.",
         "noticeReadOnly": "Ihre Datensätze lassen sich lesen, aber nicht ändern. Wer die Tabelle bearbeiten darf, kann sie wiederherstellen.",
@@ -4716,7 +4716,7 @@
         "channel_message": "Eine Kanalnachricht",
         "github": "GitHub",
         "gmail": "Gmail",
-        "app": "Eine App"
+        "app": "Eine Seite"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -5428,10 +5428,10 @@
     "failedRevoke": "Widerrufen fehlgeschlagen",
     "failedShare": "Freigeben fehlgeschlagen",
     "levelEdit": "Darf bearbeiten",
-    "levelEditData": "Darf bearbeiten, inkl. Daten",
-    "editDataConfirmTitle": "\u201eInkl. Daten\u201c vergeben?",
-    "editDataConfirmPerson": "{name} kann \u00e4ndern, welche Daten diese Seite allen zeigt, die sie \u00f6ffnen k\u00f6nnen - auch neue Tabellen und Spalten -, ohne Sie zu fragen; das gilt auch f\u00fcr API-L\u00e4ufe.",
-    "editDataConfirmGroup": "Alle in {name}, jetzt und k\u00fcnftig, k\u00f6nnen \u00e4ndern, welche Daten diese Seite allen zeigt, die sie \u00f6ffnen k\u00f6nnen - auch neue Tabellen und Spalten -, ohne Sie zu fragen; das gilt auch f\u00fcr API-L\u00e4ufe.",
+    "levelEditData": "Darf bearbeiten, einschließlich Daten",
+    "editDataConfirmTitle": "Änderungen an den Daten der Seite erlauben?",
+    "editDataConfirmPerson": "{name} kann die Daten ändern, die alle auf dieser Seite sehen, auch neue Tabellen und Spalten, ohne Sie zu fragen. Das gilt auch für API-Läufe.",
+    "editDataConfirmGroup": "Alle in {name}, jetzt oder später, können die Daten ändern, die alle auf dieser Seite sehen, auch neue Tabellen und Spalten, ohne Sie zu fragen. Das gilt auch für API-Läufe.",
     "editDataConfirmAction": "Zugriff geben",
     "levelRead": "Darf ansehen",
     "levelUse": "Darf verwenden",
@@ -5455,7 +5455,7 @@
     "membersHeading": "Mitglieder",
     "groupSubject": "Gruppe",
     "requestSent": "Anfrage an {name} gesendet",
-    "requestSentNobody": "Anfrage gesendet. Es ist noch niemand da, der über sie entscheiden kann."
+    "requestSentNobody": "Anfrage gesendet. Noch niemand kann sie genehmigen."
   },
   "skills": {
     "addFile": "Datei hinzufügen",
@@ -5621,13 +5621,13 @@
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
     "you": "(Sie)",
     "publicLiveData": "Öffentliche Seiten mit Live-Daten",
-    "publicLiveDataDescription": "Ob die Tabelleneinträge einer Seite Personen ohne Konto erreichen dürfen.",
-    "publicLiveDataHint": "Standardmäßig aus. Ist dies aktiv, zeigt eine Seite, die ihr Besitzer bestätigt hat, ihre Tabelleneinträge jedem mit ihrem öffentlichen Link und auf den Websites, die sie einbetten. Das Ausschalten blendet sie sofort auf allen öffentlichen Seiten aus; die Bestätigungen der Besitzer bleiben erhalten.",
-    "publicLiveDataOn": "Seiten dürfen jetzt Live-Daten unter ihrem öffentlichen Link zeigen",
+    "publicLiveDataDescription": "Ob öffentliche Seiten Tabellendaten Personen ohne Konto zeigen dürfen.",
+    "publicLiveDataHint": "Standardmäßig aus. Ist es an, zeigen der öffentliche Link und die Einbettungen einer Seite ihre Tabellendaten, sobald der Eigentümer sie bestätigt hat. Das Ausschalten blendet die Daten überall aus, behält aber die Bestätigungen.",
+    "publicLiveDataOn": "Öffentliche Seiten dürfen jetzt Live-Daten zeigen",
     "publicLiveDataOff": "Öffentliche Seiten zeigen keine Live-Daten mehr",
     "publicLiveDataFailed": "Es ließ sich nicht ändern, ob öffentliche Seiten Live-Daten zeigen dürfen",
     "publicLiveDataConfirmTitle": "Live-Daten auf öffentlichen Seiten erlauben?",
-    "publicLiveDataConfirmWhy": "Seiten, deren Besitzer zustimmen, zeigen Tabelleneinträge jedem mit ihrem Link und auf jeder Website, die sie einbettet - ohne Anmeldung. Gezeigt wird erst etwas, wenn der Besitzer der Seite oder ein Owner bzw. Admin für ihn sie für diese Seite bestätigt. Seiten, die vor dem Ausschalten bestätigt wurden, zeigen ihre Daten sofort wieder. Sie können das jederzeit wieder ausschalten.",
+    "publicLiveDataConfirmWhy": "Jeder mit dem öffentlichen Link einer Seite und jede Website, die sie einbettet, sieht ihre Tabellendaten ohne Anmeldung. Gezeigt wird erst etwas, wenn der Eigentümer der Seite oder ein Owner bzw. Admin sie bestätigt. Früher bestätigte Seiten zeigen ihre Daten sofort wieder.",
     "publicLiveDataConfirm": "Erlauben"
   },
   "theme": {
@@ -6765,6 +6765,12 @@
     "switchOrganization": "Organisation wechseln",
     "versionBadge": "v{version}",
     "publicLinkSaved": "Einstellungen des öffentlichen Links gespeichert",
+    "addSiteTitle": "Eine Website zum öffentlichen Link hinzufügen?",
+    "addSiteWhy": "Eine neue Website bedeutet, dass mehr Personen die Daten dieser Seite sehen können. Der öffentliche Link blendet sie deshalb aus, bis sie erneut bestätigt werden.",
+    "addSiteConfirm": "Speichern und Daten ausblenden",
+    "removePasswordTitle": "Das Passwort entfernen?",
+    "removePasswordWhy": "Ohne Passwort können mehr Personen diese Seite öffnen. Der öffentliche Link blendet ihre Daten deshalb aus, bis sie erneut bestätigt werden.",
+    "removePasswordConfirm": "Entfernen und Daten ausblenden",
     "versionRestored": "Als Version {version} wiederhergestellt",
     "restoreVersion": "Diese Version wiederherstellen",
     "currentLiveTag": "Aktuell · Live-Daten",
@@ -6776,7 +6782,7 @@
     "liveDataRefused": "Die Live-Daten dieser Seite sind für Sie nicht verfügbar.",
     "liveDataBusy": "Gerade ausgelastet. Versuchen Sie es gleich noch einmal.",
     "liveSourcesUnavailable": "{total, plural, =1 {1 von 1 Quelle ist für Sie nicht verfügbar.} other {{count} von # Quellen sind für Sie nicht verfügbar.}}",
-    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {Sie sehen sie, sobald der Eigentümer der Seite ihre Daten bestätigt} creator_gone {der Eigentümer der Seite ist kein Mitglied mehr, und ihre Daten werden mit seinen Rechten gelesen} creator_lost_access {der Eigentümer der Seite darf eine Tabelle, die sie liest, nicht mehr lesen} source_changed {{changed} hat sich seit der Veröffentlichung geändert - veröffentlichen Sie die Seite erneut} not_current {nur die aktuelle Version liest Live-Daten} timeout {das Lesen hat zu lange gedauert} other {sie konnte nicht gelesen werden}}",
+    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {Sie sehen sie, sobald der Eigentümer der Seite ihre Daten bestätigt} creator_gone {der Eigentümer der Seite ist kein Mitglied mehr} creator_lost_access {der Eigentümer der Seite hat keinen Zugriff mehr auf eine Tabelle, die sie nutzt} source_changed {{changed} hat sich seit der Veröffentlichung geändert - veröffentlichen Sie die Seite erneut} not_current {nur die aktuelle Version zeigt Live-Daten} timeout {das Laden hat zu lange gedauert} other {sie konnte nicht geladen werden}}",
     "openTable": "Tabelle öffnen",
     "liveOnlyCurrent": "Live-Daten gibt es nur in der aktuellen Version.",
     "openCurrent": "Aktuelle Version öffnen",
@@ -6785,7 +6791,7 @@
     "environmentBadge": "Aus dieser Umgebung veröffentlicht",
     "actions": {
       "why": "Die Seite „{page}“ bittet darum, diesen Workflow als Sie auszuführen, mit Ihrem Zugriff und Ihrem Budget. Prüfen Sie, was gesendet wird, bevor Sie fortfahren.",
-      "pageWording": "Die eigenen Worte der Seite",
+      "pageWording": "Wie die Seite es nennt",
       "sends": "Was gesendet wird",
       "sendsNothing": "Nichts: Der Workflow nimmt keine Eingabe entgegen.",
       "notGiven": "nicht angegeben",
@@ -6793,8 +6799,8 @@
       "rateLimited": "Zu viele Runs von dieser Seite. Versuchen Sie es in einer Minute erneut.",
       "waiting": "{name} wartet auf jemanden.",
       "openRun": "Run öffnen",
-      "canRun": "Diese App kann ausführen: {names}",
-      "runsOf": "Runs der Workflows, die diese App starten kann"
+      "canRun": "Diese Seite kann ausführen: {names}",
+      "runsOf": "Runs dieser Workflows"
     },
     "openLinkTitle": "Diesen Link öffnen?",
     "openLinkWhy": "Die Seite möchte eine andere Website in einem neuen Tab öffnen. Prüfen Sie die Adresse, bevor Sie fortfahren.",
@@ -6803,7 +6809,7 @@
     "linkExpiryWhy": "Leer lassen, damit der Link aktiv bleibt, bis Sie ihn ausschalten.",
     "linkVersion": "Zeigt",
     "linkVersionWhy": "Heften Sie eine Version an, damit eine neue Veröffentlichung nicht ändert, was Personen mit dem Link sehen.",
-    "linkLatestWhy": "„Neueste Version“ bedeutet die neueste Version, die Personen mit dem Link sehen dürfen: Eine Version, deren Daten ihr Eigentümer noch nicht bestätigt hat, wird ihnen nicht ausgeliefert.",
+    "linkLatestWhy": "„Neueste Version“ ist die neueste, die Personen mit dem Link sehen dürfen. Eine Version, deren Daten noch nicht bestätigt sind, wartet auf ihren Eigentümer.",
     "embedSites": "Websites, die sie einbetten dürfen",
     "embedSitesWhy": "Eine Website pro Zeile. Nur diese dürfen die Seite in einem iframe zeigen.",
     "embedNeedsNoPassword": "Eine Seite hinter einem Passwort kann nicht eingebettet werden. Entfernen Sie das Passwort, um sie einzubetten.",
@@ -6823,11 +6829,11 @@
     "openPage": "Seite öffnen",
     "archive": "Archivieren",
     "archiveTitle": "{title} archivieren?",
-    "archiveWhy": "Die Seite, ihre Versionen und ihr Link bleiben erhalten, aber niemand kann sie öffnen, und der Agent kann sie nicht erneut veröffentlichen. Ihr öffentlicher Link wird ausgeschaltet. Sie können sie auf ihrer Seite wiederherstellen.",
+    "archiveWhy": "Niemand kann sie öffnen, der Agent kann sie nicht erneut veröffentlichen, und ihr öffentlicher Link wird ausgeschaltet. Alles bleibt erhalten, sodass Sie sie später wiederherstellen können.",
     "archived": "Artefakt archiviert",
     "unarchived": "Artefakt wiederhergestellt",
     "archivedOn": "Archiviert am {when}",
-    "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Stellen Sie sie wieder her, um sie wieder auszuliefern; ihr öffentlicher Link bleibt aus, bis Sie ihn einschalten.",
+    "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Nach dem Wiederherstellen bleibt ihr öffentlicher Link aus, bis Sie ihn einschalten.",
     "unarchive": "Wiederherstellen",
     "archivedBadge": "Archiviert",
     "shownFilter": "Welche Artefakte",
@@ -6836,28 +6842,29 @@
       "all": "Auch archivierte"
     },
     "consent": {
-      "confirmed": "Daten bestätigt. Alle, die die Seite öffnen können, sehen sie jetzt.",
-      "withdrawn": "Freigabe beendet. Alle behalten die Seite, aber ohne ihre Daten.",
+      "confirmed": "Daten bestätigt",
+      "withdrawn": "Datenfreigabe beendet",
       "withdraw": "Daten nicht mehr freigeben",
       "withdrawTitle": "Die Daten dieser Seite nicht mehr freigeben?",
-      "withdrawWhy": "Alle, die die Seite öffnen, behalten sie ohne ihre Daten, bis {who, select, you {Sie sie erneut bestätigen} unknown {ihr Eigentümer sie erneut bestätigt} other {{owner} sie erneut bestätigt}} - außer den Rollen, die jede Tabelle lesen. Die automatische Zustimmung wird ausgeschaltet, und jede Freigabe „Darf bearbeiten, inkl. Daten“ für diese Seite wird auf „Darf bearbeiten“ gesenkt.",
+      "withdrawWhy": "Andere, außer den Rollen, die jede Tabelle sehen, sehen die Seite ohne ihre Daten, bis {who, select, you {Sie sie erneut bestätigen} unknown {ihr Eigentümer sie erneut bestätigt} other {{owner} sie erneut bestätigt}}. Die automatische Freigabe wird ausgeschaltet, und „Darf bearbeiten, einschließlich Daten“ wird zu „Darf bearbeiten“.",
       "confirm": "Daten bestätigen",
       "cancel": "Abbrechen",
-      "pendingState": "Niemand hat die Freigabe der Daten, die v{version} liest, bisher bestätigt.",
-      "withdrawnState": "Die Freigabe der Daten dieser Seite wurde zurückgezogen.",
-      "audienceWaits": "{audience, select, none {Nur ihr Eigentümer, ihre Bearbeiter und die Rollen, die jede Seite öffnen, können sie öffnen, bis {who, select, you {Sie ihre Daten bestätigen} unknown {ihr Eigentümer ihre Daten bestätigt} other {{owner} ihre Daten bestätigt}}.} other {Alle anderen sehen weiterhin v{audience}, bis {who, select, you {Sie bestätigen} unknown {ihr Eigentümer bestätigt} other {{owner} bestätigt}}.}}",
-      "grownAutomatically": "v{version} wurde automatisch freigegeben und liest mehr: {added}",
-      "grownAutomaticallyVia": "v{version} wurde automatisch \u00fcber die Berechtigung von {name} freigegeben und liest mehr: {added}",
+      "pendingState": "Die Daten von v{version} sind noch nicht bestätigt.",
+      "withdrawnState": "Die Datenfreigabe wurde beendet.",
+      "audienceWithoutData": "{audience, select, none {Nur der Eigentümer, die Bearbeiter und die Rollen, die jede Seite sehen, können sie öffnen, bis {who, select, you {Sie ihre Daten erneut bestätigen} unknown {ihr Eigentümer ihre Daten erneut bestätigt} other {{owner} ihre Daten erneut bestätigt}}.} other {Andere sehen v{audience} ohne ihre Daten, bis {who, select, you {Sie erneut bestätigen} unknown {ihr Eigentümer erneut bestätigt} other {{owner} erneut bestätigt}}.}}",
+      "audienceWaits": "{audience, select, none {Nur der Eigentümer, die Bearbeiter und die Rollen, die jede Seite sehen, können sie öffnen, bis {who, select, you {Sie ihre Daten bestätigen} unknown {ihr Eigentümer ihre Daten bestätigt} other {{owner} ihre Daten bestätigt}}.} other {Andere sehen weiterhin v{audience}, bis {who, select, you {Sie bestätigen} unknown {ihr Eigentümer bestätigt} other {{owner} bestätigt}}.}}",
+      "grownAutomatically": "v{version} wurde automatisch freigegeben und zeigt mehr Daten: {added}",
+      "grownAutomaticallyVia": "v{version}, veröffentlicht von {name}, wurde automatisch freigegeben und zeigt mehr Daten: {added}",
       "confirmTitle": "Die Daten bestätigen, die v{version} teilt",
       "confirmTitleUnnumbered": "Die Daten bestätigen, die diese Version teilt",
-      "confirmWhy": "Alle, die diese Seite öffnen können, lesen diese Datensätze mit dem Zugriff ihres Eigentümers, unabhängig von ihrem eigenen Zugriff auf die Tabellen. Bestätigen Sie nur, was alle sehen dürfen.",
+      "confirmWhy": "Alle, die diese Seite öffnen können, sehen diese Datensätze, auch ohne Zugriff auf die Tabellen. Bestätigen Sie nur, was alle sehen dürfen.",
       "disclosureFailed": "Was diese Version teilt, konnte nicht geladen werden.",
-      "bindingTable": "{name} liest {table}",
-      "noFilters": "Jeder Datensatz - kein Filter.",
+      "bindingTable": "{name} - aus {table}",
+      "noFilters": "Alle Datensätze.",
       "filters": "Nur Datensätze, bei denen {conditions}.",
       "sortAndLimit": "Reihenfolge: {sort}. Höchstens {limit, plural, =1 {1 Datensatz} other {# Datensätze}}.",
       "field": "{field}: {reads}",
-      "tablesRead": "Gelesene Tabellen: {tables}",
+      "tablesRead": "Tabellen: {tables}",
       "parts": {
         "filterOp": "{column} {op, select, eq {ist} ne {ist nicht} lt {ist kleiner als} lte {ist höchstens} gt {ist größer als} gte {ist mindestens} contains {enthält} starts_with {beginnt mit} in {ist einer von} other {ist}} {value}",
         "isEmpty": "{column} ist leer",
@@ -6874,22 +6881,22 @@
         "lookup": "Nachschlagen in {table} -> {column}",
         "rollup": "Zusammenfassung ({aggregate, select, sum {Summe} avg {Durchschnitt} min {Minimum} max {Maximum} other {Anzahl}}) aus {table} -> {column}",
         "rollupCount": "Zusammenfassung (Anzahl) aus {table}",
-        "linkedTables": "Liest außerdem über Verknüpfungen: {tables}"
+        "linkedTables": "Nutzt außerdem verknüpfte Tabellen: {tables}"
       },
-      "audienceTitle": "Wer sie liest, jetzt und später",
-      "audienceRoles": "Alle mit einer dieser Rollen, die jede Seite öffnen: {roles}",
-      "audienceVisibility": "{visibility, select, org {Alle in der Organisation} team {Alle im Team der Seite} other {Niemand sonst über die Sichtbarkeit - die Seite ist privat}}",
+      "audienceTitle": "Wer es sehen wird",
+      "audienceRoles": "Rollen, die jede Seite sehen: {roles}",
+      "audienceVisibility": "{visibility, select, org {Alle in der Organisation} team {Alle im Team der Seite} other {Niemand sonst - die Seite ist privat}}",
       "audiencePeople": "Geteilt mit: {people}",
-      "audienceGroups": "Geteilt mit diesen Gruppen, auch mit allen, die ihnen beitreten: {groups}",
-      "autoConsent": "Bei erneuter Veröffentlichung nicht um Zustimmung fragen",
-      "autoConsentWhy": "Erneute Veröffentlichungen Ihrer eigenen Runs geben ihre Daten frei, ohne auf Ihre Bestätigung zu warten. Veröffentlichungen anderer Bearbeiter warten weiterhin auf Sie.",
-      "autoConsentConfirmTitle": "Jede erneute Veröffentlichung freigeben, ohne Sie zu fragen?",
-      "autoConsentConfirm": "Jede Änderung, die Ihre Runs an den Daten dieser Seite vornehmen, einschließlich neuer Spalten und Tabellen, erreicht alle, die sie öffnen können, ohne Sie zu fragen - auch Runs über die API.",
+      "audienceGroups": "Gruppen, auch künftige Mitglieder: {groups}",
+      "autoConsent": "Neue Versionen automatisch freigeben",
+      "autoConsentWhy": "Versionen, die Ihre eigenen Runs veröffentlichen, geben ihre Daten frei, ohne auf Sie zu warten. Versionen anderer Bearbeiter warten weiterhin.",
+      "autoConsentConfirmTitle": "Neue Versionen automatisch freigeben?",
+      "autoConsentConfirm": "Jede Datenänderung, die Ihre Runs an dieser Seite vornehmen, einschließlich neuer Tabellen und Spalten, erreicht alle, die sie öffnen können, ohne Sie zu fragen. Das gilt auch für Runs über die API.",
       "autoConsentTurnOn": "Einschalten",
-      "versionState": "{state, select, pending {wartet auf Zustimmung} consented {Daten freigegeben} withdrawn {Zustimmung zurückgezogen} declined {abgelehnt} other {liest keine Daten}}",
+      "versionState": "{state, select, pending {wartet auf Bestätigung} consented {Daten freigegeben} withdrawn {Freigabe beendet} declined {abgelehnt} other {keine Daten}}",
       "notAvailableYet": "Diese Seite ist noch nicht verfügbar",
       "notAvailableYetWhy": "Ihr Eigentümer hat die Daten, die sie teilt, noch nicht bestätigt.",
-      "awaitingForYou": "Die Daten dieser Seite erscheinen, sobald ihr Eigentümer ihre Freigabe bestätigt."
+      "awaitingForYou": "Die Daten erscheinen, sobald der Eigentümer der Seite sie bestätigt."
     },
     "changeOwner": {
       "menu": "Eigentümer ändern",
@@ -6901,8 +6908,8 @@
       "back": "Zurück",
       "continue": "Weiter",
       "submit": "Eigentümer ändern",
-      "confirm": "{name} wird Eigentümer dieser Seite. Ihre Daten erreichen die Zielgruppe der Seite nicht mehr, bis {name} sie bestätigt, und „Bei erneuter Veröffentlichung nicht um Zustimmung fragen“ wird ausgeschaltet. Der bisherige Eigentümer und {name} werden benachrichtigt.",
-      "confirmSelf": "{name} wird Eigentümer dieser Seite. Ihre Daten erreichen die Zielgruppe der Seite nicht mehr, bis {name} sie bestätigt, und „Bei erneuter Veröffentlichung nicht um Zustimmung fragen“ wird ausgeschaltet. {name} wird benachrichtigt.",
+      "confirm": "{name} wird Eigentümer dieser Seite. Ihre Daten sind für andere verborgen, bis {name} sie bestätigt, und die automatische Freigabe wird ausgeschaltet. {name} und der bisherige Eigentümer werden benachrichtigt.",
+      "confirmSelf": "{name} wird Eigentümer dieser Seite. Ihre Daten sind für andere verborgen, bis {name} sie bestätigt, und die automatische Freigabe wird ausgeschaltet. {name} wird benachrichtigt.",
       "changed": "Eigentümer geändert"
     },
     "access": {
@@ -6912,15 +6919,16 @@
       "notePlaceholder": "Wozu Sie sie brauchen",
       "request": "Zugriff anfragen",
       "requested": "Zugriff angefragt",
-      "requestedWhy": "Der Eigentümer der Seite wurde gefragt. Es wird Ihnen nichts weiter geschickt: Öffnen Sie diesen Link später erneut, und wenn er zugestimmt hat, öffnet sich die Seite."
+      "requestedWhy": "Der Eigentümer wurde gefragt. Sie werden nicht benachrichtigt, öffnen Sie diesen Link also später erneut."
     },
     "requests": {
       "title": "Anfragen",
       "includeDecided": "Entschiedene anzeigen",
+      "newestOnly": "Alle wartenden Anfragen werden angezeigt, dazu die neuesten {shown} von {total} entschiedenen.",
       "none": "Keine Anfragen.",
       "someone": "Jemand",
-      "kind": "{kind, select, audience {{name} möchte diese Seite mit mehr Personen teilen} access {{name} bittet um Zugriff auf diese Seite} other {{name} hat geändert, was v{version} liest}}",
-      "state": "{status, select, approved {Genehmigt} declined {Abgelehnt} other {{reason, select, replaced {Durch eine neuere Anfrage ersetzt} page_changed {Hinfällig - die Daten der Seite haben sich geändert} owner_changed {Hinfällig - der Eigentümer hat gewechselt} archived {Hinfällig - die Seite wurde archiviert} superseded {Durch eine neuere Version ersetzt} other {Hinfällig}}}}",
+      "kind": "{kind, select, audience {{name} möchte diese Seite mit mehr Personen teilen} access {{name} bittet um Zugriff auf diese Seite} other {{name} hat die Daten geändert, die v{version} zeigt}}",
+      "state": "{status, select, approved {Genehmigt} declined {Abgelehnt} other {{reason, select, replaced {Durch eine neuere Anfrage ersetzt} page_changed {Geschlossen - die Daten der Seite haben sich geändert} owner_changed {Geschlossen - der Eigentümer hat gewechselt} archived {Geschlossen - die Seite wurde archiviert} superseded {Durch eine neuere Version ersetzt} other {Geschlossen}}}}",
       "askVisibility": "{visibility, select, org {Für die ganze Organisation sichtbar} team {Für das Team sichtbar} other {Privat}}",
       "askSubject": "{who} - {level, select, edit {darf bearbeiten} use {darf nutzen} other {darf lesen}}",
       "note": "Hinweis: {note}",
@@ -6934,7 +6942,7 @@
       "approveFrom": "Anfrage von {name} genehmigen",
       "declineFrom": "Anfrage von {name} ablehnen",
       "confirmData": "Daten bestätigen",
-      "versionNotice": "{name} hat geändert, was v{version} liest. Die Zielgruppe sieht weiter die frühere Version, bis Sie entscheiden.",
+      "versionNotice": "{name} hat die Daten geändert, die v{version} zeigt. Andere sehen die frühere Version, bis Sie entscheiden.",
       "waiting": "{count, plural, =1 {1 Anfrage wartet auf Sie} other {# Anfragen warten auf Sie}}"
     },
     "review": {
@@ -6945,46 +6953,46 @@
       "failed": "Die Datenänderung konnte nicht geladen werden.",
       "published": "Veröffentlicht von {name}, {when}.",
       "conversation": "Unterhaltung öffnen",
-      "comparedTo": "Vergleich mit v{version}, die die Zielgruppe jetzt sieht.",
-      "comparedToNothing": "Die Zielgruppe sieht noch keine Version dieser Seite.",
+      "comparedTo": "Vergleich mit v{version}, die andere jetzt sehen.",
+      "comparedToNothing": "Noch niemand sonst sieht eine Version dieser Seite.",
       "audienceUnavailable": "Diese Version ist nicht mehr aufgelistet und kann hier nicht angezeigt werden.",
-      "audienceSeesNow": "Das sieht die Zielgruppe jetzt",
-      "nothingChanged": "Sie liest dieselben Daten wie die Version der Zielgruppe.",
-      "unchanged": "{count, plural, =1 {1 unveränderte Bindung} other {# unveränderte Bindungen}}",
+      "audienceSeesNow": "Das sehen andere",
+      "nothingChanged": "Sie zeigt dieselben Daten wie die Version, die andere sehen.",
+      "unchanged": "{count, plural, =1 {1 unveränderte Quelle} other {# unveränderte Quellen}}",
       "approve": "Genehmigen",
       "decline": "Ablehnen",
-      "effect": "{effect, select, widens {Liest mehr} narrows {Liest weniger} other {Keine Änderung}}",
+      "effect": "{effect, select, widens {Zeigt mehr} narrows {Zeigt weniger} other {Keine Änderung}}",
       "binding": "{change, select, added {{name} - neu} removed {{name} - entfernt} other {{name}}}",
-      "removedReads": "Sie liest {table} nicht mehr.",
-      "change": "{aspect, select, table {Tabelle: {before} -> {after}} field {{change, select, added {Feld hinzugefügt: {after}} removed {Feld entfernt: {before}} other {Feld geändert: {before} -> {after}}}} filter {{change, select, added {Bedingung hinzugefügt: {after}} removed {Bedingung entfernt: {before}} other {Bedingung geändert: {before} -> {after}}}} sort {Reihenfolge: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Liest jetzt auch über Verknüpfungen: {after}} other {Liest nicht mehr über Verknüpfungen: {before}}}} other {{change, select, added {Liest jetzt auch, in einer Bedingung oder der Reihenfolge: {after}} other {Liest nicht mehr: {before}}}}}"
+      "removedReads": "Sie nutzt {table} nicht mehr.",
+      "change": "{aspect, select, table {Tabelle: {before} -> {after}} field {{change, select, added {Feld hinzugefügt: {after}} removed {Feld entfernt: {before}} other {Feld geändert: {before} -> {after}}}} filter {{change, select, added {Bedingung hinzugefügt: {after}} removed {Bedingung entfernt: {before}} other {Bedingung geändert: {before} -> {after}}}} sort {Reihenfolge: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Nutzt jetzt auch verknüpfte Tabellen: {after}} other {Nutzt keine verknüpften Tabellen mehr: {before}}}} other {{change, select, added {Nutzt jetzt auch, in einem Filter oder der Sortierung: {after}} other {Nutzt nicht mehr: {before}}}}}"
     },
     "publicData": {
       "title": "Live-Daten auf diesem öffentlichen Link",
-      "confirmed": "Live-Daten werden jetzt auf dem öffentlichen Link gezeigt",
-      "withdrawn": "Der öffentliche Link zeigt keine Live-Daten mehr",
-      "stateSwitchOff": "Öffentliche Seiten dürfen in dieser Organisation keine Live-Daten zeigen. Ein Owner oder Admin muss das zuerst in den Einstellungen der Organisation einschalten.",
-      "stateNotConfirmed": "Der öffentliche Link zeigt diese Seite ohne ihre Daten. Bestätigen Sie, damit jeder mit dem Link die Tabelleneinträge sieht.",
+      "confirmed": "Live-Daten auf dem öffentlichen Link gezeigt",
+      "withdrawn": "Live-Daten vom öffentlichen Link ausgeblendet",
+      "stateSwitchOff": "Live-Daten auf öffentlichen Seiten sind für diese Organisation ausgeschaltet. Ein Owner oder Admin kann sie in den Organisationseinstellungen einschalten.",
+      "stateNotConfirmed": "Der öffentliche Link zeigt diese Seite ohne ihre Daten. Bestätigen Sie, um sie jedem mit dem Link zu zeigen.",
       "stateOwnerCanEnable": "Der öffentliche Link zeigt diese Seite ohne ihre Daten. Der Besitzer der Seite oder ein Owner bzw. Admin kann das aktivieren.",
       "stateHolding": "Auf dem öffentlichen Link gezeigt: Version {version}, bestätigt von {name} am {date}.",
-      "notHoldingSwitchOff": "Bestätigt, aber nicht gezeigt: Ein Owner oder Admin hat Live-Daten auf öffentlichen Seiten für die Organisation ausgeschaltet. Beim Einschalten werden sie sofort wieder gezeigt.",
+      "notHoldingSwitchOff": "Bestätigt, aber nicht gezeigt: Live-Daten auf öffentlichen Seiten sind für die Organisation ausgeschaltet. Sie werden wieder gezeigt, sobald sie wieder eingeschaltet werden.",
       "notHoldingNoServedVersion": "Bestätigt, aber nicht gezeigt: Der öffentliche Link zeigt gerade keine Version dieser Seite.",
-      "notHoldingQueriesChanged": "Bestätigt, aber nicht gezeigt: Die Abfragen der Seite haben sich geändert. Die öffentliche Seite zeigt keine Daten, bis sie erneut bestätigt werden.",
-      "notHoldingOwnerGone": "Bestätigt, aber nicht gezeigt: Der Besitzer der Seite ist kein aktives Mitglied der Organisation mehr.",
+      "notHoldingQueriesChanged": "Bestätigt, aber nicht gezeigt: Die Daten der Seite haben sich geändert. Bestätigen Sie sie erneut, um sie zu zeigen.",
+      "notHoldingOwnerGone": "Bestätigt, aber nicht gezeigt: Der Eigentümer der Seite ist kein Mitglied mehr.",
       "notHoldingOwnerMembershipChanged": "Bestätigt, aber nicht gezeigt: Der Besitzer der Seite hat sich seit der Bestätigung der Daten geändert.",
-      "notHoldingMemberConsentMissing": "Bestätigt, aber nicht gezeigt: Es fehlt die Zustimmung des Besitzers, dass Mitglieder die Daten dieser Version lesen. Sie muss zuerst bestätigt werden.",
+      "notHoldingMemberConsentMissing": "Bestätigt, aber nicht gezeigt: Die Daten dieser Version sind für Mitglieder noch nicht bestätigt. Bestätigen Sie das zuerst.",
       "notHoldingLinkExpired": "Bestätigt, aber nicht gezeigt: Der öffentliche Link ist abgelaufen.",
-      "queryChangedNotice": "Die Abfragen dieser Seite haben sich geändert, daher zeigt ihr öffentlicher Link keine Daten, bis sie erneut bestätigt werden.",
+      "queryChangedNotice": "Die Daten, die diese Seite zeigt, haben sich geändert, daher zeigt ihr öffentlicher Link keine, bis sie erneut bestätigt werden.",
       "confirm": "Daten bestätigen",
       "confirmAgain": "Erneut bestätigen",
       "cancel": "Abbrechen",
-      "withdraw": "Zurückziehen",
+      "withdraw": "Daten nicht mehr zeigen",
       "withdrawTitle": "Keine Daten mehr auf dem öffentlichen Link zeigen?",
-      "withdrawWhy": "Der öffentliche Link und seine Einbettungen zeigen die Seite weiter, aber ohne Daten, bis jemand sie erneut bestätigt.",
+      "withdrawWhy": "Der öffentliche Link und die Einbettungen zeigen die Seite ohne Daten, bis jemand sie erneut bestätigt.",
       "confirmTitle": "Daten für den öffentlichen Link bestätigen",
-      "confirmWhy": "Jeder mit dem Link liest diese Tabelleneinträge, ohne Konto - ebenso jede Website, die diese Seite einbettet. Prüfen Sie, was geteilt wird und wer es erreichen kann.",
+      "confirmWhy": "Jeder mit dem Link und jede Website, die die Seite einbettet, sieht diese Datensätze ohne Anmeldung. Prüfen Sie, was geteilt wird und wer es erreichen kann.",
       "disclosureFailed": "Es ließ sich nicht laden, was geteilt würde",
-      "audienceTitle": "Wer es lesen kann",
-      "audienceAnyone": "Jeder mit dem öffentlichen Link - ohne Konto, ohne Anmeldung.",
+      "audienceTitle": "Wer es sehen kann",
+      "audienceAnyone": "Jeder mit dem öffentlichen Link, ohne Anmeldung.",
       "audiencePassword": "Das Passwort des Links muss eingegeben werden.",
       "audienceNoPassword": "Kein Passwort: Der Link allein genügt.",
       "audienceNoExpiry": "Der Link läuft nicht ab.",

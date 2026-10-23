@@ -66,6 +66,7 @@ async def create_run(
     parent_node_run_id: UUID | None = None,
     timezone: str = "UTC",
     public_origin: bool = False,
+    impersonated: bool = False,
     source_artifact_id: UUID | None = None,
     source_version_number: int | None = None,
 ) -> WorkflowRun:
@@ -85,6 +86,7 @@ async def create_run(
         mode=mode,
         triggered_by=triggered_by,
         public_origin=public_origin,
+        impersonated=impersonated,
         source_artifact_id=source_artifact_id,
         source_version_number=source_version_number,
         execution_principal_user_id=execution_principal_user_id,

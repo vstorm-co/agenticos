@@ -1,5 +1,5 @@
 ---
-source_sha: "d5e3a28da8db"
+source_sha: "32c334c2b172"
 ---
 
 # Berechtigungen { #permissions }
@@ -442,7 +442,7 @@ Grant zum Bearbeiten der Seite genügt nicht. Jeder Editor darf sie zurückziehe
 da das Zurückziehen nur einschränkt; dabei fällt auch jeder `edit_data`-Grant auf
 der Seite auf `edit`.
 
-**`edit_data` ist eine Grant-Stufe, keine Rolle.** „Can edit, data included“ liegt
+**`edit_data` ist eine Grant-Stufe, keine Rolle.** „Can edit, including data“ liegt
 über `edit` und wird nur für Seiten akzeptiert (eine Datenbank-Constraint lehnt es
 anderswo ab). Es ist eine dauerhafte Einwilligung in die erneuten
 Veröffentlichungen dieser Person oder dieser Gruppe. Nur der Besitzer oder ein

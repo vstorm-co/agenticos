@@ -324,6 +324,19 @@ class TestTheFigures:
 
         assert {(step.label, step.definition_id) for step in stats.steps} == {(None, None)}
 
+    async def test_a_workflow_never_published_names_its_steps_by_the_draft(self, db, owner):
+        workflow, graph = await _two_step(db, owner)
+        await _ran(db, owner, workflow, status="succeeded", seconds=1, cost="0")
+        workflow.current_version_id = None
+        workflow.draft_graph = graph.model_dump(mode="json")
+        await db.flush()
+
+        stats = await WorkflowStatsService(db).stats(owner, workflow.id, days=1)
+
+        assert {(step.label, step.definition_id) for step in stats.steps} == {
+            ("Start", "trigger.manual")
+        }
+
     @pytest.mark.security
     async def test_another_organization_reads_no_figures(self, db, owner):
         workflow, _graph_ = await _two_step(db, owner)

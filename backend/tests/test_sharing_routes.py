@@ -10,7 +10,6 @@ another organization is refused before the sharing service is ever reached.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -36,8 +35,7 @@ from app.api.routes.v1.sharing import (
     workflow_sharing_router,
 )
 from app.core.exceptions import NotFoundError
-from app.core.permissions import Perm
-from app.services.access import AGENT, ARTIFACT, COLLECTION, SECRET, SKILL
+from app.services.access import AGENT, COLLECTION, SECRET, SKILL
 from app.services.sharing import SharingState
 
 ROUTERS = (
@@ -59,7 +57,6 @@ LOADERS = (
     ("secret", load_secret, "Secret not found", "secret_id"),
     ("table", load_table, "Table not found", "table_id"),
     ("workflow", load_workflow, "Workflow not found", "workflow_id"),
-    ("artifact", load_artifact, "Artifact not found", "artifact_id"),
 )
 
 
@@ -129,28 +126,19 @@ class TestResourceLoaders:
 
         assert await loader(db, uuid.uuid4(), MagicMock(organization_id=organization_id)) is row
 
-    @pytest.mark.parametrize("may_edit", [False, True])
     @pytest.mark.anyio
-    async def test_an_archived_artifact_is_found_only_by_a_caller_who_may_edit_it(self, may_edit):
-        """As `GET /artifacts/{id}` answers: a reader is told it is not there."""
-        ctx = MagicMock(organization_id=uuid.uuid4())
-        row = MagicMock(organization_id=ctx.organization_id, archived_at=datetime.now(UTC))
-        db = MagicMock(get=AsyncMock(return_value=row))
+    async def test_the_artifact_loader_is_the_service_s_rule_not_one_of_its_own(self):
+        """Who finds an archived page is decided in `ArtifactService.load`, beside `read`."""
+        ctx, db, row = MagicMock(), MagicMock(), MagicMock()
         resource_id = uuid.uuid4()
 
         with patch(
-            "app.api.routes.v1._sharing_loaders.resolve_access",
-            AsyncMock(return_value=may_edit),
-        ) as access:
-            if may_edit:
-                assert await load_artifact(db, resource_id, ctx) is row
-            else:
-                with pytest.raises(NotFoundError) as refused:
-                    await load_artifact(db, resource_id, ctx)
-                assert refused.value.details == {"artifact_id": str(resource_id)}
+            "app.api.routes.v1._sharing_loaders.ArtifactService.load",
+            new=AsyncMock(return_value=row),
+        ) as load:
+            assert await load_artifact(db, resource_id, ctx) is row
 
-        assert access.call_args.args[3] is Perm.ARTIFACTS_EDIT
-        assert access.call_args.kwargs["resource_type"] is ARTIFACT
+        load.assert_awaited_once_with(ctx, resource_id)
 
 
 class TestHandlerBehaviour:

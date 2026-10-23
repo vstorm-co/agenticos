@@ -68,6 +68,12 @@ async def name_of(db: AsyncSession, user_id: UUID) -> str:
     return user.full_name or user.email
 
 
+async def names_of(db: AsyncSession, user_ids: Sequence[UUID]) -> dict[UUID, str]:
+    """:func:`name_of` for several people, in one query."""
+    users = await user_repo.get_by_ids(db, sorted(set(user_ids)))
+    return {user.id: user.full_name or user.email for user in users}
+
+
 async def deciders(db: AsyncSession, artifact: Artifact) -> list[UUID]:
     """Who decides a page's requests, and is told of them: its owner, or - with none who
     is an active member - the holders of `artifacts:edit` at scope `ALL`."""
@@ -106,12 +112,25 @@ async def widens(db: AsyncSession, artifact: Artifact, change: ShareChange) -> b
     return held is None or GRANT_ORDER[change.level] > GRANT_ORDER[held]
 
 
-async def _admit(ctx: AuthContext) -> None:
-    decision = await rate_limit.consume_with_local_floor(
+async def _consume(organization_id: UUID, user_id: UUID | None) -> rate_limit.Decision:
+    """One request against `user_id`'s hourly allowance of requests about pages."""
+    return await rate_limit.consume_with_local_floor(
         surface="artifact_share_request",
-        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        caller=f"org:{organization_id}:user:{user_id}",
         limit=rate_limit.artifact_share_request_limit(),
     )
+
+
+def _refuse_archived(artifact: Artifact) -> None:
+    if artifact.archived_at is not None:
+        raise ConflictError(
+            message="This page is archived, so nothing can be requested of it.",
+            details={"artifact_id": artifact.id},
+        )
+
+
+async def _admit(ctx: AuthContext) -> None:
+    decision = await _consume(ctx.organization_id, ctx.subject_id)
     if not decision.allowed:
         raise RateLimitError(
             message="Too many requests in the last hour. Wait and try again.",
@@ -167,15 +186,14 @@ async def _file(
         RateLimitError: Too many requests in the last hour.
     """
     assert ctx.user_id is not None  # a request is a person's
-    if artifact.archived_at is not None:
-        raise ConflictError(
-            message="This page is archived, so nothing can be requested of it.",
-            details={"artifact_id": artifact.id},
-        )
+    _refuse_archived(artifact)
     await _admit(ctx)
     # The page's lock, as a publish takes it: the version this is made against is the
-    # latest one, and the older request is gone before the new one is written.
+    # latest one, and the older request is gone before the new one is written. The lock
+    # re-reads the page, so a page archived while this waited for it is seen as archived:
+    # archiving voided its requests, and a new one would outlive that.
     await artifact_repo.lock(db, artifact.id)
+    _refuse_archived(artifact)
     earlier = await artifact_share_request_repo.pending(
         db, artifact.id, kind=kind, requester_user_id=ctx.user_id
     )
@@ -215,7 +233,9 @@ async def _announce(
     *,
     actor_user_id: UUID | None,
     via_run: Mapping[str, str | None] | None = None,
+    notify: bool = True,
 ) -> None:
+    """Audit a filed request and, unless `notify` is off, tell whoever decides it."""
     await record_audit(
         db,
         actor_user_id=actor_user_id,
@@ -225,6 +245,8 @@ async def _announce(
         target_id=str(artifact.id),
         details={"request_id": str(request.id), "kind": request.kind, **(via_run or {})},
     )
+    if not notify:
+        return
     recipients = [
         user_id for user_id in await deciders(db, artifact) if user_id != request.requester_user_id
     ]
@@ -272,7 +294,8 @@ async def on_new_version(db: AsyncSession, artifact: Artifact, version: Artifact
     An `audience` or `access` request made about other page queries than this version's
     is void. The pending `version` request is replaced by one for this version when
     another editor published it and it awaits consent; otherwise it is void, as there is
-    nothing left to confirm in it.
+    nothing left to confirm in it. The owner is told of it only while the publisher is
+    within their hourly allowance of requests.
     """
     await artifact_share_request_repo.void_pending(
         db,
@@ -307,7 +330,12 @@ async def on_new_version(db: AsyncSession, artifact: Artifact, version: Artifact
         version_id=version.id,
         query_fingerprint=version.query_fingerprint,
     )
-    await _announce(db, artifact, request, actor_user_id=publisher)
+    # Counted against the publisher's allowance of requests, as a request they file
+    # themselves is: a version request is filed for each republish, and the owner
+    # would otherwise be told of every one. Past the allowance it still replaces the
+    # pending request - the owner finds it in the console - without a notification.
+    allowed = (await _consume(artifact.organization_id, publisher)).allowed
+    await _announce(db, artifact, request, actor_user_id=publisher, notify=allowed)
 
 
 async def void_all(db: AsyncSession, artifact: Artifact, reason: VoidReason) -> None:

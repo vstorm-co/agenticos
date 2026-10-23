@@ -758,7 +758,7 @@ their runs page, checked, billed and audited like one started from **Start a run
 and subject to the same admission quota. A run with no member behind it, or from a
 session that is impersonated, starts none.
 
-The runs page says such a run was started by **An app**, and **Started by** filters
+The runs page says such a run was started by **A page**, and **Started by** filters
 on it; over the API its `triggered_by` is `app`. The run also records the page and the
 version the member was looking at, and a retry keeps them. The page reads back only the
 run's status, its answer and the first line of an error.

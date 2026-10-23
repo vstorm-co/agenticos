@@ -49,6 +49,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    DatabaseError,
     NotFoundError,
     RateLimitError,
 )
@@ -213,7 +214,7 @@ _MARKDOWN_ACTIONS = (
 
 _IN_FLIGHT = "Your previous data load is still running. Try again in a moment."
 _OWNER_GONE = "The page's owner is no longer an active member, so its data can't be shared."
-_AS_THEMSELVES = "This needs you signed in as yourself, not on somebody's behalf."
+_AS_THEMSELVES = "This is not allowed while impersonating another account."
 NOT_AVAILABLE_YET = "This page isn't available yet: its owner hasn't confirmed the data it shares."
 _BUSY = "Too many pages are loading data right now. Try again in a moment."
 _STATEMENT_TIMEOUT = "57014"
@@ -710,6 +711,7 @@ async def publish(
     expected_version: int | None = None,
     bindings: Mapping[str, BindingRequest] | None = None,
     run_person: UUID | None = None,
+    impersonated: bool = False,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
     actions: Sequence[ActionRequest] | None = None,
     workflow_ids: Collection[UUID] = (),
@@ -729,6 +731,7 @@ async def publish(
             expected_version=expected_version,
             bindings=bindings,
             run_person=run_person,
+            impersonated=impersonated,
             table_grants=table_grants,
             actions=actions,
             workflow_ids=workflow_ids,
@@ -749,6 +752,7 @@ async def publish_with(
     expected_version: int | None = None,
     bindings: Mapping[str, BindingRequest] | None = None,
     run_person: UUID | None = None,
+    impersonated: bool = False,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
     actions: Sequence[ActionRequest] | None = None,
     workflow_ids: Collection[UUID] = (),
@@ -794,6 +798,9 @@ async def publish_with(
             whole; `None` keeps the current version's, `{}` clears them.
         run_person: The member the run acts for (`AgentDeps.run_person`), or `None`.
             One who has since left, or been deactivated, counts as none.
+        impersonated: The run started while an administrator impersonated
+            `run_person` (`AgentDeps.impersonated`): its version is never consented
+            to automatically on the person's behalf.
         table_grants: The agent spec's operations per table id; `None` grants none.
         actions: The workflows the page may start, replacing the current ones whole;
             `None` keeps the current version's, `[]` clears them. Each must be one of
@@ -940,7 +947,9 @@ async def publish_with(
         run_id=run_id,
         bindings=canonical,
         actions=canonical_actions,
-        consent=await consent_for(db, artifact, fingerprint=digest, person=person),
+        consent=await consent_for(
+            db, artifact, fingerprint=digest, person=person, impersonated=impersonated
+        ),
     )
     await record_audit(
         db,
@@ -1221,7 +1230,7 @@ async def _served_to(
     if user_id == artifact.owner_user_id:
         latest = await artifact_repo.latest_version(db, artifact.id)
         return Served(version=latest, data=latest is not None, latest=True)
-    reader = await _member_auth(db, organization_id=artifact.organization_id, user_id=user_id)
+    reader = await member_context(db, organization_id=artifact.organization_id, user_id=user_id)
     if reader is None:
         return await served(db, None, artifact, can_edit=False)
     can_edit = await resolve_access(
@@ -1297,6 +1306,11 @@ _PREVIEW_IN_A_ROOM = (
 _PREVIEW_NOBODY = (
     "Nobody this run is for may read the page's data, so every binding shows as unavailable."
 )
+_PREVIEW_TOO_MANY = "too many data loads in the last minute"
+
+
+def _unread(why: str) -> str:
+    return f"The page's data was not read ({why}), so every binding shows as unavailable."
 
 
 async def preview_source(
@@ -1307,13 +1321,17 @@ async def preview_source(
     run_id: UUID | None,
     name: str,
     room: bool,
+    has_person: bool,
 ) -> ArtifactPreview:
     """The current version of this agent's page as a viewer's frame would be served it.
 
     Opened as :func:`read_source` opens it. The data is what the console would
     post a viewer who is the run's person: :meth:`ArtifactService.data` asked as
     `reader_user_id`'s membership now, which reads each binding's page query as the
-    page's owner, for a viewer it serves data at all. In a room only a page
+    page's owner, for a viewer it serves data at all, and counted against that
+    member's data allowance. A run with nobody behind it (`has_person` false: an
+    outsider supplied its input, so it executes as a principal nobody answers for)
+    is drawn without data, as a room is. In a room only a page
     :func:`room_may_see` opens at all, and it gets no data, since a picture of the
     page's records would be read by the whole channel; nor does a reader who is no
     longer an active member, or one whose data load is refused for being busy.
@@ -1332,7 +1350,7 @@ async def preview_source(
             room=room,
         )
         bindings, note = await _preview_data(
-            db, artifact, version, reader_user_id=reader_user_id, room=room
+            db, artifact, version, reader_user_id=reader_user_id, room=room, has_person=has_person
         )
     nonce = secrets.token_urlsafe(16)
     live = bool(version.bindings)
@@ -1359,27 +1377,41 @@ async def _preview_data(
     *,
     reader_user_id: UUID,
     room: bool,
+    has_person: bool,
 ) -> tuple[dict[str, BindingData] | None, str | None]:
-    """The bindings a preview posts the page, and why they are empty when they are."""
+    """The bindings a preview posts the page, and why they are empty when they are.
+
+    Read only for a run with a person behind it (`has_person`): the reader of a run
+    an outsider supplied the input of is the principal it executes as, and the
+    page's data is read as its owner, whatever that principal may open itself.
+    A read counts against the member's data allowance, as a page load does.
+    """
     if not version.bindings:
         return None, None
     if room:
         return {}, _PREVIEW_IN_A_ROOM
+    if not has_person:
+        return {}, _PREVIEW_NOBODY
     person = await member_context(
         db, organization_id=artifact.organization_id, user_id=reader_user_id
     )
     if person is None:
         return {}, _PREVIEW_NOBODY
+    decision = await rate_limit.consume_with_local_floor(
+        surface="artifact_data",
+        caller=f"org:{person.organization_id}:user:{person.subject_id}",
+        limit=rate_limit.artifact_data_limit(),
+    )
+    if not decision.allowed:
+        return {}, _unread(_PREVIEW_TOO_MANY)
     try:
         read = await ArtifactService(db).data(person, artifact.id, version.id)
-    except (RateLimitError, NotFoundError) as refused:
+    except (RateLimitError, NotFoundError, DatabaseError) as refused:
         # Busy - the person's own console may be loading this page right now - or
-        # pruned between opening it and reading it. The picture is still worth
-        # drawing; it says the data was not there and why.
-        return (
-            {},
-            f"The page's data was not read ({refused.message}), so every binding shows as unavailable.",
-        )
+        # pruned between opening it and reading it, or the database failed on a
+        # binding. The picture is still worth drawing; it says the data was not
+        # there and why.
+        return {}, _unread(refused.message)
     return read.bindings, None
 
 
@@ -1464,7 +1496,7 @@ async def list_for_run_with(
     environment_id = await _environment_of_run(
         db, run_id=run_id, organization_id=organization_id, agent_id=agent_id
     )
-    reader = await _member_auth(db, organization_id=organization_id, user_id=reader_user_id)
+    reader = await member_context(db, organization_id=organization_id, user_id=reader_user_id)
     see_all, shared_ids = False, []
     if reader is not None and not room:
         shared = await visible_resource_ids(
@@ -1486,7 +1518,7 @@ async def list_for_run_with(
     # A room is read by everyone in it, so it is served what the audience is.
     current = await served_many(db, None if room else reader, items)
     editor = (
-        await _member_auth(db, organization_id=organization_id, user_id=editor_user_id)
+        await member_context(db, organization_id=organization_id, user_id=editor_user_id)
         if editor_user_id is not None
         else None
     )
@@ -1768,20 +1800,19 @@ async def _may(db: AsyncSession, artifact: Artifact, user_id: UUID | None, perm:
         return True
     if user_id is None:
         return False
-    ctx = await _member_auth(db, organization_id=artifact.organization_id, user_id=user_id)
+    ctx = await member_context(db, organization_id=artifact.organization_id, user_id=user_id)
     if ctx is None:
         return False
     return await resolve_access(db, ctx, artifact, perm, resource_type=ARTIFACT)
 
 
-async def _member_auth(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID
-) -> AuthContext | None:
-    """`user_id` as the member a run acts for now, or `None` when they are not an active one."""
-    membership = await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
-    if membership is None:
-        return None
-    return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
+def archived_hidden(artifact: Artifact, *, can_edit: bool) -> bool:
+    """Whether an archived page is a missing one to this caller: only its editors see it.
+
+    The one rule behind reading, listing and sharing an archived page. A live page
+    is never hidden by it.
+    """
+    return artifact.archived_at is not None and not can_edit
 
 
 async def _prune(db: AsyncSession, artifact: Artifact) -> None:
@@ -1789,18 +1820,35 @@ async def _prune(db: AsyncSession, artifact: Artifact) -> None:
 
     The version a public link is pinned to is kept however old it is: the link
     would otherwise open nothing the moment a schedule published past it. So is
-    the version the page's audience is served, while newer ones wait for consent.
+    the version the page's audience is served, while newer ones wait for consent -
+    and the newest one the owner consented to, which a republish of the same queries
+    is compared against: an unbound version published after it must not cost it.
 
     A pruned version's bytes stay when a kept version has the same content: the
     path is the digest, so a page that went back to an earlier state shares it.
     """
     audience = await artifact_repo.latest_served(db, artifact.id)
+    membership = await owner_membership_id(db, artifact)
+    consented = (
+        await artifact_repo.latest_consent(
+            db, artifact.id, membership_id=membership, after=artifact.consent_withdrawn_at
+        )
+        if membership is not None
+        else None
+    )
     beyond = await artifact_repo.versions_beyond(
         db,
         artifact.id,
         keep=settings.ARTIFACT_MAX_VERSIONS,
-        pinned=artifact.public_version_number,
-        served=audience.number if audience is not None else None,
+        kept=[
+            number
+            for number in (
+                artifact.public_version_number,
+                audience.number if audience is not None else None,
+                consented.number if consented is not None else None,
+            )
+            if number is not None
+        ],
     )
     if not beyond:
         return
@@ -2094,11 +2142,34 @@ class ArtifactService:
         can_edit = await resolve_access(
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
         )
-        if artifact.archived_at is not None and not can_edit:
+        if archived_hidden(artifact, can_edit=can_edit):
             raise NotFoundError(
                 message="Artifact not found", details={"artifact_id": str(artifact_id)}
             )
         return await self._detail(ctx, artifact, can_edit=can_edit)
+
+    async def load(self, ctx: AuthContext, artifact_id: UUID) -> Artifact:
+        """The artifact in the caller's organization, for the sharing routes to check further.
+
+        Asks nothing of the caller's access to a live page - sharing decides who may
+        manage it - but an archived page is found only by a caller who may edit it, as
+        :meth:`read` answers.
+
+        Raises:
+            NotFoundError: No such artifact in the caller's organization, or an
+                archived one the caller may not edit.
+        """
+        artifact = await artifact_repo.get(
+            self.db, artifact_id, organization_id=ctx.organization_id
+        )
+        if artifact is not None:
+            # Only an archived page asks who may edit it.
+            can_edit = artifact.archived_at is None or await resolve_access(
+                self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
+            )
+            if not archived_hidden(artifact, can_edit=can_edit):
+                return artifact
+        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
 
     async def _offer_access_request(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Answer a member who cannot open a page that they may ask for access, in place of
@@ -2258,11 +2329,18 @@ class ArtifactService:
     ) -> ArtifactList:
         """A page of the artifacts this caller may open, newest publication first.
 
-        Archived ones only with `include_archived`, by the same visibility rules. Each
-        is read at the version the caller is served; one with none available to them
-        yet has no `current_version`.
+        Archived ones only with `include_archived`, and then only those the caller may
+        edit - the rule :meth:`read` applies. Each is read at the version the caller is
+        served; one with none available to them yet has no `current_version`.
         """
         see_all, grant_ids = await self._visibility(ctx)
+        edit_ids = (
+            await visible_resource_ids(
+                self.db, ctx, resource_type=ARTIFACT, perm=Perm.ARTIFACTS_EDIT
+            )
+            if include_archived
+            else None
+        )
         if shared_with_me and see_all:
             grant_ids = await resource_grant_repo.list_shared_ids(
                 self.db,
@@ -2278,6 +2356,8 @@ class ArtifactService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            edit_scope=ctx.scope_for(Perm.ARTIFACTS_EDIT),
+            edit_ids=edit_ids,
             search=search,
             agent_id=agent_id,
             skip=skip,
@@ -2447,8 +2527,8 @@ class ArtifactService:
         if allowed is None:
             raise AuthorizationError(
                 message=(
-                    "This version starts workflows, but the page's agent or its published spec "
-                    "is gone, so it can no longer be restored with its actions."
+                    "This version runs workflows, but the page's agent is gone, so it can't be "
+                    "restored."
                 ),
                 details={"artifact_id": artifact.id},
             )
@@ -2616,8 +2696,7 @@ class ArtifactService:
         if version.consent_state not in SERVED_STATES:
             raise refused_field(
                 "pinned_version_id",
-                "That version's data hasn't been confirmed by the page's owner, so the link "
-                "can't show it.",
+                "The owner hasn't confirmed that version's data, so the link can't show it.",
             )
         # A kept row whose bytes are gone would pin the link to a page that 404s.
         if not await get_file_storage().exists(version.storage_path):
@@ -2869,7 +2948,7 @@ class ArtifactService:
             or version.query_fingerprint != data.fingerprint
         ):
             raise ConcurrentChangeError(
-                message="The page changed after you looked at it. Review what it shares now.",
+                message="The page changed since you opened this. Review it again.",
                 details={"artifact_id": artifact.id, "version_id": version.id},
             )
         if not version.bindings:
@@ -3094,8 +3173,9 @@ class ArtifactService:
         if not lacking:
             return None, sources
         return (
-            f"The page's owner can't read {len(lacking)} of the tables its data reads, so it "
-            "can't be shared. Ask them for access, or publish the page without those tables.",
+            f"The page's owner can't access {len(lacking)} of the tables it uses, so its data "
+            "can't be shared. Get the owner access to those tables, or publish the page without "
+            "them.",
             sources,
         )
 
@@ -3222,7 +3302,9 @@ class ArtifactService:
         artifact = await self.get(ctx, artifact_id)
         return await artifact_actions.run_state(self.db, ctx, artifact, run_id)
 
-    async def data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
+    async def data(
+        self, ctx: AuthContext, artifact_id: UUID, version_id: UUID, *, rows: bool = True
+    ) -> ArtifactData:
         """A page version's live data: every binding's page query, read as the page's owner.
 
         Everyone allowed the data reads the same records, whatever their own access to
@@ -3247,6 +3329,13 @@ class ArtifactService:
         The page's deadline is a deadline, never a cancellation: it is checked before
         every query and between bindings.
 
+        With `rows` off no record is loaded: each binding is `unavailable` for the
+        reasons the page's own read would find (its owner, access, drift, a query its
+        table no longer answers, a timeout), and otherwise `ok` with no records. What an
+        editor's strip needs, for a page that was served with its data already: a second
+        full read would hold the claim the page's own load takes. It holds a claim of its
+        own, and passes the same process gate.
+
         Raises:
             RateLimitError: `ctx` already has a load in flight, or this process is
                 serving as many loads as it may. Refused at once, never queued.
@@ -3254,7 +3343,7 @@ class ArtifactService:
                 is not one of its kept versions that the caller may open.
         """
         async with rate_limit.one_in_flight(
-            "artifact_data",
+            "artifact_data" if rows else "artifact_data_reasons",
             f"org:{ctx.organization_id}:user:{ctx.subject_id}",
             ttl_seconds=settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS + 5,
             message=_IN_FLIGHT,
@@ -3263,9 +3352,11 @@ class ArtifactService:
             if gate.locked():
                 raise RateLimitError(message=_BUSY, details={"retry_after_seconds": 1})
             async with gate:
-                return await self._data(ctx, artifact_id, version_id)
+                return await self._data(ctx, artifact_id, version_id, rows=rows)
 
-    async def _data(self, ctx: AuthContext, artifact_id: UUID, version_id: UUID) -> ArtifactData:
+    async def _data(
+        self, ctx: AuthContext, artifact_id: UUID, version_id: UUID, *, rows: bool = True
+    ) -> ArtifactData:
         artifact = await self.get(ctx, artifact_id)
         can_edit = await resolve_access(
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
@@ -3280,7 +3371,7 @@ class ArtifactService:
         current = view.version is not None and view.version.id == version.id
         return ArtifactData(
             bindings=await self._read_page(
-                artifact, version, view, can_edit=can_edit, current=current
+                artifact, version, view, can_edit=can_edit, current=current, rows=rows
             ),
             current=current,
             read_at=datetime.now(UTC),
@@ -3296,6 +3387,7 @@ class ArtifactService:
         current: bool,
         isolate_failures: bool = False,
         shared: PublicReads | None = None,
+        rows: bool = True,
     ) -> dict[str, BindingData]:
         """Every binding of `version` read as the page's owner, shaped for one viewer.
 
@@ -3303,6 +3395,7 @@ class ArtifactService:
         `isolate_failures` a binding the database failed on is `failed` rather than an
         error, so the page still renders. With `shared`, a public page's reads: a kept one is
         reused, and one that reaches the tables is counted against the page's allowance.
+        Without `rows`, only whether each binding could be read (see :meth:`data`).
         """
         deadline = ReadDeadline(
             settings.ARTIFACT_DATA_READ_TIMEOUT_SECONDS,
@@ -3326,16 +3419,18 @@ class ArtifactService:
                 reads[binding.name] = Unavailable("awaiting_consent")
             else:
                 try:
-                    reads[binding.name] = (
-                        await self._read_binding(owner, binding, deadline)
-                        if shared is None
-                        else await self._read_shared(shared, owner, binding, deadline)
-                    )
+                    if not rows:
+                        reads[binding.name] = await self._read_reasons(owner, binding, deadline)
+                    elif shared is None:
+                        reads[binding.name] = await self._read_binding(owner, binding, deadline)
+                    else:
+                        reads[binding.name] = await self._read_shared(
+                            shared, owner, binding, deadline
+                        )
                 except DBAPIError as failed:
-                    if not isolate_failures:
-                        raise
                     # Never the message: a database error carries its bound parameters,
-                    # which are the query's filter values.
+                    # which are the query's filter values - and an error raised past
+                    # here is logged whole by the exception handler.
                     logger.warning(
                         "artifact_data_binding_failed",
                         extra={
@@ -3345,6 +3440,12 @@ class ArtifactService:
                             "sqlstate": getattr(failed.orig, "sqlstate", None),
                         },
                     )
+                    # A reasons-only read says `failed` as the page's own load does.
+                    if rows and not isolate_failures:
+                        raise DatabaseError(
+                            message="A binding's data could not be read",
+                            details={"binding": binding.name},
+                        ) from None
                     reads[binding.name] = self._unavailable(binding, Unavailable("failed"))
         return page_data(reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit)
 
@@ -3376,6 +3477,21 @@ class ArtifactService:
         if isinstance(read, BindingRows):
             shared.store(binding.name, read)
         return read
+
+    async def _read_reasons(
+        self, owner: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
+    ) -> BindingRows | Unavailable:
+        """A binding as the page's own read finds it, with no records loaded.
+
+        The query still runs, for none of its rows (`max_records=0` measures one and
+        loads nothing), so a filter a converted column no longer answers, a statement
+        that times out and the access and drift checks come out as they do in the page's
+        load.
+        """
+        source = await self._binding_source(owner, binding, deadline)
+        if isinstance(source, Unavailable):
+            return source
+        return await self._read_rows(owner, binding, source, deadline, max_records=0)
 
     async def _read_binding(
         self, owner: AuthContext, binding: ArtifactBinding, deadline: ReadDeadline
@@ -3414,8 +3530,10 @@ class ArtifactService:
         binding: ArtifactBinding,
         source: TableSource,
         deadline: ReadDeadline,
+        *,
+        max_records: int | None = None,
     ) -> BindingRows | Unavailable:
-        """The rows of a binding whose `source` is known."""
+        """The rows of a binding whose `source` is known, at most `max_records` of them."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
         service = VirtualTableService(self.db)
@@ -3430,7 +3548,11 @@ class ArtifactService:
                     sort=binding.sort,
                     column_ids=list(binding.fields.values()),
                     shape=shape_for(source.columns, binding.fields),
-                    max_records=min(binding.limit, settings.ARTIFACT_DATA_MAX_RECORDS),
+                    max_records=(
+                        min(binding.limit, settings.ARTIFACT_DATA_MAX_RECORDS)
+                        if max_records is None
+                        else max_records
+                    ),
                     max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
                     deadline=deadline,
                 )

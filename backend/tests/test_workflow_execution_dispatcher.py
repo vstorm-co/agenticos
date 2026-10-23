@@ -145,6 +145,7 @@ def _run(**overrides: object) -> WorkflowRun:
         "status": WorkflowRunStatus.RUNNING.value,
         "triggered_by": "api",
         "public_origin": False,
+        "impersonated": False,
         "execution_principal_user_id": uuid.uuid4(),
         "budget_limit": None,
         "spent_cost": Decimal("0"),
@@ -994,12 +995,14 @@ class TestThePublicOrigin:
         run_input: dict | None = None,
         *,
         public_origin: bool = False,
+        impersonated: bool = False,
     ) -> context.DispatchContext:
         run, node = _test_mode_run(
             test_node,
             triggered_by=triggered_by.value,
             input=run_input or {},
             public_origin=public_origin,
+            impersonated=impersonated,
         )
         node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
         outbox = _outbox(node_run_id=node_run.id)
@@ -1095,6 +1098,18 @@ class TestThePublicOrigin:
         )
 
         assert dispatched.public_origin is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("stored", [True, False])
+    async def test_the_dispatch_says_whether_the_run_started_impersonating(
+        self, repo, event_log, test_node, stored
+    ):
+        """A worker has no request to ask: an agent step reads it off the run's own row."""
+        dispatched = await self._dispatched(
+            repo, test_node, WorkflowRunTrigger.API, impersonated=stored
+        )
+
+        assert dispatched.impersonated is stored
 
     async def test_the_dispatcher_reads_no_root_run(self, repo, event_log, test_node):
         """The flag is on the run's own row, so no dispatch, retry included, walks

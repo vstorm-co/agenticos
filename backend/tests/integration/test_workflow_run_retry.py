@@ -295,6 +295,25 @@ class TestRetryingAPublicRun:
         assert run is not None
         assert run.public_origin is True
 
+    @pytest.mark.security
+    async def test_a_retry_of_an_impersonated_run_stays_impersonated(
+        self, engine: AsyncEngine, kinds
+    ):
+        seeded, _nodes = await _failed_run(engine, kinds)
+        async with seeded.factory() as db:
+            await workflow_run_repo.update_run(
+                db, run=seeded.run, update_data={"impersonated": True}
+            )
+            await db.commit()
+
+        async with seeded.factory() as db:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            run = await workflow_run_repo.get_run(db, retried.id, organization_id=seeded.org.id)
+
+        assert run is not None
+        assert run.impersonated is True
+
     async def test_a_retry_of_a_member_run_is_not_public(self, engine: AsyncEngine, kinds):
         seeded, _nodes = await _failed_run(engine, kinds)
 

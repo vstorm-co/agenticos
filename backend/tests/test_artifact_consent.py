@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.audit import set_impersonator
+from app.core.audit import current_impersonator, set_impersonator
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.artifact import Artifact, ArtifactVersion, ConsentState
 from app.db.models.resource_grant import GrantLevel, Visibility
@@ -306,6 +306,7 @@ class TestTheConsentAVersionStartsWith:
         prior: ArtifactVersion | None = None,
         membership: uuid.UUID | None = MEMBERSHIP,
         grant: GrantLevel | None = None,
+        impersonated: bool = False,
     ) -> consent.VersionConsent:
         with (
             _owner_is(membership),
@@ -313,7 +314,11 @@ class TestTheConsentAVersionStartsWith:
             patch(f"{PATH}.resource_grant_repo.get_level", new=AsyncMock(return_value=grant)),
         ):
             return await consent.consent_for(
-                MagicMock(), artifact, fingerprint=fingerprint, person=person
+                MagicMock(),
+                artifact,
+                fingerprint=fingerprint,
+                person=person,
+                impersonated=impersonated,
             )
 
     async def test_an_unbound_version_needs_none_and_names_who_published_it(self) -> None:
@@ -352,6 +357,22 @@ class TestTheConsentAVersionStartsWith:
         finally:
             set_impersonator(None)
         assert decided.consent_state is ConsentState.PENDING
+
+    @pytest.mark.security
+    async def test_a_holder_s_changed_queries_wait_when_the_run_started_impersonating(
+        self,
+    ) -> None:
+        """The request that knew is gone when a spawned task, a worker or a resumed approval
+        publishes: the run carries it, and nothing ambient says otherwise."""
+        assert current_impersonator() is None
+        decided = await self._decide(
+            _artifact(),
+            fingerprint="e" * 64,
+            person=_ctx(),
+            grant=GrantLevel.EDIT_DATA,
+            impersonated=True,
+        )
+        assert (decided.consent_state, decided.consent_via_grant) == (ConsentState.PENDING, None)
 
     async def test_the_same_page_queries_as_a_consent_that_holds_are_consented(self) -> None:
         artifact = _artifact()
@@ -392,6 +413,28 @@ class TestTheConsentAVersionStartsWith:
         with patch(f"{PATH}.current_impersonator", return_value=uuid.uuid4()):
             decided = await self._decide(artifact, fingerprint="e" * 64, person=owner)
         assert decided.consent_state is ConsentState.PENDING
+
+    @pytest.mark.security
+    async def test_auto_consent_is_not_the_owner_s_run_that_started_impersonating(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner.user_id, auto_consent=True)
+        assert current_impersonator() is None
+        decided = await self._decide(
+            artifact, fingerprint="e" * 64, person=owner, impersonated=True
+        )
+        assert (decided.consent_state, decided.consent_automatic) == (ConsentState.PENDING, False)
+
+    @pytest.mark.security
+    async def test_queries_the_owner_already_confirmed_stay_consented_under_impersonation(
+        self,
+    ) -> None:
+        """Consent covers the queries, not the person who republished them (design I3)."""
+        artifact = _artifact()
+        prior = _version(artifact, state=ConsentState.CONSENTED)
+        decided = await self._decide(
+            artifact, fingerprint="f" * 64, person=_ctx(), prior=prior, impersonated=True
+        )
+        assert decided.consent_state is ConsentState.CONSENTED
 
     async def test_a_page_whose_owner_is_gone_waits(self) -> None:
         artifact = _artifact(auto_consent=True)
@@ -480,3 +523,27 @@ def test_the_consoles_english_wording_is_the_one_the_audit_records() -> None:
         messages["artifacts"]["consent"]["autoConsentConfirm"]
         == consent.AUTO_CONSENT_TEXTS[consent.AUTO_CONSENT_WORDING]
     )
+
+
+def test_the_consoles_english_edit_data_wording_is_the_one_the_audit_records() -> None:
+    messages = json.loads(
+        (Path(__file__).parents[2] / "frontend" / "messages" / "en.json").read_text("utf-8")
+    )["sharing"]
+    for key, wording in (
+        ("editDataConfirmPerson", consent.EDIT_DATA_PERSON_WORDING),
+        ("editDataConfirmGroup", consent.EDIT_DATA_GROUP_WORDING),
+    ):
+        assert messages[key] == consent.EDIT_DATA_TEXTS[wording]
+
+
+def test_retired_wording_ids_still_resolve_but_are_not_the_current_ones() -> None:
+    """An audit row that names `v1` must still be readable; only `v2` is offered."""
+    for old, current in (
+        ("auto_consent.v1", consent.AUTO_CONSENT_WORDING),
+        ("edit_data.person.v1", consent.EDIT_DATA_PERSON_WORDING),
+        ("edit_data.group.v1", consent.EDIT_DATA_GROUP_WORDING),
+    ):
+        texts = consent.AUTO_CONSENT_TEXTS if old.startswith("auto") else consent.EDIT_DATA_TEXTS
+        assert old in texts
+        assert old != current
+        assert texts[old] != texts[current]

@@ -1,5 +1,5 @@
 ---
-source_sha: "6dcc56fd4cc5"
+source_sha: "c75f98a351f1"
 ---
 
 # Artefactos { #artifacts }
@@ -166,8 +166,8 @@ Qué versión se sirve a un lector, y si se leen sus datos para él, depende de 
 A la audiencia nunca se le sirve una versión que nadie aceptó compartir. Cuando el
 consentimiento a los datos ya no se mantiene — un editor lo retiró, o cambió el
 propietario —, la audiencia sigue recibiendo esa **página completa**, y cada binding llega
-`unavailable` con el motivo `awaiting_consent`; la página dice «This page's data appears once
-its owner confirms sharing it.» Cuando ninguna versión tiene consentimiento ni está libre de
+`unavailable` con el motivo `awaiting_consent`; la página dice «The data appears once
+the page's owner confirms it.» Cuando ninguna versión tiene consentimiento ni está libre de
 datos, la audiencia ve «This page isn't available yet» y nada más.
 
 Un binding también es `unavailable` cuando lo que lee cambió desde que se publicó la página.
@@ -194,9 +194,9 @@ quién más los lee, por versión. Esa decisión es el **consentimiento**: el pr
 las page queries en palabras — la tabla, filtros, orden, límite y campos de cada query, cada
 tabla vinculada que alcanza y quién la leerá — y confirma.
 
-La revisión nombra quién lee la página, ahora y más adelante: los roles que abren todas las
-páginas (Owner, Admin, Builder y Operator), la visibilidad de la página, las personas con las
-que se comparte y los grupos, incluido quien se una a ellos. El propietario solo puede
+La revisión nombra quién verá la página: los roles que ven todas las páginas (Owner, Admin,
+Builder y Operator), la visibilidad de la página, las personas con las que se comparte y los
+grupos, incluidos los futuros miembros. El propietario solo puede
 confirmar lo que él mismo lee.
 
 Los datos de una versión están en uno de estos estados:
@@ -254,26 +254,32 @@ rechaza cuando el propietario de la página no puede leer una tabla que alcanza 
 
 #### Consentimiento automático { #auto-consent }
 
-El propietario puede activar **Don't ask for consent on republish** para una página. Está
+El propietario puede activar **Share new versions automatically** para una página. Está
 desactivado por defecto y solo el propietario, como él mismo, lo activa, nunca un agent.
-Primero pregunta: «Any change your runs make to this page's data, new columns and tables
-included, reaches everyone who can open it without asking you - API runs too.» La entrada de
+Primero pregunta: «Any data change your runs make to this page, including new tables and
+columns, reaches everyone who can open it without asking you. This includes API runs.» La entrada de
 auditoría registra el texto confirmado.
 
 Cubre solo las republicaciones del propio propietario. La republicación de un editor sigue
 esperando. Los consentimientos automáticos se registran como automáticos, y cuando uno alcanza
-más que la versión servida antes, la franja del propietario lo lista: «v4 was consented
-automatically and reads more: +Deals, +Salary». El propietario, o un Owner o Admin, lo
+más que la versión servida antes, la franja del propietario lo lista: «v4 was shared
+automatically and shows more data: +Deals, +Salary». El propietario, o un Owner o Admin, lo
 desactiva, y retirar la página o entregarla a otra persona también lo desactiva.
+
+Nunca cubre un run que empezó mientras un administrador suplantaba al propietario, por
+tarde que publique: un run en segundo plano, un paso de workflow o un run reanudado tras
+una aprobación lo lleva consigo, y lo mismo vale para el grant de editor de datos
+(abajo). Republicar las queries que el propietario ya confirmó sigue contando como
+consentido.
 
 #### Editores de datos { #data-editors }
 
-El diálogo de compartir tiene un nivel de grant por encima de `edit`: **Can edit, data
-included** (`edit_data`), solo para páginas. Es un consentimiento permanente a las
+El diálogo de compartir tiene un nivel de grant por encima de `edit`: **Can edit, including
+data** (`edit_data`), solo para páginas. Es un consentimiento permanente a las
 republicaciones de esa persona, incluido un cambio de query. Solo el propietario, o un Owner o
-Admin, como ellos mismos, lo concede, tras una ventana: «Alex can change what data this page
-shows to everyone who can open it, including new tables and columns, without asking you; that
-includes their API runs.» Para un grupo, la ventana dice «Everyone in Sales, now and later».
+Admin, como ellos mismos, lo concede, tras una ventana: «Alex can change the data everyone sees
+on this page, including new tables and columns, without asking you. This also covers their API
+runs.» Para un grupo, la ventana dice «Anyone in Sales, now or later, can change ...».
 El grant se audita con el texto confirmado.
 
 Una republicación de alguien con `edit_data` se consiente automáticamente, registrada como
@@ -322,15 +328,19 @@ plataforma presenta una solicitud. Hay tres tipos:
 
 Un miembro puede tener una solicitud `audience` y una `access` pendientes por página, y una
 página tiene una solicitud `version` pendiente; una más reciente sustituye a la anterior. Las
-solicitudes `audience` y `access` están limitadas, por defecto, a diez por hora por persona y
-organización ([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); las
-solicitudes `version` no cuentan. Decide el propietario de la página. Cuando ya no tiene
+solicitudes están limitadas, por defecto, a diez por hora por persona y
+organización ([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)). Una
+solicitud `version` también cuenta contra el cupo de quien publica: superado, una
+republicación sigue sustituyendo a la solicitud pendiente, pero no se vuelve a notificar al
+propietario.
+
+Decide el propietario de la página. Cuando ya no tiene
 propietario, los Owners y Admins pueden rechazar; para aprobar, primero entregan la página a un
 miembro (**Change owner**), que confirma los datos. Una solicitud queda anulada sin decisión
 cuando cambian las queries de la página, cambia el propietario o se archiva la página.
 
 Se notifica al propietario en la consola y por correo, según lo configurado en **Settings →
-Notifications** («Page sharing requests»). La notificación nombra la página y al solicitante,
+Notifications** («Page requests»). La notificación nombra la página y al solicitante,
 nunca sus datos.
 
 Se responden en una sección **Requests** del diálogo de compartir, y un botón **Requests** en la
@@ -339,6 +349,16 @@ visibilidad y los grants que pedía, cada uno solo donde aún amplía. **Nunca c
 datos**: cuando la versión que se sirve a la audiencia no tiene un consentimiento vigente,
 aprobar se rechaza con «Confirm the page's data before sharing it», y el propietario confirma
 primero los datos y luego aprueba. Rechazar no comparte nada.
+
+Una solicitud `audience` o `access` hecha bajo una
+membresía que ya terminó (se quitó al miembro y se le volvió a invitar) no se puede aprobar;
+recházala.
+
+La lista de solicitudes (`GET /api/v1/artifacts/{id}/share-requests`) contiene siempre todas las
+pendientes. Con `include_decided=true` añade las decididas y las anuladas, que se conservan, de
+la más reciente a la más antigua y por páginas con `skip` y `limit` (50 por defecto, 100 como
+máximo); `total` cuenta todas, y el diálogo Share avisa cuando solo muestra las decididas más
+recientes.
 
 Al solicitante no se le avisa de la decisión: que la página se abra o no es la respuesta. Una
 página que no lee datos admite una solicitud `access` simple, que puede aprobar cualquier
@@ -354,13 +374,13 @@ el not-found habitual.
 #### Revisar una versión cambiada { #reviewing-a-changed-version }
 
 Una solicitud `version` abre la página para el propietario en la versión pendiente, con sus
-datos reales. La franja dice quién cambió lo que lee la versión, con **Review data change**. El
+datos reales. La franja dice quién cambió los datos que muestra la versión, con **Review data change**. El
 panel compara las page queries de la versión con la que ve ahora la audiencia, binding por
 binding y en palabras: campos, filtros, orden, límite y tablas vinculadas añadidos, quitados o
-cambiados, cada uno marcado **Reads more**, **Reads less** o sin cambio, los bindings nuevos
+cambiados, cada uno marcado **Shows more**, **Shows less** o sin cambio, los bindings nuevos
 con su divulgación completa y los que no cambian plegados.
 
-Un interruptor, **Audience sees now**, muestra la página tal como la tiene la audiencia. El
+Un interruptor, **What others see**, muestra la página tal como la tiene la audiencia. El
 panel nombra quién publicó la versión y cuándo, y enlaza a la conversación cuando el propietario
 puede abrirla. **Approve** confirma la versión. **Decline** mantiene a la audiencia en la
 versión anterior y marca la versión `declined` en su historial; una republicación posterior
@@ -447,7 +467,8 @@ Toda respuesta está acotada, así que una sola página no puede tumbar el despl
 | Una consulta | como máximo 2 s |
 | Una página | plazo de 5 s |
 | Cargas de datos | 30 por minuto por lector, una en curso por lector y un tope por proceso |
-| Solicitudes de compartir | 10 por hora por persona y organización (audience y access) |
+| Lecturas solo de los motivos (`rows=false`, la franja del editor) | Los mismos límites, contados aparte de las cargas de datos |
+| Solicitudes de compartir | 10 por hora por persona y organización (audience, access y version) |
 
 Un binding cortado dice `truncated: true`, con `limit` a `records` o `bytes` y
 `count` como el número de registros servidos. `bytes` cubre también una lectura
@@ -523,7 +544,7 @@ abre la página y de nuevo cuando se inicia un run.
 Cuando la consola abre una página, lista las acciones que declara la **versión servida** y que
 este lector puede ejecutar ahora: cada una con el nombre real del workflow, la label de la página
 y los campos que pide su trigger. Una que el lector no puede ejecutar se omite. La franja del
-visor muestra **This app can run: ...**, con los nombres de los workflows, cada uno un enlace a los
+visor muestra **This page can run: ...**, con los nombres de los workflows, cada uno un enlace a los
 runs de ese workflow. Sin ninguna, no se muestra nada.
 
 Una página no recibe acciones, y su llamada `run` se rechaza de inmediato, cuando se muestra:
@@ -777,10 +798,15 @@ página más larga dice cuánto mide. Si sigue ejecutándose a los 15 segundos, 
 notifica así, sin imagen.
 
 Los datos se leen como la persona por la que actúa el run, exactamente como la
-consola los leería para ella. En un chat de grupo solo se puede previsualizar una
-página de toda la organización, las mismas páginas que la lista muestra allí, y
-se dibuja sin datos. Una superficie sin nadie con sesión iniciada no previsualiza
-nada. Nada de lo que pide la página llega a la red: la API responde a cada
+consola los leería para ella, y cuentan contra su cupo de lecturas de datos. En un chat
+de grupo solo se puede previsualizar una página de toda la organización, las mismas
+páginas que la lista muestra allí, y se dibuja sin datos. También se dibuja sin datos
+la página que previsualiza un run del que nadie responde: uno que un tercero inició por
+un webhook, un formulario, un mensaje de canal, un correo o un evento de repositorio,
+sea cual sea la identidad con la que se ejecute. Una superficie sin nadie con sesión
+iniciada no previsualiza nada.
+
+Nada de lo que pide la página llega a la red: la API responde a cada
 petición con la página, el [conjunto de bibliotecas](#the-library-set) o un
 rechazo.
 
@@ -816,7 +842,7 @@ En **Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras
 
 | Alcance | Cómo | Quién |
 |---|---|---|
-| Personas concretas | Un grant, con `read`, `edit` o, para una página, `edit_data` («Can edit, data included») | Esos miembros, en esta organización |
+| Personas concretas | Un grant, con `read`, `edit` o, para una página, `edit_data` («Can edit, including data») | Esos miembros, en esta organización |
 | La organización | Visibilidad fijada a toda la organización | Todo miembro cuyo rol alcance los artefactos compartidos |
 | Cualquiera con el enlace | **Create a public link** | Cualquiera que tenga la dirección, sin cuenta |
 
@@ -1081,7 +1107,8 @@ no existiera:
   se le dice que no está disponible. Quien puede editarla ve cuándo se archivó,
   con **Restore** y **Delete**.
 - **Las listas.** La lista Artifacts y el widget del dashboard la omiten. Elige
-  **Archived included** en la lista para verla, marcada como **Archived**.
+  **Archived included** en la lista para verla, marcada como **Archived**. Solo la ven
+  quienes pueden editarla.
 - **El enlace público y el embed.** Ninguno de los dos abre nada.
 - **El agent.** `publish_artifact` rechaza el nombre con un mensaje que menciona
   el archivado, así que un run no puede crear una segunda página con él.
@@ -1100,8 +1127,8 @@ Por la API, `POST /api/v1/artifacts/{id}/archive` archiva una página, y
 archivarla de nuevo no cambia nada. `POST /api/v1/artifacts/{id}/unarchive` la
 restaura, y responde `400` para una página que no está archivada. Ambas piden el
 derecho a editar esa página, grant incluido. `GET /api/v1/artifacts` enumera las
-páginas archivadas solo con `include_archived=true`, y `archived_at` en cada
-página dice cuándo se archivó.
+páginas archivadas, a quienes pueden editarlas, solo con `include_archived=true`, y
+`archived_at` en cada página dice cuándo se archivó.
 
 ## Retención y borrado { #retention-and-deletion }
 

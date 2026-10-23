@@ -313,8 +313,8 @@ class TableOperations(Operations):
         except AlreadyExistsError:
             # An archived table cannot be renamed, so the name to change is the live one's.
             raise AlreadyExistsError(
-                message=f"A table named '{table.name}' already exists. It must be renamed, "
-                "by you or whoever owns it, before this one can be restored.",
+                message=f"A table named '{table.name}' already exists. Rename it "
+                "before restoring this one.",
                 details={"name": table.name},
             ) from None
         table = await virtual_table_repo.update_table(

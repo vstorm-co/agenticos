@@ -113,6 +113,11 @@ function agenticosDataBridge(window, document, config) {
     if (!runnable) {
       return Promise.reject(new Error("unavailable"));
     }
+    // Before this document has loaded the console cannot tell it from the one the
+    // frame showed before it, whose request it may still be answering.
+    if (document.readyState !== "complete") {
+      return Promise.reject(new Error("not_ready"));
+    }
     if (typeof action !== "string" || action === "") {
       return Promise.reject(new Error("unknown_action"));
     }

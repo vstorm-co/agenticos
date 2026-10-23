@@ -633,6 +633,11 @@ class TestListing:
         assert current[second.artifact_id].number == 1
         assert await artifact_repo.latest_versions(db, []) == {}
 
+    async def test_the_served_version_of_none_is_nothing_and_no_query(
+        self, db: AsyncSession
+    ) -> None:
+        assert await artifact_repo.latest_served_versions(db, []) == {}
+
 
 class TestRetention:
     async def test_an_artifact_nobody_republished_leaves_with_its_versions_bytes_and_grants(

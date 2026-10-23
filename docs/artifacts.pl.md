@@ -1,5 +1,5 @@
 ---
-source_sha: "6dcc56fd4cc5"
+source_sha: "c75f98a351f1"
 ---
 
 # Artefakty { #artifacts }
@@ -165,8 +165,8 @@ tego, kim jest.
 Odbiorcy nigdy nie dostają wersji, na której udostępnienie nikt się nie zgodził. Gdy
 zgoda na dane już nie obowiązuje — edytor ją wycofał albo zmienił się właściciel —
 odbiorcy nadal dostają **całą stronę**, a każdy binding przychodzi jako `unavailable`
-z powodem `awaiting_consent`; strona mówi „This page's data appears once its owner
-confirms sharing it." Gdy żadna wersja w ogóle nie ma zgody ani nie jest wolna od
+z powodem `awaiting_consent`; strona mówi „The data appears once the page's owner
+confirms it." Gdy żadna wersja w ogóle nie ma zgody ani nie jest wolna od
 danych, odbiorcy widzą „This page isn't available yet" i nic więcej.
 
 Binding jest też `unavailable`, gdy to, co czyta, zmieniło się od opublikowania
@@ -194,9 +194,9 @@ jeszcze je czyta, per wersja. Ta decyzja to **zgoda**: właściciel przegląda s
 zapytania strony — tabelę, filtry, kolejność, limit i pola każdego zapytania, każdą
 powiązaną tabelę, do której sięgają, i to, kto będzie je czytał — i potwierdza.
 
-Przegląd nazywa, kto czyta stronę, teraz i później: role, które otwierają każdą
-stronę (Owner, Admin, Builder i Operator), widoczność strony, osoby, którym jest
-udostępniona, i grupy, razem z każdym, kto do nich dołączy. Właściciel może
+Przegląd nazywa, kto zobaczy stronę: role, które widzą każdą stronę (Owner, Admin,
+Builder i Operator), widoczność strony, osoby, którym jest udostępniona, i grupy,
+razem z przyszłymi członkami. Właściciel może
 potwierdzić tylko to, co sam przeczytał.
 
 Dane wersji są w jednym z tych stanów:
@@ -256,26 +256,32 @@ strony nie może czytać tabeli, do której sięga zapytanie.
 
 #### Auto-zgoda { #auto-consent }
 
-Właściciel może włączyć dla strony **Don't ask for consent on republish**. Domyślnie
+Właściciel może włączyć dla strony **Share new versions automatically**. Domyślnie
 jest wyłączone i tylko właściciel, jako on sam, może to włączyć, nigdy agent. Najpierw
-pyta: „Any change your runs make to this page's data, new columns and tables
-included, reaches everyone who can open it without asking you - API runs too." Wpis
+pyta: „Any data change your runs make to this page, including new tables and
+columns, reaches everyone who can open it without asking you. This includes API runs." Wpis
 audytu zapisuje potwierdzony tekst.
 
 Obejmuje tylko własne republikacje właściciela. Republikacja edytora nadal czeka.
 Auto-zgody są zapisywane jako automatyczne, a gdy któraś sięga dalej niż wersja
-serwowana przed nią, pasek właściciela ją wymienia: „v4 was consented automatically
-and reads more: +Deals, +Salary". Właściciel albo Owner lub Admin może ją wyłączyć,
+serwowana przed nią, pasek właściciela ją wymienia: „v4 was shared automatically
+and shows more data: +Deals, +Salary". Właściciel albo Owner lub Admin może ją wyłączyć,
 a wyłącza ją także wycofanie albo przekazanie strony komuś innemu.
+
+Nigdy nie obejmuje runu, który zaczął się, gdy administrator podszywał się pod
+właściciela, choćby publikował bardzo późno: run w tle, krok workflow albo run
+wznowiony po zatwierdzeniu niesie to ze sobą, i to samo dotyczy grantu edytora
+danych (niżej). Ponowna publikacja zapytań, które właściciel już potwierdził, nadal
+jest objęta zgodą.
 
 #### Edytorzy danych { #data-editors }
 
-Okno udostępniania ma poziom grantu ponad `edit`: **Can edit, data included**
+Okno udostępniania ma poziom grantu ponad `edit`: **Can edit, including data**
 (`edit_data`), tylko dla stron. To stała zgoda na republikacje tej osoby, łącznie ze
 zmianą zapytania. Tylko właściciel, albo Owner lub Admin, jako oni sami, go nadaje,
-po oknie: „Alex can change what data this page shows to everyone who can open it,
-including new tables and columns, without asking you; that includes their API
-runs." Dla grupy okno mówi „Everyone in Sales, now and later". Grant jest
+po oknie: „Alex can change the data everyone sees on this page, including new tables
+and columns, without asking you. This also covers their API runs." Dla grupy okno
+mówi „Anyone in Sales, now or later, can change ...". Grant jest
 audytowany z potwierdzonym tekstem.
 
 Republikacja osoby z `edit_data` dostaje zgodę automatycznie, zapisaną jako
@@ -324,16 +330,19 @@ Platforma składa prośbę. Są trzy rodzaje:
 
 Członek może mieć jedną oczekującą prośbę `audience` i jedną `access` na stronę,
 a strona ma jedną oczekującą prośbę `version`; nowsza zastępuje starszą. Prośby
-`audience` i `access` są domyślnie ograniczone do dziesięciu na godzinę na osobę
+są domyślnie ograniczone do dziesięciu na godzinę na osobę
 na organizację
-([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)); próśb `version`
-się nie liczy. Decyduje właściciel strony. Gdy nie ma już właściciela, Ownerzy i Admini
+([`RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR`](configuration.md)). Prośba `version`
+wlicza się też do limitu publikującego: po jego przekroczeniu ponowna publikacja nadal
+zastępuje oczekującą prośbę, ale właściciel nie dostaje kolejnego powiadomienia.
+
+Decyduje właściciel strony. Gdy nie ma już właściciela, Ownerzy i Admini
 mogą odrzucać; żeby zatwierdzić, najpierw przekazują stronę członkowi (**Change
 owner**), który potwierdza dane. Prośba staje się nieważna bez decyzji, gdy zapytania
 strony się zmienią, zmieni się właściciel albo strona zostanie zarchiwizowana.
 
 Właściciel dostaje powiadomienie w konsoli i e-mailem, zgodnie z ustawieniem w
-**Settings → Notifications** („Page sharing requests"). Powiadomienie nazywa stronę
+**Settings → Notifications** („Page requests"). Powiadomienie nazywa stronę
 i proszącego, nigdy jej danych.
 
 Odpowiada się na nie w sekcji **Requests** okna Share, a przycisk **Requests** na
@@ -343,6 +352,15 @@ stosuje widoczność i granty, o które prosiła, każde tylko tam, gdzie nadal 
 zgody, zatwierdzenie jest odrzucane z „Confirm the page's data before sharing it",
 a właściciel najpierw potwierdza dane, potem zatwierdza. Odrzucenie niczego nie
 udostępnia.
+
+Prośby `audience` albo `access` złożonej w ramach członkostwa, które już się skończyło (członka
+usunięto i zaproszono ponownie), nie można zatwierdzić; należy ją odrzucić.
+
+Lista próśb (`GET /api/v1/artifacts/{id}/share-requests`) zawsze zawiera wszystkie
+oczekujące prośby. Z `include_decided=true` dodaje rozpatrzone i nieważne, które są
+przechowywane, od najnowszych i stronami z parametrami `skip` i `limit` (domyślnie 50,
+najwyżej 100); `total` liczy wszystkie, a okno Share informuje, gdy pokazuje tylko
+najnowsze rozpatrzone.
 
 Proszący nie jest informowany o decyzji: odpowiedzią jest to, że strona się otwiera
 albo nie. Strona, która nie czyta danych, przyjmuje zwykłą prośbę `access`, którą
@@ -358,13 +376,13 @@ ktoś z innej organizacji dostaje zwykłe „nie znaleziono".
 #### Przegląd zmienionej wersji { #reviewing-a-changed-version }
 
 Prośba `version` otwiera właścicielowi stronę na oczekującej wersji, z jej prawdziwymi
-danymi. Pasek mówi, kto zmienił to, co wersja czyta, z przyciskiem **Review data
+danymi. Pasek mówi, kto zmienił dane, które pokazuje wersja, z przyciskiem **Review data
 change**. Panel porównuje zapytania strony wersji z tym, które odbiorcy widzą teraz,
 binding po bindingu i słowami: dodane, usunięte albo zmienione pola, filtry, kolejność,
-limit i powiązane tabele, każde oznaczone **Reads more**, **Reads less** albo bez
+limit i powiązane tabele, każde oznaczone **Shows more**, **Shows less** albo bez
 zmiany, nowe bindingi z pełnym ujawnieniem, a niezmienione zwinięte.
 
-Przełącznik **Audience sees now** pokazuje stronę taką, jaką mają odbiorcy. Panel
+Przełącznik **What others see** pokazuje stronę taką, jaką mają odbiorcy. Panel
 nazywa, kto opublikował wersję i kiedy, i linkuje do rozmowy, gdy właściciel może ją
 otworzyć. **Approve** potwierdza wersję. **Decline** zostawia odbiorców przy wcześniejszej
 wersji i oznacza wersję jako `declined` w jej historii; kolejna republikacja pyta
@@ -454,7 +472,8 @@ Każda odpowiedź jest ograniczona, więc jedna strona nie położy wdrożenia:
 | Jedno zapytanie | najwyżej 2 s |
 | Jedna strona | termin 5 s |
 | Ładowania danych | 30 na minutę na oglądającego, jedno w toku na oglądającego i limit na proces |
-| Prośby o udostępnienie | 10 na godzinę na osobę na organizację (audience i access) |
+| Odczyty samych powodów (`rows=false`, pasek edytora) | Te same limity, liczone osobno od ładowań danych |
+| Prośby o udostępnienie | 10 na godzinę na osobę na organizację (audience, access i version) |
 
 Ucięty binding mówi `truncated: true`, z `limit` ustawionym na `records` albo
 `bytes` i `count` równym liczbie podanych rekordów. `bytes` obejmuje też odczyt,
@@ -531,7 +550,7 @@ i jeszcze raz, gdy startuje run.
 Gdy konsola otwiera stronę, wymienia akcje, które **podana wersja** deklaruje i które ten
 oglądający może teraz uruchomić: każdą z prawdziwą nazwą workflowu, labelem strony
 i polami, o które prosi jego trigger. Akcja, której oglądający uruchomić nie może, jest
-pominięta. Pasek oglądającego pokazuje **This app can run: ...** z nazwami workflowów,
+pominięta. Pasek oglądającego pokazuje **This page can run: ...** z nazwami workflowów,
 każda jest linkiem do runów tego workflowu. Bez akcji nic się nie pokazuje.
 
 Strona nie dostaje akcji, a jej wywołanie `run` jest od razu odrzucane, gdy jest
@@ -778,9 +797,14 @@ Obraz ma najwyżej 2400 pikseli wysokości; dłuższa strona mówi, jak jest wys
 Strona, która po 15 sekundach nadal działa, jest tak zgłaszana, bez obrazu.
 
 Dane są czytane jako osoba, dla której działa run, dokładnie tak, jak konsola
-czytałaby je dla niej. W czacie grupowym da się podejrzeć tylko stronę całej
-organizacji, te same strony, które pokazuje tam lista, i jest ona rysowana bez
-danych. Powierzchnia, na której nikt nie jest zalogowany, nie podgląda niczego.
+czytałaby je dla niej, i wliczają się do jej limitu odczytów danych. W czacie
+grupowym da się podejrzeć tylko stronę całej organizacji, te same strony, które
+pokazuje tam lista, i jest ona rysowana bez danych. Tak samo rysowana jest strona
+podglądana przez run, za który nikt nie odpowiada: uruchomiony przez osobę z zewnątrz
+przez webhook, formularz, wiadomość w kanale, e-mail albo zdarzenie repozytorium, bez
+względu na to, jako kto się wykonuje. Powierzchnia, na której nikt nie jest zalogowany,
+nie podgląda niczego.
+
 Nic, o co prosi strona, nie trafia do sieci: API odpowiada na każde żądanie
 stroną, [zestawem bibliotek](#the-library-set) albo odmową.
 
@@ -815,7 +839,7 @@ na trzy sposoby:
 
 | Zasięg | Jak | Kto |
 |---|---|---|
-| Konkretne osoby | Grant, na poziomie `read`, `edit` albo, dla strony, `edit_data` („Can edit, data included”) | Ci członkowie, w tej organizacji |
+| Konkretne osoby | Grant, na poziomie `read`, `edit` albo, dla strony, `edit_data` („Can edit, including data”) | Ci członkowie, w tej organizacji |
 | Organizacja | Widoczność ustawiona na całą organizację | Każdy członek, którego rola sięga do udostępnionych artefaktów |
 | Każdy, kto ma link | **Create a public link** | Każdy, kto zna adres, bez konta |
 
@@ -1077,7 +1101,8 @@ tak, jakby jej nie było:
   się, że nie jest dostępna. Ktoś, kto może ją edytować, widzi, kiedy ją
   zarchiwizowano, razem z **Restore** i **Delete**.
 - **Listy.** Lista Artifacts i widget na dashboardzie ją pomijają. Wybierz na
-  liście **Archived included**, żeby ją zobaczyć, oznaczoną jako **Archived**.
+  liście **Archived included**, żeby ją zobaczyć, oznaczoną jako **Archived**. Widzą
+  ją tam tylko ci, którzy mogą ją edytować.
 - **Publiczny link i embed.** Oba nie otwierają niczego.
 - **Agent.** `publish_artifact` odrzuca nazwę komunikatem wskazującym archiwum,
   więc run nie może założyć pod nią drugiej strony. `read_artifact`,
@@ -1094,8 +1119,9 @@ Przez API `POST /api/v1/artifacts/{id}/archive` archiwizuje stronę, a ponowna
 archiwizacja niczego nie zmienia. `POST /api/v1/artifacts/{id}/unarchive` ją
 przywraca i odpowiada `400` dla strony, która nie jest zarchiwizowana. Oba
 wymagają prawa do edycji tej strony, także z grantu. `GET /api/v1/artifacts`
-wymienia zarchiwizowane strony tylko z `include_archived=true`, a `archived_at`
-na każdej stronie mówi, kiedy ją zarchiwizowano.
+wymienia zarchiwizowane strony, tym, którzy mogą je edytować, tylko z
+`include_archived=true`, a `archived_at` na każdej stronie mówi, kiedy ją
+zarchiwizowano.
 
 ## Retencja i usuwanie { #retention-and-deletion }
 

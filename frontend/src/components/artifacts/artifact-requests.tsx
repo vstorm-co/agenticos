@@ -119,7 +119,7 @@ function RequestRow({
 export function ArtifactRequests({ artifact, onReview, onConsentRequired }: ArtifactRequestsProps) {
   const t = useTranslations("artifacts.requests");
   const [includeDecided, setIncludeDecided] = useState(false);
-  const { requests, isLoading } = useArtifactRequests(artifact.id, includeDecided, true);
+  const { requests, total, isLoading } = useArtifactRequests(artifact.id, includeDecided, true);
   const { approve, decline } = useArtifactRequestActions(artifact.id);
   const decider = artifact.can_edit || artifact.may_change_owner;
 
@@ -166,6 +166,14 @@ export function ArtifactRequests({ artifact, onReview, onConsentRequired }: Arti
           />
         ))}
       </ul>
+      {total > requests.length && (
+        <p className="text-muted-foreground text-xs">
+          {t("newestOnly", {
+            shown: requests.filter((request) => request.status !== "pending").length,
+            total: total - requests.filter((request) => request.status === "pending").length,
+          })}
+        </p>
+      )}
     </section>
   );
 }

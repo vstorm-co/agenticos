@@ -13,7 +13,7 @@ export type Visibility = "private" | "team" | "org";
 /**
  * What a grant lets its subject do. Ordered read < use < edit < edit_data.
  *
- * `edit_data` is a page's level only ("Can edit, data included"): an edit whose
+ * `edit_data` is a page's level only ("Can edit, including data"): an edit whose
  * republishes the page's owner has consented to in advance.
  */
 export type GrantLevel = "read" | "use" | "edit" | "edit_data";

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c480bdaf58a"
+source_sha: "46287bc10a94"
 ---
 
 # Workflows { #workflows }
@@ -785,7 +785,7 @@ budżet i jego strona runów, sprawdzane, rozliczane i audytowane jak run urucho
 przez **Start a run**, z tą samą kwotą przyjęć. Run bez członka za sobą albo z sesji
 impersonowanej niczego nie uruchamia.
 
-Strona runów podaje, że taki run uruchomiła **An app**, a filtr **Started by** pozwala
+Strona runów podaje, że taki run uruchomiła **A page**, a filtr **Started by** pozwala
 po tym filtrować; w API jego `triggered_by` to `app`. Run zapisuje też stronę i wersję,
 na którą członek patrzył, a ponowienie je zachowuje. Strona odczytuje tylko status runa,
 jego odpowiedź i pierwszy wiersz błędu.

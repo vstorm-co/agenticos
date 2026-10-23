@@ -288,7 +288,7 @@ describe("useSharing for a page whose data needs its owner's say", () => {
     await result.current.setVisibility.mutateAsync("org");
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Request sent. Nobody is left to decide it yet."),
+      expect(toast.success).toHaveBeenCalledWith("Request sent. Nobody can approve it yet."),
     );
     expect(toast.success).not.toHaveBeenCalledWith("Visibility updated");
   });

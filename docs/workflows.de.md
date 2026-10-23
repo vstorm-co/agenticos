@@ -1,5 +1,5 @@
 ---
-source_sha: "9c480bdaf58a"
+source_sha: "46287bc10a94"
 ---
 
 # Workflows { #workflows }
@@ -858,7 +858,7 @@ sein Zugriff, sein Budget und seine Run-Seite, geprüft, abgerechnet und auditie
 Run, der mit **Start a run** gestartet wurde, und derselben Admission-Quote unterworfen.
 Ein Run ohne Mitglied dahinter oder aus einer Session, die imitiert wird, startet keinen.
 
-Die Run-Seite nennt einen solchen Run gestartet von **An app**, und **Started by** filtert
+Die Run-Seite nennt einen solchen Run gestartet von **A page**, und **Started by** filtert
 danach; über die API ist sein `triggered_by` `app`. Der Run hält auch die Seite und die
 Version fest, die das Mitglied ansah, und ein Retry behält sie. Die Seite liest nur den
 Status des Runs, seine Antwort und die erste Zeile eines Fehlers zurück.

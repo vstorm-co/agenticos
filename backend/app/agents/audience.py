@@ -50,8 +50,10 @@ if TYPE_CHECKING:
 __all__ = [
     "RunAudience",
     "acting_for_no_person",
+    "acting_impersonated",
     "derive_audience",
     "for_no_person",
+    "run_impersonated",
     "run_person_for",
 ]
 
@@ -180,6 +182,29 @@ def acting_for_no_person(flag: bool) -> Iterator[None]:
         yield
     finally:
         _for_no_person.reset(token)
+
+
+_impersonated: ContextVar[bool] = ContextVar("run_impersonated", default=False)
+
+
+@contextmanager
+def acting_impersonated(flag: bool) -> Iterator[None]:
+    """Say, for the block's duration, whether the run executing started under impersonation.
+
+    Opened beside :func:`acting_for_no_person`, for the same reason: a record a tool
+    writes starts the table triggers' runs, which inherit it, and that code is not
+    handed the deps.
+    """
+    token = _impersonated.set(flag)
+    try:
+        yield
+    finally:
+        _impersonated.reset(token)
+
+
+def run_impersonated() -> bool:
+    """Whether the run executing now started under impersonation; False outside any run."""
+    return _impersonated.get()
 
 
 def for_no_person() -> bool:

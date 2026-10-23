@@ -296,6 +296,7 @@ class TestWhatTheViewerIsOffered:
         assert [a.name for a in shown.actions] == ["Kept"]
         assert "Hidden" not in shown.model_dump_json()
 
+    @pytest.mark.security
     async def test_a_viewer_without_the_run_permission_is_offered_nothing(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:

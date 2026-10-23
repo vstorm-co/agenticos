@@ -588,7 +588,9 @@ class TestRestoring:
             await ArtifactService(db).restore_version(
                 world.olga, first.artifact_id, first.version_id
             )
-        assert "can no longer be restored with its actions" in refused.value.message
+        assert refused.value.message == (
+            "This version runs workflows, but the page's agent is gone, so it can't be restored."
+        )
 
     async def test_a_restore_with_an_agent_that_has_no_published_spec_is_refused(
         self, db: AsyncSession, storage: LocalFileStorage

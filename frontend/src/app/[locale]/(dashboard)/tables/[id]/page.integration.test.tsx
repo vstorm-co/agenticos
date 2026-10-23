@@ -1195,8 +1195,8 @@ describe("the table detail page", () => {
     it("says what archiving does, archives on confirm and then shows the table archived", async () => {
       serve();
       const { user, dialog } = await openArchiveDialog();
-      expect(dialog).toHaveTextContent(/records stay readable, but nothing can change them/);
-      expect(dialog).toHaveTextContent(/can be restored from this page/);
+      expect(dialog).toHaveTextContent(/records stay readable, but nobody can change them/);
+      expect(dialog).toHaveTextContent(/You can restore it from this page/);
       expect(apiClient.post).not.toHaveBeenCalledWith("/tables/t1/archive");
       // What the table reads as once the archive has landed.
       serve({ tableFixture: table({ ...ARCHIVED, can_restore: true }) });

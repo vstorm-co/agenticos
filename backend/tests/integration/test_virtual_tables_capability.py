@@ -578,6 +578,15 @@ async def test_list_views_on_an_ungranted_table_is_refused_before_anything_is_re
     assert "no access to table" in answer and "Mine" not in answer
 
 
+async def test_list_views_on_a_table_that_does_not_exist_is_refused_in_words(world: _World):
+    missing = uuid.uuid4()
+    call, _cap, _ts = _tools({missing: ALL})
+
+    answer = await call("list_views", _ctx(_person_deps(world)), table_id=missing)
+
+    assert answer.startswith("Refused (NOT_FOUND)")
+
+
 @pytest.mark.security
 async def test_a_widget_run_cannot_list_views(world: _World):
     call, _cap, _ts = _tools({world.orders.id: ALL})

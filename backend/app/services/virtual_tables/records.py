@@ -28,7 +28,8 @@ from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.audience import for_no_person
+from app.agents.audience import for_no_person, run_impersonated
+from app.core.audit import current_impersonator
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -217,13 +218,18 @@ def _changed_cells(
 def _causation() -> dict[str, str | bool]:
     """The workflow run whose step is writing, when one is - the chain a table
     trigger's run joins, so a trigger that would start itself again is refused -
-    and whether the run writing has no person, which the run it starts inherits."""
+    and whether the run writing has no person or started under impersonation, which the run it
+    starts inherits."""
     dispatching = workflow_context.active()
     causation: dict[str, str | bool] = (
         {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
     )
     if for_no_person():
         causation["public_origin"] = True
+    # An administrator's own write, or one by a run started under impersonation: the
+    # run a trigger starts for it is impersonated too.
+    if run_impersonated() or current_impersonator() is not None:
+        causation["impersonated"] = True
     return causation
 
 

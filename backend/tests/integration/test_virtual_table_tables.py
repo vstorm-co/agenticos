@@ -729,7 +729,7 @@ async def test_a_table_whose_name_was_taken_while_archived_is_restored_only_afte
 
     with pytest.raises(AlreadyExistsError) as raised:
         await service.unarchive_table(ctx, first.id)
-    assert "must be renamed" in raised.value.message
+    assert "Rename it before restoring" in raised.value.message
     assert raised.value.details == {"name": "Orders"}
 
     await service.update_table(ctx, second.id, TableUpdate(name="Orders 2026"))

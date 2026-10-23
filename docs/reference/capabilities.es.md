@@ -1,5 +1,5 @@
 ---
-source_sha: "b32952995eb7"
+source_sha: "bffe0a4074b5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1078,7 +1078,8 @@ identificada.
 ancho y como máximo 2400 de alto, en un navegador que ejecuta el operador
 ([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), con sus
 datos leídos como la persona que escucha. En un chat de grupo solo abre una
-página de toda la organización, y la dibuja sin datos. Devuelve un informe de
+página de toda la organización, y la dibuja sin datos; igual para un run del que nadie
+responde, como uno que inició un webhook o un formulario. Devuelve un informe de
 texto (los datos de cada binding, los errores no capturados, los errores de
 consola, los rechazos de la política, las peticiones rechazadas, los diálogos y
 los avisos de publicación) y la imagen como parte de imagen. Cada petición del

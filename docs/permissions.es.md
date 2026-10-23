@@ -1,5 +1,5 @@
 ---
-source_sha: "d5e3a28da8db"
+source_sha: "32c334c2b172"
 ---
 
 # Permisos { #permissions }
@@ -424,7 +424,7 @@ Admin - `artifacts:edit` con alcance `ALL` - puede confirmar por el propietario,
 como tal. Una concesión para editar la página no basta. Cualquier editor puede retirarlo, ya que
 retirar solo estrecha; además baja a `edit` cada concesión `edit_data` de la página.
 
-**`edit_data` es un nivel de concesión, no un rol.** «Can edit, data included» está por encima
+**`edit_data` es un nivel de concesión, no un rol.** «Can edit, including data» está por encima
 de `edit` y solo se acepta para páginas (una restricción de la base de datos lo rechaza en
 otros recursos). Es un consentimiento permanente para las republicaciones de esa persona o de
 ese grupo. Solo el propietario, o un Owner o Admin, como ellos mismos, lo concede o lo sube,

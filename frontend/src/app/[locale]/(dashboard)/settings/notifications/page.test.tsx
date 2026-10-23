@@ -119,12 +119,8 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Page ownership changes - In-app" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Page sharing requests - In-app" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Page sharing requests - Email" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Page requests - In-app" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Page requests - Email" })).toBeInTheDocument();
     expect(screen.getAllByRole("switch")).toHaveLength(23);
   });
 

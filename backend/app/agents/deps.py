@@ -72,6 +72,13 @@ class AgentDeps:
     # closed - a deps built without it reaches nothing that needs one.
     run_person: UUID | None = None
 
+    # Whether the run was started under an administrator's impersonation of
+    # `run_person`. Carried on the run because the request that knew is gone by
+    # the time a spawned task, a worker or a resumed approval acts: a tool that
+    # may not do something while impersonating reads it here, not the ambient
+    # request state.
+    impersonated: bool = False
+
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)
 
@@ -162,6 +169,7 @@ class AgentDeps:
             user_id=self.user_id,
             user_name=self.user_name,
             run_person=self.run_person,
+            impersonated=self.impersonated,
             agent_id=self.agent_id,
             run_id=self.run_id,
             ask_user=self.ask_user,

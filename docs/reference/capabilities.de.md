@@ -1,5 +1,5 @@
 ---
-source_sha: "b32952995eb7"
+source_sha: "bffe0a4074b5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1121,8 +1121,9 @@ Person erreicht. Wo keine identifizierte Person zuhört, wird nichts aufgeführt
 und höchstens 2400 hoch in einem Browser, den der Betreiber bereitstellt
 ([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), mit Daten,
 die als die zuhörende Person gelesen werden. In einem Gruppenchat öffnet es nur
-eine Seite der ganzen Organisation und zeichnet sie ohne Daten. Es liefert einen
-Textbericht (Daten je Binding, nicht abgefangene Fehler, Konsolenfehler,
+eine Seite der ganzen Organisation und zeichnet sie ohne Daten; ebenso für einen
+Run, für den niemand einsteht, etwa einen, den ein Webhook oder ein Formular
+gestartet hat. Es liefert einen Textbericht (Daten je Binding, nicht abgefangene Fehler, Konsolenfehler,
 Ablehnungen der Policy, abgelehnte Anfragen, Dialoge, die Warnungen beim
 Veröffentlichen) und das Bild als Bildteil. Jede Anfrage des Renderings
 beantwortet die API oder lehnt sie ab. Ohne Renderer oder das Extra `browser`

@@ -332,7 +332,7 @@ class TestConfirmingData:
         latest = _version(artifact)
         with (
             _stubs(artifact, latest=latest, owner=owner, owner_reads=False) as seen,
-            pytest.raises(AuthorizationError, match="can't read 1 of the tables"),
+            pytest.raises(AuthorizationError, match="can't access 1 of the tables"),
         ):
             await _service().confirm_data(
                 admin, artifact.id, latest.id, ArtifactConsentCreate(fingerprint=FINGERPRINT)
@@ -420,7 +420,8 @@ class TestAutoConsent:
         assert detail.consent is not None
         assert detail.consent.auto_consent is True
 
-    async def test_on_without_confirming_the_current_text_is_refused(self) -> None:
+    @pytest.mark.parametrize("confirmed", ["v0", "auto_consent.v1"])
+    async def test_on_without_confirming_the_current_text_is_refused(self, confirmed: str) -> None:
         owner = _ctx()
         artifact = _artifact(owner)
         with (
@@ -428,7 +429,7 @@ class TestAutoConsent:
             pytest.raises(BadRequestError) as refused,
         ):
             await _service().set_auto_consent(
-                owner, artifact.id, ArtifactAutoConsentUpdate(enabled=True, confirmed="v0")
+                owner, artifact.id, ArtifactAutoConsentUpdate(enabled=True, confirmed=confirmed)
             )
         assert refused.value.details["fields"][0]["field"] == "confirmed"
         assert artifact.auto_consent is False
@@ -754,7 +755,7 @@ class TestWhatARunReadsBack:
         artifact = _artifact(owner)
         with (
             _stubs(artifact, latest=_version(artifact), owner=owner),
-            patch(f"{PATH}._member_auth", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=None)),
         ):
             served = await self._served_to(artifact, uuid.uuid4())
         assert served.version is None
@@ -766,7 +767,7 @@ class TestWhatARunReadsBack:
         latest = _version(artifact)
         with (
             _stubs(artifact, latest=latest, owner=owner),
-            patch(f"{PATH}._member_auth", new=AsyncMock(return_value=editor)),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=editor)),
         ):
             served = await self._served_to(artifact, editor.user_id)
         assert (served.version, served.data) == (latest, False)

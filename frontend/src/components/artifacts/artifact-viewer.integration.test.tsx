@@ -28,6 +28,7 @@ import type {
 const useArtifactMock = vi.fn();
 const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
+const useArtifactReasonsMock = vi.fn();
 const orgs = vi.fn(() => [{ id: "o1", name: "Acme" }]);
 const push = vi.fn();
 const replace = vi.fn();
@@ -39,6 +40,7 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifact: (...args: unknown[]) => useArtifactMock(...args),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
+  useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
   useArtifactDisclosure: (...args: unknown[]) => useArtifactDisclosureMock(...args),
   usePublicDataDisclosure: (...args: unknown[]) => usePublicDataDisclosureMock(...args),
 }));
@@ -248,6 +250,7 @@ describe("ArtifactViewer", () => {
     localStorage.clear();
     useArtifactViewMock.mockReturnValue(STATIC_VIEW);
     useArtifactDataMock.mockReturnValue(NO_DATA);
+    useArtifactReasonsMock.mockReturnValue(NO_DATA);
     requestsMock.mockReturnValue({ requests: [], isLoading: false, error: null });
     reviewMock.mockReturnValue({ data: undefined, isLoading: true });
     requestAccess.isSuccess = false;
@@ -423,10 +426,12 @@ describe("ArtifactViewer", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Archive Weekly report?")).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/its versions and its link are kept, but nobody can open it/),
+      within(dialog).getByText(/Nobody can open it and the agent can't publish it again/),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText(/public link is turned off/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/restore it/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/public link turns off/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Everything is kept, so you can restore it later/),
+    ).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Archive" }));
 
     expect(hooks.archive.mutate).toHaveBeenCalled();
@@ -829,7 +834,7 @@ describe("a live page in the viewer", () => {
       open(livePage({ can_edit: false }));
 
       expect(screen.getByRole("status")).toHaveTextContent(
-        "This page's data appears once its owner confirms sharing it.",
+        "The data appears once the page's owner confirms it.",
       );
       expect(screen.queryByText("Live")).toBeNull();
       minutesPass(5);
@@ -841,9 +846,7 @@ describe("a live page in the viewer", () => {
       useArtifactDataMock.mockReturnValue(NO_DATA);
       open(livePage({ can_edit: false, consent: consent() }));
 
-      expect(
-        screen.queryByText("This page's data appears once its owner confirms sharing it."),
-      ).toBeNull();
+      expect(screen.queryByText("The data appears once the page's owner confirms it.")).toBeNull();
     });
 
     it("keeps auto-refresh on for a page whose data does not wait", () => {
@@ -862,17 +865,24 @@ describe("a live page in the viewer", () => {
       expect(refetchView).toHaveBeenCalledTimes(2);
     });
 
-    it("reads the data once for an editor only", () => {
+    it("asks an editor, once the page has loaded, why a source is empty, and never reads the records again", () => {
       useArtifactViewMock.mockReturnValue({
         ...INJECTED,
         data: { ...INJECTED.data, awaiting_consent: false },
       });
       useArtifactDataMock.mockReturnValue(NO_DATA);
       const { unmount } = open(livePage({ can_edit: true }));
-      expect(useArtifactDataMock).toHaveBeenLastCalledWith("a1", "v2", true);
+      // The page carries its records: no read of them beside its own load.
+      expect(useArtifactDataMock).toHaveBeenLastCalledWith("a1", "v2", false);
+      // Nor of anything before the page has loaded.
+      expect(useArtifactReasonsMock).toHaveBeenLastCalledWith("a1", "v2", "n", false);
+      fireEvent.load(screen.getByTitle("Weekly report"));
+      expect(useArtifactReasonsMock).toHaveBeenLastCalledWith("a1", "v2", "n", true);
       unmount();
       open(livePage({ can_edit: false }));
+      fireEvent.load(screen.getByTitle("Weekly report"));
       expect(useArtifactDataMock).toHaveBeenLastCalledWith("a1", "v2", false);
+      expect(useArtifactReasonsMock).toHaveBeenLastCalledWith("a1", "v2", "n", false);
     });
   });
 
@@ -960,9 +970,11 @@ describe("a live page in the viewer", () => {
     expect(line).toHaveTextContent(
       "escalations: Priority changed since it was published - publish the page again",
     );
-    expect(line).toHaveTextContent("stock: it took too long to read");
-    expect(line).toHaveTextContent("orders: it could not be read");
-    expect(line).toHaveTextContent("returns: the page's owner can no longer read a table it reads");
+    expect(line).toHaveTextContent("stock: it took too long to load");
+    expect(line).toHaveTextContent("orders: it could not be loaded");
+    expect(line).toHaveTextContent(
+      "returns: the page's owner no longer has access to a table it uses",
+    );
     // Only a binding the page's detail names can be opened from here.
     const links = within(line).getAllByRole("link", { name: "Open the table" });
     expect(links).toHaveLength(1);
@@ -1101,7 +1113,7 @@ describe("a page's consent in the viewer", () => {
     open(livePage({ can_edit: false }));
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "This page's data appears once its owner confirms sharing it.",
+      "The data appears once the page's owner confirms it.",
     );
     expect(screen.queryByText(/sources unavailable/)).toBeNull();
   });
@@ -1126,7 +1138,7 @@ describe("a page's consent in the viewer", () => {
     const hooks = open(livePage({ can_edit: true, consent: consent({ may_confirm: true }) }));
 
     const strip = screen.getByRole("status");
-    expect(strip).toHaveTextContent("The audience still sees v1 until you confirm.");
+    expect(strip).toHaveTextContent("Others still see v1 until you confirm.");
     await userEvent.click(within(strip).getByRole("button", { name: "Confirm data" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Confirm data" }));
@@ -1163,7 +1175,7 @@ describe("a page's consent in the viewer", () => {
     );
 
     const strip = screen.getByRole("status");
-    expect(strip).toHaveTextContent("The audience still sees v1 until Olga Owner confirms.");
+    expect(strip).toHaveTextContent("Others still see v1 until Olga Owner confirms.");
     await userEvent.click(within(strip).getByRole("button", { name: "Stop sharing data" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Stop sharing data" }));
@@ -1190,12 +1202,12 @@ describe("a page's consent in the viewer", () => {
     const share = await openShare();
 
     await userEvent.click(
-      within(share).getByRole("switch", { name: "Don't ask for consent on republish" }),
+      within(share).getByRole("switch", { name: "Share new versions automatically" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Turn on" }));
 
     expect(hooks.setAutoConsent.mutate).toHaveBeenCalledWith(
-      { enabled: true, confirmed: "auto_consent.v1" },
+      { enabled: true, confirmed: "auto_consent.v2" },
       { onSuccess: expect.any(Function) },
     );
   });
@@ -1211,7 +1223,7 @@ describe("a page's consent in the viewer", () => {
     await userEvent.click(screen.getByRole("button", { name: "Version" }));
 
     expect(screen.getByRole("menuitemradio", { name: /^v2/ })).toHaveTextContent(
-      "awaiting consent",
+      "awaiting confirmation",
     );
     expect(screen.getByRole("menuitemradio", { name: /^v1/ })).toHaveTextContent("data shared");
   });
@@ -1274,7 +1286,7 @@ describe("ArtifactViewer requests", () => {
     useArtifactMock.mockReturnValue(state(detail({ can_edit: true })));
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
-    expect(screen.getByText(/Someone changed what v0 reads/)).toBeVisible();
+    expect(screen.getByText(/Someone changed the data v0 shows/)).toBeVisible();
   });
 
   it("asks nobody else's list, and draws no badge for a reader", () => {
@@ -1303,7 +1315,7 @@ describe("ArtifactViewer requests", () => {
     await userEvent.click(screen.getByRole("button", { name: /waiting for you/ }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Bea Builder changed what v3 reads")).toBeVisible();
+    expect(within(dialog).getByText("Bea Builder changed the data v3 shows")).toBeVisible();
   });
 
   it("opens the Share dialog at once when a notification linked to the requests", async () => {
@@ -1312,6 +1324,33 @@ describe("ArtifactViewer requests", () => {
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} openRequests />);
 
     expect(await screen.findByRole("dialog")).toBeVisible();
+  });
+
+  it("leaves confirming a version's data to its review while that review waits", () => {
+    waiting();
+    useArtifactMock.mockReturnValue(
+      state(
+        livePage({
+          can_edit: true,
+          consent: consent({ version: 3, may_confirm: true, may_withdraw: true }),
+        }),
+      ),
+    );
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    expect(screen.getByRole("button", { name: "Review data change" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Confirm data" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Stop sharing data" })).toBeVisible();
+  });
+
+  it("still offers Confirm data when the waiting review is about another version", () => {
+    waiting();
+    useArtifactMock.mockReturnValue(
+      state(livePage({ can_edit: true, consent: consent({ version: 2, may_confirm: true }) })),
+    );
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    expect(screen.getByRole("button", { name: "Confirm data" })).toBeVisible();
   });
 
   it("offers the review of a version request under the strip, and closes the dialog to show it", async () => {
@@ -1337,7 +1376,7 @@ describe("ArtifactViewer requests", () => {
 
     expect(
       screen.getByText(
-        "Bea Builder changed what v3 reads. The audience keeps seeing the earlier version until you decide.",
+        "Bea Builder changed the data v3 shows. Others see the earlier version until you decide.",
       ),
     ).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Review data change" }));
@@ -1371,15 +1410,15 @@ describe("ArtifactViewer requests", () => {
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Review data change" }));
-    await userEvent.click(screen.getByRole("switch", { name: "Audience sees now" }));
+    await userEvent.click(screen.getByRole("switch", { name: "What others see" }));
     await waitFor(() =>
       expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", "v1", true, false),
     );
 
-    await userEvent.click(screen.getByRole("switch", { name: "Audience sees now" }));
+    await userEvent.click(screen.getByRole("switch", { name: "What others see" }));
     await waitFor(() => expect(replace).toHaveBeenCalled());
 
-    await userEvent.click(screen.getByRole("switch", { name: "Audience sees now" }));
+    await userEvent.click(screen.getByRole("switch", { name: "What others see" }));
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Review the data change in v3" })).toBeNull(),
@@ -1404,7 +1443,7 @@ describe("ArtifactViewer requests", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Review data change" }));
 
-    expect(screen.getByRole("switch", { name: "Audience sees now" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "What others see" })).toBeDisabled();
     expect(useArtifactViewMock).not.toHaveBeenCalledWith("a1", "v1", true, false);
   });
 
@@ -1413,7 +1452,7 @@ describe("ArtifactViewer requests", () => {
     useArtifactMock.mockReturnValue(state(detail({ can_edit: true }), { versions: [V2, V1] }));
     const { rerender } = render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
     await userEvent.click(screen.getByRole("button", { name: "Review data change" }));
-    await userEvent.click(screen.getByRole("switch", { name: "Audience sees now" }));
+    await userEvent.click(screen.getByRole("switch", { name: "What others see" }));
 
     waiting([]);
     rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
@@ -1630,7 +1669,7 @@ describe("a page's data on its public link, in the viewer", () => {
     const hooks = open(page({}));
 
     const strip = screen.getByRole("status");
-    expect(strip).toHaveTextContent("shows no data until it is confirmed again");
+    expect(strip).toHaveTextContent("shows none until it's confirmed again");
     await userEvent.click(within(strip).getByRole("button", { name: "Confirm data" }));
     await userEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Confirm data" }),
@@ -1651,9 +1690,9 @@ describe("a page's data on its public link, in the viewer", () => {
     expect(screen.queryByRole("status")).toBeNull();
     const dialog = await openShare();
     expect(dialog).toHaveTextContent("Live data on this public link");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop showing data" }));
     const question = (await screen.findAllByRole("dialog")).at(-1)!;
-    await userEvent.click(within(question).getByRole("button", { name: "Withdraw" }));
+    await userEvent.click(within(question).getByRole("button", { name: "Stop showing data" }));
 
     expect(hooks.withdrawPublicData.mutate).toHaveBeenCalledWith(undefined, {
       onSuccess: expect.any(Function),
@@ -1699,7 +1738,7 @@ describe("what a page can run, in the viewer", () => {
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
     await userEvent.click(
-      screen.getByRole("button", { name: "This app can run: Send report, Archive deals" }),
+      screen.getByRole("button", { name: "This page can run: Send report, Archive deals" }),
     );
     expect(screen.getByRole("menuitem", { name: "Send report" })).toHaveAttribute(
       "href",
@@ -1714,7 +1753,7 @@ describe("what a page can run, in the viewer", () => {
   it("draws nothing for a page that offers none", () => {
     useArtifactViewMock.mockReturnValue(STATIC_VIEW);
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
-    expect(screen.queryByRole("button", { name: /This app can run/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /This page can run/ })).toBeNull();
   });
 
   it("points at a run that waits on someone", () => {

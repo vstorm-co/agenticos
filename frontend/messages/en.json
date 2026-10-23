@@ -3418,27 +3418,27 @@
       },
       "artifact-strip": {
         "title": "This page",
-        "body": "The strip names the page, says who can open it and offers Share. When something about the page needs a person - data to confirm, a request, a change of owner - a notice or a button appears here."
+        "body": "The page's name, who can open it, and Share. When the page needs something from you, like data to confirm or a request to answer, it shows up here."
       },
       "artifact-consent": {
         "title": "Confirming a page's data",
-        "body": "When a page reads live table data, its owner decides who else reads it. This warning says what the audience sees meanwhile; the owner can Confirm data to see exactly what the version shares, and who would read it, before agreeing."
+        "body": "When a page shows live table data, its owner decides who else sees it. Until then, this notice says what others see. Confirm data shows exactly what is shared, and with whom, before you agree."
       },
       "artifact-requests": {
         "title": "Requests",
-        "body": "Requests about this page wait here: someone asking to open it or to share it wider, and a version another editor published that reads different data. A version request opens a review that sets it against the version the audience sees now, widenings marked."
+        "body": "Requests about this page wait here: someone asking to open it or share it more widely, or an editor's version that shows different data. Review compares it with the version others see now."
       },
       "artifact-review": {
         "title": "Reviewing a data change",
-        "body": "Another editor published a version that reads different data. Review data change opens a panel that compares it with the version the audience sees now, binding by binding, with anything it reads more marked. Approve confirms it; Decline keeps the audience on the earlier version."
+        "body": "An editor published a version that shows different data. Review data change compares it with the version others see now and marks anything new. Approve shares it; Decline keeps the earlier version."
       },
       "artifact-actions": {
-        "title": "Apps that run workflows",
-        "body": "When the page declares workflows you may run, “This app can run” lists them here with a link to each one's runs. The page can only ask: every run waits for your confirmation, runs as you, and shows what it will send."
+        "title": "Workflows this page can run",
+        "body": "If the page can run workflows, they're listed here with a link to their runs. The page can only ask: each run waits for you to confirm it, runs as you, and shows what it will send."
       },
       "artifact-change-owner": {
         "title": "Change owner",
-        "body": "A page's data is read with its owner's access. Change owner in this menu hands the page to another member at once; its data then waits for the new owner to confirm it."
+        "body": "A page's data is read with its owner's access. Change owner gives the page to another member right away, and its data stays hidden until the new owner confirms it."
       },
       "tables-catalog": {
         "title": "Your tables",
@@ -3498,11 +3498,11 @@
       },
       "org-public-live-data": {
         "title": "Live data on public pages",
-        "body": "Whether pages may show table records to people with no account, through a public link or an embed. Off until you turn it on; the page's owner, or an Owner or Admin for them, still has to confirm each page. Pages confirmed before it was turned off show their data again at once."
+        "body": "Whether public links and embeds may show table data to people without an account. It's off by default, and each page's owner still has to confirm their page."
       },
       "artifact-public-data": {
-        "title": "Public data waits for you",
-        "body": "The page's queries changed, so its public link shows no data until the data is confirmed again. Confirm data shows exactly what the link would share and with whom."
+        "title": "Confirm public data again",
+        "body": "The data this page shows changed, so its public link shows none until it's confirmed again. Confirm data shows what the link would share, and with whom."
       }
     }
   },
@@ -3662,7 +3662,7 @@
         "channel_message": "A channel message",
         "github": "GitHub",
         "gmail": "Gmail",
-        "app": "An app"
+        "app": "A page"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",
@@ -4961,8 +4961,8 @@
       "yourConversationsKnowledgeBase": "Your conversations, knowledge base contents, API keys, and all personal data will be permanently deleted. Active subscriptions will be canceled. This cannot be undone.",
       "avatarColour": "Fallback colour",
       "avatarColourHint": "Shown as your avatar until you upload a picture.",
-      "prefArtifactShareRequested": "Page sharing requests",
-      "prefArtifactShareRequestedTrigger": "Someone asks to share a page you own, to open it, or changes what it reads."
+      "prefArtifactShareRequested": "Page requests",
+      "prefArtifactShareRequestedTrigger": "Someone asks to open or share a page you own, or changes the data it shows."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5050,7 +5050,7 @@
       "searchPlaceholder": "Search tables…",
       "shownFilter": "Which tables",
       "shown": {
-        "live": "Live tables",
+        "live": "Active tables",
         "all": "Archived included"
       },
       "empty": {
@@ -5123,8 +5123,8 @@
         "save": "Save",
         "deleteTitle": "Delete view",
         "deleteDescription": "Delete “{name}”? This cannot be undone.",
-        "makeShared": "Share it with everyone who may read the table",
-        "makePrivate": "Make it private: only you see it",
+        "makeShared": "Share with everyone who can open the table",
+        "makePrivate": "Make private, visible only to you",
         "nowShared": "View shared",
         "nowPrivate": "View made private"
       },
@@ -5185,7 +5185,7 @@
       "archive": {
         "action": "Archive table",
         "title": "Archive {name}?",
-        "description": "Its records stay readable, but nothing can change them: no new or edited records and no column changes, from here, an agent, a workflow or the API. It can be restored from this page. A published workflow that still uses the table stops the archive and is listed here.",
+        "description": "Its records stay readable, but nobody can change them or its columns - not from here, an agent, a workflow or the API. You can restore it from this page. A published workflow that still uses it stops the archive and is listed here.",
         "noticeTitle": "Archived on {when}",
         "noticeRestorable": "Its records can be read but not changed. Restore the table to change them again.",
         "noticeReadOnly": "Its records can be read but not changed. Someone who may edit the table can restore it.",
@@ -5569,10 +5569,10 @@
     "failedRevoke": "Failed to revoke",
     "failedShare": "Failed to share",
     "levelEdit": "Can edit",
-    "levelEditData": "Can edit, data included",
-    "editDataConfirmTitle": "Give \"data included\"?",
-    "editDataConfirmPerson": "{name} can change what data this page shows to everyone who can open it, including new tables and columns, without asking you; that includes their API runs.",
-    "editDataConfirmGroup": "Everyone in {name}, now and later, can change what data this page shows to everyone who can open it, including new tables and columns, without asking you; that includes their API runs.",
+    "levelEditData": "Can edit, including data",
+    "editDataConfirmTitle": "Let them change the page's data?",
+    "editDataConfirmPerson": "{name} can change the data everyone sees on this page, including new tables and columns, without asking you. This also covers their API runs.",
+    "editDataConfirmGroup": "Anyone in {name}, now or later, can change the data everyone sees on this page, including new tables and columns, without asking you. This also covers their API runs.",
     "editDataConfirmAction": "Give access",
     "levelRead": "Can view",
     "levelUse": "Can use",
@@ -5596,7 +5596,7 @@
     "membersHeading": "Members",
     "groupSubject": "Group",
     "requestSent": "Request sent to {name}",
-    "requestSentNobody": "Request sent. Nobody is left to decide it yet."
+    "requestSentNobody": "Request sent. Nobody can approve it yet."
   },
   "skills": {
     "addFile": "Add file",
@@ -5762,13 +5762,13 @@
     "waiverForbidden": "Conversations may no longer waive approvals",
     "you": "(you)",
     "publicLiveData": "Public pages with live data",
-    "publicLiveDataDescription": "Whether a page's table records may reach people who have no account.",
-    "publicLiveDataHint": "Off by default. When this is on, a page whose owner has confirmed it shows its table records to anyone with its public link, and on the sites that embed it. Turning it off hides them from every public page at once and keeps the owners' confirmations.",
-    "publicLiveDataOn": "Pages may now show live data on their public links",
+    "publicLiveDataDescription": "Whether public pages may show table data to people without an account.",
+    "publicLiveDataHint": "Off by default. When on, a page's public link and embeds show its table data once the owner confirms it. Turning it off hides the data everywhere but keeps the confirmations.",
+    "publicLiveDataOn": "Public pages may now show live data",
     "publicLiveDataOff": "Public pages no longer show live data",
     "publicLiveDataFailed": "Could not change whether public pages may show live data",
     "publicLiveDataConfirmTitle": "Allow live data on public pages?",
-    "publicLiveDataConfirmWhy": "Pages whose owners consent will show table records to anyone with their link, and on every site that embeds them, with no sign-in. Nothing is shown until the page's owner, or an Owner or Admin for them, confirms it for that page. Pages confirmed before this was turned off show their data again at once. You can turn this off at any time.",
+    "publicLiveDataConfirmWhy": "Anyone with a page's public link, and every site that embeds it, will see its table data without signing in. Nothing is shown until the page's owner or an Owner or Admin confirms it. Pages confirmed earlier show their data again right away.",
     "publicLiveDataConfirm": "Allow"
   },
   "theme": {
@@ -6907,6 +6907,12 @@
     "switchOrganization": "Switch organization",
     "versionBadge": "v{version}",
     "publicLinkSaved": "Public link settings saved",
+    "addSiteTitle": "Add a site to the public link?",
+    "addSiteWhy": "A new site means more people can see this page's data, so the public link hides it until it's confirmed again.",
+    "addSiteConfirm": "Save and hide data",
+    "removePasswordTitle": "Remove the password?",
+    "removePasswordWhy": "Without a password more people can open this page, so the public link hides its data until it's confirmed again.",
+    "removePasswordConfirm": "Remove and hide data",
     "versionRestored": "Restored as version {version}",
     "restoreVersion": "Restore this version",
     "currentLiveTag": "Current · live data",
@@ -6918,7 +6924,7 @@
     "liveDataRefused": "This page's live data is not available to you.",
     "liveDataBusy": "Busy, try again in a moment.",
     "liveSourcesUnavailable": "{total, plural, =1 {1 of 1 source unavailable to you.} other {{count} of # sources unavailable to you.}}",
-    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {it is shared with you once the page's owner confirms its data} creator_gone {the page's owner is no longer a member, and its data is read with their access} creator_lost_access {the page's owner can no longer read a table it reads} source_changed {{changed} changed since it was published - publish the page again} not_current {only the current version reads live data} timeout {it took too long to read} other {it could not be read}}",
+    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {shown once the page's owner confirms its data} creator_gone {the page's owner is no longer a member} creator_lost_access {the page's owner no longer has access to a table it uses} source_changed {{changed} changed since it was published - publish the page again} not_current {only the current version shows live data} timeout {it took too long to load} other {it could not be loaded}}",
     "openTable": "Open the table",
     "liveOnlyCurrent": "Live data only on the current version.",
     "openCurrent": "Open current",
@@ -6927,7 +6933,7 @@
     "environmentBadge": "Published from this environment",
     "actions": {
       "why": "The page “{page}” asks to run this workflow as you, with your access and your budget. Check what it will send before you go on.",
-      "pageWording": "The page's own wording",
+      "pageWording": "What the page calls it",
       "sends": "What it will send",
       "sendsNothing": "Nothing: the workflow takes no input.",
       "notGiven": "not given",
@@ -6935,8 +6941,8 @@
       "rateLimited": "Too many runs from this page. Try again in a minute.",
       "waiting": "{name} is waiting for someone.",
       "openRun": "Open run",
-      "canRun": "This app can run: {names}",
-      "runsOf": "Runs of the workflows this app can start"
+      "canRun": "This page can run: {names}",
+      "runsOf": "Runs of these workflows"
     },
     "openLinkTitle": "Open this link?",
     "openLinkWhy": "The page wants to open another site in a new tab. Check the address before you go on.",
@@ -6945,7 +6951,7 @@
     "linkExpiryWhy": "Leave it empty to keep the link on until you turn it off.",
     "linkVersion": "Shows",
     "linkVersionWhy": "Pin a version so a new publication does not change what people with the link see.",
-    "linkLatestWhy": "\"Latest version\" means the latest version the people with the link may see: a version whose data its owner hasn't confirmed yet is not served to them.",
+    "linkLatestWhy": "“Latest version” is the newest one people with the link may see. A version whose data isn't confirmed yet waits for its owner.",
     "embedSites": "Sites that may embed it",
     "embedSitesWhy": "One site per line. Only these can put the page in an iframe.",
     "embedNeedsNoPassword": "A page behind a password cannot be embedded. Remove the password to embed it.",
@@ -6965,11 +6971,11 @@
     "openPage": "Open the page",
     "archive": "Archive",
     "archiveTitle": "Archive {title}?",
-    "archiveWhy": "The page, its versions and its link are kept, but nobody can open it and the agent cannot publish it again. Its public link is turned off. You can restore it from its page.",
+    "archiveWhy": "Nobody can open it and the agent can't publish it again, and its public link turns off. Everything is kept, so you can restore it later.",
     "archived": "Artifact archived",
     "unarchived": "Artifact restored",
     "archivedOn": "Archived on {when}",
-    "archivedWhy": "Nobody can open this page and the agent cannot publish it again. Restore it to serve it again; its public link stays off until you turn it on.",
+    "archivedWhy": "Nobody can open this page and the agent can't publish it again. After a restore, its public link stays off until you turn it on.",
     "unarchive": "Restore",
     "archivedBadge": "Archived",
     "shownFilter": "Which artifacts",
@@ -6978,28 +6984,29 @@
       "all": "Archived included"
     },
     "consent": {
-      "confirmed": "Data confirmed. Everyone who can open the page now reads it.",
-      "withdrawn": "Sharing stopped. Everyone keeps the page, without its data.",
+      "confirmed": "Data confirmed",
+      "withdrawn": "Data sharing stopped",
       "withdraw": "Stop sharing data",
       "withdrawTitle": "Stop sharing this page's data?",
-      "withdrawWhy": "Everyone who opens the page keeps it without its data until {who, select, you {you confirm it} unknown {its owner confirms it} other {{owner} confirms it}} again - except the roles that read every table. Auto-consent turns off, and every \"Can edit, data included\" grant on the page drops to \"Can edit\".",
+      "withdrawWhy": "Others, except roles that see every table, see the page without its data until {who, select, you {you confirm it} unknown {its owner confirms it} other {{owner} confirms it}} again. Automatic sharing turns off, and “Can edit, including data” becomes “Can edit”.",
       "confirm": "Confirm data",
       "cancel": "Cancel",
-      "pendingState": "Nobody has confirmed sharing the data v{version} reads yet.",
-      "withdrawnState": "Sharing this page's data was withdrawn.",
-      "audienceWaits": "{audience, select, none {Only its owner, its editors and the roles that open every page can open it until {who, select, you {you confirm its data} unknown {its owner confirms its data} other {{owner} confirms its data}}.} other {The audience still sees v{audience} until {who, select, you {you confirm} unknown {its owner confirms} other {{owner} confirms}}.}}",
-      "grownAutomatically": "v{version} was consented automatically and reads more: {added}",
-      "grownAutomaticallyVia": "v{version} was consented automatically via {name}'s grant and reads more: {added}",
+      "pendingState": "v{version}'s data isn't confirmed yet.",
+      "withdrawnState": "Data sharing was stopped.",
+      "audienceWithoutData": "{audience, select, none {Only the owner, editors and roles that see every page can open it until {who, select, you {you confirm its data} unknown {its owner confirms its data} other {{owner} confirms its data}} again.} other {Others see v{audience} without its data until {who, select, you {you confirm it} unknown {its owner confirms it} other {{owner} confirms it}} again.}}",
+      "audienceWaits": "{audience, select, none {Only the owner, editors and roles that see every page can open it until {who, select, you {you confirm its data} unknown {its owner confirms its data} other {{owner} confirms its data}}.} other {Others still see v{audience} until {who, select, you {you confirm} unknown {its owner confirms} other {{owner} confirms}}.}}",
+      "grownAutomatically": "v{version} was shared automatically and shows more data: {added}",
+      "grownAutomaticallyVia": "v{version}, published by {name}, was shared automatically and shows more data: {added}",
       "confirmTitle": "Confirm the data v{version} shares",
       "confirmTitleUnnumbered": "Confirm the data this version shares",
-      "confirmWhy": "Everyone who can open this page reads these records with its owner's access, whatever their own access to the tables. Confirm only what they may all see.",
+      "confirmWhy": "Everyone who can open this page will see these records, even without access to the tables. Confirm only what they may all see.",
       "disclosureFailed": "Couldn't load what this version shares.",
-      "bindingTable": "{name} reads {table}",
-      "noFilters": "Every record - no filter.",
+      "bindingTable": "{name} - from {table}",
+      "noFilters": "All records.",
       "filters": "Only records where {conditions}.",
       "sortAndLimit": "Order: {sort}. At most {limit, plural, =1 {1 record} other {# records}}.",
       "field": "{field}: {reads}",
-      "tablesRead": "Tables read: {tables}",
+      "tablesRead": "Tables: {tables}",
       "parts": {
         "filterOp": "{column} {op, select, eq {is} ne {is not} lt {is less than} lte {is at most} gt {is more than} gte {is at least} contains {contains} starts_with {starts with} in {is one of} other {is}} {value}",
         "isEmpty": "{column} is empty",
@@ -7016,22 +7023,22 @@
         "lookup": "lookup of {table} -> {column}",
         "rollup": "rollup {aggregate, select, sum {sum} avg {average} min {minimum} max {maximum} other {count}} of {table} -> {column}",
         "rollupCount": "rollup count of {table}",
-        "linkedTables": "Also reads, through links: {tables}"
+        "linkedTables": "Also uses linked tables: {tables}"
       },
-      "audienceTitle": "Who reads it, now and later",
-      "audienceRoles": "Everyone with one of these roles, which open every page: {roles}",
-      "audienceVisibility": "{visibility, select, org {Everyone in the organization} team {Everyone in the page's team} other {Nobody else by visibility - the page is private}}",
+      "audienceTitle": "Who will see it",
+      "audienceRoles": "Roles that see every page: {roles}",
+      "audienceVisibility": "{visibility, select, org {Everyone in the organization} team {Everyone in the page's team} other {Nobody else - the page is private}}",
       "audiencePeople": "Shared with: {people}",
-      "audienceGroups": "Shared with these groups, including whoever joins them: {groups}",
-      "autoConsent": "Don't ask for consent on republish",
-      "autoConsentWhy": "Your own runs' republishes share their data without waiting for you to confirm it. Other editors' republishes still wait for you.",
-      "autoConsentConfirmTitle": "Share every republish without asking you?",
-      "autoConsentConfirm": "Any change your runs make to this page's data, new columns and tables included, reaches everyone who can open it without asking you - API runs too.",
+      "audienceGroups": "Groups, including future members: {groups}",
+      "autoConsent": "Share new versions automatically",
+      "autoConsentWhy": "Versions your own runs publish share their data without waiting for you. Versions from other editors still wait.",
+      "autoConsentConfirmTitle": "Share new versions automatically?",
+      "autoConsentConfirm": "Any data change your runs make to this page, including new tables and columns, reaches everyone who can open it without asking you. This includes API runs.",
       "autoConsentTurnOn": "Turn on",
-      "versionState": "{state, select, pending {awaiting consent} consented {data shared} withdrawn {consent withdrawn} declined {declined} other {reads no data}}",
+      "versionState": "{state, select, pending {awaiting confirmation} consented {data shared} withdrawn {sharing stopped} declined {declined} other {no data}}",
       "notAvailableYet": "This page isn't available yet",
       "notAvailableYetWhy": "Its owner hasn't confirmed the data it shares.",
-      "awaitingForYou": "This page's data appears once its owner confirms sharing it."
+      "awaitingForYou": "The data appears once the page's owner confirms it."
     },
     "changeOwner": {
       "menu": "Change owner",
@@ -7043,26 +7050,27 @@
       "back": "Back",
       "continue": "Continue",
       "submit": "Change owner",
-      "confirm": "{name} becomes the owner of this page. Its data stops reaching the page's audience until {name} confirms it, and \"Don't ask for consent on republish\" is turned off. The previous owner and {name} are notified.",
-      "confirmSelf": "{name} becomes the owner of this page. Its data stops reaching the page's audience until {name} confirms it, and \"Don't ask for consent on republish\" is turned off. {name} is notified.",
+      "confirm": "{name} becomes the owner of this page. Its data is hidden from others until {name} confirms it, and automatic sharing turns off. {name} and the previous owner are notified.",
+      "confirmSelf": "{name} becomes the owner of this page. Its data is hidden from others until {name} confirms it, and automatic sharing turns off. {name} is notified.",
       "changed": "Owner changed"
     },
     "access": {
       "title": "You don't have access to this page",
-      "why": "Ask its owner to let you in.",
+      "why": "Ask its owner for access.",
       "note": "Note for the owner (optional)",
       "notePlaceholder": "Why you need it",
       "request": "Request access",
       "requested": "Access requested",
-      "requestedWhy": "The page's owner has been asked. Nothing more is sent to you: open this link again later, and if they agreed, the page opens."
+      "requestedWhy": "The owner has been asked. You won't be notified, so open this link again later."
     },
     "requests": {
       "title": "Requests",
       "includeDecided": "Show decided",
+      "newestOnly": "Every waiting request is shown, and the newest {shown} of {total} decided ones.",
       "none": "No requests.",
       "someone": "Someone",
-      "kind": "{kind, select, audience {{name} asked to share this page with more people} access {{name} asked for access to this page} other {{name} changed what v{version} reads}}",
-      "state": "{status, select, approved {Approved} declined {Declined} other {{reason, select, replaced {Replaced by a newer request} page_changed {Void - the page's data changed} owner_changed {Void - the owner changed} archived {Void - the page was archived} superseded {Superseded by a newer version} other {Void}}}}",
+      "kind": "{kind, select, audience {{name} asked to share this page with more people} access {{name} asked for access to this page} other {{name} changed the data v{version} shows}}",
+      "state": "{status, select, approved {Approved} declined {Declined} other {{reason, select, replaced {Replaced by a newer request} page_changed {Closed - the page's data changed} owner_changed {Closed - the owner changed} archived {Closed - the page was archived} superseded {Replaced by a newer version} other {Closed}}}}",
       "askVisibility": "{visibility, select, org {Visible to the whole organization} team {Visible to the team} other {Private}}",
       "askSubject": "{who} - {level, select, edit {can edit} use {can use} other {can read}}",
       "note": "Note: {note}",
@@ -7076,7 +7084,7 @@
       "approveFrom": "Approve the request from {name}",
       "declineFrom": "Decline the request from {name}",
       "confirmData": "Confirm data",
-      "versionNotice": "{name} changed what v{version} reads. The audience keeps seeing the earlier version until you decide.",
+      "versionNotice": "{name} changed the data v{version} shows. Others see the earlier version until you decide.",
       "waiting": "{count, plural, =1 {1 request waiting for you} other {# requests waiting for you}}"
     },
     "review": {
@@ -7087,46 +7095,46 @@
       "failed": "Couldn't load the data change.",
       "published": "Published by {name} on {when}.",
       "conversation": "Open the conversation",
-      "comparedTo": "Compared with v{version}, which the audience sees now.",
-      "comparedToNothing": "The audience sees no version of this page yet.",
-      "audienceSeesNow": "Audience sees now",
+      "comparedTo": "Compared with v{version}, which others see now.",
+      "comparedToNothing": "Nobody else sees a version of this page yet.",
+      "audienceSeesNow": "What others see",
       "audienceUnavailable": "That version is no longer listed, so it can't be shown here.",
-      "nothingChanged": "It reads the same data as the audience's version.",
-      "unchanged": "{count, plural, =1 {1 unchanged binding} other {# unchanged bindings}}",
+      "nothingChanged": "It shows the same data as the version others see.",
+      "unchanged": "{count, plural, =1 {1 unchanged source} other {# unchanged sources}}",
       "approve": "Approve",
       "decline": "Decline",
-      "effect": "{effect, select, widens {Reads more} narrows {Reads less} other {No change}}",
+      "effect": "{effect, select, widens {Shows more} narrows {Shows less} other {No change}}",
       "binding": "{change, select, added {{name} - new} removed {{name} - removed} other {{name}}}",
-      "removedReads": "It no longer reads {table}.",
-      "change": "{aspect, select, table {Table: {before} -> {after}} field {{change, select, added {Field added: {after}} removed {Field removed: {before}} other {Field changed: {before} -> {after}}}} filter {{change, select, added {Condition added: {after}} removed {Condition dropped: {before}} other {Condition changed: {before} -> {after}}}} sort {Order: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Now also reads, through links: {after}} other {No longer reads, through links: {before}}}} other {{change, select, added {Now also reads, in a condition or the order: {after}} other {No longer reads: {before}}}}}"
+      "removedReads": "It no longer uses {table}.",
+      "change": "{aspect, select, table {Table: {before} -> {after}} field {{change, select, added {Field added: {after}} removed {Field removed: {before}} other {Field changed: {before} -> {after}}}} filter {{change, select, added {Condition added: {after}} removed {Condition dropped: {before}} other {Condition changed: {before} -> {after}}}} sort {Order: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Now also uses linked tables: {after}} other {No longer uses linked tables: {before}}}} other {{change, select, added {Now also uses, in a filter or sort: {after}} other {No longer uses: {before}}}}}"
     },
     "publicData": {
       "title": "Live data on this public link",
-      "confirmed": "Live data is now shown on the public link",
-      "withdrawn": "The public link no longer shows live data",
-      "stateSwitchOff": "Public pages cannot show live data in this organization. An Owner or Admin has to turn it on in the organization's settings first.",
-      "stateNotConfirmed": "The public link shows this page without its data. Confirm to show the table records to anyone with the link.",
+      "confirmed": "Live data shown on the public link",
+      "withdrawn": "Live data hidden from the public link",
+      "stateSwitchOff": "Live data on public pages is off for this organization. An Owner or Admin can turn it on in organization settings.",
+      "stateNotConfirmed": "The public link shows this page without its data. Confirm to show it to anyone with the link.",
       "stateOwnerCanEnable": "The public link shows this page without its data. The page's owner, or an Owner or Admin, can enable it.",
       "stateHolding": "Shown on the public link: version {version}, confirmed by {name} on {date}.",
-      "notHoldingSwitchOff": "Confirmed, but not shown: an Owner or Admin switched live data on public pages off for the organization. It shows again at once when it is switched back on.",
+      "notHoldingSwitchOff": "Confirmed, but not shown: live data on public pages is off for the organization. It shows again as soon as it's turned back on.",
       "notHoldingNoServedVersion": "Confirmed, but not shown: the public link serves no version of this page now.",
-      "notHoldingQueriesChanged": "Confirmed, but not shown: the page's queries changed. The public page shows no data until it is confirmed again.",
-      "notHoldingOwnerGone": "Confirmed, but not shown: the page's owner is no longer an active member of the organization.",
+      "notHoldingQueriesChanged": "Confirmed, but not shown: the page's data changed. Confirm it again to show it.",
+      "notHoldingOwnerGone": "Confirmed, but not shown: the page's owner is no longer a member.",
       "notHoldingOwnerMembershipChanged": "Confirmed, but not shown: the page's owner changed since the data was confirmed.",
-      "notHoldingMemberConsentMissing": "Confirmed, but not shown: the owner's consent for members to read this version's data is missing. It has to be confirmed first.",
+      "notHoldingMemberConsentMissing": "Confirmed, but not shown: this version's data isn't confirmed for members yet. Confirm that first.",
       "notHoldingLinkExpired": "Confirmed, but not shown: the public link has expired.",
-      "queryChangedNotice": "This page's queries changed, so its public link shows no data until it is confirmed again.",
+      "queryChangedNotice": "The data this page shows changed, so its public link shows none until it's confirmed again.",
       "confirm": "Confirm data",
       "confirmAgain": "Confirm again",
       "cancel": "Cancel",
-      "withdraw": "Withdraw",
+      "withdraw": "Stop showing data",
       "withdrawTitle": "Stop showing data on the public link?",
-      "withdrawWhy": "The public link and its embeds keep showing the page, without its data, until somebody confirms it again.",
+      "withdrawWhy": "The public link and embeds show the page without its data until someone confirms it again.",
       "confirmTitle": "Confirm data for the public link",
-      "confirmWhy": "Anyone with the link, with no account, will read these table records - and so will every site that embeds the page. Check what is shared and who can reach it.",
+      "confirmWhy": "Anyone with the link, and every site that embeds the page, will see these records without signing in. Check what is shared and who can reach it.",
       "disclosureFailed": "Could not load what would be shared",
-      "audienceTitle": "Who can read it",
-      "audienceAnyone": "Anyone with the public link - no account, no sign-in.",
+      "audienceTitle": "Who can see it",
+      "audienceAnyone": "Anyone with the public link, without signing in.",
       "audiencePassword": "They have to enter the link's password.",
       "audienceNoPassword": "No password: the link alone opens it.",
       "audienceNoExpiry": "The link does not expire.",

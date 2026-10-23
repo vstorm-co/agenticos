@@ -35,7 +35,7 @@ test.use({ storageState: AUTH_STATE });
  * **What is asserted is inside the page**: `#result` is what the page's own
  * `agenticos.run` promise settled with. The strip around the page renders the
  * same whether or not a run ever started, so it is only used for what it alone
- * shows - the "This app can run" menu and the confirmation dialog.
+ * shows - the "This page can run" menu and the confirmation dialog.
  *
  * The workflow is private and the colleague is a Member, who runs only what is
  * shared with them. So the journey is the refusal first - no menu, and the page's
@@ -353,7 +353,7 @@ test.describe("artifact actions", () => {
       const frame = framedPage(colleague, fixture.title);
       // The page is drawn, so the view that lists actions has been answered.
       await expect(frame.locator("#marker")).toHaveText("actions-v1");
-      await expect(colleague.getByRole("button", { name: /This app can run/ })).toHaveCount(0);
+      await expect(colleague.getByRole("button", { name: /This page can run/ })).toHaveCount(0);
 
       await frame.locator("#go").click();
       await expect(frame.locator("#result")).toHaveText(CANNOT_ACT);
@@ -380,7 +380,7 @@ test.describe("artifact actions", () => {
       await expect(frame.locator("#marker")).toHaveText("actions-v1");
       // The workflow's own name, never the page's label.
       await expect(
-        colleague.getByRole("button", { name: `This app can run: ${fixture.workflowName}` }),
+        colleague.getByRole("button", { name: `This page can run: ${fixture.workflowName}` }),
       ).toBeVisible();
       // Nothing runs on load: the page asks only when its button is pressed.
       await expect(frame.locator("#result")).toHaveText("idle");

@@ -17,6 +17,11 @@ interface ConsentNoticeProps {
   consent: ArtifactConsent;
   /** The viewer owns the page, so the notice speaks to them. */
   isOwner: boolean;
+  /**
+   * An editor's republish of this version waits for review. Its review strip shows
+   * what changed, so Confirm is not offered here: it would let the owner skip the diff.
+   */
+  reviewPending: boolean;
   onConfirm: () => void;
   onWithdraw: () => void;
 }
@@ -31,7 +36,13 @@ interface ConsentNoticeProps {
  * Owner or Admin for them) and Withdraw to an editor while the audience still
  * reads data - both the server's answer, never worked out here.
  */
-export function ConsentNotice({ consent, isOwner, onConfirm, onWithdraw }: ConsentNoticeProps) {
+export function ConsentNotice({
+  consent,
+  isOwner,
+  reviewPending,
+  onConfirm,
+  onWithdraw,
+}: ConsentNoticeProps) {
   const t = useTranslations("artifacts.consent");
   const who = confirmer(consent, isOwner);
   const withdraw = consent.may_withdraw && consent.shared && (
@@ -61,19 +72,16 @@ export function ConsentNotice({ consent, isOwner, onConfirm, onWithdraw }: Conse
     );
   }
 
+  const audience = consent.audience_version === null ? "none" : String(consent.audience_version);
+  const sentence = { who, owner: consent.owner_name ?? "" };
   return (
     <ViewerNotice tone="warning" icon={ShieldAlert} tour="artifact-consent">
       <span>
         {consent.state === "withdrawn"
-          ? t("withdrawnState")
-          : t("pendingState", { version: consent.version })}{" "}
-        {t("audienceWaits", {
-          audience: consent.audience_version === null ? "none" : String(consent.audience_version),
-          who,
-          owner: consent.owner_name ?? "",
-        })}
+          ? `${t("withdrawnState")} ${t("audienceWithoutData", { ...sentence, audience })}`
+          : `${t("pendingState", { version: consent.version })} ${t("audienceWaits", { ...sentence, audience })}`}
       </span>
-      {consent.may_confirm && (
+      {consent.may_confirm && !reviewPending && (
         <Button size="sm" className="h-6 px-2" onClick={onConfirm}>
           {t("confirm")}
         </Button>

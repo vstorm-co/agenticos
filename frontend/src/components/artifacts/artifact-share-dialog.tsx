@@ -170,6 +170,7 @@ export function ArtifactShareDialog({
               // A fresh form for fresh settings: its fields start from what the server holds.
               key={JSON.stringify(artifact.public_link)}
               link={artifact.public_link}
+              publicDataConfirmed={artifact.public_data?.consented === true}
               versions={versions}
               saving={saving}
               onSave={onUpdatePublicLink}

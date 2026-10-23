@@ -202,6 +202,7 @@ async def _admit(
                 ],
                 depth=caller.depth + 1,
                 public_origin=causes_public(caller),
+                impersonated=caller.impersonated,
             ),
             parent_node_run_id=current.node_run_id,
         )
