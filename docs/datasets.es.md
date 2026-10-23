@@ -1,5 +1,5 @@
 ---
-source_sha: "da374789a9c4"
+source_sha: "0d791d737353"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -284,7 +284,7 @@ asistente de mejora lo llama cuando el agent no tiene ninguna:
 
 - la primera llamada crea "<agent> - test questions", un dataset privado que
   nombra al agent, para que las preguntas que copia no lleguen a nadie más hasta
-  que se comparta; las llamadas siguientes le añaden las respuestas valoradas más
+  que se comparta (**⋯ → Share** en su página); las llamadas siguientes le añaden las respuestas valoradas más
   recientes como una versión nueva y conservan lo que ya tenía (`since` toma
   solo las respuestas valoradas desde ese momento);
 - una respuesta con un pulgar arriba se convierte en una pregunta con esa

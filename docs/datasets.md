@@ -267,7 +267,7 @@ wizard calls it when the agent has none:
 
 - the first call creates "<agent> - test questions", a private dataset that
   names the agent, so the questions it copies reach no one else until it is
-  shared; later calls add the newest rated answers to it as a new version and keep
+  shared (**⋯ → Share** on its page); later calls add the newest rated answers to it as a new version and keep
   what it held (`since` takes only the answers rated since then);
 - an answer rated up becomes a question with that answer as the good answer,
   and one rated down a question with it as the answer to avoid and the

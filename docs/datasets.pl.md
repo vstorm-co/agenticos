@@ -1,5 +1,5 @@
 ---
-source_sha: "da374789a9c4"
+source_sha: "0d791d737353"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -280,7 +280,7 @@ ulepszania woła go, gdy agent żadnych nie ma:
 
 - pierwsze wywołanie tworzy "<agent> - test questions", prywatny dataset
   wskazujący agenta, więc skopiowane pytania nie trafiają do nikogo innego, dopóki
-  nie zostanie udostępniony; kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
+  nie zostanie udostępniony (**⋯ → Udostępnij** na jego stronie); kolejne dodają do niego najnowsze ocenione odpowiedzi jako nową wersję
   i zachowują to, co już zawierał (`since` bierze tylko odpowiedzi ocenione od
   tej chwili);
 - odpowiedź oceniona łapką w górę staje się pytaniem z tą odpowiedzią jako

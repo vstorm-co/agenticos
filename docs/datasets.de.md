@@ -1,5 +1,5 @@
 ---
-source_sha: "da374789a9c4"
+source_sha: "0d791d737353"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -298,7 +298,7 @@ Verbesserungsassistent ruft es auf, wenn der Agent keine hat:
 
 - der erste Aufruf legt "<agent> - test questions" an, ein privates Dataset, das
   den Agent nennt, sodass die kopierten Fragen niemanden sonst erreichen, bis es
-  geteilt wird; spätere Aufrufe fügen ihm die neuesten bewerteten Antworten als
+  geteilt wird (**⋯ → Teilen** auf seiner Seite); spätere Aufrufe fügen ihm die neuesten bewerteten Antworten als
   neue Version hinzu und behalten, was es enthielt (`since` nimmt nur die seitdem
   bewerteten Antworten);
 - eine positiv bewertete Antwort wird zu einer Frage mit dieser Antwort als
