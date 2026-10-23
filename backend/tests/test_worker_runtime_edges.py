@@ -389,6 +389,24 @@ async def test_the_rescuer_settles_every_end_still_owed_and_records_it(
     assert repos.mark_settled.await_args.args[1] == owed.id
 
 
+async def test_a_settler_told_to_wait_leaves_the_end_owed_and_says_so_quietly(
+    repos: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A row a live worker still holds is an expected wait, not a settler's bug."""
+    from app.worker.jobs import SettleLater
+
+    sessions, _opened = _sessions()
+    worker = _worker(sessions, on_ended=AsyncMock(side_effect=SettleLater("still held")))
+
+    with caplog.at_level("WARNING", logger="app.worker.runtime"):
+        await worker._ended(uuid4(), "run-authoring", {}, "dead")
+
+    repos.mark_settled.assert_not_awaited()
+    [record] = [r for r in caplog.records if r.message == "background_job_end_deferred"]
+    assert (record.levelname, record.exc_info) == ("WARNING", None)
+    assert not [r for r in caplog.records if r.message == "background_job_end_unsettled"]
+
+
 async def test_a_settler_that_fails_leaves_the_end_owed(repos: MagicMock) -> None:
     sessions, _opened = _sessions()
     worker = _worker(sessions, on_ended=AsyncMock(side_effect=RuntimeError("down")))

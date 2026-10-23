@@ -12,11 +12,12 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 
 from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
-from app.worker.jobs import RUN_EVAL
+from app.worker.jobs import RUN_EVAL, SettleLater
 from app.worker.tasks.run_tasks import reap_abandoned_evals, reap_stale_runs
 
 pytestmark = pytest.mark.anyio
@@ -213,6 +214,36 @@ class TestLostJobs:
         assert fail.await_args.kwargs["organization_id"] == org
         assert fail.await_args.kwargs["error"] == error
         assert [r for r in caplog.records if r.message == "authoring_request_job_lost"]
+
+    async def test_a_request_a_worker_still_holds_is_settled_later(self, monkeypatch):
+        class Locked(Exception):
+            sqlstate = "55P03"
+
+        monkeypatch.setattr(
+            authoring_repo,
+            "fail_unfinished",
+            AsyncMock(side_effect=DBAPIError("SELECT", {}, Locked("locked"))),
+        )
+
+        with pytest.raises(SettleLater):
+            await RunReaperService(MagicMock()).settle_lost_authoring(
+                uuid.uuid4(), organization_id=uuid.uuid4(), why="dead"
+            )
+
+    async def test_any_other_database_error_is_not_mistaken_for_a_held_row(self, monkeypatch):
+        class Down(Exception):
+            sqlstate = "08006"
+
+        monkeypatch.setattr(
+            authoring_repo,
+            "fail_unfinished",
+            AsyncMock(side_effect=DBAPIError("SELECT", {}, Down("down"))),
+        )
+
+        with pytest.raises(DBAPIError):
+            await RunReaperService(MagicMock()).settle_lost_authoring(
+                uuid.uuid4(), organization_id=uuid.uuid4(), why="dead"
+            )
 
     async def test_a_finished_request_says_nothing(self, monkeypatch, caplog):
         monkeypatch.setattr(authoring_repo, "fail_unfinished", AsyncMock(return_value=False))
