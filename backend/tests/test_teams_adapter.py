@@ -13,8 +13,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import httpx2
 import pytest
 
+from app.core.pinned_http import PinnedAsyncClient
 from app.services.channels import teams
 from app.services.channels.base import (
     ChannelChoice,
@@ -103,15 +105,46 @@ class _Connector:
         return json.loads(call.content)
 
 
+class _Outside:
+    """Addresses outside the Connector - SharePoint - recording what reached them."""
+
+    def __init__(self) -> None:
+        self.calls: list[httpx2.Request] = []
+
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        self.calls.append(request)
+        return httpx2.Response(200, content=b"file-bytes")
+
+
 @pytest.fixture
 def connector() -> _Connector:
     return _Connector()
 
 
 @pytest.fixture
-def adapter(connector: _Connector) -> TeamsAdapter:
+def outside() -> _Outside:
+    return _Outside()
+
+
+@pytest.fixture
+def resolves_to(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """What each outside name resolves to; a public address unless a test says otherwise."""
+    answers: dict[str, str] = {}
+
+    def fake(host: str, port: int, **_kwargs: object) -> list[tuple]:
+        return [(2, 1, 6, "", (answers.get(host, "52.108.0.10"), port))]
+
+    monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", fake)
+    return answers
+
+
+@pytest.fixture
+def adapter(connector: _Connector, outside: _Outside, resolves_to: dict[str, str]) -> TeamsAdapter:
     built = TeamsAdapter()
     built._client = httpx.AsyncClient(transport=httpx.MockTransport(connector))
+    built._outside = PinnedAsyncClient(
+        timeout=httpx2.Timeout(5.0), transport=httpx2.MockTransport(outside)
+    )
     built.auth._client = built._client
     built.remember(
         "bot-1",
@@ -123,6 +156,18 @@ def adapter(connector: _Connector) -> TeamsAdapter:
 
 
 class TestReadingAnActivity:
+    @pytest.mark.security
+    @pytest.mark.parametrize("flood", ["<" * 50_000, "<at" * 50_000, "<at>a" * 50_000])
+    def test_markup_nobody_closes_is_read_in_linear_time(self, flood: str) -> None:
+        """CodeQL on #2324: each scan used to run to the end of the text from every
+        `<`, quadratic in a message the sender writes. Seconds at this size then;
+        the suite's timeout is the bound now."""
+        assert teams._plain(flood + " <b>end</b>", []).endswith(" end")
+
+    def test_mentions_and_markup_come_out_as_written(self) -> None:
+        text = '<at>Support</at> hi <b>there</b> &amp; <at id="1">Ada Lovelace</at>'
+        assert teams._plain(text, ["<at>Support</at>"]) == "hi there & @Ada Lovelace"
+
     def test_a_conversation_is_known_by_a_short_key_without_colons(self) -> None:
         key = conversation_key(PERSONAL)
         assert len(key) == 32 and ":" not in key
@@ -496,7 +541,7 @@ class TestAFileThePersonAccepted:
         )
 
     async def test_it_is_uploaded_and_posted(
-        self, adapter: TeamsAdapter, connector: _Connector
+        self, adapter: TeamsAdapter, connector: _Connector, outside: _Outside
     ) -> None:
         redis = MagicMock(getdel=AsyncMock(return_value=base64.b64encode(b"data").decode()))
         with patch.object(teams, "_pending_files", redis):
@@ -504,8 +549,9 @@ class TestAFileThePersonAccepted:
                 TOKEN, self._consent("accept"), conversation_key(PERSONAL)
             )
 
-        upload = next(call for call in connector.calls if "sharepoint" in str(call.url))
+        (upload,) = outside.calls
         assert upload.method == "PUT" and upload.content == b"data"
+        assert "authorization" not in upload.headers
         assert upload.headers["content-range"] == "bytes 0-3/4"
         (post,) = connector.posts()
         assert connector.body(post)["attachments"][0]["name"] == "q3.xlsx"
@@ -532,6 +578,26 @@ class TestAFileThePersonAccepted:
                 TOKEN, self._consent(action, url), conversation_key(PERSONAL)
             )
         assert connector.calls == []
+
+    @pytest.mark.security
+    async def test_an_upload_address_on_the_deployments_network_is_never_reached(
+        self,
+        adapter: TeamsAdapter,
+        connector: _Connector,
+        outside: _Outside,
+        resolves_to: dict[str, str],
+    ) -> None:
+        """CodeQL on #2324: the address is the Teams client's to write, so a
+        modified client could aim the bot's PUT at an internal service."""
+        resolves_to["tenant-my.sharepoint.com"] = "10.0.0.5"
+        redis = MagicMock(getdel=AsyncMock(return_value="ZGF0YQ=="))
+        with patch.object(teams, "_pending_files", redis):
+            await adapter.complete_file_consent(
+                TOKEN, self._consent("accept"), conversation_key(PERSONAL)
+            )
+
+        assert outside.calls == []
+        assert connector.posts() == []
 
     async def test_without_a_store_there_is_nothing_to_upload(
         self, adapter: TeamsAdapter, connector: _Connector
@@ -669,14 +735,38 @@ class TestLinkingThroughTheDirectory:
 
 class TestDownloadingWhatWasSent:
     async def test_a_shared_file_is_fetched_without_the_bots_token(
-        self, adapter: TeamsAdapter, connector: _Connector
+        self, adapter: TeamsAdapter, connector: _Connector, outside: _Outside
     ) -> None:
         data = await adapter.download_attachment(
             TOKEN, IncomingAttachment("q3.pdf", "application/pdf", 0, "https://t.sharepoint.com/f")
         )
-        (call,) = connector.calls
+        (call,) = outside.calls
         assert "authorization" not in call.headers
-        assert data == b'{"id":"sent-1"}'
+        assert connector.calls == []
+        assert data == b"file-bytes"
+
+    @pytest.mark.security
+    async def test_a_shared_file_on_the_deployments_network_is_refused(
+        self, adapter: TeamsAdapter, outside: _Outside, resolves_to: dict[str, str]
+    ) -> None:
+        """A file's address is the sender's to write; it is SSRF-checked like any other."""
+        resolves_to["files.internal"] = "169.254.169.254"
+        with pytest.raises(ValueError):
+            await adapter.download_attachment(
+                TOKEN, IncomingAttachment("x.pdf", "application/pdf", 0, "https://files.internal/x")
+            )
+        assert outside.calls == []
+
+    @pytest.mark.security
+    async def test_a_shared_file_stating_no_size_is_abandoned_past_the_ceiling(
+        self, adapter: TeamsAdapter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(teams, "_download_ceiling", lambda: 4)
+        with pytest.raises(ValueError, match="larger than"):
+            await adapter.download_attachment(
+                TOKEN,
+                IncomingAttachment("q3.pdf", "application/pdf", 0, "https://t.sharepoint.com/f"),
+            )
 
     async def test_a_pasted_picture_is_fetched_with_it(
         self, adapter: TeamsAdapter, connector: _Connector

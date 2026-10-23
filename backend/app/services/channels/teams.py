@@ -36,10 +36,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+import httpx2
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.pinned_http import PinnedAsyncClient
+from app.core.sanitize import UrlRefusedError
 from app.services.channels.base import (
     ChannelAdapter,
     ChannelChoice,
@@ -74,8 +77,11 @@ FILE_INFO_CARD = "application/vnd.microsoft.teams.card.file.info"
 FILE_DOWNLOAD_INFO = "application/vnd.microsoft.teams.file.download.info"
 ADAPTIVE_CARD = "application/vnd.microsoft.card.adaptive"
 
-_AT_TAG = re.compile(r"<at[^>]*>(.*?)</at>", re.IGNORECASE | re.DOTALL)
-_TAG = re.compile(r"<[^>]+>")
+# Each scan stops at the next `<`, which is where the next attempt starts, so a
+# message of nothing but `<` or `<at>` costs linear time, not quadratic. A
+# mention's text is a display name, which holds no markup.
+_AT_TAG = re.compile(r"<at[^<>]*>([^<]*)</at>", re.IGNORECASE)
+_TAG = re.compile(r"<[^<>]+>")
 
 _pending_files: RedisClient | None = None
 
@@ -220,12 +226,18 @@ class TeamsAdapter(ChannelAdapter):
 
     def __init__(self) -> None:
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(20.0))
+        # Addresses an activity names outside the Bot Connector - where a shared
+        # file is, where an accepted one is uploaded - come from what a Teams
+        # client sent, so every hop is SSRF-checked and pinned. Never given the
+        # bot's token: that goes to a Connector address only, on `_client`.
+        self._outside = PinnedAsyncClient(timeout=httpx2.Timeout(20.0))
         self.auth = TeamsAuth(self._client)
         self._refs: dict[str, ConversationRef] = {}
         self._credentials: dict[str, TeamsCredentials] = {}
 
     async def aclose(self) -> None:
         await self._client.aclose()
+        await self._outside.aclose()
 
     def remember(self, bot_id: str, credentials: TeamsCredentials, ref: ConversationRef) -> None:
         """What the next reply needs: this bot's credentials and where the conversation lives."""
@@ -417,14 +429,18 @@ class TeamsAdapter(ChannelAdapter):
         if not upload_url.startswith("https://"):
             return
         content = base64.b64decode(stored)
-        response = await self._client.put(
-            upload_url,
-            content=content,
-            headers={
-                "Content-Length": str(len(content)),
-                "Content-Range": f"bytes 0-{len(content) - 1}/{len(content)}",
-            },
-        )
+        try:
+            response = await self._outside.put(
+                upload_url,
+                content=content,
+                headers={
+                    "Content-Length": str(len(content)),
+                    "Content-Range": f"bytes 0-{len(content) - 1}/{len(content)}",
+                },
+            )
+        except UrlRefusedError:
+            logger.warning("teams_upload_refused", extra={"pending": pending})
+            return
         response.raise_for_status()
         await self._post_activity(
             TeamsCredentials.decode(bot_token),
@@ -676,23 +692,31 @@ class TeamsAdapter(ChannelAdapter):
         let one large file take a worker's memory.
 
         Raises:
-            ValueError: For an address that is not HTTPS, or a body past the ceiling.
+            ValueError: For an address that is not HTTPS, one outside the Connector
+                that the SSRF policy refuses (`UrlRefusedError`), or a body past the
+                ceiling.
         """
         if not attachment.handle.startswith("https://"):
             raise ValueError("A Teams attachment is fetched over HTTPS only")
-        headers: dict[str, str] = {}
-        if is_connector_url(attachment.handle):
-            headers = await self._headers(TeamsCredentials.decode(bot_token))
         ceiling = _download_ceiling()
         received = bytearray()
-        async with self._client.stream("GET", attachment.handle, headers=headers) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_bytes():
-                received.extend(chunk)
-                if len(received) > ceiling:
-                    raise ValueError(
-                        f"A Teams attachment is larger than {ceiling // (1024 * 1024)} MB"
-                    )
+
+        def keep(chunk: bytes) -> None:
+            received.extend(chunk)
+            if len(received) > ceiling:
+                raise ValueError(f"A Teams attachment is larger than {ceiling // (1024 * 1024)} MB")
+
+        if is_connector_url(attachment.handle):
+            headers = await self._headers(TeamsCredentials.decode(bot_token))
+            async with self._client.stream("GET", attachment.handle, headers=headers) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    keep(chunk)
+        else:
+            async with self._outside.stream("GET", attachment.handle) as outside:
+                outside.raise_for_status()
+                async for chunk in outside.aiter_bytes():
+                    keep(chunk)
         return bytes(received)
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:

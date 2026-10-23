@@ -252,8 +252,12 @@ class TestTheAppPackage:
         package = zipfile.ZipFile(io.BytesIO(teams_app_package(_bot())))
         assert sorted(package.namelist()) == ["color.png", "manifest.json", "outline.png"]
         assert json.loads(package.read("manifest.json"))["id"] == APP_ID
-        assert Image.open(io.BytesIO(package.read("color.png"))).size == (192, 192)
-        assert Image.open(io.BytesIO(package.read("outline.png"))).size == (32, 32)
+        with (
+            Image.open(io.BytesIO(package.read("color.png"))) as color,
+            Image.open(io.BytesIO(package.read("outline.png"))) as outline,
+        ):
+            sizes = (color.size, outline.size)
+        assert sizes == ((192, 192), (32, 32))
 
 
 class TestATriggerPostsItsAnswer:
