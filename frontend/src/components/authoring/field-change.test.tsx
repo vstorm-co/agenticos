@@ -245,7 +245,9 @@ describe("a field change", () => {
       ),
     ).toBeVisible();
     expect(
-      screen.getByText("Undo puts the tools back and keeps them asking for approval."),
+      screen.getByText(
+        "Where the server asked for nothing, accepting makes every tool of it that writes ask for approval - not only the added ones. Undo puts the tools back and keeps them asking.",
+      ),
     ).toBeVisible();
   });
 

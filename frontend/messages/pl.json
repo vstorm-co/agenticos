@@ -9355,12 +9355,12 @@
         "regression": "Ostatnie sprawdzenie tego modelu zepsuło przypadki, które wcześniej przechodziły. Popraw sugestie albo odrzuć tę."
       },
       "access": {
-        "title": "Dodaje dostęp: {items}",
+        "title": "Nowy dostęp: {items}",
         "capability": "capability „{name}”{count, plural, =0 {} one {, jej narzędzie zapisujące pyta o zgodę} few {, jej # narzędzia zapisujące pytają o zgodę} many {, jej # narzędzi zapisujących pyta o zgodę} other {, jej # narzędzia zapisującego pyta o zgodę}}",
-        "collection": "bazę wiedzy „{name}”",
+        "collection": "baza wiedzy „{name}”",
         "context": "plik kontekstu „{name}”",
         "mcpTools": "{count, plural, =0 {wszystkie narzędzia {server}} one {narzędzie {tools} z {server}} other {narzędzia {tools} z {server}}}, z pytaniem o zgodę tam, gdzie zapisują",
-        "keeps": "Cofnięcie przywraca narzędzia i zostawia pytanie o zgodę."
+        "keeps": "Jeśli serwer o nic nie pytał, przyjęcie sprawia, że każde jego narzędzie zapisujące pyta o zgodę - nie tylko dodane. Cofnięcie przywraca narzędzia i zostawia pytanie o zgodę."
       }
     },
     "evidence": {

@@ -117,7 +117,6 @@ export interface EvidenceItem {
 export type FieldValue =
   string | number | boolean | null | FieldValue[] | { [key: string]: FieldValue };
 
-/** What a field change is expected to do, measured on recent runs. */
 /**
  * One thing a change gives the agent access to. `tools` are a capability's
  * tools that write, or the MCP tools newly allowed - none for every tool the
@@ -129,6 +128,10 @@ export interface AccessAdded {
   tools: string[];
 }
 
+/**
+ * What a field change does beyond its value: for a model, its cost measured on
+ * recent runs; for anything it adds, what that is and the tools among it that write.
+ */
 export interface FieldEffect {
   /** For a change of model: what one recent run would cost on each, as decimals. */
   runs?: number;

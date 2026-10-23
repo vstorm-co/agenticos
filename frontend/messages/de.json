@@ -9466,7 +9466,7 @@
         "collection": "Wissensdatenbank „{name}“",
         "context": "Kontextdatei „{name}“",
         "mcpTools": "{count, plural, =0 {jedes Tool von {server}} =1 {Tool {tools} von {server}} other {Tools {tools} von {server}}}, mit Freigabe, wo sie schreiben",
-        "keeps": "Rückgängig stellt die Tools wieder her und lässt sie weiter um Freigabe bitten."
+        "keeps": "Wo der Server nach nichts gefragt hat, lässt das Annehmen jedes seiner schreibenden Tools um Freigabe bitten - nicht nur die hinzugefügten. Rückgängig stellt die Tools wieder her und lässt sie weiter um Freigabe bitten."
       }
     },
     "evidence": {

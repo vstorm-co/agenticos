@@ -9583,7 +9583,7 @@
         "collection": "knowledge base “{name}”",
         "context": "context file “{name}”",
         "mcpTools": "{count, plural, =0 {every tool of {server}} =1 {tool {tools} of {server}} other {tools {tools} of {server}}}, asking for approval where they write",
-        "keeps": "Undo puts the tools back and keeps them asking for approval."
+        "keeps": "Where the server asked for nothing, accepting makes every tool of it that writes ask for approval - not only the added ones. Undo puts the tools back and keeps them asking."
       }
     },
     "evidence": {
