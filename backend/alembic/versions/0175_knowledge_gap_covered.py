@@ -15,7 +15,7 @@ The downgrade reopens covered topics and forgets refusals - those answers are
 read again by the next check - and drops what this revision added.
 
 Revision ID: 0175_knowledge_gap_covered
-Revises: 0180_improvement_sessions
+Revises: 0178_eval_run_proposal_check
 Create Date: 2026-10-22
 """
 
@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0175_knowledge_gap_covered"
-down_revision: str | None = "0180_improvement_sessions"
+down_revision: str | None = "0178_eval_run_proposal_check"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

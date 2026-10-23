@@ -13,7 +13,7 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (permission: Permission) => held.permissions.has(permission) }),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("@/hooks", () => ({ useAgentVersion: () => ({ version: { spec: { name: "Old" } } }) }));
+vi.mock("@/hooks", () => ({ useDraftBase: () => ({ base: { spec: { name: "Old" } } }) }));
 vi.mock("@/hooks/use-organizations", () => ({
   useAiAssistance: () => ({ orgId: "org-1", enabled: true }),
 }));
@@ -48,7 +48,6 @@ function surfaces({ canCheck = true } = {}) {
     <>
       <AssistantStrip
         agentId="agent-1"
-        currentVersionId="v1"
         storedDraft={DRAFT}
         canCheck={canCheck}
         persist={vi.fn()}

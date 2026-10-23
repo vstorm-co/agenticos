@@ -90,6 +90,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: [] }),
     useAllAgentVersions: () => ({ versions: [] }),
+    useDraftBase: () => ({ base: undefined }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),

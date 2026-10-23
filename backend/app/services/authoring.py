@@ -87,7 +87,12 @@ from app.schemas.authoring import (
     HunkRead,
     ProposalCheck,
 )
-from app.schemas.eval_run import EvalRunEstimate, EvalRunRead, EvalRunRequest
+from app.schemas.eval_run import (
+    EvalRunEstimate,
+    EvalRunRead,
+    EvalRunRequest,
+    ProposalCheckRecord,
+)
 from app.schemas.eval_threshold import EvalSuiteCheck
 from app.services import authoring_fields, authoring_hunks
 from app.services.access import AGENT, accessible_ids
@@ -179,10 +184,16 @@ def _refers_to(hunk: SpecProposalHunk, key: str) -> bool:
 
 
 class _CheckRun(NamedTuple):
-    """The eval run a check asks for, and the suite it runs on, read together."""
+    """The eval run a check asks for, and the suite it runs on, read together.
+
+    `baseline_spec` is the draft when it runs as the baseline in place of a
+    version; `proposal` is what the check measures, kept on its run.
+    """
 
     request: EvalRunRequest
     suite: EvalSuiteCheck | None
+    baseline_spec: AgentSpec | None = None
+    proposal: ProposalCheckRecord | None = None
 
 
 class AuthoringService:
@@ -222,10 +233,10 @@ class AuthoringService:
             )
         return agent
 
-    async def _published(self, ctx: AuthContext, agent: Agent) -> AgentSpec | None:
-        if agent.current_version_id is None:
-            return None
-        version = await self.registry.get_version(ctx, agent.id, agent.current_version_id)
+    async def _improver_spec(self, ctx: AuthContext, improver: Agent) -> AgentSpec:
+        """The improver's published spec; `_improver` refused it unless it has one."""
+        assert improver.current_version_id is not None
+        version = await self.registry.get_version(ctx, improver.id, improver.current_version_id)
         return AgentSpec.model_validate(version.spec)
 
     async def estimate_agent(
@@ -245,8 +256,12 @@ class AuthoringService:
         agent = await self._editable(ctx, agent_id)
         improver = await self._improver(ctx)
         if body.kind == AuthoringKind.VERIFY.value:
-            published = await self._published(ctx, agent)
-            if published is None or published == AgentSpec.model_validate(agent.draft_spec):
+            base = await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            )
+            if base is None or AgentSpec.model_validate(base.spec) == AgentSpec.model_validate(
+                agent.draft_spec
+            ):
                 return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
         pack = await self.evidence.for_agent(
             ctx,
@@ -316,8 +331,8 @@ class AuthoringService:
         )
         if average is not None:
             return average
-        published = await self._published(ctx, improver)
-        if published is not None and published.model_profile_id is not None:
+        published = await self._improver_spec(ctx, improver)
+        if published.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=published.model_profile_id)
             usage = RunUsage(
                 input_tokens=chars // _CHARS_PER_TOKEN + _PROMPT_TOKENS,
@@ -329,10 +344,8 @@ class AuthoringService:
         return settings.EVAL_FALLBACK_CASE_COST_USD
 
     async def _improver_left(self, ctx: AuthContext, improver: Agent) -> Decimal | None:
-        published = await self._published(ctx, improver)
-        cap = (
-            None if published is None or published.budget is None else published.budget.monthly_usd
-        )
+        published = await self._improver_spec(ctx, improver)
+        cap = None if published.budget is None else published.budget.monthly_usd
         if cap is None:
             return None
         spent = await agent_run_repo.sum_cost_since(
@@ -933,7 +946,8 @@ class AuthoringService:
 
     async def _projection(
         self, ctx: AuthContext, agent_id: UUID
-    ) -> tuple[Agent, SpecProposalBatch, AgentSpec]:
+    ) -> tuple[Agent, SpecProposalBatch, AgentSpec, int]:
+        """The agent, its open batch, the draft with every pending suggestion made, and their count."""
         agent = await self._editable(ctx, agent_id)
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=ctx.organization_id, agent_id=agent.id
@@ -964,7 +978,7 @@ class AuthoringService:
                 ),
                 details={"hunk_ids": [hunk.id for hunk in skipped]},
             )
-        return agent, batch, projected
+        return agent, batch, projected, len(pending)
 
     async def _check_request(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
@@ -995,18 +1009,57 @@ class AuthoringService:
             suite=None,
         )
 
+    async def _agent_check(
+        self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
+    ) -> tuple[Agent, SpecProposalBatch, AgentSpec, _CheckRun]:
+        """The run checking every pending suggestion makes, measured on the draft's base.
+
+        The base is the latest published version - what the draft was made
+        from - not the version production runs, which a failing guard may hold
+        back. When the draft no longer equals it, the draft itself is the
+        baseline, so the suggestions are the one difference between the sides.
+        """
+        agent, batch, projected, pending = await self._projection(ctx, agent_id)
+        base = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        on_draft = base is None or AgentSpec.model_validate(base.spec) != draft
+        checked = await self._check_request(ctx, agent.id, body)
+        return (
+            agent,
+            batch,
+            projected,
+            checked._replace(
+                request=(
+                    checked.request
+                    if base is None or on_draft
+                    else checked.request.model_copy(update={"baseline_version": base.version})
+                ),
+                baseline_spec=draft if on_draft else None,
+                proposal=ProposalCheckRecord(
+                    kind="agent",
+                    base_version=None if base is None else base.version,
+                    on_draft=on_draft,
+                    suggestions=pending,
+                ),
+            ),
+        )
+
     async def estimate_check(
         self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck
     ) -> EvalRunEstimate:
         """What checking the pending suggestions against a dataset would cost."""
-        agent, batch, projected = await self._projection(ctx, agent_id)
+        agent, batch, projected, checked = await self._agent_check(ctx, agent_id, body)
         return await EvalRunService(self.db).estimate(
             ctx,
             agent.id,
-            (await self._check_request(ctx, agent.id, body)).request,
+            checked.request,
             purpose=EvalRunPurpose.GATE,
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
+            baseline_spec=checked.baseline_spec,
+            proposal_check=checked.proposal,
         )
 
     async def _skill_check(
@@ -1069,7 +1122,12 @@ class AuthoringService:
         )
         return (
             agent,
-            checked._replace(request=pinned),
+            checked._replace(
+                request=pinned,
+                proposal=ProposalCheckRecord(
+                    kind="skill", base_version=version.version, suggestions=1
+                ),
+            ),
             bodies,
             [UUID(str(conversation)) for conversation in evidence],
         )
@@ -1086,6 +1144,7 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_skills=bodies,
             exclude_conversations=evidence,
+            proposal_check=checked.proposal,
         )
 
     async def check_skill(
@@ -1106,6 +1165,7 @@ class AuthoringService:
             candidate_skills=bodies,
             exclude_conversations=evidence,
             suite=checked.suite,
+            proposal_check=checked.proposal,
         )
 
     async def _context_check(
@@ -1168,7 +1228,12 @@ class AuthoringService:
         )
         return (
             agent,
-            checked._replace(request=pinned),
+            checked._replace(
+                request=pinned,
+                proposal=ProposalCheckRecord(
+                    kind="context", base_version=version.version, suggestions=1
+                ),
+            ),
             bodies,
             [UUID(str(conversation)) for conversation in evidence],
         )
@@ -1185,6 +1250,7 @@ class AuthoringService:
             purpose=EvalRunPurpose.GATE,
             candidate_contexts=bodies,
             exclude_conversations=evidence,
+            proposal_check=checked.proposal,
         )
 
     async def check_context(
@@ -1204,17 +1270,18 @@ class AuthoringService:
             candidate_contexts=bodies,
             exclude_conversations=evidence,
             suite=checked.suite,
+            proposal_check=checked.proposal,
         )
 
     async def check(self, ctx: AuthContext, agent_id: UUID, body: ProposalCheck) -> EvalRunRead:
-        """Run a dataset against the draft as it would be with every pending suggestion.
+        """Run a dataset against the draft's base with every pending suggestion made.
 
-        The baseline - the published version - runs beside it in the same run, and
-        the cases taken from the suggestions' own evidence are left out. The draft
-        does not change.
+        The baseline - the latest published version, or the draft when it has
+        moved from it - runs beside it in the same run, and the cases taken from
+        the suggestions' own evidence are left out. The draft does not change,
+        and the run sends nothing to review by itself.
         """
-        agent, batch, projected = await self._projection(ctx, agent_id)
-        checked = await self._check_request(ctx, agent.id, body)
+        agent, batch, projected, checked = await self._agent_check(ctx, agent_id, body)
         started = await EvalRunService(self.db).start(
             ctx,
             agent.id,
@@ -1223,6 +1290,8 @@ class AuthoringService:
             candidate_spec=projected,
             exclude_conversations=batch.evidence_conversation_ids,
             suite=checked.suite,
+            baseline_spec=checked.baseline_spec,
+            proposal_check=checked.proposal,
         )
         await authoring_repo.update_batch(
             self.db,

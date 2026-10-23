@@ -188,6 +188,11 @@ class EvalRun(Base):
     suite_check: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    # For a check of the authoring assistant's proposal, what it measured
+    # (`ProposalCheckRecord`). Such a run sends nothing to review by itself.
+    proposal_check: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # How many scores the run sent to review itself once its reruns were in.
     routed_to_review: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Older scores of those cases, still waiting, that the ones it sent replaced.
