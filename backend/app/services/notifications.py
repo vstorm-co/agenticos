@@ -1311,12 +1311,15 @@ def _clip(text: str, limit: int = 200) -> str:
 def _suite_summary(
     suite: EvalSuite, result: EvalSuiteResult, *, agent: Agent, summary: EvalSuiteSummary | None
 ) -> str:
-    """One line saying which suite, on what, why - and, for a failure, which cases."""
+    """One line saying which suite, on what, why - and, for a failure, which cases. A
+    pass is told only when it ran uncompared, and says why."""
     on = f"{agent.name} v{result.version_number}" if result.version_number else agent.name
     deciding = result.status in (
         EvalSuiteResultStatus.FAILED.value,
         EvalSuiteResultStatus.INCONCLUSIVE.value,
     )
+    if result.status == EvalSuiteResultStatus.PASSED.value and summary and summary.message:
+        return f"{suite.name} passed on {on} uncompared. {summary.message}"
     if not deciding:
         why = (summary.message if summary and summary.message else None) or (result.reason or "")
         return f"{suite.name} did not run on {on}: {why.rstrip('.')}."

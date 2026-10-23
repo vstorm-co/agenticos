@@ -518,17 +518,30 @@ class EvalRunService:
                 (await self._named_earlier(ctx, request.baseline_run_id), None)
                 if request.baseline_run_id is not None
                 else await self._default_earlier(
-                    ctx, agent, dataset, source, version, scoring_hash=hashed, execution=execution
+                    ctx,
+                    agent,
+                    dataset,
+                    source,
+                    version,
+                    scoring_hash=hashed,
+                    execution=execution,
+                    judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                    judge_id=config.judge.agent_id,
                 )
             )
             if earlier is not None:
                 arms.append(earlier)
         reruns = settings.EVAL_RERUNS if request.reruns is None else request.reruns
         if reruns == 0 and any(arm.role is ArmRole.BASELINE for arm in arms):
-            raise refused_field(
-                "reruns",
+            needs = (
                 "A run measured against a baseline needs at least one rerun: a change is "
-                "confirmed only when both sides repeat it.",
+                "confirmed only when both sides repeat it."
+            )
+            if request.reruns is not None:
+                raise refused_field("reruns", needs)
+            raise BadRequestError(
+                message=f"{needs} EVAL_RERUNS is 0 on this deployment.",
+                details={"reason": "no_reruns"},
             )
         return RunPlan(
             agent=agent,
@@ -576,14 +589,17 @@ class EvalRunService:
         *,
         scoring_hash: str,
         execution: RunExecution,
+        judged: bool,
+        judge_id: UUID | None,
     ) -> tuple[ArmPlan | None, int | None]:
         """The last run of the version before the candidate that can stand as its baseline.
 
         Before a version, the one before it; before a draft or a projection, what
         is published. Only a run of that version as published - its model, no
-        proposed body, every case - graded the way this run will be and executed
-        the same way: anything else would measure a difference nobody made. With
-        none, the version it would have been, so the caller can offer to run it.
+        proposed body, every case - graded the way this run will be, by the judge
+        and prompt that grade now, and executed the same way: anything else would
+        measure a difference nobody made. With none, the version it would have
+        been, so the caller can offer to run it.
         """
         if source is ArmSource.VERSION:
             assert version is not None
@@ -608,13 +624,15 @@ class EvalRunService:
             agent_id=agent.id,
             dataset_id=dataset.id,
             agent_version_id=previous.id,
-            spec_hash=spec_hash(spec),
             model_profile_id=spec.model_profile_id,
             scoring_hash=scoring_hash,
             execution=execution,
         )
-        reused = await self._reuse(ctx, found[0], found[1]) if found else None
-        return reused, None if reused is not None else previous.version
+        if found is None or not await self._graded_as_now(
+            ctx, found[0], judged=judged, judge_id=judge_id
+        ):
+            return None, previous.version
+        return await self._reuse(ctx, found[0], found[1]), None
 
     async def _reuse(self, ctx: AuthContext, arm: EvalRunArm, run: EvalRun) -> ArmPlan | None:
         """An earlier run's arm as this run's baseline: its first answers kept, its
@@ -625,8 +643,8 @@ class EvalRunService:
             version = await agent_repo.get_version(
                 self.db, arm.agent_version_id, organization_id=ctx.organization_id
             )
-            if version is None:
-                return None
+            # The reference is set null when the version goes.
+            assert version is not None
             spec = AgentSpec.model_validate(version.spec)
         else:
             version = None
@@ -857,7 +875,6 @@ class EvalRunService:
         )
         if found is None:
             return None
-        judge = await self._judge_agent(ctx, judge_id)
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
         )
@@ -867,6 +884,27 @@ class EvalRunService:
             if attempt.attempt == 0
         ):
             return None
+        graded = await self._graded_as_now(
+            ctx, found[0], judged=judged, judge_id=judge_id, attempts=attempts
+        )
+        return found if graded else None
+
+    async def _graded_as_now(
+        self,
+        ctx: AuthContext,
+        arm: EvalRunArm,
+        *,
+        judged: bool,
+        judge_id: UUID | None,
+        attempts: Sequence[EvalRunCase] | None = None,
+    ) -> bool:
+        """Whether an earlier arm was graded by the judge, and the prompt, that would
+        grade it now - or by no judge, when none would."""
+        if attempts is None:
+            attempts = await eval_run_repo.list_arm_cases(
+                self.db, arm.id, organization_id=ctx.organization_id
+            )
+        judge = await self._judge_agent(ctx, judge_id)
         scores = await eval_run_repo.scores(
             self.db,
             [a.case_score_id for a in attempts if a.case_score_id is not None],
@@ -878,8 +916,7 @@ class EvalRunService:
             if score.judge is not None and not _judge_graded_nothing(score)
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
-        now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
-        return found if pinned == now else None
+        return pinned == ({(current, JUDGE_PROMPT_VERSION)} if judged else set())
 
     async def estimate(
         self,
@@ -2045,7 +2082,7 @@ class EvalRunService:
                 ),
             )
         )
-        drift = baseline.run.id != run.id and drifts(candidate, baseline.arm)
+        drift = drifts(run, candidate, baseline)
         confirmed_here = baseline.paired or (baseline.here is not None and not drift)
         same, changed = await self.pairing(ctx, run, candidate, baseline, attempts)
         common = [case_id for case_id in mine if case_id in theirs and case_id in same]
@@ -2275,12 +2312,18 @@ class _CaseAttempt:
     attempt: Attempt
 
 
-def drifts(candidate: EvalRunArm, baseline: EvalRunArm) -> bool:
+def drifts(run: EvalRun, candidate: EvalRunArm, baseline: Baseline) -> bool:
     """Whether a baseline is the candidate itself answering at an earlier time: the
-    same spec on the same model, whose reruns would only be the candidate's again."""
+    same spec on the same model, executed the same way, whose reruns would only be
+    the candidate's again."""
+    earlier = baseline.run
     return (
-        candidate.spec_hash == baseline.spec_hash
-        and candidate.model_profile_id == baseline.model_profile_id
+        earlier.id != run.id
+        and candidate.spec_hash == baseline.arm.spec_hash
+        and candidate.model_profile_id == baseline.arm.model_profile_id
+        and earlier.environment_id == run.environment_id
+        and earlier.from_recordings == run.from_recordings
+        and earlier.live_reads == run.live_reads
     )
 
 

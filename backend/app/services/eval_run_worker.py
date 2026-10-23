@@ -623,7 +623,7 @@ class EvalRunWorker:
                 )
                 rerun_on = (
                     None
-                    if baseline.run.id != run.id and drifts(arm, baseline.arm)
+                    if drifts(run, arm, baseline)
                     else baseline.here
                     if baseline.here is not None
                     else baseline.arm

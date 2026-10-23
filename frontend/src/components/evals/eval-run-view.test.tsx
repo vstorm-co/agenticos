@@ -954,7 +954,9 @@ describe("EvalRunView", () => {
       screen.getByText("2 cases changed since the baseline answered, so they are not compared."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Older run: the baseline was not rerun, so changes are not confirmed."),
+      screen.getByText(
+        "The baseline was not asked these cases again, so the changes are not confirmed.",
+      ),
     ).toBeInTheDocument();
   });
 

@@ -118,6 +118,21 @@ def test_a_cancelled_run_says_it_was_cancelled_rather_than_below_a_threshold() -
     )
 
 
+def test_a_pass_run_alone_over_the_ceiling_says_it_was_not_compared() -> None:
+    summary = EvalSuiteSummary(
+        pass_rate=1.0,
+        first_pass_rate=1.0,
+        cases=4,
+        message="Not compared: running the earlier version too would exceed the suite's cost cap.",
+    )
+    suite, result, agent = _rows(status="passed")
+
+    assert _suite_summary(suite, result, agent=agent, summary=summary) == (
+        "Refunds passed on Clerk v7 uncompared. Not compared: running the earlier version "
+        "too would exceed the suite's cost cap."
+    )
+
+
 def test_a_failure_with_nothing_recorded_still_reads() -> None:
     suite, result, agent = _rows(status="failed", version_number=None)
     assert _suite_summary(suite, result, agent=agent, summary=None) == (

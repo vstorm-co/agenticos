@@ -1584,6 +1584,57 @@ async def test_a_run_due_while_the_suite_is_running_waits_for_it_to_settle(db) -
     assert await service.start_due(now=due + timedelta(seconds=1)) == 1
 
 
+@pytest.mark.parametrize(("ceiling", "paired"), [("0.05", False), ("0.10", True)])
+async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_ceiling(
+    db, ceiling: str, paired: bool
+) -> None:
+    """Both sides would cost more than the suite allows where the candidate alone would not:
+    it runs alone, held to its own numbers, rather than being skipped every time."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx,
+        agent.id,
+        _suite_data(dataset, schedule=EvalSuiteSchedule(cron="0 6 * * *")),
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    day = suite.next_fire_at
+    real = EvalRunService.compare
+
+    async def judged_anew(self, reader, run_id):
+        read = await real(self, reader, run_id)
+        return read.model_copy(
+            update={"verdict": "invalid", "invalid_reason": "A different judge graded it."}
+        )
+
+    await _sweep(db, Model(db), now=day)
+    with patch.object(EvalRunService, "compare", new=judged_anew):
+        await _sweep(db, Model(db), now=day + timedelta(days=1))
+    # A cent a case by now: one side is $0.04, the pair $0.08. Graded anew, the
+    # earlier answers cannot stand in for the pair's second side.
+    suite.max_run_usd = Decimal(ceiling)
+    await db.flush()
+    with patch.object(EvalRunService, "_cached", new=AsyncMock(return_value=None)):
+        await _sweep(db, Model(db), now=day + timedelta(days=2))
+
+    *_, third = await _results(db, suite.id)
+    assert third.status == "passed" and third.eval_run_id is not None
+    run = await service.evals.get(ctx, third.eval_run_id)
+    told = [n for n in await _notifications(db, ctx.user_id) if "uncompared" in n.summary]
+    if paired:
+        assert (run.paired, third.reason, told) == (True, None, [])
+        return
+    assert (run.paired, [arm.role for arm in run.arms]) == (False, ["candidate"])
+    assert third.reason == "not_compared_cost_cap"
+    assert third.summary is not None and third.summary["message"] == (
+        "Not compared: running the earlier version too would exceed the suite's cost cap."
+    )
+    assert len(told) == 1
+
+
 async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new_reference(
     db,
 ) -> None:

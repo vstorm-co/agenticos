@@ -512,7 +512,6 @@ async def latest_arm(
     agent_id: UUID,
     dataset_id: UUID,
     agent_version_id: UUID,
-    spec_hash: str | None = None,
     dataset_version_id: UUID | None = None,
     model_profile_id: UUID | None = None,
     scoring_hash: str | None = None,
@@ -538,8 +537,6 @@ async def latest_arm(
         EvalRunArm.context_bodies.is_(None),
         func.cardinality(EvalRun.excluded_case_ids) == 0,
     ]
-    if spec_hash is not None:
-        conditions.append(EvalRunArm.spec_hash == spec_hash)
     if dataset_version_id is not None:
         conditions.append(EvalRun.dataset_version_id == dataset_version_id)
     if model_profile_id is not None:

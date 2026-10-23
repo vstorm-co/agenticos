@@ -105,6 +105,13 @@ from app.services.eval_suite_threshold import judge
 logger = logging.getLogger(__name__)
 
 MAX_FAILING_CASES = 20
+
+# A run that measured its candidate alone, because running the earlier version too
+# would have crossed the suite's ceiling; kept on its result and told its owner.
+NOT_COMPARED = "not_compared_cost_cap"
+NOT_COMPARED_MESSAGE = (
+    "Not compared: running the earlier version too would exceed the suite's cost cap."
+)
 _INPUT_CHARS = 120
 _SWEEP_SCHEDULES = 100
 _SWEEP_STARTS = 20
@@ -755,14 +762,15 @@ class EvalSuiteService:
             due_at=now,
             baseline_version=baseline_version,
         )
-        baseline = None
+        uncompared = False
         if baseline_version is None:
-            baseline_version, baseline = await self._drift_baseline(
-                suite, version.id, version.version, now=now
+            request, uncompared = await self._drift_request(
+                ctx, suite, version.id, version.version, now=now
             )
-        request = self._request(
-            suite, version.version, baseline_version=baseline_version, baseline_run=baseline
-        )
+        else:
+            request = self._request(
+                suite, version.version, baseline_version=baseline_version, baseline_run=None
+            )
         try:
             await self._within_cap(ctx, suite, request)
         except _OverCap as over:
@@ -788,7 +796,8 @@ class EvalSuiteService:
                 "status": EvalSuiteResultStatus.RUNNING.value,
                 "run_as_user_id": ctx.user_id,
                 "eval_run_id": run.id,
-                "baseline_eval_run_id": baseline,
+                "baseline_eval_run_id": request.baseline_run_id,
+                "reason": NOT_COMPARED if uncompared else None,
                 "started_at": now,
             },
         )
@@ -1110,14 +1119,18 @@ class EvalSuiteService:
                 result, EvalSuiteResultStatus.SKIPPED, reason="version_gone", now=now
             )
             return False
-        baseline_version, baseline = result.baseline_version_number, None
-        if baseline_version is None:
-            baseline_version, baseline = await self._drift_baseline(
-                suite, result.agent_version_id, result.version_number, now=now
+        uncompared = False
+        if result.baseline_version_number is None:
+            request, uncompared = await self._drift_request(
+                owner, suite, result.agent_version_id, result.version_number, now=now
             )
-        request = self._request(
-            suite, result.version_number, baseline_version=baseline_version, baseline_run=baseline
-        )
+        else:
+            request = self._request(
+                suite,
+                result.version_number,
+                baseline_version=result.baseline_version_number,
+                baseline_run=None,
+            )
         try:
             async with self.db.begin_nested():
                 await self._within_cap(owner, suite, request)
@@ -1171,7 +1184,8 @@ class EvalSuiteService:
                 "status": EvalSuiteResultStatus.RUNNING.value,
                 "run_as_user_id": owner.user_id,
                 "eval_run_id": run.id,
-                "baseline_eval_run_id": baseline,
+                "baseline_eval_run_id": request.baseline_run_id,
+                "reason": NOT_COMPARED if uncompared else None,
                 "started_at": now,
             },
         )
@@ -1196,6 +1210,28 @@ class EvalSuiteService:
             baseline_version=baseline_version,
             baseline_run_id=baseline_run,
         )
+
+    async def _drift_request(
+        self, ctx: AuthContext, suite: EvalSuite, version_id: UUID, number: int, *, now: datetime
+    ) -> tuple[EvalRunRequest, bool]:
+        """The run a suite starts when nothing names its baseline, and whether it runs
+        uncompared.
+
+        Its drift baseline, or, after a result that could not be compared, the
+        version before beside it - unless running both would cross the suite's
+        ceiling: then the candidate runs alone, held to its own numbers, rather
+        than skipped every time.
+        """
+        baseline_version, baseline = await self._drift_baseline(suite, version_id, number, now=now)
+        request = self._request(
+            suite, number, baseline_version=baseline_version, baseline_run=baseline
+        )
+        if baseline_version is None or suite.max_run_usd is None:
+            return request, False
+        estimate = await self.evals.estimate(ctx, suite.agent_id, request)
+        if estimate.total_usd <= suite.max_run_usd:
+            return request, False
+        return self._request(suite, number, baseline_version=None, baseline_run=None), True
 
     async def _drift_baseline(
         self, suite: EvalSuite, version_id: UUID, number: int, *, now: datetime
@@ -1336,7 +1372,12 @@ class EvalSuiteService:
             reasons=reasons,
             failing_cases=await self._failing(reader, read, comparison),
         )
-        await self._finish(result, status, summary=summary, now=now)
+        uncompared = result.reason == NOT_COMPARED
+        if uncompared:
+            summary = summary.model_copy(update={"message": NOT_COMPARED_MESSAGE})
+        await self._finish(
+            result, status, summary=summary, reason=result.reason if uncompared else None, now=now
+        )
 
     async def _failing(
         self, reader: AuthContext, read: EvalRunRead, comparison: EvalComparisonRead
@@ -1452,7 +1493,7 @@ class EvalSuiteService:
         assert suite is not None, "a result goes with its suite"
         if status is EvalSuiteResultStatus.PASSED and result.agent_version_id is not None:
             await self._follow(suite, result)
-        if alerting_since is not None and alerting_since == result.id:
+        if (alerting_since is not None and alerting_since == result.id) or reason == NOT_COMPARED:
             from app.services.notifications import NotificationService
 
             agent = await agent_repo.get(

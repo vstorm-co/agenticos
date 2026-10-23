@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody
@@ -629,6 +629,144 @@ async def test_a_run_measured_against_a_baseline_needs_a_rerun(db) -> None:
         await service.estimate(
             ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=0)
         )
+
+
+async def test_an_older_run_naming_an_earlier_one_confirms_none_of_its_flips(db) -> None:
+    """A run written before the baseline was kept as an arm of it: its earlier run was
+    never asked again, so nothing it shows is confirmed, and it says so."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db, breaks="Question 0"), v7.id, ctx)
+    # As the code before kept it: no baseline arm, the earlier run named on the run.
+    await db.execute(
+        delete(EvalRunArm).where(EvalRunArm.eval_run_id == v7.id, EvalRunArm.role == "baseline")
+    )
+    await db.execute(update(EvalRun).where(EvalRun.id == v7.id).values(baseline_run_id=v6.id))
+    await db.flush()
+    db.expire_all()
+
+    comparison = await service.compare(ctx, v7.id)
+
+    assert comparison.baseline is not None and comparison.baseline.run_id == v6.id
+    assert comparison.baseline_rerun is False
+    [regression] = [case for case in comparison.cases if case.flip == "regression"]
+    assert (regression.confirmed, comparison.regressions_confirmed) == (False, 0)
+
+
+async def test_a_baseline_whose_reruns_do_not_repeat_its_pass_confirms_nothing(db) -> None:
+    """The provider moved between the two days, not the spec: the baseline fails too."""
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+    model.answer = lambda prompt, call: (
+        _FAIL
+        if model.calls[call]["candidate"].version_id == versions[7].id
+        or sum(1 for c in model.calls[: call + 1] if c["candidate"].version_id == versions[6].id)
+        == 2
+        else _PASS
+    )
+
+    await _run_to_end(db, model, v7.id, ctx)
+
+    comparison = await service.compare(ctx, v7.id)
+    [regression] = comparison.cases
+    assert regression.baseline_reruns == [True, False]
+    assert (regression.confirmed, comparison.verdict) == (False, "no_difference")
+
+
+async def test_a_named_earlier_run_of_the_draft_stands_in_as_the_baseline(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    draft = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+    await _run_to_end(db, Model(db), draft.id, ctx)
+
+    v7 = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=draft.id)
+    )
+
+    [_, baseline] = v7.arms
+    assert (baseline.role, baseline.source, baseline.version_number) == ("baseline", "draft", None)
+
+
+async def test_an_earlier_run_whose_version_is_gone_cannot_be_named(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    for arm in (
+        await db.execute(select(EvalRunArm).where(EvalRunArm.eval_run_id == v6.id))
+    ).scalars():
+        arm.agent_version_id = None
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="cannot be asked again"):
+        await service.estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id)
+        )
+
+
+async def test_the_draft_of_an_agent_nobody_published_has_no_baseline_to_offer(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    agent.current_version_id = None
+    await db.flush()
+    dataset = await _dataset(db, ctx, cases=1)
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+
+    assert (estimate.missing_baseline_version, [a.role for a in estimate.arms]) == (
+        None,
+        ["candidate"],
+    )
+
+
+async def test_an_earlier_run_graded_by_another_judge_is_no_default_baseline(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    await _pin(db, v6.id, {"agent_version_id": str(uuid.uuid4()), "prompt_version": 1})
+
+    estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert estimate.missing_baseline_version == 6
+
+
+async def test_a_deployment_with_no_reruns_refuses_a_comparison_naming_no_field(db) -> None:
+    """The caller sent no `reruns`: a refusal naming the field would point at nothing."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+
+    with (
+        patch("app.services.eval_run.settings.EVAL_RERUNS", 0),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await service.estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+        )
+    assert refused.value.details == {"reason": "no_reruns"}
 
 
 async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
@@ -2771,6 +2909,8 @@ async def test_a_run_measured_against_an_earlier_one_confirms_its_flips_against_
     comparison = await service.compare(ctx, later.id)
     assert comparison.baseline is not None and comparison.baseline.run_id == earlier.id
     assert (comparison.regressions_confirmed, comparison.paired) == (1, False)
+    # The same version on the same model: only the candidate is asked again.
+    assert (len(model.calls), comparison.baseline_rerun) == (4, True)
 
 
 @pytest.mark.security

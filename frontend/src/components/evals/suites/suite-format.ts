@@ -174,10 +174,13 @@ export function skipText(result: EvalSuiteResult, t: Translate): string | null {
  * no threshold to fall short of - a run that was cancelled, one that never ran.
  */
 export function resultReasons(result: EvalSuiteResult, t: Translate, locale: string): string[] {
+  // Run alone because a pair would have crossed the suite's ceiling: said first, whatever it found.
+  const alone = result.reason === "not_compared_cost_cap" ? [t("notCompared")] : [];
   const reasons = result.summary?.reasons ?? [];
   if ((result.status === "failed" || result.status === "inconclusive") && reasons.length > 0) {
-    return reasons.map((reason) => reasonText(reason, t, locale));
+    return [...alone, ...reasons.map((reason) => reasonText(reason, t, locale))];
   }
+  if (alone.length > 0) return alone;
   if (["inconclusive", "skipped", "error"].includes(result.status)) {
     return [skipText(result, t)].filter((text): text is string => text !== null);
   }

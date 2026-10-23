@@ -9262,14 +9262,15 @@
         "regressions": "{count, plural, =0 {0 Regressionen} one {≤# Regression} other {≤# Regressionen}}",
         "costRise": "Kosten/Bestehen ≤+{rise}",
         "p95Rise": "p95 ≤+{rise}"
-      }
+      },
+      "notCompared": "Nicht verglichen: auch die frühere Version auszuführen würde die Kostengrenze der Suite überschreiten."
     },
     "excludedEvidence": "{count, plural, =1 {1 Fall wurde} other {# Fälle wurden}} weggelassen: sie stammen aus den Gesprächen, aus denen die geprüfte Änderung abgeleitet wurde.",
     "backToSuggestions": "Zurück zu den Vorschlägen",
     "backToSkillChange": "Zurück zur Skill-Änderung",
     "backToContextChange": "Zurück zur Änderung der Kontextdatei",
     "changedSinceBaseline": "{count, plural, =1 {1 Fall hat sich} other {# Fälle haben sich}} geändert, seit die Baseline geantwortet hat, daher {count, plural, =1 {wird er} other {werden sie}} nicht verglichen.",
-    "baselineNotRerun": "Älterer Run: Die Baseline wurde nicht erneut ausgeführt, daher sind Änderungen nicht bestätigt.",
+    "baselineNotRerun": "Die Baseline wurde zu diesen Fällen nicht erneut befragt, daher sind die Änderungen nicht bestätigt.",
     "noEarlierRun": "Kein vergleichbarer früherer Run (andere Bewertung, anderes Modell oder andere Einrichtung). Dieser Run hat nichts, womit er verglichen wird.",
     "besideBaseline": "Auch die Version davor ausführen",
     "besideBaselineHint": "Sie beantwortet dieselben Fälle neben diesem Run, gleich bewertet, und die Schätzung enthält sie."
