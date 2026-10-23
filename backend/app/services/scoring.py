@@ -154,6 +154,19 @@ STARTING_CRITERION = RubricCriterion(
 )
 
 
+def _changed_sections(before: DatasetScoring, after: DatasetScoring) -> list[str]:
+    """The scorers a scoring change touched, by name: what an audit entry may keep of it.
+
+    A rubric and the checks quote the dataset's own words, so the entry names
+    the section and leaves its contents where they are.
+    """
+    return [
+        section
+        for section in DatasetScoring.model_fields
+        if getattr(before, section) != getattr(after, section)
+    ]
+
+
 def _judge_instructions(dataset: Dataset) -> str:
     """The default judge's prompt, which holds the rules of grading, and what the dataset is."""
     about = f" It is about: {dataset.description}" if dataset.description else ""
@@ -269,6 +282,17 @@ class ScoringService:
             dataset=dataset,
             update_data={"scoring": data.model_dump(mode="json", by_alias=True)},
         )
+        changed = _changed_sections(stored, data)
+        if changed:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="dataset.scoring_changed",
+                target_type="dataset",
+                target_id=str(dataset.id),
+                details={"name": dataset.name, "sections": changed},
+            )
         return await self.datasets.read(ctx, dataset_id)
 
     async def create_judge(
@@ -324,6 +348,15 @@ class ScoringService:
             self.db,
             dataset=dataset,
             update_data={"scoring": scoring.model_dump(mode="json", by_alias=True)},
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="dataset.judge_created",
+            target_type="dataset",
+            target_id=str(dataset.id),
+            details={"name": dataset.name, "judge_agent_id": str(judge.id)},
         )
         return await self.datasets.read(ctx, dataset_id)
 

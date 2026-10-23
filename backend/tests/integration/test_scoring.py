@@ -35,6 +35,7 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import DatasetVersion
 from app.db.models.eval_run import EvalRun
@@ -799,6 +800,53 @@ class TestADatasetsOwnJudge:
         assert made.scoring.judge.agent_id is not None
         assert (made.scoring.judge.enabled, made.scoring.judge.criteria) == (False, [])
         assert made.scoring.reference.enabled is False
+
+    async def test_creating_it_and_changing_grading_are_audited_by_section(self, db, judge) -> None:
+        """A guard reads what grades a dataset, so who changed it is on record - and only
+        which part, since a rubric and the checks quote the dataset's own words."""
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=_rubric())
+        scoring = ScoringService(db)
+
+        made = await scoring.create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        await scoring.set_scoring(
+            tenant.ctx,
+            dataset.id,
+            made.scoring.model_copy(update={"trajectory": TrajectoryScorer(enabled=False)}),
+        )
+        await scoring.set_scoring(
+            tenant.ctx,
+            dataset.id,
+            made.scoring.model_copy(update={"trajectory": TrajectoryScorer(enabled=False)}),
+        )
+
+        entries = (
+            (
+                await db.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.organization_id == tenant.ctx.organization_id,
+                        AppAdminAuditLog.target_id == str(dataset.id),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        said = [(entry.action, entry.details) for entry in entries]
+        assert (
+            "dataset.judge_created",
+            {"name": dataset.name, "judge_agent_id": str(made.scoring.judge.agent_id)},
+        ) in said
+        # The second save changed nothing, and records nothing.
+        assert (
+            said.count(
+                ("dataset.scoring_changed", {"name": dataset.name, "sections": ["trajectory"]})
+            )
+            == 1
+        )
 
     async def test_it_knows_what_it_was_told_and_grades_at_temperature_zero(
         self, db, judge
