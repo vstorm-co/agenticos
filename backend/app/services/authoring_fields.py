@@ -461,6 +461,18 @@ def _adds(address: Address, op: str, base: Any, new: Any) -> tuple[Access, ...]:
     return ()
 
 
+def as_accepted(path: str, op: str, value: Any) -> Any:
+    """A stored change as a draft takes it: an added capability gated again.
+
+    The rule holds whoever wrote the row - one staged before it, or by a writer
+    that never passed `stage()`.
+    """
+    if path != "capabilities" or op != FieldOp.ADD.value or not isinstance(value, dict):
+        return value
+    stored = _binding_as_stored(value)
+    return value if isinstance(stored, str) else stored
+
+
 def _binding_as_stored(value: dict[str, Any]) -> dict[str, Any] | str:
     """The binding gated and as the spec stores it, so Undo finds the very binding it added."""
     try:

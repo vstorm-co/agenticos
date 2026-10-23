@@ -309,8 +309,11 @@ class HunkRead(BaseSchema):
     effect: dict[str, JsonValue] | None = Field(
         default=None,
         description=(
-            "What a field change is expected to do to cost or limits, measured on recent "
-            "runs: for a model, `cost_per_run_before`, `cost_per_run_after` and `runs`"
+            "What a field change does beyond its value. For a model, its cost measured on "
+            "recent runs: `cost_per_run_before`, `cost_per_run_after` and `runs`. For a "
+            "change that gives the agent access to more, `adds` - each capability, "
+            "knowledge base, context file or MCP tools it adds - and `writes`, the tools "
+            "among them that change something, each asking for approval"
         ),
     )
     names: dict[str, str] = Field(

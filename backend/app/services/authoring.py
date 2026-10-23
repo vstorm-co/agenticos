@@ -820,8 +820,8 @@ class AuthoringService:
             BadRequestError: It is not a change the assistant may propose, it
                 removes or reconfigures a safeguard, the value was edited where
                 editing is not offered or does not validate, the draft moved since,
-                or - for a change of model - no check of the batch shows it pays
-                off yet.
+                or - for a change of model - no check of exactly what accepting
+                leaves shows it pays off yet.
             AuthorizationError: It adds something the person accepting it may not
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
@@ -845,6 +845,7 @@ class AuthoringService:
                     message="That value cannot be accepted here", details={"reason": staged}
                 )
             value = staged.new
+        value = authoring_fields.as_accepted(hunk.path or "", hunk.op or "", value)
         written = authoring_hunks.apply_field(spec, hunk, value)
         if written is None:
             raise self._stale()

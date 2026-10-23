@@ -426,3 +426,19 @@ class TestPolicy:
 
         assert isinstance(staged, fields.Staged)
         assert staged.adds == (fields.Access("context", added),)
+
+
+def test_a_change_is_taken_as_accepted_only_where_it_adds_a_capability():
+    gated = fields.as_accepted("capabilities", "add", {"id": "sandbox"})
+    assert gated["tool_approval"] == {
+        "write_file": "required",
+        "edit_file": "required",
+        "execute": "required",
+    }
+    assert fields.as_accepted("capabilities", "add", gated) == gated
+    assert fields.as_accepted("capabilities", "add", {"id": "sandbox", "config": 5}) == {
+        "id": "sandbox",
+        "config": 5,
+    }
+    assert fields.as_accepted("capabilities", "remove", {"id": "sandbox"}) == {"id": "sandbox"}
+    assert fields.as_accepted("max_steps", "set", 20) == 20
