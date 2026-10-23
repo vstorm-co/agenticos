@@ -1,5 +1,5 @@
 ---
-source_sha: "0fa40513ea5c"
+source_sha: "dd4cda566597"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -170,7 +170,8 @@ selbst.
 
 Ein abgedecktes Thema sagt, welches Dokument es abdeckt, behält wie ein
 verworfenes die Fragen, die zu ihm gehören, und steht unter **Abgedeckt**. Wird
-dieses Dokument gelöscht, ist das Thema wieder offen. **Wieder öffnen** bei
+dieses Dokument gelöscht oder scheitert seine Ingestion, ist das Thema wieder
+offen; ein verworfenes Thema wird wieder geöffnet, bevor Inhalt dafür entsteht. **Wieder öffnen** bei
 einem abgedeckten Thema lässt das Dokument in der Wissensdatenbank. Das Dokument
 hält fest, aus welchem Thema und von wem es hinzugefügt wurde, und jede
 Hinzufügung steht im Audit-Log als `knowledge_gap.content_added`.

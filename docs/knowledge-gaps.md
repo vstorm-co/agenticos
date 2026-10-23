@@ -158,7 +158,8 @@ topic's **…** menu, on its row and in the topic itself.
 
 A covered topic says which document covers it, keeps the questions that belong
 to it like a dismissed one, and is listed under **Covered**. If that document is
-deleted, the topic is open again. **Reopen** on a covered topic leaves the
+deleted, or fails to ingest, the topic is open again; a dismissed topic is
+reopened before content is written for it. **Reopen** on a covered topic leaves the
 document in the knowledge base. The document records the topic it was added
 from and who added it, and each addition is in the audit log as
 `knowledge_gap.content_added`.

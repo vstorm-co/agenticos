@@ -1,5 +1,5 @@
 ---
-source_sha: "0fa40513ea5c"
+source_sha: "dd4cda566597"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -160,7 +160,9 @@ jego wierszu i w samym temacie.
 
 Uzupełniony temat mówi, który dokument go uzupełnia, zatrzymuje należące do
 niego pytania tak jak odrzucony i jest na liście **Uzupełnione**. Jeśli ten
-dokument zostanie usunięty, temat znów jest otwarty. **Otwórz ponownie** na
+dokument zostanie usunięty albo jego ingestia się nie powiedzie, temat znów
+jest otwarty; odrzucony temat trzeba otworzyć ponownie, zanim powstanie dla
+niego treść. **Otwórz ponownie** na
 uzupełnionym temacie zostawia dokument w bazie wiedzy. Dokument zapisuje temat,
 z którego go dodano, i to, kto go dodał, a każde dodanie trafia do dziennika
 audytu jako `knowledge_gap.content_added`.

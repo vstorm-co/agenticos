@@ -1,5 +1,5 @@
 ---
-source_sha: "0fa40513ea5c"
+source_sha: "dd4cda566597"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -173,7 +173,8 @@ menú **…** de un tema, en su fila y en el propio tema.
 
 Un tema cubierto dice qué documento lo cubre, conserva las preguntas que le
 pertenecen como uno descartado y aparece en **Cubiertos**. Si ese documento se
-borra, el tema vuelve a estar abierto. **Reabrir** en un tema cubierto deja el
+borra, o su ingesta falla, el tema vuelve a estar abierto; un tema descartado
+se reabre antes de escribir contenido para él. **Reabrir** en un tema cubierto deja el
 documento en la base de conocimiento. El documento registra el tema desde el
 que se añadió y quién lo añadió, y cada adición queda en el registro de
 auditoría como `knowledge_gap.content_added`.
