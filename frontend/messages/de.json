@@ -2900,7 +2900,15 @@
       "morningNamed": "Guten Morgen, {name}",
       "afternoonNamed": "Guten Tag, {name}",
       "eveningNamed": "Guten Abend, {name}",
-      "summary": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>. {waiting, plural, =0 {Nichts wartet auf Sie.} =1 {<b>Ein Aufruf</b> wartet auf Sie.} other {<b># Aufrufe</b> warten auf Sie.}}"
+      "ran": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>.",
+      "nothingWaiting": "Nichts wartet auf Sie.",
+      "waitingOn": "Auf Sie warten: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, =1 {1 Aufruf} other {# Aufrufe}}",
+        "review": "{count, plural, =1 {1 Antwort zur Prüfung} other {# Antworten zur Prüfung}}",
+        "suites": "{count, plural, =1 {1 durchgefallene Suite} other {# durchgefallene Suites}}",
+        "suggestions": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}}"
+      }
     },
     "discover": {
       "title": "AgenticOS entdecken",

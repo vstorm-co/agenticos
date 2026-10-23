@@ -2900,7 +2900,15 @@
       "morningNamed": "Good morning, {name}",
       "afternoonNamed": "Good afternoon, {name}",
       "eveningNamed": "Good evening, {name}",
-      "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
+      "ran": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period.",
+      "nothingWaiting": "Nothing is waiting on you.",
+      "waitingOn": "Waiting on you: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, =1 {1 call} other {# calls}}",
+        "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
+        "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
+        "suggestions": "{count, plural, =1 {1 suggestion} other {# suggestions}}"
+      }
     },
     "discover": {
       "title": "Discover AgenticOS",

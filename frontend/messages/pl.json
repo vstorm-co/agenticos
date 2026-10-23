@@ -2899,7 +2899,15 @@
       "morningNamed": "Dzień dobry, {name}",
       "afternoonNamed": "Dzień dobry, {name}",
       "eveningNamed": "Dobry wieczór, {name}",
-      "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
+      "ran": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie.",
+      "nothingWaiting": "Nic nie czeka na Ciebie.",
+      "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
+      "waiting": {
+        "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
+        "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
+        "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
+        "suggestions": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}"
+      }
     },
     "discover": {
       "title": "Odkryj AgenticOS",
