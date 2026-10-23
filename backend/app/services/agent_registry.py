@@ -434,6 +434,11 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
     return problems
 
 
+# What a publish refusal can offer to fix in one click, in `details.fixes`.
+USE_STATE_WORKSPACE = "use_state_workspace"
+STOP_SHARING_UNBOUND = "stop_sharing_unbound"
+
+
 @dataclass
 class _SpecProblems:
     """Everything wrong with a spec: a line to read, and where to put it.
@@ -453,14 +458,20 @@ class _SpecProblems:
 
     messages: list[str] = field(default_factory=list)
     fields: list[dict[str, str]] = field(default_factory=list)
+    fixes: list[str] = field(default_factory=list)
+    """The codes of the fixes a click can apply to this spec to clear some of it."""
 
-    def add(self, messages: Sequence[str]) -> None:
-        """Problems with nothing to mark - a broken reference, a missing model."""
+    def add(self, messages: Sequence[str], *, fix: str | None = None) -> None:
+        """Problems with nothing to mark - a broken reference, a missing model -
+        and the fix that clears them, when one does."""
         self.messages.extend(messages)
+        if messages and fix is not None and fix not in self.fixes:
+            self.fixes.append(fix)
 
     def merge(self, other: _SpecProblems) -> None:
         self.messages.extend(other.messages)
         self.fields.extend(other.fields)
+        self.fixes.extend(code for code in other.fixes if code not in self.fixes)
 
     def within_specialist(self, name: str) -> _SpecProblems:
         """The same problems, said about a specialist defined inside this agent.
@@ -1215,7 +1226,12 @@ class AgentRegistryService:
             name=template.name,
             description=template.description,
             instructions=template.instructions,
-            capabilities=agent_templates.for_this_deployment(template.capabilities),
+            capabilities=agent_templates.for_this_deployment(
+                template.capabilities,
+                container_workspace=await SandboxConnectionService(self.db).can_provide(
+                    ctx.organization_id
+                ),
+            ),
             mcp_servers=list(template.mcp_servers),
             skill_ids=[row.id for row in rows],
             budget=(
@@ -1491,7 +1507,12 @@ class AgentRegistryService:
                 reference, and a `fields` list for those a form can mark. A
                 capability's configuration is the one part of a spec rendered as
                 a generated form, so its refusals name the input rather than
-                only the capability (#882).
+                only the capability (#882). And a `fixes` list, when a click can
+                clear some of them, each a code:
+                `use_state_workspace` turns the workspace into the files-only one,
+                which needs no sandbox connection; `stop_sharing_unbound` removes
+                from `share_with_delegates` what this agent no longer binds. A
+                client ignores a code it does not know.
         """
         problems = _SpecProblems()
 
@@ -1526,7 +1547,7 @@ class AgentRegistryService:
         problems.add(await self._voice_problems(ctx, spec.voice))
         problems.merge(_variable_problems(spec))
 
-        problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.add(await _sandbox_problems(self.db, ctx, spec), fix=USE_STATE_WORKSPACE)
         problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
@@ -1537,6 +1558,8 @@ class AgentRegistryService:
             details: dict[str, Any] = {"problems": problems.messages}
             if problems.fields:
                 details["fields"] = problems.fields
+            if problems.fixes:
+                details["fixes"] = problems.fixes
             raise BadRequestError(message="This agent cannot be published yet", details=details)
 
     async def reference_problems(
@@ -2066,7 +2089,7 @@ class AgentRegistryService:
         for specialist in config.inline:
             names.append(specialist.name)
             problems.merge(await self._specialist_problems(ctx, specialist))
-        problems.add(_share_problems(spec, config))
+        problems.add(_share_problems(spec, config), fix=STOP_SHARING_UNBOUND)
 
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)

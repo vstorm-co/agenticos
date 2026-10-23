@@ -13,6 +13,7 @@ at the moment of use, hand the plaintext to the client and nothing else.
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -87,6 +88,11 @@ two answers to "which key opens this host" and only one of them stays right.
 
 LOCAL_CONNECTION_NAME = "This deployment's sandbox"
 """What the connection set up on its own is called (#2070)."""
+
+# The Builder asks `can_provide` each time it lists capabilities, and the answer
+# changes only when a connection is registered or the sandbox service starts or stops.
+_PROVIDES_SECONDS = 60.0
+_provides: dict[UUID, tuple[float, bool]] = {}
 
 
 @dataclass(frozen=True)
@@ -167,6 +173,7 @@ class SandboxConnectionService:
                 filling in this form.
         """
         await self._refuse_duplicate_name(ctx, data.name)
+        _provides.pop(ctx.organization_id, None)
         self._check_shape(kind=data.kind, base_url=data.base_url)
 
         first = not await sandbox_connection_repo.list_for_organization(
@@ -340,6 +347,38 @@ class SandboxConnectionService:
             )
             for runtime in CATALOG
         ]
+
+    async def can_provide(self, organization_id: UUID) -> bool:
+        """Whether a container workspace would publish in this organization.
+
+        It would when the organization has a default sandbox connection, or when
+        this deployment runs a sandbox service that the first publish sets one up
+        on (`ensure_local_connection`). Nothing is set up here - a listing must
+        not register a connection - and the answer is kept for a minute per
+        organization, since the Builder asks each time it opens. A service that
+        should answer and does not is logged as a warning, and answered no.
+        """
+        now = time.monotonic()
+        kept = _provides.get(organization_id)
+        if kept is not None and now - kept[0] < _PROVIDES_SECONDS:
+            return kept[1]
+        answer = await self._provides(organization_id)
+        _provides[organization_id] = (now, answer)
+        return answer
+
+    async def _provides(self, organization_id: UUID) -> bool:
+        if await sandbox_connection_repo.get_default(self.db, organization_id=organization_id):
+            return True
+        if not settings.SANDBOXD_TOKEN:
+            return False
+        if await member_repo.first_owner_id(self.db, organization_id=organization_id) is None:
+            return False
+        if await self._first_answering() is None:
+            logger.warning(
+                "sandbox_service_not_answering", extra={"organization_id": str(organization_id)}
+            )
+            return False
+        return True
 
     async def ensure_local_connection(self, organization_id: UUID) -> SandboxConnection | None:
         """The organization's default sandbox, set up on its own when this deployment runs one.
