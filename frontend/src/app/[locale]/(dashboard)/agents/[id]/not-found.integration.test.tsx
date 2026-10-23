@@ -86,6 +86,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: [], total: 0, isLoading: false }),
     useAllAgentVersions: () => ({ versions: [] }),
+    useDraftBase: () => ({ base: undefined }),
     useProviderModels: () => ({ models: [], source: null, isLoading: false }),
     useSecretPurposes: () => ({ purposes: [] }),
     useSecrets: () => ({ secrets: [] }),

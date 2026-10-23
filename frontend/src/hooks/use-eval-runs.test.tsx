@@ -375,6 +375,14 @@ describe("useDraftEvalRuns", () => {
     expect(none.result.current.runs).toEqual([]);
     expect(apiClient.get).not.toHaveBeenCalled();
   });
+  it("reads a test of an earlier draft under a key of its own", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
+    const { result } = renderHook(() => useDraftEvalRuns("agent-1", { draft: "earlier" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/eval-runs?draft=earlier&limit=1");
+  });
 });
 
 describe("useRecentEvalRuns", () => {

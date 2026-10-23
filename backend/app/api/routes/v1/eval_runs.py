@@ -55,16 +55,18 @@ async def list_eval_runs(
     agent_id: UUID,
     service: EvalRunSvc,
     ctx: Auth,
-    draft: Literal["current"] | None = Query(
-        None, description="Only the runs that tested the draft as it stands now"
+    draft: Literal["current", "earlier"] | None = Query(
+        None,
+        description=(
+            "`current`: only the runs that tested the draft as it stands now. `earlier`: "
+            "the runs that tested another draft since the latest version was published"
+        ),
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """The agent's runs over datasets the caller may read, newest first."""
-    return await service.list_for_agent(
-        ctx, agent_id, draft=draft is not None, skip=skip, limit=limit
-    )
+    return await service.list_for_agent(ctx, agent_id, draft=draft, skip=skip, limit=limit)
 
 
 @router.get("/datasets/{dataset_id}/eval-runs", response_model=EvalRunList)
