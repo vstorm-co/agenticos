@@ -9,9 +9,12 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, Pager } from "@/components/ui";
 import { useDataset } from "@/hooks/use-datasets";
 import { useDatasetEvalRuns, useEveryAgent } from "@/hooks/use-eval-runs";
+import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
+import { Perm } from "@/types/permissions";
+import { NeedsRunsView } from "./needs-runs-view";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { EvalRunRow } from "./run-row";
 import { StartEvalDialog } from "./start-eval-dialog";
@@ -19,13 +22,22 @@ import { StartEvalDialog } from "./start-eval-dialog";
 /**
  * Starting a run from a dataset: the dialog opens on this dataset and asks
  * which agent to test. Offered to who may run this dataset - a run grant on it
- * counts as much as the role.
+ * counts as much as the role - and shown disabled to one who may not read runs.
  */
 export function DatasetRunEvalsButton({ datasetId }: { datasetId: string }) {
   const t = useTranslations("evals");
   const { dataset } = useDataset(datasetId);
+  const canViewRuns = usePermissions().can(Perm.runsView);
   const [open, setOpen] = useState(false);
   if (dataset?.can_run !== true) return null;
+  if (!canViewRuns) {
+    return (
+      <NeedsRunsView size="sm">
+        <Play className="h-3.5 w-3.5" aria-hidden />
+        {t("start")}
+      </NeedsRunsView>
+    );
+  }
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)} data-tour="dataset-run-evals">

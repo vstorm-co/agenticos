@@ -8812,6 +8812,7 @@
     "description": "Wie sich die Bestehensquote des Agenten Version für Version entwickelt hat, und jeder Run mit seinem Urteil.",
     "start": "Evals starten",
     "startTitle": "Evals starten",
+    "needsRunsView": "Erfordert die Berechtigung, Runs zu lesen",
     "startBody": "Wähle, was du testest und auf welchem Dataset. Die Kosten siehst du, bevor etwas läuft.",
     "cancel": "Abbrechen",
     "aiSettings": "Einstellungen der Organisation öffnen",

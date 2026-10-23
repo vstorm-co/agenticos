@@ -8929,6 +8929,7 @@
     "description": "How the agent's pass rate moved, version after version, and every run with its verdict.",
     "start": "Run evals",
     "startTitle": "Run evals",
+    "needsRunsView": "Needs permission to read runs",
     "startBody": "Pick what to test and on which dataset. The cost shows before anything runs.",
     "cancel": "Cancel",
     "aiSettings": "Open the organization's settings",

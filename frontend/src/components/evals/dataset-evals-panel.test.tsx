@@ -10,6 +10,10 @@ const state = vi.hoisted(() => ({
   dataset: undefined as { can_run: boolean } | undefined,
   dialog: [] as unknown[],
   skips: [] as number[],
+  runsView: true,
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
@@ -38,6 +42,7 @@ beforeEach(() => {
   state.dialog = [];
   state.skips = [];
   state.dataset = { can_run: true };
+  state.runsView = true;
   state.runs = { runs: [], total: 0, isLoading: false, error: null, refetch: vi.fn() };
 });
 
@@ -120,5 +125,16 @@ describe("DatasetRunEvalsButton", () => {
     state.dataset = undefined;
     render(<DatasetRunEvalsButton datasetId="ds-1" />);
     expect(screen.queryByRole("button", { name: "Run evals" })).toBeNull();
+  });
+
+  it("is shown disabled, saying why, to who may run the dataset but not read runs", async () => {
+    state.runsView = false;
+    render(<DatasetRunEvalsButton datasetId="ds-1" />);
+
+    const button = screen.getByRole("button", { name: /Run evals/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("title", "Needs permission to read runs");
+    await userEvent.click(button);
+    expect(state.dialog).toEqual([]);
   });
 });

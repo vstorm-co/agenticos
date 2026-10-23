@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "@/components/agents/version-history";
 import { useAgentVersion } from "@/hooks";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -127,6 +128,11 @@ export function AssistantStrip({
                 <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
                   {t("check")}
                 </Button>
+              )}
+              {!canAsk && (
+                <NeedsRunsView size="sm" variant="outline">
+                  {t("check")}
+                </NeedsRunsView>
               )}
               <Button
                 size="sm"

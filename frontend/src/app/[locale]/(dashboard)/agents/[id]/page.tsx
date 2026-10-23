@@ -390,6 +390,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canStartEvals = mayStartEvals && runsADataset;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
+  // An editor who could test it but for reading runs sees why they cannot.
+  const testNeedsRunsView = !canViewRuns && !isSystem && agent?.can_run === true && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
   useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
@@ -964,6 +966,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 currentVersionId={agent.current_version_id}
                 draftSpec={agent.draft_spec}
                 onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
+                testNeedsRunsView={testNeedsRunsView}
               />
               {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -

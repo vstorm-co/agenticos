@@ -8179,6 +8179,7 @@
     "description": "Jak zmieniał się odsetek zaliczonych przypadków agenta, wersja po wersji, oraz każdy run z werdyktem.",
     "start": "Uruchom ewaluację",
     "startTitle": "Uruchom ewaluację",
+    "needsRunsView": "Wymaga uprawnienia do odczytu runów",
     "startBody": "Wybierz, co testujesz i na jakim datasecie. Koszt zobaczysz, zanim cokolwiek się uruchomi.",
     "cancel": "Anuluj",
     "aiSettings": "Otwórz ustawienia organizacji",
