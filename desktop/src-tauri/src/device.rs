@@ -377,6 +377,7 @@ where
                         let call_id = id.clone();
                         let app = app.clone();
                         let task = tauri::async_runtime::spawn(async move {
+                            let _working = Working::start(&app);
                             let outcome = run(&app, &op, args).await;
                             let _ = answers.send(AppFrame::answer(call_id, outcome));
                         });
@@ -419,6 +420,30 @@ fn capabilities() -> Capabilities {
     Capabilities {
         sandbox_modes: crate::local_work::modes(),
         screen: true,
+    }
+}
+
+/// How many operations the server's runs have in flight on this computer.
+static IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// An operation in flight, said in the tray's tooltip while any is: the person
+/// can see that an agent is working on this computer right now.
+struct Working(AppHandle);
+
+impl Working {
+    fn start(app: &AppHandle) -> Self {
+        if IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+            crate::tray_working(app, true);
+        }
+        Self(app.clone())
+    }
+}
+
+impl Drop for Working {
+    fn drop(&mut self) {
+        if IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+            crate::tray_working(&self.0, false);
+        }
     }
 }
 

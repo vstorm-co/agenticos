@@ -1027,6 +1027,21 @@ pub fn tray_badge(app: &AppHandle, count: Option<u32>) -> Result<(), String> {
     }
 }
 
+/// Whether an agent is working on this computer right now, in the tray's tooltip.
+pub fn tray_working(app: &AppHandle, working: bool) {
+    let Some(tray) = app.tray_by_id(TRAY) else {
+        return;
+    };
+    let tooltip = if working {
+        "AgenticOS - an agent is working on this computer"
+    } else {
+        "AgenticOS"
+    };
+    if let Err(e) = tray.set_tooltip(Some(tooltip)) {
+        eprintln!("tray tooltip: {e}");
+    }
+}
+
 fn update_blobby(app: &AppHandle, change: impl FnOnce(&mut blobby::BlobbySettings)) -> Result<(), String> {
     let (settings, ()) = settings::update(app, |settings| change(&mut settings.blobby))?;
     reflect_blobby(app, &settings)
