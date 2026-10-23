@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-10-23
+
 ### Fixed
 
 - **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
