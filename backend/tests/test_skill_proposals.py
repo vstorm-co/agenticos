@@ -148,7 +148,9 @@ class TestRecordingWhatARunWrote:
         rewriting it keeps its record; the turn becomes a proposal of its own."""
         service = _service(monkeypatch)
         monkeypatch.setattr(
-            skill_proposal_repo, "get_pending_for_skill", AsyncMock(return_value=_proposal())
+            skill_proposal_repo,
+            "get_pending_for_skill",
+            AsyncMock(side_effect=[_proposal(), None]),
         )
         monkeypatch.setattr(skill_proposal_repo, "replace_body", AsyncMock(return_value=None))
         fresh = _proposal()
