@@ -78,7 +78,11 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
-from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
+from app.services.sandbox_runtimes import (
+    CATALOG,
+    runtime_briefing,
+    runtime_parses_documents,
+)
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 
 logger = logging.getLogger(__name__)
@@ -469,6 +473,20 @@ class OpenWorkspace:
     """
 
 
+def _keyed_runtime(config: SandboxConfig, resolved: ResolvedConnection) -> str | None:
+    """The runtime a workspace's key names, `None` where it names none (`scope_key`).
+
+    `None` for the shipped default as well as for no runtime at all: on the
+    allowlist this repository generates the two are one image, and every
+    workspace opened before the runtime was keyed was keyed as this. And for
+    Daytona, which is given no runtime and so cannot be on a different one.
+    """
+    if resolved.kind == "daytona":
+        return None
+    runtime = config.runtime or resolved.row.default_runtime
+    return None if runtime == CATALOG[0].alias else runtime
+
+
 def project_sandbox(project: Project) -> SandboxConfig:
     """The workspace every run in a project shares, as a sandbox configuration.
 
@@ -666,7 +684,9 @@ class SandboxWorkspaceService:
         # workspaces, so a moved agent opens a new one instead of reattaching to
         # a row that names the host it has left.
         resolved = await self.connections.resolve(ctx, config.connection_id)
-        key = self._key(identity, scope, "service", resolved.row.id)
+        key = self._key(
+            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
+        )
         return await self._open_service(config, identity, key, scope, resolved, on_wait=on_wait)
 
     @staticmethod
@@ -675,10 +695,11 @@ class SandboxWorkspaceService:
         scope: SessionScope,
         backend: BackendKind,
         connection_id: UUID | None = None,
+        runtime: str | None = None,
     ) -> str:
         """`scope_key`, with the one failure it has turned into an HTTP answer."""
         try:
-            return scope_key(identity, scope, backend, connection_id)
+            return scope_key(identity, scope, backend, connection_id, runtime)
         except WorkspaceScopeUnavailable as exc:
             raise BadRequestError(
                 message=str(exc),

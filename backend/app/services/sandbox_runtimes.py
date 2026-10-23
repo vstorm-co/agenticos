@@ -152,6 +152,14 @@ def allowlist_value(*, network_mode: Literal["none", "bridge"] = "none") -> str:
     return json.dumps(entries, separators=(",", ":"), sort_keys=False)
 
 
+DESKTOP_RUNTIME = "desktop"
+"""The runtime with a display, which computer use's sandbox desktop drives.
+
+Named here because publish refuses a sandbox desktop on any other, and the
+catalogue entry and that refusal must not drift apart
+(`tests/test_sandbox_runtime_catalog.py`)."""
+
+
 DOCUMENT_PARSER = "liteparse"
 """The package that makes a PDF, a `.docx` and a spreadsheet readable in place.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "72251a29f0d4"
+source_sha: "b196b8f06fa5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -889,10 +889,15 @@ Un escritorio en la sandbox no necesita nada propio: ni dirección, ni token, ni
 proveedor. Vive y se comparte exactamente como la sandbox, por conversación o
 por agent según el `session_scope` de la capability Sandbox, y un archivo que el
 agent escribe con sus tools de archivos es un archivo que puede abrir en la
-pantalla. Publicar rechaza un escritorio `sandbox` en un agent sin conexión de
-sandbox, y en un especialista inline sin una propia ni una que comparta su padre;
-una sandbox con otro runtime le dice al modelo, en su primera captura,
-que no tiene ningún escritorio instalado.
+pantalla.
+
+Publicar rechaza un escritorio `sandbox` en un agent sin conexión de sandbox, y
+en un especialista inline sin una propia ni una que comparta su padre. También
+rechaza uno cuya sandbox no esté en el runtime `desktop`, leído como lo lee una
+ejecución: el `runtime` de la capability Sandbox o, si no, el predeterminado de
+la conexión. Una sandbox que no nombra ninguno también se rechaza, porque el
+predeterminado que se distribuye es `workbench`, que no tiene pantalla. Una
+conexión de Daytona se rechaza porque ejecuta su propia imagen.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
 escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent
@@ -1031,11 +1036,14 @@ el panel de archivos etiqueta de quién es el workspace en lugar de llamarlo «l
 archivos de esta conversación», y fijarlo queda registrado en el log de auditoría,
 porque un usuario que ve un archivo que no creó debería poder averiguar por qué.
 
-**Cambiar el backend o la conexión arranca un workspace nuevo en vez de
-reengancharse al antiguo.** Un documento almacenado, el volumen de un contenedor y
-una sandbox de Daytona son tres cosas distintas, y dos instalaciones de `sandboxd`
+**Cambiar el backend, la conexión o el runtime arranca un workspace nuevo en vez
+de reengancharse al antiguo.** Un documento almacenado, el volumen de un contenedor
+y una sandbox de Daytona son tres cosas distintas, y dos instalaciones de `sandboxd`
 son dos cosas distintas, así que cada una tiene su propio workspace y el anterior se
-queda donde está, aún listado y aún legible. Mover un agent en marcha no es, por
+queda donde está, aún listado y aún legible. El runtime de un contenedor se elige al
+crearlo, así que un workspace movido a otro runtime seguiría, si no, en la imagen
+antigua. No nombrar ningún runtime y nombrar `workbench`, el predeterminado que se
+distribuye, son el mismo workspace. Mover un agent en marcha no es, por
 tanto, una manera de llevarse sus archivos; el agent encuentra un workspace vacío en
 el nuevo host. Dado que `connection_id: null` significa «la predeterminada de la
 organización», marcar otra conexión como predeterminada tiene el mismo efecto sin

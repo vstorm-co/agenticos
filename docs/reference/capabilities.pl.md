@@ -1,5 +1,5 @@
 ---
-source_sha: "72251a29f0d4"
+source_sha: "b196b8f06fa5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -875,10 +875,15 @@ Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, an
 providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
 na agenta, według `session_scope` capability Sandbox, a plik, który agent
 zapisze narzędziami plikowymi, jest plikiem, który może otworzyć na ekranie.
+
 Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa oraz u
 specjalisty inline bez własnego połączenia albo takiego, które udostępnia mu
-rodzic; sandbox na innym runtime'ie mówi modelowi przy pierwszym zrzucie ekranu, że nie ma
-zainstalowanego pulpitu.
+rodzic. Odrzuca też taki, którego sandbox nie działa na runtime'ie `desktop`,
+odczytanym tak, jak odczytuje go uruchomienie: `runtime` capability Sandbox, a w
+przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
+żadnego, też jest odrzucany, bo domyślny runtime dostarczany z platformą to
+`workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
+uruchamia własny obraz.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
 pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić
@@ -1015,11 +1020,14 @@ przy tym polu, panel plików podpisuje, czyj to workspace, zamiast nazywać go
 użytkownik, który widzi plik, którego nie stworzył, powinien móc się dowiedzieć
 dlaczego.
 
-**Zmiana backendu albo połączenia zaczyna świeży workspace, a nie podłącza się
-ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox Daytony to
-trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy — więc każda
-dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal wypisywany i
-nadal do odczytu. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
+**Zmiana backendu, połączenia albo runtime'u zaczyna świeży workspace, a nie
+podłącza się ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox
+Daytony to trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy —
+więc każda dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal
+wypisywany i nadal do odczytu. Runtime kontenera jest wybierany przy jego
+utworzeniu, więc w przeciwnym razie workspace przeniesiony na inny runtime nadal
+działałby na starym obrazie. Brak runtime'u i `workbench`, domyślny runtime dostarczany z
+platformą, to ten sam workspace. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
 jego plików; agent zastaje na nowym hoście pusty workspace. Ponieważ
 `connection_id: null` oznacza „domyślne połączenie organizacji", oznaczenie innego
 połączenia jako domyślnego daje ten sam efekt bez zmiany jakiegokolwiek speca.

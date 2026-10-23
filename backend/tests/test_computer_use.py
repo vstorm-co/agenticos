@@ -10,6 +10,7 @@ import io
 import json
 from dataclasses import replace
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import httpx
@@ -80,14 +81,17 @@ from app.agents.deps import AgentDeps
 from app.agents.ephemeral_media import EPHEMERAL, NOT_KEPT, dump_messages
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.config import settings
+from app.core.permissions import AuthContext, OrgRoleName
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretKind
+from app.repositories import sandbox_connection_repo
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     _computer_use_problems,
     _computer_use_sandbox_problems,
 )
 from app.services.generated_media import load_generated_image
+from app.services.sandbox_connection import SandboxConnectionService
 from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -1325,25 +1329,115 @@ class TestPublishingADesktopInTheSandbox:
             {"name": "operator", "model_profile_id": str(uuid4()), "capabilities": list(bindings)}
         )
 
+    @staticmethod
+    def _on(**config: Any) -> dict[str, Any]:
+        """A Sandbox binding on a named connection."""
+        return {
+            "id": "sandbox",
+            "config": {"backend": "service", "connection_id": str(uuid4()), **config},
+        }
+
+    @staticmethod
+    def _connection(
+        monkeypatch: pytest.MonkeyPatch, *, kind: str = "docker", default_runtime: str | None = None
+    ) -> None:
+        connection = MagicMock(kind=kind, default_runtime=default_runtime)
+        connection.name = "Local sandbox"
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=connection))
+
+    @staticmethod
+    async def _problems(spec: AgentSpec) -> list[str]:
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        return await _computer_use_sandbox_problems(MagicMock(), ctx, spec)
+
     @pytest.mark.parametrize(
         "sandbox",
         [None, {"id": "sandbox", "config": {"backend": "state"}}],
     )
-    def test_a_desktop_in_a_sandbox_the_agent_does_not_have_is_refused(
+    async def test_a_desktop_in_a_sandbox_the_agent_does_not_have_is_refused(
         self, sandbox: dict[str, Any] | None
     ):
         bindings = [{"id": "computer_use"}] + ([sandbox] if sandbox else [])
-        assert _computer_use_sandbox_problems(self._spec(*bindings)) == [
+        assert await self._problems(self._spec(*bindings)) == [
             "Computer use's desktop runs in the agent's sandbox, so it needs the Sandbox "
             "capability on a sandbox connection, on the 'desktop' runtime."
         ]
 
-    def test_a_sandbox_connection_without_a_shell_tool_is_enough(self):
+    async def test_a_desktop_sandbox_without_a_shell_tool_is_enough(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        self._connection(monkeypatch)
         spec = self._spec(
-            {"id": "computer_use"},
-            {"id": "sandbox", "config": {"backend": "service", "include_execute": False}},
+            {"id": "computer_use"}, self._on(runtime="desktop", include_execute=False)
         )
-        assert _computer_use_sandbox_problems(spec) == []
+        assert await self._problems(spec) == []
+
+    async def test_the_connections_default_runtime_is_the_one_read(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A spec naming no runtime gets the connection's, as a run does."""
+        self._connection(monkeypatch, default_runtime="desktop")
+        assert await self._problems(self._spec({"id": "computer_use"}, self._on())) == []
+
+    async def test_the_organizations_own_sandbox_is_read_where_no_connection_is_named(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        local = MagicMock(kind="docker", default_runtime="desktop")
+        monkeypatch.setattr(
+            SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=local)
+        )
+        spec = self._spec(
+            {"id": "computer_use"}, {"id": "sandbox", "config": {"backend": "service"}}
+        )
+        assert await self._problems(spec) == []
+
+    @pytest.mark.parametrize(
+        ("runtime", "default_runtime", "named"),
+        [
+            # The shipped default, which has no display - the case that published
+            # and then failed its first screenshot.
+            ("workbench", None, "the 'workbench' runtime"),
+            # The spec's choice wins over the connection's, as it does at run time.
+            ("workbench", "desktop", "the 'workbench' runtime"),
+            ("python", None, "the 'python' runtime"),
+            # Nothing named: the host decides, and publish cannot see what it has.
+            (None, None, "whichever runtime its host defaults to"),
+        ],
+    )
+    async def test_a_sandbox_on_any_other_runtime_is_refused(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        runtime: str | None,
+        default_runtime: str | None,
+        named: str,
+    ):
+        self._connection(monkeypatch, default_runtime=default_runtime)
+        spec = self._spec({"id": "computer_use"}, self._on(runtime=runtime))
+
+        assert await self._problems(spec) == [
+            "Computer use's desktop needs the sandbox's 'desktop' runtime, and this agent's "
+            f"sandbox would run on {named}. Set the Sandbox capability's runtime to 'desktop'."
+        ]
+
+    async def test_a_daytona_sandbox_is_refused(self, monkeypatch: pytest.MonkeyPatch):
+        """It runs its own image whatever runtime the spec names."""
+        self._connection(monkeypatch, kind="daytona")
+        spec = self._spec({"id": "computer_use"}, self._on(runtime="desktop"))
+
+        assert await self._problems(spec) == [
+            "Computer use's desktop needs the 'desktop' runtime, and the Daytona connection "
+            "'Local sandbox' runs no runtime of ours. Put the sandbox on a sandbox service "
+            "connection."
+        ]
+
+    async def test_a_connection_this_organization_does_not_have_is_left_to_the_sandbox_check(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """`_sandbox_problems` names it already; a second sentence adds nothing."""
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=None))
+        spec = self._spec({"id": "computer_use"}, self._on(runtime="desktop"))
+
+        assert await self._problems(spec) == []
 
     @pytest.mark.parametrize(
         "binding",
@@ -1353,7 +1447,7 @@ class TestPublishingADesktopInTheSandbox:
             {"id": "computer_use", "config": {"desktop": "cloud"}},
         ],
     )
-    def test_a_daemon_a_disabled_binding_or_a_broken_config_is_not_asked(
+    async def test_a_daemon_a_disabled_binding_or_a_broken_config_is_not_asked(
         self, binding: dict[str, Any]
     ):
-        assert _computer_use_sandbox_problems(self._spec(binding)) == []
+        assert await self._problems(self._spec(binding)) == []

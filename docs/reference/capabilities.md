@@ -828,11 +828,15 @@ deny a batch aimed at a window you do not trust to stay put.
 A sandbox desktop needs nothing of its own: no address, no token and no
 provider. It lives and is shared exactly as the sandbox is, per conversation or
 per agent by the Sandbox capability's `session_scope`, and a file the agent
-writes with its file tools is a file it can open on the screen. Publish refuses
-a `sandbox` desktop on an agent without a sandbox connection, and on an inline
-specialist without one of its own or one its parent shares; a sandbox on
-another runtime tells the model at its first screenshot that it has no desktop
-installed.
+writes with its file tools is a file it can open on the screen.
+
+Publish refuses a `sandbox` desktop on an agent without a sandbox connection,
+and on an inline specialist without one of its own or one its parent shares. It
+also refuses one whose sandbox is not on the `desktop` runtime, read the way a
+run reads it: the Sandbox capability's `runtime`, else the connection's default.
+A sandbox that names neither is refused too, because the shipped default is
+`workbench`, which has no display. A Daytona connection is refused because it
+runs its own image.
 
 The `execute` tool is not needed, and leaving it off keeps the desktop's actions
 behind `computer_act` and its approval: with `execute`, the agent can run
@@ -964,11 +968,14 @@ the field, the file panel labels whose workspace it is rather than calling it "t
 conversation's files", and setting it is recorded in the audit log — because a user
 who sees a file they did not create should be able to find out why.
 
-**Changing the backend or the connection starts a fresh workspace rather than
-reattaching to the old one.** A stored document, a container's volume and a
-Daytona sandbox are three different things, and two `sandboxd` installations are
-two different things — so each gets its own workspace, and the previous one stays
-where it is, still listed and still readable. Moving a live agent is therefore not
+**Changing the backend, the connection or the runtime starts a fresh workspace
+rather than reattaching to the old one.** A stored document, a container's volume
+and a Daytona sandbox are three different things, and two `sandboxd` installations
+are two different things — so each gets its own workspace, and the previous one
+stays where it is, still listed and still readable. A container's runtime is
+chosen when it is created, so a workspace moved to another runtime would otherwise
+keep running on the old image. Naming no runtime and naming `workbench`, the
+shipped default, are the same workspace. Moving a live agent is therefore not
 a way to carry its files across; the agent finds an empty workspace on the new
 host. Since `connection_id: null` means "the organization's default", marking a
 different connection as default has the same effect without any spec changing.

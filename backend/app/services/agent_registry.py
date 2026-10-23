@@ -47,6 +47,7 @@ from app.agents.capabilities.computer_use import (
     ComputerUseConfig,
     validate_daemon_url,
 )
+from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -78,6 +79,7 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
+from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill
 from app.repositories import (
     agent_environment_repo,
@@ -139,6 +141,7 @@ from app.services.file_storage import (
 )
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.sandbox_runtimes import DESKTOP_RUNTIME
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
@@ -238,26 +241,18 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             )
         return problems
 
-    connection = None
-    if config.connection_id is not None:
-        connection = await sandbox_connection_repo.get(
-            db, config.connection_id, organization_id=ctx.organization_id
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None and config.connection_id is not None:
+        problems.append(
+            "The sandbox connection this agent names does not exist in this "
+            "organization. Pick one that does, or leave it unset to use the default."
         )
-        if connection is None:
-            problems.append(
-                "The sandbox connection this agent names does not exist in this "
-                "organization. Pick one that does, or leave it unset to use the default."
-            )
-    else:
-        # The deployment's own sandbox service, set up here when it runs one and
-        # nobody has opened the Sandboxes page yet - the same row a run would set up.
-        connection = await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
-        if connection is None:
-            problems.append(
-                "This organization has registered no sandbox connection, so an agent "
-                "cannot be given a container-backed workspace. Register one, or use "
-                "the 'state' workspace, which needs nothing."
-            )
+    elif connection is None:
+        problems.append(
+            "This organization has registered no sandbox connection, so an agent "
+            "cannot be given a container-backed workspace. Register one, or use "
+            "the 'state' workspace, which needs nothing."
+        )
 
     if connection is not None and connection.secret_id is None:
         problems.append(
@@ -265,6 +260,19 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+async def _sandbox_connection(
+    db: AsyncSession, ctx: AuthContext, config: SandboxConfig
+) -> SandboxConnection | None:
+    """The connection a container-backed workspace would open on, if there is one."""
+    if config.connection_id is not None:
+        return await sandbox_connection_repo.get(
+            db, config.connection_id, organization_id=ctx.organization_id
+        )
+    # The deployment's own sandbox service, set up here when it runs one and
+    # nobody has opened the Sandboxes page yet - the same row a run would set up.
+    return await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
 
 
 def _coding_agent_problems(spec: AgentSpec) -> list[str]:
@@ -286,14 +294,23 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     return []
 
 
-def _computer_use_sandbox_problems(spec: AgentSpec) -> list[str]:
-    """A desktop in the sandbox, on an agent with no sandbox to put it in.
+async def _computer_use_sandbox_problems(
+    db: AsyncSession, ctx: AuthContext, spec: AgentSpec
+) -> list[str]:
+    """A desktop in the sandbox, on an agent with no desktop sandbox to put it in.
 
     The desktop's clicks and screenshots are commands run in the agent's
     workspace, the coding agent's arrangement, so it needs a container-backed
     one. The shell tool is not required: the desktop runs its commands itself.
     A configuration that does not validate is left to the binding's own check,
     which names the field.
+
+    And the container has to be the `desktop` runtime, read the way a run reads
+    it: the spec's, else the connection's default. A sandbox where neither names
+    one is refused too, rather than assumed to be on the host's default: the
+    shipped default is `workbench`, which has no display, and a host with an
+    allowlist of its own is not something publish can see. A connection this organization does not
+    have is `_sandbox_problems`'s to name.
     """
     desktops: list[str] = []
     for binding in spec.capabilities:
@@ -309,6 +326,23 @@ def _computer_use_sandbox_problems(spec: AgentSpec) -> list[str]:
         return [
             "Computer use's desktop runs in the agent's sandbox, so it needs the "
             "Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None:
+        return []
+    if connection.kind == "daytona":
+        return [
+            f"Computer use's desktop needs the '{DESKTOP_RUNTIME}' runtime, and the Daytona "
+            f"connection '{connection.name}' runs no runtime of ours. Put the "
+            "sandbox on a sandbox service connection."
+        ]
+    runtime = config.runtime or connection.default_runtime
+    if runtime != DESKTOP_RUNTIME:
+        chosen = f"the '{runtime}' runtime" if runtime else "whichever runtime its host defaults to"
+        return [
+            f"Computer use's desktop needs the sandbox's '{DESKTOP_RUNTIME}' runtime, "
+            f"and this agent's sandbox would run on {chosen}. Set the Sandbox "
+            f"capability's runtime to '{DESKTOP_RUNTIME}'."
         ]
     return []
 
@@ -1529,7 +1563,7 @@ class AgentRegistryService:
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.add(_coding_agent_problems(spec))
-        problems.add(_computer_use_sandbox_problems(spec))
+        problems.add(await _computer_use_sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
         if problems.messages:
@@ -2043,16 +2077,19 @@ class AgentRegistryService:
         problems.add(pins.problems)
         # A pinned version passed this check at its own publish, on its own
         # bindings; what it is lent here can still leave it a desktop and no
-        # sandbox, and the fix is in this agent's share list.
-        problems.add(
-            [
-                f"Delegate '{delegate.spec.name}' would be lent computer use's desktop in "
-                "the sandbox but no sandbox to run it in. Share 'sandbox' with delegates "
-                "too, or stop sharing 'computer_use'."
-                for delegate in pins.delegates
-                if _computer_use_sandbox_problems(_inheriting(delegate.spec, shared))
-            ]
-        )
+        # desktop sandbox, and the fix is in this agent's share list.
+        for delegate in pins.delegates:
+            if await _computer_use_sandbox_problems(
+                self.db, ctx, _inheriting(delegate.spec, shared)
+            ):
+                problems.add(
+                    [
+                        f"Delegate '{delegate.spec.name}' would be lent computer use's "
+                        "desktop in the sandbox but no desktop sandbox to run it in. "
+                        "Share a 'sandbox' on the 'desktop' runtime with delegates "
+                        "too, or stop sharing 'computer_use'."
+                    ]
+                )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -2134,7 +2171,9 @@ class AgentRegistryService:
         # variable is refused here too rather than sent to the model as braces.
         as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
         problems.merge(_variable_problems(as_agent))
-        problems.add(_computer_use_sandbox_problems(_inheriting(as_agent, shared)))
+        problems.add(
+            await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
+        )
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

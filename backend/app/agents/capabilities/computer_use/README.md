@@ -18,9 +18,12 @@ The settings ask `desktop` first: `sandbox` or `daemon`.
   the desktop are one machine: the agent can write a file with its file tools
   and open it on the screen. The sandbox needs the `desktop` runtime (Xvfb,
   XFCE, Firefox, xdotool, scrot), and publish refuses an agent whose desktop is
-  in a sandbox it does not have. `open_sandbox_desktop` starts the display on
-  each run's first use, because a sandbox that hibernated between turns kept
-  its files and lost its processes.
+  in a sandbox it does not have or on any other runtime - the spec's, else the
+  connection's default, and naming neither is refused too. A sandbox's key
+  includes its runtime, so moving an agent to `desktop` opens a new container
+  rather than reattaching to the workbench one. `open_sandbox_desktop` starts
+  the display on each run's first use, because a sandbox that hibernated
+  between turns kept its files and lost its processes.
 - **`daemon`**: a `computerd` process the operator runs, on their own Linux
   desktop (X11), on a Mac's own screen or in a container
   (`deploy/computer/Dockerfile`). A run reaches it over HTTP with the

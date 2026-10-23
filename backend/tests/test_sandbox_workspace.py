@@ -65,6 +65,7 @@ from app.services.sandbox_workspace import (
     RETRY_CAP,
     SandboxWorkspaceService,
     WorkspaceContents,
+    _keyed_runtime,
     browsable,
     next_destroy_attempt,
     retry_pending_destroys,
@@ -285,6 +286,25 @@ class TestWhoSharesAWorkspace:
             identity, "conversation", "service", host
         )
 
+    def test_changing_the_runtime_does_not_reattach_to_the_old_ones_workspace(self):
+        """A session's image is chosen when it is created and never again, so the
+        old key on a new runtime attaches to a container of the old one."""
+        identity = _identity()
+        host = uuid4()
+
+        assert scope_key(identity, "conversation", "service", host, "desktop") != scope_key(
+            identity, "conversation", "service", host, "python"
+        )
+
+    def test_the_default_runtime_keeps_the_key_it_had(self):
+        """Every workspace opened before the runtime was keyed was keyed as this."""
+        identity = _identity()
+        host = uuid4()
+
+        assert scope_key(identity, "conversation", "service", host, None) == scope_key(
+            identity, "conversation", "service", host
+        )
+
     def test_a_stored_workspace_keys_on_no_host_at_all(self):
         """It runs on none, so folding one in would be inventing a distinction."""
         identity = _identity()
@@ -297,15 +317,25 @@ class TestWhoSharesAWorkspace:
     def test_every_key_fits_what_the_service_accepts(self, scope: str):
         """`sandboxd` rejects an id over 64 characters, on the first tool call.
 
-        53 with a host folded in, against the 44 a stored workspace takes - so
-        this is the case that has to be checked, not the shorter one.
+        60 with a host and a runtime folded in, against the 44 a stored workspace
+        takes - so this is the case that has to be checked, not the shorter one.
         """
         identity = _identity(user_id="U" * 200, channel_key="C" * 200)
 
         assert (
-            len(scope_key(identity, scope, "service", uuid4()))  # type: ignore[arg-type]
+            len(scope_key(identity, scope, "service", uuid4(), "r" * 64))  # type: ignore[arg-type]
             <= MAX_SESSION_ID
         )
+
+    @pytest.mark.parametrize("scope", ["run", "conversation", "channel", "user", "agent"])
+    def test_a_runtime_is_folded_in_without_cutting_the_subject(self, scope: str):
+        """Truncation cuts from the end, which is the subject - the part that says
+        whose workspace it is. 60 characters with a host and a runtime leaves it whole."""
+        identity = _identity(user_id="U" * 200, channel_key="C" * 200)
+
+        key = scope_key(identity, scope, "service", uuid4(), "r" * 64)  # type: ignore[arg-type]
+
+        assert key.endswith(scope_key(identity, scope, "state").rsplit("-", 1)[1])  # type: ignore[arg-type]
 
     def test_a_conversation_scope_with_no_conversation_is_refused(self):
         with pytest.raises(WorkspaceScopeUnavailable):
@@ -2957,6 +2987,91 @@ class TestASessionAcrossRuns:
         assert sandboxes.attached == [
             WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="xc-recorded")
         ]
+
+    async def test_a_new_runtime_opens_a_session_rather_than_attaching_to_the_old_one(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """An agent moved to `desktop` kept attaching to its workbench container,
+        which has no display, and failed every screenshot."""
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        identity = _identity()
+        old_key = scope_key(identity, "conversation", "service", resolved.row.id)
+        recorded = _row(backend="service", session_id=old_key, connection_id=resolved.row.id)
+
+        async def by_key(db, *, organization_id, scope_key):
+            return recorded if scope_key == old_key else None
+
+        monkeypatch.setattr(workspace_repo, "get_by_key", by_key)
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=recorded))
+        monkeypatch.setattr(workspace_repo, "create", AsyncMock(return_value=_row()))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        before = await service.open(_spec(backend="service"), ctx=_ctx(), identity=identity)
+        after = await service.open(
+            _spec(backend="service", runtime="desktop"), ctx=_ctx(), identity=identity
+        )
+
+        assert before is not None and after is not None
+        assert before.scope_key == old_key
+        assert after.scope_key != old_key
+        # The first attaches to the recorded session; the second opens one.
+        assert sandboxes.attached == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id=old_key),
+            None,
+        ]
+
+    @pytest.mark.parametrize(
+        ("runtime", "default_runtime"),
+        [(None, None), ("workbench", None), (None, "workbench"), ("workbench", "desktop")],
+    )
+    async def test_every_way_of_reaching_the_default_runtime_keeps_one_key(
+        self,
+        monkeypatch,
+        mock_db_session,
+        sandboxes,
+        runtime: str | None,
+        default_runtime: str | None,
+    ):
+        """No runtime and the shipped default are one image on the allowlist this
+        repository generates, and every workspace opened before the runtime was
+        keyed was keyed as this - so naming the default orphans nothing."""
+        resolved = _resolved(default_runtime=default_runtime)
+        _serve(monkeypatch, resolved)
+        self._row_with(monkeypatch, mock_db_session, None)
+        identity = _identity()
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service", runtime=runtime), ctx=_ctx(), identity=identity
+        )
+
+        assert workspace is not None
+        assert workspace.scope_key == scope_key(
+            identity, "conversation", "service", resolved.row.id
+        )
+
+    async def test_the_connections_default_runtime_keys_like_the_specs(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """What the container is decides the key, not which level named it."""
+        resolved = _resolved(default_runtime="desktop")
+        _serve(monkeypatch, resolved)
+        self._row_with(monkeypatch, mock_db_session, None)
+        identity = _identity()
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=identity
+        )
+
+        assert workspace is not None
+        assert workspace.scope_key == scope_key(
+            identity, "conversation", "service", resolved.row.id, "desktop"
+        )
+
+    def test_daytona_is_given_no_runtime_so_its_key_names_none(self):
+        """It runs its own image whatever the spec says, so a runtime in its key
+        would only move a workspace away from its files."""
+        assert _keyed_runtime(SandboxConfig(runtime="desktop"), _resolved(kind="daytona")) is None
 
     async def test_a_purged_session_is_reported_rather_than_replaced(
         self, monkeypatch, mock_db_session, sandboxes

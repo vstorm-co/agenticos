@@ -1,5 +1,5 @@
 ---
-source_sha: "72251a29f0d4"
+source_sha: "b196b8f06fa5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -929,11 +929,17 @@ Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
 Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
 Agent nach dem `session_scope` der Sandbox-Capability, und eine Datei, die der
 Agent mit seinen Datei-Tools schreibt, ist eine Datei, die er auf dem Bildschirm
-öffnen kann. Das Veröffentlichen verweigert einen `sandbox`-Desktop bei einem
-Agent ohne Sandbox-Verbindung und bei einem Inline-Spezialisten, der weder eine
-eigene hat noch eine, die sein Eltern-Agent mit ihm teilt; eine Sandbox auf einer
-anderen Runtime teilt dem Modell beim ersten Screenshot mit, dass kein Desktop
-installiert ist.
+öffnen kann.
+
+Das Veröffentlichen verweigert einen `sandbox`-Desktop bei einem Agent ohne
+Sandbox-Verbindung und bei einem Inline-Spezialisten, der weder eine eigene hat
+noch eine, die sein Eltern-Agent mit ihm teilt. Es verweigert auch einen, dessen
+Sandbox nicht auf der Runtime `desktop` läuft, gelesen so, wie ein Lauf sie
+liest: die `runtime` der Sandbox-Capability, sonst die Standard-Runtime der
+Verbindung. Eine Sandbox, die keine von beiden nennt, wird ebenfalls verweigert,
+denn die mitgelieferte Standard-Runtime ist `workbench`, die keinen Bildschirm
+hat. Eine Daytona-Verbindung wird verweigert, weil sie ihr eigenes Image
+ausführt.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann
@@ -1079,12 +1085,15 @@ Dateien dieser Unterhaltung“ zu nennen, und die Einstellung wird im Audit-Log
 festgehalten — denn wer eine Datei sieht, die er nicht angelegt hat, sollte
 herausfinden können, warum.
 
-**Das Backend oder die Verbindung zu wechseln, startet einen frischen Workspace,
-statt sich wieder an den alten zu hängen.** Ein gespeichertes Dokument, das Volume
-eines Containers und eine Daytona-Sandbox sind drei verschiedene Dinge, und zwei
-`sandboxd`-Installationen sind zwei verschiedene Dinge — also bekommt jede ihren
-eigenen Workspace, und der vorherige bleibt, wo er ist, weiterhin gelistet und
-weiterhin lesbar. Einen laufenden Agent umzuziehen, ist daher kein Weg, seine
+**Das Backend, die Verbindung oder die Runtime zu wechseln, startet einen
+frischen Workspace, statt sich wieder an den alten zu hängen.** Ein gespeichertes
+Dokument, das Volume eines Containers und eine Daytona-Sandbox sind drei
+verschiedene Dinge, und zwei `sandboxd`-Installationen sind zwei verschiedene
+Dinge — also bekommt jede ihren eigenen Workspace, und der vorherige bleibt, wo er
+ist, weiterhin gelistet und weiterhin lesbar. Die Runtime eines Containers wird
+gewählt, wenn er entsteht, also liefe ein auf eine andere Runtime umgezogener
+Workspace sonst weiter auf dem alten Image. Keine Runtime zu nennen und
+`workbench` zu nennen, die mitgelieferte Standard-Runtime, ist derselbe Workspace. Einen laufenden Agent umzuziehen, ist daher kein Weg, seine
 Dateien mitzunehmen; der Agent findet auf dem neuen Host einen leeren Workspace vor.
 Da `connection_id: null` „die Standardverbindung der Organisation“ bedeutet, hat es
 denselben Effekt, eine andere Verbindung als Standard zu markieren, ohne dass sich

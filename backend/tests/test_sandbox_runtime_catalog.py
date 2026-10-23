@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from app.commands.sandbox_runtimes import COMPOSE_FILES, _repo_root, compose_value
 from app.services.sandbox_runtimes import (
     CATALOG,
+    DESKTOP_RUNTIME,
     SandboxRuntimeDefinition,
     allowlist_value,
     runtime_briefing,
@@ -168,6 +169,16 @@ def test_the_catalogue_file_is_what_the_product_offers() -> None:
     path = Path(__file__).parents[1] / "app" / "core" / "catalog" / "sandbox_runtimes.json"
     assert len(json.loads(path.read_text())) == len(CATALOG) == 2
     assert [runtime.alias for runtime in CATALOG] == ["workbench", "desktop"]
+
+
+def test_the_runtime_publish_requires_for_a_desktop_has_one() -> None:
+    """Publish refuses a sandbox desktop on any other runtime, so this one has to
+    carry what `computer_use` runs: the display, the desktop, the input and the
+    screenshot."""
+    desktop = next(runtime for runtime in CATALOG if runtime.alias == DESKTOP_RUNTIME)
+    installed = " ".join(desktop.setup_commands).split()
+
+    assert {"xvfb", "xfce4", "dbus-x11", "xdotool", "scrot"} <= set(installed)
 
 
 def _definition(**overrides: Any) -> SandboxRuntimeDefinition:

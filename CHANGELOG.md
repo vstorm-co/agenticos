@@ -35,7 +35,8 @@ Two things are versioned separately from this file and worth knowing about:
   from the organization's vault. The allowlist is checked at publish and
   again whenever a run opens the daemon. Publish refuses a sandbox desktop on
   an agent, an inline specialist or a pinned delegate without a sandbox
-  connection to run it in. An approved
+  connection to run it in, or whose sandbox is on any runtime but `desktop`
+  or on Daytona. An approved
   batch runs only on a screen still the shape it was approved against, and
   `max_actions` counts across approvals; each run, and each delegation
   to the same delegate, starts a session of its own, and a batch is refused
@@ -208,6 +209,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Changing a sandbox's runtime opens a new workspace.** A container's image
+  is chosen when it is created, and the workspace's key did not include the
+  runtime, so an agent moved to another runtime kept attaching to its old
+  container. The key includes the runtime now. Naming no runtime and naming
+  `workbench`, the shipped default, keep the key they had. A workspace already
+  open on any other runtime starts empty once after the upgrade; the old one
+  stays listed and readable.
 - **The Android app shows the AgenticOS icon**, not Tauri's default: the
   generated launcher icons had never been copied into the Android project.
 - **The desktop app opens on the console, not on the sign-in form.** It
