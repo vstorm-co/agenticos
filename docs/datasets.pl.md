@@ -1,5 +1,5 @@
 ---
-source_sha: "9537cca0a893"
+source_sha: "2bbee36ec9e5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -173,9 +173,10 @@ W obu przypadkach przypadek powstaje z tej tury:
   to po łapce w dół, gdy je zaznaczysz - a także Activity i **Score against a
   case**; każde zaczyna od **Tylko to pytanie**, więc czat, który zaczął się od
   innego tematu, zostaje poza przypadkiem. W czacie pytanie, które wyraźnie
-  ciągnie poprzednie, zaczynając się od „a co z” albo „a jak”, jest oznaczone
-  jako ciąg dalszy, a o pytanie bez niczego przed nim okno nie pyta (`with_history` w
-  `POST /datasets/{id}/cases/from-message`);
+  ciągnie poprzednie, zaczynając się od „a co” albo „a jak”, jest oznaczone
+  jako ciąg dalszy, a o pytanie bez niczego przed nim okno nie pyta. W API jest
+  tak samo: `with_history` w `POST /datasets/{id}/cases/from-message` ma wartość
+  false, dopóki nie zostanie wysłane;
 - odpowiedzią jest cała odpowiedź agenta na pytanie - każdy krok, który napisał
   przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt
   nie ocenił jej łapką w dół, domyślnie jest proponowana jako odpowiedź

@@ -1,5 +1,5 @@
 ---
-source_sha: "9537cca0a893"
+source_sha: "2bbee36ec9e5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -178,7 +178,8 @@ En ambos casos, el caso se crea a partir de ese turno:
   chat que empezó con otro tema se quede fuera. En el chat, una pregunta que
   continúa claramente la anterior, porque empieza por "and" o "what about", se
   señala como continuación, y a una pregunta sin nada antes no se
-  le pregunta (`with_history` en `POST /datasets/{id}/cases/from-message`);
+  le pregunta. Por la API ocurre lo mismo: `with_history` en
+  `POST /datasets/{id}/cases/from-message` es false si no se envía;
 - la respuesta es la respuesta entera del agent a la pregunta (cada paso que
   escribió antes de la siguiente pregunta), y su texto se convierte en el
   contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar

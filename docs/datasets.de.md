@@ -1,5 +1,5 @@
 ---
-source_sha: "9537cca0a893"
+source_sha: "2bbee36ec9e5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -188,8 +188,9 @@ In beiden Fällen entsteht der Fall aus diesem Zug:
   Chat, der mit einem anderen Thema begann, draußen bleibt. Im Chat wird eine
   Frage, die die vorige erkennbar fortsetzt, weil sie mit „und“ oder „was ist
   mit“ anfängt, als Fortsetzung gekennzeichnet, und nach einer Frage ohne
-  etwas davor wird nicht gefragt (`with_history` auf
-  `POST /datasets/{id}/cases/from-message`);
+  etwas davor wird nicht gefragt. Über die API gilt dasselbe: `with_history`
+  auf `POST /datasets/{id}/cases/from-message` ist false, solange es nicht
+  gesendet wird;
 - die ganze Antwort des Agents auf die Frage - jeder Schritt, den er vor der
   nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.
   Hat niemand sie negativ bewertet, wird sie stattdessen als Referenzantwort

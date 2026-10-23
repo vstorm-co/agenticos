@@ -359,9 +359,9 @@ class DatasetCaseFromMessage(BaseSchema):
         description="Keep the answer as what a good answer is not, or as what it is",
     )
     with_history: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Keep the conversation before the question as the case's history, or test "
-            "the question on its own"
+            "Keep the conversation before the question as the case's history. Off unless "
+            "asked for: the question is tested on its own"
         ),
     )
