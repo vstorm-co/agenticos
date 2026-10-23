@@ -28,6 +28,10 @@
 license = "LGPL-2.1-or-later"
 evidence = "odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later."
 
+[overrides.python."protobuf-py-ext"]
+license = "Apache-2.0"
+evidence = "protobuf-py-ext 0.6.0 (pulled in by e2b, for E2B sandboxes) is the native half of protobuf-py and ships no licence metadata of its own; its Project-URLs name github.com/bufbuild/protobuf-py, whose LICENSE is Apache-2.0, and protobuf-py 0.6.0 from the same source declares License-Expression: Apache-2.0 and ships that LICENSE."
+
 [notices.npm."client-only"]
 holder = "Meta Platforms, Inc. and affiliates"
 evidence = "client-only 0.0.1 names no author; its package.json points at reactjs.org and facebook/react, and the React repository's LICENSE is MIT, Copyright (c) Meta Platforms, Inc. and affiliates"
@@ -43,6 +47,10 @@ evidence = "As for @next/swc-linux-x64-gnu: the arm64 build from the same reposi
 [notices.python."obstore"]
 holder = "Development Seed"
 evidence = "obstore-0.11.1 ships no licence file and its metadata names no author or licence; it is the package from https://github.com/developmentseed/obstore, whose LICENSE is MIT, Copyright (c) 2024 Development Seed. Reached through the Daytona SDK (daytona -> obstore)"
+
+[notices.python."protobuf-py-ext"]
+holder = "Buf Technologies, Inc."
+evidence = "protobuf-py-ext 0.6.0 ships no licence file and names no author; it is the native half of protobuf-py from https://github.com/bufbuild/protobuf-py, and protobuf-py 0.6.0's LICENSE (Apache-2.0) carries Copyright 2025-2026 Buf Technologies, Inc. Reached through the E2B SDK (e2b -> protobuf-py)"
 
 [notices.python."pydantic-monty"]
 holder = "Pydantic Services Inc."
