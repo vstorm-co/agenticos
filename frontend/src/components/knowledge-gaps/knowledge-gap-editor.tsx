@@ -68,6 +68,7 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
         value={content}
         rows={10}
         maxLength={20_000}
+        inertImages
         onChange={(next) => edit(() => setContent(next))}
       />
       {blanks.length > 0 && (

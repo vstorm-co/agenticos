@@ -67,7 +67,7 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
         <CoveredBy knowledgeBaseId={topic.knowledge_base_id} document={topic.covered_by} />
       )}
       {topic.draft?.already_covered && <AlreadyCovered draft={topic.draft} />}
-      {topic.can_edit && topic.status !== "covered" ? (
+      {topic.can_edit && topic.status === "open" ? (
         <KnowledgeGapEditor key={topic.draft?.drafted_at ?? "new"} topic={topic} />
       ) : (
         topic.draft && <KnowledgeGapDraftCard draft={topic.draft} />

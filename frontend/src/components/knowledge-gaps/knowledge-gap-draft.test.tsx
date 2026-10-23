@@ -142,6 +142,12 @@ describe("KnowledgeGapDraftPanel", () => {
     expect(screen.getByText("editor empty")).toBeInTheDocument();
   });
 
+  it("gives a dismissed topic no editor until it is reopened", () => {
+    render(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, status: "dismissed" }} />);
+    expect(screen.queryByText(/^editor/)).toBeNull();
+    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+  });
+
   it("says which document covers a covered topic, and shows its content as written", () => {
     render(
       <KnowledgeGapDraftPanel
