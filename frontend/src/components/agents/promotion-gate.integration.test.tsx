@@ -378,6 +378,28 @@ describe("an environment's guards", () => {
     expect(screen.queryByRole("button", { name: "Save guards" })).toBeNull();
   });
 
+  it("offers no suite whose dataset has no cases yet as a guard, saying why", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === `/agents/${AGENT_ID}/environments`)
+        return { items: [environment({ guard_suite_ids: [] })], total: 1 };
+      if (path === `/agents/${AGENT_ID}/versions`) return { items: [version(1)], total: 1 };
+      if (path === `/agents/${AGENT_ID}/eval-suites`)
+        return { items: [evalSuite({ ...SUITE, dataset_has_cases: false })], total: 1 };
+      return { permissions: [] };
+    });
+    render(<EnvironmentsPanel agentId={AGENT_ID} canManage />, { wrapper });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Eval suites guarding production" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "This suite's dataset has no cases yet. Add cases before it guards an environment.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeDisabled();
+  });
+
   it("says when the agent has no suite to guard with", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path === `/agents/${AGENT_ID}/environments`) return { items: [environment()], total: 1 };

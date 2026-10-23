@@ -9745,6 +9745,7 @@
     "promote": "Promote",
     "noSuites": "This agent has no eval suites yet. Set one up on the Evals tab to guard an environment with it.",
     "guardsHelp": "Suites {name} requires to pass on a version before it takes it.",
+    "noCasesYet": "This suite's dataset has no cases yet. Add cases before it guards an environment.",
     "storeGuards": "Save guards",
     "guardsReadOnly": "Changing these needs permission to override promotions.",
     "guardedBy": "{count, plural, =1 {Guarded by 1 suite} other {Guarded by # suites}}",

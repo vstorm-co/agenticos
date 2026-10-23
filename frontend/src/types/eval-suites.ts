@@ -106,6 +106,8 @@ export interface EvalSuite {
   dataset_id: string;
   /** Null when the reader cannot see the dataset, which still runs. */
   dataset_name: string | null;
+  /** Whether the dataset has a version yet; null when the reader cannot see it. */
+  dataset_has_cases: boolean | null;
   environment_id: string | null;
   environment_name: string | null;
   owner_user_id: string | null;

@@ -271,14 +271,27 @@ async def test_a_suite_whose_dataset_has_no_cases_cannot_become_a_guard(db) -> N
     loose = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(empty))
     environments = AgentEnvironmentService(db)
 
-    with pytest.raises(BadRequestError, match="no cases yet"):
+    with pytest.raises(BadRequestError, match="no cases yet") as refused:
         await environments.update(
             ctx, agent.id, env_id, EnvironmentUpdate(guard_suite_ids=[suite.id, loose.id])
         )
-    with pytest.raises(BadRequestError, match="must have cases"):
+    with pytest.raises(BadRequestError, match="no cases yet") as moved:
         await EvalSuiteService(db).update(
             ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=empty.id)
         )
+    assert refused.value.details is not None and moved.value.details is not None
+    assert [f["field"] for f in refused.value.details["fields"]] == ["guard_suite_ids"]
+    assert [f["field"] for f in moved.value.details["fields"]] == ["dataset_id"]
+
+    # No guard is ever left unpinned: every suite guarding anything holds a pin.
+    unpinned = (
+        await db.execute(
+            select(EvalSuite.id)
+            .join(EnvironmentGuard, EnvironmentGuard.suite_id == EvalSuite.id)
+            .where(EvalSuite.pinned_dataset_version.is_(None))
+        )
+    ).all()
+    assert unpinned == []
 
 
 async def test_a_suite_guarding_two_environments_stays_pinned_until_both_are_gone(db) -> None:

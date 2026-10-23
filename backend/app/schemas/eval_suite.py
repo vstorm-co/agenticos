@@ -209,6 +209,13 @@ class EvalSuiteRead(BaseSchema):
     dataset_name: str | None = Field(
         description="Null when the reader cannot see the dataset, which still runs"
     )
+    dataset_has_cases: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the dataset has a version yet - a suite on one with none cannot guard an "
+            "environment. Null when the reader cannot see the dataset"
+        ),
+    )
     environment_id: UUID | None
     environment_name: str | None
     owner_user_id: UUID | None

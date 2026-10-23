@@ -73,11 +73,13 @@ paused guard holds the version back whatever it found before the pause.
 A suite that guards an environment is **pinned** to the dataset version and the
 scoring it had when it became a guard. Editing the dataset - its cases, its
 grading, its judge - stays open to anybody who may edit it, and does not change
-what the guard checks. The suite's panel says when the dataset has moved on, and
+what the guard checks.
+
+The suite's panel says when the dataset has moved on, and
 **Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) moves the
 guard onto the latest version and scoring; it needs `promotions:override` and is
 recorded as a change to the guards. A suite that stops guarding reads the latest
-again. The judge agent's own version is not part of the pin: a republished
+again, and one whose dataset has no cases yet cannot become a guard. The judge agent's own version is not part of the pin: a republished
 judge grades the guard's next run.
 
 The promotion dialog shows the same, and runs the guards that have not passed

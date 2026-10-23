@@ -334,7 +334,7 @@ class PromotionGateService:
         if dataset.latest_version == 0:
             raise refused_field(
                 "guard_suite_ids",
-                f"'{suite.name}' checks a dataset with no cases yet. Add cases before it "
+                f"'{suite.name}': this suite's dataset has no cases yet. Add cases before it "
                 "guards an environment.",
             )
 

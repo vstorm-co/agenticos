@@ -1,5 +1,5 @@
 ---
-source_sha: "0b4fb68b46a1"
+source_sha: "1e6c2157f0f6"
 ---
 
 # Umgebungen { #environments }
@@ -84,12 +84,15 @@ immer er vor der Pause fand.
 Eine Suite, die eine Umgebung bewacht, ist auf die Dataset-Version und das
 Scoring **festgelegt**, die sie hatte, als sie Wächter wurde. Das Dataset zu
 bearbeiten - seine Fälle, seine Bewertung, seinen Judge - bleibt jedem offen,
-der es bearbeiten darf, und ändert nicht, was der Wächter prüft. Das Panel der
+der es bearbeiten darf, und ändert nicht, was der Wächter prüft.
+
+Das Panel der
 Suite sagt, wann das Dataset weitergegangen ist, und **Move the pin**
 (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) setzt den Wächter auf die
 neueste Version und das aktuelle Scoring; das braucht `promotions:override` und
 wird als Änderung der Wächter verzeichnet. Eine Suite, die nichts mehr bewacht,
-liest wieder die neueste Version. Die Version des Judge-Agents selbst gehört
+liest wieder die neueste Version, und eine, deren Dataset noch keine Fälle hat,
+kann kein Wächter werden. Die Version des Judge-Agents selbst gehört
 nicht zur Festlegung: Ein neu veröffentlichter Judge bewertet den nächsten Run
 des Wächters.
 

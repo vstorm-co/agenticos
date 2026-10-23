@@ -42,24 +42,29 @@ export function EnvironmentGuards({
     <div className="space-y-2">
       <p className="text-muted-foreground text-xs">{t("guardsHelp", { name: environment.name })}</p>
       <ul className="space-y-1.5">
-        {suites.map((suite) => (
-          <li key={suite.id}>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={chosen.includes(suite.id)}
-                disabled={!canEdit}
-                onCheckedChange={(checked) =>
-                  setChosen((current) =>
-                    checked === true
-                      ? [...current, suite.id]
-                      : current.filter((id) => id !== suite.id),
-                  )
-                }
-              />
-              {suite.name}
-            </label>
-          </li>
-        ))}
+        {suites.map((suite) => {
+          // A guard is pinned to a dataset version, so one on a dataset with none cannot be set.
+          const empty = suite.dataset_has_cases === false && !chosen.includes(suite.id);
+          return (
+            <li key={suite.id} className="space-y-0.5">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={chosen.includes(suite.id)}
+                  disabled={!canEdit || empty}
+                  onCheckedChange={(checked) =>
+                    setChosen((current) =>
+                      checked === true
+                        ? [...current, suite.id]
+                        : current.filter((id) => id !== suite.id),
+                    )
+                  }
+                />
+                {suite.name}
+              </label>
+              {empty && <p className="text-muted-foreground pl-6 text-xs">{t("noCasesYet")}</p>}
+            </li>
+          );
+        })}
       </ul>
       {canEdit ? (
         <Button size="sm" disabled={!changed || saving} onClick={() => onSave(chosen)}>

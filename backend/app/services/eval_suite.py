@@ -402,6 +402,11 @@ class EvalSuiteService:
                     dataset_name=(
                         datasets[suite.dataset_id].name if suite.dataset_id in readable else None
                     ),
+                    dataset_has_cases=(
+                        datasets[suite.dataset_id].latest_version > 0
+                        if suite.dataset_id in readable
+                        else None
+                    ),
                     environment_id=suite.environment_id,
                     environment_name=environment.name if environment else None,
                     owner_user_id=suite.owner_user_id,
@@ -607,8 +612,8 @@ class EvalSuiteService:
         if guards and "dataset_id" in values and dataset.latest_version == 0:
             raise refused_field(
                 "dataset_id",
-                "This suite guards an environment, so its dataset must have cases. "
-                "Add cases to it first.",
+                "This suite guards an environment, and that dataset has no cases yet. "
+                "Add cases before it guards an environment.",
             )
         if "dataset_id" in values or "environment_id" in values:
             # A waiting result was queued for the version and cases as they were set

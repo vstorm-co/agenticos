@@ -1,5 +1,5 @@
 ---
-source_sha: "0b4fb68b46a1"
+source_sha: "1e6c2157f0f6"
 ---
 
 # Środowiska { #environments }
@@ -80,11 +80,14 @@ wstrzymaniem.
 Suita, która strzeże środowiska, jest **przypięta** do wersji datasetu i
 scoringu, które miała, gdy została strażnikiem. Edycja datasetu - jego case'ów,
 oceniania, sędziego - zostaje otwarta dla każdego, kto może go edytować, i nie
-zmienia tego, co sprawdza strażnik. Panel suity mówi, kiedy dataset poszedł
+zmienia tego, co sprawdza strażnik.
+
+Panel suity mówi, kiedy dataset poszedł
 dalej, a **Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`)
 przesuwa strażnika na najnowszą wersję i scoring; wymaga `promotions:override`
 i jest zapisywane jako zmiana strażników. Suita, która przestaje strzec, znów
-czyta najnowszą wersję. Wersja samego agenta-sędziego nie jest częścią
+czyta najnowszą wersję, a suita, której dataset nie ma jeszcze case'ów, nie może
+zostać strażnikiem. Wersja samego agenta-sędziego nie jest częścią
 przypięcia: ponownie opublikowany sędzia oceni następny run strażnika.
 
 Dialog promocji pokazuje to samo i uruchamia strażników, którzy nie przeszli na

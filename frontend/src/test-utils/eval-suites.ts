@@ -87,6 +87,7 @@ export function evalSuite(overrides: Partial<EvalSuite> = {}): EvalSuite {
     next_fire_at: "2026-10-20T04:00:00Z",
     max_run_usd: null,
     pin: null,
+    dataset_has_cases: true,
     last_result: suiteResult(),
     open_result: null,
     created_at: "2026-10-18T10:00:00Z",

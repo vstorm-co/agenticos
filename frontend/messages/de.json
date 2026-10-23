@@ -9628,6 +9628,7 @@
     "promote": "Promoten",
     "noSuites": "Dieser Agent hat noch keine Eval-Suites. Legen Sie im Tab Evals eine an, um damit eine Umgebung zu bewachen.",
     "guardsHelp": "Suites, die auf einer Version bestehen müssen, bevor {name} sie übernimmt.",
+    "noCasesYet": "Das Dataset dieser Suite hat noch keine Fälle. Füge Fälle hinzu, bevor sie eine Umgebung bewacht.",
     "storeGuards": "Wächter speichern",
     "guardsReadOnly": "Zum Ändern braucht es die Berechtigung, Promotionen zu übergehen.",
     "guardedBy": "{count, plural, =1 {Von 1 Suite bewacht} other {Von # Suites bewacht}}",
