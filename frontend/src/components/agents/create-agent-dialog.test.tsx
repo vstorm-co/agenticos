@@ -287,4 +287,51 @@ describe("CreateAgentDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+
+  it("adds a judge as a system agent, asking only for its name", async () => {
+    const judge = { id: "j2", name: "Second opinion", kind: "judge" };
+    vi.mocked(apiClient.post).mockResolvedValue(judge);
+    const { onCreated } = open();
+
+    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
+    expect(screen.getByRole("radio", { name: /^Judge/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("Describe it to the Architect")).toBeNull();
+    await userEvent.type(name(), "Second opinion");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/agents/system", {
+        kind: "judge",
+        name: "Second opinion",
+      }),
+    );
+    expect(onCreated).toHaveBeenCalledWith(judge);
+  });
+
+  it("shows the kinds that would never run as locked, linking the organization's own", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (_url, options) => {
+      const kind = (options as { params?: { kind?: string } } | undefined)?.params?.kind;
+      return kind === "generator"
+        ? { items: [{ id: "g1", name: "Case generator", system_key: "case_generator" }], total: 1 }
+        : { items: [], total: 0 };
+    });
+    open();
+
+    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
+
+    for (const kind of [
+      /^Case generator/,
+      /^Gap drafter/,
+      /^Gap classifier/,
+      /^Authoring assistant/,
+    ]) {
+      expect(screen.getByRole("radio", { name: kind })).toBeDisabled();
+    }
+    expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute(
+      "href",
+      "/agents/g1",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Agent" }));
+    expect(screen.getByText("Describe it to the Architect")).toBeInTheDocument();
+  });
 });

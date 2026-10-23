@@ -1,5 +1,5 @@
 ---
-source_sha: "cdfa3337e6c5"
+source_sha: "e7d1bbd43d1b"
 ---
 
 # Begriffe { #concepts }
@@ -643,10 +643,11 @@ Mal braucht, und ein Dataset kann einen eigenen Bewerter bekommen.
 Ein System-Agent wird von der Plattform ausgeführt und ist kein Agent, den
 Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
 **System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
-- jede Karte sagt, welche Datasets er bewertet, und der von der Plattform
-angelegte ist als **Standard-Bewerter** markiert -, dann der
-**Lücken-Entwerfer** und zuletzt der **Lücken-Klassifizierer**. Agent-Auswahlen lassen
-sie weg.
+- jede Karte sagt, welche Datasets er bewertet -, dann der
+**Lücken-Entwerfer** und zuletzt der **Lücken-Klassifizierer**. Der von der
+Plattform angelegte Agent jeder Art ist als Standard seiner Art markiert -
+**Standardbewerter**, **Standard-Fallgenerator** und so weiter. Agent-Auswahlen
+lassen sie weg.
 
 Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
 ändern, aus dem Band oder, beim Drafter, über **Anweisungen des Drafters
@@ -656,6 +657,16 @@ oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
 aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
 bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
 Die des Drafters und des Klassifizierers enthalten dasselbe ohne die Datasets.
+
+**New agent** legt auch einen System-Agent an: **Systemagent** wählen,
+**Bewerter** auswählen und ihm einen Namen geben (`POST /agents/system`). Er
+startet mit der Definition des Eval judge - dessen Instruktionen, Temperatur
+und Budget - auf dem ersten Modell der Organisation, wird veröffentlicht, wenn
+Sie Agents veröffentlichen dürfen, und steht unter **Bewerter**, damit ein
+Dataset ihn auf seinem Tab Bewertung wählen kann. Die anderen Arten werden mit
+ihrer Aufgabe aufgeführt, lassen sich aber nicht hinzufügen: Die Plattform führt
+immer den der Organisation aus, ein weiterer liefe also nie. Öffnen Sie
+stattdessen diesen.
 
 Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
 und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
