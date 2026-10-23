@@ -9534,7 +9534,7 @@
     "promote": "Promuj",
     "noSuites": "Ten agent nie ma jeszcze suit ewaluacji. Ustaw jedną w zakładce Ewaluacje, żeby strzegła środowiska.",
     "guardsHelp": "Suity, które muszą przejść na wersji, zanim {name} ją przyjmie.",
-    "noCasesYet": "Dataset tej suity nie ma jeszcze case'ów. Dodaj je, zanim zacznie strzec środowiska.",
+    "noCasesYet": "Dataset tej suity nie ma jeszcze przypadków. Dodaj je, zanim zacznie strzec środowiska.",
     "storeGuards": "Zapisz strażników",
     "guardsReadOnly": "Zmiana wymaga uprawnienia do pomijania bramki promocji.",
     "guardedBy": "{count, plural, one {Strzeżone przez 1 suitę} few {Strzeżone przez # suity} other {Strzeżone przez # suit}}",

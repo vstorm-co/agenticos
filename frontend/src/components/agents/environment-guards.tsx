@@ -44,7 +44,8 @@ export function EnvironmentGuards({
       <ul className="space-y-1.5">
         {suites.map((suite) => {
           // A guard is pinned to a dataset version, so one on a dataset with none cannot be set.
-          const empty = suite.dataset_has_cases === false && !chosen.includes(suite.id);
+          const empty =
+            suite.dataset_has_cases === false && !environment.guard_suite_ids.includes(suite.id);
           return (
             <li key={suite.id} className="space-y-0.5">
               <label className="flex items-center gap-2 text-sm">
