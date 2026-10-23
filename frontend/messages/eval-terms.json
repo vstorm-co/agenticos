@@ -148,6 +148,15 @@
         ],
         "docs": true,
         "note": "What a verdict says of cases; a page that looks broken may still read \"kaputt\"."
+      },
+      {
+        "key": "gebrochen",
+        "pattern": "\\bgebroch\\w*",
+        "use": "verschlechtert",
+        "except": [
+          "pages.runs.cacheBust"
+        ],
+        "note": "A busted cache is still \"Cache gebrochen\"; a case a version breaks is verschlechtert."
       }
     ]
   },
@@ -161,6 +170,13 @@
     ],
     "activityPages": {
       "pl": [
+        "architecture",
+        "concepts",
+        "governance",
+        "triggers",
+        "voice"
+      ],
+      "de": [
         "architecture",
         "concepts",
         "governance",

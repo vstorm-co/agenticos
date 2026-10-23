@@ -5735,7 +5735,7 @@
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
       "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
       "prefEvalSuiteFailed": "Eine Eval-Suite hat nicht bestanden",
-      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den gebrochenen Fällen.",
+      "prefEvalSuiteFailedTrigger": "Eine Suite, die dir gehört, fiel unter ihre Schwelle oder konnte nicht laufen. Einmal pro Serie von Fehlschlägen auf einer Version, mit den verschlechterten Fällen.",
       "prefPromotionOverridden": "Eine Promotion ging an ihren Evals vorbei",
       "prefPromotionOverriddenTrigger": "Eine Version kam in eine Umgebung, vorbei an einer Ihrer Eval-Suites, die auf ihr nicht bestanden hatte. Nennt die Suites und die Begründung."
     },
@@ -9454,7 +9454,7 @@
       "blocked": {
         "check_first": "Ein Modellwechsel wird angenommen, wenn er sich auszahlt. Führe zuerst Mit Evals prüfen für diese Vorschläge aus.",
         "inconclusive": "Die letzte Prüfung dieses Modells hat nichts entschieden. Bewerte die offenen Antworten oder prüfe erneut.",
-        "regression": "Die letzte Prüfung dieses Modells hat Fälle gebrochen, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
+        "regression": "Die letzte Prüfung dieses Modells hat Fälle verschlechtert, die vorher bestanden. Korrigiere die Vorschläge oder verwirf diesen."
       }
     },
     "evidence": {
