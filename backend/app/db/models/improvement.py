@@ -309,8 +309,7 @@ class ImprovementIteration(Base):
     verdict_detail: Mapped[VerdictDetail | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
-    # The jobs that sorted this round's bad answers and drafted its missing knowledge;
-    # SET NULL, so a job retention removed reads as one that ended long ago.
+    # SET NULL: a job retention removed reads as one that ended long ago.
     classify_job_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("background_jobs.id", ondelete="SET NULL"),

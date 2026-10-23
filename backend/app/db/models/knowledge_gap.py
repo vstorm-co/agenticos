@@ -306,8 +306,7 @@ class KnowledgeGapClassification(Base):
     # A `GapSignal` other than retrieval, `none`, or `refused` - a rightful refusal of a
     # request outside the agent's rules, whose run's misses are then no gap either.
     signal: Mapped[str] = mapped_column(String(16), nullable=False)
-    # The classifier's one sentence on why, read from the answer and the agent's own
-    # sources: user content, which goes with the answer like the rest of the row.
+    # User content - a model's words on somebody's answer - so it goes with the answer.
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

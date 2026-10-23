@@ -29,9 +29,8 @@ down_revision: str | None = "0175_knowledge_gap_covered"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# Every value the improvement models allow after this revision, spelled as the
-# CHECK constraints and partial indexes spell them; the statuses and verdicts are
-# 0180's, unchanged.
+# Every value the improvement models allow after this revision, as the CHECK
+# constraints and partial indexes spell them.
 _STATUSES = (
     "'queued', 'running', 'ready', 'stopped', 'failed', 'cancelled', 'stale', "
     "'accepted', 'published', 'rejected'"
