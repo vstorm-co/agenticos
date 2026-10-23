@@ -67,14 +67,6 @@
     "description": "The bearer token another vendor's A2A agent accepts, sent with every task this organization's agents delegate to it."
   },
   {
-    "id": "e2b",
-    "label": "E2B",
-    "category": "other",
-    "kind": "api_key",
-    "help_url": "https://e2b.dev/dashboard",
-    "description": "Start cloud desktops a computer-use agent operates, one per conversation."
-  },
-  {
     "id": "daytona",
     "label": "Daytona",
     "category": "other",
