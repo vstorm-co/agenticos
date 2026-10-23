@@ -423,6 +423,7 @@ class AuthoringService:
             skill_id=skill_id,
             context_id=context_id,
             created_by_user_id=ctx.user_id,
+            created_by_api_key_id=ctx.api_key_id,
             estimate_usd=estimate.estimate_usd,
             window_days=body.window_days,
         )

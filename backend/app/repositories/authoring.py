@@ -35,6 +35,7 @@ async def create_request(
     skill_id: UUID | None,
     context_id: UUID | None = None,
     created_by_user_id: UUID | None,
+    created_by_api_key_id: UUID | None = None,
     estimate_usd: Decimal,
     window_days: int,
 ) -> AuthoringRequest:
@@ -46,6 +47,7 @@ async def create_request(
         skill_id=skill_id,
         context_id=context_id,
         created_by_user_id=created_by_user_id,
+        created_by_api_key_id=created_by_api_key_id,
         status=AuthoringStatus.QUEUED.value,
         estimate_usd=estimate_usd,
         window_days=window_days,

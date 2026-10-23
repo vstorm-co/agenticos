@@ -141,6 +141,12 @@ class EvalRun(Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # The API key the run was started with, which its worker narrows it to as
+    # the key stands when it starts. No foreign key: keys are hard-deleted, and a
+    # reference set to null would let the run fall back to the issuer's full role.
+    created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=EvalRunStatus.QUEUED.value
     )
