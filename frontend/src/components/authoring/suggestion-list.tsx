@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { ROUTES } from "@/lib/constants";
 import type { Hunk, HunkDecision, SuggestionBatch } from "@/types/authoring";
-import { CheckRunVerdicts } from "./check-run-verdicts";
+import { CheckResults } from "./check-result";
 import { SuggestionCard } from "./suggestion-card";
 
 /**
@@ -41,21 +39,10 @@ export function SuggestionList({
         </p>
       )}
       {batch.check_eval_run_ids.length > 0 && (
-        <p className="text-sm">
-          {t("checks")}{" "}
-          {batch.check_eval_run_ids.map((runId, index) => (
-            <Link
-              key={runId}
-              href={`${ROUTES.AGENTS}/${agentId}/evals/${runId}`}
-              className="font-mono underline"
-            >
-              {t("checkRun", { index: index + 1 })}
-            </Link>
-          ))}
-        </p>
-      )}
-      {batch.check_eval_run_ids.length > 0 && (
-        <CheckRunVerdicts agentId={agentId} runIds={batch.check_eval_run_ids} />
+        <div className="space-y-2">
+          <p className="text-sm">{t("checks")}</p>
+          <CheckResults agentId={agentId} runIds={batch.check_eval_run_ids} />
+        </div>
       )}
       {ordered.map((hunk) => (
         <SuggestionCard
