@@ -172,6 +172,7 @@ class TestWriting:
             description="How refunds work now.",
             content="Ask for the receipt.",
             resources={"a.md": "one"},
+            base_version=3,
         )
 
         [created] = session.added
@@ -180,6 +181,7 @@ class TestWriting:
         assert created.agent_id == agent_id
         assert created.conversation_id == conversation_id
         assert created.resources == {"a.md": "one"}
+        assert created.base_version == 3
 
     async def test_replacing_a_body_is_conditional_on_what_was_read(self):
         """The row stays the one a reviewer is looking at, its revision moves, and
@@ -195,6 +197,7 @@ class TestWriting:
             content="Newer still.",
             resources={"b.md": "two"},
             conversation_id=None,
+            base_version=4,
         )
 
         assert replaced is row
@@ -204,6 +207,7 @@ class TestWriting:
         params = _filters(session)
         assert params["status_1"] == "pending" and params["revision_1"] == 1
         assert params["description"] == "Newer."
+        assert params["base_version"] == 4
 
         gone = await skill_proposal_repo.replace_body(
             _RecordingSession(_scalars([])),
@@ -212,6 +216,7 @@ class TestWriting:
             content="x",
             resources={},
             conversation_id=None,
+            base_version=4,
         )
         assert gone is None
 

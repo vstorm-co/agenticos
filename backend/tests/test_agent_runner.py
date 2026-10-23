@@ -1760,6 +1760,7 @@ def _skill() -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
         name="reconcile",
+        version=1,
         description="Match the ledger",
         content="Run reconcile.py.",
         resources=[SimpleNamespace(name="reconcile.py", content="print('ok')")],

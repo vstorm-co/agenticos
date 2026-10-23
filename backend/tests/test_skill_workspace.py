@@ -52,8 +52,10 @@ class _Skill:
         description: str = "How refunds work.",
         content: str = "Ask for the order id.",
         resources: list[_Resource] | None = None,
+        version: int = 1,
     ) -> None:
         self.id = uuid4()
+        self.version = version
         self.name = name
         self.description = description
         self.content = content
@@ -150,7 +152,7 @@ class TestCollectingWhatTheAgentChanged:
         assert await collect_changes(workspace, state) == []
 
     async def test_an_edited_body_comes_back_as_the_new_body(self):
-        skill = _Skill()
+        skill = _Skill(version=4)
         document, workspace = _document()
         state = await materialise(workspace, [skill])
 
@@ -163,6 +165,7 @@ class TestCollectingWhatTheAgentChanged:
 
         assert change.skill_id == skill.id
         assert change.is_new is False
+        assert change.base_version == 4
         assert change.description == "How refunds work now."
         assert change.content == "Ask for the receipt."
 

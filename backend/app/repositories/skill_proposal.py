@@ -79,6 +79,7 @@ async def create(
     description: str,
     content: str,
     resources: dict[str, Any],
+    base_version: int | None,
 ) -> SkillProposal:
     proposal = SkillProposal(
         organization_id=organization_id,
@@ -89,6 +90,7 @@ async def create(
         description=description,
         content=content,
         resources=resources,
+        base_version=base_version,
     )
     db.add(proposal)
     await db.flush()
@@ -104,9 +106,11 @@ async def replace_body(
     content: str,
     resources: dict[str, Any],
     conversation_id: UUID | None,
+    base_version: int | None,
 ) -> SkillProposal | None:
     """Rewrite a pending proposal in place, so one edit session is one proposal.
 
+    The body is now written against `base_version`, so that is what it applies onto.
     Its revision moves, so a decision made on what it said before is refused. Only
     while it is pending as read: `None` once a decision or another rewrite changed
     it since, and the caller makes a new proposal instead of writing over that.
@@ -124,6 +128,7 @@ async def replace_body(
             content=content,
             resources=resources,
             conversation_id=conversation_id,
+            base_version=base_version,
             revision=SkillProposal.revision + 1,
         )
         .returning(SkillProposal)
@@ -183,6 +188,7 @@ async def replace_pending(
     content: str,
     resources: dict[str, Any],
     conversation_id: UUID | None,
+    base_version: int | None,
 ) -> SkillProposal | None:
     """Rewrite the waiting proposal for this skill, or `None` when none is left to rewrite.
 
@@ -202,6 +208,7 @@ async def replace_pending(
             content=content,
             resources=resources,
             conversation_id=conversation_id,
+            base_version=base_version,
         )
         if rewritten is not None:
             return rewritten

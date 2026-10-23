@@ -52,6 +52,7 @@ async def _skill(session: _Session) -> Any:
         content="c",
         resources={},
         conversation_id=None,
+        base_version=1,
     )
 
 

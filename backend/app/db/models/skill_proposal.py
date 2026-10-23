@@ -129,8 +129,10 @@ class SkillProposal(Base, TimestampMixin):
     """The skill version the body was written against, for a proposal that records one.
 
     Apply refuses once the skill has moved past it: a body reviewed against v3
-    must not silently replace a v4 somebody wrote meanwhile. `None` for the
-    proposals an agent's workspace writes, which apply as before.
+    must not silently replace a v4 somebody wrote meanwhile. A workspace change
+    records the version its run was given. `None` for a new skill, and for a
+    workspace change recorded before that, which is refused once the skill was
+    edited after it was proposed.
     """
 
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
