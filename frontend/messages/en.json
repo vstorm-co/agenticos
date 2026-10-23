@@ -5682,7 +5682,7 @@
       "decidedSection": "Decided",
       "waitingSection": "Waiting on you",
       "share": "Share",
-      "monthAgainstCap": "${spent} of ${cap} this month",
+      "monthAgainstCap": "{spent} of {cap} this month",
       "spendOverTime": "Spend over time",
       "spendOverTimeHint": "What each day of the window cost, in UTC days.",
       "actionInService": "{action} in {service}",
