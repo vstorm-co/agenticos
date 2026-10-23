@@ -91,6 +91,10 @@ the judge's run what it graded - so a run can be found again to become a case.
 An eval case there opens its eval run on that case, and a case's **See what the
 model saw** opens what its model was given.
 
+The card's **See all** opens **Eval runs**, at `/evals`: every eval run you may
+see, across agents, newest first, a page at a time. With none yet, it says what
+an eval is and where to start one.
+
 ## Starting a run { #starting-a-run }
 
 Starting is two calls, so nothing is spent before somebody has seen what it

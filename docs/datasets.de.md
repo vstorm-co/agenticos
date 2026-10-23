@@ -1,5 +1,5 @@
 ---
-source_sha: "a6ff4cc6ff1f"
+source_sha: "d800d27db428"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -530,9 +530,11 @@ nur für diesen Fall, als Prüfung `judge` in einer neuen Version des Datasets,
 oder für jeden Fall, in der Rubrik, was den Bewerter einschaltet.
 
 Die Dashboard-Karte **Wartet auf Prüfung** zeigt die Warteschlange über alle
-Datasets, die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht
-bewertet wurden oder bestanden haben, und in welchen Datasets, jedes öffnet sich
-auf seinem Tab Prüfung. Die Karte ist standardmäßig auf dem Dashboard.
+Datasets, die Sie sehen können: wie viele Ergebnisse nicht bestanden haben,
+nicht bewertet wurden oder bestanden haben, und in welchen Datasets, jedes
+öffnet sich auf seinem Tab Prüfung. Die Karte ist standardmäßig auf dem
+Dashboard. **Alle ansehen** öffnet den Tab Prüfung des Datasets, in dem am
+meisten wartet.
 
 Die Prüfentscheidung einer Person wird neben den Ergebnissen der Scorer
 gespeichert und entscheidet über das Ergebnis. Sie ändert nie, was der Bewerter

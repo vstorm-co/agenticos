@@ -1,5 +1,5 @@
 ---
-source_sha: "9b3624ff559b"
+source_sha: "8a94cf621165"
 ---
 
 # La consola { #the-console }
@@ -29,7 +29,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 |---|---|
-| **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents, lo que han compartido contigo y tus [datasets](datasets.md) con aquello contra lo que prueban sus casos |
+| **Me** | Un saludo y tu periodo en una frase, con todo lo que te espera - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |

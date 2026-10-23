@@ -470,9 +470,10 @@ offers to make it a judge criterion: for that case alone, as a `judge` check in
 a new version of the dataset, or for every case, in the rubric, which switches
 the judge on.
 
-The **Waiting for review** dashboard card shows the queue across the datasets you
-can see: how many results did not pass, were not graded or passed, and in which
-datasets, each opening on its Review tab. The card is on the dashboard by default.
+The **Waiting for review** dashboard card shows the queue across the datasets
+you can see: how many results did not pass, were not graded or passed, and in
+which datasets, each opening on its Review tab. The card is on the dashboard by
+default. Its **See all** opens the Review tab of the dataset holding the most.
 
 A person's review decision is stored beside the scorers' results and decides the
 outcome. It never changes what the judge said: the judge's grades and reasons
