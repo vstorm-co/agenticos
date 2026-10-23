@@ -1085,24 +1085,33 @@ async def classifications_of(
     knowledge_base_ids: Sequence[UUID],
     *,
     organization_id: UUID,
-) -> dict[UUID, list[tuple[str, str | None]]]:
-    """Each answer's verdicts in these knowledge bases, with the model's reasons."""
-    if not message_ids or not knowledge_base_ids:
-        return {}
+) -> dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]]:
+    """Each answer's agent, and its verdicts in these knowledge bases with the model's reasons.
+
+    Oldest verdict first, so which reason speaks for agreeing knowledge bases
+    does not change between reads.
+    """
     result = await db.execute(
         select(
             KnowledgeGapClassification.message_id,
+            AgentRun.agent_id,
             KnowledgeGapClassification.signal,
             KnowledgeGapClassification.reason,
-        ).where(
+        )
+        .join(Message, Message.id == KnowledgeGapClassification.message_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
+        .where(
             KnowledgeGapClassification.organization_id == organization_id,
             KnowledgeGapClassification.message_id.in_(list(message_ids)),
             KnowledgeGapClassification.knowledge_base_id.in_(list(knowledge_base_ids)),
         )
+        .order_by(
+            KnowledgeGapClassification.classified_at, KnowledgeGapClassification.knowledge_base_id
+        )
     )
-    found: dict[UUID, list[tuple[str, str | None]]] = {}
-    for message_id, signal, reason in result.all():
-        found.setdefault(message_id, []).append((signal, reason))
+    found: dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]] = {}
+    for message_id, agent_id, signal, reason in result.all():
+        found.setdefault(message_id, (agent_id, []))[1].append((signal, reason))
     return found
 
 
@@ -1117,8 +1126,6 @@ async def topics_of_answers(
 
     A miss read from an answer names it; a search that missed names the run.
     """
-    if not knowledge_base_ids or not message_ids:
-        return []
     runs = select(Message.run_id).where(Message.id.in_(list(message_ids)))
     result = await db.execute(
         select(distinct(KnowledgeGapMember.topic_id))

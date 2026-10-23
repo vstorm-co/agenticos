@@ -12,7 +12,7 @@ model, so it runs only when a person asks for it, as them.
 import logging
 from uuid import UUID
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.session import get_worker_connection, get_worker_db_context
 from app.services import change_feed
@@ -147,23 +147,28 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
     joined are drafted, the most asked first, each in a run of its own. A topic
     with a draft newer than its last question is left as it is, and so is one
     too few different people asked about: one person's questions alone never
-    decide what everybody is told. Any other refusal - a spent budget, AI
+    decide what everybody is told, and so is one gone since the round listed it.
+    Nothing is grouped for a person no longer a member. Any other refusal - a spent budget, AI
     assistance switched off - ends the job, and what it drafted stays.
 
     Returns:
         How many topics were drafted.
     """
+    async with get_worker_db_context() as db:
+        ctx = await KnowledgeGapService(db).acting_as(
+            organization_id=job.organization_id, user_id=job.user_id
+        )
+    if ctx is None:
+        return 0
     for kb_id in job.knowledge_base_ids:
         async with get_worker_db_context() as db:
             await KnowledgeGapService(db).group_pending(
                 organization_id=job.organization_id, knowledge_base_id=kb_id
             )
     async with get_worker_db_context() as db:
-        service = KnowledgeGapService(db)
-        ctx = await service.acting_as(organization_id=job.organization_id, user_id=job.user_id)
-        if ctx is None:
-            return 0
-        topics = await service.topics_to_draft(ctx, job.knowledge_base_ids, job.message_ids)
+        topics = await KnowledgeGapService(db).topics_to_draft(
+            ctx, job.knowledge_base_ids, job.message_ids
+        )
     drafted = 0
     for topic_id in topics:
         if drafted == DRAFTS_PER_ROUND:
@@ -171,6 +176,9 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
         try:
             async with get_worker_db_context() as db:
                 await KnowledgeGapService(db).draft(ctx, topic_id, automatic=True)
+        except NotFoundError:
+            # Merged into another topic, or forgotten, since the round listed it.
+            continue
         except BadRequestError as refused:
             if "askers" not in (refused.details or {}):
                 raise

@@ -452,8 +452,9 @@ def _classification_prompt(
         "agent's instructions or context files below state what it needed. So is a "
         "comment about that, about tone, length or format, or saying the answer should "
         "have refused, and so is a refusal of something the rules allow.\n"
-        "Give each a `reason`: one sentence on why, naming the source that shows it, such "
-        "as the context file whose rule was misapplied or what nothing below mentions.",
+        "Give each a `reason`: one sentence on why, naming the source that shows it by its "
+        "name only - the context file whose rule was misapplied, or that nothing below "
+        "mentions it. Never repeat what an answer, a comment or a source says.",
     ]
     numbered = list(dict.fromkeys(c.agent_version_id for c in candidates if c.agent_version_id))
     agent_numbers = {
@@ -1491,7 +1492,12 @@ class KnowledgeGapService:
     async def _agent_sources(
         self, ctx: AuthContext, candidates: list[CandidateRow]
     ) -> dict[UUID, _AgentSources]:
-        """What each answering version read besides the knowledge base, as the caller may read it."""
+        """What each answering version read besides the knowledge base, as the caller may read it.
+
+        Only versions of agents the caller may view, so their instructions reach
+        no one the agent was not shared with; their context files are the ones
+        the caller may read.
+        """
         version_ids = list(
             dict.fromkeys(c.agent_version_id for c in candidates if c.agent_version_id)
         )
@@ -1503,11 +1509,12 @@ class KnowledgeGapService:
             list(dict.fromkeys(version.agent_id for version in versions.values())),
             organization_id=ctx.organization_id,
         )
+        viewable = await self._viewable_agents(ctx, set(agents))
         sources: dict[UUID, _AgentSources] = {}
         for version_id, version in versions.items():
-            agent = agents.get(version.agent_id)
-            if agent is None:
+            if version.agent_id not in viewable:
                 continue
+            agent = agents[version.agent_id]
             spec = AgentSpec.model_validate(version.spec)
             files = await ContextService(self.db).resolve_for_agent(ctx, list(spec.context_ids))
             readable = [
@@ -1548,16 +1555,34 @@ class KnowledgeGapService:
             knowledge_base_ids,
             organization_id=ctx.organization_id,
         )
+        viewable = await self._viewable_agents(
+            ctx, {agent_id for agent_id, _ in found.values() if agent_id is not None}
+        )
         causes: dict[UUID, GapCause] = {}
         for message_id in message_ids:
-            verdicts = found.get(message_id, [])
+            agent_id, verdicts = found.get(message_id, (None, []))
             branch = _branch([signal for signal, _ in verdicts])
             reason = next(
                 (reason for signal, reason in verdicts if _branch([signal]) == branch and reason),
                 None,
             )
-            causes[message_id] = GapCause(message_id=message_id, branch=branch, reason=reason)
+            causes[message_id] = GapCause(
+                message_id=message_id,
+                branch=branch,
+                reason=reason if agent_id in viewable else None,
+            )
         return causes
+
+    async def _viewable_agents(self, ctx: AuthContext, agent_ids: set[UUID]) -> set[UUID]:
+        """The agents among these the caller may view, whose sources a reason may name."""
+        agents = await agent_repo.get_many(
+            self.db, sorted(agent_ids), organization_id=ctx.organization_id
+        )
+        return {
+            agent_id
+            for agent_id, agent in agents.items()
+            if await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
+        }
 
     async def topics_to_draft(
         self, ctx: AuthContext, knowledge_base_ids: list[UUID], message_ids: list[UUID]
@@ -1565,7 +1590,9 @@ class KnowledgeGapService:
         """The open topics these answers' misses joined, most asked first, without a fresh draft.
 
         A draft is fresh when it was written after the topic was last asked, so
-        a round never pays again for a topic no new question reached.
+        a round never pays again for a topic no new question reached. A topic
+        whose content a person wrote is never drafted over: a model proposes,
+        it does not replace what somebody wrote.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -1593,7 +1620,8 @@ class KnowledgeGapService:
         return [
             row.topic.id
             for row in rows
-            if row.topic.drafted_at is None or row.topic.drafted_at < row.last_asked_at
+            if row.topic.draft_author != DraftAuthor.PERSON.value
+            and (row.topic.drafted_at is None or row.topic.drafted_at < row.last_asked_at)
         ]
 
     async def waiting_to_be_grouped(self) -> list[tuple[UUID, UUID]]:

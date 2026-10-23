@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
@@ -763,10 +763,20 @@ class TestTheDraftingJob:
         with stack, pytest.raises(BadRequestError):
             await draft_knowledge_gaps(_draft_job())
 
-    async def test_a_person_who_left_drafts_nothing(self):
-        stack, _, draft = _draft_patches(topics=[uuid.uuid4()], drafts=[], acting=None)
+    async def test_a_person_who_left_drafts_and_groups_nothing(self):
+        stack, group, draft = _draft_patches(topics=[uuid.uuid4()], drafts=[], acting=None)
         with stack:
             drafted = await draft_knowledge_gaps(_draft_job())
 
         assert drafted == 0
+        group.assert_not_awaited()
         draft.assert_not_awaited()
+
+    async def test_a_topic_gone_since_the_round_listed_it_is_passed_over(self):
+        gone = NotFoundError(message="Topic not found", details={})
+        stack, _, draft = _draft_patches(topics=[uuid.uuid4(), uuid.uuid4()], drafts=[gone, None])
+        with stack:
+            drafted = await draft_knowledge_gaps(_draft_job())
+
+        assert drafted == 1
+        assert draft.await_count == 2

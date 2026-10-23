@@ -30,7 +30,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
-from app.db.models.knowledge_gap import KnowledgeSearch
+from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeSearch
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
@@ -289,6 +289,32 @@ async def purge_knowledge_searches_of(db: AsyncSession, user_id: UUID) -> int:
         How many searches were removed.
     """
     result = await db.execute(sa_delete(KnowledgeSearch).where(_their_searches(user_id)))
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def clear_gap_reasons_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the knowledge gap classifier's reasons on the answers given to this person.
+
+    A reason is a model's sentence about somebody's question and the answer it
+    got. Unscoped by organization, as an erasure is: the verdict stays, so the
+    answer is not paid for twice, and its words about them go. The answer
+    itself survives the account in a project chat kept for the team.
+
+    Returns:
+        How many reasons were cleared.
+    """
+    answered = select(Message.id).where(Message.run_id.in_(_runs_they_started(user_id)))
+    result = await db.execute(
+        update(KnowledgeGapClassification)
+        .where(
+            KnowledgeGapClassification.message_id.in_(answered),
+            KnowledgeGapClassification.reason.is_not(None),
+        )
+        .values(reason=None)
+    )
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).

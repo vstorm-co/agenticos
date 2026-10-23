@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Pool(enum.StrEnum):
@@ -132,9 +132,9 @@ class ClassifyGaps(Payload):
     """
 
     organization_id: UUID
-    knowledge_base_ids: list[UUID]
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
-    message_ids: list[UUID] | None = None
+    message_ids: list[UUID] | None = Field(default=None, max_length=500)
     improvement_run_id: UUID | None = None
 
 
@@ -142,9 +142,9 @@ class DraftGaps(Payload):
     """The missing knowledge of these answers drafted, as the person a session acts for."""
 
     organization_id: UUID
-    knowledge_base_ids: list[UUID]
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
-    message_ids: list[UUID]
+    message_ids: list[UUID] = Field(max_length=500)
     improvement_run_id: UUID | None = None
 
 

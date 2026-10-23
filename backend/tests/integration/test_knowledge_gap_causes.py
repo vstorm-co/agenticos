@@ -15,14 +15,16 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.core.permissions import AuthContext
+from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
-from app.repositories import authoring_repo
-from app.schemas.knowledge_gap import ClassifiedAnswer
+from app.repositories import authoring_repo, personal_data_repo
+from app.schemas.knowledge_gap import ClassifiedAnswer, KnowledgeGapContent, KnowledgeGapDraft
 from app.schemas.knowledge_gap import KnowledgeGapClassification as Report
+from app.services.access import AGENT
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.system_agent_runner import SystemAgentResult
 from tests.integration.test_knowledge_gap_signals import (
@@ -34,8 +36,10 @@ from tests.integration.test_knowledge_gap_signals import (
 )
 from tests.integration.test_knowledge_gaps import (
     _agent,
+    _drafter,
     _embedding,
     _knowledge_base,
+    _member,
     _owner,
     _searched,
 )
@@ -294,3 +298,128 @@ async def test_the_improver_reads_none_of_the_answers_a_session_excluded(db) -> 
 
     assert {row.run.id for row in every} == {kept.run_id, gone.run_id}
     assert [row.run.id for row in left] == [kept.run_id]
+
+
+async def _parking_topic(db, ctx: AuthContext, kb: KnowledgeBase, agent: Agent):
+    run, answer = await _asked(db, ctx, agent, question="Where do I park?", answer="I don't know.")
+    await _searched(db, ctx, run, kb, query="parking", top_similarity=0.1)
+    service = KnowledgeGapService(db)
+    with _embedding():
+        await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
+    [topic_id] = await service.topics_to_draft(ctx, [kb.id], [answer.id])
+    return service, answer, topic_id
+
+
+async def test_a_round_never_drafts_over_what_a_person_wrote(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    service, answer, topic_id = await _parking_topic(db, ctx, kb, agent)
+    await service.save_content(
+        ctx, topic_id, KnowledgeGapContent(title="Parking", content="Level -1, by the lifts.")
+    )
+    later, _ = await _asked(db, ctx, agent, question="Parking again?", answer="I don't know.")
+    await _searched(db, ctx, later, kb, query="parking", top_similarity=0.1)
+    with _embedding():
+        await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
+
+    assert await service.topics_to_draft(ctx, [kb.id], [answer.id]) == []
+
+
+async def test_a_topic_one_person_asked_is_not_drafted_unasked(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    service, _, topic_id = await _parking_topic(db, ctx, kb, agent)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.draft(ctx, topic_id, automatic=True)
+
+    assert refused.value.details["askers"] == 1
+
+
+async def test_a_reason_reaches_only_whoever_may_view_the_agent_that_answered(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    version = await _version(db, ctx, agent, kb, instructions="Secret escalation rules.")
+    _, answer = await _asked(
+        db, ctx, agent, question="Ship to Germany?", answer="I don't know.", version=version
+    )
+    classifier = await _classifier_run(db, ctx, agent)
+    service = KnowledgeGapService(db)
+
+    async def no_agent(db, ctx, resource, perm, *, resource_type) -> bool:
+        del db, ctx, resource
+        return perm is not Perm.AGENTS_VIEW and resource_type is not AGENT
+
+    with (
+        patch("app.services.knowledge_gaps.resolve_access", new=no_agent),
+        _classifier(classifier) as run_it,
+    ):
+        await service.classify_batch(ctx, kb.id, message_ids=[answer.id])
+        hidden = await service.causes(ctx, [kb.id], [answer.id])
+    shown = await service.causes(ctx, [kb.id], [answer.id])
+
+    assert "Secret escalation rules." not in run_it.await_args.kwargs["prompt"]
+    assert (hidden[answer.id].branch, hidden[answer.id].reason) == ("missing_knowledge", None)
+    assert shown[answer.id].reason == "read 1"
+
+
+async def test_an_excluded_transcript_with_no_run_left_hides_no_other_evidence(db) -> None:
+    ctx = await _owner(db)
+    agent = await _agent(db, ctx)
+    _, kept = await _asked(db, ctx, agent, question="Hours?", answer="Nine to five.")
+    _, orphan = await _asked(db, ctx, agent, question="Germany?", answer="I don't know.")
+    await _rated_down(db, kept, ctx.user_id, "Wrong hours")
+    orphan.run_id = None
+    await db.flush()
+
+    left = await authoring_repo.evidence_runs(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        excluded_message_ids=[orphan.id],
+        since=datetime.now(UTC) - timedelta(days=1),
+        limit=10,
+    )
+
+    assert [row.run.id for row in left] == [kept.run_id]
+
+
+async def test_erasing_a_person_clears_the_reasons_given_about_their_answers(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    version = await _version(db, ctx, agent, kb)
+    _, answer = await _asked(
+        db, ctx, agent, question="Ship to Germany?", answer="I don't know.", version=version
+    )
+    classifier = await _classifier_run(db, ctx, agent)
+    with _classifier(classifier):
+        await KnowledgeGapService(db).classify_batch(ctx, kb.id, message_ids=[answer.id])
+
+    cleared = await personal_data_repo.clear_gap_reasons_of(db, ctx.user_id)
+    cause = (await KnowledgeGapService(db).causes(ctx, [kb.id], [answer.id]))[answer.id]
+
+    assert cleared == 1
+    assert (cause.branch, cause.reason) == ("missing_knowledge", None)
+
+
+async def test_a_topic_two_people_asked_is_drafted_unasked(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    service, _, topic_id = await _parking_topic(db, ctx, kb, agent)
+    other = await _member(db, ctx, OrgRoleName.ADMIN)
+    run, _ = await _asked(db, other, agent, question="Parking for visitors?", answer="No idea.")
+    await _searched(db, other, run, kb, query="parking", top_similarity=0.1)
+    with _embedding():
+        await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
+    drafting_run = await _classifier_run(db, ctx, agent)
+
+    with _drafter(KnowledgeGapDraft(title="Parking", content="Level -1."), drafting_run):
+        drafted = await service.draft(ctx, topic_id, automatic=True)
+
+    assert drafted.asker_count == 2
+    assert drafted.draft is not None and drafted.draft.title == "Parking"

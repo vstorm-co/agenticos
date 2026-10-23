@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, or_, select, update
+from sqlalchemy import and_, case, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -485,8 +485,12 @@ async def evidence_runs(
     if agent_ids is not None:
         statement = statement.where(AgentRun.agent_id.in_(list(agent_ids)))
     if excluded_message_ids:
-        answered = select(Message.run_id).where(Message.id.in_(list(excluded_message_ids)))
-        statement = statement.where(AgentRun.id.not_in(answered))
+        # NOT EXISTS, not NOT IN: a transcript whose run retention removed has no
+        # run id, and one NULL in a NOT IN leaves no run at all.
+        answered = exists().where(
+            Message.run_id == AgentRun.id, Message.id.in_(list(excluded_message_ids))
+        )
+        statement = statement.where(~answered)
     if skill_name is not None:
         loaded = (
             select(ToolCall.id)
