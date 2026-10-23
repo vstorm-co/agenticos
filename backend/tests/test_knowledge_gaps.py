@@ -747,10 +747,11 @@ class TestTheDraftingJob:
         assert [call.args[1] for call in draft.await_args_list] == topics[:3]
         assert all(call.kwargs == {"automatic": True} for call in draft.await_args_list)
 
-    async def test_a_topic_too_few_people_asked_is_passed_over(self):
+    @pytest.mark.parametrize("details", [{"askers": 1}, {"draft_author": "person"}])
+    async def test_a_topic_too_few_asked_or_a_person_wrote_is_passed_over(self, details):
         topics = [uuid.uuid4() for _ in range(2)]
-        too_few = BadRequestError(message="too few", details={"askers": 1})
-        stack, _, draft = _draft_patches(topics=topics, drafts=[too_few, None])
+        passed_over = BadRequestError(message="not drafted", details=details)
+        stack, _, draft = _draft_patches(topics=topics, drafts=[passed_over, None])
         with stack:
             drafted = await draft_knowledge_gaps(_draft_job())
 

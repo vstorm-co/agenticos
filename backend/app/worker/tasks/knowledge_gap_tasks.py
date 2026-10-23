@@ -147,9 +147,10 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
     joined are drafted, the most asked first, each in a run of its own. A topic
     with a draft newer than its last question is left as it is, and so is one
     too few different people asked about: one person's questions alone never
-    decide what everybody is told, and so is one gone since the round listed it.
-    Nothing is grouped for a person no longer a member. Any other refusal - a spent budget, AI
-    assistance switched off - ends the job, and what it drafted stays.
+    decide what everybody is told. So is one whose content a person saved
+    meanwhile, and one gone since the round listed it. Nothing is grouped for a
+    person no longer a member. Any other refusal - a spent budget, AI assistance
+    switched off - ends the job, and what it drafted stays.
 
     Returns:
         How many topics were drafted.
@@ -180,7 +181,7 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
             # Merged into another topic, or forgotten, since the round listed it.
             continue
         except BadRequestError as refused:
-            if "askers" not in (refused.details or {}):
+            if not {"askers", "draft_author"} & set(refused.details or {}):
                 raise
             continue
         drafted += 1

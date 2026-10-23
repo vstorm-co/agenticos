@@ -544,6 +544,14 @@ def _branch(signals: list[str]) -> CauseBranch:
     return "unknown"
 
 
+def _refuse_over_person(topic: KnowledgeGapTopic) -> None:
+    if topic.draft_author == DraftAuthor.PERSON.value:
+        raise BadRequestError(
+            message="A draft nobody asked for never replaces what a person wrote",
+            details={"topic_id": topic.id, "draft_author": topic.draft_author},
+        )
+
+
 def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
     """What a model cited by number, and how many of its numbers named nothing."""
     distinct_numbers = list(dict.fromkeys(numbers))
@@ -897,12 +905,14 @@ class KnowledgeGapService:
 
         `automatic` is for a draft no person asked for by hand - an improvement
         session's - which is refused until :data:`MIN_AUTOMATIC_ASKERS`
-        different people asked about the topic.
+        different people asked about the topic, and never replaces what a person
+        wrote: neither before the model is called nor once it has answered.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            BadRequestError: For an automatic draft of a topic too few people asked.
+            BadRequestError: For an automatic draft of a topic too few people
+                asked, or of one whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
@@ -923,6 +933,7 @@ class KnowledgeGapService:
                     ),
                     details={"topic_id": topic.id, "askers": askers},
                 )
+            _refuse_over_person(topic)
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -969,6 +980,7 @@ class KnowledgeGapService:
             ),
             run_id=result.run.id,
             unverified=unknown_documents + unknown_questions + unknown_context,
+            keep_persons=automatic,
         )
         return await self.read(ctx, topic.id)
 
@@ -979,6 +991,7 @@ class KnowledgeGapService:
         *,
         run_id: UUID | None = None,
         unverified: int = 0,
+        keep_persons: bool = False,
     ) -> None:
         """Keep proposed content on a topic, replacing any earlier draft.
 
@@ -989,14 +1002,19 @@ class KnowledgeGapService:
         out and counted with `unverified` - which the caller passes for sources
         it could not even resolve - so the draft never shows a source nobody
         checked. At most :data:`MAX_DRAFT_SOURCES` are kept. Any credential the
-        text repeats is redacted.
+        text repeats is redacted. With `keep_persons`, the topic is held and read
+        afresh first, so content a person saved meanwhile is never replaced.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
+            BadRequestError: With `keep_persons`, for a topic whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not change.
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, report.topic_id, edit=True)
+        if keep_persons:
+            topic = await knowledge_gap_repo.lock_topic(self.db, topic)
+            _refuse_over_person(topic)
         named = list(dict.fromkeys((source.kind, source.id) for source in report.sources))
         questions = await knowledge_gap_repo.member_queries(
             self.db, topic.id, organization_id=ctx.organization_id

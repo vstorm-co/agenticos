@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import update
 
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -21,6 +22,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_gap import KnowledgeGapTopic
 from app.repositories import authoring_repo, personal_data_repo
 from app.schemas.knowledge_gap import ClassifiedAnswer, KnowledgeGapContent, KnowledgeGapDraft
 from app.schemas.knowledge_gap import KnowledgeGapClassification as Report
@@ -324,6 +326,64 @@ async def test_a_round_never_drafts_over_what_a_person_wrote(db) -> None:
         await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
 
     assert await service.topics_to_draft(ctx, [kb.id], [answer.id]) == []
+
+
+async def _asked_twice(db, ctx: AuthContext):
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    service, _, topic_id = await _parking_topic(db, ctx, kb, agent)
+    other = await _member(db, ctx, OrgRoleName.ADMIN)
+    run, _ = await _asked(db, other, agent, question="Parking for visitors?", answer="No idea.")
+    await _searched(db, other, run, kb, query="parking", top_similarity=0.1)
+    with _embedding():
+        await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
+    return service, agent, topic_id
+
+
+async def test_an_unasked_draft_is_refused_on_a_topic_a_person_wrote(db) -> None:
+    ctx = await _owner(db)
+    service, agent, topic_id = await _asked_twice(db, ctx)
+    await service.save_content(
+        ctx, topic_id, KnowledgeGapContent(title="Parking", content="Level -1, by the lifts.")
+    )
+    drafting_run = await _classifier_run(db, ctx, agent)
+
+    with (
+        _drafter(KnowledgeGapDraft(title="Parking", content="Level 3."), drafting_run) as run_it,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await service.draft(ctx, topic_id, automatic=True)
+
+    assert refused.value.details["draft_author"] == "person"
+    run_it.assert_not_awaited()
+
+
+async def test_what_a_person_saved_while_the_drafter_ran_is_kept(db) -> None:
+    ctx = await _owner(db)
+    service, agent, topic_id = await _asked_twice(db, ctx)
+    drafting_run = await _classifier_run(db, ctx, agent)
+
+    async def saved_meanwhile(ctx: AuthContext, **kwargs: object) -> SystemAgentResult:
+        await db.execute(
+            update(KnowledgeGapTopic)
+            .where(KnowledgeGapTopic.id == topic_id)
+            .values(draft_author="person", draft_content="Level -1, by the lifts.")
+        )
+        return SystemAgentResult(
+            output=KnowledgeGapDraft(title="Parking", content="Level 3."), run=drafting_run
+        )
+
+    with (
+        patch(
+            "app.services.knowledge_gaps.SystemAgentRunner.run",
+            new=AsyncMock(side_effect=saved_meanwhile),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await service.draft(ctx, topic_id, automatic=True)
+
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+    assert topic is not None and topic.draft_content == "Level -1, by the lifts."
 
 
 async def test_a_topic_one_person_asked_is_not_drafted_unasked(db) -> None:
