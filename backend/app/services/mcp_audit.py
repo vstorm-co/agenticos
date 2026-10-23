@@ -242,7 +242,8 @@ async def probe_listing(
 
     # The handshake answered without a credential; listing the tools is what says
     # whether the rest of the server does too. The MCP client resolves the name
-    # again, so the address is checked again first, as a connection's test does.
+    # again, so this probe checks the address again first. A connection's test
+    # does not: its URL was checked once, when the connection was saved.
     try:
         await validate_mcp_url(url)
         tools = await probe_mcp_server(url, timeout=timeout)
