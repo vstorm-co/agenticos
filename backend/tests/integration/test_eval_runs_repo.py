@@ -517,7 +517,12 @@ async def test_a_queued_run_is_given_up_once_no_job_is_left_to_run_it(db) -> Non
     await db.flush()
     assert await sweep() == 0
 
+    # Withdrawn, its settler not run yet: the settler says how it ends, not the sweep.
     job.status = "cancelled"
+    job.finished_at = datetime.now(UTC)
+    await db.flush()
+    assert await sweep() == 0
+    job.settled_at = datetime.now(UTC)
     await db.flush()
     assert await sweep() == 1
     await db.refresh(run)
@@ -580,10 +585,18 @@ async def test_attempts_left_running_by_an_ended_run_are_closed_after_the_window
         db, run=run, values={"status": EvalRunStatus.CANCELLED.value, "ended_at": _NOW}
     )
 
-    # Within the window, the attempt a cancelled run's worker is answering may finish.
+    # Within the window, the attempt a cancelled run's worker is answering may finish -
+    # and for as long as that worker says it is alive.
     assert await eval_run_repo.close_orphaned_attempts(db, ended_before=_NOW) == 0
+    await eval_run_repo.heartbeat(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW + timedelta(minutes=30)
+    )
+    assert (
+        await eval_run_repo.close_orphaned_attempts(db, ended_before=_NOW + timedelta(minutes=29))
+        == 0
+    )
     closed = await eval_run_repo.close_orphaned_attempts(
-        db, ended_before=_NOW + timedelta(minutes=1)
+        db, ended_before=_NOW + timedelta(minutes=31)
     )
     await db.refresh(orphan)
     await db.refresh(live)
@@ -614,17 +627,33 @@ async def test_a_live_run_is_cancelled_with_what_it_had_not_started(db) -> None:
     )
 
 
-async def test_an_attempt_is_read_and_updated_in_place(db) -> None:
+async def test_an_attempt_is_finished_once_and_never_after_it_was_closed(db) -> None:
+    """A worker that lost its lease may still answer; the settler's word stands."""
     ctx, *_, run, _arm = await _setup(db)
     claimed = await eval_run_repo.claim_next(
         db, run.id, organization_id=ctx.organization_id, org_limit=10, now=_NOW
     )
-    assert claimed is not None
+    stale = await eval_run_repo.claim_next(
+        db, run.id, organization_id=ctx.organization_id, org_limit=10, now=_NOW
+    )
+    assert claimed is not None and stale is not None
 
-    await eval_run_repo.update_case(
+    finished = await eval_run_repo.finish_case(
         db, case=claimed, values={"status": CaseAttemptStatus.DONE.value, "answer": "30 days"}
     )
+    await eval_run_repo.fail_live(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW, error="Stopped."
+    )
+    late = await eval_run_repo.finish_case(
+        db, case=stale, values={"status": CaseAttemptStatus.DONE.value, "cost_usd": Decimal("1")}
+    )
     read = await eval_run_repo.get_case(db, claimed.id, organization_id=ctx.organization_id)
+    closed = await eval_run_repo.get_case(db, stale.id, organization_id=ctx.organization_id)
+
+    assert (finished, late) == (True, False)
+    assert closed is not None
+    await db.refresh(closed)
+    assert (closed.status, closed.cost_usd) == (CaseAttemptStatus.FAILED.value, None)
     arms = await eval_run_repo.list_arms(db, [run.id], organization_id=ctx.organization_id)
 
     assert read is not None and read.answer == "30 days"

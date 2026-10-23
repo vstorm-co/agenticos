@@ -406,9 +406,9 @@ class EvalRunWorker:
             except NothingToScoreError as exc:
                 # Nothing the scorers check applies to this case: it was answered
                 # and stays undecided, which is not a malfunction.
-                await eval_run_repo.update_case(
+                await self._finish(
                     db,
-                    case=attempt,
+                    attempt,
                     values={
                         **self._spend(agent_run),
                         "status": CaseAttemptStatus.DONE.value,
@@ -425,9 +425,9 @@ class EvalRunWorker:
                     db, attempt, run_failure_summary(exc), agent_run, answer=output, calls=rows
                 )
                 return False
-            await eval_run_repo.update_case(
+            await self._finish(
                 db,
-                case=attempt,
+                attempt,
                 values={
                     **self._spend(agent_run),
                     "status": CaseAttemptStatus.DONE.value,
@@ -438,6 +438,15 @@ class EvalRunWorker:
                 },
             )
             return False
+
+    async def _finish(
+        self, db: AsyncSession, attempt: EvalRunCase, *, values: dict[str, Any]
+    ) -> None:
+        if not await eval_run_repo.finish_case(db, case=attempt, values=values):
+            logger.warning(
+                "eval_case_closed_meanwhile",
+                extra={"eval_run_id": str(self.eval_run_id), "case_id": str(attempt.id)},
+            )
 
     @staticmethod
     def _spend(agent_run: AgentRun) -> dict[str, Any]:
@@ -460,9 +469,9 @@ class EvalRunWorker:
         answer: str | None = None,
         calls: list[dict[str, Any]] | None = None,
     ) -> None:
-        await eval_run_repo.update_case(
+        await self._finish(
             db,
-            case=attempt,
+            attempt,
             values={
                 **(self._spend(agent_run) if agent_run is not None else {}),
                 "status": CaseAttemptStatus.FAILED.value,

@@ -1,7 +1,7 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
 
@@ -25,6 +25,8 @@ from app.db.models.eval_run import (
 
 _LIVE = (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value)
 _STOPPED_MID_CASE = "The worker stopped mid-case."
+# How long the worker goes on retrying a job's settler (`background_job.unsettled_ends`).
+_SETTLED_WITHIN = timedelta(days=1)
 
 
 async def create(
@@ -394,14 +396,24 @@ async def get_case(
     return result.scalar_one_or_none()
 
 
-async def update_case(
-    db: AsyncSession, *, case: EvalRunCase, values: dict[str, Any]
-) -> EvalRunCase:
-    for name, value in values.items():
-        setattr(case, name, value)
-    await db.flush()
-    await db.refresh(case)
-    return case
+async def finish_case(db: AsyncSession, *, case: EvalRunCase, values: dict[str, Any]) -> bool:
+    """Write how a running attempt ended. `False` when it is not running any more.
+
+    A worker whose lease ran out may still be answering while its job's settler
+    failed the run and the attempt; what it writes afterwards is dropped, so a
+    failed attempt never turns done, nor spends after its run ended.
+    """
+    result = await db.execute(
+        update(EvalRunCase)
+        .where(
+            EvalRunCase.id == case.id,
+            EvalRunCase.organization_id == case.organization_id,
+            EvalRunCase.status == CaseAttemptStatus.RUNNING.value,
+        )
+        .values(**values)
+        .returning(EvalRunCase.id)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def claim_next(
@@ -585,14 +597,14 @@ async def count_live_with_model(
 async def heartbeat(
     db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, now: datetime
 ) -> None:
-    """Record that a live run's worker is still at it."""
+    """Record that a run's worker is still at it.
+
+    Also once the run has ended: a cancelled run's worker goes on finishing the
+    cases it started, and this is how the sweep tells it from one that died.
+    """
     await db.execute(
         update(EvalRun)
-        .where(
-            EvalRun.id == eval_run_id,
-            EvalRun.organization_id == organization_id,
-            EvalRun.status.in_(_LIVE),
-        )
+        .where(EvalRun.id == eval_run_id, EvalRun.organization_id == organization_id)
         .values(heartbeat_at=now)
     )
     await db.flush()
@@ -614,10 +626,19 @@ async def fail_abandoned(
     running ones failed, so the organization's concurrency count does not keep
     them forever.
     """
+    # A job that ended but whose settler has not run yet still decides how its
+    # run ends - cancelled, when an administrator withdrew it - for as long as
+    # the settler is retried.
     job_left = exists().where(
         BackgroundJob.kind == job_kind,
-        BackgroundJob.status.in_(("queued", "running")),
         BackgroundJob.payload["eval_run_id"].astext == cast(EvalRun.id, String),
+        or_(
+            BackgroundJob.status.in_(("queued", "running")),
+            and_(
+                BackgroundJob.settled_at.is_(None),
+                BackgroundJob.finished_at > now - _SETTLED_WITHIN,
+            ),
+        ),
     )
     last_activity = (
         select(
@@ -659,14 +680,17 @@ async def fail_abandoned(
 
 
 async def close_orphaned_attempts(db: AsyncSession, *, ended_before: datetime) -> int:
-    """Fail the attempts left running by runs that ended before `ended_before`.
+    """Fail the attempts left running by ended runs whose worker is silent since `ended_before`.
 
     Unscoped, for the deployment's sweep, as `fail_abandoned` is. A run
-    cancelled while its worker answered a case lets that case finish; the window
-    is how long it may take. One whose worker died with it would otherwise stay
-    running for good.
+    cancelled while its worker answered a case lets that case finish, however
+    long it takes, for as long as the worker says it is alive. One whose worker
+    died with it would otherwise stay running for good.
     """
-    ended = select(EvalRun.id).where(EvalRun.status.not_in(_LIVE), EvalRun.ended_at < ended_before)
+    ended = select(EvalRun.id).where(
+        EvalRun.status.not_in(_LIVE),
+        func.greatest(EvalRun.ended_at, EvalRun.heartbeat_at) < ended_before,
+    )
     result = await db.execute(
         update(EvalRunCase)
         .where(
