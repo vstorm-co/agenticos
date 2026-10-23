@@ -12,8 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { saveBlob } from "@/lib/file-access";
+import { cn } from "@/lib/utils";
 import { IMPORT_COLUMNS, importTemplate } from "./import-columns";
 
 interface ImportCasesDialogProps {
@@ -33,12 +34,12 @@ export function ImportCasesDialog({ open, onOpenChange, onChoose }: ImportCasesD
   const t = useTranslations("datasets");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_FORM}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("importTitle")}</DialogTitle>
           <DialogDescription>{t("importBody")}</DialogDescription>
         </DialogHeader>
-        <dl className="space-y-1.5 text-sm">
+        <dl className={cn(DIALOG_BODY, "space-y-1.5 text-sm")}>
           {IMPORT_COLUMNS.map((column) => (
             <div key={column} className="flex flex-wrap gap-x-2">
               <dt className="font-mono text-xs leading-5">{column}</dt>

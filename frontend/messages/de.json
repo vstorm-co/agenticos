@@ -7641,7 +7641,7 @@
     "generating": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen…",
     "generationFailed": "Die Generierung ist fehlgeschlagen.",
     "leftOutUnreadable": "{count, plural, =1 {1 Fall war nicht lesbar und wurde ausgelassen.} other {# Fälle waren nicht lesbar und wurden ausgelassen.}}",
-    "leftOutRejected": "{count, plural, =1 {1 Fall hielt sich nicht an das, was dem Generator gezeigt wurde, und wurde ausgelassen.} other {# Fälle hielten sich nicht an das, was dem Generator gezeigt wurde, und wurden ausgelassen.}}",
+    "leftOutRejected": "{count, plural, =1 {1 weiterer Fall wurde ausgelassen: Er hielt sich nicht an seine Quelle, ging über das Verlangte hinaus oder wurde von jemandem gestellt, der nicht mehr da ist.} other {# weitere Fälle wurden ausgelassen: Sie hielten sich nicht an ihre Quelle, gingen über das Verlangte hinaus oder wurden von jemandem gestellt, der nicht mehr da ist.}}",
     "proposedCases": "Vorgeschlagene Fälle",
     "proposalCount": "{count, plural, =0 {Nichts wartet} =1 {1 Fall wartet auf eine Entscheidung} other {# Fälle warten auf eine Entscheidung}}",
     "dismissAll": "Alle verwerfen",

@@ -7758,7 +7758,7 @@
     "generating": "Drafting {count, plural, =1 {1 case} other {# cases}}…",
     "generationFailed": "The generation failed.",
     "leftOutUnreadable": "{count, plural, =1 {1 case could not be read and was left out.} other {# cases could not be read and were left out.}}",
-    "leftOutRejected": "{count, plural, =1 {1 case did not keep to what the generator was shown and was left out.} other {# cases did not keep to what the generator was shown and were left out.}}",
+    "leftOutRejected": "{count, plural, =1 {1 more case was left out: it did not keep to its source, went past what was asked for, or was asked by someone no longer here.} other {# more cases were left out: they did not keep to their source, went past what was asked for, or were asked by someone no longer here.}}",
     "proposedCases": "Proposed cases",
     "proposalCount": "{count, plural, =0 {Nothing waiting} =1 {1 case waiting for a decision} other {# cases waiting for a decision}}",
     "dismissAll": "Dismiss all",
