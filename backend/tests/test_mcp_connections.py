@@ -2408,8 +2408,11 @@ class TestTheTokenEndpointsRefusals:
         monkeypatch.setattr(mcp_oauth, "_send", fake_send)
 
     @pytest.mark.anyio
-    async def test_invalid_grant_is_a_revoked_grant(self, monkeypatch):
-        self._answering(monkeypatch, {"status_code": 400, "json": {"error": "invalid_grant"}})
+    @pytest.mark.parametrize("code", ["invalid_grant", "interaction_required", "consent_required"])
+    async def test_an_answer_only_a_new_consent_fixes_is_a_revoked_grant(self, monkeypatch, code):
+        """Microsoft answers a refresh with `interaction_required` when a new MFA or
+        Conditional Access policy applies; retried every minute, it never heals."""
+        self._answering(monkeypatch, {"status_code": 400, "json": {"error": code}})
         with pytest.raises(mcp_oauth.OAuthGrantRevoked):
             await mcp_oauth._token_request("https://93.184.216.34/token", {"grant_type": "x"})
 
@@ -3646,6 +3649,7 @@ class TestMcpConnectionService:
                 server_url="https://graph.microsoft.com",
                 token_endpoint="https://login.microsoftonline.com/contoso/oauth2/v2.0/token",
                 scope="https://graph.microsoft.com/Mail.Read offline_access",
+                code_verifier="the-verifier",
             ).model_dump_json(),
         )
         repo.get_by_oauth_state = AsyncMock(return_value=pending)
@@ -3670,6 +3674,7 @@ class TestMcpConnectionService:
             "https://graph.microsoft.com/Mail.Read",
             "offline_access",
         ]
+        assert exchange.await_args.kwargs["code_verifier"] == "the-verifier"
         update_data = repo.update.call_args_list[0].kwargs["update_data"]
         stored = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
@@ -6149,6 +6154,19 @@ class TestStartingOutlooksConsent:
         )
         assert staged["url"] == "https://graph.microsoft.com"
 
+    async def test_the_consent_is_bound_to_its_flow_with_pkce(self, service, ctx):
+        """The challenge in the URL is the verifier staged for the callback, hashed."""
+        import base64
+        import hashlib
+
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        verifier = service._stage_pending_oauth.await_args.kwargs["payload"].code_verifier
+        challenge = httpx2.URL(url).params["code_challenge"]
+        assert httpx2.URL(url).params["code_challenge_method"] == "S256"
+        expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        assert challenge == expected.decode().rstrip("=")
+
     async def test_a_polled_portal_with_no_client_kind_is_refused(self, service, ctx, monkeypatch):
         from dataclasses import replace
 
@@ -6179,13 +6197,21 @@ class TestCompletingMicrosoftsFlow:
         )
 
         completed, granted = await _complete_microsoft_flow(
-            _base_payload(provider="microsoft", scope=None), "code"
+            _base_payload(provider="microsoft", scope=None, code_verifier="v"), "code"
         )
 
         assert completed.access_token.get_secret_value() == "at"
         assert completed.refresh_token is None
         assert completed.expires_at is None
         assert granted is None
+
+    async def test_a_session_without_its_verifier_is_started_again(self):
+        """A pending payload from before PKCE, or one whose verifier could not be
+        read back, cannot complete; it is refused before anything reaches Microsoft."""
+        from app.services.mcp_connection import _complete_microsoft_flow
+
+        with pytest.raises(mcp_oauth.OAuthError, match="start again"):
+            await _complete_microsoft_flow(_base_payload(provider="microsoft"), "code")
 
     async def test_a_refused_exchange_becomes_the_shared_oauth_error(self, monkeypatch):
         from app.services.mcp_connection import _complete_microsoft_flow
@@ -6198,7 +6224,9 @@ class TestCompletingMicrosoftsFlow:
         )
 
         with pytest.raises(mcp_oauth.OAuthError, match="Microsoft refused"):
-            await _complete_microsoft_flow(_base_payload(provider="microsoft"), "code")
+            await _complete_microsoft_flow(
+                _base_payload(provider="microsoft", code_verifier="v"), "code"
+            )
 
 
 class TestDiscoveredScopes:

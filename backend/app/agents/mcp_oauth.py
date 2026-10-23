@@ -81,11 +81,14 @@ class OAuthError(Exception):
 
 
 class OAuthGrantRevoked(OAuthError):
-    """The token endpoint answered `invalid_grant`: the refresh token is dead.
+    """The token endpoint said only a new consent will do: the refresh token is dead.
 
-    RFC 6749 section 5.2 reserves the code for a grant that is "invalid, expired,
-    revoked" - nothing a retry fixes, unlike a timeout or a 5xx. Told apart so a
-    caller can stop spending the token and ask for a new consent instead.
+    RFC 6749 section 5.2 reserves `invalid_grant` for a grant that is "invalid,
+    expired, revoked" - nothing a retry fixes, unlike a timeout or a 5xx. Microsoft
+    also answers a refresh with `interaction_required` (a new MFA or Conditional
+    Access policy the person has to satisfy) and `consent_required`, which a retry
+    fixes no better. Told apart so a caller can stop spending the token and ask
+    for a new consent instead.
     """
 
 
@@ -542,6 +545,10 @@ async def refresh_tokens(
     return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
 
 
+# The token endpoint's answers that only the person signing in again can fix.
+_NEEDS_CONSENT = frozenset({"invalid_grant", "interaction_required", "consent_required"})
+
+
 def _error_code(response: httpx2.Response) -> str | None:
     """The OAuth `error` code of a refusal, or None when the body names none."""
     try:
@@ -585,7 +592,7 @@ async def _token_request(
             response.status_code,
             response.text[:200],
         )
-        if _error_code(response) == "invalid_grant":
+        if _error_code(response) in _NEEDS_CONSENT:
             raise OAuthGrantRevoked(
                 f"Token endpoint returned {response.status_code}: the grant is no longer valid."
             )

@@ -35,8 +35,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **A mailbox whose consent was withdrawn stops its triggers** (#1984). Gmail
   and Outlook triggers were left on and retried every minute in silence; they
   are now turned off with the reason in the audit log, and the card asks for a
-  reconnect. A refresh token the provider refuses as `invalid_grant` is no longer
-  spent again.
+  reconnect. A refresh token the provider refuses as `invalid_grant` - or, from
+  Microsoft, `interaction_required` or `consent_required`, which a new MFA or
+  Conditional Access policy brings - is no longer spent again.
 - **Editing a mail trigger's subject or sender keeps the rest of its filter.**
   Saving the two fields replaced the whole filter, dropping a Gmail label.
 

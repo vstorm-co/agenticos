@@ -311,8 +311,11 @@ async def _complete_microsoft_flow(
     Google's shape: an access token that expires in about an hour, a refresh token
     `offline_access` asked for, and the scopes the account actually consented to.
     The tenant's token endpoint was fixed when the flow started, from the app
-    registration in the vault, and travels in the pending payload.
+    registration in the vault, and travels in the pending payload, with the PKCE
+    verifier the consent URL was built from.
     """
+    if not payload.code_verifier:
+        raise OAuthError("This authorization session is no longer valid - start again.")
     try:
         token = await microsoft_oauth.exchange_code(
             token_endpoint=payload.token_endpoint,
@@ -321,6 +324,7 @@ async def _complete_microsoft_flow(
             code=code,
             redirect_uri=payload.redirect_uri,
             scopes=(payload.scope or "").split(),
+            code_verifier=payload.code_verifier,
         )
     except microsoft_oauth.MicrosoftOAuthError as exc:
         raise OAuthError(str(exc)) from exc
@@ -1486,7 +1490,10 @@ class McpConnectionService:
         redirect_uri = _oauth_redirect_uri()
         state = secrets.token_urlsafe(32)
         scopes = list(portal.read_scopes)
+        code_verifier: str | None = None
         if isinstance(creds, MicrosoftOAuthAppSecret):
+            pkce = mcp_oauth.new_pkce()
+            code_verifier = pkce.code_verifier
             provider = microsoft_oauth.PROVIDER
             authorization_endpoint = microsoft_oauth.authorize_endpoint_for(creds.tenant_id)
             token_endpoint = microsoft_oauth.token_endpoint_for(creds.tenant_id)
@@ -1496,6 +1503,7 @@ class McpConnectionService:
                 redirect_uri=redirect_uri,
                 scopes=scopes,
                 state=state,
+                code_challenge=pkce.code_challenge,
             )
         else:
             provider = google_oauth.PROVIDER
@@ -1521,6 +1529,7 @@ class McpConnectionService:
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
             provider=provider,
+            code_verifier=code_verifier,
         )
         existing = await mcp_connection_repo.get_portal_grant(
             self.db, organization_id=ctx.organization_id, portal_key=portal_key

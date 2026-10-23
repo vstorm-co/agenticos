@@ -54,13 +54,21 @@ def token_endpoint_for(tenant_id: str) -> str:
 
 
 def authorization_url(
-    *, tenant_id: str, client_id: str, redirect_uri: str, scopes: Sequence[str], state: str
+    *,
+    tenant_id: str,
+    client_id: str,
+    redirect_uri: str,
+    scopes: Sequence[str],
+    state: str,
+    code_challenge: str,
 ) -> str:
     """The consent URL the browser is sent to.
 
     `select_account` because the person connecting is often signed in to Microsoft
     as somebody else - a personal account, another tenant - and a silent consent
-    would connect whichever mailbox the browser happened to hold.
+    would connect whichever mailbox the browser happened to hold. PKCE (`S256`)
+    although the client also has a secret: Microsoft recommends it for every app
+    type, and it binds the code to this flow should it leak on the way back.
     """
     params = httpx.QueryParams(
         {
@@ -71,6 +79,8 @@ def authorization_url(
             "scope": " ".join(scopes),
             "state": state,
             "prompt": "select_account",
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
     )
     return f"{authorize_endpoint_for(tenant_id)}?{params}"
@@ -84,6 +94,7 @@ async def exchange_code(
     code: str,
     redirect_uri: str,
     scopes: Sequence[str],
+    code_verifier: str,
 ) -> MicrosoftToken:
     """Trade the authorization code for tokens at the tenant's `token_endpoint`.
 
@@ -104,6 +115,7 @@ async def exchange_code(
                     "redirect_uri": redirect_uri,
                     "grant_type": "authorization_code",
                     "scope": " ".join(scopes),
+                    "code_verifier": code_verifier,
                 },
                 headers={"Accept": "application/json"},
             )

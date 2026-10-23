@@ -60,6 +60,7 @@ async def _exchange(
             code="c",
             redirect_uri="https://app/cb",
             scopes=["https://graph.microsoft.com/Mail.Read", "offline_access"],
+            code_verifier="the-verifier",
         )
     return token, client
 
@@ -80,12 +81,16 @@ def test_the_consent_url_asks_the_person_which_account() -> None:
         redirect_uri="https://app/cb",
         scopes=["offline_access"],
         state="s",
+        code_challenge="the-challenge",
     )
     params = httpx.URL(url).params
     assert url.startswith("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?")
     assert params["prompt"] == "select_account"
     assert params["response_type"] == "code"
     assert params["scope"] == "offline_access"
+    # PKCE although the client has a secret: Microsoft recommends it for every app type.
+    assert params["code_challenge"] == "the-challenge"
+    assert params["code_challenge_method"] == "S256"
 
 
 async def test_a_well_formed_answer_parses_and_repeats_the_scopes() -> None:
@@ -125,3 +130,9 @@ async def test_an_answer_without_a_refresh_token_or_expiry_records_none() -> Non
 async def test_every_failure_is_the_recoverable_error(response: _Resp | Exception) -> None:
     with pytest.raises(microsoft_oauth.MicrosoftOAuthError):
         await _exchange(response)
+
+
+async def test_the_exchange_proves_the_flow_with_its_verifier() -> None:
+    _token, client = await _exchange(_Resp(200, {"access_token": "at"}))
+
+    assert client.posted["data"]["code_verifier"] == "the-verifier"
