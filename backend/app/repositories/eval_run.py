@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
+from app.db.models.authoring import HunkStatus, SpecProposalBatch, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
@@ -189,14 +190,47 @@ async def draft_runs(
     organization_id: UUID,
     dataset_ids: Sequence[UUID],
     spec_hash: str,
+    earlier: bool = False,
+    since: datetime | None = None,
 ) -> list[EvalRun]:
-    """An agent's runs that tested one draft, by the hash of its spec, newest first."""
-    tested = select(EvalRunArm.eval_run_id).where(
-        EvalRunArm.organization_id == organization_id,
-        EvalRunArm.source == ArmSource.DRAFT.value,
-        EvalRunArm.role == ArmRole.CANDIDATE.value,
-        EvalRunArm.spec_hash == spec_hash,
+    """An agent's runs that tested one draft, by the hash of its spec, newest first.
+
+    A check of the authoring assistant's suggestions tested the draft they
+    would make, so its candidate counts as a draft once they are accepted -
+    unless it was measured against the draft itself, which says nothing of
+    the draft against the published version it would replace.
+
+    `earlier` turns it round: the runs that tested some other draft, made at
+    `since` or later - a test the draft has since moved away from. A check
+    counts there only once a suggestion it checked was accepted: one whose
+    suggestions were all dismissed never tested any draft.
+    """
+    checked = and_(
+        EvalRunArm.source == ArmSource.EXPLICIT.value,
+        EvalRun.proposal_check["on_draft"].astext == "false",
     )
+    if earlier:
+        accepted = (
+            select(SpecProposalHunk.id)
+            .join(SpecProposalBatch, SpecProposalBatch.id == SpecProposalHunk.batch_id)
+            .where(
+                SpecProposalBatch.organization_id == organization_id,
+                EvalRun.id == func.any(SpecProposalBatch.check_eval_run_ids),
+                SpecProposalHunk.status == HunkStatus.ACCEPTED.value,
+            )
+        )
+        checked = and_(checked, exists(accepted))
+    tested = (
+        select(EvalRunArm.eval_run_id)
+        .join(EvalRun, EvalRun.id == EvalRunArm.eval_run_id)
+        .where(
+            EvalRunArm.organization_id == organization_id,
+            EvalRunArm.role == ArmRole.CANDIDATE.value,
+            or_(EvalRunArm.source == ArmSource.DRAFT.value, checked),
+            EvalRunArm.spec_hash != spec_hash if earlier else EvalRunArm.spec_hash == spec_hash,
+        )
+    )
+    after = [EvalRun.created_at >= since] if since is not None else []
     result = await db.execute(
         select(EvalRun)
         .where(
@@ -204,6 +238,7 @@ async def draft_runs(
             EvalRun.agent_id == agent_id,
             EvalRun.dataset_id.in_(dataset_ids),
             EvalRun.id.in_(tested),
+            *after,
         )
         .order_by(EvalRun.created_at.desc(), EvalRun.id)
     )
