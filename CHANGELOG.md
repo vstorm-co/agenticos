@@ -45,6 +45,27 @@ Two things are versioned separately from this file and worth knowing about:
   or the `--timeout` the catalog check is given. A host that is down still
   fails within 3 seconds, and so does a run's own `initialize`.
 
+## [1.13.1] - 2026-10-23
+
+### Fixed
+
+- **A URL whose host name cannot be encoded is refused, not a 500 (#2352).** A
+  host with an empty label (`a..b`) or a label longer than 63 characters made
+  the resolver's IDNA codec raise an error the outbound guard did not catch, so
+  saving an MCP connection with such a URL answered 500 "An unexpected error
+  occurred". The guard now refuses it with "The URL's host name is not valid",
+  a 400 like every other refusal, for every caller. The MCP catalog audit and
+  the browser's endpoint lookup treat such a name as one that does not resolve.
+
+### Security
+
+- **OpenTelemetry moves to 1.45.1 (0.66b1 for the instrumentation packages).**
+  `opentelemetry-api` 1.44.0 is affected by CVE-2026-114603
+  (GHSA-xcq7-p3pf-p88h), which failed `make audit` and so the required Security
+  Scan on every pull request. Only the lockfile and the third-party notices
+  change; two Apache-2.0 packages, `opentelemetry-exporter-http-transport` and
+  `opentelemetry-exporter-otlp-common`, come in with the new exporters.
+
 ## [1.13.0] - 2026-10-22
 
 ### Added

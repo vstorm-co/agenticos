@@ -31,9 +31,14 @@ _AT = datetime(2026, 10, 12, 18, 0, tzinfo=UTC)
 
 @pytest.fixture(autouse=True)
 def _dns(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every name resolves to one public address, except those under `.gone`."""
+    """Every name resolves to one public address, except those under `.gone`.
+
+    The name is IDNA-encoded first, as the real resolver does, so a name the
+    codec refuses raises what it would on a real deployment.
+    """
 
     def fake_getaddrinfo(host: str, port: object, *_args: object, **_kwargs: object):
+        str(host).encode("idna")
         if str(host).endswith(".gone"):
             raise socket.gaierror("no such host")
         return [(2, 1, 6, "", (_PUBLIC, port or 443))]
@@ -133,6 +138,12 @@ class TestOneServer:
         probe = await _probe(_wire(_initialized()), "https://mcp.example.gone/mcp")
 
         assert probe.outcome is CheckOutcome.UNREACHABLE
+
+    async def test_a_name_the_idna_codec_refuses_is_unreachable(self):
+        probe = await _probe(_wire(_initialized()), "https://mcp..example.com/mcp")
+
+        assert probe.outcome is CheckOutcome.UNREACHABLE
+        assert probe.detail == "the host name does not resolve"
 
     async def test_an_address_with_no_host_is_unreachable(self):
         assert (await _probe(_wire(_initialized()), "not a url")).outcome is (

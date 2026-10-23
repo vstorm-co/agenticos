@@ -224,6 +224,16 @@ def _checked_target(url: str, allowed_schemes: frozenset[str]) -> tuple[str, int
     hostname = parsed.hostname
     if not hostname:
         raise UrlRefusedError("The URL has no hostname")
+    try:
+        hostname.encode("idna")
+    except UnicodeError as err:
+        # The resolver encodes the name with this codec, which refuses an empty
+        # label ("a..b") or one over 63 characters with an error that subclasses
+        # ValueError but not UrlRefusedError - so callers that quote refusals
+        # answered a 500 with the codec's message (#2352). Checked with the form,
+        # not in `_pinned`, so a host on `MCP_ALLOWED_HOSTS`, which skips the
+        # address half, cannot save a URL nothing can resolve either.
+        raise UrlRefusedError("The URL's host name is not valid") from err
 
     # Reject URLs with userinfo (credentials) to prevent URL parsing ambiguities
     # e.g. http://user:pass@host/ or http://foo@169.254.169.254%00@public.com/
