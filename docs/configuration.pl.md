@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddf346e4182"
+source_sha: "e5539b8d29d1"
 ---
 
 # Konfiguracja { #configuration }
@@ -711,6 +711,23 @@ Bucket, do którego zapisuje wdrożenie, potrzebuje `s3:PutObject`, `s3:GetObjec
 `s3:DeleteObject` i `s3:ListBucket`, a przy trybie `sse-kms` dodatkowo
 `kms:Encrypt`, `kms:Decrypt` i `kms:GenerateDataKey` na kluczu. Lokalne MinIO
 uruchamia `make docker-minio` na `:9000` z `minioadmin` / `minioadmin`.
+
+### Wygenerowane media { #generated-media }
+
+Obrazy, mowa i wideo generowane przez agentów są trzymane w tym samym magazynie,
+pod `generated_<org>/`, a każde jest zapisane przy swojej organizacji i
+konwersacji, w której powstało. To, co organizacja przechowuje, jest ograniczone
+podwójnie. Zobacz [Ochronę danych](data-protection.md#generated-media), żeby
+sprawdzić, co i kiedy jest usuwane.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `GENERATED_MEDIA_QUOTA_MB` | `5120` | Ile wygenerowanych mediów może trzymać jedna organizacja, w MiB. Liczy się każdy plik, także utworzony bez rozmowy - z podglądu lub przebiegu testowego, z wtrącenia `/btw` w kanale, z runu API, który nie wskazuje rozmowy; sweep usuwa takie pliki po 7 dniach. Sprawdzane przed każdym płatnym wywołaniem generowania: po jego przekroczeniu narzędzie odpowiada, że organizacja wykorzystała swój magazyn, i niczego nie wydaje. Wpuszczone wywołanie rezerwuje w limicie szacowany rozmiar swojego pliku, dopóki plik nie zostanie zapisany - 16 MiB na obraz, 8 KiB na znak mowy, 2 MiB na sekundę wideo - więc wywołanie, którego szacunek przekroczyłby limit organizacji, zostaje odrzucone, a równoległe przebiegi albo równoległe wywołania w jednej odpowiedzi nie mogą przejść wszystkie na tej samej liczbie. Plik większy niż szacunek liczy się według prawdziwego rozmiaru. `0` to brak limitu |
+| `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Wiek, w którym codzienne zadanie `sweep-generated-media` usuwa wygenerowany plik i jego zapis, bez względu na to, czy jego konwersacja wciąż istnieje. `0` trzyma je, aż ich konwersacja albo organizacja zostanie usunięta. Plik bez konwersacji odchodzi po 7 dniach w każdym przypadku |
+
+Plik jest serwowany strumieniowo, tylko w zakresie bajtów, o który prosi
+odtwarzacz - z dysku albo przez `GetObject` z zakresem - więc długi klip nigdy nie
+jest trzymany w całości ani w API, ani na serwerze konsoli.
 
 ### Synchronizacja S3/MinIO { #s3minio-sync }
 

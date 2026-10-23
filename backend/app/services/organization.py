@@ -698,12 +698,21 @@ class OrganizationService:
             Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
             for kb in restamp_orphans
         ]
-        if storage_paths or to_drop or restamps:
-            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
+        # The images, speech and video its agents generated go in the same job
+        # (#2310): their rows cascade with the organization, so the job is the
+        # only record of the bytes left. One prefix, which also takes the files
+        # written before they were recorded - and why the job is now always queued.
+        from app.services.generated_media import organization_directory
+        from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            await queue_external_state_cleanup(
-                self.db, storage_paths, to_drop, restamps, organization_id=org.id
-            )
+        await queue_external_state_cleanup(
+            self.db,
+            storage_paths,
+            to_drop,
+            restamps,
+            prefixes=[organization_directory(org.id)],
+            organization_id=org.id,
+        )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who
         # still references them, so the tenant's prefix is the outer bound of

@@ -60,26 +60,36 @@ async def queue_external_state_cleanup(
     collections: list[str],
     restamps: list[Restamp] | None = None,
     *,
+    prefixes: list[str] | None = None,
+    required_paths: list[str] | None = None,
     organization_id: UUID | None = None,
 ) -> None:
     """Queue a delete's external-state cleanup, in the delete's own transaction.
 
-    The paths and the re-stamps are each chunked across jobs, independently, and
-    zipped onto as many jobs as the longer needs; collections ride the first job
-    only - `delete_collection` is idempotent, but re-checking them once is enough.
-    `organization_id` is for the panel only: the organization may be the thing
-    being deleted.
+    The paths, the required paths and the re-stamps are each chunked across
+    jobs, independently, and zipped onto as many jobs as the longest needs;
+    collections and prefixes ride the first job only - `delete_collection` and
+    `delete_prefix` are idempotent, but one pass over them is enough.
+    `required_paths` are unlinked like `storage_paths`, but one the store
+    refuses fails the job so it is retried. `organization_id` is for the panel
+    only: the organization may be the thing being deleted.
     """
     restamps = restamps or []
+    prefixes = prefixes or []
+    required_paths = required_paths or []
     path_chunks = [
         storage_paths[i : i + _MAX_PATHS_PER_JOB]
         for i in range(0, len(storage_paths), _MAX_PATHS_PER_JOB)
+    ]
+    required_chunks = [
+        required_paths[i : i + _MAX_PATHS_PER_JOB]
+        for i in range(0, len(required_paths), _MAX_PATHS_PER_JOB)
     ]
     restamp_chunks = [
         restamps[i : i + _MAX_RESTAMPS_PER_JOB]
         for i in range(0, len(restamps), _MAX_RESTAMPS_PER_JOB)
     ]
-    for index in range(max(len(path_chunks), len(restamp_chunks), 1)):
+    for index in range(max(len(path_chunks), len(required_chunks), len(restamp_chunks), 1)):
         await enqueue(
             db,
             CLEANUP_EXTERNAL_STATE,
@@ -87,6 +97,8 @@ async def queue_external_state_cleanup(
                 storage_paths=path_chunks[index] if index < len(path_chunks) else [],
                 collections=collections if index == 0 else [],
                 restamps=restamp_chunks[index] if index < len(restamp_chunks) else [],
+                prefixes=prefixes if index == 0 else [],
+                required_paths=required_chunks[index] if index < len(required_chunks) else [],
             ),
             organization_id=organization_id,
         )
@@ -141,6 +153,8 @@ async def cleanup_external_state(
     storage_paths: list[str],
     collections: list[str],
     restamps: list[Restamp] | None = None,
+    prefixes: list[str] | None = None,
+    required_paths: list[str] | None = None,
 ) -> dict[str, int]:
     """Unlink a committed delete's stored uploads and drop its unreferenced vector tables.
 
@@ -169,14 +183,23 @@ async def cleanup_external_state(
     re-stamp that fails is raised below so those retries actually re-run it, because
     a base left stamped with the deleted org is unreadable and undeletable and has no
     other safety net (#1684).
+
+    `prefixes` are removed whole - an organization's generated media, whose rows
+    went with it (#2310). A prefix the store would not remove is raised below,
+    like a re-stamp, so the retries re-run it: those bytes have no row left to
+    find them by. `required_paths` are single files in the same position - a
+    deleted conversation's or account's generated media - and a refused one is
+    raised the same way.
     """
-    from app.core.exceptions import DatabaseError
+    from app.core.exceptions import DatabaseError, ExternalServiceError
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
     from app.repositories import collection_teardown_repo, knowledge_base_repo
     from app.services.file_storage import get_file_storage
 
     restamps = restamps or []
+    prefixes = prefixes or []
+    required_paths = required_paths or []
     storage = get_file_storage()
     for storage_path in storage_paths:
         # Best-effort but not silent: the row that named this file is committed-gone,
@@ -186,6 +209,22 @@ async def cleanup_external_state(
             await storage.delete(storage_path)
         except Exception as exc:
             logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
+
+    required_failures: list[str] = []
+    for storage_path in required_paths:
+        try:
+            await storage.delete(storage_path)
+        except Exception as exc:
+            logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
+            required_failures.append(storage_path)
+
+    prefix_failures: list[str] = []
+    for prefix in prefixes:
+        try:
+            await storage.delete_prefix(prefix)
+        except Exception as exc:
+            logger.warning("Failed to remove stored prefix %s: %s", prefix, exc)
+            prefix_failures.append(prefix)
 
     dropped = 0
     restamped = 0
@@ -225,7 +264,11 @@ async def cleanup_external_state(
 
     logger.info(
         "external_state_cleanup",
-        extra={"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped},
+        extra={
+            "unlinked": len(storage_paths) + len(required_paths),
+            "dropped": dropped,
+            "restamped": restamped,
+        },
     )
     # Raised after the loop, not inside it, so every entry is attempted and the drops
     # and unlinks still complete; the job then fails and its retries re-run the whole
@@ -235,7 +278,16 @@ async def cleanup_external_state(
             message="Failed to re-stamp orphaned personal knowledge bases on organization purge",
             details={"collections": restamp_failures},
         )
-    return {"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped}
+    if prefix_failures or required_failures:
+        raise ExternalServiceError(
+            message="Failed to remove stored files on delete",
+            details={"prefixes": prefix_failures, "storage_paths": required_failures},
+        )
+    return {
+        "unlinked": len(storage_paths) + len(required_paths),
+        "dropped": dropped,
+        "restamped": restamped,
+    }
 
 
 async def sweep_teardown_reservations() -> dict[str, int]:
@@ -285,4 +337,6 @@ async def sweep_teardown_reservations() -> dict[str, int]:
 
 async def run_external_state_cleanup(job: CleanupExternalState) -> dict[str, int]:
     """The job `queue_external_state_cleanup` queues."""
-    return await cleanup_external_state(job.storage_paths, job.collections, job.restamps)
+    return await cleanup_external_state(
+        job.storage_paths, job.collections, job.restamps, job.prefixes, job.required_paths
+    )

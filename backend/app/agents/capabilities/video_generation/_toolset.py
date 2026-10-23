@@ -46,13 +46,18 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._choices import Choice, schema_for
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR, store_generated
+from app.agents.capabilities._generated import (
+    WORKSPACE_OUTPUT_DIR,
+    admit,
+    store_generated,
+)
 from app.agents.capabilities.budget import can_afford_ambient_call, record_ambient_cost
 from app.agents.deps import AgentDeps
 from app.core.exceptions import NotFoundError
 from app.services.file_storage import sniff_image_header
 from app.services.generated_media import load_generated_media
 from app.services.video_generation import (
+    MAX_CLIP_BYTES,
     FirstFrame,
     VideoFailure,
     VideoProviderError,
@@ -65,6 +70,14 @@ FRAME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
 
 MAX_FRAME_BYTES = 10 * 1024 * 1024
 """The largest starting image sent: every provider's own limit is at least this."""
+
+RESERVED_BYTES_PER_SECOND = 2 * 1024 * 1024
+"""What one second of a clip holds against the quota while it is made (#2310).
+
+16 Mbit/s, past what the providers here encode even 1080p at, so the clip's
+length - the model's longest where the model decides its own - times this
+covers what is usually made. Never more than the most a clip download takes
+(`MAX_CLIP_BYTES`). A clip larger than this is still recorded at its real size."""
 
 
 @dataclass(frozen=True)
@@ -283,94 +296,104 @@ def build_video_toolset(
                 "this run has left."
             )
 
-        # How far the job got, as the client reports it: what the provider may
-        # bill no longer depends on whether a clip comes back.
-        stages: set[str] = set()
-        try:
-            clip = await generate_video(
-                entry,
-                model=settings.model,
-                prompt=prompt,
-                resolution=sharpness,
-                aspect_ratio=shape,
-                api_key=api_key,
-                timeout_seconds=settings.timeout_seconds,
-                duration=duration,
-                audio=sound,
-                first_frame=frame,
-                reached=stages.add,
-                base_url=settings.base_url,
-            )
-        except asyncio.CancelledError:
-            # The run went away - a person pressed stop, a call hung up - while
-            # the provider had the job. It may still finish and bill it, so its
-            # estimate is booked, or the next clip would spend the same money.
-            if stages & {"sent", "submitted"}:
-                record_ambient_cost(ledger_name, estimate)
-            raise
-        except VideoProviderError as exc:
-            if "made" in stages:
-                # Finished and billed; only fetching the clip failed. Booked, and
-                # answered rather than retried: a second attempt is a second bill.
-                record_ambient_cost(ledger_name, estimate)
-                return (
-                    "Not delivered: the video was made and billed, but it could not be "
-                    "fetched from the provider. Tell the user rather than trying again - a "
-                    "second attempt is billed again."
+        slot = await admit(
+            ctx,
+            estimate_bytes=min(priced_seconds * RESERVED_BYTES_PER_SECOND, MAX_CLIP_BYTES),
+            verdict="Not made",
+        )
+        if isinstance(slot, str):
+            return slot
+        async with slot:
+            # How far the job got, as the client reports it: what the provider may
+            # bill no longer depends on whether a clip comes back.
+            stages: set[str] = set()
+            try:
+                clip = await generate_video(
+                    entry,
+                    model=settings.model,
+                    prompt=prompt,
+                    resolution=sharpness,
+                    aspect_ratio=shape,
+                    api_key=api_key,
+                    timeout_seconds=settings.timeout_seconds,
+                    duration=duration,
+                    audio=sound,
+                    first_frame=frame,
+                    reached=stages.add,
+                    base_url=settings.base_url,
                 )
-            if "sent" in stages:
-                # The request may have reached the provider with nothing to say
-                # whether a job came of it, so it is treated as one that did.
-                record_ambient_cost(ledger_name, estimate)
-                return (
-                    "Not confirmed: the request reached the video provider, but its answer "
-                    "was lost, so the video may still be made and billed. Tell the user "
-                    "rather than trying again - a second attempt may be billed again."
-                )
-            match exc.failure:
-                case VideoFailure.CREDENTIALS:
+            except asyncio.CancelledError:
+                # The run went away - a person pressed stop, a call hung up - while
+                # the provider had the job. It may still finish and bill it, so its
+                # estimate is booked, or the next clip would spend the same money.
+                if stages & {"sent", "submitted"}:
+                    record_ambient_cost(ledger_name, estimate)
+                raise
+            except VideoProviderError as exc:
+                if "made" in stages:
+                    # Finished and billed; only fetching the clip failed. Booked, and
+                    # answered rather than retried: a second attempt is a second bill.
+                    record_ambient_cost(ledger_name, estimate)
                     return (
-                        "Not made: the video provider refused this agent's API key. Its author "
-                        "needs to replace the key in the vault."
+                        "Not delivered: the video was made and billed, but it could not be "
+                        "fetched from the provider. Tell the user rather than trying again - a "
+                        "second attempt is billed again."
                     )
-                case VideoFailure.TIMED_OUT:
-                    # Submitted and not cancelled in time, so possibly billed: an
-                    # estimate booked is a cap held, where nothing booked would let
-                    # the next clip spend the same money again.
-                    if "submitted" in stages:
-                        record_ambient_cost(ledger_name, estimate)
+                if "sent" in stages:
+                    # The request may have reached the provider with nothing to say
+                    # whether a job came of it, so it is treated as one that did.
+                    record_ambient_cost(ledger_name, estimate)
                     return (
-                        f"Not made: the video was not ready within {settings.timeout_seconds} "
-                        "seconds. Tell the user rather than trying again - a second attempt is "
-                        "billed again."
+                        "Not confirmed: the request reached the video provider, but its answer "
+                        "was lost, so the video may still be made and billed. Tell the user "
+                        "rather than trying again - a second attempt may be billed again."
                     )
-                case VideoFailure.POLICY:
-                    return (
-                        "Not made: the video provider's content policy refused this prompt "
-                        "or image. Tell the user rather than rewording the same request."
-                    )
-                case _:
-                    return steer(ctx, f"{exc.message} Try once more, or answer without a video.")
+                match exc.failure:
+                    case VideoFailure.CREDENTIALS:
+                        return (
+                            "Not made: the video provider refused this agent's API key. Its author "
+                            "needs to replace the key in the vault."
+                        )
+                    case VideoFailure.TIMED_OUT:
+                        # Submitted and not cancelled in time, so possibly billed: an
+                        # estimate booked is a cap held, where nothing booked would let
+                        # the next clip spend the same money again.
+                        if "submitted" in stages:
+                            record_ambient_cost(ledger_name, estimate)
+                        return (
+                            f"Not made: the video was not ready within {settings.timeout_seconds} "
+                            "seconds. Tell the user rather than trying again - a second attempt is "
+                            "billed again."
+                        )
+                    case VideoFailure.POLICY:
+                        return (
+                            "Not made: the video provider's content policy refused this prompt "
+                            "or image. Tell the user rather than rewording the same request."
+                        )
+                    case _:
+                        return steer(
+                            ctx, f"{exc.message} Try once more, or answer without a video."
+                        )
 
-        # The provider's own figure, within what the model can make: a negative or
-        # non-finite length would hand budget back or poison the ledger.
-        made_seconds = (
-            min(clip.seconds, model.max_seconds)
-            if clip.seconds is not None and math.isfinite(clip.seconds) and clip.seconds > 0
-            else priced_seconds
-        )
-        record_ambient_cost(
-            ledger_name, None if price is None else price * Decimal(str(made_seconds))
-        )
-        stored = await store_generated(ctx, clip.data, filename="video.mp4")
-        return GeneratedVideo(
-            filename=stored.filename,
-            url=stored.url,
-            prompt=prompt,
-            seconds=clip.seconds,
-            resolution=sharpness,
-            workspace_path=stored.workspace_path,
-        ).model_dump_json()
+            # The provider's own figure, within what the model can make: a negative or
+            # non-finite length would hand budget back or poison the ledger.
+            made_seconds = (
+                min(clip.seconds, model.max_seconds)
+                if clip.seconds is not None and math.isfinite(clip.seconds) and clip.seconds > 0
+                else priced_seconds
+            )
+            record_ambient_cost(
+                ledger_name, None if price is None else price * Decimal(str(made_seconds))
+            )
+            stored = await store_generated(ctx, clip.data, filename="video.mp4", slot=slot)
+            return GeneratedVideo(
+                filename=stored.filename,
+                url=stored.url,
+                prompt=prompt,
+                seconds=clip.seconds,
+                resolution=sharpness,
+                workspace_path=stored.workspace_path,
+            ).model_dump_json()
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     # One clip at a time: the budget is asked with a clip's price and reserves

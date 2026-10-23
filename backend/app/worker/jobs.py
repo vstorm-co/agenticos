@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Pool(enum.StrEnum):
@@ -117,6 +117,19 @@ class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
     restamps: list[Restamp]
+    # Defaulted, so a job queued by a release before it existed still parses; and
+    # left out of the dump when empty, so a worker from that release (whose payload
+    # forbids extra fields) still runs every cleanup that carries none. Only an
+    # organization purge carries prefixes, and only a current worker runs it.
+    prefixes: list[str] = Field(default_factory=list, exclude_if=lambda prefixes: not prefixes)
+    """Storage prefixes removed whole - an organization's generated media (#2310)."""
+    required_paths: list[str] = Field(
+        default_factory=list, exclude_if=lambda required_paths: not required_paths
+    )
+    """Files whose failed unlink fails the job, so it is retried - generated media
+    whose rows went with the delete that queued this (#2310). Defaulted and left
+    out of the dump when empty, as `prefixes` is. A previous-release worker
+    refuses a job that carries them; a current one runs it."""
 
 
 @dataclass(frozen=True)
@@ -235,6 +248,7 @@ APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -266,6 +280,7 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        SWEEP_GENERATED_MEDIA,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

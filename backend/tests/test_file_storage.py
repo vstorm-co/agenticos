@@ -142,3 +142,30 @@ def test_the_containment_check_is_the_whole_condition_of_its_branch():
     assert isinstance(test, ast.Call)
     assert isinstance(test.func, ast.Attribute)
     assert test.func.attr == "startswith"
+
+
+class TestDeletingAPrefix:
+    async def test_a_tree_the_process_could_not_remove_fails_the_call(
+        self, storage: LocalFileStorage, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`rmtree(ignore_errors=True)` reported success over a file it could not
+        unlink; the org purge's retry is the only thing that would try again, so it
+        has to be told (#2310)."""
+        await storage.save_at("generated_org/a_image.png", b"png")
+        monkeypatch.setattr(
+            "app.services.file_storage.shutil.rmtree", lambda _path, ignore_errors: None
+        )
+
+        with pytest.raises(OSError, match="not fully removed"):
+            await storage.delete_prefix("generated_org")
+
+        assert (storage.base_dir / "generated_org" / "a_image.png").exists()
+
+    async def test_a_removed_tree_answers_how_many_files_went(
+        self, storage: LocalFileStorage
+    ) -> None:
+        await storage.save_at("generated_org/a_image.png", b"png")
+        await storage.save_at("generated_org/b_speech.mp3", b"mp3")
+
+        assert await storage.delete_prefix("generated_org") == 2
+        assert not (storage.base_dir / "generated_org").exists()

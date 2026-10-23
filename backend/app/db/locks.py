@@ -63,6 +63,10 @@ class LockScope(IntEnum):
     #: `resume_of` and token at once each passed the checks and each continued the
     #: call - one call's remaining time, spent several times over (Codex on #2204).
     VOICE_RESUME = 10
+    #: One organization's generated-media quota (#2310). Each call read what was
+    #: used before its paid generation and recorded its file only after it, so
+    #: every call admitted at once passed the same check and together ran past it.
+    GENERATED_MEDIA_PER_ORG = 11
 
 
 def _key(subject: UUID) -> int:

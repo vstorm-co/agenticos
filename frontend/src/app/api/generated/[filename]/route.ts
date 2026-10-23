@@ -40,19 +40,28 @@ export async function GET(
       return bffRefusal("FILE_NOT_FOUND", response.status);
     }
 
-    const data = await response.arrayBuffer();
     const contentType = response.headers.get("content-type") || "application/octet-stream";
     const disposition = response.headers.get("content-disposition") || "";
-
     const contentRange = response.headers.get("content-range");
-    return new NextResponse(data, {
+    // The length only where the body arrives as the backend sent it: `fetch`
+    // decodes a compressed body, and the encoded length would cut it short.
+    const contentLength = response.headers.get("content-encoding")
+      ? null
+      : response.headers.get("content-length");
+
+    // Piped through, never read whole (#2310). A generated video can be hundreds
+    // of megabytes, and buffering it held the whole clip in this process once
+    // per request - a player's range request included.
+    return new NextResponse(response.body, {
       status: response.status,
       headers: {
         "Accept-Ranges": "bytes",
         ...(contentRange ? { "Content-Range": contentRange } : {}),
+        ...(contentLength ? { "Content-Length": contentLength } : {}),
         "Content-Type": contentType,
         "Content-Disposition": disposition,
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
         // Override the global X-Frame-Options: DENY from next.config.ts so the
         // chat can embed the image from the same origin.
         "X-Frame-Options": "SAMEORIGIN",

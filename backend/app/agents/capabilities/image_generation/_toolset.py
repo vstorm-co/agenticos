@@ -35,11 +35,19 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._generated import store_generated
+from app.agents.capabilities._generated import admit, store_generated
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
+
+RESERVED_BYTES = 16 * 1024 * 1024
+"""What one image holds against the quota while it is drawn (#2310).
+
+The image models here answer at most a few megapixels - a PNG of a 4096-pixel
+square at its worst runs to tens of megabytes, a typical answer to one or two -
+so a flat 16 MiB covers what is usually made with room to spare. An image larger
+than this is still recorded at its real size."""
 
 _SUBAGENT_INSTRUCTIONS = (
     "Generate an image based on the user prompt. Do not ask clarifying questions."
@@ -132,49 +140,54 @@ def build_image_toolset(
             # the preview and test paths that build without a key: the run
             # survives, and nothing is spent or stored.
             return steer(ctx, "Image generation has no API key configured.")
+        slot = await admit(ctx, estimate_bytes=RESERVED_BYTES, verdict="Not made")
+        if isinstance(slot, str):
+            return slot
+        async with slot:
+            model = _build_image_model(model_id, api_key)
+            agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
+                model,
+                output_type=BinaryImage,
+                capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
+                instructions=_SUBAGENT_INSTRUCTIONS,
+            )
+            try:
+                result = await agent.run(prompt)
+            except (UserError, UnexpectedModelBehavior) as exc:
+                # The image model refused or misbehaved - a bad prompt, an
+                # unsupported setting. Hand it back for the model to rephrase rather
+                # than ending the turn on an error string. Its own text does not
+                # travel: on the last attempt `steer` returns this rather than
+                # raising it, and a returned string is stored and streamed verbatim
+                # where a retry prompt is replaced with a notice (#681, #695).
+                logger.exception("Image generation failed")
+                return steer(
+                    ctx,
+                    f"Image generation failed ({type(exc).__name__}). "
+                    "Rephrase the prompt, or answer without an image.",
+                )
 
-        model = _build_image_model(model_id, api_key)
-        agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
-            model,
-            output_type=BinaryImage,
-            capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
-            instructions=_SUBAGENT_INSTRUCTIONS,
-        )
-        try:
-            result = await agent.run(prompt)
-        except (UserError, UnexpectedModelBehavior) as exc:
-            # The image model refused or misbehaved - a bad prompt, an
-            # unsupported setting. Hand it back for the model to rephrase rather
-            # than ending the turn on an error string. Its own text does not
-            # travel: on the last attempt `steer` returns this rather than
-            # raising it, and a returned string is stored and streamed verbatim
-            # where a retry prompt is replaced with a notice (#681, #695).
-            logger.exception("Image generation failed")
-            return steer(
-                ctx,
-                f"Image generation failed ({type(exc).__name__}). "
-                "Rephrase the prompt, or answer without an image.",
+            image = result.output
+            # Booked to the run's ledger, which the runner is holding open. The model
+            # names itself and its provider (`model.system`), the hint `genai-prices`
+            # prices from - the same shape the image describer books usage with. Image
+            # models are frequently unpriced there, in which case this records at zero
+            # and flags the run's cost as partial - the honest outcome, and the one
+            # #58 asked to be sure of rather than assume.
+            record_ambient_usage(model.model_name, result.usage, provider=model.system)
+
+            image_format = image.format or "png"
+            stored = await store_generated(
+                ctx, image.data, filename=f"image.{image_format}", slot=slot
             )
 
-        image = result.output
-        # Booked to the run's ledger, which the runner is holding open. The model
-        # names itself and its provider (`model.system`), the hint `genai-prices`
-        # prices from - the same shape the image describer books usage with. Image
-        # models are frequently unpriced there, in which case this records at zero
-        # and flags the run's cost as partial - the honest outcome, and the one
-        # #58 asked to be sure of rather than assume.
-        record_ambient_usage(model.model_name, result.usage, provider=model.system)
-
-        image_format = image.format or "png"
-        stored = await store_generated(ctx, image.data, filename=f"image.{image_format}")
-
-        return GeneratedImage(
-            filename=stored.filename,
-            url=stored.url,
-            media_type=image.media_type,
-            prompt=prompt,
-            workspace_path=stored.workspace_path,
-        ).model_dump_json()
+            return GeneratedImage(
+                filename=stored.filename,
+                url=stored.url,
+                media_type=image.media_type,
+                prompt=prompt,
+                workspace_path=stored.workspace_path,
+            ).model_dump_json()
 
     toolset: FunctionToolset[Any] = FunctionToolset()
     toolset.add_function(generate_image, takes_ctx=True)

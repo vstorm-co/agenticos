@@ -75,6 +75,7 @@ parent's check.
 | `conversations`, `messages`, `tool_calls` | Every chat on every surface | The text people wrote, the model's answers and reasoning, tool arguments and results, a rolling summary of long threads | The product's core function; history the person returns to |
 | `voice_calls` | Each connection of a [voice call](voice.md) | The caller's user id (none for a visitor), the agent, run, conversation and embed it belonged to, the provider and model, the provider's call id, the id of the vault key it was held with, the worker holding it, its heartbeat, start, end and hang-up times, its cost, seconds and guardrail hit count. **No audio and no transcript** - the call's words are ordinary rows in `messages`, each marked with a `turn_id` and, when the caller talked over it, `interrupted` | Hanging up a call whose process died, and counting the organization's monthly call minutes |
 | `chat_files` | Attachments to a message | Filename, type, size, the extracted text (`parsed_content`) and the path of the bytes on disk | Answering about a file |
+| `generated_media` | One row per image, speech clip or video an agent generated | The organization, the conversation it was made in where the run had one, the file's name, storage path and size - **not its content**, which is a file under `MEDIA_DIR` | Counting each organization's generated media against its quota, and deleting it with its conversation or after its retention period |
 | `context_files` | Standing knowledge a builder wrote for agents | Whatever the author put there - and it reaches the prompt verbatim. See [Context files](context.md) | Instructions and facts an agent should always know |
 | `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read; the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Apps](artifacts.md) | Sharing a result under a stable link |
 | `agent_memory_files` | Notes an agent wrote about a person or a group chat | Whatever the agent decided was worth remembering, keyed to `person:<user_id>` or a chat room | Continuity between conversations |
@@ -94,11 +95,51 @@ parent's check.
 `conversations.summary_messages` is a model-written compression of it. Both
 are copies of the chat and go with it.
 
+### Generated media
+
+An image, a speech clip or a video an agent generates is a file under
+`generated_<org>/` and a `generated_media` row naming it. The row records the
+organization, the conversation where the run had one, and the size - so the
+organization's total is bounded by `GENERATED_MEDIA_QUOTA_MB` (5120), checked
+before each paid generation call. Every file counts, including one made with no
+conversation: a preview or a test run, a channel `/btw` aside, an API run that
+names no conversation, or a file whose conversation was deleted by a path that
+left it behind.
+
+The file is deleted with its
+conversation, with the account whose conversation it was, by the daily
+`sweep-generated-media` job once it is older than
+`GENERATED_MEDIA_RETENTION_DAYS` (90) even while its conversation is still
+there, and by prefix with its organization. 0 turns either bound off. A file
+with no conversation is nothing a member could delete to free the space, so the
+same job deletes it after 7 days, whatever `GENERATED_MEDIA_RETENTION_DAYS` is,
+0 included. A link to it - in a channel reply or an API response - stops
+working then.
+
+Deleting a conversation, an account or an organization removes the rows in its
+own transaction and queues the unlink of the bytes as a background job in that
+same transaction, so the bytes go only if the rows do, and a restart after the
+commit does not lose the unlink. That job retries a prefix the store will not
+remove whole - an organization's - and a single file of a deleted conversation
+or account that the store refuses, because nothing else could find those bytes
+again. A file the store still refuses after the job's last attempt stays under
+`generated_<org>/` with no row until its organization goes, and the report
+below counts it.
+
+The sweep deletes a
+file first and its row only once the file is gone; a file the store refuses
+keeps its row, and the next sweep tries it again.
+
+Files generated before the table existed have no row. They are still served, but
+they are not counted against the quota and the sweep cannot see them: they go
+with their organization, or by hand, and the data-protection report counts them
+among the files with no row.
+
 ### Outside the database
 
 | Store | Holds | Deleted when |
 |---|---|---|
-| `MEDIA_DIR` on the API host (`media_data` volume) | Chat attachments under `<user_id>/`, avatars, embed logos, generated images under `generated_<org>/`, and a temporary copy of each document under `_rag_tmp` while it is parsed | A document is deleted through the product. **Nothing in the product removes a chat attachment's bytes** - not deleting its conversation, not deleting its owner. See [What deletion reaches](#what-deletion-reaches) |
+| `MEDIA_DIR` on the API host (`media_data` volume) | Chat attachments under `<user_id>/`, avatars, embed logos, the images, speech and video agents generated under `generated_<org>/`, and a temporary copy of each document under `_rag_tmp` while it is parsed | A document is deleted through the product. A chat attachment's bytes are unlinked after the commit that deletes its conversation or its owner. A generated file goes with the conversation it was made in, after `GENERATED_MEDIA_RETENTION_DAYS` (90) whatever became of the conversation - after 7 days when it has no conversation - and with its organization; see [Generated media](#generated-media). See [What deletion reaches](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` on the sandbox host | The files of every container-backed workspace | The conversation is deleted, or `SANDBOXD_WORKSPACE_TTL` sweeps them; unset, they are kept indefinitely. See [How long anything survives](sandbox.md#how-long-anything-survives) |
 | Redis | Rate-limit buckets keyed on the caller - for a public surface that is the **plain IP address**, in the key, for the window's TTL; trigger and channel deduplication keys; OAuth exchange state; staged invitations; a browse's live view - its latest screenshot, its steps, and what the person holding it clicked and typed until the browse reads it; a person's replayable browse steps - the addresses and labels of what their finished browses pressed, never what they typed | On expiry: a live view an hour after the browse's last frame, replayable steps a fortnight after the task was last done, everything else within minutes |
 | `background_jobs` in PostgreSQL | Each background job's payload, its last error and an asynchronous API run's answer | The retention sweep removes a finished job after `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloads are ids and paths, with two exceptions: an **event-triggered fire's `event_context`** - the sender, subject and body of a Gmail message, a GitHub issue, a webhook payload - and an **asynchronous API run's prompt and answer** travel in the job until then. The worker's logs pass the same redaction filter as the API's |
@@ -164,7 +205,7 @@ one.
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
 | Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
+| Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out. Nor is generated media, which goes after the deployment-wide `GENERATED_MEDIA_RETENTION_DAYS` | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8); generated media is `test_generated_media.py` and `tests/integration/test_generated_media.py` (#2310) |
 | Erasure of one person | Account deletion reconciles what would block it, unlinks the attachment bytes after the commit, and purges what no cascade reaches - the notes agents wrote about them, their platform identities, their user-scoped workspaces. Memory erasure is also a call of its own, and reaches mem0 | [What deletion reaches](#what-deletion-reaches) for what is deliberately retained; `test_personal_data.py` |
 | Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Everything else held about them comes back from `GET /me/data/export`, bounded and audited (#1421) |
 | Enterprise identity | Google sign-in, passwords, generic OIDC against the provider you already run - configured by discovery from `OIDC_ISSUER` alone - and your own directory over LDAP or Kerberos. The directory's address, display name and stable identifier are kept on the account; its groups are read at each sign-in and not stored, only the memberships the organizations' mappings make of them. No SAML or SCIM | [Directory sign-in and groups](directory.md); `OIDC_ISSUER`, `LDAP_URL` |
@@ -195,11 +236,11 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Action | Removes | Leaves |
 |---|---|---|
-| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
+| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the images, speech and video its agents generated - the rows in the delete, the bytes by a job queued with it; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
 | `DELETE /memory/person/{user_id}` (the person, or `members:manage`) | Every `agent_memory_files` row keyed to the person across the organization's agents, and the same in each bound mem0 store | Notes keyed to a group chat the person spoke in |
-| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter; their turns there are drawn as a former member's |
+| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; the images, speech and video agents generated in those conversations, the rows in the delete and the bytes by a job queued with it; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter, with the media generated in them; their turns there are drawn as a former member's. The media the person generated with no conversation - previews and test runs, channel `/btw` asides, API runs that named no conversation - which no row links to them; it goes after 7 days |
 | Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
-| Deleting an organization | Everything scoped to it, with the same deferred teardown | Personal collections that merely carried the id |
+| Deleting an organization | Everything scoped to it, with the same deferred teardown - its generated media by prefix, including files written before they were recorded | Personal collections that merely carried the id |
 
 None of these reach a backup. A restore brings back what was erased, so the
 backup expiry is part of the retention policy and is written down with it.
@@ -273,9 +314,15 @@ removed.
 Its last section counts the bytes no row names any more. Deleting a conversation
 or an account now unlinks their attachments after the commit, so that path no
 longer adds to it; what it still finds is what predates those deletes, plus an
-unlink a best-effort sweep did not complete. Generated images and the parse
-scratch directory are excluded, having no row by design; everything else counted
-there is bytes the product can no longer find and cannot delete. It reports a directory and a count rather than a
+unlink a best-effort sweep did not complete.
+
+The parse scratch directory is
+excluded, having no row by design. Generated media is counted since
+`generated_media` records each file, so what shows up under a `generated_<org>`
+directory is mostly a file generated before that table existed, which goes only
+with its organization. It can also be a file whose unlink failed after its row
+was deleted, or one still being saved, before its row is written. Everything else counted there is bytes the product
+can no longer find and cannot delete. It reports a directory and a count rather than a
 filename, because a stored path keeps the name the file was uploaded under.
 
 Two sections are read off what runs rather than off a table. **Capability

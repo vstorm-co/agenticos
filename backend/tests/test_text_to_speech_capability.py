@@ -46,7 +46,7 @@ from app.services.text_to_speech import SpeechFailure, SpeechProviderError, Spok
 from app.services.text_to_speech.synthesis import Speech
 from tests.workspaces import SandboxUnreachable, document_workspace
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("generated_media_ledger")]
 
 MP3 = b"ID3-speech"
 
@@ -548,6 +548,59 @@ class TestAnyAccountVoice:
 
 @pytest.mark.security
 class TestRefusingBeforeSpending:
+    async def test_an_organization_past_its_quota_is_told_so_before_anything_is_spoken(
+        self, synthesis, generated_media_ledger, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Refused before the paid call, not after: a clip made and then refused
+        storage would be money spent on nothing (#2310)."""
+        organization_id = uuid4()
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1)
+        generated_media_ledger.append(
+            {"organization_id": organization_id, "size_bytes": 1024 * 1024}
+        )
+
+        answer = await _speak(_toolset(), _ctx(organization_id))
+
+        assert answer.startswith("Not spoken: this organization has used its storage")
+        assert synthesis.calls == []
+
+    async def test_a_clip_holds_its_text_against_the_quota_until_it_is_stored(
+        self,
+        synthesis,
+        generated_media_ledger,
+        generated_media_reservations,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Calls in flight at once are measured against each other through what
+        each holds, so they cannot all pass on the same figure (#2310)."""
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+        held: list[int] = []
+        speak = synthesis.__call__
+
+        async def watching(provider: Any, **kwargs: Any) -> Speech:
+            held.extend(int(c["size_bytes"]) for c in generated_media_reservations.values())
+            return await speak(provider, **kwargs)
+
+        monkeypatch.setattr(toolset_module, "synthesize", watching)
+
+        await _speak(_toolset(), _ctx(uuid4()), "Dzień dobry.")
+
+        assert held == [len("Dzień dobry.") * toolset_module.RESERVED_BYTES_PER_CHARACTER]
+        assert generated_media_reservations == {}
+        assert [row["size_bytes"] for row in generated_media_ledger] == [len(MP3)]
+
+    async def test_a_clip_that_was_not_spoken_gives_its_hold_back(
+        self, synthesis, generated_media_reservations, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "GENERATED_MEDIA_QUOTA_MB", 1024)
+        synthesis.error = SpeechProviderError(SpeechFailure.CREDENTIALS, provider="openai")
+
+        answer = await _speak(_toolset(), _ctx(uuid4()))
+
+        assert answer.startswith("Not spoken:")
+        assert len(synthesis.calls) == 1
+        assert generated_media_reservations == {}
+
     async def test_without_a_key(self, synthesis):
         with pytest.raises(ModelRetry, match="no API key"):
             await _speak(_toolset(api_key=None), _ctx(uuid4()))

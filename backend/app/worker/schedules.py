@@ -99,6 +99,8 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("apply-retention", jobs.APPLY_RETENTION, _DAY),
     Schedule("sweep-notifications", jobs.SWEEP_NOTIFICATIONS, _DAY),
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
+    # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
+    Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
     # A report covers the period its occurrence names, so one that arrives while
     # the last is still sending waits rather than being dropped: a skipped tick
     # would be a week nobody is ever sent.

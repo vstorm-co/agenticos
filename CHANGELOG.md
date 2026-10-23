@@ -60,6 +60,31 @@ Two things are versioned separately from this file and worth knowing about:
   aloud - OpenAI, ElevenLabs and Gemini - with each model's voices, formats and
   per-request limit, gated like the image catalog. ElevenLabs joins the vault
   as a purpose (#2259).
+- **What agents generate is bounded: a per-organization quota and a
+  retention period.** Each generated image, speech clip and video is now
+  recorded in a new `generated_media` table and counted against
+  `GENERATED_MEDIA_QUOTA_MB` (default 5120) per organization, which a
+  generation tool checks before spending anything; past it, the tool answers
+  that the organization has used its storage. An admitted call holds an
+  estimate of its file against the quota until the file is stored, so calls
+  in flight at once cannot together run past it. A daily `sweep-generated-media`
+  job deletes files older than `GENERATED_MEDIA_RETENTION_DAYS` (default 90),
+  whether or not their conversation is still there, and a file made with no
+  conversation - a preview or test run, a channel `/btw` aside, an API run
+  that names no conversation - after 7 days whatever that setting is, since
+  no member could delete anything to free it. Generated files are also deleted with their
+  conversation, with the account whose conversations they were, and with
+  their organization, by a job queued in the same transaction. **Operators:**
+  both are on by default; set `GENERATED_MEDIA_RETENTION_DAYS=0` and
+  `GENERATED_MEDIA_QUOTA_MB=0` to keep the previous behaviour - no deletion by
+  age and no limit (a deleted conversation's files still go with it). Files
+  generated before this release have no record: they are still served, but
+  are neither counted nor swept, and go only with their organization.
+  **Operators:** an organization purge, and deleting a conversation or an
+  account that holds generated media, now queue a cleanup job that only this
+  release's worker can run, so upgrade the workers with the API hosts, and do
+  not roll back to an earlier worker while such a job is queued; every other
+  cleanup job stays readable by the previous worker (#2310).
 
 ### Changed
 
@@ -102,6 +127,11 @@ Two things are versioned separately from this file and worth knowing about:
   clear. The shipped `nginx/nginx.conf` now logs request paths without their
   query string for the same reason; a deployment with its own copy of that file
   should add the `without_query` log format to it.
+- **Generated media is streamed.** Reading a generated image, clip or video
+  loaded the whole file into the API and again into the console's server, a
+  player's range request included, so a member who knew a long clip's name
+  could make every request hold all of it. Both now stream, reading only the
+  range asked for - from disk, or by a ranged `GetObject` on S3 (#2310).
 - **A key for another provider is refused at publish.** Image generation's key
   picker now offers only the chosen provider's keys, as speech and video do. Publish
   refuses a capability key stored for a different service than the binding

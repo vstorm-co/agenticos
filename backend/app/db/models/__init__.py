@@ -82,6 +82,7 @@ from app.db.models.artifact import (
     ArtifactVersion,
 )
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
+from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 from app.db.models.visual import Visual
 
 __all__ = [
@@ -185,5 +186,7 @@ __all__ = [
     "NotificationChannelPreference",
     "Announcement",
     "VoiceCall",
+    "GeneratedMedia",
+    "GeneratedMediaReservation",
     "VoiceEndReason",
 ]

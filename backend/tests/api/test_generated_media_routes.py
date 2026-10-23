@@ -1,6 +1,8 @@
 """Serving generated media: the caller's own organization, and nobody else's."""
 
 import uuid
+from collections.abc import AsyncIterator
+from io import BytesIO
 
 import pytest
 from httpx import AsyncClient
@@ -9,6 +11,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.services.file_storage import LocalFileStorage, S3FileStorage
 from app.services.generated_media import save_generated_media
 
 pytestmark = pytest.mark.anyio
@@ -159,3 +162,140 @@ async def test_a_range_with_a_huge_number_gets_the_whole_file_rather_than_an_err
 
     assert response.status_code == 200
     assert response.content == b"0123"
+
+
+class _ObjectStore:
+    """Enough of a boto3 S3 client to serve objects and record the ranges asked for."""
+
+    def __init__(self, objects: dict[str, bytes]) -> None:
+        self.objects = objects
+        self.ranges: list[str] = []
+
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, int]:
+        from botocore.exceptions import ClientError
+
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        return {"ContentLength": len(self.objects[Key])}
+
+    def get_object(self, *, Bucket: str, Key: str, Range: str) -> dict[str, BytesIO]:
+        self.ranges.append(Range)
+        first, last = Range.removeprefix("bytes=").split("-")
+        return {"Body": BytesIO(self.objects[Key][int(first) : int(last) + 1])}
+
+
+class TestStreamingRatherThanLoading:
+    """A clip can be hundreds of megabytes and this route has no rate limit (#2310).
+
+    Loading the whole file to slice a range out of it held the whole clip once per
+    concurrent request; these assert the bytes are read a span at a time.
+    """
+
+    async def test_a_range_is_read_alone_and_its_length_is_stated(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        organization_id = uuid.uuid4()
+        filename = await save_generated_media(organization_id, b"0123456789", filename="video.mp4")
+        _as_org(organization_id)
+        asked: list[tuple[int, int]] = []
+        real_open_range = LocalFileStorage.open_range
+
+        async def open_range(
+            self: LocalFileStorage, path: str, start: int, end: int
+        ) -> AsyncIterator[bytes]:
+            asked.append((start, end))
+            return await real_open_range(self, path, start, end)
+
+        async def load(self: LocalFileStorage, path: str) -> bytes:
+            raise AssertionError("the whole file must not be loaded")
+
+        monkeypatch.setattr(LocalFileStorage, "open_range", open_range)
+        monkeypatch.setattr(LocalFileStorage, "load", load)
+
+        response = await client.get(f"/api/v1/generated/{filename}", headers={"Range": "bytes=2-5"})
+
+        assert response.status_code == 206
+        assert response.content == b"2345"
+        assert response.headers["content-length"] == "4"
+        assert response.headers["content-range"] == "bytes 2-5/10"
+        assert asked == [(2, 5)]
+
+    async def test_a_whole_file_states_its_length_and_keeps_its_headers(self, client: AsyncClient):
+        organization_id = uuid.uuid4()
+        filename = await save_generated_media(organization_id, b"0123456789", filename="video.mp4")
+        _as_org(organization_id)
+
+        response = await client.get(f"/api/v1/generated/{filename}?download=true")
+
+        assert response.status_code == 200
+        assert response.content == b"0123456789"
+        assert response.headers["content-length"] == "10"
+        assert response.headers["accept-ranges"] == "bytes"
+        assert response.headers["content-type"] == "application/octet-stream"
+        assert response.headers["content-disposition"].startswith("attachment")
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["content-security-policy"] == "sandbox"
+
+    async def test_an_empty_file_is_an_empty_answer(self, client: AsyncClient):
+        organization_id = uuid.uuid4()
+        filename = await save_generated_media(organization_id, b"", filename="speech.mp3")
+        _as_org(organization_id)
+
+        response = await client.get(f"/api/v1/generated/{filename}")
+
+        assert response.status_code == 200
+        assert response.content == b""
+        assert response.headers["content-type"] == "audio/mpeg"
+
+    async def test_a_file_gone_between_measuring_and_reading_is_a_not_found(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A retention sweep or a deleted conversation can take it in between;
+        nothing has gone out yet, so the answer is still a 404, not a dead body."""
+        organization_id = uuid.uuid4()
+        filename = await save_generated_media(organization_id, b"0123", filename="video.mp4")
+        _as_org(organization_id)
+
+        async def open_range(
+            self: LocalFileStorage, path: str, start: int, end: int
+        ) -> AsyncIterator[bytes]:
+            raise FileNotFoundError(path)
+
+        monkeypatch.setattr(LocalFileStorage, "open_range", open_range)
+
+        response = await client.get(f"/api/v1/generated/{filename}")
+
+        assert response.status_code == 404
+
+    async def test_an_object_store_is_asked_for_the_range_alone(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        organization_id = uuid.uuid4()
+        filename = "abc123_video.mp4"
+        store = _ObjectStore({f"generated_{organization_id}/{filename}": b"0123456789"})
+        storage = S3FileStorage(store, "files")
+        monkeypatch.setattr("app.services.generated_media.get_file_storage", lambda: storage)
+        monkeypatch.setattr("app.api.routes.v1._workspace_bytes.get_file_storage", lambda: storage)
+        _as_org(organization_id)
+
+        response = await client.get(f"/api/v1/generated/{filename}", headers={"Range": "bytes=-3"})
+
+        assert response.status_code == 206
+        assert response.content == b"789"
+        assert response.headers["content-range"] == "bytes 7-9/10"
+        assert store.ranges == ["bytes=7-9"]
+
+    @pytest.mark.security
+    async def test_an_object_store_answers_another_tenant_with_a_not_found(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        owner = uuid.uuid4()
+        store = _ObjectStore({f"generated_{owner}/abc123_video.mp4": b"private"})
+        storage = S3FileStorage(store, "files")
+        monkeypatch.setattr("app.services.generated_media.get_file_storage", lambda: storage)
+        _as_org(uuid.uuid4())
+
+        response = await client.get("/api/v1/generated/abc123_video.mp4")
+
+        assert response.status_code == 404
+        assert store.ranges == []

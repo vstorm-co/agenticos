@@ -51,6 +51,7 @@ from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.embed_visitor import EmbedVisitor
+from app.db.models.generated_media import GeneratedMedia
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
@@ -81,12 +82,15 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     DeploymentSettings.favicon_path,
     ArtifactVersion.storage_path,
     Visual.thumbnail_path,
+    GeneratedMedia.storage_path,
 )
 
-# Directories under `MEDIA_DIR` that hold files no row points at, by design:
-# generated images are addressed by their path in a message, and the parse
-# scratch directory is cleared by the worker that wrote it.
-UNREFERENCED_BY_DESIGN = ("generated_", "_rag_tmp")
+# Directories under `MEDIA_DIR` that hold files no row points at, by design: the
+# parse scratch directory is cleared by the worker that wrote it. Generated media
+# is not one of them since `generated_media` records each file (#2310), so a
+# file generated before that table existed is counted here - it has no row, and
+# goes only with its organization.
+UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
 
 # Which capabilities send something out of the deployment when an agent runs
 # with them, and where. A capability reaches the network without any row in
@@ -671,10 +675,14 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
     return Section(
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
-            "Generated images and the parse scratch directory are excluded - "
-            "they have no row by design. Everything else here is bytes the "
-            "product can no longer find, and cannot delete. Directories and "
-            "counts only: a stored path carries the original filename."
+            "The parse scratch directory is excluded - it has no row by design. "
+            "Under generated_<organization> these are mostly files generated "
+            "before generated_media recorded them, which go only with their "
+            "organization; also a file whose unlink failed after its row was "
+            "deleted, or one still being saved before its row is written. "
+            "Everything else here is bytes the product can no "
+            "longer find, and cannot delete. Directories and counts only: a "
+            "stored path carries the original filename."
         ),
         headers=("Directory", "Files"),
         rows=rows,

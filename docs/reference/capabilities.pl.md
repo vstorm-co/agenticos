@@ -1,5 +1,5 @@
 ---
-source_sha: "e46be0dd54a7"
+source_sha: "95ea32f0c306"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1106,7 +1106,10 @@ wtedy run zapisuje wywołanie po zerze i oznacza swoją sumę jako częściową
 organizacja** i zwracany przez
 [`GET /api/v1/generated/{filename}`](../architecture.md), zawężony do organizacji
 wywołującego — szersza granica niż przy pliku wrzuconym na czacie, który należy do
-jednego użytkownika, bo nie ma zapisu o tym, kto obraz wyprodukował. Gdy agent ma
+jednego użytkownika. Jest zapisany przy konwersacji, w której powstał, i usuwany
+razem z nią, wliczany do limitu wygenerowanych mediów organizacji i usuwany po
+okresie retencji ([konfiguracja](../configuration.md#generated-media)). Po
+przekroczeniu limitu narzędzie odpowiada o tym, zanim cokolwiek wyda. Gdy agent ma
 też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu

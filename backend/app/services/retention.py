@@ -47,7 +47,7 @@ from app.core.retention import (
     known_periods,
     policy_conflicts,
 )
-from app.repositories import deployment_settings_repo, retention_repo
+from app.repositories import deployment_settings_repo, generated_media_repo, retention_repo
 from app.schemas.retention import RetentionRead, RetentionUpdate
 
 if TYPE_CHECKING:
@@ -255,6 +255,12 @@ class RetentionService:
             # later sweep can even name. A crash between the two leaves a row
             # pointing at a file that is gone, which the next pass simply removes.
             await self._unlink(paths)
+            # The paths include what the threads' agents generated (#2310), whose
+            # rows outlive the thread (`SET NULL`); gone with their bytes, they
+            # stop counting against the organization's quota.
+            await generated_media_repo.delete_by_storage_paths(
+                self.db, organization_id=organization_id, storage_paths=paths
+            )
             return await retention_repo.delete_conversations(self.db, **scope)
         if name == "runs":
             # The delete answers what it removed, in one statement: reading the

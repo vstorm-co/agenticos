@@ -293,6 +293,54 @@ describe("reading a generated image back", () => {
     expect(response.headers.get("accept-ranges")).toBe("bytes");
   });
 
+  it("streams the body through rather than holding the whole clip", async () => {
+    // An upstream that has sent one chunk and not finished: a route that read the
+    // body whole would never answer, which is the clip held once per request (#2310).
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("0123"));
+      },
+    });
+    fetchMock = vi.fn().mockResolvedValue(
+      new Response(upstream, {
+        status: 206,
+        headers: {
+          "content-type": "video/mp4",
+          "content-range": "bytes 0-3/300000000",
+          "content-length": "4",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {
+      headers: { cookie: "access_token=at", range: "bytes=0-3" },
+    });
+
+    const response = await readGeneratedImage(ranged, params);
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-length")).toBe("4");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toBe("0123");
+    await reader.cancel();
+  });
+
+  it("states no length for a body fetch decoded on the way in", async () => {
+    // The upstream length counts the encoded bytes; the decoded body is longer.
+    serve("bytes", {
+      headers: { "content-type": "image/png", "content-encoding": "gzip", "content-length": "3" },
+    });
+
+    const response = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png"),
+      params,
+    );
+
+    expect(response.headers.get("content-length")).toBeNull();
+  });
+
   it("passes a range the file cannot satisfy back as 416 with its length", async () => {
     serve(null, { status: 416, headers: { "content-range": "bytes */4" } });
     const ranged = new NextRequest("http://localhost:3000/api/generated/abc123_video.mp4", {

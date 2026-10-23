@@ -1,5 +1,5 @@
 ---
-source_sha: "e46be0dd54a7"
+source_sha: "95ea32f0c306"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1121,8 +1121,11 @@ total como parcial (`cost_is_partial`) en vez de ocultar el gasto.
 **Adónde va la imagen.** Cada imagen generada se guarda **por organización** y se
 sirve de vuelta con [`GET /api/v1/generated/{filename}`](../architecture.md),
 acotada a la organización propia de quien llama: una frontera más amplia que la de
-un archivo subido a un chat, que pertenece a un solo usuario, porque no hay
-constancia de quién produjo una imagen. Cuando el agent tiene además un workspace
+un archivo subido a un chat, que pertenece a un solo usuario. Se registra con la
+conversación en la que se hizo y se borra con ella, cuenta contra la cuota de medios
+generados de la organización y se borra tras el periodo de retención
+([configuración](../configuration.md#generated-media)). Pasada la cuota, la
+herramienta lo responde antes de gastar nada. Cuando el agent tiene además un workspace
 (la capability `sandbox`), la misma imagen se escribe en él bajo `/output`, para que
 un paso `execute` posterior pueda construir con ella: montar un PDF, una diapositiva,
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
