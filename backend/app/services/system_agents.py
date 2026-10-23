@@ -296,7 +296,7 @@ class SystemAgentService:
             raise refused_field(
                 "kind",
                 f"Another {definition.name.lower()} would never run: the platform always "
-                "uses the organization's own. Open it to change its model or instructions.",
+                "uses the organization's own.",
             )
         return await self.create_of_kind(
             ctx,

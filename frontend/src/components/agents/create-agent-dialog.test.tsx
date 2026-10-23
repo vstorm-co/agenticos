@@ -294,8 +294,11 @@ describe("CreateAgentDialog", () => {
     const { onCreated } = open();
 
     await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
-    expect(screen.getByRole("radio", { name: /^Judge/ })).toHaveAttribute("aria-checked", "true");
+    const judgeKind = screen.getByRole("radio", { name: /^Judge/ });
+    await userEvent.click(judgeKind);
+    expect(judgeKind).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByText("Describe it to the Architect")).toBeNull();
+    expect(screen.getByText(/A draft judge grades nothing\./)).toBeInTheDocument();
     await userEvent.type(name(), "Second opinion");
     await userEvent.click(create());
 
@@ -306,6 +309,8 @@ describe("CreateAgentDialog", () => {
       }),
     );
     expect(onCreated).toHaveBeenCalledWith(judge);
+    // Opened again, it starts from an ordinary agent.
+    expect(screen.getByRole("radio", { name: "Agent" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows the kinds that would never run as locked, linking the organization's own", async () => {
@@ -325,8 +330,13 @@ describe("CreateAgentDialog", () => {
       /^Gap classifier/,
       /^Authoring assistant/,
     ]) {
-      expect(screen.getByRole("radio", { name: kind })).toBeDisabled();
+      const locked = screen.getByRole("radio", { name: kind });
+      expect(locked).toHaveAttribute("aria-disabled", "true");
+      expect(locked).toHaveAccessibleDescription(/another would never run/);
+      await userEvent.click(locked);
+      expect(locked).toHaveAttribute("aria-checked", "false");
     }
+    expect(screen.getByRole("radio", { name: /^Judge/ })).toHaveAttribute("aria-checked", "true");
     expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute(
       "href",
       "/agents/g1",

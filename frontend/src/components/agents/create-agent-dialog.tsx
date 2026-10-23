@@ -122,6 +122,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
       setCategories([]);
       setTags([]);
       setErrors({});
+      setMaking("agent");
+      setKind("judge");
       onOpenChange(false);
       onCreated(agent);
     } catch (error) {
@@ -170,7 +172,9 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
-          <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
+          <DialogDescription>
+            {making === "system" ? t("systemStartsAs") : t("startsAsDraftNothing")}
+          </DialogDescription>
         </DialogHeader>
         {/* `min-h-0` because a flex child refuses to shrink without it, which is
             how the body grows past the dialog's own ceiling instead of scrolling
@@ -297,7 +301,12 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!name.trim() || create.isPending || createSystem.isPending || catalogLoading}
+            disabled={
+              !name.trim() ||
+              create.isPending ||
+              createSystem.isPending ||
+              (making === "agent" && catalogLoading)
+            }
           >
             {t("create")}
           </Button>

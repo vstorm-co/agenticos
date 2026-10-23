@@ -45,13 +45,18 @@ export function SystemAgentKinds({ value, onChange }: SystemAgentKindsProps) {
               !addable && "opacity-80",
             )}
           >
+            {/* aria-disabled rather than disabled: a locked kind stays reachable by
+                keyboard, so a screen reader reads why it cannot be added. */}
             <button
               type="button"
               role="radio"
               aria-checked={kind === value}
-              disabled={!addable}
-              onClick={() => onChange(kind)}
-              className="w-full text-left disabled:cursor-not-allowed"
+              aria-disabled={!addable}
+              aria-describedby={addable ? undefined : `system-kind-${kind}-locked`}
+              onClick={() => {
+                if (addable) onChange(kind);
+              }}
+              className={cn("w-full text-left", !addable && "cursor-not-allowed")}
             >
               <span className="block text-sm font-medium">{t(`systemKind.${kind}`)}</span>
               <span className="text-muted-foreground block text-xs">
@@ -59,7 +64,7 @@ export function SystemAgentKinds({ value, onChange }: SystemAgentKindsProps) {
               </span>
             </button>
             {!addable && (
-              <p className="text-muted-foreground mt-1 text-xs">
+              <p id={`system-kind-${kind}-locked`} className="text-muted-foreground mt-1 text-xs">
                 {t("systemKindLocked")}{" "}
                 {own && (
                   <Link className="underline" href={ROUTES.AGENT_DETAIL(own.id)}>
