@@ -2,7 +2,7 @@
   {
     "key": "github",
     "name": "GitHub",
-    "description": "Run an agent when something happens in a repository - a new issue, a closed one.",
+    "description": "Run an agent when something happens in a repository - an issue, a pull request, a comment that mentions it, a failed workflow, a release or a push.",
     "category": "development",
     "event_source": "github",
     "delivery": "auto_webhook",
@@ -48,6 +48,72 @@
           ]
         },
         "target_required": true
+      },
+      {
+        "key": "pr_ready",
+        "label": "Pull request ready for review",
+        "description": "Fires when a pull request is opened (not as a draft), marked ready for review, or a review is requested.",
+        "event_config": {
+          "event": "pull_request",
+          "actions": [
+            "opened",
+            "ready_for_review",
+            "review_requested"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "comment_mention",
+        "label": "Comment mentioning the agent",
+        "description": "Fires when a comment on an issue or pull request contains the phrase you set, such as @agent.",
+        "event_config": {
+          "event": "issue_comment",
+          "actions": [
+            "created"
+          ],
+          "mention": "@agent"
+        },
+        "target_required": true
+      },
+      {
+        "key": "ci_failed",
+        "label": "Workflow run failed",
+        "description": "Fires when a GitHub Actions workflow run finishes with a failure.",
+        "event_config": {
+          "event": "workflow_run",
+          "actions": [
+            "completed"
+          ],
+          "conclusions": [
+            "failure"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "release_published",
+        "label": "Release published",
+        "description": "Fires when a release is published.",
+        "event_config": {
+          "event": "release",
+          "actions": [
+            "published"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "push",
+        "label": "Push to a branch",
+        "description": "Fires when commits are pushed to the branches you set - main by default.",
+        "event_config": {
+          "event": "push",
+          "branches": [
+            "main"
+          ]
+        },
+        "target_required": true
       }
     ],
     "oauth_app_kind": "github_oauth_app"
@@ -55,7 +121,7 @@
   {
     "key": "github_app",
     "name": "GitHub (App)",
-    "description": "The same repository events, through a GitHub App installed on the repositories you choose - scoped permissions, an hour-long token, and no per-repository hook.",
+    "description": "Run an agent when something happens in a repository - an issue, a pull request, a comment that mentions it, a failed workflow, a release or a push.",
     "category": "development",
     "event_source": "github",
     "delivery": "app_webhook",
@@ -94,6 +160,72 @@
         "event_config": {
           "actions": [
             "reopened"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "pr_ready",
+        "label": "Pull request ready for review",
+        "description": "Fires when a pull request is opened (not as a draft), marked ready for review, or a review is requested.",
+        "event_config": {
+          "event": "pull_request",
+          "actions": [
+            "opened",
+            "ready_for_review",
+            "review_requested"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "comment_mention",
+        "label": "Comment mentioning the agent",
+        "description": "Fires when a comment on an issue or pull request contains the phrase you set, such as @agent.",
+        "event_config": {
+          "event": "issue_comment",
+          "actions": [
+            "created"
+          ],
+          "mention": "@agent"
+        },
+        "target_required": true
+      },
+      {
+        "key": "ci_failed",
+        "label": "Workflow run failed",
+        "description": "Fires when a GitHub Actions workflow run finishes with a failure.",
+        "event_config": {
+          "event": "workflow_run",
+          "actions": [
+            "completed"
+          ],
+          "conclusions": [
+            "failure"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "release_published",
+        "label": "Release published",
+        "description": "Fires when a release is published.",
+        "event_config": {
+          "event": "release",
+          "actions": [
+            "published"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "push",
+        "label": "Push to a branch",
+        "description": "Fires when commits are pushed to the branches you set - main by default.",
+        "event_config": {
+          "event": "push",
+          "branches": [
+            "main"
           ]
         },
         "target_required": true

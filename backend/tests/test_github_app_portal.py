@@ -88,7 +88,12 @@ def _body(*, repo: str = "acme/widgets", action: str = "opened") -> bytes:
             "installation": {"id": int(INSTALLATION)},
             "repository": {"full_name": repo},
             "action": action,
-            "issue": {"number": 7, "title": "It broke", "body": "here is how"},
+            "issue": {
+                "number": 7,
+                "title": "It broke",
+                "body": "here is how",
+                "author_association": "MEMBER",
+            },
         }
     ).encode()
 

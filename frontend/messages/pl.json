@@ -6578,7 +6578,17 @@
       "presetOutlook": "Nowy e-mail w Outlooku",
       "presetGeneric": "Nowe zdarzenie",
       "email": "Przy przychodzącym e-mailu",
-      "presetEmail": "Nowy e-mail"
+      "presetEmail": "Nowy e-mail",
+      "githubPullRequest": "Przy pull requestach na GitHubie",
+      "githubComment": "Przy komentarzach na GitHubie, które o nim wspominają",
+      "githubWorkflow": "Po zakończonych workflow na GitHubie",
+      "githubRelease": "Przy wydaniach na GitHubie",
+      "githubPush": "Przy pushach na GitHub",
+      "presetGithubPullRequest": "Pull request do przeglądu",
+      "presetGithubComment": "Komentarz wspominający agenta",
+      "presetGithubWorkflow": "Nieudany workflow",
+      "presetGithubRelease": "Opublikowane wydanie",
+      "presetGithubPush": "Push"
     },
     "panelTitle": "Rutyny",
     "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",

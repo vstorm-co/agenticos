@@ -71,24 +71,122 @@ GithubIssueAction = Literal[
     "demilestoned",
 ]
 
-_DEFAULT_GITHUB_ACTIONS: list[GithubIssueAction] = ["opened"]
+GithubEvent = Literal["issues", "pull_request", "issue_comment", "workflow_run", "release", "push"]
+"""The GitHub webhooks a trigger can fire on - the `X-GitHub-Event` it accepts."""
+
+# Each event's own actions, from GitHub's webhook-events reference. `push` has none:
+# a push is the event.
+_GITHUB_ACTIONS: dict[str, frozenset[str]] = {
+    "issues": frozenset(GithubIssueAction.__args__),
+    "pull_request": frozenset(
+        {
+            "opened",
+            "ready_for_review",
+            "review_requested",
+            "reopened",
+            "closed",
+            "synchronize",
+            "edited",
+            "labeled",
+            "assigned",
+        }
+    ),
+    "issue_comment": frozenset({"created", "edited"}),
+    "workflow_run": frozenset({"completed", "requested", "in_progress"}),
+    "release": frozenset({"published", "released", "prereleased", "created"}),
+    "push": frozenset(),
+}
+
+# What each event fires on when the filter names no action: a new issue, a pull
+# request somebody should now look at, a new comment, a finished run, a release.
+_DEFAULT_GITHUB_ACTIONS: dict[str, list[str]] = {
+    "issues": ["opened"],
+    "pull_request": ["opened", "ready_for_review", "review_requested"],
+    "issue_comment": ["created"],
+    "workflow_run": ["completed"],
+    "release": ["published"],
+}
+
+GithubConclusion = Literal[
+    "success",
+    "failure",
+    "cancelled",
+    "timed_out",
+    "action_required",
+    "neutral",
+    "skipped",
+    "stale",
+    "startup_failure",
+]
+"""A finished workflow run's `conclusion`, as GitHub spells it."""
+
+GithubAuthors = Literal["members", "anyone"]
+"""Whose issues, pull requests and comments may fire a trigger.
+
+`members` - the default - is an author GitHub calls the repository's `OWNER`,
+`MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
+every one would otherwise be an agent run and a page of somebody's text in it."""
+
+# Where the filter's per-event fields belong, so one sent for another event is a
+# 422 rather than a filter that silently never applies.
+_GITHUB_FIELD_EVENTS: dict[str, frozenset[str]] = {
+    "mention": frozenset({"issue_comment"}),
+    "branches": frozenset({"pull_request", "workflow_run", "push"}),
+    "conclusions": frozenset({"workflow_run"}),
+}
 
 
 class GithubTriggerConfig(BaseSchema):
     """The filter a GitHub event trigger applies to a delivered webhook.
 
-    Only `issues` webhooks reach the fire path at all (the event type is read
-    from the `X-GitHub-Event` header); `actions` narrows *which* issue actions
-    fire, defaulting to issue creation. Both an unknown key and an action outside
-    GitHub's own vocabulary are refused, so a mistyped filter is a 422, not one
-    that silently never matches.
+    `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
+    unless it says otherwise; `actions` narrows which of that event's actions
+    fire, defaulting to the one somebody would act on. `authors` keeps issues,
+    pull requests and comments to the repository's own people, and a bot never
+    fires a trigger except through a workflow run.
+
+    `mention` is a phrase a comment has to contain (`@agent`), `branches` the
+    branches a push, a workflow run or a pull request's base must be on, and
+    `conclusions` the finished runs that fire - a failure, by default. Unknown
+    keys, an action outside the event's vocabulary, and a field for another event
+    are refused, so a mistyped filter is a 422, not one that never matches.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    actions: list[GithubIssueAction] = Field(
-        default_factory=lambda: list(_DEFAULT_GITHUB_ACTIONS), min_length=1
+    event: GithubEvent = "issues"
+    actions: list[str] | None = Field(default=None, min_length=1)
+    authors: GithubAuthors = "members"
+    mention: str | None = Field(default=None, min_length=1, max_length=100)
+    branches: list[str] | None = Field(default=None, min_length=1, max_length=20)
+    conclusions: list[GithubConclusion] | None = Field(default=None, min_length=1)
+    ignore_login: str | None = Field(
+        default=None,
+        max_length=100,
+        description=(
+            "A GitHub login whose own issues, pull requests and comments never fire "
+            "this trigger - the connected account, so an agent acting through it "
+            "cannot set itself off"
+        ),
     )
+
+    @model_validator(mode="after")
+    def _fits_its_event(self) -> GithubTriggerConfig:
+        allowed = _GITHUB_ACTIONS[self.event]
+        if self.actions is None:
+            self.actions = list(_DEFAULT_GITHUB_ACTIONS.get(self.event, []))
+        elif not allowed:
+            raise ValueError(f"a {self.event} has no actions to filter on")
+        else:
+            unknown = sorted(set(self.actions) - allowed)
+            if unknown:
+                raise ValueError(f"not {self.event} actions: {', '.join(unknown)}")
+        for field, events in _GITHUB_FIELD_EVENTS.items():
+            if getattr(self, field) is not None and self.event not in events:
+                raise ValueError(f"`{field}` does not apply to a {self.event} trigger")
+        if self.event == "workflow_run" and self.conclusions is None:
+            self.conclusions = ["failure"]
+        return self
 
 
 class GmailTriggerConfig(BaseSchema):

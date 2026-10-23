@@ -115,8 +115,8 @@ export type TriggerSummary =
   | { kind: "cronDaily"; time: string }
   | { kind: "cronWeekly"; time: string; weekdays: number[] }
   | { kind: "cronMonthly"; time: string; day: number }
-  | { kind: "preset"; portalKey: string; target: string }
-  | { kind: "event"; source: EventSource };
+  | { kind: "preset"; portalKey: string; target: string; githubEvent: string }
+  | { kind: "event"; source: EventSource; githubEvent: string };
 
 /**
  * The largest whole unit an interval divides into, so 3600s reads "every hour"
@@ -177,7 +177,13 @@ export type FiringShape = Pick<
   Trigger,
   "trigger_type" | "schedule_kind" | "cron_expression" | "interval_seconds"
 > &
-  Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source">>;
+  Partial<Pick<Trigger, "portal_key" | "provider_target" | "event_source" | "event_config">>;
+
+/** The GitHub webhook a trigger fires on - `issues` when its filter names none. */
+function githubEvent(trigger: FiringShape): string {
+  const event = trigger.event_config?.event;
+  return typeof event === "string" ? event : "issues";
+}
 
 /** What makes this trigger fire, reduced for display. */
 export function triggerSummary(trigger: FiringShape): TriggerSummary {
@@ -188,9 +194,18 @@ export function triggerSummary(trigger: FiringShape): TriggerSummary {
     // chosen - falls back to the generic per-source label rather than half a
     // sentence.
     if (trigger.portal_key && trigger.provider_target) {
-      return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
+      return {
+        kind: "preset",
+        portalKey: trigger.portal_key,
+        target: trigger.provider_target,
+        githubEvent: githubEvent(trigger),
+      };
     }
-    return { kind: "event", source: trigger.event_source ?? "github" };
+    return {
+      kind: "event",
+      source: trigger.event_source ?? "github",
+      githubEvent: githubEvent(trigger),
+    };
   }
   if (trigger.schedule_kind === "cron") {
     const expression = trigger.cron_expression ?? "";
@@ -213,10 +228,11 @@ export function triggerSummary(trigger: FiringShape): TriggerSummary {
 }
 
 /** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
-function presetEventKey(portalKey: string): string {
+function presetEventKey(portalKey: string, event: string): string {
   switch (portalKey) {
     case "github":
-      return "event.presetGithub";
+    case "github_app":
+      return githubPresetKey(event);
     case "google":
       return "event.presetGmail";
     case "microsoft":
@@ -241,6 +257,42 @@ function presetEventKey(portalKey: string): string {
  * translator of its own, and answering with a key would not work for the
  * branches that interpolate.
  */
+/** A GitHub preset's phrase, one fixed key per webhook so the catalog check sees each. */
+function githubPresetKey(event: string): string {
+  switch (event) {
+    case "pull_request":
+      return "event.presetGithubPullRequest";
+    case "issue_comment":
+      return "event.presetGithubComment";
+    case "workflow_run":
+      return "event.presetGithubWorkflow";
+    case "release":
+      return "event.presetGithubRelease";
+    case "push":
+      return "event.presetGithubPush";
+    default:
+      return "event.presetGithub";
+  }
+}
+
+/** A bare GitHub trigger's line, one fixed key per webhook. */
+function githubEventKey(event: string): string {
+  switch (event) {
+    case "pull_request":
+      return "event.githubPullRequest";
+    case "issue_comment":
+      return "event.githubComment";
+    case "workflow_run":
+      return "event.githubWorkflow";
+    case "release":
+      return "event.githubRelease";
+    case "push":
+      return "event.githubPush";
+    default:
+      return "event.github";
+  }
+}
+
 export function cadenceText(trigger: FiringShape, t: Translate): string {
   const summary = triggerSummary(trigger);
   switch (summary.kind) {
@@ -270,13 +322,13 @@ export function cadenceText(trigger: FiringShape, t: Translate): string {
       // One static ICU key, "{event} in {target}", with the event phrase chosen
       // per portal by a fixed key so the catalog check can see it.
       return t("event.presetSummary", {
-        event: t(presetEventKey(summary.portalKey)),
+        event: t(presetEventKey(summary.portalKey, summary.githubEvent)),
         target: summary.target,
       });
     case "event":
       switch (summary.source) {
         case "github":
-          return t("event.github");
+          return t(githubEventKey(summary.githubEvent));
         case "gmail":
           return t("event.gmail");
         case "outlook":

@@ -83,6 +83,7 @@ from app.repositories import (
 )
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
+    GithubTriggerConfig,
     TriggerCreate,
     TriggerRead,
     TriggerUpdate,
@@ -863,9 +864,24 @@ class AgentTriggerService:
             return
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         webhook_url = f"{base}/api/v1/webhooks/triggers/{trigger.event_source}/{trigger.id}"
+        events: tuple[str, ...] = ()
+        if trigger.event_source == EventSource.GITHUB.value:
+            config = GithubTriggerConfig.model_validate(trigger.event_config)
+            events = (config.event,)
+            # The account the hook is registered through is the one an agent acting
+            # through the same connection would author as; its own issues and
+            # comments must not fire the trigger they would answer.
+            if config.ignore_login is None:
+                login = await adapter.account_login(access_token=token)
+                if login is not None:
+                    trigger.event_config = {**trigger.event_config, "ignore_login": login}
         try:
             registered = await adapter.register_webhook(
-                access_token=token, target=target, webhook_url=webhook_url, secret=secret
+                access_token=token,
+                target=target,
+                webhook_url=webhook_url,
+                secret=secret,
+                events=events,
             )
         except portals.PortalError:
             logger.info(
@@ -1123,12 +1139,27 @@ class AgentTriggerService:
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:
-            return model.model_validate(config).model_dump()
+            validated = model.model_validate(config).model_dump()
         except PydanticValidationError as exc:
             raise ValidationError(
                 message="event_config is not valid for this trigger's source",
                 details={"errors": exc.errors(include_url=False, include_input=False)},
             ) from exc
+        # Which GitHub event fires is fixed, like the source: a registered hook
+        # listens for the event it was made for, so a trigger moved to another
+        # would wait for deliveries the repository never sends.
+        if trigger.event_source == EventSource.GITHUB.value:
+            kept = GithubTriggerConfig.model_validate(trigger.event_config).event
+            if validated["event"] != kept:
+                raise refused_field(
+                    "event_config",
+                    "Which GitHub event fires a trigger is fixed - make a new trigger for another",
+                )
+            # Set at registration, not by the form, which does not show it.
+            validated["ignore_login"] = validated.get("ignore_login") or trigger.event_config.get(
+                "ignore_login"
+            )
+        return validated
 
     async def rotate_secret(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID

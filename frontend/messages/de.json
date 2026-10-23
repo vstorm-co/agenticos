@@ -6688,7 +6688,17 @@
       "presetGithub": "Neues Issue",
       "presetGmail": "Neue E-Mail",
       "presetOutlook": "Neue Outlook-E-Mail",
-      "presetGeneric": "Neues Ereignis"
+      "presetGeneric": "Neues Ereignis",
+      "githubPullRequest": "Bei GitHub-Pull-Requests",
+      "githubComment": "Bei GitHub-Kommentaren, die ihn erwähnen",
+      "githubWorkflow": "Bei abgeschlossenen GitHub-Workflow-Runs",
+      "githubRelease": "Bei GitHub-Releases",
+      "githubPush": "Bei Pushes auf GitHub",
+      "presetGithubPullRequest": "Pull Request zur Prüfung",
+      "presetGithubComment": "Kommentar, der den Agenten erwähnt",
+      "presetGithubWorkflow": "Fehlgeschlagener Workflow-Run",
+      "presetGithubRelease": "Veröffentlichtes Release",
+      "presetGithubPush": "Push"
     },
     "panelTitle": "Routinen",
     "panelDescription": "Wann dieser Agent sich selbst ausführt – nach Zeitplan oder wenn ein Ereignis eintrifft.",

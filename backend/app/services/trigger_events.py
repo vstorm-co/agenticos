@@ -62,11 +62,14 @@ _TIMESTAMP_TOLERANCE_SECONDS = 300
 # run's budget on reading it.
 _CONTEXT_LIMIT = 2000
 
-# The one GitHub webhook this integration acts on. The event type is in the header,
-# not the body, so a `pull_request` or a `push` delivery is refused before its
-# action is ever considered.
+# GitHub names the webhook in a header, not the body, so a delivery of another
+# event than the trigger's is refused before its action is ever considered.
 _GITHUB_EVENT_HEADER = "x-github-event"
-_GITHUB_ISSUE_EVENT = "issues"
+# The authors `authors: members` lets through: GitHub's own word for the
+# repository's people, on the issue, pull request or comment.
+_GITHUB_MEMBERS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+# Where each event keeps the thing somebody wrote - whose author is judged.
+_GITHUB_AUTHORED = {"issues": "issue", "pull_request": "pull_request", "issue_comment": "comment"}
 
 # The provider's own id for one delivery, the key a duplicate is recognised by.
 # GitHub reuses `X-GitHub-Delivery` when it re-sends the same delivery; a relay may
@@ -191,10 +194,57 @@ def polled_place(source: str, config: Mapping[str, Any]) -> str | None:
 def _github_matches(
     headers: Mapping[str, str], payload: Mapping[str, Any], config: Mapping[str, Any]
 ) -> bool:
-    if headers.get(_GITHUB_EVENT_HEADER) != _GITHUB_ISSUE_EVENT:
-        return False
     parsed = GithubTriggerConfig.model_validate(dict(config))
-    return payload.get("action") in parsed.actions
+    event = parsed.event
+    if headers.get(_GITHUB_EVENT_HEADER) != event:
+        return False
+    if event != "push" and payload.get("action") not in (parsed.actions or ()):
+        return False
+    sender = _mapping(payload.get("sender"))
+    login = str(sender.get("login") or "")
+    # A bot - an App, Dependabot, the agent's own GitHub App - never sets a
+    # trigger off, or an agent that opens issues or comments would fire itself.
+    # A workflow run is the exception: a failed check is news whoever pushed.
+    if event != "workflow_run" and (sender.get("type") == "Bot" or login.endswith("[bot]")):
+        return False
+    if parsed.ignore_login and login.casefold() == parsed.ignore_login.casefold():
+        return False
+    authored = _mapping(payload.get(_GITHUB_AUTHORED.get(event, "")))
+    if (
+        event in _GITHUB_AUTHORED
+        and parsed.authors == "members"
+        and authored.get("author_association") not in _GITHUB_MEMBERS
+    ):
+        return False
+    if event == "pull_request":
+        # A draft is not ready for anybody; it fires when marked ready instead.
+        if payload.get("action") == "opened" and authored.get("draft"):
+            return False
+        return _on_branch(parsed.branches, _mapping(authored.get("base")).get("ref"))
+    if event == "issue_comment":
+        body = str(authored.get("body") or "").casefold()
+        return parsed.mention is None or parsed.mention.casefold() in body
+    if event == "workflow_run":
+        run = _mapping(payload.get("workflow_run"))
+        if run.get("conclusion") not in (parsed.conclusions or ()):
+            return False
+        return _on_branch(parsed.branches, run.get("head_branch"))
+    if event == "push":
+        ref = str(payload.get("ref") or "")
+        # A deleted branch is a push with nothing in it, and a tag is not a branch.
+        if payload.get("deleted") or not ref.startswith("refs/heads/"):
+            return False
+        return _on_branch(parsed.branches, ref.removeprefix("refs/heads/"))
+    return True
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _on_branch(branches: list[str] | None, branch: Any) -> bool:
+    """Whether `branch` is one the filter names - any, when it names none."""
+    return branches is None or branch in branches
 
 
 def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
@@ -269,11 +319,61 @@ def _clip(text: str) -> str:
 
 
 def _github_context(payload: Mapping[str, Any]) -> str:
-    issue = payload.get("issue") or {}
-    repository = payload.get("repository") or {}
+    repository = str(_mapping(payload.get("repository")).get("full_name") or "a repository")
+    action = str(payload.get("action") or "updated")
+    if "pull_request" in payload:
+        pull = _mapping(payload.get("pull_request"))
+        return (
+            f"A GitHub pull request was {action} in {repository}.\n"
+            f"Pull request #{pull.get('number', '?')}: {pull.get('title', '')}\n"
+            f"{_mapping(pull.get('head')).get('ref', '?')} -> "
+            f"{_mapping(pull.get('base')).get('ref', '?')}\n"
+            f"{pull.get('html_url', '')}\n\n"
+            f"{_clip(str(pull.get('body') or ''))}"
+        ).strip()
+    if "comment" in payload:
+        comment = _mapping(payload.get("comment"))
+        issue = _mapping(payload.get("issue"))
+        kind = "pull request" if issue.get("pull_request") else "issue"
+        return (
+            f"A comment on a GitHub {kind} in {repository}.\n"
+            f"{kind.capitalize()} #{issue.get('number', '?')}: {issue.get('title', '')}\n"
+            f"From @{_mapping(comment.get('user')).get('login', '?')}: "
+            f"{comment.get('html_url', '')}\n\n"
+            f"{_clip(str(comment.get('body') or ''))}"
+        ).strip()
+    if "workflow_run" in payload:
+        run = _mapping(payload.get("workflow_run"))
+        return (
+            f"A GitHub Actions workflow finished in {repository}.\n"
+            f"{run.get('name', 'Workflow')}: {run.get('conclusion', '?')} "
+            f"on {run.get('head_branch', '?')} ({str(run.get('head_sha') or '')[:7]})\n"
+            f"{run.get('html_url', '')}"
+        ).strip()
+    if "release" in payload:
+        release = _mapping(payload.get("release"))
+        return (
+            f"A GitHub release was {action} in {repository}.\n"
+            f"{release.get('tag_name', '?')}: {release.get('name') or ''}\n"
+            f"{release.get('html_url', '')}\n\n"
+            f"{_clip(str(release.get('body') or ''))}"
+        ).strip()
+    if "commits" in payload:
+        commits = [_mapping(one) for one in payload.get("commits") or []]
+        lines = [
+            f"- {str(one.get('id') or '')[:7]} {str(one.get('message') or '').splitlines()[0]}"
+            for one in commits[:20]
+            if str(one.get("message") or "")
+        ]
+        return (
+            f"{len(commits)} commit(s) pushed to "
+            f"{str(payload.get('ref') or '').removeprefix('refs/heads/')} in {repository} "
+            f"by {_mapping(payload.get('pusher')).get('name', '?')}.\n"
+            f"{payload.get('compare', '')}\n\n" + _clip("\n".join(lines))
+        ).strip()
+    issue = _mapping(payload.get("issue"))
     return (
-        f"A GitHub issue was {payload.get('action', 'updated')} "
-        f"in {repository.get('full_name', 'a repository')}.\n"
+        f"A GitHub issue was {action} in {repository}.\n"
         f"Issue #{issue.get('number', '?')}: {issue.get('title', '')}\n"
         f"{issue.get('html_url', '')}\n\n"
         f"{_clip(str(issue.get('body') or ''))}"

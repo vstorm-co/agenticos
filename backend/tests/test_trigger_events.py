@@ -65,6 +65,9 @@ class TestVerifySignature:
         assert not trigger_events.accepts_delivery("gmail")
 
 
+_BY_MEMBER = {"author_association": "MEMBER"}
+
+
 class TestGithubMatching:
     def test_a_non_issues_event_never_matches(self):
         assert not trigger_events.event_matches(
@@ -78,7 +81,7 @@ class TestGithubMatching:
         assert trigger_events.event_matches(
             "github",
             headers={"x-github-event": "issues"},
-            payload={"action": "opened"},
+            payload={"action": "opened", "issue": _BY_MEMBER},
             config={},
         )
 
@@ -94,7 +97,7 @@ class TestGithubMatching:
         assert trigger_events.event_matches(
             "github",
             headers={"x-github-event": "issues"},
-            payload={"action": "labeled"},
+            payload={"action": "labeled", "issue": _BY_MEMBER},
             config={"actions": ["labeled"]},
         )
 
@@ -432,3 +435,196 @@ class TestTheDeliveryIdIsWhatDedupKeysOn:
 
     def test_a_blank_header_is_treated_as_absent(self):
         assert trigger_events.delivery_id("webhook", {"x-delivery-id": "   "}) is None
+
+
+def _github(event: str, payload: dict, config: dict) -> bool:
+    return trigger_events.event_matches(
+        "github", headers={"x-github-event": event}, payload=payload, config=config
+    )
+
+
+class TestWhoMayFireAGithubTrigger:
+    """On a public repository anyone can open an issue; each would be a run, and a
+    page of somebody's text in it. And a bot - the agent's own account among
+    them - would fire the trigger it answers through."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("association", ["NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", None])
+    def test_an_outsiders_issue_does_not_fire_by_default(self, association):
+        payload = {"action": "opened", "issue": {"author_association": association}}
+        assert not _github("issues", payload, {})
+
+    def test_anyone_lets_them_through(self):
+        payload = {"action": "opened", "issue": {"author_association": "NONE"}}
+        assert _github("issues", payload, {"authors": "anyone"})
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "sender", [{"type": "Bot", "login": "ci"}, {"type": "User", "login": "dependabot[bot]"}]
+    )
+    def test_a_bot_never_fires_it(self, sender):
+        payload = {"action": "opened", "issue": _BY_MEMBER, "sender": sender}
+        assert not _github("issues", payload, {"authors": "anyone"})
+
+    @pytest.mark.security
+    def test_the_connected_account_never_fires_it(self):
+        payload = {"action": "created", "comment": _BY_MEMBER, "sender": {"login": "Octo-Agent"}}
+        assert not _github(
+            "issue_comment", payload, {"event": "issue_comment", "ignore_login": "octo-agent"}
+        )
+
+
+class TestGithubEvents:
+    def test_another_event_than_the_triggers_never_matches(self):
+        payload = {"action": "opened", "pull_request": _BY_MEMBER}
+        assert not _github("issues", payload, {"event": "pull_request"})
+
+    def test_a_pull_request_ready_for_review_fires(self):
+        payload = {
+            "action": "ready_for_review",
+            "pull_request": {**_BY_MEMBER, "base": {"ref": "main"}},
+        }
+        assert _github("pull_request", payload, {"event": "pull_request"})
+
+    def test_a_draft_pull_request_waits_until_it_is_ready(self):
+        payload = {"action": "opened", "pull_request": {**_BY_MEMBER, "draft": True}}
+        assert not _github("pull_request", payload, {"event": "pull_request"})
+
+    def test_a_pull_request_into_another_branch_does_not_fire(self):
+        payload = {"action": "opened", "pull_request": {**_BY_MEMBER, "base": {"ref": "dev"}}}
+        assert not _github("pull_request", payload, {"event": "pull_request", "branches": ["main"]})
+
+    @pytest.mark.parametrize(("body", "fires"), [("Hey @Agent, look", True), ("no mention", False)])
+    def test_a_comment_fires_only_with_its_mention(self, body, fires):
+        payload = {"action": "created", "comment": {**_BY_MEMBER, "body": body}}
+        config = {"event": "issue_comment", "mention": "@agent"}
+        assert _github("issue_comment", payload, config) is fires
+
+    @pytest.mark.parametrize(
+        ("conclusion", "branch", "fires"),
+        [("failure", "main", True), ("success", "main", False), ("failure", "dev", False)],
+    )
+    def test_a_finished_workflow_run_fires_on_its_conclusion_and_branch(
+        self, conclusion, branch, fires
+    ):
+        payload = {
+            "action": "completed",
+            "workflow_run": {"conclusion": conclusion, "head_branch": branch},
+            # A failed check is news whoever pushed - a bot included.
+            "sender": {"type": "Bot", "login": "dependabot[bot]"},
+        }
+        config = {"event": "workflow_run", "branches": ["main"]}
+        assert _github("workflow_run", payload, config) is fires
+
+    def test_a_release_published_fires(self):
+        assert _github("release", {"action": "published"}, {"event": "release"})
+
+    @pytest.mark.parametrize(
+        ("payload", "fires"),
+        [
+            ({"ref": "refs/heads/main"}, True),
+            ({"ref": "refs/heads/dev"}, False),
+            ({"ref": "refs/tags/v1"}, False),
+            ({"ref": "refs/heads/main", "deleted": True}, False),
+        ],
+        ids=["main", "other-branch", "tag", "deleted"],
+    )
+    def test_a_push_fires_on_its_branches_only(self, payload, fires):
+        assert _github("push", payload, {"event": "push", "branches": ["main"]}) is fires
+
+
+class TestGithubConfigRefusals:
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"event": "pull_request", "actions": ["published"]},
+            {"event": "push", "actions": ["opened"]},
+            {"event": "issues", "mention": "@agent"},
+            {"event": "release", "branches": ["main"]},
+            {"event": "issues", "conclusions": ["failure"]},
+        ],
+        ids=[
+            "foreign-action",
+            "push-action",
+            "mention-on-issues",
+            "branches-on-release",
+            "conclusion-on-issues",
+        ],
+    )
+    def test_a_filter_that_could_never_apply_is_refused(self, config):
+        from pydantic import ValidationError as PydanticValidationError
+
+        from app.schemas.agent_trigger import GithubTriggerConfig
+
+        with pytest.raises(PydanticValidationError):
+            GithubTriggerConfig.model_validate(config)
+
+    def test_a_workflow_trigger_defaults_to_failures(self):
+        from app.schemas.agent_trigger import GithubTriggerConfig
+
+        assert GithubTriggerConfig.model_validate({"event": "workflow_run"}).conclusions == [
+            "failure"
+        ]
+
+
+class TestGithubContext:
+    @pytest.mark.parametrize(
+        ("payload", "expected"),
+        [
+            (
+                {
+                    "action": "opened",
+                    "repository": {"full_name": "a/b"},
+                    "pull_request": {
+                        "number": 3,
+                        "title": "Fix",
+                        "head": {"ref": "f"},
+                        "base": {"ref": "main"},
+                    },
+                },
+                "Pull request #3: Fix",
+            ),
+            (
+                {
+                    "action": "created",
+                    "repository": {"full_name": "a/b"},
+                    "issue": {"number": 4, "title": "Bug", "pull_request": {}},
+                    "comment": {"body": "@agent help", "user": {"login": "ada"}},
+                },
+                "From @ada",
+            ),
+            (
+                {
+                    "action": "completed",
+                    "repository": {"full_name": "a/b"},
+                    "workflow_run": {
+                        "name": "CI",
+                        "conclusion": "failure",
+                        "head_branch": "main",
+                        "head_sha": "abcdef123",
+                    },
+                },
+                "CI: failure on main (abcdef1)",
+            ),
+            (
+                {
+                    "action": "published",
+                    "repository": {"full_name": "a/b"},
+                    "release": {"tag_name": "v1.2", "name": "One two"},
+                },
+                "v1.2: One two",
+            ),
+            (
+                {
+                    "ref": "refs/heads/main",
+                    "repository": {"full_name": "a/b"},
+                    "pusher": {"name": "ada"},
+                    "commits": [{"id": "1234567890", "message": "Add x\n\nbody"}],
+                },
+                "- 1234567 Add x",
+            ),
+        ],
+        ids=["pull-request", "comment", "workflow-run", "release", "push"],
+    )
+    def test_each_event_says_what_happened(self, payload, expected):
+        assert expected in trigger_events.render_context("github", payload=payload)

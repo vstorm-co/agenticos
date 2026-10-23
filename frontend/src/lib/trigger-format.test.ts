@@ -152,7 +152,7 @@ describe("triggerSummary", () => {
           provider_target: "acme/repo",
         }),
       ),
-    ).toEqual({ kind: "preset", portalKey: "github", target: "acme/repo" });
+    ).toEqual({ kind: "preset", portalKey: "github", target: "acme/repo", githubEvent: "issues" });
   });
 
   it("falls back to the generic event label when a preset has no target yet", () => {
@@ -162,7 +162,7 @@ describe("triggerSummary", () => {
       triggerSummary(
         trigger({ trigger_type: "event", event_source: "github", portal_key: "github" }),
       ),
-    ).toEqual({ kind: "event", source: "github" });
+    ).toEqual({ kind: "event", source: "github", githubEvent: "issues" });
   });
 
   it("names an event trigger by its source", () => {
@@ -170,7 +170,7 @@ describe("triggerSummary", () => {
       triggerSummary(
         trigger({ trigger_type: "event", schedule_kind: "interval", event_source: "gmail" }),
       ),
-    ).toEqual({ kind: "event", source: "gmail" });
+    ).toEqual({ kind: "event", source: "gmail", githubEvent: "issues" });
   });
 
   it("falls back to a sensible default when a discriminant's own field is null", () => {
@@ -179,6 +179,7 @@ describe("triggerSummary", () => {
     expect(triggerSummary(trigger({ trigger_type: "event", event_source: null }))).toEqual({
       kind: "event",
       source: "github",
+      githubEvent: "issues",
     });
     expect(
       triggerSummary(
@@ -244,6 +245,38 @@ describe("cadenceText", () => {
     expect(event("gmail")).toBe("event.gmail");
     expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
+  });
+
+  it("names a GitHub trigger by the webhook it fires on, bare or as a preset", () => {
+    const github = (event: string, target?: string) =>
+      cadenceText(
+        trigger({
+          trigger_type: "event",
+          event_source: "github",
+          event_config: { event },
+          ...(target ? { portal_key: "github_app", provider_target: target } : {}),
+        }),
+        t,
+      );
+
+    expect(github("issues")).toBe("event.github");
+    expect(github("pull_request")).toBe("event.githubPullRequest");
+    expect(github("issue_comment")).toBe("event.githubComment");
+    expect(github("workflow_run")).toBe("event.githubWorkflow");
+    expect(github("release")).toBe("event.githubRelease");
+    expect(github("push")).toBe("event.githubPush");
+    for (const [event, key] of <const>[
+      ["issues", "presetGithub"],
+      ["pull_request", "presetGithubPullRequest"],
+      ["issue_comment", "presetGithubComment"],
+      ["workflow_run", "presetGithubWorkflow"],
+      ["release", "presetGithubRelease"],
+      ["push", "presetGithubPush"],
+    ]) {
+      expect(github(event, "a/b")).toBe(
+        `event.presetSummary({"event":"event.${key}","target":"a/b"})`,
+      );
+    }
   });
 
   it("reads a preset as one sentence, with the portal's own phrase in it", () => {

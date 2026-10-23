@@ -8,7 +8,7 @@ delete. The base methods raise `WebhookRegistrationUnavailable`, so a portal is
 at a time - the same shape `app/services/channels/base.py` uses.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
@@ -90,9 +90,18 @@ class PortalAdapter:
         return []
 
     async def register_webhook(
-        self, *, access_token: str, target: str | None, webhook_url: str, secret: str
+        self,
+        *,
+        access_token: str,
+        target: str | None,
+        webhook_url: str,
+        secret: str,
+        events: Sequence[str] = (),
     ) -> RegisteredWebhook:
         """Register `webhook_url` at the provider, signed with `secret`.
+
+        `events` are the provider's own event names the trigger fires on; empty
+        leaves the adapter's default.
 
         Raises:
             WebhookRegistrationUnavailable: The default - a portal with no
@@ -102,6 +111,14 @@ class PortalAdapter:
         raise WebhookRegistrationUnavailable(
             details={"portal_key": self.portal_key},
         )
+
+    async def account_login(self, *, access_token: str) -> str | None:
+        """The connected account's own handle at the provider, or `None` - the default.
+
+        What a trigger ignores as an author, so an agent acting through the same
+        account cannot set its own trigger off.
+        """
+        return None
 
     async def delete_webhook(
         self, *, access_token: str, target: str | None, provider_webhook_id: str

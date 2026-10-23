@@ -6805,7 +6805,17 @@
       "presetGithub": "New issue",
       "presetGmail": "New email",
       "presetOutlook": "New Outlook email",
-      "presetGeneric": "New event"
+      "presetGeneric": "New event",
+      "githubPullRequest": "On GitHub pull requests",
+      "githubComment": "On GitHub comments that mention it",
+      "githubWorkflow": "On finished GitHub workflow runs",
+      "githubRelease": "On GitHub releases",
+      "githubPush": "On pushes to GitHub",
+      "presetGithubPullRequest": "Pull request for review",
+      "presetGithubComment": "Comment mentioning the agent",
+      "presetGithubWorkflow": "Failed workflow run",
+      "presetGithubRelease": "Release published",
+      "presetGithubPush": "Push"
     },
     "panelTitle": "Routines",
     "panelDescription": "When this agent runs itself - on a schedule, or when an event arrives.",

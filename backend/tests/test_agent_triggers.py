@@ -1715,7 +1715,15 @@ class TestEventTriggerSchema:
 
     def test_a_github_config_defaults_to_issue_creation(self):
         trigger = _github_event()
-        assert trigger.event_config == {"actions": ["opened"]}
+        assert trigger.event_config == {
+            "event": "issues",
+            "actions": ["opened"],
+            "authors": "members",
+            "mention": None,
+            "branches": None,
+            "conclusions": None,
+            "ignore_login": None,
+        }
 
     def test_an_unknown_config_key_is_refused(self):
         with pytest.raises(PydanticValidationError):
@@ -2251,7 +2259,45 @@ class TestEditingTheEventConfig:
             )
         changes = repo.update.call_args.kwargs["update_data"]
         # Normalised through the source's typed model, the same path create uses.
-        assert changes["event_config"] == {"actions": ["closed", "reopened"]}
+        assert changes["event_config"] == {
+            "event": "issues",
+            "actions": ["closed", "reopened"],
+            "authors": "members",
+            "mention": None,
+            "branches": None,
+            "conclusions": None,
+            "ignore_login": None,
+        }
+
+    async def _edit(self, stored: dict, sent: dict):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id, event_config=stored)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(event_config=sent))
+        return repo.update.call_args.kwargs["update_data"]["event_config"]
+
+    async def test_which_github_event_fires_is_fixed(self):
+        """The registered hook listens for the event it was made for; moved to
+        another, the trigger would wait for deliveries nobody sends."""
+        with pytest.raises(BadRequestError) as refused:
+            await self._edit({"event": "issues"}, {"event": "pull_request"})
+        assert refused.value.details["fields"][0]["field"] == "event_config"
+
+    async def test_an_edit_keeps_the_account_the_trigger_ignores(self):
+        """Set at registration, not shown by the form - an edit that omits it must
+        not let the agent's own comments fire the trigger again."""
+        config = await self._edit(
+            {"event": "issue_comment", "mention": "@agent", "ignore_login": "octo-agent"},
+            {"event": "issue_comment", "mention": "@bot"},
+        )
+        assert config["ignore_login"] == "octo-agent"
+        assert config["mention"] == "@bot"
 
     async def test_an_unknown_event_config_key_is_a_422(self):
         """A key the source refuses is the same 422 create gives, not a config
@@ -2357,6 +2403,7 @@ class TestRotatingTheSecret:
         service.connections.webhook_access_token = AsyncMock(return_value="tok")
         adapter = MagicMock()
         adapter.delete_webhook = AsyncMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(
             return_value=RegisteredWebhook(provider_webhook_id="hook-2")
         )
@@ -2408,6 +2455,7 @@ class TestRotatingTheSecret:
         order: list[str] = []
         adapter = MagicMock()
         adapter.delete_webhook = AsyncMock(side_effect=lambda **_kw: order.append("provider"))
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(
             return_value=RegisteredWebhook(provider_webhook_id="hook-2")
         )
@@ -2444,6 +2492,7 @@ class TestRotatingTheSecret:
         service.connections.webhook_access_token = AsyncMock(return_value="tok")
         adapter = MagicMock()
         adapter.delete_webhook = AsyncMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(side_effect=WebhookRegistrationForbidden())
         trigger = _event_trigger(
             agent_id=agent.id,
@@ -2522,6 +2571,7 @@ class TestCreatingFromAPortalPreset:
         service = _service(agent)
         service.connections.webhook_access_token = AsyncMock(return_value="tok")
         adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(
             return_value=RegisteredWebhook(provider_webhook_id="hook-1")
         )
@@ -2543,8 +2593,45 @@ class TestCreatingFromAPortalPreset:
         assert adapter.register_webhook.await_args.kwargs["secret"]
         # The preset's normalized config and the connection reached the repo.
         assert repo.create.await_args.kwargs["event_source"] == "github"
-        assert repo.create.await_args.kwargs["event_config"] == {"actions": ["opened"]}
+        assert repo.create.await_args.kwargs["event_config"] == {
+            "event": "issues",
+            "actions": ["opened"],
+            "authors": "members",
+            "mention": None,
+            "branches": None,
+            "conclusions": None,
+            "ignore_login": None,
+        }
         assert repo.create.await_args.kwargs["portal_key"] == "github"
+
+    async def test_the_hook_listens_for_the_triggers_event_and_skips_its_own_account(self):
+        """A pull-request trigger registers for `pull_request`, not the `issues` the
+        first presets were about; and the account the hook is made through is
+        remembered as the author whose own comments never fire it - an agent
+        answering through the same connection would otherwise set itself off."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value="octo-agent")
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-1")
+        )
+        created = _event_trigger(
+            conversation_id=uuid.uuid4(),
+            delivery_mode="manual",
+            event_config={"event": "pull_request", "actions": ["opened"]},
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(return_value=created)
+            await service.create(_ctx(), agent.id, _preset_create(preset_key="pr_ready"))
+
+        assert adapter.register_webhook.await_args.kwargs["events"] == ("pull_request",)
+        assert created.event_config["ignore_login"] == "octo-agent"
 
     async def test_an_app_trigger_remembers_the_repository_it_was_created_for(self):
         """An App portal registers nothing, and the row still has to hold a target.
@@ -2557,6 +2644,7 @@ class TestCreatingFromAPortalPreset:
         agent = _agent()
         service = _service(agent)
         adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
@@ -2585,6 +2673,7 @@ class TestCreatingFromAPortalPreset:
         service.connections.webhook_access_token = AsyncMock(return_value="tok")
         order: list[str] = []
         adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(
             side_effect=lambda **_kw: (
                 order.append("provider") or RegisteredWebhook(provider_webhook_id="hook-1")
@@ -2610,6 +2699,7 @@ class TestCreatingFromAPortalPreset:
         service = _service(agent)
         service.connections.webhook_access_token = AsyncMock(return_value=None)
         adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
@@ -2630,6 +2720,7 @@ class TestCreatingFromAPortalPreset:
         service = _service(agent)
         service.connections.webhook_access_token = AsyncMock(return_value="tok")
         adapter = MagicMock()
+        adapter.account_login = AsyncMock(return_value=None)
         adapter.register_webhook = AsyncMock(side_effect=WebhookRegistrationForbidden())
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
