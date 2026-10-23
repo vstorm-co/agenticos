@@ -14,10 +14,12 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerFactory,
     DaemonComputer,
     check_daemon_url,
+    open_local_desktop,
     open_sandbox_desktop,
 )
 from app.agents.capabilities.computer_use._toolset import ToolPolicy, build_toolset
 from app.core.sanitize import UrlRefusedError
+from app.services.device_hub import DeviceWorkspace
 
 _INSTRUCTIONS = """\
 You can operate a computer's desktop with the `computer_screenshot` and `computer_act` tools.
@@ -35,12 +37,15 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     """A desktop the agent operates, watched live in the chat's browse panel.
 
     Adds `computer_screenshot`, `computer_act` and `computer_save_screenshot`.
-    The desktop is the agent's own sandbox, or a `computerd` daemon the operator
-    runs on their own Linux desktop or Mac, reached with the organization's token. Nothing is opened until the first
-    call, so binding the capability to an agent that never uses it costs nothing.
+    The desktop is the agent's own sandbox, a `computerd` daemon the operator
+    runs on their own Linux desktop or Mac, reached with the organization's token,
+    or - in a chat working on the person's computer - that computer's own screen.
+    `auto` takes the person's computer when the chat works on it and the sandbox
+    otherwise. Nothing is opened until the first call, so binding the capability
+    to an agent that never uses it costs nothing.
     """
 
-    backend: Literal["sandbox", "daemon"] = "sandbox"
+    backend: Literal["auto", "sandbox", "daemon", "local"] = "auto"
     daemon_url: str = ""
     daemon_token: str = field(default="", repr=False)
     policy: ToolPolicy = field(default_factory=ToolPolicy)
@@ -52,7 +57,10 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     )
 
     async def _open(self, workspace: Workspace) -> Computer:
-        if self.backend == "sandbox":
+        on_computer = workspace.attached and isinstance(workspace.backend, DeviceWorkspace)
+        if self.backend == "local" or (self.backend == "auto" and on_computer):
+            return open_local_desktop(workspace)
+        if self.backend in ("sandbox", "auto"):
             return await open_sandbox_desktop(
                 workspace, width=self.policy.max_width, height=self.policy.max_height
             )

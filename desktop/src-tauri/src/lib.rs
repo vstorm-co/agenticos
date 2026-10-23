@@ -25,6 +25,7 @@ mod managed;
 mod notify;
 mod pinned;
 mod quick_ask;
+mod screen;
 mod settings;
 mod shortcuts;
 
@@ -1195,6 +1196,7 @@ pub fn run() {
         ])
         .manage(PendingSignIn::default())
         .manage(console::Granted::default())
+        .manage(screen::ScreenState::default())
         .manage(notify::Delivered::default())
         .manage(shortcuts::Bindings::default())
         .manage(context::CapturedFiles::default())

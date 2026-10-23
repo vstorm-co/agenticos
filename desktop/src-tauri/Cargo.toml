@@ -39,6 +39,9 @@ futures-util = { version = "0.3.34", default-features = false, features = ["sink
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tokio = { version = "1.53.3", features = ["time", "sync", "macros", "rt", "process", "io-util", "fs"] }
 tauri-plugin-dialog = "2.7.3"
+xcap = "0.9.8"
+enigo = "0.6.1"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Desktop only, which is what the plugin supports - and this shell is desktop
 # only anyway. On Windows and Linux a registered scheme starts the executable

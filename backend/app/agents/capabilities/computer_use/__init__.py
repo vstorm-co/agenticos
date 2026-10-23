@@ -34,17 +34,20 @@ def _daemon_url_form(schema: dict[str, JsonValue]) -> None:
 class ComputerUseConfig(BaseModel):
     """Which desktop this agent works, and how much of it per run."""
 
-    desktop: Literal["sandbox", "daemon"] = Field(
-        default="sandbox",
+    desktop: Literal["auto", "sandbox", "daemon", "local"] = Field(
+        default="auto",
         title="Desktop",
         description=(
-            "The agent's own sandbox, with a desktop in it, or a computer you run. "
-            "The sandbox needs the Sandbox capability on a sandbox connection."
+            "The agent's own sandbox, with a desktop in it, a computer you run, or "
+            "the person's own computer when their chat works on it. The sandbox needs "
+            "the Sandbox capability on a sandbox connection."
         ),
         json_schema_extra={
             "x-enum-labels": {
+                "auto": "The person's computer when their chat works on it, else the sandbox",
                 "sandbox": "The agent's sandbox (a Linux desktop in its container)",
                 "daemon": "A computer you run (computerd: your Linux desktop or a Mac)",
+                "local": "Only the person's own computer, from the desktop app",
             }
         },
     )

@@ -20,15 +20,22 @@ since the URL is in a spec an agent's editor writes. The allowlist says where
 this deployment may send a request; the token says who may drive the desktop,
 so it belongs to the organization that runs it rather than to the deployment.
 One daemon is one desktop: every run holding its token shares it.
+
+**The person's own computer** is the one a chat set to "Work on: This computer"
+already works on (#2305): the desktop app takes the screenshot and moves the
+pointer, after the person allowed it there, with an outline on the screen while
+it does and a shortcut that stops it. It is reached through the device hub, the
+way that chat's file and shell tools are, so it needs no address and no token.
 """
 
+import base64
 import logging
 import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import anyio
 import httpx
@@ -45,6 +52,13 @@ from app.agents.capabilities.computer_use._actions import (
 )
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
+from app.services.device_hub import (
+    DeviceCallFailed,
+    DeviceCallTimedOut,
+    DeviceUnavailable,
+    DeviceWorkspace,
+    call,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +309,76 @@ def _error_text(response: httpx.Response) -> str:
         return f"HTTP {response.status_code}"
     error = body.get("error") if isinstance(body, dict) else None
     return str(error)[:200] if error else f"HTTP {response.status_code}"
+
+
+LOCAL_SCREEN_SECONDS = 60.0
+"""How long one screen operation on the person's computer may take - the first
+one waits for them to answer the app's "let your agent use this screen?"."""
+
+
+class LocalComputer:
+    """The person's own screen, through the desktop app on that computer."""
+
+    label = "Your computer"
+
+    def __init__(self, session_id: UUID) -> None:
+        self._session_id = session_id
+
+    async def _call(self, op: str, args: dict[str, object]) -> dict[str, object]:
+        try:
+            return await call(self._session_id, op, dict(args), timeout=LOCAL_SCREEN_SECONDS)
+        except DeviceUnavailable as exc:
+            raise ComputerError(
+                "Your computer is not connected: open the AgenticOS app on it."
+            ) from exc
+        except DeviceCallTimedOut as exc:
+            raise ComputerError("Your computer did not answer in time.") from exc
+        except DeviceCallFailed as exc:
+            raise ComputerError(exc.message) from exc
+
+    async def capture(self) -> Capture:
+        """Take a screenshot; the app names the space its pointer moves in."""
+        value = await self._call("screen.capture", {})
+        platform = value.get("platform")
+        if isinstance(platform, str) and platform:
+            self.label = platform
+        image = base64.b64decode(str(value.get("data", "")))
+        width, height = png_size(image)
+        native_width, native_height = value.get("width"), value.get("height")
+        return Capture(
+            image=image,
+            width=native_width if isinstance(native_width, int) else width,
+            height=native_height if isinstance(native_height, int) else height,
+        )
+
+    async def perform(self, action: NativeAction) -> None:
+        """Send one action; the app answers once it has been carried out."""
+        if isinstance(action, Wait):
+            await anyio.sleep(action.seconds)
+            return
+        await self._call("screen.act", {"action": action.model_dump()})
+
+    async def close(self) -> None:
+        """Tell the app the run is done with the screen, so its outline goes."""
+        try:
+            await self._call("screen.release", {})
+        except ComputerError:
+            logger.info("local screen release not delivered")
+
+
+def open_local_desktop(workspace: Workspace) -> LocalComputer:
+    """The person's own computer, when the run works on it.
+
+    Raises:
+        ComputerError: The chat is not working on the person's computer.
+    """
+    backend = workspace.backend if workspace.attached else None
+    if not isinstance(backend, DeviceWorkspace):
+        raise ComputerError(
+            "Computer use on your own computer works in a chat set to work on this "
+            "computer, from the desktop app."
+        )
+    return LocalComputer(backend.session_id)
 
 
 def _desktop_start(width: int, height: int) -> str:

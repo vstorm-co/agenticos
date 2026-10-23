@@ -34,11 +34,11 @@ const PING_SECONDS: u64 = 25;
 pub const STATUS_EVENT: &str = "device-status";
 
 #[cfg(target_os = "macos")]
-const PLATFORM: &str = "macos";
+pub const PLATFORM: &str = "macos";
 #[cfg(target_os = "windows")]
-const PLATFORM: &str = "windows";
+pub const PLATFORM: &str = "windows";
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-const PLATFORM: &str = "linux";
+pub const PLATFORM: &str = "linux";
 
 /// The connection's state, held for the app's lifetime.
 #[derive(Default)]
@@ -413,12 +413,12 @@ where
     write.send(Message::Text(text.into())).await.map_err(|e| e.to_string())
 }
 
-/// What this computer can do today. The local sandbox and screen control add
-/// themselves here as they land.
+/// What this computer can do: the local sandbox's modes, and its screen - each
+/// screen session still asks the person first.
 fn capabilities() -> Capabilities {
     Capabilities {
         sandbox_modes: crate::local_work::modes(),
-        screen: false,
+        screen: true,
     }
 }
 
@@ -428,6 +428,9 @@ async fn run(
     op: &str,
     args: Map<String, Value>,
 ) -> Result<Map<String, Value>, (String, &'static str)> {
+    if op.starts_with("screen.") {
+        return crate::screen::run(app, op, &args).await;
+    }
     if op.starts_with("fs.") || op == "shell.run" {
         return crate::local_work::run(app, op, &args)
             .await

@@ -57,6 +57,11 @@ class DeviceWorkspace:
         self._target = target
 
     @property
+    def session_id(self) -> UUID:
+        """The app session the computer is reached through - its screen too."""
+        return self._session_id
+
+    @property
     def ref(self) -> WorkspaceRef:
         return WorkspaceRef(provider=PROVIDER, id=f"{self._session_id}:{self._target.folder}")
 
