@@ -226,3 +226,38 @@ def test_a_link_that_reaches_a_log_line_is_redacted():
     PiiRedactionFilter().filter(record)
 
     assert token.split(".")[1] not in record.getMessage()
+
+
+async def test_a_range_is_read_without_the_whole_file(client: AsyncClient):
+    """Streamed like the console's route (#2310): a link may be fetched 120 times a
+    minute, and reading a long clip whole for each would hold it per request."""
+    from app.services.file_storage import get_file_storage
+
+    organization_id = uuid.uuid4()
+    filename = await save_generated_media(organization_id, b"0123456789", filename="clip.mp4")
+    storage = get_file_storage()
+
+    with (
+        _embeds(**{KEY: _embed(organization_id)}),
+        patch.object(type(storage), "load", AsyncMock(side_effect=AssertionError("read whole"))),
+    ):
+        response = await client.get(_link(filename), headers={"Range": "bytes=2-5"})
+
+    assert response.status_code == 206
+    assert response.content == b"2345"
+
+
+async def test_a_file_gone_after_it_was_measured_is_the_same_not_found(client: AsyncClient):
+    organization_id = uuid.uuid4()
+    filename = await save_generated_media(organization_id, b"\x89PNG-body", filename="image.png")
+
+    with (
+        _embeds(**{KEY: _embed(organization_id)}),
+        patch(
+            "app.api.routes.v1.embed_generated_media.streamed_file_response",
+            AsyncMock(side_effect=FileNotFoundError),
+        ),
+    ):
+        response = await client.get(_link(filename))
+
+    assert response.status_code == 404

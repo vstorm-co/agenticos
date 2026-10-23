@@ -244,8 +244,8 @@ class TestTheWidgetsAdmission:
         token = media_token("some-key", "abc_video.mp4", now=datetime.now(UTC))
 
         with patch(
-            "app.services.embed_generated_media.EmbedGeneratedMediaService.load", AsyncMock()
-        ) as load:
+            "app.services.embed_generated_media.EmbedGeneratedMediaService.open", AsyncMock()
+        ) as opened:
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
@@ -258,7 +258,7 @@ class TestTheWidgetsAdmission:
         key = client_mock.count_in_window.await_args.args[0]
         assert key.startswith("ratelimit:embed_generated_media:token:")
         assert token not in key
-        load.assert_not_awaited()
+        opened.assert_not_awaited()
 
     async def test_a_generated_media_request_with_no_link_is_not_counted(
         self, mock_redis: MagicMock

@@ -59,7 +59,7 @@ from app.agents.capabilities.video_generation._toolset import (
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.repositories import agent_embed as agent_embed_repo
-from app.services.generated_media import load_generated_media
+from app.services.generated_media import StoredGeneratedMedia, open_generated_media
 
 LINK_TTL = timedelta(hours=6)
 """How long a link a visitor was handed keeps opening its file.
@@ -174,8 +174,12 @@ class EmbedGeneratedMediaService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def load(self, public_key: str, filename: str, token: str | None) -> bytes:
-        """The bytes of one generated file, if `token` opens it.
+    async def open(self, public_key: str, filename: str, token: str | None) -> StoredGeneratedMedia:
+        """Where one generated file is and how long, if `token` opens it - never its bytes.
+
+        A route streams it from there (#2310): a link may be fetched 120 times a
+        minute, and reading a long clip whole for each would hold it once per
+        request.
 
         The signature is checked first, so a guessed address costs no query and no
         read. The organization is read off the embed's row, never from the
@@ -192,4 +196,4 @@ class EmbedGeneratedMediaService:
         embed = await agent_embed_repo.get_by_key(self.db, public_key)
         if embed is None or not embed.is_active:
             raise missing
-        return await load_generated_media(embed.organization_id, filename)
+        return await open_generated_media(embed.organization_id, filename)

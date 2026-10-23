@@ -18,7 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, Query
 
 from app.api.deps import EmbedGeneratedMediaSvc, limit_embed_generated_media
-from app.api.routes.v1._workspace_bytes import file_response
+from app.api.routes.v1._workspace_bytes import streamed_file_response
+from app.core.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -43,6 +44,7 @@ async def get_embed_generated_media(
 
     Typed for display by the same allowlist as the console's route, and a `Range`
     request is answered `206` with that slice - Safari plays an MP4 only that way.
+    Streamed like the console's route (#2310): only the range asked for is read.
 
     Raises:
         NotFoundError: If the token does not open this file on this embed - it was
@@ -52,7 +54,18 @@ async def get_embed_generated_media(
         RateLimitError: If this link has been fetched past its allowance this
             minute.
     """
-    data = await service.load(public_key, filename, token)
-    return file_response(
-        data, path=filename, download=False, byte_range=range_header, serves_ranges=True
-    )
+    stored = await service.open(public_key, filename, token)
+    try:
+        return await streamed_file_response(
+            stored.storage_path,
+            size=stored.size,
+            path=filename,
+            download=False,
+            byte_range=range_header,
+        )
+    except FileNotFoundError as exc:
+        # Gone between being measured and being opened - a retention sweep, a
+        # deleted conversation. Nothing has gone out yet, so it is the same 404.
+        raise NotFoundError(
+            message="Generated file not found", details={"filename": filename}
+        ) from exc
