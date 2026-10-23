@@ -57,6 +57,7 @@ export {
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
+  useDraftBase,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
   useAddToAgent,
