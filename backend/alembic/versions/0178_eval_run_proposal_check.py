@@ -10,7 +10,7 @@ Every existing run was started some other way or reads well enough as one, so
 nothing is backfilled. The downgrade drops the column.
 
 Revision ID: 0178_eval_run_proposal_check
-Revises: 0173_eval_job_pool
+Revises: 0180_improvement_sessions
 Create Date: 2026-10-22
 """
 
@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0178_eval_run_proposal_check"
-down_revision: str | None = "0173_eval_job_pool"
+down_revision: str | None = "0180_improvement_sessions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
