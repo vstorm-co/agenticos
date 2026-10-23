@@ -1,5 +1,5 @@
 ---
-source_sha: "f28732bad3b1"
+source_sha: "9649401bb144"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -630,7 +630,8 @@ wurde. Das wird nie angezeigt oder exportiert und überdauert das Gespräch,
 sodass eine Löschung den Fall auch dann noch findet, wenn das Gespräch, aus dem
 er stammt, gelöscht wurde. Ein Fall, dessen Frage jemand anderes gestellt hat,
 behält Frage und Antwort: Die Züge der gelöschten Person in seinem früheren
-Verlauf werden ersetzt, und ihr als Notiz aufbewahrter Kommentar wird geleert.
+Verlauf werden ersetzt, mit den Antworten des Agents darauf, und ihr als Notiz
+aufbewahrter Kommentar wird geleert.
 
 Bei einem Fall, der geschrieben wurde, bevor die Urheberschaft festgehalten
 wurde, wird sie aus den Verbindungen ergänzt, die er noch hatte; einer, dessen

@@ -1,5 +1,5 @@
 ---
-source_sha: "f28732bad3b1"
+source_sha: "9649401bb144"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -602,7 +602,8 @@ se convirtió en su nota. Esto nunca se muestra ni se exporta, y sobrevive a la
 conversación, así que un borrado sigue encontrando el caso después de que se
 borrara la conversación de la que procede. Un caso cuya pregunta hizo otra
 persona conserva su pregunta y su respuesta: los turnos de la persona borrada en
-su historial anterior se sustituyen, y su comentario guardado como nota se vacía.
+su historial anterior se sustituyen, con las respuestas del agent a ellos, y su
+comentario guardado como nota se vacía.
 
 Un caso escrito antes de que se guardara la autoría la tiene completada a partir
 de los vínculos que aún conservaba; uno cuya conversación ya no existía no tiene

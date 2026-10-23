@@ -563,7 +563,8 @@ its earlier turns, and whose comment became its note. This is never shown or
 exported, and it outlives the conversation, so an erasure still finds the case
 after the conversation it came from was deleted. A case asked by somebody else
 keeps its question and answer: an erased person's turns in its earlier history
-are replaced, and their comment kept as its note is cleared.
+are replaced, with the agent's answers to them, and their comment kept as its
+note is cleared.
 
 A case written before authorship was kept has it filled from the links it still held; one
 whose conversation was already gone has none, and only deleting the case

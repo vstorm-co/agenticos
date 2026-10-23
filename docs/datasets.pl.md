@@ -1,5 +1,5 @@
 ---
-source_sha: "f28732bad3b1"
+source_sha: "9649401bb144"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -592,8 +592,9 @@ napisał każdą z jego wcześniejszych tur i czyj komentarz stał się jego not
 Nigdy się tego nie pokazuje ani nie eksportuje, a informacja ta przetrwa
 rozmowę, więc wymazanie odnajduje przypadek nawet po usunięciu rozmowy, z której
 pochodzi. Przypadek, którego pytanie zadał ktoś inny, zachowuje pytanie i
-odpowiedź: tury wymazanej osoby w jego wcześniejszej historii są zastępowane, a
-jej komentarz zachowany jako notatka jest czyszczony.
+odpowiedź: tury wymazanej osoby w jego wcześniejszej historii są zastępowane,
+razem z odpowiedziami agenta na nie, a jej komentarz zachowany jako notatka jest
+czyszczony.
 
 Przypadek zapisany, zanim zaczęto zapamiętywać autorstwo, ma je uzupełnione z
 powiązań, które jeszcze miał; taki, którego rozmowy już nie było, nie ma go
