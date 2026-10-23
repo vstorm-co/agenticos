@@ -10,6 +10,7 @@ import {
   useAgentVersions,
   useAllAgentVersions,
   useAgents,
+  useDraftBase,
   useAddToAgent,
   useCapabilityCatalog,
   useDelegationTree,
@@ -1072,5 +1073,40 @@ describe("useAddToAgent", () => {
       result.current.mutateAsync({ agentId: "a1", resource: { kind: "skill", id: "s1" } }),
     ).rejects.toThrow();
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("useDraftBase", () => {
+  it("reads the latest published version with its spec, whatever production runs", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) =>
+      url === "/agents/a1/versions"
+        ? {
+            items: [
+              { id: "v2", version: 2 },
+              { id: "v1", version: 1 },
+            ],
+            total: 2,
+          }
+        : { id: "v2", version: 2, spec: SPEC },
+    );
+
+    const { result } = renderHook(() => useDraftBase("a1"), { wrapper });
+    await waitFor(() => expect(result.current.base?.version).toBe(2));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "0", limit: "1" },
+    });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions/v2");
+  });
+
+  it("has no base for an agent never published", async () => {
+    vi.mocked(apiClient.get).mockReset().mockResolvedValue({ items: [], total: 0 });
+
+    const { result } = renderHook(() => useDraftBase("a1"), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+
+    expect(result.current.base).toBeUndefined();
+    const urls = vi.mocked(apiClient.get).mock.calls.map(([url]) => url);
+    expect(urls.filter((url) => url.startsWith("/agents/a1/versions/"))).toEqual([]);
   });
 });

@@ -587,6 +587,26 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
+/**
+ * The version the draft is based on - the latest published one, whatever
+ * production runs - with its spec, so the draft can be compared with it.
+ *
+ * `base` is undefined while it loads and for an agent never published.
+ */
+export function useDraftBase(agentId: string | null) {
+  // No placeholder from the agent before: its newest version is not this one's.
+  const { data } = useQuery({
+    queryKey: qk.agents.versions(agentId ?? "", 0, 1),
+    queryFn: () =>
+      apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`, {
+        params: { skip: "0", limit: "1" },
+      }),
+    enabled: !!agentId,
+  });
+  const { version } = useAgentVersion(agentId, data?.items[0]?.id ?? null);
+  return { base: version };
+}
+
 /** The system variables any agent's instructions may write as `{{name}}` (#2065). */
 export function usePromptVariables() {
   const { data } = useQuery({
