@@ -265,11 +265,7 @@ class ContextService:
         update_data = writable(data, over=ContextFile)
         updated = await context_repo.update(self.db, file=file, update_data=update_data)
         if set(update_data) - {"visibility"}:
-            from app.services.eval_suite import EvalSuiteService
-
-            await EvalSuiteService(self.db).dependency_changed(
-                organization_id=file.organization_id, kind="context", resource_id=file.id
-            )
+            await self._changed(file)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -283,6 +279,14 @@ class ContextService:
         )
         return updated
 
+    async def _changed(self, file: ContextFile) -> None:
+        """Queue the eval suites of the agents that read this file."""
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=file.organization_id, kind="context", resource_id=file.id
+        )
+
     async def delete(self, ctx: AuthContext, context_id: UUID) -> None:
         file = await self.get(ctx, context_id, perm=Perm.CONTEXT_EDIT)
         await resource_grant_repo.delete_for_resource(
@@ -292,6 +296,8 @@ class ContextService:
             resource_id=file.id,
         )
         await context_repo.delete(self.db, file)
+        # The agents that bound it now run without it.
+        await self._changed(file)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

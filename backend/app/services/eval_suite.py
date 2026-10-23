@@ -914,6 +914,22 @@ class EvalSuiteService:
         run, on the content as it ends up.
         """
         due = datetime.now(UTC) + timedelta(seconds=settings.EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS)
+        for suite, version in await self.watching(
+            organization_id=organization_id, kind=kind, resource_id=resource_id
+        ):
+            await self._enqueue(
+                suite,
+                trigger=EvalSuiteTrigger.DEPENDENCY,
+                version=version,
+                due_at=due,
+                detail={"kind": kind, "id": str(resource_id)},
+            )
+
+    async def watching(
+        self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
+    ) -> list[tuple[EvalSuite, AgentVersion]]:
+        """The suites a change to this resource queues, each with the version it checks."""
+        found: list[tuple[EvalSuite, AgentVersion]] = []
         for suite in await eval_suite_repo.list_watching(
             self.db, organization_id=organization_id, flag="on_dependency_change"
         ):
@@ -922,17 +938,11 @@ class EvalSuiteService:
             version = await self._served(
                 agent, suite.environment_id, organization_id=organization_id
             )
-            if version is None or not binds(
+            if version is not None and binds(
                 AgentSpec.model_validate(version.spec), kind, resource_id
             ):
-                continue
-            await self._enqueue(
-                suite,
-                trigger=EvalSuiteTrigger.DEPENDENCY,
-                version=version,
-                due_at=due,
-                detail={"kind": kind, "id": str(resource_id)},
-            )
+                found.append((suite, version))
+        return found
 
     async def _served(
         self, agent: Agent, environment_id: UUID | None, *, organization_id: UUID

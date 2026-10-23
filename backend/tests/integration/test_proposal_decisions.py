@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.context import ContextFile
@@ -106,6 +106,18 @@ async def test_the_prompt_wrapper_never_lands_and_an_unchanged_file_is_no_propos
     assert proposal.content == "Returns take 30 days."
 
 
+async def test_a_file_wrapped_in_the_tags_itself_keeps_them(db):
+    ctx, _, file, run_id = await _bound(db)
+    file.content = "<context>\nReturns take 90 days.\n</context>"
+    await db.flush()
+
+    wrapped = "<context>\nReturns take 30 days.\n</context>"
+    await _improve_context(db, ctx, file, _returning(db, run_id, wrapped, "Returns"))
+
+    (proposal,) = await _pending(db, file)
+    assert proposal.content == wrapped
+
+
 async def _served_and_guarded(db: AsyncSession, ctx: AuthContext, agent: Agent) -> EvalSuite:
     """Production serves the agent's published version, guarded by a suite that
     watches what the agent reads."""
@@ -162,14 +174,30 @@ async def test_applying_goes_live_where_served_and_says_so_everywhere(db):
     (proposal,) = await _pending(db, file)
     service = ContextProposalService(db)
 
+    # A second guard that does not run on a change checks the agent when it is promoted.
+    nightly = await eval_suite_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        suite=EvalSuite(
+            agent_id=agent.id,
+            dataset_id=suite.dataset_id,
+            owner_user_id=ctx.user_id,
+            name="nightly",
+        ),
+    )
+    production = await agent_environment_repo.get_default_for_agent(db, agent_id=agent.id)
+    assert production is not None
+    db.add(
+        EnvironmentGuard(
+            environment_id=production.id, suite_id=nightly.id, organization_id=ctx.organization_id
+        )
+    )
+    await db.flush()
+
     read = await service.read(ctx, proposal.id)
     assert [
-        (
-            agent_read.name,
-            [(env.name, env.guarded_by, env.guards) for env in agent_read.environments],
-        )
-        for agent_read in read.reaches
-    ] == [(agent.name, [("production", ["returns smoke"], 1)])]
+        (item.name, item.environments, item.runs_now, item.at_promotion) for item in read.reaches
+    ] == [(agent.name, ["production"], ["returns smoke"], ["nightly"])]
     assert read.reaches_hidden == 0
 
     applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=proposal.revision))
@@ -217,6 +245,33 @@ async def test_a_reader_learns_only_how_many_agents_they_may_not_see_and_no_suit
     read = await ContextProposalService(db).read(stranger, proposal.id)
 
     assert (read.reaches, read.reaches_hidden) == ([], 1)
+
+
+async def test_a_reader_without_runs_view_counts_the_suites_without_their_names(db):
+    ctx, agent, file, run_id = await _bound(db)
+    await _served_and_guarded(db, ctx, agent)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    assert not member.has(Perm.RUNS_VIEW)
+
+    (item,) = (await ContextProposalService(db).read(member, proposal.id)).reaches
+
+    assert (item.runs_now, item.runs_now_count) == ([], 1)
+
+
+async def test_deleting_a_file_queues_the_suites_of_the_agents_that_read_it(db):
+    ctx, agent, file, _ = await _bound(db)
+    suite = await _served_and_guarded(db, ctx, agent)
+
+    await ContextService(db).delete(ctx, file.id)
+
+    queued = (
+        await db.scalars(select(EvalSuiteResult).where(EvalSuiteResult.suite_id == suite.id))
+    ).all()
+    assert [(result.trigger, result.trigger_detail) for result in queued] == [
+        ("dependency", {"kind": "context", "id": str(file.id)})
+    ]
 
 
 async def test_a_decision_on_a_revision_a_newer_run_replaced_writes_nothing(db):
@@ -414,7 +469,7 @@ async def test_applying_a_skill_change_goes_live_where_served_and_tells_the_owne
     read = await service.read(ctx, proposal.id)
     applied = await service.apply(ctx, proposal.id, ProposalDecision(revision=1))
 
-    assert [(item.name, [env.name for env in item.environments]) for item in read.reaches] == [
+    assert [(item.name, item.environments) for item in read.reaches] == [
         (agent.name, ["production"])
     ]
     assert applied.status == "applied"

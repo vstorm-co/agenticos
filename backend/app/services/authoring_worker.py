@@ -198,14 +198,16 @@ def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFinding
     )
 
 
-def _unwrapped(content: str, tag: str) -> str:
+def _unwrapped(content: str, tag: str, current: str) -> str:
     """A proposed body without the tags its prompt wrapped the current one in.
 
     A model copies the wrapper back often enough that, left in, it lands in the
-    file every bound agent reads.
+    file every bound agent reads - unless the body itself is wrapped in them.
     """
     body = content.strip()
     opening, closing = f"<{tag}>", f"</{tag}>"
+    if current.strip().startswith(opening):
+        return content
     if body.startswith(opening) and body.endswith(closing):
         return body[len(opening) : -len(closing)].strip("\n")
     return content
@@ -529,9 +531,9 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'agents using the skill "{skill.name}"')
         proposal = await self._ask(_skill_prompt(skill, pack, digests), SkillImprovement)
-        content = _unwrapped(proposal.content, "skill")
+        content = _unwrapped(proposal.content, "skill", skill.content)
         if _same_text(content, skill.content) and _same_text(
-            proposal.description, skill.description
+            proposal.description[:500], skill.description
         ):
             await self._finish_unchanged(proposal.summary, proposal.expected_effect)
             return
@@ -604,8 +606,10 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'agents using the context file "{file.name}"')
         proposal = await self._ask(_context_prompt(file, pack, digests), ContextImprovement)
-        content = _unwrapped(proposal.content, "context")
-        if _same_text(content, file.content) and _same_text(proposal.description, file.description):
+        content = _unwrapped(proposal.content, "context", file.content)
+        if _same_text(content, file.content) and _same_text(
+            proposal.description[:500], file.description
+        ):
             await self._finish_unchanged(proposal.summary, proposal.expected_effect)
             return
         kept, dropped = pack.verify(proposal.evidence)

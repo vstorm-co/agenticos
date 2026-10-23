@@ -25,16 +25,23 @@ from app.repositories import (
     promotion_gate_repo,
 )
 from app.schemas.eval_suite import DependencyKind
-from app.schemas.resource_usage import ReachedAgent, ReachedEnvironment
+from app.schemas.resource_usage import ReachedAgent
 from app.services.access import AGENT, accessible_ids
 
 
 @dataclass(frozen=True)
 class Reach:
-    """One agent a change reaches, each environment it goes live in, and that one's guards."""
+    """One agent a change reaches: where it goes live, what runs on it, what waits.
+
+    `runs_now` are the suites a change queues; `at_promotion` the guards of those
+    environments that do not run on a change and check the agent when it is next
+    promoted.
+    """
 
     agent: Agent
-    environments: list[tuple[AgentEnvironment, list[UUID]]]
+    environments: list[AgentEnvironment]
+    runs_now: list[UUID]
+    at_promotion: list[UUID]
 
 
 async def reach(
@@ -46,7 +53,7 @@ async def reach(
 ) -> dict[UUID, list[Reach]]:
     """For each file or skill, the agents whose served version reads it - archived ones aside."""
     # Imported here: the eval suites reach the agent runner, which records skill proposals.
-    from app.services.eval_suite import binds
+    from app.services.eval_suite import EvalSuiteService, binds
 
     served = await agent_environment_repo.served(db, organization_id=organization_id)
     hit: dict[UUID, dict[UUID, list[AgentEnvironment]]] = defaultdict(lambda: defaultdict(list))
@@ -63,17 +70,32 @@ async def reach(
         [environment.id for by in hit.values() for found in by.values() for environment in found],
         organization_id=organization_id,
     )
-    return {
-        resource_id: [
+    suites = EvalSuiteService(db)
+    reaches: dict[UUID, list[Reach]] = {}
+    for resource_id in resource_ids:
+        running: dict[UUID, list[UUID]] = defaultdict(list)
+        for suite, _ in await suites.watching(
+            organization_id=organization_id, kind=kind, resource_id=resource_id
+        ):
+            running[suite.agent_id].append(suite.id)
+        reaches[resource_id] = [
             Reach(
                 agents[agent_id],
-                [(environment, guards.get(environment.id, [])) for environment in found],
+                found,
+                running[agent_id],
+                list(
+                    dict.fromkeys(
+                        guard
+                        for environment in found
+                        for guard in guards.get(environment.id, [])
+                        if guard not in running[agent_id]
+                    )
+                ),
             )
             for agent_id, found in hit[resource_id].items()
             if agent_id in agents and agents[agent_id].status != AgentStatus.ARCHIVED.value
         ]
-        for resource_id in resource_ids
-    }
+    return reaches
 
 
 async def reached(
@@ -81,7 +103,7 @@ async def reached(
 ) -> tuple[list[ReachedAgent], int]:
     """The agents as the reader may see them, and how many more it may not.
 
-    A guard is named for a reader of runs - eval suites are read under
+    A suite is named for a reader of runs - eval suites are read under
     `runs:view` - and counted for anybody else.
     """
     visible = await accessible_ids(
@@ -91,9 +113,7 @@ async def reached(
     names = (
         await eval_suite_repo.names(
             db,
-            sorted(
-                {suite for item in shown for _, suites in item.environments for suite in suites}
-            ),
+            sorted({suite for item in shown for suite in [*item.runs_now, *item.at_promotion]}),
             organization_id=ctx.organization_id,
         )
         if ctx.has(Perm.RUNS_VIEW)
@@ -103,14 +123,11 @@ async def reached(
         ReachedAgent(
             id=item.agent.id,
             name=item.agent.name,
-            environments=[
-                ReachedEnvironment(
-                    name=environment.name,
-                    guarded_by=[names[suite] for suite in suites if suite in names],
-                    guards=len(suites),
-                )
-                for environment, suites in item.environments
-            ],
+            environments=[environment.name for environment in item.environments],
+            runs_now=[names[suite] for suite in item.runs_now if suite in names],
+            runs_now_count=len(item.runs_now),
+            at_promotion=[names[suite] for suite in item.at_promotion if suite in names],
+            at_promotion_count=len(item.at_promotion),
         )
         for item in sorted(shown, key=lambda item: item.agent.name)
     ], len(reaches) - len(shown)
