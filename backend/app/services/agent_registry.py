@@ -341,6 +341,8 @@ async def _computer_use_sandbox_problems(
             "sandbox on a sandbox service connection."
         ]
     runtime = config.runtime or connection.default_runtime
+    # On E2B the runtime is a template name, and E2B's own desktop template is
+    # called `desktop` too - with the same programs the sandbox desktop drives.
     if runtime != DESKTOP_RUNTIME:
         chosen = f"the '{runtime}' runtime" if runtime else "whichever runtime its host defaults to"
         return [

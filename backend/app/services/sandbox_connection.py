@@ -62,7 +62,7 @@ from app.services.sandbox_runtimes import CATALOG
 
 logger = logging.getLogger(__name__)
 
-CONNECTION_KINDS = ("docker", "daytona")
+CONNECTION_KINDS = ("docker", "daytona", "e2b")
 
 LOCAL_SERVICE_URLS = ("http://sandboxd:8080", "http://localhost:8080")
 """Where this project's own compose file puts a sandbox service.

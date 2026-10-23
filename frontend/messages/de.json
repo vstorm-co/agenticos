@@ -6067,7 +6067,11 @@
       "whatAgentAuthorsWill": "Was Agent-Autoren sehen, wenn sie einen Host wählen.",
       "whereOrganizationAposS": "Wo die Agents dieser Organisation Shell-Befehle ausführen und Dateien aufbewahren.",
       "whereSandboxServiceAnswers": "Er hält das Docker-Socket, er sollte also von außerhalb Ihres Netzes nicht erreichbar sein.",
-      "willUseDeploymentToken": "Bleibt es leer, wird das Token, mit dem der eigene Sandbox-Dienst dieses Deployments gestartet wurde, im Vault gespeichert und verwendet."
+      "willUseDeploymentToken": "Bleibt es leer, wird das Token, mit dem der eigene Sandbox-Dienst dieses Deployments gestartet wurde, im Vault gespeichert und verwendet.",
+      "kindE2b": "E2B-Cloud",
+      "e2bKeyHint": "Ein API-Schlüssel aus Ihrem E2B-Dashboard. Sandboxes laufen auf diesem Konto und werden darüber abgerechnet.",
+      "e2bTemplateWhat": "Ein E2B-Vorlagenname; leer nimmt die Standardvorlage von E2B. Für die Computersteuerung desktop verwenden.",
+      "secretNameE2b": "E2B-API-Schlüssel"
     },
     "daytonaSnapshotImageWhat": "Ein Daytona-Snapshot oder -Image. Was es erlaubt, ist dort eine Kontoeinstellung, es gibt also keine Liste zur Auswahl.",
     "default": "Standard",
@@ -6200,7 +6204,8 @@
       "off": "Aus",
       "serviceSOwn": "der Standard des Dienstes",
       "whatAllows": "Was sie erlaubt",
-      "whatNamedAllows": "Was {name} erlaubt"
+      "whatNamedAllows": "Was {name} erlaubt",
+      "e2bCloud": "E2B-Cloud"
     },
     "turningOffRefusesNew": "Sie auszuschalten verweigert hier neue Sandboxes, ohne die Aufzeichnung dessen zu löschen, was Agents darauf getan haben.",
     "whatAgentAuthorsWill": "Was Agent-Autoren sehen, wenn sie einen Host wählen.",

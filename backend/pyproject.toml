@@ -88,7 +88,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.59.0",
+    "pydantic-ai-harness[e2b]>=0.59.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason

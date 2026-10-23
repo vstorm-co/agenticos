@@ -18,8 +18,8 @@ module exists rather than a helper on the capability:
   found gone, and removes this run's spills, but leaves the session itself to
   `sandboxd`: correctness must not depend on this process getting to its
   `finally`.
-* `daytona` is a cloud resource on the organization's own account, and the same
-  applies with somebody else's invoice attached.
+* `daytona` and `e2b` are cloud resources on the organization's own account, and
+  the same applies with somebody else's invoice attached.
 """
 
 import asyncio
@@ -54,6 +54,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.sandbox._capped import CappedStateBackend, document_size
+from app.agents.capabilities.sandbox._e2b import E2BWorkspace
 from app.agents.capabilities.sandbox._identity import (
     BackendKind,
     SessionScope,
@@ -86,6 +87,9 @@ from app.services.sandbox_runtimes import (
     runtime_parses_documents,
 )
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
+
+ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
+"""What supplies a connection's sandboxes: a `sandboxd` host, Daytona or E2B."""
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +467,7 @@ class OpenWorkspace:
     document: CappedStateBackend | None = None
     """The stored document a `state` workspace works in, flushed back at close."""
 
-    sandbox: SandboxdWorkspace | DaytonaWorkspace | None = None
+    sandbox: ServiceSandbox | None = None
     """What supplies a container-backed workspace, for removing a `run`-scoped one."""
 
     local: bool = False
@@ -525,9 +529,11 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     return None
 
 
-def _provider(sandbox: SandboxdWorkspace | DaytonaWorkspace) -> str:
+def _provider(sandbox: ServiceSandbox) -> str:
     """The provider name the refs of `sandbox`'s workspaces carry."""
-    return sandbox.provider if isinstance(sandbox, SandboxdWorkspace) else "daytona"
+    if isinstance(sandbox, DaytonaWorkspace):
+        return "daytona"
+    return sandbox.provider
 
 
 def _is_spill(path: str) -> bool:
@@ -856,7 +862,7 @@ class SandboxWorkspaceService:
             tenant=str(identity.organization_id),
             on_wait=notice.waiting if notice is not None else None,
         )
-        if resolved.kind != "daytona":
+        if resolved.kind == "docker":
             alias = config.runtime or resolved.row.default_runtime or None
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
@@ -901,7 +907,7 @@ class SandboxWorkspaceService:
         runtime: str | None = None,
         tenant: str | None = None,
         on_wait: Callable[[], Awaitable[None]] | None = None,
-    ) -> SandboxdWorkspace | DaytonaWorkspace:
+    ) -> ServiceSandbox:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
         Named by the key rather than by the provider: the key is where "who shares
@@ -910,6 +916,12 @@ class SandboxWorkspaceService:
         while the other attaches - without this database recording a provider's
         id first.
         """
+        if resolved.kind == "e2b":
+            # The template is the runtime: E2B's own `desktop` template is what
+            # computer use's sandbox desktop drives, like the `desktop` runtime.
+            return E2BWorkspace(
+                api_key=resolved.token, template=runtime or resolved.row.default_runtime
+            )
         if resolved.kind == "daytona":
             from daytona import DaytonaConfig
 
@@ -1207,7 +1219,7 @@ class SandboxWorkspaceService:
                 "workspace_session_lost",
                 extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
             )
-            if isinstance(workspace.sandbox, DaytonaWorkspace):
+            if isinstance(workspace.sandbox, DaytonaWorkspace | E2BWorkspace):
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
@@ -1218,7 +1230,9 @@ class SandboxWorkspaceService:
             await workspace_repo.record_session(self.db, workspace=row, session_id=ref.id)
         return False
 
-    async def _discard_lost_sandbox(self, sandbox: DaytonaWorkspace, name: str) -> None:
+    async def _discard_lost_sandbox(
+        self, sandbox: DaytonaWorkspace | E2BWorkspace, name: str
+    ) -> None:
         """Delete a Daytona sandbox found gone, so the next run can open its name afresh.
 
         A purged container is gone from its host. A Daytona sandbox in `error` or
@@ -2250,7 +2264,7 @@ async def retry_pending_destroys() -> int:
 
 
 async def _destroy_and_forget(
-    sandbox: SandboxdWorkspace | DaytonaWorkspace,
+    sandbox: ServiceSandbox,
     ref: WorkspaceRef,
     scope_key: str,
     pending_id: UUID,

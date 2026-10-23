@@ -6189,7 +6189,11 @@
       "whatAgentAuthorsWill": "What agent authors will see when they pick a host.",
       "whereOrganizationAposS": "Where this organization's agents run shell commands and keep files.",
       "whereSandboxServiceAnswers": "It holds the Docker socket, so it should not be reachable from outside your network.",
-      "willUseDeploymentToken": "Left empty, the token this deployment's own sandbox service was started with is stored in the vault and used."
+      "willUseDeploymentToken": "Left empty, the token this deployment's own sandbox service was started with is stored in the vault and used.",
+      "kindE2b": "E2B cloud",
+      "e2bKeyHint": "An API key from your E2B dashboard. Sandboxes run, and are billed, on that account.",
+      "e2bTemplateWhat": "An E2B template name; empty takes E2B's default. Use desktop for computer use.",
+      "secretNameE2b": "E2B API key"
     },
     "daytonaSnapshotImageWhat": "A Daytona snapshot or image. What it allows is an account setting on their side, so there is no list to offer.",
     "default": "Default",
@@ -6322,7 +6326,8 @@
       "off": "Off",
       "serviceSOwn": "the service's own",
       "whatAllows": "What it allows",
-      "whatNamedAllows": "What {name} allows"
+      "whatNamedAllows": "What {name} allows",
+      "e2bCloud": "E2B cloud"
     },
     "turningOffRefusesNew": "Turning it off refuses new sandboxes here without deleting the record of what agents did on it.",
     "whatAgentAuthorsWill": "What agent authors will see when they pick a host.",

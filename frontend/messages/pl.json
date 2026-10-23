@@ -5960,7 +5960,11 @@
       "whatAgentAuthorsWill": "Co zobaczą autorzy agentów przy wyborze hosta.",
       "whereOrganizationAposS": "Gdzie agenci tej organizacji uruchamiają polecenia powłoki i trzymają pliki.",
       "whereSandboxServiceAnswers": "Trzyma gniazdo Dockera, więc nie powinno być osiągalne spoza Twojej sieci.",
-      "willUseDeploymentToken": "Jeśli zostawisz puste, token, z którym uruchomiono własną usługę sandboxów tego wdrożenia, zostanie zapisany w vault i użyty."
+      "willUseDeploymentToken": "Jeśli zostawisz puste, token, z którym uruchomiono własną usługę sandboxów tego wdrożenia, zostanie zapisany w vault i użyty.",
+      "kindE2b": "Chmura E2B",
+      "e2bKeyHint": "Klucz API z panelu E2B. Piaskownice działają na tym koncie i są na nie rozliczane.",
+      "e2bTemplateWhat": "Nazwa szablonu E2B; puste oznacza domyślny szablon E2B. Dla obsługi komputera użyj desktop.",
+      "secretNameE2b": "Klucz API E2B"
     },
     "daytonaSnapshotImageWhat": "Snapshot albo obraz Daytona. To, na co pozwala, jest ustawieniem konta po ich stronie, więc nie ma listy do zaproponowania.",
     "default": "Domyślne",
@@ -6093,7 +6097,8 @@
       "off": "Wyłączone",
       "serviceSOwn": "własny usługi",
       "whatAllows": "Na co pozwala",
-      "whatNamedAllows": "Na co pozwala {name}"
+      "whatNamedAllows": "Na co pozwala {name}",
+      "e2bCloud": "Chmura E2B"
     },
     "turningOffRefusesNew": "Wyłączenie odrzuca tu nowe sandboxy, nie usuwając zapisu tego, co na nim robili agenci.",
     "whatAgentAuthorsWill": "Co zobaczą autorzy agentów przy wyborze hosta.",
