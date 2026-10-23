@@ -179,6 +179,7 @@ export const ESTIMATE: EvalRunEstimate = {
   org_after_usd: "99.700000",
   affordable: true,
   ungraded_cases: 0,
+  missing_baseline_version: null,
 };
 
 export function comparison(overrides: Partial<EvalComparison> = {}): EvalComparison {
@@ -214,6 +215,8 @@ export function comparison(overrides: Partial<EvalComparison> = {}): EvalCompari
     fixed_unconfirmed: 1,
     compared: 4,
     not_compared: 0,
+    changed: 0,
+    baseline_rerun: true,
     candidate_summary: SUMMARY,
     baseline_summary: SUMMARY,
     efficiency: {

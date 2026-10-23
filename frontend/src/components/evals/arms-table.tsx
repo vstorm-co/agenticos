@@ -41,10 +41,38 @@ function SideLabel({
   );
 }
 
+/** One side's numbers, a dash where it has none under the tag read. */
+function SummaryCells({ summary }: { summary: ArmSummary | undefined }) {
+  const t = useTranslations("evals.arms");
+  const locale = useLocale();
+  return (
+    <>
+      <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
+      <td className="py-2 pr-3">
+        {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
+      </td>
+      <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
+      <td className="py-2 pr-3">
+        {summary === undefined || summary.avg_tokens === null
+          ? "—"
+          : Math.round(summary.avg_tokens)}
+      </td>
+      <td className="py-2 pr-3">
+        {t("p50p95", {
+          p50: seconds(summary?.p50_ms ?? null, locale),
+          p95: seconds(summary?.p95_ms ?? null, locale),
+        })}
+      </td>
+    </>
+  );
+}
+
 /**
  * Every side of a run next to each other - the draft beside what is live, or
  * each model the candidate ran on - over every case, or over the cases
- * carrying `tag`.
+ * carrying `tag`. A run that measured itself against an earlier run without
+ * keeping it as a side of its own still shows that run's numbers, from the
+ * comparison.
  */
 export function ArmsTable({
   agentId,
@@ -52,6 +80,7 @@ export function ArmsTable({
   tag,
   live,
   baseline,
+  baselineSummary,
 }: {
   agentId: string;
   arms: EvalRunArm[];
@@ -60,9 +89,16 @@ export function ArmsTable({
   live: boolean;
   /** The side the candidate is compared with, to name the run a reused result came from. */
   baseline: ComparisonSide | null;
+  /** That side's numbers over the cases both answered, as the comparison read them. */
+  baselineSummary: ArmSummary | null;
 }) {
   const t = useTranslations("evals.arms");
+  const tSide = useTranslations("evals");
   const locale = useLocale();
+  const earlier =
+    baseline !== null && baselineSummary !== null && !arms.some((arm) => arm.role === "baseline")
+      ? baseline
+      : null;
   return (
     <Card>
       <CardHeader>
@@ -81,33 +117,37 @@ export function ArmsTable({
             </tr>
           </thead>
           <tbody className="tabular-nums">
-            {arms.map((arm) => {
-              // An arm with no case under the tag has no entry for it.
-              const summary: ArmSummary | undefined = tag === null ? arm.summary : arm.by_tag[tag];
-              return (
-                <tr key={arm.id} className="border-t">
-                  <td className="py-2 pr-3">
-                    <SideLabel agentId={agentId} arm={arm} baseline={baseline} />
-                  </td>
-                  <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
-                  <td className="py-2 pr-3">
-                    {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
-                  </td>
-                  <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
-                  <td className="py-2 pr-3">
-                    {summary === undefined || summary.avg_tokens === null
-                      ? "—"
-                      : Math.round(summary.avg_tokens)}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {t("p50p95", {
-                      p50: seconds(summary?.p50_ms ?? null, locale),
-                      p95: seconds(summary?.p95_ms ?? null, locale),
-                    })}
-                  </td>
-                </tr>
-              );
-            })}
+            {arms.map((arm) => (
+              <tr key={arm.id} className="border-t">
+                <td className="py-2 pr-3">
+                  <SideLabel agentId={agentId} arm={arm} baseline={baseline} />
+                </td>
+                {/* An arm with no case under the tag has no entry for it. */}
+                <SummaryCells summary={tag === null ? arm.summary : arm.by_tag[tag]} />
+              </tr>
+            ))}
+            {earlier !== null && (
+              <tr className="border-t">
+                <td className="py-2 pr-3">
+                  {tSide("sideModel", {
+                    name: sideName(earlier, tSide),
+                    model: earlier.model_label,
+                  })}
+                  {" · "}
+                  <Link
+                    href={`${ROUTES.AGENTS}/${agentId}/evals/${earlier.run_id}`}
+                    className="text-muted-foreground underline underline-offset-4"
+                  >
+                    {earlier.finished_at
+                      ? tSide("arms.reusedFrom", {
+                          date: formatDateTime(earlier.finished_at, locale),
+                        })
+                      : tSide("arms.reused")}
+                  </Link>
+                </td>
+                <SummaryCells summary={tag === null ? (baselineSummary ?? undefined) : undefined} />
+              </tr>
+            )}
           </tbody>
         </table>
       </CardContent>

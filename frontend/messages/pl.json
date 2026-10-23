@@ -8628,7 +8628,12 @@
     "excludedEvidence": "{count, plural, one {Pominięto 1 case} few {Pominięto # case'y} other {Pominięto # case'ów}}: pochodzą z rozmów, z których wzięła się sprawdzana zmiana.",
     "backToSuggestions": "Wróć do sugestii",
     "backToSkillChange": "Wróć do zmiany skilla",
-    "backToContextChange": "Wróć do zmiany pliku kontekstu"
+    "backToContextChange": "Wróć do zmiany pliku kontekstu",
+    "changedSinceBaseline": "{count, plural, one {# case zmienił się} few {# case'y zmieniły się} many {# case'ów zmieniło się} other {# case'a zmieniło się}} od odpowiedzi baseline'u, więc nie {count, plural, one {jest porównywany} other {są porównywane}}.",
+    "baselineNotRerun": "Starszy run: baseline nie był ponownie uruchamiany, więc zmiany nie są potwierdzone.",
+    "noEarlierRun": "Brak porównywalnego wcześniejszego runu (inne ocenianie, model albo ustawienia). Ten run nie będzie miał z czym się porównać.",
+    "besideBaseline": "Uruchom też poprzednią wersję",
+    "besideBaselineHint": "Odpowie na te same case'y obok tego runu, oceniana tak samo, a estymata ją uwzględnia."
   },
   "steps": {
     "skills-gallery": {

@@ -184,6 +184,24 @@ describe("StartEvalDialog", () => {
     );
   });
 
+  it("says when no earlier run compares, and offers to run the version before beside it", async () => {
+    agentState.liveSpec = DRAFT;
+    const alone = { ...COMPARE, candidate: "version" as const, paired_baseline: false };
+    hooks.estimate = mutation({
+      data: { ...ESTIMATE, missing_baseline_version: 6 },
+      variables: alone,
+    });
+    open();
+
+    expect(screen.getByText(/No comparable earlier run/)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Also run the version before it"));
+
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenCalledWith({ ...alone, paired_baseline: true }),
+    );
+    expect(screen.queryByText(/No comparable earlier run/)).toBeNull();
+  });
+
   it("asks again for what was chosen, the advanced fields included", async () => {
     open();
     await userEvent.click(screen.getByRole("radio", { name: /v7 alone/ }));

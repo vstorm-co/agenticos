@@ -947,6 +947,17 @@ describe("EvalRunView", () => {
     ).toBeInTheDocument();
   });
 
+  it("says which cases changed since the baseline, and when its flips could not be confirmed", () => {
+    state.comparison = comparison({ changed: 2, baseline_rerun: false });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText("2 cases changed since the baseline answered, so they are not compared."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Older run: the baseline was not rerun, so changes are not confirmed."),
+    ).toBeInTheDocument();
+  });
+
   it("says the sides cannot be compared before it says a case was left undecided", () => {
     state.run = {
       ...state.run,

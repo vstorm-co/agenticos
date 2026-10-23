@@ -102,6 +102,14 @@ export function VerdictHeader({
             {comparison?.invalid_reason && (
               <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
             )}
+            {comparison !== undefined && comparison.changed > 0 && (
+              <p className="text-muted-foreground text-sm">
+                {t("changedSinceBaseline", { count: comparison.changed })}
+              </p>
+            )}
+            {comparison?.baseline && !comparison.baseline_rerun && (
+              <p className="text-muted-foreground text-sm">{t("baselineNotRerun")}</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <EvalStatusBadge status={run.status} />

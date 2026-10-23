@@ -9384,7 +9384,12 @@
     "excludedEvidence": "{count, plural, =1 {1 case was} other {# cases were}} left out: taken from the conversations the checked change was derived from.",
     "backToSuggestions": "Back to the suggestions",
     "backToSkillChange": "Back to the skill change",
-    "backToContextChange": "Back to the context file change"
+    "backToContextChange": "Back to the context file change",
+    "changedSinceBaseline": "{count, plural, =1 {1 case changed} other {# cases changed}} since the baseline answered, so {count, plural, =1 {it is} other {they are}} not compared.",
+    "baselineNotRerun": "Older run: the baseline was not rerun, so changes are not confirmed.",
+    "noEarlierRun": "No comparable earlier run (different grading, model or setup). This run will have nothing to compare against.",
+    "besideBaseline": "Also run the version before it",
+    "besideBaselineHint": "It answers the same cases beside this one, graded the same way, and the estimate includes it."
   },
   "remoteAgents": {
     "title": "Remote agents",
