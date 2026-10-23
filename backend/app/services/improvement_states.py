@@ -105,15 +105,16 @@ class Pins:
     scoring_hash: str
     dataset_id: UUID | None
     suite_id: UUID | None
+    suite_hash: str | None
 
 
 def stale(pinned: Pins, current: Pins, *, archived: bool) -> bool:
     """Whether what the session is measured against changed since it started.
 
-    A changed draft, a newer version under it, different grading, an archived
-    agent, or a pinned dataset or suite that no longer exists - `current` names
-    it as `None` - each mean the check would compare with something other than
-    what the session promised.
+    A changed draft, a newer version under it, different grading, a suite whose
+    threshold was edited, an archived agent, or a pinned dataset or suite that no
+    longer exists - `current` names it as `None` - each mean the check would
+    compare with something other than what the session promised.
     """
     return archived or pinned != current
 

@@ -69,6 +69,7 @@ def upgrade() -> None:
         sa.Column("dataset_version", sa.Integer(), nullable=False),
         sa.Column("suite_id", _uuid(), nullable=True),
         sa.Column("scoring_hash", sa.String(length=64), nullable=False),
+        sa.Column("suite_hash", sa.String(length=64), nullable=True),
         sa.Column("window_days", sa.Integer(), nullable=False),
         sa.Column("estimate_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("budget_usd", sa.Numeric(precision=12, scale=6), nullable=False),
@@ -127,6 +128,7 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("improvement_runs_pkey")),
+        sa.UniqueConstraint("id", "organization_id", name="uq_improvement_runs_tenant"),
     )
     op.create_index(
         op.f("improvement_runs_organization_id_idx"), "improvement_runs", ["organization_id"]
@@ -193,8 +195,8 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["run_id"],
-            ["improvement_runs.id"],
+            ["run_id", "organization_id"],
+            ["improvement_runs.id", "improvement_runs.organization_id"],
             name=op.f("improvement_iterations_run_id_fkey"),
             ondelete="CASCADE",
         ),

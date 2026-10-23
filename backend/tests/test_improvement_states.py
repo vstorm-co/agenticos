@@ -58,6 +58,7 @@ _PINS = Pins(
     scoring_hash="s" * 64,
     dataset_id=uuid.uuid4(),
     suite_id=uuid.uuid4(),
+    suite_hash="h" * 64,
 )
 _BUDGET = {"spent": Decimal("0.01"), "rerun_estimate": Decimal("0.01"), "budget": Decimal("0.04")}
 _ALLOWED = Standing(
@@ -150,6 +151,7 @@ def test_an_inconclusive_check_is_run_once_more() -> None:
     assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
 
 
+@pytest.mark.security
 def test_an_inconclusive_check_is_not_rerun_past_the_budget() -> None:
     """D12: the rerun is a paid step, held to the budget before it starts like the first check."""
     move = after_judging(
@@ -238,19 +240,17 @@ def test_a_candidate_the_policy_emptied_is_not_checked() -> None:
     )
 
 
-def test_a_check_that_fits_the_remaining_budget_starts() -> None:
-    move = before_evaluating(
+@pytest.mark.security
+def test_a_check_starts_only_when_it_fits_the_remaining_budget() -> None:
+    """D12: the full estimate is held to what is left before the step, not during it."""
+    fits = before_evaluating(
         spent=Decimal("0.02"), step_estimate=Decimal("0.03"), budget=Decimal("0.05")
     )
-    assert move == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
-
-
-def test_a_check_above_the_remaining_budget_is_never_started() -> None:
-    """D12: the full estimate is held to what is left before the step, not during it."""
-    move = before_evaluating(
+    over = before_evaluating(
         spent=Decimal("0.03"), step_estimate=Decimal("0.03"), budget=Decimal("0.05")
     )
-    assert move == Transition(
+    assert fits == Transition(ImprovementStatus.RUNNING, ImprovementStage.EVALUATING)
+    assert over == Transition(
         ImprovementStatus.STOPPED, ImprovementStage.EVALUATING, StopReason.BUDGET
     )
 
@@ -299,8 +299,16 @@ def test_nothing_changed_is_not_stale() -> None:
         replace(_PINS, scoring_hash="t" * 64),
         replace(_PINS, dataset_id=None),
         replace(_PINS, suite_id=None),
+        replace(_PINS, suite_hash="i" * 64),
     ],
-    ids=["draft-edited", "published", "grading-changed", "dataset-deleted", "suite-deleted"],
+    ids=[
+        "draft-edited",
+        "published",
+        "grading-changed",
+        "dataset-deleted",
+        "suite-deleted",
+        "suite-edited",
+    ],
 )
 def test_a_changed_base_or_grading_is_stale(current: Pins) -> None:
     assert stale(_PINS, current, archived=False)
@@ -328,6 +336,7 @@ def test_a_session_in_good_standing_carries_on() -> None:
     ],
     ids=["left", "no-edit", "no-runs-view", "no-dataset-run", "ai-off"],
 )
+@pytest.mark.security
 def test_losing_access_stops_the_session_with_permission(standing: Standing) -> None:
     move = checked(
         ImprovementStage.EVALUATING,

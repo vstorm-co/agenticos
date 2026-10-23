@@ -29,7 +29,7 @@ from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementIteration, ImprovementRun, ImprovementStatus
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.repositories import improvement_repo
+from app.repositories import authoring_repo, improvement_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -86,6 +86,7 @@ async def _session(
         dataset_id=dataset.id,
         dataset_version=1,
         suite_id=None,
+        suite_hash=None,
         scoring_hash="s" * 64,
         window_days=30,
         estimate_usd=Decimal("0.04"),
@@ -142,6 +143,19 @@ class TestOneSessionPerAgent:
 
 
 class TestChecks:
+    @pytest.mark.security
+    async def test_a_round_cannot_belong_to_another_tenant_s_session(self, db: AsyncSession):
+        """The schema ties a round to its session's organization, whatever a writer passes."""
+        org, user, agent, dataset = await _world(db)
+        other, _ = await _org(db)
+        run = await _session(db, org, agent, user, dataset)
+
+        with pytest.raises(IntegrityError, match="improvement_iterations_run_id_fkey"):
+            async with db.begin_nested():
+                await improvement_repo.create_iteration(
+                    db, organization_id=other.id, run_id=run.id, number=1
+                )
+
     @pytest.mark.parametrize(
         "values",
         [
@@ -323,6 +337,34 @@ class TestCandidateBatch:
         ).all()
         assert sorted(statuses) == ["candidate", "candidate", "open"]
 
+    async def test_a_candidate_is_never_shown_as_the_agent_s_latest_batch(self, db: AsyncSession):
+        """Its hunks are still being checked: the Builder must not offer them for a decision."""
+        org, user, agent, dataset = await _world(db)
+        run = await _session(db, org, agent, user, dataset)
+        shown = SpecProposalBatch(
+            organization_id=org.id,
+            agent_id=agent.id,
+            source_started_at=run.created_at,
+            status=BatchStatus.SUPERSEDED.value,
+            created_at=run.created_at - timedelta(hours=1),
+        )
+        db.add(shown)
+        db.add(
+            SpecProposalBatch(
+                organization_id=org.id,
+                agent_id=agent.id,
+                source_started_at=run.created_at,
+                status=BatchStatus.CANDIDATE.value,
+                improvement_run_id=run.id,
+            )
+        )
+        await db.flush()
+
+        latest = await authoring_repo.latest_batch(db, organization_id=org.id, agent_id=agent.id)
+
+        assert latest is not None
+        assert latest.id == shown.id
+
 
 class TestOrganizations:
     async def test_nothing_is_read_across_organizations(self, db: AsyncSession):
@@ -391,6 +433,22 @@ class TestOrganizations:
         assert (queued.id, org.id) in found
         assert (running.id, other_org.id) in found
         assert (ready.id, org.id) not in found
+
+    async def test_the_sweep_pages_through_moving_sessions(self, db: AsyncSession):
+        """A session waiting on its child makes no transition, so activity cannot order the page."""
+        org, user, _, dataset = await _world(db)
+        moving = [
+            (await _session(db, org, await _agent(db, org, user), user, dataset)).id
+            for _ in range(3)
+        ]
+
+        pages: list[uuid.UUID] = []
+        after = None
+        while page := await improvement_repo.list_active(db, after=after, limit=1):
+            pages.extend(run_id for run_id, _ in page)
+            after = page[-1][0]
+
+        assert [run_id for run_id in pages if run_id in set(moving)] == sorted(moving)
 
     async def test_the_sweep_pages_through_waiting_sessions(self, db: AsyncSession):
         """A waiting session never changes on its own, so a fixed first page would starve the rest."""

@@ -31,6 +31,7 @@ async def create_run(
     dataset_id: UUID,
     dataset_version: int,
     suite_id: UUID | None,
+    suite_hash: str | None,
     scoring_hash: str,
     window_days: int,
     estimate_usd: Decimal,
@@ -56,6 +57,7 @@ async def create_run(
         dataset_id=dataset_id,
         dataset_version=dataset_version,
         suite_id=suite_id,
+        suite_hash=suite_hash,
         scoring_hash=scoring_hash,
         window_days=window_days,
         estimate_usd=estimate_usd,
@@ -115,20 +117,23 @@ async def list_for_agent(
     return list(result.scalars().all())
 
 
-async def list_active(db: AsyncSession, *, limit: int = 200) -> list[tuple[UUID, UUID]]:
-    """`(run id, organization id)` of queued and running sessions, least recently beaten first.
+async def list_active(
+    db: AsyncSession, *, after: UUID | None = None, limit: int = 200
+) -> list[tuple[UUID, UUID]]:
+    """`(run id, organization id)` of queued and running sessions, a page at a time by id.
 
     Unscoped, for the deployment's sweep, which runs as nobody: it only learns
     which sessions to advance, and each transition then reads its session under
-    the session's own organization. Every transition beats, so a long queue
-    rotates through the limit.
+    the session's own organization. A session waiting on its child makes no
+    transition, so the sweep pages past `after` rather than ordering by activity,
+    which would hand it the same waiting sessions on every tick.
     """
-    result = await db.execute(
-        select(ImprovementRun.id, ImprovementRun.organization_id)
-        .where(ImprovementRun.status.in_(_ACTIVE))
-        .order_by(ImprovementRun.heartbeat_at.asc().nulls_first(), ImprovementRun.id)
-        .limit(limit)
+    statement = select(ImprovementRun.id, ImprovementRun.organization_id).where(
+        ImprovementRun.status.in_(_ACTIVE)
     )
+    if after is not None:
+        statement = statement.where(ImprovementRun.id > after)
+    result = await db.execute(statement.order_by(ImprovementRun.id).limit(limit))
     return [(row.id, row.organization_id) for row in result.all()]
 
 

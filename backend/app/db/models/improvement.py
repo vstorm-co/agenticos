@@ -26,6 +26,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -184,6 +185,9 @@ class ImprovementRun(Base):
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # A suite is edited in place, so its id alone would let a session be judged
+    # against a bar other than the one it started with.
+    suite_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
@@ -205,6 +209,7 @@ class ImprovementRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_improvement_runs_tenant"),
         CheckConstraint(
             f"status IN ({_values(ImprovementStatus)})", name="ck_improvement_run_status"
         ),
@@ -261,11 +266,7 @@ class ImprovementIteration(Base):
         nullable=False,
         index=True,
     )
-    run_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("improvement_runs.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    run_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     number: Mapped[int] = mapped_column(Integer, nullable=False)
     authoring_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -300,6 +301,13 @@ class ImprovementIteration(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        # A round belongs to its session's organization, held by the schema rather
+        # than by every writer passing the matching pair.
+        ForeignKeyConstraint(
+            ["run_id", "organization_id"],
+            ["improvement_runs.id", "improvement_runs.organization_id"],
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("run_id", "number", name="uq_improvement_iterations_number"),
         CheckConstraint(
             f"verdict IS NULL OR verdict IN ({_values(ImprovementVerdict)})",
