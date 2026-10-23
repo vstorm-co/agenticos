@@ -510,10 +510,14 @@ export function useSpend(
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.spend(range),
     queryFn: () =>
-      apiClient.get<CostSummary>("/spend", {
-        params:
-          typeof range === "number" ? { days: String(range) } : { from: range.from, to: range.to },
-      }),
+      readThrough(`spend:${typeof range === "number" ? range : `${range.from}..${range.to}`}`, () =>
+        apiClient.get<CostSummary>("/spend", {
+          params:
+            typeof range === "number"
+              ? { days: String(range) }
+              : { from: range.from, to: range.to },
+        }),
+      ),
     enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });

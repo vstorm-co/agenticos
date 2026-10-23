@@ -27,7 +27,8 @@ import type {
 } from "@/types";
 import type { MyPermissions } from "@/types/permissions";
 import type { AgentList } from "@/types/agents";
-import type { ApprovalList } from "@/types/runs";
+import type { Conversation } from "@/types/conversation";
+import type { AgentRunList, ApprovalList, CostSummary } from "@/types/runs";
 import { SealedStore, wipeSealedStore } from "./sealed-store";
 
 /** The conversations kept to read offline: the ones opened most recently. */
@@ -64,6 +65,11 @@ export interface OfflineRecords {
   /** The ids of the files kept for a conversation, deleted with it. */
   [attachments: `attachments:${string}`]: string[];
   [file: `file:${string}`]: KeptFile;
+  /** The dashboard's cards, by what they asked: the spend over a range, the
+   * newest failures, the conversations to pick up again (#2097, item 17). */
+  [spend: `spend:${string}`]: CostSummary;
+  [failures: `failures:${number}`]: AgentRunList;
+  [recent: `recent-conversations:${number}`]: { items: Conversation[] };
 }
 
 type RecordName = keyof OfflineRecords & string;
