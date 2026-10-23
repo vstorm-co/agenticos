@@ -858,8 +858,10 @@ class Settings(BaseSettings):
 
     # Hosts an MCP connection's own URL may name although they resolve inside the
     # deployment's network, such as a compose service. A listed host skips the
-    # address check in `app.agents.mcp.validate_mcp_url`, and only when a
-    # connection's URL is saved. Matched exactly, case-folded. Empty refuses all.
+    # address check in `app.agents.mcp.validate_mcp_url` for a connection's own
+    # URL, and the OAuth flow of such a connection may reach the listed hosts
+    # (`app.agents.mcp.trusted_hosts_for`). Matched exactly, case-folded. Empty
+    # refuses all.
     MCP_ALLOWED_HOSTS: list[str] = []
 
     @field_validator("MCP_ALLOWED_HOSTS")

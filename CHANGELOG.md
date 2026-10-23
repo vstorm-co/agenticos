@@ -239,6 +239,34 @@ Two things are versioned separately from this file and worth knowing about:
   a dialog behind it by stopping them before React saw them, so every control
   opening on a press - the composer's `+` menu among them - did nothing there.
 
+## [1.14.0] - 2026-10-23
+
+### Added
+
+- **People can sign in with OAuth to an MCP server on `MCP_ALLOWED_HOSTS`.**
+  A server on the deployment's network, a VPN or a tailnet often runs its own
+  sign-in, so its metadata, client registration and token endpoints sit on the
+  same private host. Saving such a connection worked since 1.13.0, but every
+  OAuth step after it was refused, so the sign-in probe, Connect and token
+  refresh all failed. Now the OAuth requests of a connection whose own host is
+  listed may reach the listed hosts, still resolved and pinned, and a listed
+  name that answers a loopback, link-local or metadata address is refused. A
+  public server's sign-in reaches no listed host, even when its metadata names
+  one. Taking a host off the list stops its OAuth connections from renewing
+  their tokens. Carries the scoping from #2356 by @henfircreo.
+
+### Fixed
+
+- **A slow MCP server is no longer left out of every turn.** The probe before
+  a turn gave the whole session - `initialize`, `initialized` and
+  `tools/list` - 3 seconds. A server that checks each request's token at its
+  identity provider, such as an OAuth proxy in front of GitHub or Microsoft
+  Entra, spends about a second per request, so it timed out on every turn and
+  every connection check although it answered each request. A server now gets
+  3 seconds to accept the connection and 10 seconds for the whole handshake,
+  or the `--timeout` the catalog check is given. A host that is down still
+  fails within 3 seconds, and so does a run's own `initialize`.
+
 ## [1.13.1] - 2026-10-23
 
 ### Fixed

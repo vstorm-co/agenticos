@@ -1,5 +1,5 @@
 ---
-source_sha: "b3b414cc1b2d"
+source_sha: "9025a904cc03"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -60,16 +60,25 @@ niczego do konfigurowania.
     i wklejenie URL-a z `localhost` to przypadek zwyczajny, nie egzotyczny.
 
     Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
-    wdrożenia, na przykład do usługi compose. W tym celu wpisuje jego host do
+    wdrożenia, na przykład do usługi compose albo serwera w VPN-ie lub
+    tailnecie. W tym celu wpisuje jego host do
     [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Host z listy
-    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`,
-    a logowanie OAuth do niego nadal jest odrzucane.
+    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`.
+
+    Do serwera z listy można też logować się przez OAuth. Taki serwer często
+    sam prowadzi logowanie, więc jego wykrywanie, rejestracja klienta i
+    żądania tokenów mogą sięgać do hostów z listy, i do żadnego innego adresu
+    prywatnego. Każde żądanie nadal jest przypięte do adresu, który sprawdzono,
+    a nazwa z listy, która odpowiada adresem loopback, link-local albo adresem
+    metadanych chmury, jest odrzucana. Logowanie do serwera publicznego nigdy
+    nie sięga do hosta z listy, nawet gdy jego metadane go wskazują.
 
     Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
     Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
     usługi tego stacku, takiej jak `app`, `db` czy `redis`. Lista jest czytana
-    tylko przy zapisie połączenia: usunięcie hosta nie rozłącza zapisanego
-    połączenia.
+    przy zapisie połączenia oraz przy każdym logowaniu i odświeżeniu tokenu.
+    Usunięcie hosta nie rozłącza zapisanego połączenia, ale połączenie OAuth
+    do niego przestaje odnawiać token.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
@@ -391,7 +400,9 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu.
+  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu, a żądania
+  OAuth połączenia, którego własny host jest na liście, mogą sięgać do hostów
+  z listy, przypięte jak każdy inny krok.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.
@@ -487,8 +498,10 @@ wyląduje nowa zgoda.
 
 ## Co dzieje się w turze { #what-happens-on-a-turn }
 
-Każdy serwer jest odpytywany krótkim obiegiem `tools/list` — 3 sekundy — zanim
-tura się zacznie, a odpytania biegną równolegle. Serwer, który odpowiedział na
+Każdy serwer jest odpytywany krótką wymianą `tools/list`, zanim tura się zacznie,
+a odpytania biegną równolegle. Serwer ma 3 sekundy na przyjęcie połączenia i 10
+sekund na całą wymianę, bo serwer, który sprawdza token każdego żądania u swojego
+dostawcy tożsamości, bywa wolny, choć działa. Serwer, który odpowiedział na
 odpytanie w ciągu ostatnich dwóch minut, z tym samym poświadczeniem, nie jest
 odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w międzyczasie
 przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go

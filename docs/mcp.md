@@ -54,15 +54,25 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     pasting a `localhost` URL is the ordinary case, not the exotic one.
 
     An operator can let a connection reach a server on the deployment's own
-    network, such as a compose service. To do this, list its host in
+    network, such as a compose service or a server on a VPN or tailnet. To do
+    this, list its host in
     [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
-    skips only the address check. The URL still needs `http` or `https`, and
-    OAuth sign-in to it is still refused.
+    skips only the address check. The URL still needs `http` or `https`.
+
+    People can sign in to a listed server with OAuth too. Such a server often
+    runs its own sign-in, so its discovery, client registration and token
+    requests may reach the listed hosts, and no other private address. Each
+    request is still pinned to the address it was checked at, and a listed name
+    that answers a loopback, link-local or cloud metadata address is refused. A
+    public server's sign-in never reaches a listed host, even when its metadata
+    names one.
 
     Every account on the deployment can then reach every port on that host. So
     list only a server that checks a token, and never `localhost` or a service
-    of this stack, such as `app`, `db` or `redis`. The list is read only when a
-    connection is saved: removing a host does not disconnect a saved connection.
+    of this stack, such as `app`, `db` or `redis`. The list is read when a
+    connection is saved and at every sign-in and token refresh. Removing a host
+    does not disconnect a saved connection, but an OAuth connection to it stops
+    renewing its token.
 
 ### Personal or organization-wide
 
@@ -373,7 +383,9 @@ Two edges remain, both narrow and both deliberate:
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
   runs — operator-typed, so rebinding it means being the operator. A host on
-  `MCP_ALLOWED_HOSTS` skips the address check.
+  `MCP_ALLOWED_HOSTS` skips the address check, and the OAuth requests of a
+  connection whose own host is listed may reach the listed hosts, pinned like
+  every other hop.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
@@ -464,8 +476,10 @@ bearer token keeps working until the new consent lands.
 
 ## What happens on a turn
 
-Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
-turn starts, and the probes run concurrently. A server that answered its probe in
+Each server is probed with a short `tools/list` handshake before the turn starts,
+and the probes run concurrently. A server gets 3 seconds to accept the connection
+and 10 seconds for the whole handshake, because one that checks every request's
+token at its identity provider is slow without being down. A server that answered its probe in
 the last two minutes, with the same credential, is not probed again: a
 conversation's next turn attaches it straight away. If it has gone down in the
 meantime, that turn goes on without its tools and the next one probes it again.
