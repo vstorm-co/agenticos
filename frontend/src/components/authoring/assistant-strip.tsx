@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "@/components/agents/version-history";
-import { useAgentVersion } from "@/hooks";
+import { useDraftBase } from "@/hooks";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
 import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -36,7 +36,6 @@ import { VerifyReport } from "./verify-report";
  */
 export function AssistantStrip({
   agentId,
-  currentVersionId,
   storedDraft,
   canCheck,
   checkNeedsRunsView = false,
@@ -44,8 +43,7 @@ export function AssistantStrip({
   onDraft,
 }: {
   agentId: string;
-  currentVersionId: string | null;
-  /** The draft as stored - Verify needs it to differ from the published version. */
+  /** The draft as stored - Verify needs it to differ from the version it is based on. */
   storedDraft: AgentSpec;
   /** Whether this caller may run the draft on a dataset, which checking does. */
   canCheck: boolean;
@@ -66,10 +64,10 @@ export function AssistantStrip({
   const [asking, setAsking] = useState<AuthoringKind | null>(null);
   const [checking, setChecking] = useState(false);
   const { authoring, decide } = assistant;
-  const { version } = useAgentVersion(agentId, currentVersionId);
+  const { base } = useDraftBase(agentId);
   const draftDiffers = useMemo(
-    () => version !== undefined && specText(storedDraft) !== specText(version.spec),
-    [storedDraft, version],
+    () => base !== undefined && specText(storedDraft) !== specText(base.spec),
+    [storedDraft, base],
   );
   const batch = authoring?.batch ?? null;
   const latest = authoring?.latest ?? null;

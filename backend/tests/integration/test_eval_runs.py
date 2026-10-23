@@ -1630,18 +1630,22 @@ async def test_runs_of_the_draft_as_it_stands_now(db) -> None:
         ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
     )
 
-    tested = await service.list_for_agent(ctx, agent.id, draft=True)
+    tested = await service.list_for_agent(ctx, agent.id, draft="current")
     assert [run.id for run in tested.items] == [draft_run.id]
     assert version_run.id not in [run.id for run in tested.items]
 
     # The same draft stored with its keys in another order is the same draft.
     agent.draft_spec = dict(reversed(list(agent.draft_spec.items())))
     await db.flush()
-    assert (await service.list_for_agent(ctx, agent.id, draft=True)).total == 1
+    assert (await service.list_for_agent(ctx, agent.id, draft="current")).total == 1
+    assert (await service.list_for_agent(ctx, agent.id, draft="earlier")).items == []
 
     agent.draft_spec = {**agent.draft_spec, "instructions": "Edited since"}
     await db.flush()
-    assert (await service.list_for_agent(ctx, agent.id, draft=True)).items == []
+    assert (await service.list_for_agent(ctx, agent.id, draft="current")).items == []
+    # The test it moved away from, never the run of a version.
+    earlier = await service.list_for_agent(ctx, agent.id, draft="earlier")
+    assert [run.id for run in earlier.items] == [draft_run.id]
 
 
 @pytest.mark.security

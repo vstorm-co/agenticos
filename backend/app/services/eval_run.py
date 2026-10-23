@@ -35,6 +35,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -71,6 +72,7 @@ from app.db.models.eval_suite import EvalSuiteTrigger
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    authoring_repo,
     dataset_repo,
     eval_run_repo,
     eval_suite_repo,
@@ -98,10 +100,12 @@ from app.schemas.eval_run import (
     EvalRunRequest,
     EvalRunSuiteRead,
     EvalUngradedCaseRead,
+    ProposalCheckRecord,
     RoutingErrorRead,
 )
 from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
 from app.schemas.scoring import CaseScoreRead, DatasetScoring
+from app.services import authoring_hunks
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
     AgentRegistryService,
@@ -335,6 +339,7 @@ class EvalRunService:
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
+        baseline_spec: AgentSpec | None = None,
     ) -> RunPlan:
         """Decide what a run is, refusing anything that could not or should not run.
 
@@ -347,7 +352,9 @@ class EvalRunService:
         fresh beside the candidate, so both sides answer the same cases.
         `candidate_skills` serves proposed skill bodies on the candidate in place
         of the stored ones, so a skill change is measured with the agent held still;
-        `candidate_contexts` does the same for context files.
+        `candidate_contexts` does the same for context files. `baseline_spec`
+        runs the draft as the baseline in place of a version - the caller has
+        checked it may read the draft - and is never served from a cached run.
 
         Raises:
             NotFoundError: The agent, dataset or environment cannot be reached.
@@ -424,20 +431,29 @@ class EvalRunService:
         hashed = scoring_hash(config)
         arms = list(candidates)
         if paired:
-            baseline_version = await self._baseline_version(ctx, agent, request, source, version)
-            baseline_spec = AgentSpec.model_validate(baseline_version.spec)
+            baseline_version = (
+                None
+                if baseline_spec is not None
+                else await self._baseline_version(ctx, agent, request, source, version)
+            )
+            measured = (
+                AgentSpec.model_validate(baseline_version.spec)
+                if baseline_version is not None
+                else baseline_spec
+            )
+            assert measured is not None
             profile_id = (
                 request.model_profile_ids[0]
                 if request.model_profile_ids
-                else baseline_spec.model_profile_id
+                else measured.model_profile_id
             )
             baseline = await self._arm(
                 ctx,
                 agent,
                 role=ArmRole.BASELINE,
-                source=ArmSource.VERSION,
+                source=ArmSource.VERSION if baseline_version is not None else ArmSource.DRAFT,
                 version=baseline_version,
-                spec=baseline_spec,
+                spec=measured,
                 model_profile_id=profile_id,
                 environment_id=request.environment_id,
             )
@@ -445,7 +461,7 @@ class EvalRunService:
             # so a cached baseline may have read an older one than the body replaced.
             cached = (
                 None
-                if excluded or candidate_skills or candidate_contexts
+                if excluded or candidate_skills or candidate_contexts or baseline_version is None
                 else await self._cached(
                     ctx,
                     agent=agent,
@@ -726,8 +742,14 @@ class EvalRunService:
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
+        baseline_spec: AgentSpec | None = None,
+        proposal_check: ProposalCheckRecord | None = None,
     ) -> EvalRunEstimate:
-        """What a run would cost, against what the agent and organization have left."""
+        """What a run would cost, against what the agent and organization have left.
+
+        `proposal_check` is what a check of the authoring assistant's proposal
+        would measure, returned beside the estimate so both sides can be named.
+        """
         plan = await self.plan(
             ctx,
             agent_id,
@@ -738,8 +760,10 @@ class EvalRunService:
             exclude_conversations=exclude_conversations,
             candidate_skills=candidate_skills,
             candidate_contexts=candidate_contexts,
+            baseline_spec=baseline_spec,
         )
-        return await self._estimate(ctx, plan)
+        estimate = await self._estimate(ctx, plan)
+        return estimate.model_copy(update={"proposal_check": proposal_check})
 
     async def _per_case(
         self,
@@ -895,12 +919,16 @@ class EvalRunService:
         exclude_conversations: Sequence[UUID] = (),
         candidate_skills: Mapping[UUID, SkillBody] | None = None,
         candidate_contexts: Mapping[UUID, ContextBody] | None = None,
+        baseline_spec: AgentSpec | None = None,
         suite: EvalSuiteCheck | None = None,
+        proposal_check: ProposalCheckRecord | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
         `suite` is the eval suite a check of suggestions runs on, kept on the run
         as it stands now so its read can hold the run to that suite's threshold.
+        `proposal_check` is what a check of the authoring assistant's proposal
+        measures; the run then sends nothing to review by itself.
 
         Raises:
             PaymentRequiredError: The estimate is more than the agent or the
@@ -916,6 +944,7 @@ class EvalRunService:
             exclude_conversations=exclude_conversations,
             candidate_skills=candidate_skills,
             candidate_contexts=candidate_contexts,
+            baseline_spec=baseline_spec,
         )
         estimate = await self._estimate(ctx, plan)
         if not estimate.affordable:
@@ -950,6 +979,9 @@ class EvalRunService:
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
+            proposal_check=(
+                None if proposal_check is None else proposal_check.model_dump(mode="json")
+            ),
         )
         arms = [
             EvalRunArm(
@@ -1033,25 +1065,43 @@ class EvalRunService:
         """One run, and - for a run of the draft - whether the draft changed since.
 
         A check of suggestions made on an eval suite also says what that suite
-        would have said of it.
+        would have said of it. A check of an agent's suggestions tested the draft
+        they would make: the draft changed since once neither the draft nor the
+        draft with the suggestions still waiting is what it checked.
         """
         run = await self._readable(ctx, run_id)
         read = (await self._reads(ctx, [run]))[0]
         if run.suite_check is not None:
             read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
+        checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
         tested = next(
             (
                 arm
                 for arm in read.arms
-                if arm.role == ArmRole.CANDIDATE and arm.source == ArmSource.DRAFT
+                if arm.role == ArmRole.CANDIDATE
+                and (
+                    arm.source == ArmSource.DRAFT or (arm.source == ArmSource.EXPLICIT and checked)
+                )
             ),
             None,
         )
         if tested is None:
             return read
         agent = await self.registry.get(ctx, run.agent_id)
-        current = spec_hash(AgentSpec.model_validate(agent.draft_spec))
-        return read.model_copy(update={"draft_changed": current != tested.spec_hash})
+        draft = AgentSpec.model_validate(agent.draft_spec)
+        changed = spec_hash(draft) != tested.spec_hash
+        if changed and tested.source == ArmSource.EXPLICIT:
+            changed = spec_hash(await self._with_waiting(ctx, agent, draft)) != tested.spec_hash
+        return read.model_copy(update={"draft_changed": changed})
+
+    async def _with_waiting(self, ctx: AuthContext, agent: Agent, draft: AgentSpec) -> AgentSpec:
+        """The draft with every suggestion still waiting on it made - what a check measures."""
+        org = ctx.organization_id
+        batch = await authoring_repo.get_open_batch(self.db, organization_id=org, agent_id=agent.id)
+        if batch is None:
+            return draft
+        hunks = await authoring_repo.list_hunks(self.db, organization_id=org, batch_id=batch.id)
+        return authoring_hunks.projection(draft, hunks)[0]
 
     async def _suite_check(
         self, ctx: AuthContext, run: EvalRun, read: EvalRunRead
@@ -1132,14 +1182,17 @@ class EvalRunService:
         ctx: AuthContext,
         agent_id: UUID,
         *,
-        draft: bool = False,
+        draft: Literal["current", "earlier"] | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> EvalRunList:
         """An agent's runs over the datasets the caller may read, newest first.
 
-        `draft` keeps only the runs that tested the draft as it stands now - the
-        same spec hash, whatever order its keys were stored in.
+        `draft="current"` keeps only the runs that tested the draft as it stands
+        now - the same spec hash, whatever order its keys were stored in - a
+        check of suggestions since accepted among them. `draft="earlier"` keeps
+        the runs that tested another draft since the latest version was
+        published: the test the draft has moved away from.
         """
         self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
@@ -1148,13 +1201,20 @@ class EvalRunService:
             self.db, organization_id=org, agent_id=agent.id
         )
         readable = sorted(await self._readable_datasets(ctx, dataset_ids))
-        if draft:
+        if draft is not None:
+            base = (
+                await agent_repo.newest_version(self.db, agent_id=agent.id, organization_id=org)
+                if draft == "earlier"
+                else None
+            )
             tested = await eval_run_repo.draft_runs(
                 self.db,
                 agent.id,
                 organization_id=org,
                 dataset_ids=readable,
                 spec_hash=spec_hash(AgentSpec.model_validate(agent.draft_spec)),
+                earlier=draft == "earlier",
+                since=None if base is None else base.created_at,
             )
             return EvalRunList(
                 items=await self._reads(ctx, tested[skip : skip + limit]), total=len(tested)
@@ -1426,6 +1486,11 @@ class EvalRunService:
                     outcome=await self._outcome(ctx, run),
                     routed_to_review=run.routed_to_review,
                     routed_replacing=run.routed_replacing,
+                    proposal_check=(
+                        None
+                        if run.proposal_check is None
+                        else ProposalCheckRecord.model_validate(run.proposal_check)
+                    ),
                     routing_error=(
                         RoutingErrorRead.model_validate(run.routing_error)
                         if run.routing_error

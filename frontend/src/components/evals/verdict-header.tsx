@@ -71,7 +71,7 @@ export function VerdictHeader({
               {t("runTitle", {
                 dataset: run.dataset_name,
                 version: run.dataset_version,
-                candidate: candidate ? sideName(candidate, t) : "",
+                candidate: candidate ? sideName(candidate, t, run.proposal_check) : "",
               })}
             </p>
             {!live && candidate && comparison && (

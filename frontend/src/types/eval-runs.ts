@@ -39,6 +39,21 @@ export interface EvalRunRequest {
   reruns?: number | null;
 }
 
+/**
+ * What a check of the authoring assistant's proposal measured, kept on its run.
+ *
+ * `base_version` is the version the change was measured on - the latest
+ * published one for suggestions, production's for a skill or context file -
+ * and `on_draft` says the draft itself was the baseline because it had moved
+ * from that version.
+ */
+export interface ProposalCheckRecord {
+  kind: "agent" | "skill" | "context";
+  base_version: number | null;
+  on_draft: boolean;
+  suggestions: number;
+}
+
 export interface ArmEstimate {
   role: ArmRole;
   source: ArmSource;
@@ -57,6 +72,8 @@ export interface EvalRunEstimate {
   cases: number;
   arms: ArmEstimate[];
   judge_usd: string;
+  /** What a check of the authoring assistant's proposal would measure; absent otherwise. */
+  proposal_check?: ProposalCheckRecord | null;
   /** The model the judge would grade on; null when no judge grades the run. */
   judge_model_profile_id: string | null;
   total_usd: string;
@@ -170,6 +187,8 @@ export interface EvalRun {
   suite?: { id: string; name: string; trigger: EvalSuiteTrigger } | null;
   /** On the single-run read of a run of the draft: whether the draft changed since. */
   draft_changed?: boolean | null;
+  /** For a check of the authoring assistant's proposal, what it measured; it routes nothing to review. */
+  proposal_check?: ProposalCheckRecord | null;
   /** On the single-run read of a check made on an eval suite: what the suite would say. */
   suite_check?: EvalSuiteCheck | null;
   error: string | null;

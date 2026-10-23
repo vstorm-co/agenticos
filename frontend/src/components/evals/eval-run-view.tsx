@@ -187,6 +187,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         tag={tag}
         live={live}
         baseline={comparison?.baseline ?? null}
+        check={run.proposal_check}
       />
       {!live && comparison && (
         <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />
