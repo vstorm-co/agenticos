@@ -16,7 +16,9 @@ COPY --chmod=0755 entrypoint.sh /opt/computerd/entrypoint.sh
 
 USER desk
 WORKDIR /home/desk
+# Without a UTF-8 locale the desktop's apps drop every non-ASCII character typed into them.
 ENV DISPLAY=:0 \
+    LANG=C.UTF-8 \
     SCREEN_SIZE=1280x800 \
     COMPUTERD_HOST=0.0.0.0 \
     COMPUTERD_PORT=8765
