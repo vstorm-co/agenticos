@@ -649,7 +649,9 @@ async def _found(
     versions = dict(
         (
             await db.execute(
-                select(AgentRun.id, AgentRun.agent_version_id).where(AgentRun.id.in_(list(run_ids)))
+                select(AgentRun.id, AgentRun.agent_version_id).where(
+                    AgentRun.organization_id == organization_id, AgentRun.id.in_(list(run_ids))
+                )
             )
         )
         .tuples()
@@ -658,7 +660,8 @@ async def _found(
     calls = await db.execute(
         select(Message.run_id, ToolCall.tool_name, ToolCall.args["query"].astext, ToolCall.result)
         .join(Message, Message.id == ToolCall.message_id)
-        .where(Message.run_id.in_(list(run_ids)))
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(AgentRun.organization_id == organization_id, Message.run_id.in_(list(run_ids)))
         .order_by(ToolCall.started_at, ToolCall.id)
     )
     results: dict[tuple[UUID, str], list[str | None]] = {}
