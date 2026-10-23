@@ -840,7 +840,9 @@ behind `computer_act` and its approval: with `execute`, the agent can run
 
 One daemon is one desktop: every run pointed at it shares the machine and
 whatever is signed in on it. Give it a dedicated machine or account, not
-somebody's working session.
+somebody's working session. The agent can read anything the account running
+the daemon can, its token included; the container in `deploy/computer/` runs
+the daemon as an account of its own for that reason.
 
 **A daemon's token is the organization's.** The `COMPUTERD_TOKEN` the daemon
 was started with is stored in the organization's [vault](../secrets.md) as an

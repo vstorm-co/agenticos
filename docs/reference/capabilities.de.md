@@ -1,5 +1,5 @@
 ---
-source_sha: "7bbcbbd9841f"
+source_sha: "72251a29f0d4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -941,7 +941,10 @@ der Agent `xdotool` aus der Shell aufrufen.
 
 Ein Daemon ist ein Desktop: Jeder Run, der auf ihn zeigt, teilt sich die
 Maschine und alles, was darauf angemeldet ist. Geben Sie ihm eine eigene
-Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen.
+Maschine oder ein eigenes Konto, nicht die Arbeitssitzung eines Menschen. Der
+Agent kann alles lesen, was das Konto lesen kann, unter dem der Daemon läuft,
+sein Token eingeschlossen; deshalb führt der Container in `deploy/computer/` den
+Daemon unter einem eigenen Konto aus.
 
 **Das Token eines Daemons gehört der Organisation.** Das `COMPUTERD_TOKEN`, mit
 dem der Daemon gestartet wurde, liegt als API-Schlüssel im

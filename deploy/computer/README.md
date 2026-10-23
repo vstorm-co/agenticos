@@ -8,6 +8,9 @@ operator-facing page is `docs/reference/capabilities.md#computer-use`.
 
 One daemon is one desktop. Every run pointed at it shares the machine and
 whatever is signed in there, so give it a machine or an account of its own.
+The agent can read anything the account running the daemon can, its token
+included, unless the daemon runs as another account, as it does in the
+container.
 
 ## A Linux desktop in a container
 
@@ -18,10 +21,16 @@ docker run -d --name agenticos-computer --shm-size=1g \
   -p 127.0.0.1:8765:8765 agenticos-computer
 ```
 
-The image runs Xvfb, XFCE and Firefox as an unprivileged user (`desk`, uid
-10001). `SCREEN_SIZE` defaults to `1280x800`. Set `VNC_PASSWORD` and publish
-port 6080 to watch the whole session in noVNC; without it, no VNC server starts,
-because VNC means full control of the desktop.
+The desktop - Xvfb, XFCE and Firefox - runs as `desk` (uid 10001), and
+computerd and the VNC server as `computerd` (uid 10002). The agent drives the
+desktop and the desktop has a terminal, so anything `desk` can read the agent
+can show on screen. `desk` cannot read the token, the VNC password or either
+process's environment. The container therefore starts as root, only to start
+each process as its account; do not run it with `--user`, and keep `SETUID` and
+`SETGID` if you drop capabilities. `SCREEN_SIZE` defaults to `1280x800`. Set
+`VNC_PASSWORD` and publish port 6080 to watch the whole session in noVNC;
+without it, no VNC server starts, because VNC means full control of the
+desktop.
 
 ## A Mac's own screen
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "7bbcbbd9841f"
+source_sha: "72251a29f0d4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -900,7 +900,9 @@ puede ejecutar `xdotool` desde la shell.
 
 Un daemon es un escritorio: cada run que apunta a él comparte la máquina y todo
 lo que tenga la sesión iniciada en ella. Dale una máquina o una cuenta propias,
-no la sesión de trabajo de alguien.
+no la sesión de trabajo de alguien. El agent puede leer todo lo que pueda leer la
+cuenta con la que se ejecuta el daemon, su token incluido; por eso el contenedor
+de `deploy/computer/` ejecuta el daemon con una cuenta propia.
 
 **El token de un daemon es de la organización.** El `COMPUTERD_TOKEN` con el que
 se arrancó el daemon se guarda en el [vault](../secrets.md) de la organización

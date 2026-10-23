@@ -34,6 +34,8 @@ The settings ask `desktop` first: `sandbox` or `daemon`.
   host; the token is what keeps one organization off another's desktop, which
   is why it is not a deployment setting.
   One daemon is one desktop: every run holding its token shares the machine.
+  The container runs computerd and the desktop as two accounts, so an agent
+  with a terminal on that desktop cannot read the token.
 
 ## Decisions
 

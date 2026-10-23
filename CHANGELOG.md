@@ -29,7 +29,8 @@ Two things are versioned separately from this file and worth knowing about:
   and Firefox), so the shell, the files and the screen are one machine and
   computer use needs no address or key of its own; or a `computerd` daemon
   the operator runs on their own Linux desktop, a Mac's own screen or a
-  container (`deploy/computer/`), on a host that
+  container (`deploy/computer/`, where the daemon and its token run as an
+  account the desktop cannot read), on a host that
   `COMPUTER_DAEMON_ALLOWED_HOSTS` allows, reached with the daemon's token
   from the organization's vault. The allowlist is checked at publish and
   again whenever a run opens the daemon. Publish refuses a sandbox desktop on

@@ -1,5 +1,5 @@
 ---
-source_sha: "7bbcbbd9841f"
+source_sha: "72251a29f0d4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -886,7 +886,9 @@ pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomi�
 
 Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
 wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
-czyjąś sesję roboczą.
+czyjąś sesję roboczą. Agent może odczytać wszystko, co może odczytać konto, na
+którym działa daemon, łącznie z jego tokenem; dlatego kontener z
+`deploy/computer/` uruchamia daemona na osobnym koncie.
 
 **Token daemona należy do organizacji.** `COMPUTERD_TOKEN`, z którym uruchomiono
 daemona, jest przechowywany w [vaulcie](../secrets.md) organizacji jako klucz API

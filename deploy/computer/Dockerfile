@@ -10,11 +10,13 @@ RUN apt-get update \
         x11vnc novnc websockify procps \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --uid 10001 --shell /bin/bash desk
+# Two accounts: `desk` is the desktop the agent drives, and `computerd` holds the
+# token. The entrypoint starts as root to split them - see entrypoint.sh.
+RUN useradd --create-home --uid 10001 --shell /bin/bash desk \
+    && useradd --system --uid 10002 --no-create-home --shell /usr/sbin/nologin computerd
 COPY --chmod=0755 computerd.py /opt/computerd/computerd.py
 COPY --chmod=0755 entrypoint.sh /opt/computerd/entrypoint.sh
 
-USER desk
 WORKDIR /home/desk
 # Without a UTF-8 locale the desktop's apps drop every non-ASCII character typed into them.
 ENV DISPLAY=:0 \
